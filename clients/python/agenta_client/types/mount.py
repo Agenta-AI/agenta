@@ -22,6 +22,7 @@ class Mount(UniversalBaseModel):
     id: typing.Optional[str] = None
     project_id: str
     session_id: typing.Optional[str] = None
+    agent_id: typing.Optional[str] = None
     data: typing.Optional[MountData] = None
     flags: typing.Optional[MountFlags] = None
     tags: typing.Optional[typing.Dict[str, typing.Any]] = None

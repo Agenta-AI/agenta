@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from agenta.sdk.engines.running.errors import ERRORS_BASE_URL, ErrorStatus
 
-from .dtos import HarnessType
+from .dtos import HarnessKind
 from .tools.errors import ToolResolutionError
 
 __all__ = [
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 class UnsupportedHarnessError(RuntimeError):
     """Raised when a harness is asked to run on a backend that cannot drive it."""
 
-    def __init__(self, harness: HarnessType, backend: "Backend") -> None:
+    def __init__(self, harness: HarnessKind, backend: "Backend") -> None:
         supported = ", ".join(sorted(h.value for h in backend.supported_harnesses))
         super().__init__(
             f"{type(backend).__name__} cannot drive harness '{harness.value}'; "

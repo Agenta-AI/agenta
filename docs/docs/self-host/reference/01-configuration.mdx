@@ -218,12 +218,14 @@ run multiple runners, use the Daytona provider, whose sessions any runner can re
 ### Routing and authentication
 
 These locate the runner and authenticate the call. Two of the three are caller-side: the Services
-API and its SDK read them, not the runner.
+API and its SDK read them, not the runner. The platform API also reads the locator and token
+directly, for the session `kill` verb's sandbox teardown (`POST /kill` on the runner) — a second,
+independent caller of the same runner HTTP surface, not routed through Services.
 
 | Variable | Role | Read by | Default | Secret | Helm |
 |---|---|---|---|---|---|
-| `AGENTA_RUNNER_INTERNAL_URL` | Runner locator | Services API (caller-side) | Compose: `http://runner:8765` | no | `agentRunner.externalUrl`, else derived from `agentRunner.enabled` |
-| `AGENTA_RUNNER_TOKEN` | Shared request credential | Services sends it; runner verifies it | **Required — no default** | yes | `agenta.runnerToken`, or `agentRunner.auth.tokenSecretRef` to source it from your own Secret |
+| `AGENTA_RUNNER_INTERNAL_URL` | Runner locator | Services API and the platform API (both caller-side) | Compose: `http://runner:8765` | no | `agentRunner.externalUrl`, else derived from `agentRunner.enabled` |
+| `AGENTA_RUNNER_TOKEN` | Shared request credential | Services and the platform API send it; runner verifies it | **Required — no default** | yes | `agenta.runnerToken`, or `agentRunner.auth.tokenSecretRef` to source it from your own Secret |
 | `AGENTA_RUNNER_TIMEOUT_SECONDS` | Idle timeout the caller allows on the run request | Services API and SDK (caller-side) | `360` | no | n/a |
 
 `AGENTA_RUNNER_TOKEN` is **required**, like `AGENTA_AUTH_KEY`. The runner refuses to start without
@@ -242,11 +244,11 @@ Kubernetes, set `agenta.runnerToken` (the chart fails to render without it), or 
 The token is defense in depth on top of network isolation, not a replacement for it: keep the runner
 on a private network and never publish its port.
 
-`AGENTA_RUNNER_TOKEN` is the same credential at both ends. It does not belong to a sandbox or a
-harness. The runner refuses to start without it and rejects any un-tokened request with `401`; there
-is no unauthenticated mode. Set the same value on the runner and on the Services API; in Helm, point
-`agentRunner.auth.tokenSecretRef` at a Secret holding it — the chart injects the same value into both
-the runner and the Services deployment.
+`AGENTA_RUNNER_TOKEN` is the same credential across all parties. It does not belong to a sandbox or
+a harness. The runner refuses to start without it and rejects any un-tokened request with `401`;
+there is no unauthenticated mode. Set the same value on the runner, the Services API, and the
+platform API; in Helm, point `agentRunner.auth.tokenSecretRef` at a Secret holding it — the chart
+injects the same value into the runner, Services, and API deployments.
 
 `AGENTA_RUNNER_TIMEOUT_SECONDS` bounds idle time on the caller's streaming transport, not the total
 run duration, and the runner never reads it. The runner enforces its own deadlines through

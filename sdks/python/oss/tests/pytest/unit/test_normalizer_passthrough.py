@@ -161,6 +161,102 @@ class TestRequestNormalization:
         assert request.session_id == sid
         assert response.session_id == sid
 
+    @pytest.mark.asyncio
+    async def test_call_stores_agent_id_from_running_context_revision(
+        self, monkeypatch
+    ):
+        import agenta as ag
+
+        class _TracingSpy:
+            def __init__(self):
+                self.store_session_calls = []
+                self.store_agent_calls = []
+
+            def store_session(self, session_id):
+                self.store_session_calls.append(session_id)
+
+            def store_agent(self, agent_id):
+                self.store_agent_calls.append(agent_id)
+
+        spy = _TracingSpy()
+        monkeypatch.setattr(ag, "tracing", spy, raising=False)
+
+        def handler(request):
+            return {"ok": True}
+
+        request = WorkflowServiceRequest(
+            session_id="sess_agent_test",
+            data=WorkflowRequestData(),
+        )
+
+        token = RunningContext.set(
+            RunningContext(
+                handler=handler,
+                revision={"artifact_id": "workflow-abc"},
+            )
+        )
+        try:
+            await NormalizerMiddleware()(request, lambda req: None)
+        finally:
+            RunningContext.reset(token)
+
+        assert spy.store_agent_calls == ["workflow-abc"]
+        assert spy.store_session_calls == ["sess_agent_test"]
+
+    @pytest.mark.asyncio
+    async def test_call_does_not_store_agent_id_when_revision_missing(
+        self, monkeypatch
+    ):
+        import agenta as ag
+
+        class _TracingSpy:
+            def __init__(self):
+                self.store_agent_calls = []
+
+            def store_session(self, session_id):
+                pass
+
+            def store_agent(self, agent_id):
+                self.store_agent_calls.append(agent_id)
+
+        spy = _TracingSpy()
+        monkeypatch.setattr(ag, "tracing", spy, raising=False)
+
+        def handler(request):
+            return {"ok": True}
+
+        request = WorkflowServiceRequest(data=WorkflowRequestData())
+
+        token = RunningContext.set(RunningContext(handler=handler))
+        try:
+            await NormalizerMiddleware()(request, lambda req: None)
+        finally:
+            RunningContext.reset(token)
+
+        assert spy.store_agent_calls == []
+
+
+class TestResolveAgentId:
+    def test_resolves_artifact_id_from_revision(self):
+        ctx = RunningContext(revision={"artifact_id": "wf-1"})
+        assert NormalizerMiddleware._resolve_agent_id(ctx) == "wf-1"
+
+    def test_falls_back_to_workflow_id_alias(self):
+        ctx = RunningContext(revision={"workflow_id": "wf-2"})
+        assert NormalizerMiddleware._resolve_agent_id(ctx) == "wf-2"
+
+    def test_none_when_revision_missing(self):
+        ctx = RunningContext()
+        assert NormalizerMiddleware._resolve_agent_id(ctx) is None
+
+    def test_none_when_revision_not_a_dict(self):
+        ctx = RunningContext.model_construct(revision="not-a-dict")
+        assert NormalizerMiddleware._resolve_agent_id(ctx) is None
+
+    def test_none_when_artifact_id_absent(self):
+        ctx = RunningContext(revision={"id": "rev-1"})
+        assert NormalizerMiddleware._resolve_agent_id(ctx) is None
+
 
 class TestAsyncGenerator:
     @pytest.mark.asyncio

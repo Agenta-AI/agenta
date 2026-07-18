@@ -4,11 +4,11 @@ Edits the Redis nest (alive ⊇ running ⊇ attached) and mirrors it to the dura
 session_streams row. Runs nothing itself: the runner (execution plane) is the only
 component that runs an agent.
 
-Command matrix (prompt × force):
-  prompt + no force  → SEND   (409 if alive)
-  prompt + force     → STEER  (cancel holder, start a new turn)
-  no prompt + no f.  → CANCEL (cancel holder, run nothing)
-  no prompt + force  → ATTACH (steal attached, watch the live turn)
+Command matrix (inputs/data × force):
+  inputs + no force  → SEND   (409 if alive)
+  inputs + force     → STEER  (cancel holder, start a new turn)
+  no inputs + no f.  → CANCEL (cancel holder, run nothing)
+  no inputs + force  → ATTACH (steal attached, watch the live turn)
   detach / kill      → explicit lifecycle edits (see methods)
 """
 
@@ -47,6 +47,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamCreate,
     SessionStreamEdit,
     SessionStreamFlags,
+    SessionStreamHeaderEdit,
     SessionStreamQuery,
 )
 from oss.src.core.sessions.streams.types import (
@@ -56,6 +57,8 @@ from oss.src.core.sessions.streams.types import (
     SessionTurnInUse,
 )
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
+from oss.src.core.sessions.streams.runner_client import kill_runner_sandbox
+from oss.src.core.shared.dtos import Windowing
 
 log = get_module_logger(__name__)
 
@@ -84,13 +87,13 @@ class SessionStreamsService:
     ) -> SessionStreamCommandResponse:
         _validate_session_id(request.session_id)
 
-        has_prompt = bool(request.prompt and request.prompt.strip())
+        has_inputs = bool(request.data and request.data.inputs)
 
-        if has_prompt and not request.force:
+        if has_inputs and not request.force:
             mode = CommandMode.send
-        elif has_prompt and request.force:
+        elif has_inputs and request.force:
             mode = CommandMode.steer
-        elif not has_prompt and not request.force:
+        elif not has_inputs and not request.force:
             mode = CommandMode.cancel
         else:
             mode = CommandMode.attach
@@ -203,11 +206,15 @@ class SessionStreamsService:
         user_id: Optional[UUID],
         session_id: str,
     ) -> bool:
-        """KILL: collapse the whole nest and end the stream.
+        """KILL: tear down the sandbox and collapse the whole nest. KILL != CANCEL — cancel
+        only ends the current turn (the session/sandbox can resume); kill ends the session.
 
         Force-clears alive + running + attached + owner in Redis (losing the alive lock is
-        the runner's existing teardown signal), marks the row ended, and soft-deletes it.
-        Idempotent: a kill on an already-dead session is a no-op success.
+        the runner's existing teardown signal for its OWN in-process bookkeeping), calls the
+        runner's `/kill` directly so the actual sandbox is torn down rather than left to its
+        own idle-TTL eviction (W7.3 — a bare Redis/row edit is not sandbox teardown), marks the
+        row ended, and soft-deletes it. Idempotent: a kill on an already-dead session, or one
+        whose runner replica is unreachable, is still a no-op success (best-effort teardown).
         """
         _validate_session_id(session_id)
         await force_cancel_alive(
@@ -235,6 +242,9 @@ class SessionStreamsService:
             session_id=session_id,
             watcher_id=throwaway,
         )
+        # Best-effort: the Redis/row edit above is authoritative and must not depend on this
+        # succeeding — see runner_client.kill_runner_sandbox's docstring.
+        await kill_runner_sandbox(project_id=str(project_id), session_id=session_id)
         await self._mark_stream_ended(
             project_id=project_id,
             user_id=user_id,
@@ -269,7 +279,29 @@ class SessionStreamsService:
                 project_id=project_id,
                 session_id=request.session_id,
             )
-            return SessionHeartbeatResult(stream=stream, replica_id=owner)
+            return SessionHeartbeatResult(
+                stream=stream, replica_id=owner, is_current_turn=False
+            )
+
+        # True only when this turn_id still (or again, uninterrupted) owns the alive lock at
+        # the moment of this heartbeat. A cancel/steer/kill deletes the alive key entirely,
+        # which the nx=True re-acquire below would otherwise silently re-establish under the
+        # SAME turn_id, masking the interruption from the runner's watchdog (W7.4 — this is
+        # what `is_current_turn` exists to surface). An absent key is ambiguous by itself: it
+        # is also the normal state before this turn's VERY FIRST heartbeat (the API's
+        # `_start_turn` acquire may not have landed yet, or this beat wins a race with it), and
+        # that is NOT an interruption. Disambiguate with the durable row's `turn_id`: if it
+        # already recorded THIS turn_id as established (a prior heartbeat's write), the key
+        # being gone now is something else's doing; if the row shows no turn yet, or a
+        # different one, this is establishment.
+        prior_stream = await self._dao.get_by_session_id(
+            project_id=project_id,
+            session_id=request.session_id,
+        )
+        turn_was_established = bool(
+            prior_stream and prior_stream.turn_id == request.turn_id
+        )
+        is_current_turn = True
 
         if request.turn_id and request.is_running:
             # Acquire-then-refresh: the first heartbeat must establish the nest locks
@@ -280,6 +312,8 @@ class SessionStreamsService:
                 session_id=request.session_id,
                 turn_id=request.turn_id,
             ):
+                if turn_was_established:
+                    is_current_turn = False
                 await acquire_alive(
                     self._lock,
                     project_id=str(project_id),
@@ -292,6 +326,8 @@ class SessionStreamsService:
                 session_id=request.session_id,
                 turn_id=request.turn_id,
             ):
+                if turn_was_established:
+                    is_current_turn = False
                 await acquire_running(
                     self._lock,
                     project_id=str(project_id),
@@ -314,10 +350,9 @@ class SessionStreamsService:
             is_attached=liveness["attached"],
         )
 
-        stream = await self._dao.get_by_session_id(
-            project_id=project_id,
-            session_id=request.session_id,
-        )
+        # Nothing between `prior_stream`'s fetch above and here mutates the row, so it is
+        # still the current read — no need to re-fetch.
+        stream = prior_stream
 
         if stream is None:
             try:
@@ -344,6 +379,7 @@ class SessionStreamsService:
         return SessionHeartbeatResult(
             stream=stream,
             replica_id=owner,
+            is_current_turn=is_current_turn,
         )
 
     async def fetch(
@@ -372,15 +408,124 @@ class SessionStreamsService:
         stream.flags = flags
         return stream
 
+    async def fetch_header(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> Optional[SessionStream]:
+        """Fetch the session header (name/description/flags/lifecycle) — used by
+        GET /sessions/streams/. Reads the same reconciled row as `fetch`.
+        """
+        return await self.fetch(project_id=project_id, session_id=session_id)
+
+    async def set_header(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+        header: SessionStreamHeaderEdit,
+    ) -> Optional[SessionStream]:
+        """The rename edit: full-PUT {name, description} onto the merged stream row.
+
+        Pure DB write — no Redis nest interaction, no flags/turn_id touched. Off the
+        runner's write path. Creates the row if the session has never heartbeat/run
+        yet (a caller may name a session before its first turn), mirroring
+        `_start_turn`'s create-or-update pattern.
+        """
+        _validate_session_id(session_id)
+        updated = await self._dao.update_header(
+            project_id=project_id,
+            user_id=user_id,
+            session_id=session_id,
+            header=header,
+        )
+        if updated is not None:
+            return updated
+        try:
+            return await self._dao.create(
+                project_id=project_id,
+                user_id=user_id,
+                stream=SessionStreamCreate(
+                    session_id=session_id,
+                    name=header.name,
+                    description=header.description,
+                ),
+            )
+        except SessionStreamAlreadyExists:
+            # A concurrent first touch (heartbeat/rename) won the race; the row now
+            # exists — apply the header edit onto it.
+            return await self._dao.update_header(
+                project_id=project_id,
+                user_id=user_id,
+                session_id=session_id,
+                header=header,
+            )
+
     async def query_streams(
         self,
         *,
         project_id: UUID,
         filter: SessionStreamQuery,
+        windowing: Optional[Windowing] = None,
+        session_ids: Optional[List[str]] = None,
     ) -> List[SessionStream]:
         if filter.session_id:
             _validate_session_id(filter.session_id)
-        return await self._dao.query(project_id=project_id, filter=filter)
+        return await self._dao.query(
+            project_id=project_id,
+            filter=filter,
+            windowing=windowing,
+            session_ids=session_ids,
+        )
+
+    async def hard_delete(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> bool:
+        """Hard delete the merged stream row (S7 delete fan-out, WP5). Distinct
+        from `kill`, which only soft-deletes via `delete_by_session_id`."""
+        _validate_session_id(session_id)
+        return await self._dao.hard_delete_by_session_id(
+            project_id=project_id,
+            session_id=session_id,
+        )
+
+    async def archive(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> Optional[SessionStream]:
+        """Soft-archive the stream row (S7/F2 archive fan-out, WP5). Returns the
+        archived row (`deleted_at` set) as the caller's confirmation read."""
+        _validate_session_id(session_id)
+        await self._dao.delete_by_session_id(
+            project_id=project_id,
+            session_id=session_id,
+        )
+        return await self._dao.get_by_session_id_including_archived(
+            project_id=project_id,
+            session_id=session_id,
+        )
+
+    async def unarchive(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+    ) -> Optional[SessionStream]:
+        """Reverse of `archive`: clears `deleted_at` on the stream row."""
+        _validate_session_id(session_id)
+        return await self._dao.unarchive_by_session_id(
+            project_id=project_id,
+            user_id=user_id,
+            session_id=session_id,
+        )
 
     async def check_runner_concurrency_limit(self, *, project_id: UUID) -> None:
         """Raise ConcurrencyLimitExceeded if the per-project limit is reached."""

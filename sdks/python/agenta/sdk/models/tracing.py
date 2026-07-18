@@ -203,6 +203,12 @@ class Span(Lifecycle):
     status_code: Optional[OTelStatusCode] = None
     status_message: Optional[str] = None
 
+    # Root-span-only (parent_id is None); lifted from ag.session/user/agent
+    # attributes at ingestion. Never set on child spans.
+    session_id: Optional[str] = None
+    user_id: Optional[str] = None
+    agent_id: Optional[str] = None
+
     attributes: Optional[OTelAttributes] = None
     references: Optional[OTelReferences] = None
     links: Optional[OTelLinks] = None

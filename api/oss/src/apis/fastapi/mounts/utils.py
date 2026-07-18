@@ -168,6 +168,7 @@ async def sign_mount_credentials(
 def merge_mount_query(
     *,
     session_id: Optional[str] = None,
+    agent_id: Optional[str] = None,
     include_archived: bool = False,
     body_query: Optional[MountQuery] = None,
 ) -> MountQuery:
@@ -176,6 +177,9 @@ def merge_mount_query(
 
     if session_id is not None:
         base.session_id = session_id
+
+    if agent_id is not None:
+        base.agent_id = agent_id
 
     if include_archived:
         base.include_archived = include_archived

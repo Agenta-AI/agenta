@@ -1,10 +1,19 @@
 """Unified sessions API router.
 
-Composes four sub-domain routers:
+Composes the sub-domain routers:
   - SessionStreamsRouter  — /sessions/streams/*
-  - SessionStatesRouter  — /sessions/states/
   - RecordsRouter        — /sessions/records/*
   - InteractionsRouter   — /sessions/interactions/*
+  - SessionTurnsRouter    — /sessions/turns/*
+  - SessionsRootRouter    — /sessions/query, /sessions/ (DELETE),
+                            /sessions/archive, /sessions/unarchive
+
+peek (S12/E1) is NOT a verb and NOT a server-side aggregate. It is the front-end
+composing the individual reads already exposed here:
+  1. `POST /sessions/query` (this router)  -> a list of session_ids.
+  2. Per session_id: `GET /sessions/streams/?session_id=` (fetch the stream),
+     `POST /sessions/turns/query` (turns), `POST /sessions/records/query`
+     (records). No overlay/aggregate endpoint exists or is planned.
 """
 
 import re
@@ -25,7 +34,10 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 # Core domain imports — new paths
 from oss.src.core.sessions.streams.dtos import (
     SessionHeartbeatRequest,
+    SessionHeartbeatResult,
     SessionStreamCommandRequest,
+    SessionStreamCommandResponse,
+    SessionStreamHeaderEdit,
     SessionStreamQuery,
     SessionStreamQueryFlags,
 )
@@ -37,8 +49,6 @@ from oss.src.core.sessions.streams.types import (
     SessionStreamNotFound,
 )
 from oss.src.core.sessions.streams.service import SessionStreamsService
-from oss.src.core.sessions.states.service import SessionStatesService
-from oss.src.core.sessions.states.dtos import SessionStateUpsert
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.records.dtos import SessionRecordEvent
 from oss.src.core.sessions.records.streaming import publish_record
@@ -51,6 +61,10 @@ from oss.src.core.sessions.interactions.service import SessionInteractionsServic
 from oss.src.core.sessions.interactions.types import InteractionNotFound
 from oss.src.core.sessions.mounts.service import SessionMountsService
 from oss.src.core.sessions.mounts.dtos import SessionMountQuery
+from oss.src.core.sessions.turns.dtos import SessionTurnCreate
+from oss.src.core.sessions.turns.service import SessionTurnsService
+from oss.src.core.sessions.dtos import SessionQuery
+from oss.src.core.sessions.service import SessionsService
 from oss.src.core.mounts.service import MountsService
 from oss.src.apis.fastapi.mounts.router import handle_mount_exceptions
 from oss.src.apis.fastapi.mounts.utils import (
@@ -70,17 +84,10 @@ from oss.src.core.workflows.service import WorkflowsService
 
 from oss.src.apis.fastapi.sessions.models import (
     # streams
-    SessionDetachRequestModel,
-    SessionHeartbeatRequestModel,
-    SessionHeartbeatResponseModel,
-    SessionStreamCommandRequestModel,
-    SessionStreamCommandResponseModel,
-    SessionStreamQueryRequestModel,
-    SessionStreamResponseModel,
-    SessionStreamsResponseModel,
-    # states
-    SessionStateResponse,
-    SessionStateUpsertRequest,
+    SessionDetachRequest,
+    SessionStreamQueryRequest,
+    SessionStreamResponse,
+    SessionStreamsResponse,
     # records
     SessionRecordIngestRequest,
     SessionRecordQueryRequest,
@@ -98,6 +105,15 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionMountQueryRequest,
     SessionMountResponse,  # noqa: F401  (exported for OpenAPI/single-mount future use)
     SessionMountsResponse,
+    # turns
+    SessionTurnAppendRequest,
+    SessionTurnQueryRequest,
+    SessionTurnResponse,
+    SessionTurnsResponse,
+    # root session-level ops
+    SessionQueryRequest,
+    SessionResponse,
+    SessionsResponse,
 )
 
 log = get_module_logger(__name__)
@@ -217,13 +233,21 @@ class SessionStreamsRouter:
             tags=["Sessions"],
         )
 
+        self.router.add_api_route(
+            "/sessions/streams/header",
+            self.set_session_stream_header,
+            methods=["PUT", "POST"],
+            operation_id="set_session_stream_header",
+            tags=["Sessions"],
+        )
+
     @intercept_exceptions()
     @_handle_session_exceptions()
     async def set_session_stream(
         self,
         request: Request,
-        payload: SessionStreamCommandRequestModel,
-    ) -> SessionStreamCommandResponseModel:
+        payload: SessionStreamCommandRequest,
+    ) -> SessionStreamCommandResponse:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
@@ -237,22 +261,10 @@ class SessionStreamsRouter:
 
         await self._service.check_runner_concurrency_limit(project_id=project_id)
 
-        result = await self._service.command(
+        return await self._service.command(
             project_id=project_id,
             user_id=user_id,
-            request=SessionStreamCommandRequest(
-                session_id=payload.session_id,
-                prompt=payload.prompt,
-                force=payload.force,
-                detached=payload.detached,
-            ),
-        )
-        return SessionStreamCommandResponseModel(
-            mode=result.mode,
-            session_id=result.session_id,
-            turn_id=result.turn_id,
-            watcher_id=result.watcher_id,
-            detached=result.detached,
+            request=payload,
         )
 
     @intercept_exceptions()
@@ -261,7 +273,7 @@ class SessionStreamsRouter:
         self,
         request: Request,
         session_id: str = Query(...),
-    ) -> SessionStreamResponseModel:
+    ) -> SessionStreamResponse:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
@@ -277,7 +289,7 @@ class SessionStreamsRouter:
             project_id=UUID(str(project_id)),
             session_id=session_id,
         )
-        return SessionStreamResponseModel(stream=stream)
+        return SessionStreamResponse(stream=stream)
 
     @intercept_exceptions()
     @_handle_session_exceptions()
@@ -314,7 +326,7 @@ class SessionStreamsRouter:
     async def detach_session_stream(
         self,
         request: Request,
-        payload: SessionDetachRequestModel,
+        payload: SessionDetachRequest,
     ) -> dict:
         project_id = request.state.project_id
         user_id = request.state.user_id
@@ -340,8 +352,8 @@ class SessionStreamsRouter:
     async def heartbeat_session_stream(
         self,
         request: Request,
-        payload: SessionHeartbeatRequestModel,
-    ) -> SessionHeartbeatResponseModel:
+        payload: SessionHeartbeatRequest,
+    ) -> SessionHeartbeatResult:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
@@ -353,18 +365,9 @@ class SessionStreamsRouter:
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
-        result = await self._service.heartbeat(
+        return await self._service.heartbeat(
             project_id=project_id,
-            request=SessionHeartbeatRequest(
-                session_id=payload.session_id,
-                replica_id=payload.replica_id,
-                turn_id=payload.turn_id,
-                is_running=payload.is_running,
-            ),
-        )
-        return SessionHeartbeatResponseModel(
-            stream=result.stream,
-            replica_id=result.replica_id,
+            request=payload,
         )
 
     @intercept_exceptions()
@@ -372,8 +375,8 @@ class SessionStreamsRouter:
     async def query_session_streams(
         self,
         request: Request,
-        payload: SessionStreamQueryRequestModel,
-    ) -> SessionStreamsResponseModel:
+        payload: SessionStreamQueryRequest,
+    ) -> SessionStreamsResponse:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
@@ -395,70 +398,17 @@ class SessionStreamsRouter:
                 ),
             ),
         )
-        return SessionStreamsResponseModel(count=len(streams), streams=streams)
-
-
-class SessionStatesRouter:
-    """States sub-router — /sessions/states/?session_id=..."""
-
-    __test__ = False
-
-    def __init__(self, *, session_states_service: SessionStatesService):
-        self.session_states_service = session_states_service
-        self.router = APIRouter()
-
-        self.router.add_api_route(
-            "/states/",
-            self.get_session_state,
-            methods=["GET"],
-            operation_id="get_state",
-            status_code=status.HTTP_200_OK,
-            response_model=SessionStateResponse,
-            response_model_exclude_none=True,
-        )
-        self.router.add_api_route(
-            "/states/",
-            self.set_session_state,
-            methods=["PUT", "POST"],
-            operation_id="set_state",
-            status_code=status.HTTP_200_OK,
-            response_model=SessionStateResponse,
-            response_model_exclude_none=True,
-        )
+        return SessionStreamsResponse(count=len(streams), streams=streams)
 
     @intercept_exceptions()
-    async def get_session_state(
+    @_handle_session_exceptions()
+    async def set_session_stream_header(
         self,
         request: Request,
         *,
+        header: SessionStreamHeaderEdit,
         session_id: str = Query(...),
-    ) -> SessionStateResponse:
-        _validate_session_id_http(session_id)
-
-        if not await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.VIEW_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
-
-        session_state = await self.session_states_service.get_session_state(
-            project_id=UUID(request.state.project_id),
-            session_id=session_id,
-        )
-        return SessionStateResponse(
-            count=1 if session_state else 0,
-            session_state=session_state,
-        )
-
-    @intercept_exceptions()
-    async def set_session_state(
-        self,
-        request: Request,
-        *,
-        session_state_upsert_request: SessionStateUpsertRequest,
-        session_id: str = Query(...),
-    ) -> SessionStateResponse:
+    ) -> SessionStreamResponse:
         _validate_session_id_http(session_id)
 
         if not await check_action_access(
@@ -468,18 +418,13 @@ class SessionStatesRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
-        session_state = await self.session_states_service.set_session_state(
+        stream = await self._service.set_header(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             session_id=session_id,
-            upsert=SessionStateUpsert(
-                **session_state_upsert_request.model_dump(exclude_unset=True)
-            ),
+            header=header,
         )
-        return SessionStateResponse(
-            count=1 if session_state else 0,
-            session_state=session_state,
-        )
+        return SessionStreamResponse(stream=stream)
 
 
 class RecordsRouter:
@@ -584,6 +529,8 @@ class RecordsRouter:
                 record_type=body.record_type,
                 record_source=body.record_source,
                 attributes=body.attributes,
+                turn_id=body.turn_id,
+                span_id=body.span_id,
             ),
         )
         return {"ok": True}
@@ -1085,6 +1032,270 @@ class SessionMountsRouter:
         )
 
 
+class SessionTurnsRouter:
+    """Turns sub-router — /sessions/turns/*"""
+
+    def __init__(self, *, turns_service: SessionTurnsService) -> None:
+        self.turns_service = turns_service
+        self.router = APIRouter()
+
+        self.router.add_api_route(
+            "/",
+            self.append_turn,
+            methods=["POST"],
+            operation_id="append_turn",
+            status_code=status.HTTP_200_OK,
+            response_model=SessionTurnResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/query",
+            self.query_turns,
+            methods=["POST"],
+            operation_id="query_turns",
+            status_code=status.HTTP_200_OK,
+            response_model=SessionTurnsResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/{turn_id}",
+            self.fetch_turn,
+            methods=["GET"],
+            operation_id="fetch_turn",
+            status_code=status.HTTP_200_OK,
+            response_model=SessionTurnResponse,
+            response_model_exclude_none=True,
+        )
+
+    @intercept_exceptions()
+    async def append_turn(
+        self,
+        request: Request,
+        body: SessionTurnAppendRequest,
+    ) -> SessionTurnResponse:
+        project_id: UUID = request.state.project_id
+        user_id: UUID = request.state.user_id
+
+        if not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.RUN_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        turn = await self.turns_service.append_turn(
+            project_id=project_id,
+            user_id=user_id,
+            turn=SessionTurnCreate(
+                session_id=body.session_id,
+                stream_id=body.stream_id,
+                turn_index=body.turn_index,
+                harness_kind=body.harness_kind,
+                agent_session_id=body.agent_session_id,
+                sandbox_id=body.sandbox_id,
+                references=body.references,
+                trace_id=body.trace_id,
+                span_id=body.span_id,
+                start_time=body.start_time,
+                end_time=body.end_time,
+            ),
+        )
+        return SessionTurnResponse(count=1, turn=turn)
+
+    @intercept_exceptions()
+    async def query_turns(
+        self,
+        request: Request,
+        body: SessionTurnQueryRequest,
+    ) -> SessionTurnsResponse:
+        project_id: UUID = request.state.project_id
+        user_id: UUID = request.state.user_id
+
+        if not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.VIEW_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        turns = await self.turns_service.query_turns(
+            project_id=project_id,
+            query=body.query,
+            windowing=body.windowing,
+        )
+        return SessionTurnsResponse(count=len(turns), turns=turns)
+
+    @intercept_exceptions()
+    async def fetch_turn(
+        self,
+        request: Request,
+        turn_id: UUID,
+    ) -> SessionTurnResponse:
+        project_id: UUID = request.state.project_id
+        user_id: UUID = request.state.user_id
+
+        if not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.VIEW_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        turn = await self.turns_service.fetch_turn(
+            project_id=project_id,
+            turn_id=turn_id,
+        )
+        return SessionTurnResponse(count=1 if turn else 0, turn=turn)
+
+
+class SessionsRootRouter:
+    """Root session-level operations — /sessions/query, /sessions/ (DELETE),
+    /sessions/archive, /sessions/unarchive.
+
+    Orchestrates across facets via `SessionsService`, anchored on `session_id`
+    (never `stream_id`). RBAC: VIEW_SESSIONS for query, EDIT_SESSIONS for the
+    three mutations.
+    """
+
+    def __init__(self, *, sessions_service: SessionsService) -> None:
+        self.sessions_service = sessions_service
+        self.router = APIRouter()
+
+        self.router.add_api_route(
+            "/sessions/query",
+            self.query_sessions,
+            methods=["POST"],
+            operation_id="query_sessions",
+            status_code=status.HTTP_200_OK,
+            response_model=SessionsResponse,
+            response_model_exclude_none=True,
+            tags=["Sessions"],
+        )
+        self.router.add_api_route(
+            "/sessions/",
+            self.delete_session,
+            methods=["DELETE"],
+            operation_id="delete_session",
+            status_code=status.HTTP_200_OK,
+            tags=["Sessions"],
+        )
+        self.router.add_api_route(
+            "/sessions/archive",
+            self.archive_session,
+            methods=["POST"],
+            operation_id="archive_session",
+            status_code=status.HTTP_200_OK,
+            response_model=SessionResponse,
+            response_model_exclude_none=True,
+            tags=["Sessions"],
+        )
+        self.router.add_api_route(
+            "/sessions/unarchive",
+            self.unarchive_session,
+            methods=["POST"],
+            operation_id="unarchive_session",
+            status_code=status.HTTP_200_OK,
+            response_model=SessionResponse,
+            response_model_exclude_none=True,
+            tags=["Sessions"],
+        )
+
+    @intercept_exceptions()
+    async def query_sessions(
+        self,
+        request: Request,
+        body: SessionQueryRequest,
+    ) -> SessionsResponse:
+        project_id = request.state.project_id
+        user_id = request.state.user_id
+
+        if not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.VIEW_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        sessions = await self.sessions_service.query_sessions(
+            project_id=UUID(str(project_id)),
+            query=SessionQuery(references=body.references),
+            windowing=body.windowing,
+        )
+        return SessionsResponse(count=len(sessions), sessions=sessions)
+
+    @intercept_exceptions()
+    async def delete_session(
+        self,
+        request: Request,
+        session_id: str = Query(...),
+    ) -> dict:
+        _validate_session_id_http(session_id)
+        project_id = request.state.project_id
+        user_id = request.state.user_id
+
+        if not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.EDIT_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        await self.sessions_service.delete_session(
+            project_id=UUID(str(project_id)),
+            user_id=UUID(str(user_id)),
+            session_id=session_id,
+        )
+        return {"ok": True}
+
+    @intercept_exceptions()
+    async def archive_session(
+        self,
+        request: Request,
+        session_id: str = Query(...),
+    ) -> SessionResponse:
+        _validate_session_id_http(session_id)
+        project_id = request.state.project_id
+        user_id = request.state.user_id
+
+        if not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.EDIT_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        session = await self.sessions_service.archive_session(
+            project_id=UUID(str(project_id)),
+            user_id=UUID(str(user_id)),
+            session_id=session_id,
+        )
+        return SessionResponse(count=1 if session else 0, session=session)
+
+    @intercept_exceptions()
+    async def unarchive_session(
+        self,
+        request: Request,
+        session_id: str = Query(...),
+    ) -> SessionResponse:
+        _validate_session_id_http(session_id)
+        project_id = request.state.project_id
+        user_id = request.state.user_id
+
+        if not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.EDIT_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        session = await self.sessions_service.unarchive_session(
+            project_id=UUID(str(project_id)),
+            user_id=UUID(str(user_id)),
+            session_id=session_id,
+        )
+        return SessionResponse(count=1 if session else 0, session=session)
+
+
 # ---------------------------------------------------------------------------
 # Top-level composer
 # ---------------------------------------------------------------------------
@@ -1095,29 +1306,30 @@ class SessionsRouter:
 
     The entrypoint mounts:
       sessions_router.streams.router               → no prefix (paths include /sessions/streams/…)
-      sessions_router.states.router                → prefix /sessions
       sessions_router.records.router               → prefix /sessions/records
       sessions_router.interactions.router          → prefix /sessions/interactions
       sessions_router.mounts.router                → prefix /sessions
+      sessions_router.turns.router                 → prefix /sessions/turns
+      sessions_router.root.router                  → no prefix (paths include /sessions/query, /sessions/, /sessions/archive, /sessions/unarchive)
     """
 
     def __init__(
         self,
         *,
         streams_service: SessionStreamsService,
-        states_service: SessionStatesService,
         records_service: RecordsService,
         interactions_service: SessionInteractionsService,
         workflows_service: WorkflowsService,
         session_mounts_service: SessionMountsService,
         mounts_service: MountsService,
+        turns_service: SessionTurnsService,
+        sessions_service: SessionsService,
         respond_task: Optional[Any] = None,
     ) -> None:
         self.streams = SessionStreamsRouter(
             service=streams_service,
             interactions_service=interactions_service,
         )
-        self.states = SessionStatesRouter(session_states_service=states_service)
         self.records = RecordsRouter(records_service=records_service)
         self.interactions = InteractionsRouter(
             interactions_service=interactions_service,
@@ -1128,3 +1340,5 @@ class SessionsRouter:
             session_mounts_service=session_mounts_service,
             mounts_service=mounts_service,
         )
+        self.turns = SessionTurnsRouter(turns_service=turns_service)
+        self.root = SessionsRootRouter(sessions_service=sessions_service)

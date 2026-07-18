@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from oss.src.core.shared.dtos import Reference, Selector
+from oss.src.core.shared.dtos import Identifier, Lifecycle, Reference, Selector
 
 
 class SessionInteractionKind(str, Enum):
@@ -38,16 +38,7 @@ class SessionInteractionQueryFlags(BaseModel):
     delivered_webhook: Optional[bool] = None
 
 
-class SessionInteraction(BaseModel):
-    id: Optional[UUID] = None
-    #
-    created_at: Optional[Any] = None
-    updated_at: Optional[Any] = None
-    deleted_at: Optional[Any] = None
-    created_by_id: Optional[UUID] = None
-    updated_by_id: Optional[UUID] = None
-    deleted_by_id: Optional[UUID] = None
-    #
+class SessionInteraction(Identifier, Lifecycle):
     project_id: Optional[UUID] = None
     session_id: str
     turn_id: Optional[str] = None

@@ -47,24 +47,6 @@ export const sessionRecordsQueryResponseSchema = z.object({
 export type SessionRecord = z.infer<typeof sessionRecordSchema>
 export type SessionRecordsQueryResponse = z.infer<typeof sessionRecordsQueryResponseSchema>
 
-/** Durable SDK record + sandbox resume pointer. `data` is the opaque SDK `SessionRecord`. */
-export const sessionStateSchema = z.object({
-    session_id: z.string(),
-    data: z.record(z.string(), z.unknown()).nullish(),
-    sandbox_id: z.string().nullish(),
-    id: z.string().nullish(),
-    project_id: z.string().nullish(),
-    created_at: z.string().nullish(),
-    updated_at: z.string().nullish(),
-})
-
-export const sessionStateResponseSchema = z.object({
-    count: z.number().nullish(),
-    session_state: sessionStateSchema.nullish(),
-})
-
-export type SessionState = z.infer<typeof sessionStateSchema>
-
 /** A HITL request raised mid-run. `status` is the lifecycle enum (pending/responded/…). */
 export const sessionInteractionSchema = z.object({
     id: z.string().nullish(),

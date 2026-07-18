@@ -12,6 +12,7 @@ class MountCreate(UniversalBaseModel):
     description: typing.Optional[str] = None
     slug: typing.Optional[str] = None
     session_id: typing.Optional[str] = None
+    agent_id: typing.Optional[str] = None
     flags: typing.Optional[MountFlags] = None
     tags: typing.Optional[typing.Dict[str, typing.Any]] = None
     meta: typing.Optional[typing.Dict[str, typing.Any]] = None
