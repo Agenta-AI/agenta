@@ -66,8 +66,14 @@ describe("createSandboxAgentOtel state machine", () => {
     assert.equal(ofType(emitted, "message").length, 0, "no coalesced message when streaming");
     assert.equal(ofType(emitted, "thought").length, 0, "no coalesced thought when streaming");
 
-    // Exactly one terminal done.
+    // Exactly one terminal done, carrying the run's trace id so a persisted transcript can link
+    // the replayed turn back to its trace (duration + full-trace view).
     assert.equal(ofType(emitted, "done").length, 1, "exactly one done");
+    assert.match(
+      ofType(emitted, "done")[0].traceId ?? "",
+      /^[0-9a-f]{32}$/,
+      "done carries the run's 32-hex trace id",
+    );
 
     // Two text blocks (split by the tool call), one reasoning block, balanced start/end.
     const mStart = ofType(emitted, "message_start");

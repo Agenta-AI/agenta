@@ -1552,7 +1552,9 @@ export function createSandboxAgentOtel(
       const reasoning = reasoningAccumulated.trim();
       if (reasoning) record({ type: "thought", text: reasoning });
     }
-    record({ type: "done" });
+    // Stamp the run's trace id on the turn's terminal event so a persisted transcript can link a
+    // replayed turn back to its trace (duration + full-trace view). The FE reads it off this record.
+    record({ type: "done", ...(runTraceId ? { traceId: runTraceId } : {}) });
     if (!emitSpans) return text;
     if (llmSpan) {
       emitMessages(
