@@ -20,6 +20,10 @@ description: How the Agenta mobile app (web/mobile) installs and extends shadcn/
   changes together with the component.
 - Never copy component source from the shadcn website by hand; the CLI resolves
   the Tailwind v4 variant correctly.
+- Installing a shadcn component that references a NEW token (e.g. `bg-sidebar`,
+  `chart-*`) requires extending VARS in `scripts/generate-shadcn-tokens.ts` +
+  the `@theme inline` map in `globals.css` first — Tailwind v4 silently
+  generates nothing for unmapped tokens.
 
 ## Theming — the token bridge
 

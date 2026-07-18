@@ -37,10 +37,10 @@
     --secondary-foreground: rgba(255, 255, 255, 0.85);
     --muted: #242424;
     --muted-foreground: rgba(255, 255, 255, 0.65);
-    --accent: #57572a;
+    --accent: #2a2a2a;
     --accent-foreground: rgba(255, 255, 255, 0.85);
     --destructive: #ff4d4f;
-    --destructive-foreground: #ffffff;
+    --destructive-foreground: #141414;
     --border: #303030;
     --input: #424242;
     --ring: #f2f25c;

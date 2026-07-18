@@ -9,12 +9,13 @@
         "dev": "next dev --turbopack",
         "build": "next build && cp -r public/. .next/standalone/mobile/public && cp -r .next/static .next/standalone/mobile/.next",
         "start": "next start",
-        "lint": "eslint src",
+        "lint": "eslint src && pnpm run tokens:check",
         "lint:fix": "eslint src --fix",
         "format": "prettier --check .",
         "format-fix": "prettier --write .",
         "types:check": "tsc",
-        "generate:tokens": "tsx scripts/generate-shadcn-tokens.ts"
+        "generate:tokens": "tsx scripts/generate-shadcn-tokens.ts",
+        "tokens:check": "tsx scripts/generate-shadcn-tokens.ts --check"
     },
     "dependencies": {
         "class-variance-authority": "^0.7.1",

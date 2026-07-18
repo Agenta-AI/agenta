@@ -4,6 +4,8 @@
  * they never define their own durations, easings, or springs.
  * See the mobile-motion-patterns skill for usage rules.
  */
+import {useMemo} from "react"
+
 import {useReducedMotion} from "motion/react"
 import type {Transition, Variants} from "motion/react"
 
@@ -64,20 +66,49 @@ const instant: Variants = {
     exit: {opacity: 0, transition: {duration: 0}},
 }
 
+/** Zero-duration transition returned for every raw transition when reduced. */
+const instantTransition: Transition = {duration: 0}
+
 export interface MotionPresets {
     reduced: boolean
     sharedAxisPush: Variants
     sheetSlideUp: Variants
     crossfade: Variants
+    /** Raw transitions for imperative use (e.g. drag-settle on sheets). */
+    pushTransition: Transition
+    sheetTransition: Transition
+    crossfadeTransition: Transition
 }
 
 /**
- * Reduced-motion-aware presets. ALWAYS consume presets through this hook in
- * components; import the raw variants above only in tests.
+ * Reduced-motion-aware presets — the only sanctioned consumption path in
+ * components (variants AND raw transitions; everything collapses to
+ * zero-duration when the user prefers reduced motion). Import the raw exports
+ * above only in tests.
  */
 export function useMotionPresets(): MotionPresets {
     const reduced = useReducedMotion() ?? false
-    return reduced
-        ? {reduced, sharedAxisPush: instant, sheetSlideUp: instant, crossfade: instant}
-        : {reduced, sharedAxisPush, sheetSlideUp, crossfade}
+    return useMemo(
+        () =>
+            reduced
+                ? {
+                      reduced,
+                      sharedAxisPush: instant,
+                      sheetSlideUp: instant,
+                      crossfade: instant,
+                      pushTransition: instantTransition,
+                      sheetTransition: instantTransition,
+                      crossfadeTransition: instantTransition,
+                  }
+                : {
+                      reduced,
+                      sharedAxisPush,
+                      sheetSlideUp,
+                      crossfade,
+                      pushTransition,
+                      sheetTransition,
+                      crossfadeTransition,
+                  },
+        [reduced],
+    )
 }
