@@ -676,7 +676,7 @@ describe("buildRunPlan", () => {
       assert.equal(result.ok, true);
     });
 
-    it("allows claude x daytona x mixed tools and keeps only executable shim specs", () => {
+    it("allows claude x daytona x mixed tools and advertises both kinds on the shim", () => {
       const result = buildRunPlan(
         {
           harness: "claude",
@@ -702,14 +702,17 @@ describe("buildRunPlan", () => {
         result.plan.executableToolSpecs.map((tool) => tool.name),
         ["server_tool"],
       );
+      assert.equal(
+        result.plan.clientToolPauseDisposition,
+        "cold-acknowledge",
+      );
     });
 
-    it("refuses claude x daytona x client-ONLY tools (nothing deliverable to advertise)", () => {
-      // The shim advertises only executable tools; client tools are omitted. A run whose entire
-      // tool set is client-kind has nothing to deliver on Daytona, so it must fail CLOSED up
-      // front rather than proceed, drop every tool, and return ok:true (the F1 zero-tools drop
-      // that mcp.ts's "run-plan should have refused this run" log points at).
-      let created = false;
+    it("allows claude x daytona x client-ONLY tools (the shim advertises them and the relay parks)", () => {
+      // The shim now advertises client tools too. A client-only run on Daytona builds a normal
+      // plan: the client tool rides toolSpecs, and the pause disposition is "cold-acknowledge" so
+      // a parked client tool gets a benign paused answer (the runner ends the turn; the browser
+      // result returns on the cold-replay resume). This replaces the interim #5366 refusal.
       const result = buildRunPlan(
         {
           harness: "claude",
@@ -718,26 +721,24 @@ describe("buildRunPlan", () => {
           customTools: [{ name: "request_connection", kind: "client" }],
         } as AgentRunRequest,
         {
-          createDaytonaCwd: () => {
-            created = true;
-            return "/home/sandbox/agenta-fixed";
-          },
+          createDaytonaCwd: () => "/home/sandbox/agenta-fixed",
         },
       );
 
-      assert.equal(result.ok, false);
-      if (result.ok) return;
-      assert.match(result.error, /Client tools are not deliverable/);
-      assert.match(result.error, /entirely\s+client-kind/);
-      assert.match(
-        result.error,
-        /docs\/design\/agent-workflows\/projects\/in-sandbox-tool-mcp\//,
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.deepEqual(
+        result.plan.toolSpecs.map((tool) => tool.name),
+        ["request_connection"],
       );
+      // No executable tool remains, but the run is no longer refused.
+      assert.deepEqual(result.plan.executableToolSpecs, []);
       assert.equal(
-        created,
-        false,
-        "fails before any cwd is created (up-front gate)",
+        result.plan.clientToolPauseDisposition,
+        "cold-acknowledge",
+        "non-Pi shim path acknowledges a parked client tool with a paused answer",
       );
+      assert.equal(result.plan.useToolRelay, true);
     });
 
     it("allows pi x daytona x client-only tools (Pi's extension + file relay deliver them)", () => {
@@ -752,6 +753,9 @@ describe("buildRunPlan", () => {
       );
 
       assert.equal(result.ok, true);
+      if (!result.ok) return;
+      // Pi parks through its own extension, so its disposition is "pi-native" (no paused answer).
+      assert.equal(result.plan.clientToolPauseDisposition, "pi-native");
     });
 
     it("still refuses claude x daytona x executable tools under strict restricted network", () => {
