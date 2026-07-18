@@ -551,7 +551,7 @@ class AuthService:
                         user_id=str(user_id),
                     )
             except Exception:
-                log.error("[AUTH] [AUTO-JOIN]", exc_infp=True)
+                log.error("[AUTH] [AUTO-JOIN]", exc_info=True)
 
         # 2. Domains-only enforcement: Check if user has access
         # This is enforced at the organization level via check_organization_access()
