@@ -156,8 +156,14 @@ export interface RunTurnOptions {
    * keep-alive turn.
    */
   approvalParkMode?: boolean;
-  /** A live approval resume: answer the parked gate and stream the continued prompt's events. */
-  resume?: ResumeApprovalInput;
+  /**
+   * A live approval resume: answer every parked gate of the turn (keyed by tool-call id) and
+   * stream the continued prompt's events. A turn can hold more than one parked gate, so the
+   * resume carries a LIST — the server builds it from the inbound approval replies, one decision
+   * per parked gate. All decisions share the one held prompt promise (there is one prompt per
+   * turn); `runTurn` answers each gate then awaits that single continuation.
+   */
+  resume?: { decisions: ResumeApprovalInput[] };
 }
 
 /**
@@ -222,17 +228,31 @@ export interface SessionEnvironment {
    */
   lastTurnToolCallIds: string[];
   /**
-   * The Claude ACP permission gate the LAST turn paused on, or undefined. Set only for a harness
-   * ACP permission gate, reset at each turn start; the dispatch reads it after a paused turn to
-   * decide whether to park in `awaiting_approval` and, on the next request, how to resume.
+   * Every parkable ACP permission gate the LAST turn paused on, keyed by the gated tool-call id
+   * (reset at each turn start). This is the source of truth the warm resume iterates: a turn can
+   * hold more than one gate (parallel gated tool calls), and each is answered by its own
+   * `permissionId` on the live session. Empty when no parkable gate paused the turn.
+   */
+  parkedApprovals: Map<string, ParkedApproval>;
+  /**
+   * The FIRST parked gate this turn, a convenience for per-turn-uniform reads (logging, the
+   * gate-type check, the shared history/credential validation). Undefined when the map is empty.
+   * The multi-answer resume and the all-parkable park check read `parkedApprovals`, not this.
    */
   parkedApproval?: ParkedApproval;
   /**
-   * How many Claude ACP permission gates resolved to pendingApproval THIS turn (reset at turn
-   * start). More than one means parallel gates the single-gate resume cannot answer, so the
-   * dispatch does not park (tears down cold as today).
+   * How many ACP permission gates resolved to pendingApproval THIS turn (reset at turn start).
+   * Equals `parkedApprovals.size` when every gate carried a resumable tool-call id; a larger
+   * count means a gate lacked an id and cannot be resumed live, so the dispatch stays cold.
    */
   approvalGateCount: number;
+  /**
+   * How many NON-parkable pauses happened this turn (a client-tool ACP gate or a browser-fulfilled
+   * relay/MCP client tool), reset at turn start. Non-zero means the turn mixes an unanswerable
+   * client-tool pause into the set, so the whole turn stays on the cold path (only cold can
+   * multiplex a mixed set today).
+   */
+  nonParkablePauseCount: number;
   destroyed: boolean;
   /** Complete, idempotent teardown selected from the typed teardown reason. */
   destroy: (opts?: { reason?: TeardownReason }) => Promise<void>;

@@ -1750,7 +1750,7 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     );
   });
 
-  it("settles a latch-loser sibling when read-only permission requests race", async () => {
+  it("emits a card for EACH of two racing ask gates and force-settles neither (cold-path plural approvals)", async () => {
     const readOnlySpec = (name: string) => ({
       name,
       kind: "callback",
@@ -1828,31 +1828,29 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     if (!result.ok) return;
     assert.equal(result.stopReason, "paused");
 
+    // No latch: BOTH gated tool calls emit their own approval card in the one paused turn, each
+    // keyed by its own tool-call id. This is exactly issue #5373's fix — the human now sees every
+    // card at once instead of one, with the rest re-asked across later turns.
     const interactions = result.events?.filter(
       (event) => event.type === "interaction_request",
     );
-    assert.equal(interactions?.length, 1);
-    assert.equal((interactions?.[0] as any).payload?.toolCallId, "tool-a");
+    assert.equal(interactions?.length, 2);
+    assert.deepEqual(
+      interactions?.map((e) => (e as any).payload?.toolCallId).sort(),
+      ["tool-a", "tool-b"],
+    );
 
-    const toolResults = result.events
-      ?.filter((event) => event.type === "tool_result")
-      .map((event) => ({
-        id: (event as any).id,
-        output: (event as any).output,
-        isError: (event as any).isError,
-      }));
-    assert.deepEqual(toolResults, [
-      {
-        id: "tool-b",
-        output: TOOL_NOT_EXECUTED_PAUSED,
-        isError: true,
-      },
-    ]);
+    // Neither gate is force-settled as TOOL_NOT_EXECUTED_PAUSED: both are held open for their own
+    // approval, so no orphaned paused tool_result is emitted.
+    const toolResults = result.events?.filter(
+      (event) => event.type === "tool_result",
+    );
+    assert.deepEqual(toolResults, []);
   });
 
   it("settles a sibling whose announcement arrives AFTER the pause (teardown race)", async () => {
     // The live incident shape: the sibling's `tool_call` announcement rides the ACP event
-    // stream and can arrive at the runner AFTER the gate won the latch and the pause-time
+    // stream and can arrive at the runner AFTER the gate paused the turn and the pause-time
     // sweep already ran. The event-handler re-sweep must settle it deterministically.
     const { deps } = fakeHarness({
       promptEvents: [

@@ -37,6 +37,7 @@ import {
   runSandboxAgent,
   runTurn,
   shouldPark,
+  type ResumeApprovalInput,
   type RunTurnOptions,
   type SessionEnvironment,
 } from "./engines/sandbox_agent.ts";
@@ -412,21 +413,34 @@ export async function runWithKeepalive(
     }
   };
 
-  // Whether a paused turn holds a single, parkable permission gate (a Claude ACP gate or a Pi
-  // ACP gate). Only such a gate carries a `respondPermission`-answerable id; a client-tool MCP
-  // pause never records `parkedApproval`, and more than one pending gate cannot be answered by
-  // the single-gate resume — both stay on the cold path, logged.
+  // Whether a paused turn is fully parkable: every pending gate is a parkable ACP permission gate
+  // (Claude ACP or Pi ACP) that carries a `respondPermission`-answerable id, so the warm resume
+  // can answer them all. A turn parks when it has at least one parked gate AND every pending gate
+  // is parkable: no client-tool MCP pause (unanswerable across a turn boundary), and no approval
+  // gate that lacked a resumable id. A mixed or partly-unresumable set stays on the cold path,
+  // which is the only path that can multiplex it. Any count of parkable gates parks — a turn with
+  // several parallel gates is answered by several `respondPermission` calls on the resume.
   const approvalToPark = (
     env: SessionEnvironment,
     result: AgentRunResult,
   ): boolean => {
     if (result.stopReason !== "paused") return false;
-    if (!env.parkedApproval) {
+    if (env.parkedApprovals.size === 0) {
       klog(`non-parkable-gate-no-park key=${key}`);
       return false;
     }
-    if ((env.approvalGateCount ?? 0) > 1) {
-      klog(`multi-gate-no-park key=${key} gates=${env.approvalGateCount}`);
+    if ((env.nonParkablePauseCount ?? 0) > 0) {
+      klog(
+        `mixed-gate-no-park key=${key} parkable=${env.parkedApprovals.size} ` +
+          `nonParkable=${env.nonParkablePauseCount}`,
+      );
+      return false;
+    }
+    if (env.parkedApprovals.size !== (env.approvalGateCount ?? 0)) {
+      klog(
+        `unresumable-gate-no-park key=${key} parkable=${env.parkedApprovals.size} ` +
+          `gates=${env.approvalGateCount}`,
+      );
       return false;
     }
     // An approval park waits for the HUMAN, who is still on the page even if the streaming client
@@ -445,15 +459,22 @@ export async function runWithKeepalive(
   // one destroy, so no double-destroy is possible. The promise already carries runTurn's
   // swallowing catch, so no unhandled rejection is introduced.
   const watchParkedPrompt = (env: SessionEnvironment): void => {
-    const promptPromise = env.parkedApproval?.promptPromise;
     const entry = pool.get(key);
-    if (!promptPromise || !entry || entry.environment !== env) return;
-    promptPromise.catch(() => {
-      const current = pool.get(key);
-      if (current !== entry || current.state !== "awaiting_approval") return;
-      klog(`parked-prompt-rejected key=${key}; evict`);
-      void pool.evict(key, "parked-prompt-rejected", "failed-turn");
-    });
+    if (!entry || entry.environment !== env) return;
+    // Watch the WHOLE parked set: a turn is pending until every gate resolves, so a rejection of
+    // ANY parked prompt means the harness or sandbox died mid-park and the dead session must be
+    // evicted. Every parked gate shares the one turn prompt promise, so the catches are on the
+    // same promise; the eviction is identity-checked and idempotent, so repeated catches are safe.
+    for (const parked of env.parkedApprovals.values()) {
+      const promptPromise = parked.promptPromise;
+      if (!promptPromise) continue;
+      promptPromise.catch(() => {
+        const current = pool.get(key);
+        if (current !== entry || current.state !== "awaiting_approval") return;
+        klog(`parked-prompt-rejected key=${key}; evict`);
+        void pool.evict(key, "parked-prompt-rejected", "failed-turn");
+      });
+    }
   };
 
   // Park a freshly cold-acquired environment (new pool slot) as approval / idle, or tear it down.
@@ -657,29 +678,56 @@ export async function runWithKeepalive(
     // history fingerprint (an edited transcript must not continue wrongly), and a hard mount-expiry
     // bound — if the parked session's mount credentials are past expiry, its durable cwd can no
     // longer be written, so evict to cold.
+    // The turn may hold several parked gates (parallel gated tool calls). Build one resume
+    // decision per parked gate, keyed by tool-call id. The whole turn resumes live ONLY when the
+    // request answers EVERY parked gate — the frontend's all-settled rule guarantees a resume /run
+    // is sent only after the human answered all cards, so a partial set is a mismatch that
+    // degrades to cold (which re-raises and multiplexes whatever subset). `parked` (the first
+    // gate) is the representative for logging and the per-turn-uniform checks.
     const parked = existing.environment.parkedApproval;
-    const decision = parked
-      ? approvalDecisionForToolCall(request, parked.toolCallId)
-      : undefined;
-    const priorFp = historyFingerprint(priorConversation(request));
+    const parkedList = [...existing.environment.parkedApprovals.values()];
+    const resumeDecisions: ResumeApprovalInput[] = [];
     let mismatch: string | undefined;
-    if (
-      !parked ||
-      (parked.gateType !== "claude-acp-permission" &&
-        parked.gateType !== "pi-acp-permission")
-    ) {
-      // Defensive: only a parkable gate type (Claude ACP or Pi ACP) ever parks here. Both
-      // resume via `respondPermission` on the live session; the daemon maps the reply by kind.
-      mismatch = "unrecognized-gate-type";
-    } else if (!decision) {
-      mismatch = "no-matching-approval"; // fresh user text, or an approval for another id
-    } else if (priorFp !== existing.historyFingerprint) {
-      mismatch = "history";
-    } else if (mountCredentialsExpired(existing.credentialEpoch)) {
-      mismatch = "credentials-expired";
+    if (parkedList.length === 0) {
+      mismatch = "no-parked-gate";
+    } else {
+      for (const gate of parkedList) {
+        if (
+          gate.gateType !== "claude-acp-permission" &&
+          gate.gateType !== "pi-acp-permission"
+        ) {
+          // Defensive: only a parkable gate type (Claude ACP or Pi ACP) ever parks here. Both
+          // resume via `respondPermission` on the live session; the daemon maps the reply by kind.
+          mismatch = "unrecognized-gate-type";
+          break;
+        }
+        const decision = approvalDecisionForToolCall(request, gate.toolCallId);
+        if (!decision) {
+          // A gate with no matching reply: fresh user text, or the human answered only some cards.
+          mismatch = "no-matching-approval";
+          break;
+        }
+        resumeDecisions.push({
+          permissionId: gate.permissionId,
+          reply: decision === "allow" ? "once" : "reject",
+          toolCallId: gate.toolCallId,
+          toolName: gate.toolName,
+          args: gate.args,
+          interactionToken: gate.interactionToken,
+          promptPromise: gate.promptPromise,
+        });
+      }
+    }
+    const priorFp = historyFingerprint(priorConversation(request));
+    if (!mismatch) {
+      if (priorFp !== existing.historyFingerprint) {
+        mismatch = "history";
+      } else if (mountCredentialsExpired(existing.credentialEpoch)) {
+        mismatch = "credentials-expired";
+      }
     }
 
-    if (mismatch || !parked || !decision) {
+    if (mismatch || resumeDecisions.length === 0) {
       klog(
         `approval-mismatch (${mismatch ?? "unknown"}) key=${key}; evict + cold`,
       );
@@ -693,10 +741,13 @@ export async function runWithKeepalive(
 
     const live = pool.checkoutApproval(key);
     if (live) {
-      const reply = decision === "allow" ? "once" : "reject";
+      const approveCount = resumeDecisions.filter(
+        (d) => d.reply === "once",
+      ).length;
+      const rejectCount = resumeDecisions.length - approveCount;
       klog(
-        `${reply === "once" ? "resume-approve" : "resume-reject"} key=${key} ` +
-          `tool=${parked.toolName ?? "?"}`,
+        `resume key=${key} gates=${resumeDecisions.length} ` +
+          `approve=${approveCount} reject=${rejectCount} tool=${parked?.toolName ?? "?"}`,
       );
       let result: AgentRunResult;
       try {
@@ -710,15 +761,7 @@ export async function runWithKeepalive(
           signal,
           {
             approvalParkMode: true,
-            resume: {
-              permissionId: parked.permissionId,
-              reply,
-              toolCallId: parked.toolCallId,
-              toolName: parked.toolName,
-              args: parked.args,
-              interactionToken: parked.interactionToken,
-              promptPromise: parked.promptPromise,
-            },
+            resume: { decisions: resumeDecisions },
           },
         );
       } catch (err) {
@@ -803,18 +846,29 @@ const runAgent: RunAgent = (request, emit, signal, options) => {
  * resolves the token after consuming the decision. Swept first, the granted gate's record
  * lands as `cancelled` and the resolve 404s.
  */
-function inBandAnswerToken(request: AgentRunRequest): string | undefined {
+function inBandAnswerTokens(request: AgentRunRequest): string[] | undefined {
   const sessionId = request.sessionId?.trim();
   if (!sessionId) return undefined;
   const provider = resolveKeepaliveDispatch(request, keepaliveConfigs);
   if (!provider) return undefined;
   const parked =
     keepalivePools[provider].awaitingApproval(sessionId)?.environment
-      .parkedApproval;
-  if (!parked) return undefined;
-  return approvalDecisionForToolCall(request, parked.toolCallId) !== undefined
-    ? parked.interactionToken
-    : undefined;
+      .parkedApprovals;
+  if (!parked || parked.size === 0) return undefined;
+  // A turn can park several gates. Spare tokens from the stale sweep ONLY when this request
+  // answers EVERY parked gate — that is exactly when the dispatch resumes live and resolves them.
+  // If any gate is unanswered the turn degrades to cold (the all-or-cold resume rule), and sparing
+  // an answered subset would strand those interaction rows as pending forever (no live resume ever
+  // resolves them). In that case spare nothing: the cold path re-raises and the sweep correctly
+  // cancels the old rows.
+  const tokens: string[] = [];
+  for (const gate of parked.values()) {
+    if (approvalDecisionForToolCall(request, gate.toolCallId) === undefined) {
+      return undefined;
+    }
+    tokens.push(gate.interactionToken);
+  }
+  return tokens.length > 0 ? tokens : undefined;
 }
 
 /**
@@ -926,11 +980,11 @@ async function runAndStreamWithApiBaseResolved(
     // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
     // interactions (sparing this turn's own, plus a parked gate this turn answers in-band —
     // the resume resolves that one). Best-effort, never blocks the turn.
-    const answeredToken = inBandAnswerToken(request);
+    const answeredTokens = inBandAnswerTokens(request);
     void cancelStaleInteractions(
       sessionId,
       turnId,
-      answeredToken ? [answeredToken] : undefined,
+      answeredTokens,
       watchdog.credential,
     );
     // Deny-set from THIS run's resolved provider keys + run credential (not process env,

@@ -170,20 +170,6 @@ export function storedDecisionKeyShape(
   };
 }
 
-export class PendingApprovalLatch {
-  private acquired = false;
-
-  tryAcquire(): boolean {
-    if (this.acquired) return false;
-    this.acquired = true;
-    return true;
-  }
-
-  get held(): boolean {
-    return this.acquired;
-  }
-}
-
 function normalizeRules(rawRules: unknown): PermissionPlan["rules"] {
   if (!Array.isArray(rawRules)) return [];
   const rules: PermissionPlan["rules"] = [];

@@ -50,13 +50,25 @@ const auth = {
 // ---------------------------------------------------------------------------- //
 
 interface TurnScript {
-  /** The turn pauses on a single parkable permission gate (records parkedApproval). */
+  /** The turn pauses on one or more parkable permission gates (records parkedApprovals). */
   approvalPause?: {
     permissionId: string;
     toolCallId: string;
     toolName?: string;
-    /** How many gates pended (>1 = multi-gate; still records the first). Default 1. */
+    /** Additional parkable gates in the same turn (parallel gated tool calls). */
+    extraGates?: Array<{
+      permissionId: string;
+      toolCallId: string;
+      toolName?: string;
+    }>;
+    /**
+     * Override `approvalGateCount`. Defaults to the number of recorded gates. Set LARGER than the
+     * recorded gates to model a gate that lacked a resumable id (count > map size -> unresumable,
+     * no park).
+     */
     gates?: number;
+    /** Also flag a non-parkable (client-tool) pause this turn, so the mixed set stays cold. */
+    nonParkable?: boolean;
     /** The parked gate plane; default the Claude ACP gate. */
     gateType?: ParkedApproval["gateType"];
   };
@@ -75,8 +87,10 @@ interface DispatchFakeEnv {
   destroyed: number;
   turnsCleared: number;
   lastTurnToolCallIds: string[];
+  parkedApprovals: Map<string, ParkedApproval>;
   parkedApproval?: ParkedApproval;
   approvalGateCount: number;
+  nonParkablePauseCount: number;
   clearTurn: () => void;
   destroyImpl: () => Promise<void>;
   destroy: () => Promise<void>;
@@ -112,8 +126,10 @@ function makeApprovalEngine(
       destroyed: 0,
       turnsCleared: 0,
       lastTurnToolCallIds: [],
+      parkedApprovals: new Map(),
       parkedApproval: undefined,
       approvalGateCount: 0,
+      nonParkablePauseCount: 0,
       clearTurn: () => {
         env.turnsCleared += 1;
       },
@@ -142,38 +158,61 @@ function makeApprovalEngine(
     const idx = calls.turns.length;
     const script = scripts[idx] ?? {};
     // Mirror the real runTurn per-turn reset.
+    env.parkedApprovals = new Map();
     env.parkedApproval = undefined;
     env.approvalGateCount = 0;
+    env.nonParkablePauseCount = 0;
     env.lastTurnToolCallIds = script.toolCallIds ?? [];
     calls.turns.push({ env, opts, idx });
     if (opts?.resume) {
-      calls.resumes.push({
-        permissionId: opts.resume.permissionId,
-        reply: opts.resume.reply,
-        toolCallId: opts.resume.toolCallId,
-      });
+      // The warm resume carries a LIST of decisions (one per parked gate).
+      for (const decision of opts.resume.decisions) {
+        calls.resumes.push({
+          permissionId: decision.permissionId,
+          reply: decision.reply,
+          toolCallId: decision.toolCallId,
+        });
+      }
     }
     if (script.hold) {
       await new Promise<void>((resolve) => holds.set(idx, resolve));
     }
     if (script.approvalPause) {
-      env.approvalGateCount = script.approvalPause.gates ?? 1;
+      const gateType =
+        script.approvalPause.gateType ?? "claude-acp-permission";
+      const parkableGates = [
+        {
+          permissionId: script.approvalPause.permissionId,
+          toolCallId: script.approvalPause.toolCallId,
+          toolName: script.approvalPause.toolName,
+        },
+        ...(script.approvalPause.extraGates ?? []),
+      ];
+      // approvalGateCount defaults to the recorded-gate count; a larger override models a gate
+      // that lacked a resumable id (count > map size -> the dispatch treats the set as unresumable).
+      env.approvalGateCount = script.approvalPause.gates ?? parkableGates.length;
+      env.nonParkablePauseCount = script.approvalPause.nonParkable ? 1 : 0;
       // The held original prompt: pending until the test settles it (mirrors the real Claude
-      // prompt that never resolves on an unanswered gate). Carries the same swallowing catch
-      // runTurn attaches, so a test-driven rejection is never unhandled.
+      // prompt that never resolves on an unanswered gate). One prompt per turn, shared by every
+      // parked gate. Carries the same swallowing catch runTurn attaches, so a test-driven
+      // rejection is never unhandled.
       const promptPromise = new Promise((resolve, reject) => {
         calls.promptControls.push({ resolve, reject });
       });
       promptPromise.catch(() => {});
-      env.parkedApproval = {
-        gateType: script.approvalPause.gateType ?? "claude-acp-permission",
-        permissionId: script.approvalPause.permissionId,
-        toolCallId: script.approvalPause.toolCallId,
-        toolName: script.approvalPause.toolName,
-        args: {},
-        interactionToken: script.approvalPause.toolCallId,
-        promptPromise,
-      };
+      for (const gate of parkableGates) {
+        const record: ParkedApproval = {
+          gateType,
+          permissionId: gate.permissionId,
+          toolCallId: gate.toolCallId,
+          toolName: gate.toolName,
+          args: {},
+          interactionToken: gate.toolCallId,
+          promptPromise,
+        };
+        env.parkedApprovals.set(gate.toolCallId, record);
+        env.parkedApproval ??= record;
+      }
       return { ok: true, stopReason: "paused" };
     }
     if (script.nonClaudePause) return { ok: true, stopReason: "paused" };
@@ -265,6 +304,38 @@ function approveResume(
       },
     ],
     ...overrides,
+  };
+}
+
+/** A resume that answers several parked gates at once: one tool_call + one {approved} envelope
+ *  per gate, exactly as the frontend sends once every card is answered. */
+function approveResumeMulti(
+  gates: Array<{ toolCallId: string; toolName?: string; approved: boolean }>,
+): AgentRunRequest {
+  return {
+    harness: "claude",
+    model: "m1",
+    sessionId: "s1",
+    ...auth,
+    messages: [
+      { role: "user", content: "do X" },
+      {
+        role: "assistant",
+        content: gates.map((g) => ({
+          type: "tool_call",
+          toolCallId: g.toolCallId,
+          toolName: g.toolName ?? "commit",
+        })),
+      },
+      {
+        role: "user",
+        content: gates.map((g) => ({
+          type: "tool_result",
+          toolCallId: g.toolCallId,
+          output: { approved: g.approved },
+        })),
+      },
+    ],
   };
 }
 
@@ -416,10 +487,125 @@ describe("runWithKeepalive: approval park + resume", () => {
       await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
       await runWithKeepalive(approveResume(true), undefined, undefined, ctx);
       assert.ok(cap.lines.some((l) => l.includes("park-approval")));
-      assert.ok(cap.lines.some((l) => l.includes("resume-approve")));
+      assert.ok(
+        cap.lines.some((l) => l.includes("resume ") && l.includes("approve=1")),
+      );
     } finally {
       cap.restore();
     }
+  });
+
+  it("parks a two-gate turn and answers BOTH gates live on one resume", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-1",
+          toolName: "read_a",
+          extraGates: [
+            { permissionId: "perm-2", toolCallId: "tc-2", toolName: "read_b" },
+          ],
+        },
+        toolCallIds: ["tc-1", "tc-2"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+
+    const r1 = await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    assert.equal(r1.stopReason, "paused");
+    assert.equal(
+      ctx.pool.get(POOL_KEY)!.state,
+      "awaiting_approval",
+      "a two-gate turn parks (no longer forced cold)",
+    );
+
+    const r2 = await runWithKeepalive(
+      approveResumeMulti([
+        { toolCallId: "tc-1", toolName: "read_a", approved: true },
+        { toolCallId: "tc-2", toolName: "read_b", approved: true },
+      ]),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(r2.ok, true);
+    assert.equal(calls.acquire, 1, "the resume did NOT re-acquire cold");
+    assert.equal(
+      calls.resumes.length,
+      2,
+      "respondPermission is called once per parked gate",
+    );
+    assert.deepEqual(
+      calls.resumes.map((r) => `${r.toolCallId}:${r.reply}`).sort(),
+      ["tc-1:once", "tc-2:once"],
+    );
+  });
+
+  it("resumes a two-gate turn with deny-one-approve-one, each gate answered on its own id", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-1",
+          toolName: "read_a",
+          extraGates: [
+            { permissionId: "perm-2", toolCallId: "tc-2", toolName: "read_b" },
+          ],
+        },
+        toolCallIds: ["tc-1", "tc-2"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+
+    const r2 = await runWithKeepalive(
+      approveResumeMulti([
+        { toolCallId: "tc-1", toolName: "read_a", approved: false },
+        { toolCallId: "tc-2", toolName: "read_b", approved: true },
+      ]),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(r2.ok, true);
+    assert.equal(calls.resumes.length, 2);
+    assert.deepEqual(
+      calls.resumes.map((r) => `${r.toolCallId}:${r.reply}`).sort(),
+      ["tc-1:reject", "tc-2:once"],
+      "the denied gate rejects and the approved gate runs, each by its own id",
+    );
+  });
+
+  it("keeps a partly-answered two-gate turn paused (only one card answered -> cold)", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-1",
+          toolName: "read_a",
+          extraGates: [
+            { permissionId: "perm-2", toolCallId: "tc-2", toolName: "read_b" },
+          ],
+        },
+        toolCallIds: ["tc-1", "tc-2"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+
+    // Only tc-1 answered; tc-2 still pending. The whole-set requirement is not met, so the resume
+    // does not answer any gate live and degrades to cold.
+    const r2 = await runWithKeepalive(
+      approveResumeMulti([
+        { toolCallId: "tc-1", toolName: "read_a", approved: true },
+      ]),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(r2.ok, true);
+    assert.equal(calls.resumes.length, 0, "no gate answered live");
+    assert.equal(calls.acquire, 2, "the partial answer degraded to cold (re-acquired)");
   });
 });
 
@@ -443,9 +629,11 @@ describe("runWithKeepalive: never-park gate types stay cold", () => {
     }
   });
 
-  it("a multi-gate pause (parallel gates) never parks, tears down cold", async () => {
+  it("a turn with an unresumable gate (pending count exceeds recorded gates) stays cold", async () => {
     const cap = captureStderr();
     try {
+      // Two gates pended but only one carried a resumable id (map size 1, count 2): the set is not
+      // fully resumable, so the whole turn falls to the cold path.
       const { engine, calls } = makeApprovalEngine([
         {
           approvalPause: {
@@ -463,10 +651,37 @@ describe("runWithKeepalive: never-park gate types stay cold", () => {
       assert.equal(
         calls.acquiredEnvs[0].destroyed,
         1,
-        "the single-gate resume cannot answer >1 gate -> cold",
+        "a gate that cannot be resumed live -> cold",
       );
       assert.equal(ctx.pool.size(), 0);
-      assert.ok(cap.lines.some((l) => l.includes("multi-gate-no-park")));
+      assert.ok(cap.lines.some((l) => l.includes("unresumable-gate-no-park")));
+    } finally {
+      cap.restore();
+    }
+  });
+
+  it("a mixed set (an approval gate plus a client-tool pause) stays cold", async () => {
+    const cap = captureStderr();
+    try {
+      // One parkable approval gate AND one non-parkable client-tool pause in the same turn: only
+      // the cold path can multiplex the mixed set, so the whole turn stays cold.
+      const { engine, calls } = makeApprovalEngine([
+        {
+          approvalPause: {
+            permissionId: "perm-1",
+            toolCallId: "tc-gate",
+            toolName: "commit",
+            nonParkable: true,
+          },
+          toolCallIds: ["tc-gate"],
+        },
+      ]);
+      const ctx = makeCtx(engine);
+      const r = await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+      assert.equal(r.stopReason, "paused");
+      assert.equal(calls.acquiredEnvs[0].destroyed, 1, "mixed set -> cold");
+      assert.equal(ctx.pool.size(), 0);
+      assert.ok(cap.lines.some((l) => l.includes("mixed-gate-no-park")));
     } finally {
       cap.restore();
     }
@@ -1098,13 +1313,17 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     const p2 = runTurn(env, approveResume(true), undefined, undefined, {
       approvalParkMode: true,
       resume: {
-        permissionId: "perm-1",
-        reply: "once",
-        toolCallId: "tc-gate",
-        toolName: "commit",
-        args: { message: "hi" },
-        interactionToken: "tc-gate",
-        promptPromise: held,
+        decisions: [
+          {
+            permissionId: "perm-1",
+            reply: "once",
+            toolCallId: "tc-gate",
+            toolName: "commit",
+            args: { message: "hi" },
+            interactionToken: "tc-gate",
+            promptPromise: held,
+          },
+        ],
       },
     });
     await flush();
@@ -1191,13 +1410,17 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     const p2 = runTurn(env, approveResume(false), undefined, undefined, {
       approvalParkMode: true,
       resume: {
-        permissionId: "perm-1",
-        reply: "reject",
-        toolCallId: "tc-gate",
-        toolName: "commit",
-        args: {},
-        interactionToken: "tc-gate",
-        promptPromise: held,
+        decisions: [
+          {
+            permissionId: "perm-1",
+            reply: "reject",
+            toolCallId: "tc-gate",
+            toolName: "commit",
+            args: {},
+            interactionToken: "tc-gate",
+            promptPromise: held,
+          },
+        ],
       },
     });
     await flush();
@@ -1263,8 +1486,9 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       approvalParkMode: true,
     });
     await flush();
-    // A latch-loser sibling tool call announced BEFORE the winning gate: it can never execute
-    // this turn and must be settled with the deterministic paused result, park or no park.
+    // An announced-but-UNGATED sibling tool call (it never raises a permission request, so it gets
+    // no card): it can never execute once the turn pauses on the gate, so it must be settled with
+    // the deterministic paused result, park or no park.
     captured.onEvent!(
       updateEvent({
         sessionUpdate: "tool_call",
@@ -1310,7 +1534,7 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     await env.destroy();
   });
 
-  it("the sibling settle also covers the multi-gate case the dispatch then destroys", async () => {
+  it("two parallel gates each emit a card and BOTH park (neither is force-settled)", async () => {
     const { calls, deps, captured } = pausableHarness();
     const acquired = await acquireEnvironment(engineReq, deps);
     assert.equal(acquired.ok, true);
@@ -1321,9 +1545,9 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       approvalParkMode: true,
     });
     await flush();
-    // Two parallel gates: gate 1 wins the latch and pauses; at pause time gate 2's call is an
-    // open non-paused sibling, so the UNCONDITIONAL settle covers it even though parkedApproval
-    // is already set (the exact case an early-return-before-settle would orphan).
+    // Two parallel gated tool calls in one turn. With no latch, each raises its own permission
+    // request, emits its own card, and is marked paused — so NEITHER is force-settled, and BOTH
+    // are recorded in parkedApprovals for the live resume.
     captured.onEvent!(
       updateEvent({
         sessionUpdate: "tool_call",
@@ -1353,18 +1577,31 @@ describe("runTurn: real approval park + respondPermission resume", () => {
 
     assert.equal(r1.stopReason, "paused");
     assert.equal(env.approvalGateCount, 2, "both pending gates were counted");
+    assert.equal(env.parkedApprovals.size, 2, "both gates were parked");
+    assert.deepEqual(
+      [...env.parkedApprovals.keys()].sort(),
+      ["tc-g1", "tc-g2"],
+      "each gate is keyed by its own tool-call id",
+    );
+    assert.equal(
+      env.nonParkablePauseCount,
+      0,
+      "no non-parkable pause -> the dispatch parks the whole set",
+    );
     const run1 = calls.runs[0];
     assert.deepEqual(
       run1.settled,
-      [{ id: "tc-g2", message: TOOL_NOT_EXECUTED_PAUSED }],
-      "the second gate's call settled as a sibling at pause time",
+      [],
+      "neither gate is force-settled: both got a card and are held for the resume",
     );
-    assert.ok(run1.open.has("tc-g1"), "the winning gate's call stays open");
+    assert.ok(run1.open.has("tc-g1"), "the first gate's call stays open");
+    assert.ok(run1.open.has("tc-g2"), "the second gate's call stays open");
+    assert.equal(
+      calls.sessionDestroyed,
+      0,
+      "the multi-gate park keeps the session alive",
+    );
 
-    // The dispatch refuses to park a multi-gate pause and destroys: the teardown the park
-    // skipped (destroySession, sandbox teardown) runs through env.destroy().
     await env.destroy();
-    assert.equal(calls.sessionDestroyed, 1, "destroy tore the session down");
-    assert.equal(calls.sandboxDestroyed, 1);
   });
 });

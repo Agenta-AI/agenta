@@ -11,7 +11,6 @@ import {
 } from "../../responder.ts";
 import {
   piBuiltinIdentity,
-  PendingApprovalLatch,
   type GateDescriptor,
 } from "../../permission-plan.ts";
 import {
@@ -44,7 +43,6 @@ export interface AttachPermissionResponderInput {
     markToolCallDenied?: (toolCallId: string | undefined) => void;
   };
   responder: Responder;
-  latch: PendingApprovalLatch;
   serverPermissions?: ReadonlyMap<string, ToolPermission>;
   /**
    * Called when a gate pauses the turn. The orchestration loop uses this to end the turn
@@ -54,6 +52,13 @@ export interface AttachPermissionResponderInput {
   log?: (msg: string) => void;
   /** Called with the ACP tool-call id when a gate pauses the turn. */
   onPausedToolCall?: (id: string) => void;
+  /**
+   * Called when a NON-parkable pause happens this turn (a client-tool ACP gate, which cannot be
+   * answered across a turn boundary on the live session). The keep-alive dispatch reads this to
+   * keep a turn that mixes an approval gate with a client-tool pause on the cold path, since only
+   * the cold path can multiplex that mixed set. An approval gate does NOT fire it.
+   */
+  onNonParkablePause?: () => void;
   /** Called on pause to record the pending gate as an interaction (fire-and-forget). */
   onCreateInteraction?: (
     token: string,
@@ -65,10 +70,10 @@ export interface AttachPermissionResponderInput {
   onResolveInteraction?: (token: string) => void;
   /**
    * Fires for EVERY parkable permission gate (a Claude ACP gate or a Pi ACP gate) that
-   * resolves to pendingApproval, BEFORE the single-pause latch. Keep-alive uses it to record
-   * the parked permission id / tool-call id (for a live resume via `respondPermission`) and to
-   * count how many gates are pending this turn (a multi-gate pause does not park). It never
-   * fires for a client-tool gate (`pauseClientTool`), which stays on the cold path.
+   * resolves to pendingApproval. Keep-alive uses it to record every parked permission id /
+   * tool-call id (for a live resume via `respondPermission`, keyed by tool-call id) and to count
+   * how many gates are pending this turn. It never fires for a client-tool gate
+   * (`pauseClientTool`), which fires `onNonParkablePause` instead and stays on the cold path.
    */
   onUserApprovalGate?: (info: {
     permissionId: string;
@@ -109,11 +114,11 @@ export function attachPermissionResponder({
   session,
   run,
   responder,
-  latch,
   serverPermissions = new Map(),
   onPause,
   log,
   onPausedToolCall,
+  onNonParkablePause,
   onCreateInteraction,
   onResolveInteraction,
   onUserApprovalGate,
@@ -155,19 +160,18 @@ export function attachPermissionResponder({
     gate: GateDescriptor,
     gateType: ParkedApprovalGateType,
   ): void => {
-    // Signal the parkable gate BEFORE the latch so a keep-alive resume can record the pending
-    // permission id and the multi-gate detector counts every pending gate (not just the first).
-    const gateToolCallId = stringValue(req?.toolCall?.toolCallId);
+    // Signal the parkable gate so a keep-alive resume can record the pending permission id and
+    // count every pending gate. Each gate emits its own card: there is no per-turn cap, so N
+    // gated calls in one turn all render and all park (the plural approval path).
+    const toolCallId = stringValue(req?.toolCall?.toolCallId);
     onUserApprovalGate?.({
       permissionId: id,
-      toolCallId: gateToolCallId ?? "",
+      toolCallId: toolCallId ?? "",
       toolName: gate.toolName,
       args: gate.args,
-      interactionToken: interactionEventId(id, gateToolCallId),
+      interactionToken: interactionEventId(id, toolCallId),
       gateType,
     });
-    if (!latch.tryAcquire()) return;
-    const toolCallId = stringValue(req?.toolCall?.toolCallId);
     const eventId = interactionEventId(id, toolCallId);
     if (toolCallId) onPausedToolCall?.(toolCallId);
     run.emitEvent({
@@ -192,7 +196,9 @@ export function attachPermissionResponder({
     gate: GateDescriptor,
     spec: ResolvedToolSpec,
   ): void => {
-    if (!latch.tryAcquire()) return;
+    // A client-tool ACP pause cannot be answered on the live session across a turn boundary, so
+    // flag the turn non-parkable: a turn that mixes this with an approval gate stays cold.
+    onNonParkablePause?.();
     const toolCallId = stringValue(req?.toolCall?.toolCallId);
     const eventId = interactionEventId(id, toolCallId);
     if (toolCallId) onPausedToolCall?.(toolCallId);

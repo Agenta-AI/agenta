@@ -39,7 +39,24 @@ export function shouldSuppressPausedToolCallUpdate(
   if (kind !== "tool_call" && kind !== "tool_call_update") return false;
   const toolCallId =
     typeof frame?.toolCallId === "string" ? frame.toolCallId : undefined;
-  return pause.isPausedToolCall(toolCallId);
+  // F-024: a paused (gated) tool call's later frames are teardown artifacts and never reach the
+  // stream.
+  if (pause.isPausedToolCall(toolCallId)) return true;
+  // Once the turn is pausing, a FAILED update for any other open call is a managed-cancel
+  // artifact (a sibling that will not run this turn), so suppress it and let the deterministic
+  // post-drain sweep settle that call as TOOL_NOT_EXECUTED_PAUSED — the human sees "paused", not a
+  // spurious cancellation error. A `completed` update is NOT suppressed: an auto-allowed sibling
+  // that legitimately finishes while another gate holds the (kept-alive) warm session must show
+  // its real result, not be overwritten as paused. Announcements (`tool_call`) are never
+  // suppressed: the call must be recorded so the sweep knows which calls to settle. (Removing the
+  // eager first-pause settle is what lets concurrent gates each mark their own call paused before
+  // the sweep runs; this narrow suppression only masks the cancel artifact.) Residual: a genuine
+  // mid-pause tool error also arrives as `failed` and reads as paused here — acceptable, since the
+  // paused result invites a retry and the runner has no adapter provenance to tell the two apart.
+  if (kind === "tool_call_update" && pause.active && frame?.status === "failed") {
+    return true;
+  }
+  return false;
 }
 
 const CLAUDE_STRICT_DEPLOYMENTS = new Set([

@@ -240,6 +240,47 @@ class TestFromUIMessages:
         assert result.tool_call_id == "call_2"
         assert result.output == {"approved": True}
 
+    def test_concurrent_inline_approvals_each_emit_their_own_result(self):
+        # Concurrent approvals: the browser round-trips TWO tool parts in one turn, each with its
+        # own inline decision (`state: approval-responded`, `approval.approved`) — one approve, one
+        # deny. The ingress must emit one `{approved}` tool_result per part, keyed by its own
+        # toolCallId, preserving each decision independently (neither gate clobbers the other).
+        msgs = vercel_ui_messages_to_messages(
+            [
+                {
+                    "id": "m10",
+                    "role": "assistant",
+                    "parts": [
+                        {
+                            "type": "tool-deleteFile",
+                            "toolCallId": "call_1",
+                            "state": "approval-responded",
+                            "input": {"path": "/a"},
+                            "approval": {"id": "perm_1", "approved": True},
+                        },
+                        {
+                            "type": "tool-writeFile",
+                            "toolCallId": "call_2",
+                            "state": "approval-responded",
+                            "input": {"path": "/b"},
+                            "approval": {"id": "perm_2", "approved": False},
+                        },
+                    ],
+                }
+            ]
+        )
+        results = [b for b in msgs[0].content if b.type == "tool_result"]
+        assert len(results) == 2
+        # Each decision lands on its own toolCallId, in order, approve and deny preserved.
+        assert (results[0].tool_call_id, results[0].output) == (
+            "call_1",
+            {"approved": True},
+        )
+        assert (results[1].tool_call_id, results[1].output) == (
+            "call_2",
+            {"approved": False},
+        )
+
     def test_inline_output_denied_state_emits_denied_envelope(self):
         # The AI SDK terminal deny state has no `approval.approved` flag; `output-denied`
         # itself means denied, so the ingress still emits `{approved: False}`.

@@ -84,6 +84,87 @@ async def test_parked_run_emits_approval_then_finish() -> None:
     assert finish["finishReason"] == "other"
 
 
+def _two_concurrent_gates_run() -> AgentStream:
+    """One turn that raises TWO approval gates at once (concurrent approvals): two distinct tool
+    calls, each followed by its own ``user_approval`` request, then the terminal ``paused`` result.
+    The egress must surface one ``tool-approval-request`` per gate, each keyed to its own tool-call
+    id, and still drain to a single clean finish."""
+    return AgentStream(
+        _records(
+            [
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "tool_call",
+                        "id": "tool-1",
+                        "name": "github__get_user",
+                        "input": {},
+                    },
+                },
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "tool_call",
+                        "id": "tool-2",
+                        "name": "github__list_repos",
+                        "input": {},
+                    },
+                },
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "interaction_request",
+                        "id": "perm-1",
+                        "kind": "user_approval",
+                        "payload": {"toolCallId": "tool-1"},
+                    },
+                },
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "interaction_request",
+                        "id": "perm-2",
+                        "kind": "user_approval",
+                        "payload": {"toolCallId": "tool-2"},
+                    },
+                },
+                {"kind": "event", "event": {"type": "done", "stopReason": "paused"}},
+                {
+                    "kind": "result",
+                    "result": {
+                        "ok": True,
+                        "output": "",
+                        "stopReason": "paused",
+                        "sessionId": "conv-1",
+                        "traceId": "trace-1",
+                    },
+                },
+            ]
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_concurrent_gates_emit_one_approval_request_each() -> None:
+    """Two ``user_approval`` events in one turn yield TWO ``tool-approval-request`` frames — one
+    per event — each carrying its own approvalId and tool-call id, so the FE can prompt for both
+    gates independently. Pins the plural side of the single-gate contract above."""
+    parts = [
+        part async for part in agent_run_to_vercel_parts(_two_concurrent_gates_run())
+    ]
+
+    approvals = [p for p in parts if p["type"] == "tool-approval-request"]
+    assert len(approvals) == 2
+    # One frame per event, each keyed to its own gate (perm/tool pair), order preserved.
+    assert [(a["approvalId"], a["toolCallId"]) for a in approvals] == [
+        ("perm-1", "tool-1"),
+        ("perm-2", "tool-2"),
+    ]
+    # Both gates share the turn but the stream still drains to a single clean finish (F-040).
+    assert parts[-1]["type"] == "finish"
+    assert [p.get("type") for p in parts].count("finish") == 1
+
+
 def _parked_run_with_real_args() -> AgentStream:
     """A parked turn where the runner first surfaced the tool call with EMPTY input, then the
     approval request carries the REAL args on ``payload.toolCall.rawInput`` (the cold-replay

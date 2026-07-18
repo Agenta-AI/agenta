@@ -51,6 +51,9 @@ interface FakeEnv {
   destroyed: number;
   turnsCleared: number;
   lastTurnToolCallIds: string[];
+  parkedApprovals: Map<string, unknown>;
+  approvalGateCount: number;
+  nonParkablePauseCount: number;
   clearTurn: () => void;
   /** Replaceable body so a test can slow the teardown down; `destroy` stays a stable closure. */
   destroyImpl: () => Promise<void>;
@@ -78,6 +81,9 @@ function makeEngine(options: EngineOptions = {}) {
       destroyed: 0,
       turnsCleared: 0,
       lastTurnToolCallIds: [],
+      parkedApprovals: new Map(),
+      approvalGateCount: 0,
+      nonParkablePauseCount: 0,
       clearTurn: () => {
         env.turnsCleared += 1;
       },

@@ -128,6 +128,67 @@ describe("agentShouldResumeAfterApproval", () => {
         expect(agentShouldResumeAfterApproval({messages})).toBe(true)
     })
 
+    it("does NOT resume while ONE of two concurrent approval cards is still pending", () => {
+        // Concurrent approvals: one turn shows TWO approval-requested gates (two distinct
+        // toolCallIds). Answering only the first must NOT resume — the second is still pending,
+        // so the run stays parked until EVERY card is settled.
+        const messages = [
+            user("do two"),
+            {
+                id: "a1",
+                role: "assistant",
+                parts: [
+                    {type: "step-start"},
+                    {
+                        type: "tool-deleteFile",
+                        toolCallId: "call_1",
+                        state: "approval-responded",
+                        input: {path: "/x"},
+                        approval: {id: "perm_1", approved: true},
+                    },
+                    {
+                        type: "tool-deleteFile",
+                        toolCallId: "call_2",
+                        state: "approval-requested",
+                        input: {path: "/y"},
+                        approval: {id: "perm_2"},
+                    },
+                ],
+            },
+        ]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(false)
+    })
+
+    it("RESUMES once BOTH concurrent approval cards are answered", () => {
+        // Same two-gate turn, now both answered (one approve, one deny). Every card is settled
+        // (`approval-responded`), so the run resumes and the runner gets both round-trips.
+        const messages = [
+            user("do two"),
+            {
+                id: "a1",
+                role: "assistant",
+                parts: [
+                    {type: "step-start"},
+                    {
+                        type: "tool-deleteFile",
+                        toolCallId: "call_1",
+                        state: "approval-responded",
+                        input: {path: "/x"},
+                        approval: {id: "perm_1", approved: true},
+                    },
+                    {
+                        type: "tool-deleteFile",
+                        toolCallId: "call_2",
+                        state: "approval-responded",
+                        input: {path: "/y"},
+                        approval: {id: "perm_2", approved: false},
+                    },
+                ],
+            },
+        ]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(true)
+    })
+
     it("does NOT resume when there are no messages", () => {
         expect(agentShouldResumeAfterApproval({messages: []})).toBe(false)
     })
