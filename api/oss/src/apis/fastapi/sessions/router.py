@@ -1293,7 +1293,10 @@ class SessionsRootRouter:
 
         sessions = await self.sessions_service.query_sessions(
             project_id=UUID(str(project_id)),
-            query=SessionQuery(references=body.references),
+            query=SessionQuery(
+                references=body.references,
+                include_ended=body.include_ended,
+            ),
             windowing=body.windowing,
         )
         return SessionsResponse(count=len(sessions), sessions=sessions)

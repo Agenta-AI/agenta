@@ -126,8 +126,9 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
         async with self.engine.session() as session:
             stmt = select(SessionStreamDBE).where(
                 SessionStreamDBE.project_id == project_id,
-                SessionStreamDBE.deleted_at.is_(None),
             )
+            if not filter.include_ended:
+                stmt = stmt.where(SessionStreamDBE.deleted_at.is_(None))
             if filter.session_id is not None:
                 stmt = stmt.where(SessionStreamDBE.session_id == filter.session_id)
             if session_ids is not None:

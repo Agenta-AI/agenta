@@ -62,6 +62,9 @@ class SessionStreamHeaderEdit(Header):
 class SessionStreamQuery(BaseModel):
     session_id: Optional[str] = None
     flags: Optional[SessionStreamQueryFlags] = None
+    # Include ended (killed → soft-deleted) rows so a durable list shows resumable history, not
+    # just live sessions. Their `deleted_at` is populated for the caller to mark them ended.
+    include_ended: bool = False
 
 
 class CommandMode(str, Enum):
