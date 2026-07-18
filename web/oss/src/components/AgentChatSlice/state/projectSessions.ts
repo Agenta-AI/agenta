@@ -1,11 +1,17 @@
+import {useEffect} from "react"
+
 import {querySessions, type SessionStream} from "@agenta/entities/session"
-import {atom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-import {GLOBAL_APP_KEY} from "./sessions"
+import {
+    GLOBAL_APP_KEY,
+    reconcileServerSessionsAtomFamily,
+    type ServerSessionSummary,
+} from "./sessions"
 
 /**
  * The durable session list for ONE agent, from the server — the cross-device source the sidebar
@@ -62,4 +68,28 @@ const activity = (s: SessionStream): number => {
     const ts = s.updated_at ?? s.created_at
     const ms = ts ? Date.parse(ts) : NaN
     return Number.isNaN(ms) ? 0 : ms
+}
+
+const toSummary = (s: SessionStream): ServerSessionSummary => ({
+    id: s.session_id,
+    title: s.name?.trim() ? s.name : undefined,
+    createdAt: s.created_at ? Date.parse(s.created_at) || undefined : undefined,
+})
+
+/**
+ * Fold the agent's server session list into the localStorage cache whenever a fetch succeeds.
+ * Call once where the scope is known (the panel). Gated on query success AND non-null data — a
+ * failed fetch (`querySessions` returns null) must NOT run the reconcile, or it would drop every
+ * server-known session. A genuinely empty result (`[]`) is a real "no sessions" and does reconcile.
+ */
+export function useReconcileServerSessions(scopeKey: string): void {
+    const query = useAtomValue(projectSessionsQueryAtomFamily(scopeKey))
+    const sessions = useAtomValue(projectSessionsAtomFamily(scopeKey))
+    const reconcile = useSetAtom(reconcileServerSessionsAtomFamily(scopeKey))
+
+    const succeeded = query.isSuccess && query.data != null
+    useEffect(() => {
+        if (!succeeded) return
+        reconcile(sessions.map(toSummary))
+    }, [succeeded, sessions, reconcile])
 }

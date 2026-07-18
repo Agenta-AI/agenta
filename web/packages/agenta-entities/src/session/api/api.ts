@@ -239,6 +239,9 @@ export interface QuerySessionsParams {
     /** Workflow refs to scope by — pass `[{id: appId}]` for one agent's sessions (JSONB `@>`
      * containment against the turns' references). Omit for every session in the project. */
     references?: {id?: string; slug?: string; version?: string}[]
+    /** Include ended (killed) sessions so the list keeps resumable history — default true. With
+     * this, an absent session means hard-deleted, which the reconciler uses to prune the cache. */
+    includeEnded?: boolean
     appId?: string
     abortSignal?: AbortSignal
     lowPriority?: boolean
@@ -253,6 +256,7 @@ export interface QuerySessionsParams {
 export async function querySessions({
     projectId,
     references,
+    includeEnded = true,
     appId,
     abortSignal,
     lowPriority,
@@ -261,7 +265,12 @@ export async function querySessions({
 
     const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
     const data = await callFern("[querySessions]", () =>
-        client.querySessions({references}, projectScopedRequest(projectId, appId, abortSignal)),
+        // `include_ended` isn't in the generated request type yet (backend field added after the
+        // last client regen); it's sent at runtime and the backend reads it.
+        client.querySessions(
+            {references, include_ended: includeEnded} as Parameters<typeof client.querySessions>[0],
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
     )
     if (!data) return null
 
