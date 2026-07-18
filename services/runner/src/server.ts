@@ -54,10 +54,12 @@ import {
   priorConversation,
   readKeepaliveConfig,
   resolvesToLocalProvider,
-  SessionPool,
   tailIsFreshUserMessage,
   type KeepaliveConfig,
   type KeepaliveProviderName,
+} from "./engines/sandbox_agent/session-identity.ts";
+import {
+  SessionPool,
   type LiveSession,
 } from "./engines/sandbox_agent/session-pool.ts";
 import { runnerInfo } from "./version.ts";

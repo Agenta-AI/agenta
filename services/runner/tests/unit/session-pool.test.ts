@@ -20,10 +20,10 @@ import {
   priorConversation,
   readKeepaliveConfig,
   resolvesToLocalProvider,
-  SessionPool,
   tailIsFreshUserMessage,
   type CredentialEpoch,
-} from "../../src/engines/sandbox_agent/session-pool.ts";
+} from "../../src/engines/sandbox_agent/session-identity.ts";
+import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 
 describe("resolvesToLocalProvider (local/remote gate)", () => {
   it("is true when the request explicitly asks for local", () => {
