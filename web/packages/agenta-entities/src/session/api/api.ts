@@ -278,6 +278,43 @@ export async function querySessions({
     return validated?.sessions ?? null
 }
 
+export interface SetSessionHeaderParams {
+    sessionId: string
+    projectId: string
+    name?: string
+    description?: string
+    appId?: string
+    abortSignal?: AbortSignal
+}
+
+/**
+ * Write a session's durable title/description (the stream `header`) so a rename syncs across
+ * devices and survives a localStorage wipe. Partial: only the fields passed are sent. Creates the
+ * stream row if a rename lands before the session's first run. Best-effort — `false` on failure.
+ */
+export async function setSessionHeader({
+    sessionId,
+    projectId,
+    name,
+    description,
+    appId,
+    abortSignal,
+}: SetSessionHeaderParams): Promise<boolean> {
+    if (!projectId || !sessionId) return false
+
+    const body: {name?: string; description?: string} = {}
+    if (name !== undefined) body.name = name
+    if (description !== undefined) body.description = description
+
+    const data = await callFern("[setSessionHeader]", () =>
+        getSessionsClient().setSessionStreamHeader(
+            {session_id: sessionId, body},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return data !== null
+}
+
 /** Fetch a session's current stream handle (liveness/attach state). Returns `null` if none. */
 export async function fetchSessionStream({
     sessionId,
