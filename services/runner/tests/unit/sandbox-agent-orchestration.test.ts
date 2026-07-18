@@ -422,6 +422,37 @@ describe("runSandboxAgent orchestration", () => {
     assert.ok(calls.mkdirFsPaths.includes(expected));
   });
 
+  it("requests the fully qualified <slug>/<model> for a managed OpenAI-compatible custom run", async () => {
+    // Design Decision 7 hazard: the vault key rides in as OPENAI_API_KEY, so Pi keeps advertising
+    // its built-in `openai/<model>` alongside the custom `my-conn/<model>`. Passing the bare wire
+    // id "gpt-4o" would let suffix matching pick the built-in (api.openai.com) over the user's
+    // endpoint. The runner must pass the exact `<connection-slug>/<model-id>` so it always wins.
+    const { calls, deps } = fakeHarness();
+    deps.prepareDaytonaPiAssets = (async () => true) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        sandbox: "daytona",
+        messages: [{ role: "user", content: "hello" }],
+        model: "gpt-4o",
+        provider: "openai",
+        deployment: "custom",
+        connection: { mode: "agenta", slug: "my-conn" },
+        endpoint: { baseUrl: "https://proxy.test/v1" },
+        credentialMode: "env",
+        secrets: { OPENAI_API_KEY: "sk-vault-xyz" },
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(calls.applyModelArgs.length, 1);
+    assert.equal(calls.applyModelArgs[0].model, "my-conn/gpt-4o");
+  });
+
   it("passes the same Pi skill snapshot to local Pi and workspace preparation", async () => {
     const cwd = join(
       tmpdir(),

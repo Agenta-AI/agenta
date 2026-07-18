@@ -15,7 +15,19 @@ import {
   createCookieFetch,
   daytonaEnvVars,
   ensurePiInSandbox,
+  removePiModelsConfigFromSandbox,
+  uploadPiModelsConfigToSandbox,
 } from "../../src/engines/sandbox_agent/daytona.ts";
+import type { PiModelConfigPlan } from "../../src/engines/sandbox_agent/pi-model-config.ts";
+
+const MODEL_CONFIG_PLAN: PiModelConfigPlan = {
+  providerId: "my-ollama",
+  providerFamily: "openai",
+  api: "openai-completions",
+  baseUrl: "https://example.test/v1",
+  apiKeyEnv: "OPENAI_API_KEY",
+  models: [{ id: "qwen2.5-coder:7b" }],
+};
 
 const envKeys = ["PI_CODING_AGENT_DIR"];
 const previousEnv = new Map<string, string | undefined>();
@@ -144,6 +156,85 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
       () => ensurePiInSandbox(sandbox),
       new RegExp(`pi ${PINNED_PI_VERSION} is not available`),
     );
+  });
+});
+
+describe("uploadPiModelsConfigToSandbox", () => {
+  it("writes the exact models.json into the Pi agent dir (key never inlined)", async () => {
+    const writes: Array<{ path: string; body: string }> = [];
+    const sandbox = {
+      mkdirFs: async () => {},
+      writeFsFile: async ({ path }: { path: string }, body: string) => {
+        writes.push({ path, body });
+      },
+    };
+
+    await uploadPiModelsConfigToSandbox(
+      sandbox,
+      DAYTONA_PI_DIR,
+      MODEL_CONFIG_PLAN,
+    );
+
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].path, `${DAYTONA_PI_DIR}/models.json`);
+    assert.deepEqual(JSON.parse(writes[0].body), {
+      providers: {
+        "my-ollama": {
+          baseUrl: "https://example.test/v1",
+          api: "openai-completions",
+          apiKey: "$OPENAI_API_KEY",
+          models: [{ id: "qwen2.5-coder:7b" }],
+        },
+      },
+    });
+    assert.equal(writes[0].body.includes("$OPENAI_API_KEY"), true);
+  });
+
+  it("throws when the upload fails (materialization is terminal)", async () => {
+    const sandbox = {
+      mkdirFs: async () => {},
+      writeFsFile: async () => {
+        throw new Error("sandbox fs write failed");
+      },
+    };
+
+    await assert.rejects(
+      () =>
+        uploadPiModelsConfigToSandbox(
+          sandbox,
+          DAYTONA_PI_DIR,
+          MODEL_CONFIG_PLAN,
+        ),
+      /sandbox fs write failed/,
+    );
+  });
+});
+
+describe("removePiModelsConfigFromSandbox", () => {
+  it("deletes a stale models.json so a reused sandbox keeps no earlier provider", async () => {
+    const deletes: string[] = [];
+    const sandbox = {
+      deleteFsEntry: async ({ path }: { path: string }) => {
+        deletes.push(path);
+      },
+    };
+
+    await removePiModelsConfigFromSandbox(sandbox, DAYTONA_PI_DIR);
+
+    assert.deepEqual(deletes, [`${DAYTONA_PI_DIR}/models.json`]);
+  });
+
+  it("swallows a missing-file / unsupported-delete error (best effort)", async () => {
+    const sandbox = {
+      deleteFsEntry: async () => {
+        throw new Error("not found");
+      },
+    };
+    // Must not throw.
+    await removePiModelsConfigFromSandbox(sandbox, DAYTONA_PI_DIR);
+
+    // A provider without a delete op is also tolerated.
+    await removePiModelsConfigFromSandbox({}, DAYTONA_PI_DIR);
   });
 });
 

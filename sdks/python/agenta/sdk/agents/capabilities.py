@@ -17,9 +17,14 @@ The provider lists are the REAL harness facts, derived from
   subscription), which Pi reaches through its own OAuth login rather than a vault key — usable
   under ``self_managed`` (and the ``agenta`` default's ``runtime_provided`` fallback). Pi also
   reaches ~24 more providers that have no Agenta vault kind; those are out of scope unless a
-  ``custom_provider`` secret is made for them, so they are not enumerated here. Pi's cloud
+  ``custom_provider`` secret is made for them, so they are not enumerated here. Pi consumes the
+  ``direct`` deployment for all of them, plus the ``custom`` (OpenAI-compatible) deployment for
+  the ``openai`` family only — the runner's ``models.json`` builder speaks openai-completions.
+  The published ``custom`` capability lets the UI surface the connection; server-side pair
+  validation (:func:`harness_allows_pair`) is authoritative because the flat ``providers`` and
+  ``deployments`` lists cannot express the openai-only cross-product on their own. Pi's cloud
   deployments (azure/bedrock/vertex) are *declared* but Pi *consumption* of them stages with the
-  model-config sibling, so v1 fails loud: ``deployments`` is ``["direct"]`` for the live reach.
+  model-config sibling, so v1 fails loud for those.
 - **Claude** reaches anthropic only, direct, via a custom gateway, or through Anthropic on
   Bedrock/Vertex. The runner passes the selected model id through to Claude Code and lets the
   configured backend fail loudly if it rejects it.
@@ -179,9 +184,11 @@ class HarnessConnectionCapabilities(BaseModel):
     """The connection-relevant capabilities of one harness (the ``/inspect`` ``meta`` shape).
 
     - ``providers``: the provider families the harness can reach (a literal list; never ``"*"``).
-    - ``deployments``: the deployment surfaces it can *consume* in v1 (``direct`` for both
-      harnesses today; Claude additionally consumes custom gateway, Bedrock, and Vertex
-      deployments.
+    - ``deployments``: the deployment surfaces it can *consume* in v1 (``direct`` and ``custom``
+      for Pi, where ``custom`` is the OpenAI-compatible surface; Claude additionally consumes the
+      Anthropic custom gateway, Bedrock, and Vertex deployments). The list is per-axis only;
+      cross-product pairing (which provider a ``custom`` deployment accepts) lives in
+      :func:`harness_allows_pair`.
     - ``connection_modes``: which :class:`Connection` ``mode`` values it supports
       (``["agenta", "self_managed"]``).
     - ``model_selection``: how a model is named for the harness (``"provider/id"`` exact for Pi,
@@ -208,16 +215,20 @@ class HarnessConnectionCapabilities(BaseModel):
 
 HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
     "pi_core": HarnessConnectionCapabilities(
+        # ``custom`` is published so the UI surfaces OpenAI-compatible connections; the
+        # openai-only pairing is enforced server-side by ``harness_allows_pair``, not by this
+        # flat list (which cannot express the cross-product on its own).
         providers=list(PI_VAULT_PROVIDERS) + list(PI_SUBSCRIPTION_PROVIDERS),
-        deployments=["direct"],
+        deployments=["direct", "custom"],
         connection_modes=list(_ALL_MODES),
         model_selection="provider/id",
         models=_pi_models(),
         model_catalog=_model_catalog("pi_core"),
     ),
     "pi_agenta": HarnessConnectionCapabilities(
+        # See ``pi_core``: ``custom`` is UI-surface only; ``harness_allows_pair`` is authoritative.
         providers=list(PI_VAULT_PROVIDERS) + list(PI_SUBSCRIPTION_PROVIDERS),
-        deployments=["direct"],
+        deployments=["direct", "custom"],
         connection_modes=list(_ALL_MODES),
         model_selection="provider/id",
         models=_pi_models(),
@@ -301,10 +312,55 @@ def harness_allows_deployment(harness: str, deployment: str) -> bool:
 
     A harness with no entry is unknown, so it gets no capability (closed). The cloud surfaces
     are allowed only when the harness lists them as consumable. ``pi_core``/``pi_agenta`` list
-    only ``direct``; Claude also lists ``custom``/``bedrock``/``vertex_ai``.
+    ``direct`` and ``custom`` (the OpenAI-compatible surface); Claude also lists
+    ``bedrock``/``vertex_ai``.
     """
     entry = HARNESS_CONNECTION_CAPABILITIES.get(harness)
     if entry is None:
         return False
     normalized = "vertex_ai" if deployment == "vertex" else deployment
     return normalized in entry.deployments
+
+
+# The provider family each harness's ``custom`` deployment surface accepts. This is Decision 3's
+# cross-product restriction: Pi's custom surface speaks openai-completions (the ``openai`` family
+# only), and Claude's custom gateway is Anthropic only. The flat ``providers``/``deployments``
+# lists cannot express this pairing, so :func:`harness_allows_pair` consults this map. A harness
+# absent here accepts no ``custom`` deployment.
+HARNESS_CUSTOM_DEPLOYMENT_PROVIDERS: Dict[str, str] = {
+    "pi_core": "openai",
+    "pi_agenta": "openai",
+    "claude": "anthropic",
+}
+
+
+def harness_allows_pair(harness: str, provider: str, deployment: str) -> bool:
+    """Whether ``harness`` can consume the full (provider family, deployment) pair.
+
+    The authoritative resolved-pair check (design Decision 3). ``harness_allows_provider`` and
+    ``harness_allows_deployment`` gate each axis independently; this gates their cross product,
+    which those flat lists cannot express on their own. A ``direct`` (or cloud) deployment is
+    allowed for any provider the harness already reaches, so the pair reduces to the two
+    independent checks there. A ``custom`` deployment is narrower: Pi consumes it only with the
+    ``openai`` family and Claude only with ``anthropic`` (per
+    :data:`HARNESS_CUSTOM_DEPLOYMENT_PROVIDERS`). An unknown harness is closed.
+
+    The allowed triples:
+
+    - ``pi_core``/``pi_agenta`` + ``openai`` + ``direct`` or ``custom`` -> allowed;
+    - ``pi_core``/``pi_agenta`` + any other family + ``custom`` -> rejected;
+    - ``claude`` + ``anthropic`` + ``direct``/``custom``/``bedrock``/``vertex_ai`` -> allowed;
+    - ``claude`` + ``openai`` + anything -> rejected (Claude reaches anthropic only);
+    - unknown harness -> rejected.
+    """
+    if HARNESS_CONNECTION_CAPABILITIES.get(harness) is None:
+        return False
+    if not harness_allows_provider(harness, provider):
+        return False
+    if not harness_allows_deployment(harness, deployment):
+        return False
+    normalized = "vertex_ai" if deployment == "vertex" else deployment
+    if normalized == "custom":
+        allowed = HARNESS_CUSTOM_DEPLOYMENT_PROVIDERS.get(harness)
+        return allowed is not None and provider.lower() == allowed.lower()
+    return True

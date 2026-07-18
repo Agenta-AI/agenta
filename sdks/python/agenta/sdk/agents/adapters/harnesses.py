@@ -67,6 +67,10 @@ class PiHarness(Harness):
         return PiAgentTemplate(
             agents_md=config.agent.instructions,
             model=config.agent.model,
+            # Thread the structured ref so the author's connection {mode, slug} reaches the /run
+            # wire (via wire_model_ref). Without it a named custom (OpenAI-compatible) connection
+            # loses its slug and the runner cannot build its models.json plan.
+            model_ref=config.agent.model_ref,
             resolved_connection=config.resolved_connection,
             builtin_names=list(config.builtin_names),
             tool_specs=list(config.tool_specs),
@@ -130,6 +134,9 @@ class AgentaHarness(Harness):
         return AgentaAgentTemplate(
             agents_md=compose_instructions(config.agent.instructions),
             model=config.agent.model,
+            # See PiHarness: thread the structured ref so a named custom connection's {mode, slug}
+            # reaches the /run wire and the runner can build its models.json plan.
+            model_ref=config.agent.model_ref,
             resolved_connection=config.resolved_connection,
             builtin_names=force_tools(list(config.builtin_names)),
             tool_specs=list(config.tool_specs),

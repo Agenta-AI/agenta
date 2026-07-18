@@ -704,7 +704,12 @@ describe("buildRunPlan", () => {
       );
     });
 
-    it("allows claude x daytona x client-only tools with no shim specs", () => {
+    it("refuses claude x daytona x client-ONLY tools (nothing deliverable to advertise)", () => {
+      // The shim advertises only executable tools; client tools are omitted. A run whose entire
+      // tool set is client-kind has nothing to deliver on Daytona, so it must fail CLOSED up
+      // front rather than proceed, drop every tool, and return ok:true (the F1 zero-tools drop
+      // that mcp.ts's "run-plan should have refused this run" log points at).
+      let created = false;
       const result = buildRunPlan(
         {
           harness: "claude",
@@ -713,13 +718,26 @@ describe("buildRunPlan", () => {
           customTools: [{ name: "request_connection", kind: "client" }],
         } as AgentRunRequest,
         {
-          createDaytonaCwd: () => "/home/sandbox/agenta-fixed",
+          createDaytonaCwd: () => {
+            created = true;
+            return "/home/sandbox/agenta-fixed";
+          },
         },
       );
 
-      assert.equal(result.ok, true);
-      if (!result.ok) return;
-      assert.deepEqual(result.plan.executableToolSpecs, []);
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.match(result.error, /Client tools are not deliverable/);
+      assert.match(result.error, /entirely\s+client-kind/);
+      assert.match(
+        result.error,
+        /docs\/design\/agent-workflows\/projects\/in-sandbox-tool-mcp\//,
+      );
+      assert.equal(
+        created,
+        false,
+        "fails before any cwd is created (up-front gate)",
+      );
     });
 
     it("allows pi x daytona x client-only tools (Pi's extension + file relay deliver them)", () => {
