@@ -12,7 +12,9 @@
  * @packageDocumentation
  */
 
+import {catalogPersister} from "@agenta/shared/api/persist"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import type {QueryKey} from "@tanstack/react-query"
 import {atom, getDefaultStore} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -35,7 +37,7 @@ import {workflowLocalServerDataAtomFamily} from "./store"
  * Query atom for application template definitions (chat, completion, custom).
  * Templates are static data (built-in app types), cached for 5 minutes.
  */
-export const appTemplatesQueryAtom = atomWithQuery((get) => {
+export const appTemplatesQueryAtom = atomWithQuery<WorkflowCatalogTemplatesResponse>((get) => {
     const projectId = get(projectIdAtom)
     return {
         queryKey: ["appTemplates", projectId],
@@ -46,6 +48,7 @@ export const appTemplatesQueryAtom = atomWithQuery((get) => {
         enabled: get(sessionAtom) && !!projectId,
         staleTime: 5 * 60_000,
         refetchOnWindowFocus: false,
+        persister: catalogPersister.persisterFn<WorkflowCatalogTemplatesResponse, QueryKey>,
     }
 })
 

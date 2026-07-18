@@ -11,6 +11,7 @@
  * @packageDocumentation
  */
 
+import {catalogPersister, immutablePersister} from "@agenta/shared/api/persist"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {createBatchFetcher, stripEmptyCollectionsDeep} from "@agenta/shared/utils"
 import isEqual from "fast-deep-equal"
@@ -62,8 +63,6 @@ import {
     withLatestAgentFlags,
 } from "./helpers"
 import {writePersistedAgentType} from "./persistedAgentType"
-import {persistedCatalogSeed, writePersistedCatalog} from "./persistedCatalog"
-import {persistedInspectSeed, writePersistedInspect} from "./persistedInspect"
 
 // ============================================================================
 // HELPERS
@@ -127,7 +126,12 @@ function primeWorkflowRevisionDetailCache(
     workflow: Workflow | null | undefined,
 ): void {
     if (!workflow?.id) return
-    queryClient.setQueryData(["workflows", "revision", workflow.id, projectId], workflow)
+    const queryKey = ["workflows", "revision", workflow.id, projectId]
+    queryClient.setQueryData(queryKey, workflow)
+    // setQueryData bypasses the persister — mirror full bodies (only revisions carry `data`) to IDB.
+    if (workflow.data) {
+        void immutablePersister.persistQueryByKey(queryKey, queryClient).catch(() => undefined)
+    }
 }
 
 /**
@@ -1115,7 +1119,7 @@ export function primeWorkflowArtifactCacheImperative(
  * via the batch fetcher because the playground stores revision IDs, not workflow IDs.
  */
 export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
-    atomWithQuery((get) => {
+    atomWithQuery<Workflow | null>((get) => {
         const projectId = get(workflowProjectIdAtom)
         const queryClient = get(queryClientAtom)
         const detailCached =
@@ -1169,6 +1173,8 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
                 return persistType(await workflowRevisionBatchFetcher({projectId, revisionId}))
             },
             initialData: detailCached ?? undefined,
+            // detailCached/enabled evaluate synchronously; the persister restores only inside a fetch they allowed, so no race.
+            persister: immutablePersister.persisterFn,
             enabled:
                 get(sessionAtom) &&
                 !!projectId &&
@@ -1176,7 +1182,8 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
                 !detailCached &&
                 !isLocalDraftId(revisionId) &&
                 !isPlaceholderId(revisionId),
-            staleTime: 30_000,
+            staleTime: Infinity,
+            gcTime: 60 * 60_000,
         }
     }),
 )
@@ -1197,7 +1204,7 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
  * `http://host/services/completion` → `agenta:builtin:completion:v0`).
  */
 export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
-    atomWithQuery((get) => {
+    atomWithQuery<InspectWorkflowResponse | null>((get) => {
         const projectId = get(workflowProjectIdAtom)
         const revisionQuery = get(workflowQueryAtomFamily(revisionId))
         const serverData = revisionQuery.data ?? null
@@ -1248,24 +1255,18 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
             hasUrl &&
             (isAgent || !hasAllSchemas)
 
-        // Per-SERVICE cache key (inspect is keyed by uri+serviceUrl, shared across revisions), so one
-        // persisted entry serves every revision of an agent. Only seed when inspect actually runs.
-        const inspectCacheKey =
-            isEnabled && uri && serviceUrl ? `${projectId}::${uri}::${serviceUrl}` : ""
-        const inspectSeed = persistedInspectSeed<InspectWorkflowResponse>(inspectCacheKey)
-        // Disk seed present → the config sections already painted, so this is a background
-        // revalidation; demote it to low priority so it yields to the critical-path queries.
-        const lowPriority = inspectSeed.initialData !== undefined
+        const queryClient = get(queryClientAtom)
+        const queryKey = ["workflows", "inspect", revisionId, uri, serviceUrl, projectId]
         return {
-            queryKey: ["workflows", "inspect", revisionId, uri, serviceUrl, projectId],
+            queryKey,
             queryFn: async (): Promise<InspectWorkflowResponse | null> => {
                 if (!projectId || !uri || !serviceUrl) return null
-                const result = await inspectWorkflow(uri, projectId, serviceUrl, {lowPriority})
-                if (result) writePersistedInspect(inspectCacheKey, result)
-                return result
+                // In-memory data present ⇒ this is a background revalidate ⇒ low network priority.
+                const lowPriority = queryClient.getQueryData(queryKey) !== undefined
+                return inspectWorkflow(uri, projectId, serviceUrl, {lowPriority})
             },
-            // Disk seed → paint config sections instantly on reload, then revalidate once (SWR).
-            ...inspectSeed,
+            // IDB-persisted (per revision+uri+serviceUrl): paint from disk, then one revalidate when stale.
+            persister: catalogPersister.persisterFn,
             enabled: isEnabled,
             staleTime: 60_000,
         }
@@ -1394,27 +1395,23 @@ export const workflowBuildKitOverlayReadyAtomFamily = atomFamily((revisionId: st
  * When the frontend encounters a schema property with `x-ag-type-ref` but no
  * sub-properties, it calls this to get the full schema from the backend.
  *
- * Persisted to localStorage (`persistedCatalogSeed`) so a cold reload paints the
+ * Persisted to IndexedDB (`catalogPersister`) so a cold reload paints the
  * agent-template config sections from disk instantly, then revalidates once in the
- * background. NOT `staleTime: Infinity` — the agent-template schema is still evolving,
- * so the disk seed is treated as stale-on-reload; the finite `staleTime` only dedupes
- * in-session remounts (e.g. revision switches).
+ * background when stale. NOT `staleTime: Infinity` — the agent-template schema is still
+ * evolving; the finite `staleTime` only dedupes in-session remounts (e.g. revision switches).
  */
 export const agTypeSchemaAtomFamily = atomFamily((agType: string) =>
-    atomWithQuery((_get) => {
-        const cacheKey = `ag-type-schema:${agType}`
-        const seed = persistedCatalogSeed<Record<string, unknown>>(cacheKey)
-        // With a disk seed the UI already painted, so this fetch is a background revalidation —
-        // demote it to low network priority so it doesn't compete with the critical-path queries.
-        const lowPriority = seed.initialData !== undefined
+    atomWithQuery<Record<string, unknown>>((get) => {
+        const queryClient = get(queryClientAtom)
+        const queryKey = ["workflows", "schemas", "ag-types", agType]
         return {
-            queryKey: ["workflows", "schemas", "ag-types", agType],
+            queryKey,
             queryFn: async (): Promise<Record<string, unknown>> => {
-                const schema = await fetchAgTypeSchema(agType, {lowPriority})
-                writePersistedCatalog(cacheKey, schema)
-                return schema
+                // In-memory data present ⇒ this is a background revalidate ⇒ low network priority.
+                const lowPriority = queryClient.getQueryData(queryKey) !== undefined
+                return fetchAgTypeSchema(agType, {lowPriority})
             },
-            ...seed,
+            persister: catalogPersister.persisterFn,
             staleTime: 5 * 60_000,
             refetchOnWindowFocus: false,
         }

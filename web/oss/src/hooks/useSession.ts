@@ -1,5 +1,6 @@
 import {useEffect} from "react"
 
+import {clearPersistedQueryCache} from "@agenta/shared/api/persist"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -77,6 +78,7 @@ export const useSession: () => {
 
             // Clear React Query cache to prevent unauthorized requests
             queryClient.clear()
+            void clearPersistedQueryCache()
 
             // Reset Jotai atoms
             resetProfileData()

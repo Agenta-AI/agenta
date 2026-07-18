@@ -1,3 +1,5 @@
+import {catalogPersister} from "@agenta/shared/api/persist"
+import type {QueryKey} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -22,6 +24,7 @@ export const triggerEventDetailQueryFamily = atomFamily(
             staleTime: 5 * 60_000,
             refetchOnWindowFocus: false,
             enabled: !!integrationKey && !!eventKey,
+            persister: catalogPersister.persisterFn<TriggerCatalogEventResponse, QueryKey>,
         })),
     (a, b) => a.integrationKey === b.integrationKey && a.eventKey === b.eventKey,
 )
