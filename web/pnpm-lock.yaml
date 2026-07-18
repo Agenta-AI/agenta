@@ -406,6 +406,9 @@ importers:
       eslint-plugin-prettier:
         specifier: ^5.5.6
         version: 5.5.6(@types/eslint@9.6.1)(eslint-config-prettier@10.1.8(eslint@9.39.4(jiti@2.7.0)))(eslint@9.39.4(jiti@2.7.0))(prettier@3.7.4)
+      eslint-plugin-react-hooks:
+        specifier: ^7.1.1
+        version: 7.1.1(eslint@9.39.4(jiti@2.7.0))
       prettier:
         specifier: ^3.7.4
         version: 3.7.4

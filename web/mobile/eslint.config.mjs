@@ -3,12 +3,13 @@
  *
  * Mirrors web/packages/eslint.config.mjs (flat config: tseslint + import
  * order + prettier, strict no-explicit-any) and adds the mobile hard bans:
- * no antd, no @ant-design/*, no app-layer imports (@/oss/*, @agenta/oss,
- * @agenta/ee). See web/mobile/AGENTS.md.
+ * no antd, no @ant-design/*, no Lexical, no app-layer imports (@/oss/*,
+ * @agenta/oss, @agenta/ee). See web/mobile/AGENTS.md.
  */
 import eslint from "@eslint/js"
 import importPlugin from "eslint-plugin-import"
 import eslintPluginPrettier from "eslint-plugin-prettier/recommended"
+import reactHooks from "eslint-plugin-react-hooks"
 import tseslint from "typescript-eslint"
 
 const includePrettierRule = process.env.DISABLE_PRETTIER !== "true"
@@ -20,6 +21,7 @@ const config = [
     {
         plugins: {
             import: importPlugin,
+            "react-hooks": reactHooks,
         },
         rules: {
             "no-restricted-imports": [
@@ -37,6 +39,11 @@ const config = [
                                 "@ant-design/* is banned in web/mobile. Use shadcn/ui + lucide-react instead.",
                         },
                         {
+                            group: ["lexical", "lexical/*", "@lexical/*"],
+                            message:
+                                "Lexical is banned in web/mobile. The mobile composer uses AI Elements PromptInput (WP3b).",
+                        },
+                        {
                             group: [
                                 "@/oss/*",
                                 "@agenta/oss",
@@ -50,6 +57,8 @@ const config = [
                     ],
                 },
             ],
+            "react-hooks/rules-of-hooks": "error",
+            "react-hooks/exhaustive-deps": "warn",
             "@typescript-eslint/no-explicit-any": "error",
             "@typescript-eslint/no-empty-object-type": "off",
             "@typescript-eslint/ban-ts-comment": "off",
