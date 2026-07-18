@@ -10,7 +10,7 @@ async def test_cache_deny_not_written_when_user_id_is_none():
     produces a generic key shared by all anonymous users. One user's auth failure
     must not deny all other anonymous users for the cache TTL.
     """
-    from oss.src.middlewares.auth import auth_user
+    from oss.src.middlewares.auth import verify_bearer_token
 
     mock_request = MagicMock()
     mock_request.url.path = "/test"
@@ -27,10 +27,9 @@ async def test_cache_deny_not_written_when_user_id_is_none():
         return True
 
     with patch("oss.src.middlewares.auth.get_session", return_value=mock_session), \
-         patch("oss.src.middlewares.auth.set_cache", side_effect=capture_set_cache) as mock_set_cache, \
-         patch("oss.src.middlewares.auth.get_cache", return_value=None), \
+         patch("oss.src.middlewares.auth.set_cache", side_effect=capture_set_cache), \
          pytest.raises(Exception):
-        await auth_user(
+        await verify_bearer_token(
             request=mock_request,
             bearer_token="",
             query_project_id="test-project-id",
@@ -52,7 +51,7 @@ async def test_cache_deny_written_when_user_id_is_set():
     When user_id is known, caching the deny is correct — it prevents repeated
     failing lookups for the same specific user.
     """
-    from oss.src.middlewares.auth import auth_user
+    from oss.src.middlewares.auth import verify_bearer_token
 
     mock_request = MagicMock()
     mock_request.url.path = "/test"
@@ -68,12 +67,15 @@ async def test_cache_deny_written_when_user_id_is_set():
         set_cache_calls.append(kwargs)
         return True
 
+    # get_cache returns None (cache miss), get_supertokens_user_by_id returns
+    # None (user not found), which raises UnauthorizedException. The outer
+    # handler catches it and caches the deny with the now-populated user_id.
     with patch("oss.src.middlewares.auth.get_session", return_value=mock_session), \
          patch("oss.src.middlewares.auth.set_cache", side_effect=capture_set_cache), \
          patch("oss.src.middlewares.auth.get_cache", return_value=None), \
-         patch("oss.src.middlewares.auth.get_supertokens_user_by_id", side_effect=Exception("timeout")), \
+         patch("oss.src.middlewares.auth.get_supertokens_user_by_id", return_value=None), \
          pytest.raises(Exception):
-        await auth_user(
+        await verify_bearer_token(
             request=mock_request,
             bearer_token="",
             query_project_id="test-project-id",
