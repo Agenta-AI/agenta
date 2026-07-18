@@ -29,6 +29,8 @@ from oss.src.core.shared.dtos import Reference, Windowing
 class SessionQueryRequest(BaseModel):
     references: Optional[List[Reference]] = None
     windowing: Optional[Windowing] = None
+    # Include ended (killed) sessions so the list keeps resumable history, not just live ones.
+    include_ended: bool = False
 
 
 class SessionsResponse(BaseModel):

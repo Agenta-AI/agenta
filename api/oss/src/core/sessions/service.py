@@ -68,7 +68,9 @@ class SessionsService:
 
         return await self.streams_service.query_streams(
             project_id=project_id,
-            filter=SessionStreamQuery(),
+            filter=SessionStreamQuery(
+                include_ended=bool(query and query.include_ended),
+            ),
             windowing=windowing,
             session_ids=session_ids,
         )
