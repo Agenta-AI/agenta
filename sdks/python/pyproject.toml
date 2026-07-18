@@ -1,6 +1,6 @@
 [project]
 name = "agenta"
-version = "0.105.4"
+version = "0.105.5"
 description = "The SDK for agenta is an open-source LLMOps platform."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
