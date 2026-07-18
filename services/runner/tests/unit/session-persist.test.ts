@@ -223,6 +223,66 @@ describe("buildPersistingEmitter", () => {
   });
 });
 
+describe("buildPersistingEmitter turn/span tagging", () => {
+  it("stamps turn_id and span_id on every posted record when both are supplied", async () => {
+    const { emit, persist, flush } = buildPersistingEmitter(
+      "sess-turn",
+      () => "Secret t",
+      undefined,
+      undefined,
+      "turn-abc",
+      "span-def",
+    );
+
+    persist({ type: "message", text: "hi" }, "user");
+    emit({ type: "message", text: "hello" });
+    emit({ type: "done" });
+    await flush();
+
+    const bodies = postedBodies as Array<Record<string, unknown>>;
+    assert.equal(bodies.length, 3);
+    for (const body of bodies) {
+      assert.equal(body["turn_id"], "turn-abc");
+      assert.equal(body["span_id"], "span-def");
+    }
+  });
+
+  it("omits turn_id/span_id from the body when neither is supplied", async () => {
+    const { emit, flush } = buildPersistingEmitter("sess-noturn", () => "Secret t");
+
+    emit({ type: "message", text: "hello" });
+    await flush();
+
+    const body = postedBodies[0] as Record<string, unknown>;
+    assert.equal("turn_id" in body, false);
+    assert.equal("span_id" in body, false);
+  });
+
+  it("stamps turn_id on coalesced and tool-call records too", async () => {
+    const { emit, flush } = buildPersistingEmitter(
+      "sess-turn-tc",
+      () => "Secret t",
+      undefined,
+      undefined,
+      "turn-tc",
+    );
+
+    emit({ type: "message_start", id: "m1" });
+    emit({ type: "message_delta", id: "m1", delta: "hi" });
+    emit({ type: "message_end", id: "m1" });
+    emit({ type: "tool_call", id: "call_1", name: "bash", input: { command: "ls" } });
+    emit({ type: "tool_result", id: "call_1", output: "ok" });
+    await flush();
+
+    const bodies = postedBodies as Array<Record<string, unknown>>;
+    assert.equal(bodies.length, 3);
+    for (const body of bodies) {
+      assert.equal(body["turn_id"], "turn-tc");
+      assert.equal("span_id" in body, false);
+    }
+  });
+});
+
 describe("drainPersist", () => {
   it("resolves immediately when no events are pending", async () => {
     await assert.doesNotReject(() => drainPersist("no-session"));

@@ -43,6 +43,8 @@ async function postEvent(
   eventIndex: number,
   sender: string,
   recordId?: string,
+  turnId?: string,
+  spanId?: string,
 ): Promise<void> {
   const url = `${apiBase()}/sessions/records/ingest`;
   let lastErr: unknown;
@@ -64,6 +66,10 @@ async function postEvent(
           record_source: sender,
           record_type: event.type,
           attributes: event,
+          // Tags the record for turn-grouping; span_id bridges to observability when
+          // the run has one in scope (both forward-fill only, absent is expected).
+          ...(turnId ? { turn_id: turnId } : {}),
+          ...(spanId ? { span_id: spanId } : {}),
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -94,12 +100,23 @@ export function persistEvent(
   sender: string = "agent",
   recordId?: string,
   redactor?: Redactor,
+  turnId?: string,
+  spanId?: string,
 ): void {
   // Redact at the sink: the durable copy is scrubbed; the live/in-memory event the harness
   // and the client stream still hold is untouched.
   const durable = redactor ? redactor.redactJson(event, "records") : event;
   const tail = (persistChains.get(sessionId) ?? Promise.resolve()).then(() =>
-    postEvent(sessionId, auth, durable, eventIndex, sender, recordId),
+    postEvent(
+      sessionId,
+      auth,
+      durable,
+      eventIndex,
+      sender,
+      recordId,
+      turnId,
+      spanId,
+    ),
   );
   persistChains.set(sessionId, tail);
 }
@@ -145,6 +162,8 @@ export function buildPersistingEmitter(
   auth: () => string,
   liveEmit?: (event: AgentEvent) => void,
   redactor?: Redactor,
+  turnId?: string,
+  spanId?: string,
 ): {
   emit: (event: AgentEvent) => void;
   /** Persist an out-of-band record (e.g. the inbound user turn) through the same
@@ -179,6 +198,8 @@ export function buildPersistingEmitter(
       "agent",
       stableRecordId(sessionId, id, "tool_call"),
       redactor,
+      turnId,
+      spanId,
     );
   };
 
@@ -234,6 +255,8 @@ export function buildPersistingEmitter(
           "agent",
           undefined,
           redactor,
+          turnId,
+          spanId,
         );
         return;
       }
@@ -262,6 +285,8 @@ export function buildPersistingEmitter(
           "agent",
           undefined,
           redactor,
+          turnId,
+          spanId,
         );
         return;
       }
@@ -281,6 +306,8 @@ export function buildPersistingEmitter(
         "agent",
         stableRecordId(sessionId, event.id, event.type),
         redactor,
+        turnId,
+        spanId,
       );
       return;
     }
@@ -294,6 +321,8 @@ export function buildPersistingEmitter(
       "agent",
       undefined,
       redactor,
+      turnId,
+      spanId,
     );
   };
 
@@ -308,6 +337,8 @@ export function buildPersistingEmitter(
       sender,
       undefined,
       redactor,
+      turnId,
+      spanId,
     );
   };
 

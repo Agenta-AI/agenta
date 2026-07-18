@@ -43,8 +43,13 @@ const AUTH = { authorization: `Bearer ${TEST_TOKEN}` };
 
 async function listen(
   run: RunAgent,
+  token: string | null = TEST_TOKEN,
 ): Promise<{ url: string; close: () => Promise<void> }> {
-  if (!process.env[TOKEN_ENV]) process.env[TOKEN_ENV] = TEST_TOKEN;
+  // Force the configured token unconditionally (default TEST_TOKEN; `null` = leave the env
+  // as the test set it, for the tokenless-boot case). A loaded dev env (`load-env` before
+  // the suite) sets AGENTA_RUNNER_TOKEN=replace-me; a "set only if unset" guard would let
+  // that leak in and 401 every AUTH request. afterEach restores the pre-suite value.
+  if (token !== null) process.env[TOKEN_ENV] = token;
   const server = createAgentServer(run);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
@@ -142,8 +147,7 @@ describe("createAgentServer", () => {
   });
 
   it("POST /run without the token returns 401 when a token is configured", async () => {
-    process.env[TOKEN_ENV] = "s3cret";
-    const s = await listen(okRun);
+    const s = await listen(okRun, "s3cret");
     try {
       const res = await fetch(`${s.url}/run`, { method: "POST", body: "{}" });
       assert.equal(res.status, 401);
@@ -156,8 +160,7 @@ describe("createAgentServer", () => {
   });
 
   it("POST /run with a wrong token returns 401", async () => {
-    process.env[TOKEN_ENV] = "s3cret";
-    const s = await listen(okRun);
+    const s = await listen(okRun, "s3cret");
     try {
       const res = await fetch(`${s.url}/run`, {
         method: "POST",
@@ -171,8 +174,7 @@ describe("createAgentServer", () => {
   });
 
   it("POST /run accepts the matching token via Authorization: Bearer", async () => {
-    process.env[TOKEN_ENV] = "s3cret";
-    const s = await listen(okRun);
+    const s = await listen(okRun, "s3cret");
     try {
       const res = await fetch(`${s.url}/run`, {
         method: "POST",
@@ -186,8 +188,7 @@ describe("createAgentServer", () => {
   });
 
   it("POST /run accepts the matching token via X-Agenta-Runner-Token", async () => {
-    process.env[TOKEN_ENV] = "s3cret";
-    const s = await listen(okRun);
+    const s = await listen(okRun, "s3cret");
     try {
       const res = await fetch(`${s.url}/run`, {
         method: "POST",
@@ -202,8 +203,7 @@ describe("createAgentServer", () => {
 
   it("GET /health is reachable without the token even when one is configured", async () => {
     // Health is for liveness probes and carries no secrets, so the token gate is on /run only.
-    process.env[TOKEN_ENV] = "s3cret";
-    const s = await listen(okRun);
+    const s = await listen(okRun, "s3cret");
     try {
       const res = await fetch(`${s.url}/health`);
       assert.equal(res.status, 200);
