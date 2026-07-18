@@ -17,7 +17,10 @@ export {
     killSession,
     querySessionMounts,
     queryMountFiles,
+    queryLatestMountFiles,
     readMountFile,
+    type MountFilesPage,
+    type LatestMountFilesParams,
     type QueryRecordsParams,
     type SessionScopedParams,
     type QueryInteractionsParams,
@@ -71,10 +74,12 @@ export {
 export {
     sessionMountsQueryFamily,
     mountFilesQueryFamily,
+    latestMountFilesQueryFamily,
     mountFileContentQueryFamily,
     revalidateSessionMountsAtom,
     sessionMountsQueryKey,
     mountFilesQueryKey,
+    latestMountFilesQueryKey,
     mountFileContentQueryKey,
 } from "./state/mounts"
 export {

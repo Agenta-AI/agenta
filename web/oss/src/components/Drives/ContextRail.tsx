@@ -20,7 +20,7 @@ import {useDriveArtifactId} from "./driveSessionContext"
 import {relativeTime} from "./driveTree"
 import {driveQuickLookAtomFamily} from "./quickLook"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
-import {driveHasMixedOrigins, useSessionDrive} from "./useSessionDrive"
+import {driveHasMixedOrigins, useSessionDriveSummary} from "./useSessionDrive"
 
 const {Text} = Typography
 
@@ -58,7 +58,7 @@ export function ContextRail({
     const [open, setOpen] = useAtom(contextRailOpenAtom)
     // A brand-new never-run tab has no server data — hold the queries off until its first run.
     const artifactId = useDriveArtifactId()
-    const drive = useSessionDrive(
+    const drive = useSessionDriveSummary(
         isSessionFresh(sessionId) ? "" : sessionId,
         artifactId ?? undefined,
     )
@@ -134,7 +134,7 @@ const ExpandedRail = ({
     onCollapse,
     onQuickLook,
 }: {
-    drive: ReturnType<typeof useSessionDrive>
+    drive: ReturnType<typeof useSessionDriveSummary>
     onOpenFiles: () => void
     onCollapse: () => void
     onQuickLook: (path: string) => void

@@ -19,7 +19,7 @@ import {listArrowKeyDown} from "./driveKeyboard"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "./driveMotion"
 import {humanSize, isHiddenPath, relativeTime} from "./driveTree"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
-import {driveHasMixedOrigins, type DriveRecentFile} from "./useSessionDrive"
+import {driveHasMixedOrigins, useSessionDrive, type DriveRecentFile} from "./useSessionDrive"
 
 const {Text} = Typography
 
@@ -49,11 +49,18 @@ const RecentFileRow = ({
 )
 
 export default function StorageSection({revisionId}: {revisionId?: string | null}) {
-    const {drive, sessionId} = useConfigDrive(revisionId)
+    const {drive, sessionId, artifactId} = useConfigDrive(revisionId)
     // Drawer request is shared with the Files header (which opens it at the root); rows open it
     // preselected on the clicked file.
     const [drawer, setDrawer] = useAtom(configFilesDrawerAtomFamily(revisionId ?? ""))
     const openDrawer = (initialPath: string | null) => setDrawer({open: true, initialPath})
+    // The browse drawer needs the WHOLE tree, but only once opened — gate the full listing on
+    // `drawer.open` (empty ids disable the queries) so the always-mounted section stays on the
+    // lightweight summary above.
+    const fullDrive = useSessionDrive(
+        drawer.open ? sessionId : "",
+        drawer.open ? artifactId : undefined,
+    )
 
     const now = useRecentChangeClock(drive.lastTouchedAt)
     // The compact config list is for the user's own files — drop internal/hidden (dot-prefixed)
@@ -111,7 +118,7 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
             <DriveDrawer
                 open={drawer.open}
                 onClose={() => setDrawer((prev) => ({...prev, open: false}))}
-                drive={drive}
+                drive={fullDrive}
                 subtitleId={sessionId}
                 scope="session"
                 initialPath={drawer.initialPath}

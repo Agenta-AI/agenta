@@ -427,6 +427,56 @@ export async function queryMountFiles({
     return validated?.files ?? null
 }
 
+/** A bounded, sorted slice of a mount's files plus the true total count. */
+export interface MountFilesPage {
+    files: MountFile[]
+    /** Full file count before the limit — the UI badge shows this, not `files.length`. */
+    total: number
+}
+
+export interface LatestMountFilesParams extends MountFilesParams {
+    /** `recent` = newest first (object-store mtime); also `name` / `path`. */
+    order?: "recent" | "name" | "path"
+    limit?: number
+}
+
+/**
+ * Fetch only the latest `limit` files of a mount (sorted by `order`), NOT the whole tree — the
+ * summary surfaces (rail, config, runtime) need a handful of recent files + the total count, so the
+ * backend does the sort/limit and ships just those. `total` keeps the file-count badge accurate.
+ */
+export async function queryLatestMountFiles({
+    mountId,
+    projectId,
+    appId,
+    abortSignal,
+    order,
+    limit,
+    lowPriority,
+}: LatestMountFilesParams): Promise<MountFilesPage | null> {
+    if (!projectId || !mountId) return null
+
+    const client = lowPriority ? getLowPriorityMountsClient() : getMountsClient()
+    const base = projectScopedRequest(projectId, appId, abortSignal)
+    const queryParams: Record<string, string> = {...base.queryParams}
+    if (order) queryParams.order = order
+    if (limit != null) queryParams.limit = String(limit)
+
+    const data = await callFern("[queryLatestMountFiles]", () =>
+        client.getMountFiles({mount_id: mountId}, {...base, queryParams}),
+    )
+    if (!data) return null
+
+    const validated = safeParseWithLogging(
+        mountFileListResponseSchema,
+        data,
+        "[queryLatestMountFiles]",
+    )
+    if (!validated) return null
+    const files = validated.files ?? []
+    return {files, total: validated.total ?? files.length}
+}
+
 /** Read one mount file's text content (`?read=<path>`). Returns `null` on failure/missing scope. */
 export async function readMountFile({
     mountId,

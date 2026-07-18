@@ -1,23 +1,29 @@
 /**
  * FilesWindow — the chat-mode "Files" surface (build-spec view E2). Jargon-free: never says
- * mount/cwd/session drive. Grid (default) or List (the Build drawer's two-pane explorer — build
- * once, skin twice), with client-side search and Recent/Name/Size sort. Read-only in phase 1.
- *
- * The grid BROWSES FOLDERS (breadcrumb + folder tiles you drill into), not a flat dump of every
- * file — a flat grid is unusable once an agent clones a repo (thousands of files, no structure).
- * Searching flattens to matches across the whole tree; clearing search returns to the folder.
+ * mount/cwd/session drive. Three views: FLAT (every file, one tiled list), FOLDERS (drill in via a
+ * breadcrumb — the default, usable at any scale), and LIST (the same two-pane tree explorer the
+ * Build drawer uses — shared, not duplicated). One toolbar (search + origin filter + sort) drives
+ * all three; search + origin flow into the tree via props. Read-only in phase 1.
  */
 import {useDeferredValue, useMemo, useState} from "react"
 
-import {FolderSimple, ListBullets, MagnifyingGlass, SquaresFour, Tray} from "@phosphor-icons/react"
-import {Input, Segmented, Select, Skeleton, Tooltip, Typography} from "antd"
+import {
+    Eye,
+    EyeClosed,
+    FolderSimple,
+    ListBullets,
+    MagnifyingGlass,
+    SquaresFour,
+    Tray,
+} from "@phosphor-icons/react"
+import {Button, Input, Segmented, Select, Skeleton, Tooltip, Typography} from "antd"
 import {useSetAtom} from "jotai"
 
 import {DriveBreadcrumb, DriveExplorer, driveRootLabel, FolderTile} from "./DriveExplorer"
 import {DriveFileRow} from "./DriveFileRow"
 import {gridArrowKeyDown} from "./driveKeyboard"
 import {useDriveArtifactId} from "./driveSessionContext"
-import {buildDriveTree, humanSize, type DriveTreeNode} from "./driveTree"
+import {buildDriveTree, humanSize, isHiddenPath, type DriveTreeNode} from "./driveTree"
 import {ORIGIN_TIP} from "./OriginTag"
 import {driveQuickLookAtomFamily} from "./quickLook"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
@@ -42,11 +48,16 @@ export default function FilesWindow({
     const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId))
     const now = useRecentChangeClock(drive.lastTouchedAt)
 
-    const [view, setView] = useState<"grid" | "list">("grid")
+    // flat = every file, one tiled list; folders = drill into folders (breadcrumb); list = the
+    // two-pane tree explorer. `folders` is the default (browsable at any scale); flat is kept as an
+    // option per the ask.
+    const [view, setView] = useState<"flat" | "folders" | "list">("folders")
     const [search, setSearch] = useState("")
     const [sort, setSort] = useState<SortKey>("recent")
     const [origin, setOrigin] = useState<OriginFilter>("all")
-    // Current folder being browsed ("" = drive root). Only meaningful while NOT searching.
+    // Show dot-prefixed (hidden) files/folders. On by default (surfaced dimmed); toggle off to declutter.
+    const [showHidden, setShowHidden] = useState(true)
+    // Current folder being browsed ("" = drive root). Only meaningful in the `folders` view.
     const [folderPath, setFolderPath] = useState("")
 
     // Offer the agent/session filter only when the drive actually holds both kinds.
@@ -91,23 +102,26 @@ export default function FilesWindow({
         })
     }
 
-    // SEARCH: flat matches across the whole tree (files only).
-    const searchResults = useMemo(() => {
-        if (!searching) return []
-        let files = drive.recents.filter((f) => f.path.toLowerCase().includes(query))
+    // FLAT: every file, origin-filtered + search-filtered + sorted. Powers the Flat view, and the
+    // Folders view WHILE searching (search is a flat cross-folder match, not a per-folder one).
+    const flatList = useMemo(() => {
+        let files = drive.recents
+        if (!showHidden) files = files.filter((f) => !isHiddenPath(f.path))
         if (mixed && origin !== "all") files = files.filter((f) => fileOrigin(f.path) === origin)
+        if (query) files = files.filter((f) => f.path.toLowerCase().includes(query))
         return sortFiles(files)
-    }, [drive.recents, query, searching, mixed, origin, sort, recentsByPath])
+    }, [drive.recents, query, mixed, origin, sort, showHidden, recentsByPath])
 
     // BROWSE: the current folder's children — folders first (alpha, from buildDriveTree), then files
     // (origin-filtered + sorted).
     const browseEntries = useMemo(() => {
-        const children = folderPath === "" ? tree : (nodeByPath.get(folderPath)?.children ?? [])
+        let children = folderPath === "" ? tree : (nodeByPath.get(folderPath)?.children ?? [])
+        if (!showHidden) children = children.filter((n) => !isHiddenPath(n.path))
         const folders = children.filter((n) => n.isFolder)
         let files = children.filter((n) => !n.isFolder)
         if (mixed && origin !== "all") files = files.filter((n) => fileOrigin(n.path) === origin)
         return [...folders, ...sortFiles(files)]
-    }, [folderPath, tree, nodeByPath, mixed, origin, sort, recentsByPath])
+    }, [folderPath, tree, nodeByPath, mixed, origin, sort, showHidden, recentsByPath])
 
     const rootLabel = driveRootLabel(drive.mount)
 
@@ -139,73 +153,124 @@ export default function FilesWindow({
                         <span className="text-xs font-medium">Files</span>
                     </>
                 ) : null}
+                {/* Search on the LEFT so it sits over the tree pane (fills what would otherwise be
+                    empty space above the tree, matching the build drawer). */}
+                <Input
+                    allowClear
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search all files"
+                    className="w-[200px] max-w-[40%]"
+                    prefix={<MagnifyingGlass size={12} className="text-colorTextQuaternary" />}
+                />
+                {/* Filters + sort + view. Search + origin drive the tree too (via props); sort is
+                    tile-only (a tree is inherently ordered). */}
                 <div className="ml-auto flex items-center gap-2">
-                    {view === "grid" ? (
-                        <>
-                            {mixed ? (
-                                <Segmented
-                                    value={origin}
-                                    onChange={(v) => setOrigin(v as OriginFilter)}
-                                    options={[
-                                        {value: "all", label: "All"},
-                                        {
-                                            value: "agent",
-                                            label: (
-                                                <Tooltip title={ORIGIN_TIP.agent}>
-                                                    <span>Agent</span>
-                                                </Tooltip>
-                                            ),
-                                        },
-                                        {
-                                            value: "session",
-                                            label: (
-                                                <Tooltip title={ORIGIN_TIP.session}>
-                                                    <span>Session</span>
-                                                </Tooltip>
-                                            ),
-                                        },
-                                    ]}
-                                />
-                            ) : null}
-                            <Input
-                                allowClear
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Search all files"
-                                className="w-[140px]"
-                                prefix={
-                                    <MagnifyingGlass
-                                        size={12}
-                                        className="text-colorTextQuaternary"
-                                    />
-                                }
-                            />
-                            <Select
-                                value={sort}
-                                onChange={setSort}
-                                className="w-[92px]"
-                                options={[
-                                    {value: "recent", label: "Recent"},
-                                    {value: "name", label: "Name"},
-                                    {value: "size", label: "Size"},
-                                ]}
-                            />
-                        </>
+                    {mixed ? (
+                        <Segmented
+                            value={origin}
+                            onChange={(v) => setOrigin(v as OriginFilter)}
+                            options={[
+                                {value: "all", label: "All"},
+                                {
+                                    value: "agent",
+                                    label: (
+                                        <Tooltip title={ORIGIN_TIP.agent}>
+                                            <span>Agent</span>
+                                        </Tooltip>
+                                    ),
+                                },
+                                {
+                                    value: "session",
+                                    label: (
+                                        <Tooltip title={ORIGIN_TIP.session}>
+                                            <span>Session</span>
+                                        </Tooltip>
+                                    ),
+                                },
+                            ]}
+                        />
                     ) : null}
+                    {view !== "list" ? (
+                        <Select
+                            value={sort}
+                            onChange={setSort}
+                            className="w-[92px]"
+                            options={[
+                                {value: "recent", label: "Recent"},
+                                {value: "name", label: "Name"},
+                                {value: "size", label: "Size"},
+                            ]}
+                        />
+                    ) : null}
+                    <Tooltip title={showHidden ? "Hide hidden files" : "Show hidden files"}>
+                        <Button
+                            type="text"
+                            aria-label={showHidden ? "Hide hidden files" : "Show hidden files"}
+                            aria-pressed={!showHidden}
+                            icon={
+                                showHidden ? (
+                                    <Eye size={16} className="block" />
+                                ) : (
+                                    <EyeClosed size={16} className="block" />
+                                )
+                            }
+                            onClick={() => setShowHidden((v) => !v)}
+                            className={
+                                showHidden ? "!text-colorTextTertiary" : "!text-colorPrimary"
+                            }
+                        />
+                    </Tooltip>
                     <Segmented
                         value={view}
-                        onChange={(v) => setView(v as "grid" | "list")}
+                        onChange={(v) => setView(v as "flat" | "folders" | "list")}
                         options={[
-                            {value: "grid", icon: <SquaresFour size={14} />},
-                            {value: "list", icon: <ListBullets size={14} />},
+                            {
+                                value: "flat",
+                                label: (
+                                    <Tooltip title="All files">
+                                        <span className="flex h-full items-center justify-center">
+                                            <SquaresFour size={16} />
+                                        </span>
+                                    </Tooltip>
+                                ),
+                            },
+                            {
+                                value: "folders",
+                                label: (
+                                    <Tooltip title="Browse folders">
+                                        <span className="flex h-full items-center justify-center">
+                                            <FolderSimple size={16} />
+                                        </span>
+                                    </Tooltip>
+                                ),
+                            },
+                            {
+                                value: "list",
+                                label: (
+                                    <Tooltip title="Tree">
+                                        <span className="flex h-full items-center justify-center">
+                                            <ListBullets size={16} />
+                                        </span>
+                                    </Tooltip>
+                                ),
+                            },
                         ]}
                     />
                 </div>
             </div>
 
             {view === "list" ? (
+                // Same explorer the build drawer uses (shared, not duplicated); the toolbar search +
+                // origin filter drive it via props.
                 <div className="flex min-h-0 flex-1">
-                    <DriveExplorer drive={drive} scope="session" />
+                    <DriveExplorer
+                        drive={drive}
+                        scope="session"
+                        search={deferredSearch}
+                        originFilter={origin}
+                        showHidden={showHidden}
+                    />
                 </div>
             ) : drive.errored ? (
                 <div className="px-3 py-4">
@@ -227,8 +292,8 @@ export default function FilesWindow({
                 </div>
             ) : (
                 <>
-                    {/* Breadcrumb only while browsing; searching is a flat cross-folder view. */}
-                    {!searching ? (
+                    {/* Breadcrumb only in the Folders view (browsing); flat + searching are flat lists. */}
+                    {view === "folders" && !searching ? (
                         <div className="shrink-0 px-3 pb-1">
                             <DriveBreadcrumb
                                 shown={folderPath}
@@ -238,8 +303,8 @@ export default function FilesWindow({
                         </div>
                     ) : null}
 
-                    {searching ? (
-                        searchResults.length === 0 ? (
+                    {view === "flat" || searching ? (
+                        flatList.length === 0 ? (
                             <div className="min-h-0 flex-1 p-3">
                                 <Text type="secondary" className="!text-[11px]">
                                     No files match.
@@ -247,8 +312,8 @@ export default function FilesWindow({
                             </div>
                         ) : (
                             <VirtualTileGrid
-                                items={searchResults}
-                                columns={3}
+                                items={flatList}
+                                minColumnWidth={200}
                                 className="px-3 pt-1"
                                 onKeyDown={gridArrowKeyDown}
                                 getKey={(file) => file.path}
@@ -266,7 +331,7 @@ export default function FilesWindow({
                             // Remount per folder so drilling in starts scrolled at the top.
                             key={folderPath}
                             items={browseEntries}
-                            columns={3}
+                            minColumnWidth={200}
                             className="px-3 pt-1"
                             onKeyDown={gridArrowKeyDown}
                             getKey={(n) => n.path}

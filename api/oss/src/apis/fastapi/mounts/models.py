@@ -58,6 +58,9 @@ class MountsResponse(BaseModel):
 
 class MountFileListResponse(BaseModel):
     count: int = 0
+    # Full file count matching the request before any limit — lets a limited "latest N" listing
+    # still report the true total (the UI badge). Equals `count` for an unlimited listing.
+    total: int = 0
     files: List[MountFile] = Field(default_factory=list)
 
 

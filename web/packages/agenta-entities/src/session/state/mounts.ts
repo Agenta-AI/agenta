@@ -14,7 +14,13 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
-import {queryMountFiles, querySessionMounts, readMountFile} from "../api/api"
+import {
+    queryLatestMountFiles,
+    queryMountFiles,
+    querySessionMounts,
+    readMountFile,
+    type MountFilesPage,
+} from "../api/api"
 import type {Mount, MountFile} from "../core/schema"
 
 // Query keys, factored so the revalidate atom and the families can never drift.
@@ -22,6 +28,12 @@ export const sessionMountsQueryKey = (projectId: string, sessionId: string) =>
     ["session", "mounts", projectId, sessionId] as const
 export const mountFilesQueryKey = (projectId: string, mountId: string) =>
     ["mounts", "files", projectId, mountId] as const
+export const latestMountFilesQueryKey = (
+    projectId: string,
+    mountId: string,
+    order: string,
+    limit: number,
+) => ["mounts", "files-latest", projectId, mountId, order, limit] as const
 export const mountFileContentQueryKey = (projectId: string, mountId: string, path: string) =>
     ["mounts", "file", projectId, mountId, path] as const
 
@@ -53,6 +65,42 @@ export const mountFilesQueryFamily = atomFamily((mountId: string) =>
             refetchOnWindowFocus: false,
         }
     }),
+)
+
+/**
+ * The latest N files of a mount (backend-sorted + limited), for the summary surfaces that show a
+ * handful of recent files. Unlike {@link mountFilesQueryFamily} this never pulls the whole tree into
+ * the client, so it scales past tens of thousands of files.
+ */
+export const latestMountFilesQueryFamily = atomFamily(
+    ({
+        mountId,
+        limit,
+        order,
+    }: {
+        mountId: string
+        limit: number
+        order?: "recent" | "name" | "path"
+    }) =>
+        atomWithQuery<MountFilesPage | null>((get) => {
+            const projectId = get(projectIdAtom) ?? ""
+            return {
+                queryKey: latestMountFilesQueryKey(projectId, mountId, order ?? "none", limit),
+                queryFn: ({signal}) =>
+                    queryLatestMountFiles({
+                        mountId,
+                        projectId,
+                        order,
+                        limit,
+                        abortSignal: signal,
+                        lowPriority: true,
+                    }),
+                enabled: Boolean(mountId && projectId),
+                staleTime: 30_000,
+                refetchOnWindowFocus: false,
+            }
+        }),
+    (a, b) => a.mountId === b.mountId && a.limit === b.limit && a.order === b.order,
 )
 
 /** One mount file's text content. Bodies can be ~1.5 MB strings, so retention is short:
@@ -94,6 +142,7 @@ export const revalidateSessionMountsAtom = atom(null, (get, _set, sessionId: str
     // missed it — files written there stayed stale until a reload. Inactive queries just refetch on
     // next open; active ones (the open drive) refetch now.
     void queryClient.invalidateQueries({queryKey: ["mounts", "files", projectId]})
+    void queryClient.invalidateQueries({queryKey: ["mounts", "files-latest", projectId]})
     void queryClient.invalidateQueries({queryKey: ["mounts", "file", projectId]})
     // The agent-mount lookup itself (`agentDrive` key), in case the first write just created it.
     void queryClient.invalidateQueries({queryKey: ["mounts", "agent", projectId]})

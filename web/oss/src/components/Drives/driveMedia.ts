@@ -17,6 +17,8 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {projectIdAtom} from "@/oss/state/project"
 
+import {renderPdfFirstPage} from "./pdfThumb"
+
 export async function fetchMountFileBlob({
     mountId,
     projectId,
@@ -60,25 +62,61 @@ export const mountFileBlobQueryFamily = atomFamily(
     (a, b) => a.mountId === b.mountId && a.path === b.path,
 )
 
-/** Same bytes, but for grid THUMBNAILS (capped image/pdf tiles) — a short `gcTime` keeps a recently
- * seen thumbnail warm so scrolling it out of the virtualized window and back doesn't refetch and
- * flash the tile (issue #5367). Separate key from {@link mountFileBlobQueryFamily} so the full-size
- * viewer's `gcTime: 0` memory policy (never pin a 25 MB body) is untouched; thumbnails are capped
- * small, so a 60s retention of the on-screen-ish set is cheap. */
-export const mountFileThumbnailBlobQueryFamily = atomFamily(
-    ({mountId, path}: {mountId: string; path: string}) =>
-        atomWithQuery<Blob | null>((get) => {
+/** Longest side of a generated grid thumbnail, in px. */
+const THUMB_PX = 256
+
+/** Downscale an image blob to a small thumbnail data URL on the CLIENT (webp, `THUMB_PX` longest
+ * side). `createImageBitmap` decodes off the main thread; the draw + encode are tiny. Returns null
+ * if the browser can't decode it (caller falls back to the type icon). This is what lets the grid
+ * cache a few KB per tile instead of pinning the full-size original in memory while browsing many
+ * files — the whole point of the FE thumbnail path (no server resize). */
+async function downscaleImage(blob: Blob): Promise<string | null> {
+    if (typeof createImageBitmap !== "function") return null
+    let bitmap: ImageBitmap | null = null
+    try {
+        bitmap = await createImageBitmap(blob)
+        const scale = Math.min(1, THUMB_PX / Math.max(bitmap.width, bitmap.height))
+        const w = Math.max(1, Math.round(bitmap.width * scale))
+        const h = Math.max(1, Math.round(bitmap.height * scale))
+        const canvas = document.createElement("canvas")
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext("2d")
+        if (!ctx) return null
+        ctx.drawImage(bitmap, 0, 0, w, h)
+        return canvas.toDataURL("image/webp", 0.7)
+    } catch {
+        return null
+    } finally {
+        bitmap?.close()
+    }
+}
+
+/**
+ * A file's grid THUMBNAIL as a small data-URL string — a downscaled image or a rendered PDF first
+ * page. The heavy original bytes are fetched, converted, and DROPPED; only the tiny string is
+ * retained (generous `gcTime`, strings are cheap). So browsing thousands of image/pdf files keeps
+ * memory bounded (KBs per seen tile, not the full originals) and scroll-back is instant with no
+ * re-decode/re-render. Keyed separately from the full-size {@link mountFileBlobQueryFamily} viewer.
+ */
+export const mountFileThumbnailQueryFamily = atomFamily(
+    ({mountId, path, mode}: {mountId: string; path: string; mode: "image" | "pdf"}) =>
+        atomWithQuery<string | null>((get) => {
             const projectId = get(projectIdAtom) ?? ""
             return {
-                queryKey: ["mounts", "thumb-blob", projectId, mountId, path],
-                queryFn: () => fetchMountFileBlob({mountId, projectId, path}),
+                queryKey: ["mounts", "thumb", projectId, mountId, path, mode],
+                queryFn: async () => {
+                    const blob = await fetchMountFileBlob({mountId, projectId, path})
+                    if (!blob) return null
+                    return mode === "pdf" ? renderPdfFirstPage(blob) : downscaleImage(blob)
+                },
                 enabled: Boolean(mountId && path && projectId),
                 staleTime: Infinity,
-                gcTime: 60_000,
+                gcTime: 5 * 60_000,
                 refetchOnWindowFocus: false,
             }
         }),
-    (a, b) => a.mountId === b.mountId && a.path === b.path,
+    (a, b) => a.mountId === b.mountId && a.path === b.path && a.mode === b.mode,
 )
 
 /** Object URL for a drive file's bytes — revoked on change/unmount. */

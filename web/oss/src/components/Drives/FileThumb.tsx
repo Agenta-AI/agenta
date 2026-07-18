@@ -1,13 +1,13 @@
 /**
  * FileThumb — the grid-tile preview. Picks the cheapest faithful thumbnail per kind and stays
- * optimized: heavy strategies (PDF render, text-snippet fetch, video frame) each size-capped, and
- * the fetched bytes are CACHED briefly ({@link mountFileThumbnailBlobQueryFamily}) so scrolling a
- * tile out of the virtualized window and back doesn't refetch. Any failure falls back to the type
- * icon — a tile never blocks or errors visibly.
+ * optimized: image/pdf tiles are downscaled/rendered to a SMALL data-URL on the client
+ * ({@link mountFileThumbnailQueryFamily}) and only that tiny string is cached — never the full-size
+ * original — so browsing thousands of media files keeps memory bounded and scroll-back is instant.
+ * Each strategy is size-capped; any failure falls back to the type icon — a tile never blocks.
  *
- *   image → native <img> off the authenticated blob (browser decode)
- *   video → first frame via a metadata-only <video> seeked to 0.1s
- *   pdf   → first page rendered to a PNG data URL via lazy pdfjs (see pdfThumb)
+ *   image → downscaled to a ~256px webp data URL (full bytes fetched, converted, dropped)
+ *   video → first frame via a metadata-only <video> seeked to 0.1s (browser partial-fetches)
+ *   pdf   → first page rendered to a small PNG data URL via lazy pdfjs (see pdfThumb)
  *   text  → first lines of the content (same shared query the preview uses)
  *   else  → the kind icon
  *
@@ -16,7 +16,7 @@
  * the thumbnail a head start before the tile scrolls in (issue #5367). Memoized so scrolling the
  * virtualized grid never re-renders an already-resolved tile.
  */
-import {memo, useEffect, useState} from "react"
+import {memo, useState} from "react"
 
 import {mountFileContentQueryFamily, type Mount} from "@agenta/entities/session"
 import {useAtomValue} from "jotai"
@@ -25,8 +25,7 @@ import {projectIdAtom} from "@/oss/state/project"
 
 import {driveFileIcon} from "./driveIcons"
 import {resolveDriveFileKind, type DriveFileKind} from "./driveKinds"
-import {mountFileDownloadUrl, mountFileThumbnailBlobQueryFamily} from "./driveMedia"
-import {renderPdfFirstPage} from "./pdfThumb"
+import {mountFileDownloadUrl, mountFileThumbnailQueryFamily} from "./driveMedia"
 import {type DriveRecentFile} from "./useSessionDrive"
 
 const IMG_CAP = 8 * 1024 * 1024
@@ -34,47 +33,13 @@ const PDF_CAP = 4 * 1024 * 1024
 const TEXT_CAP = 256 * 1024
 const TEXT_KINDS = new Set<DriveFileKind>(["markdown", "text", "code", "json", "csv", "html"])
 
-/** First page of a PDF as a data URL (lazy pdfjs); only fetches when enabled and under cap. */
-function usePdfThumbnail(mount: Mount | null, path: string, enabled: boolean) {
+/** Small thumbnail data-URL (downscaled image or rendered PDF page), cached as a lightweight string
+ * so the grid never pins full-size originals in memory. Disabled (no fetch) unless `enabled`. */
+function useThumbnail(mount: Mount | null, path: string, mode: "image" | "pdf", enabled: boolean) {
     const query = useAtomValue(
-        mountFileThumbnailBlobQueryFamily({mountId: enabled ? (mount?.id ?? "") : "", path}),
+        mountFileThumbnailQueryFamily({mountId: enabled ? (mount?.id ?? "") : "", path, mode}),
     )
-    const blob = enabled ? (query.data ?? null) : null
-    const [url, setUrl] = useState<string | null>(null)
-    useEffect(() => {
-        let alive = true
-        setUrl(null)
-        if (!blob) return
-        void renderPdfFirstPage(blob).then((u) => {
-            if (alive) setUrl(u)
-        })
-        return () => {
-            alive = false
-        }
-    }, [blob])
-    return url
-}
-
-/** Object URL for an image file's bytes via the AUTHENTICATED blob fetch. A raw `<img src>` at the
- * download endpoint 401s on header-auth / cross-origin deployments (and it sends attachment
- * disposition), so images must go through the client like every other media body. Gated on
- * `enabled`; revokes on change/unmount. */
-function useImageObjectUrl(mount: Mount | null, path: string, enabled: boolean) {
-    const query = useAtomValue(
-        mountFileThumbnailBlobQueryFamily({mountId: enabled ? (mount?.id ?? "") : "", path}),
-    )
-    const blob = enabled ? (query.data ?? null) : null
-    const [url, setUrl] = useState<string | null>(null)
-    useEffect(() => {
-        if (!blob) {
-            setUrl(null)
-            return
-        }
-        const u = URL.createObjectURL(blob)
-        setUrl(u)
-        return () => URL.revokeObjectURL(u)
-    }, [blob])
-    return url
+    return enabled ? (query.data ?? null) : null
 }
 
 /** First lines of a text-family file (same shared content query the preview body reads). Returns
@@ -99,8 +64,8 @@ function FileThumbImpl({file, mount}: {file: DriveRecentFile; mount: Mount | nul
     const isText = TEXT_KINDS.has(kind) && size > 0 && size <= TEXT_CAP
 
     const directUrl = mountFileDownloadUrl(mount, file.path, projectId)
-    const imgUrl = useImageObjectUrl(mount, file.path, isImage && !failed)
-    const pdfUrl = usePdfThumbnail(mount, file.path, isPdf && !failed)
+    const imgUrl = useThumbnail(mount, file.path, "image", isImage && !failed)
+    const pdfUrl = useThumbnail(mount, file.path, "pdf", isPdf && !failed)
     const snippet = useTextSnippet(mount, file.path, isText)
 
     // A consistent 4:3 preview so tiles line up and nothing letterboxes oddly; visual kinds fill
@@ -109,12 +74,12 @@ function FileThumbImpl({file, mount}: {file: DriveRecentFile; mount: Mount | nul
     const box =
         "flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded bg-colorFillTertiary"
 
-    // Image — decode off the authenticated blob (object URL); icon until it resolves. Covers gifs,
-    // which animate straight from the object URL.
+    // Image — a small downscaled webp data URL; skeleton until it resolves. (Animated gifs render
+    // as a static first frame — acceptable for a tile.)
     if (isImage && imgUrl && !failed) {
         return (
             <div className={box}>
-                {/* eslint-disable-next-line @next/next/no-img-element -- object URL for authed bytes; next/image can't optimize it */}
+                {/* eslint-disable-next-line @next/next/no-img-element -- generated data URL; next/image can't optimize it */}
                 <img
                     src={imgUrl}
                     alt=""

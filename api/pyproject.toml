@@ -42,6 +42,7 @@ dependencies = [
     "opentelemetry-proto>=1,<2",
     "croniter>=6,<7",
     "miniopy-async>=1,<2",
+    "pathspec>=0.12,<0.13",
 ]
 
 [dependency-groups]

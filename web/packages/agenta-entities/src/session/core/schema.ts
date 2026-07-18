@@ -154,6 +154,9 @@ export const mountFileSchema = z.object({
 
 export const mountFileListResponseSchema = z.object({
     count: z.number().nullish(),
+    /** Full file count before any `limit` — so a bounded "latest N" listing still reports the true
+     * total for the UI badge. Equals `count` for an unlimited listing. */
+    total: z.number().nullish(),
     files: z.array(mountFileSchema).nullish(),
 })
 
