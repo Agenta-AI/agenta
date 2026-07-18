@@ -93,6 +93,7 @@ import {
   combineAppendSystemPrompt,
   type ClaudeSystemPromptMeta,
 } from "./agent-mount-guidance.ts";
+import { claudeThinkingMeta } from "./claude-thinking.ts";
 import {
   routePermissionRequestToActiveTurn,
   routeSessionEventToActiveTurn,
@@ -927,10 +928,21 @@ export async function acquireEnvironment(
       environment.agentMountedPath && plan.acpAgent === "claude"
         ? claudeMountSystemPromptMeta(AGENT_MOUNT_SYSTEM_PROMPT_SEGMENT)
         : undefined;
+    // Claude-only: request visible ("summarized") extended-thinking display so the model's
+    // reasoning reaches the runner (and the playground). Without it, recent Claude models
+    // return signature-only thinking and no reasoning surfaces. See `claude-thinking.ts`.
+    const claudeThinking =
+      plan.acpAgent === "claude" ? claudeThinkingMeta() : undefined;
+    // Disjoint `_meta` keys (`systemPrompt` vs `claudeCode`), so a shallow merge keeps both.
+    // A future second `claudeCode` producer would need a deep merge here.
+    const claudeMeta =
+      claudeSystemPromptMeta || claudeThinking
+        ? { ...(claudeSystemPromptMeta ?? {}), ...(claudeThinking ?? {}) }
+        : undefined;
     const sessionInit = {
       cwd: plan.cwd,
       mcpServers: sessionMcp.servers,
-      ...(claudeSystemPromptMeta ? { _meta: claudeSystemPromptMeta } : {}),
+      ...(claudeMeta ? { _meta: claudeMeta } : {}),
     };
 
     // If this harness authored the conversation's most recent turn (staleness-guarded) and we
