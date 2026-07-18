@@ -1,42 +1,42 @@
 import {memo} from "react"
 
-import {Typography} from "antd"
-import clsx from "clsx"
-import Image from "next/image"
+import {GithubOutlined} from "@ant-design/icons"
+import {ArrowUpRight, ChatCircle, Clock, SquaresFour} from "@phosphor-icons/react"
 
-const {Title} = Typography
+const FEATURES = [
+    {icon: <ChatCircle size={20} />, label: "Describe the work in chat"},
+    {icon: <SquaresFour size={20} />, label: "Connect the apps you use"},
+    {icon: <Clock size={20} />, label: "Run them in the background on a schedule or event"},
+]
 
 const SideBanner = () => {
     return (
-        <section
-            className={clsx([
-                "w-1/2 h-screen  relative",
-                "hidden lg:flex",
-                "flex-col items-center justify-center gap-10",
-            ])}
-        >
-            <div
-                className="w-full h-screen bg-repeat-y object-cover absolute -z-0 top-0 left-0 right-0 bottom-0"
-                style={{backgroundImage: "url('/assets/onboard-page-grids.svg')"}}
-            ></div>
+        <section className="auth-panel hidden lg:flex flex-1 h-full flex-col justify-center p-24">
+            <div className="flex flex-col gap-[26px] max-w-[520px]">
+                <a
+                    href="https://github.com/Agenta-AI/agenta"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="auth-chip self-start"
+                >
+                    <GithubOutlined style={{fontSize: 13}} />
+                    <span>Open source · GitHub</span>
+                    <ArrowUpRight size={13} weight="bold" />
+                </a>
 
-            <div className="w-[400px] gap-4">
-                <Title level={3} className="font-bold">
-                    Build Robust AI Applications
-                </Title>
-                <Typography.Paragraph className="text-sm text-[var(--ag-c-586673)]">
-                    Streamline the development of your LLM applications. Experiment, evaluate, and
-                    monitor AI applications faster and easier than ever before. Empower your team
-                    with seamless collaboration.
-                </Typography.Paragraph>
+                <h2 className="auth-headline font-fraunces text-[48px] leading-[52px]">
+                    Build agents that automate your work
+                </h2>
+
+                <div className="flex flex-col">
+                    {FEATURES.map((feature) => (
+                        <div key={feature.label} className="auth-feature-row">
+                            <span className="shrink-0">{feature.icon}</span>
+                            <span>{feature.label}</span>
+                        </div>
+                    ))}
+                </div>
             </div>
-            <Image
-                src="/assets/On-boarding.webp"
-                alt="agenta-ai"
-                width={492}
-                height={392}
-                className="w-[492px] h-[392px] 2xl:w-[55%] 2xl:h-auto object-cover"
-            />
         </section>
     )
 }

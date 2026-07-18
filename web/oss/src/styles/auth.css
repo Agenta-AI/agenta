@@ -1,0 +1,327 @@
+/* Sign-in / sign-up redesign — scoped brand tokens and component styles.
+   These values come straight from the design handoff (design_handoff_signin_redesign)
+   and are intentionally raw brand tokens rather than the app's antd palette: the auth
+   screen is a bare marketing surface with its own literary type + yellow keycap language.
+   Everything is scoped under .auth-redesign so nothing leaks into the product app. */
+
+/* ── Fraunces (headlines only) ───────────────────────────────────────────── */
+@font-face {
+    font-family: "Fraunces";
+    src: url("/assets/fonts/Fraunces-VF.woff2") format("woff2-variations");
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* Pinned to render sharp + literary (high optical size, no softness/wonk),
+   not the default soft retro Fraunces. */
+.font-fraunces {
+    font-family: "Fraunces", Georgia, "Times New Roman", serif;
+    font-weight: 300;
+    font-optical-sizing: none;
+    font-variation-settings:
+        "opsz" 144,
+        "wght" 300,
+        "SOFT" 0,
+        "WONK" 0;
+}
+
+/* ── Scoped design tokens ────────────────────────────────────────────────── */
+.auth-redesign {
+    --a-page: #f6f5f3;
+    --a-panel: #ffffff;
+    --a-panel-ring: #e5e5e3;
+    --a-heading: #242424;
+    --a-secondary: #676770;
+    --a-faint: #a3a19f;
+    --a-hairline: #f0efed;
+    --a-chip-bg: #f6f5f3;
+    --a-chip-ring: #f0efed;
+    --a-surface-bg: #ffffff;
+    --a-surface-shadow: 0 0 0 1px rgba(72, 70, 68, 0.08), 0 1px 3px rgba(72, 70, 68, 0.08);
+    --a-surface-shadow-strong: 0 0 0 1px #a3a19f, 0 1px 3px rgba(72, 70, 68, 0.1);
+    --a-tag-bg: #f6f5f3;
+    --a-tag-ring: #f0efed;
+    --a-tag-text: #676770;
+    --a-pill-sel-bg: #242424;
+    --a-pill-sel-text: #ffffff;
+    --a-yellow: linear-gradient(180deg, #f2f25c 0%, #e7e712 100%);
+    --a-yellow-shadow: inset 0 2px 6.4px rgba(255, 255, 255, 0.8);
+}
+
+.dark .auth-redesign {
+    --a-page: #1e1c1d;
+    --a-panel: #242220;
+    --a-panel-ring: rgba(229, 229, 227, 0.1);
+    --a-heading: #ffffff;
+    --a-secondary: rgba(255, 255, 255, 0.64);
+    --a-faint: rgba(255, 255, 255, 0.4);
+    --a-hairline: rgba(229, 229, 227, 0.1);
+    --a-chip-bg: rgba(255, 255, 255, 0.06);
+    --a-chip-ring: rgba(229, 229, 227, 0.1);
+    --a-surface-bg: rgba(255, 255, 255, 0.04);
+    --a-surface-shadow: 0 0 0 1px rgba(229, 229, 227, 0.1);
+    --a-surface-shadow-strong: 0 0 0 1px rgba(255, 255, 255, 0.28);
+    --a-tag-bg: rgba(255, 255, 255, 0.08);
+    --a-tag-ring: rgba(229, 229, 227, 0.1);
+    --a-tag-text: rgba(255, 255, 255, 0.72);
+    --a-pill-sel-bg: #ffffff;
+    --a-pill-sel-text: #242424;
+}
+
+/* Page + panel */
+.auth-redesign {
+    background-color: var(--a-page);
+    color: var(--a-heading);
+}
+.auth-panel {
+    background-color: var(--a-panel);
+    box-shadow: 0 0 0 1px var(--a-panel-ring);
+}
+
+/* GitHub chip */
+.auth-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background-color: var(--a-chip-bg);
+    box-shadow: 0 0 0 1px var(--a-chip-ring);
+    color: var(--a-secondary);
+    font-size: 12px;
+    line-height: 18px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    transition: color 0.15s ease;
+}
+.auth-chip:hover {
+    color: var(--a-heading);
+}
+
+/* Headlines */
+.auth-headline {
+    color: var(--a-heading);
+}
+
+/* Feature rows */
+.auth-feature-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 0;
+    border-top: 1px solid var(--a-hairline);
+    font-size: 15px;
+    line-height: 22px;
+    color: var(--a-heading);
+}
+.auth-feature-row:last-child {
+    border-bottom: 1px solid var(--a-hairline);
+}
+
+/* Form heading + copy */
+.auth-subline {
+    color: var(--a-secondary);
+    font-size: 15px;
+    line-height: 22px;
+}
+
+/* Data residency label */
+.auth-label {
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-size: 12px;
+    line-height: 18px;
+    font-weight: 500;
+    color: var(--a-secondary);
+}
+.auth-link {
+    color: var(--a-secondary);
+    font-size: 12px;
+    line-height: 18px;
+    text-decoration: none;
+}
+.auth-link:hover {
+    color: var(--a-heading);
+    text-decoration: underline;
+}
+
+/* Region pills */
+.auth-pill {
+    flex: 1;
+    height: 40px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    background-color: var(--a-surface-bg);
+    box-shadow: var(--a-surface-shadow);
+    color: var(--a-secondary);
+    transition:
+        box-shadow 0.15s ease,
+        background-color 0.15s ease;
+}
+.auth-pill:disabled {
+    cursor: default;
+}
+.auth-pill-selected {
+    background: var(--a-pill-sel-bg);
+    color: var(--a-pill-sel-text);
+    box-shadow: none;
+}
+
+/* Surface buttons (OAuth, neutral Continue) */
+.auth-surface-btn {
+    width: 100%;
+    height: 44px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    background-color: var(--a-surface-bg);
+    box-shadow: var(--a-surface-shadow);
+    color: var(--a-heading);
+    transition:
+        box-shadow 0.15s ease,
+        opacity 0.15s ease;
+}
+.auth-surface-btn:hover:not(:disabled) {
+    box-shadow: var(--a-surface-shadow-strong);
+}
+.auth-surface-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+.auth-surface-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Promoted last-used surface button (2b) — taller, stronger ring */
+.auth-surface-btn-promoted {
+    height: 48px;
+    box-shadow: var(--a-surface-shadow-strong);
+}
+
+/* Yellow keycap primary */
+.auth-btn-yellow {
+    width: 100%;
+    height: 44px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    color: #242424;
+    background: var(--a-yellow);
+    box-shadow: var(--a-yellow-shadow);
+    transition: filter 0.15s ease;
+}
+.auth-btn-yellow:hover:not(:disabled) {
+    filter: brightness(1.03);
+}
+.auth-btn-yellow:disabled {
+    opacity: 0.7;
+    cursor: default;
+}
+
+/* Post-discovery antd primary buttons (password / OTP / SSO submit) inherit the
+   same yellow keycap so the whole screen speaks one visual language. */
+.auth-redesign .ant-btn-primary,
+.auth-redesign .ant-btn-primary:hover,
+.auth-redesign .ant-btn-primary:focus {
+    background: var(--a-yellow);
+    box-shadow: var(--a-yellow-shadow);
+    color: #242424;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+}
+.auth-redesign .ant-btn-primary:hover {
+    filter: brightness(1.03);
+}
+
+/* Inputs — override antd surface to match the design */
+.auth-redesign .auth-input.ant-input,
+.auth-redesign .auth-input .ant-input {
+    height: 44px;
+    border-radius: 8px;
+    border: none;
+    background-color: var(--a-surface-bg);
+    box-shadow: var(--a-surface-shadow);
+    color: var(--a-heading);
+    font-size: 14px;
+}
+.auth-redesign .auth-input.ant-input::placeholder,
+.auth-redesign .auth-input .ant-input::placeholder {
+    color: var(--a-faint);
+}
+.auth-redesign .auth-input-promoted.ant-input,
+.auth-redesign .auth-input-promoted .ant-input {
+    height: 48px;
+    box-shadow: var(--a-surface-shadow-strong);
+    padding-right: 96px;
+}
+
+/* Last-used tag */
+.auth-last-used-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background-color: var(--a-tag-bg);
+    box-shadow: 0 0 0 1px var(--a-tag-ring);
+    color: var(--a-tag-text);
+    font-size: 11px;
+    line-height: 16px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+/* Divider with "or" */
+.auth-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--a-faint);
+    font-size: 12px;
+    line-height: 18px;
+}
+.auth-divider::before,
+.auth-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background-color: var(--a-hairline);
+}
+
+/* Terms */
+.auth-terms {
+    color: var(--a-secondary);
+    font-size: 12px;
+    line-height: 18px;
+}
+.auth-terms a {
+    color: var(--a-secondary);
+    text-decoration: none;
+}
+.auth-terms a:hover {
+    text-decoration: underline;
+}
