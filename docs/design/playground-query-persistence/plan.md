@@ -266,9 +266,31 @@ persistence-related.
 immutable-restored `null` suppresses refetch forever. The storage adapter skips
 nullish writes and treats pre-existing nullish entries as miss + evict on read.
 
+**Measurement round (2026-07-19, dev, 3 runs per condition):** persisted requests are
+absent as designed, but dev-reload felt-time is dominated by compile/boot (DCL 0.9–43.8s
+variance) and backend swing (same endpoint 549→1706ms), so the effect sits under the
+noise floor. Key structural finding: the revision body normally rides the
+revisions-list response (dedup design), so Class-A persistence only removes a request
+when the list is skipped. Two follow-up increments landed:
+
+- **Head-of-line paint-fast (Class C exceptions):** `profileQueryAtom`
+  (oss/state/profile/selectors/user.ts) and `projectsQueryAtom`
+  (oss/state/project/selectors/project.ts) now use `catalogPersister` —
+  profile has no staleTime so restore always background-revalidates; the level-2
+  fanout (gated on `!!user`) starts ~0.5–1s earlier on warm reloads.
+- **Eager revisions-list mount removed:** `workflowLatestRevisionIdAtomFamily`'s
+  fallback (store.ts ~956) `get()`-mounted the full revisions-list query whenever the
+  dedicated latest query was in flight — i.e. the whole cold-load window, via the two
+  always-mounted header consumers (PlaygroundVariantConfigHeader, SelectVariant). Now a
+  passive `queryClient.getQueryData` peek; reactivity flows through the dedicated
+  latest query (both writers prime its cache). Pickers still mount the list on open;
+  the no-selection default path (playground.ts ensurePlaygroundDefaults) keeps its
+  list fallback.
+
 Still open: live browser verification (warm-reload paint without revision request;
-commit → reload shows new revision; drawer catalogs instant on reopen), then
-increment ④.
+commit → reload shows new revision; drawer catalogs instant on reopen; the jotai
+"store mutation during atom read" dev warning A/B via the kill switch), then
+increment ④ measurement on a prod build.
 
 ## Out of scope
 

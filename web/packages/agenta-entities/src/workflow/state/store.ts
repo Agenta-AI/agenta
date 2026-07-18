@@ -950,11 +950,18 @@ export const workflowLatestRevisionIdAtomFamily = atomFamily((workflowId: string
         const query = get(workflowLatestRevisionQueryAtomFamily(workflowId))
         if (query.data?.id) return query.data.id
 
-        // Fall back to the revisions-by-workflow cache (e.g. primed by the
-        // revisions table). The raw refs are NOT guaranteed to be ordered, so
-        // sort descending by recency and skip v0 before picking the first.
-        const revisionsQuery = get(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
-        const refs = revisionsQuery.data?.refs
+        // Fall back to the revisions-by-workflow cache via a PASSIVE peek —
+        // get() on the query atom mounts it and fires the full-list fetch on
+        // every cold load while the dedicated latest query is still in flight.
+        // Reactivity is provided by branch 1 (both writers prime its cache).
+        const projectId = get(workflowProjectIdAtom)
+        const listData = get(queryClientAtom).getQueryData<WorkflowRevisionRefsResponse>([
+            "workflows",
+            "revisionsByWorkflow",
+            workflowId,
+            projectId,
+        ])
+        const refs = listData?.refs
         if (refs && refs.length > 0) {
             const sorted = [...refs]
                 .filter((r) => (r.version ?? 0) !== 0)
