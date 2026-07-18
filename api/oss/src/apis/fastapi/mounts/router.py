@@ -487,6 +487,9 @@ class MountsRouter:
         *,
         path: Optional[str] = Query(default=None),
         read: Optional[str] = Query(default=None),
+        order: Optional[str] = Query(default=None),
+        limit: Optional[int] = Query(default=None, ge=0),
+        include_ignored: bool = Query(default=False),
     ):
         await self._check(request, Permission.VIEW_MOUNTS)
 
@@ -505,9 +508,13 @@ class MountsRouter:
             project_id=UUID(request.state.project_id),
             mount_id=mount_id,
             path=path,
+            order=order,
+            limit=limit,
+            include_ignored=include_ignored,
         )
         return MountFileListResponse(
             count=len(listing.files),
+            total=listing.total,
             files=listing.files,
         )
 

@@ -54,7 +54,12 @@ import {DriveFileMetaList} from "./fileMeta"
 import {OriginTag} from "./OriginTag"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
 import {DriveFileBody} from "./renderers"
-import {driveHasMixedOrigins, fileOrigin, type SessionDriveData} from "./useSessionDrive"
+import {
+    driveHasMixedOrigins,
+    fileOrigin,
+    type FileOrigin,
+    type SessionDriveData,
+} from "./useSessionDrive"
 import {VirtualTileGrid} from "./VirtualTileGrid"
 
 const {Text} = Typography
@@ -213,9 +218,11 @@ const TreeRow = ({
                 ) : (
                     <span className="shrink-0">{driveFileIcon(node.path)}</span>
                 )}
-                {/* whitespace-nowrap (not truncate): the tree scrolls horizontally, so long names
-                    stay readable by scrolling rather than being clipped with an ellipsis. */}
-                <span className="whitespace-nowrap font-mono">{node.name}</span>
+                {/* Truncate within the pane-wide row; the full name is on the title tooltip and by
+                    widening the Splitter pane. */}
+                <span className="min-w-0 truncate font-mono" title={node.path}>
+                    {node.name}
+                </span>
                 {/* Only the top-level items carry the tag; nested rows inherit it from their
                     (already-tagged) agent-files folder, so the tree stays quiet. */}
                 {showOrigin && depth === 0 ? <OriginTag origin={fileOrigin(node.path)} /> : null}
@@ -463,7 +470,7 @@ const FolderView = ({
                     // previous (possibly much longer) folder was scrolled to.
                     key={folderPath}
                     items={entries}
-                    columns={3}
+                    minColumnWidth={200}
                     className="p-4"
                     onKeyDown={gridArrowKeyDown}
                     getKey={(n) => n.path}
@@ -502,10 +509,20 @@ export function DriveExplorer({
     drive,
     scope = "session",
     initialPath,
+    search: searchProp,
+    originFilter = "all",
+    showHidden = true,
 }: {
     drive: SessionDriveData
     scope?: DriveScope
     initialPath?: string | null
+    /** Controlled search term — when provided (embedded in FilesWindow), the parent toolbar's search
+     * drives the tree and DriveExplorer hides its own search box. Uncontrolled (own box) otherwise. */
+    search?: string
+    /** Restrict the tree to one origin (agent vs session). "all" = no filter. */
+    originFilter?: "all" | FileOrigin
+    /** Include dot-prefixed (hidden) entries. False drops them from the tree. */
+    showHidden?: boolean
 }) {
     const rootLabel = driveRootLabel(drive.mount)
     // Restore the last-viewed file on (re)mount: explicit initialPath wins, else the persisted
@@ -513,7 +530,9 @@ export function DriveExplorer({
     const [persistedSelection, setPersistedSelection] = useAtom(
         driveSelectionAtomFamily(drive.mount?.id ?? ""),
     )
-    const [search, setSearch] = useState("")
+    const controlledSearch = searchProp !== undefined
+    const [internalSearch, setSearch] = useState("")
+    const search = controlledSearch ? searchProp : internalSearch
     const [selectedPath, setSelectedPath] = useState<string | null>(
         () => initialPath ?? persistedSelection ?? null,
     )
@@ -543,7 +562,13 @@ export function DriveExplorer({
     // Defer the search term so typing stays responsive on a 12k-entry tree — the input updates now,
     // the filter/flatten trails a frame (React interrupts it if you keep typing).
     const deferredSearch = useDeferredValue(search)
-    const tree = useMemo(() => buildDriveTree(drive.files), [drive.files])
+    const originFiltered = useMemo(() => {
+        let files = drive.files
+        if (originFilter !== "all") files = files.filter((f) => fileOrigin(f.path) === originFilter)
+        if (!showHidden) files = files.filter((f) => !isHiddenPath(f.path))
+        return files
+    }, [drive.files, originFilter, showHidden])
+    const tree = useMemo(() => buildDriveTree(originFiltered), [originFiltered])
     const shownTree = useMemo(() => filterDriveTree(tree, deferredSearch), [tree, deferredSearch])
     // While searching, show every surviving branch expanded so matches are visible.
     const shownExpanded = useMemo(
@@ -715,9 +740,11 @@ export function DriveExplorer({
     if (drive.fileCount === 0) {
         return (
             <div className="flex min-h-0 w-full flex-1">
-                <div className="w-[240px] shrink-0 border-0 border-r border-solid border-colorBorderSecondary p-3">
-                    <Input disabled placeholder="Search" />
-                </div>
+                {!controlledSearch ? (
+                    <div className="w-[240px] shrink-0 border-0 border-r border-solid border-colorBorderSecondary p-3">
+                        <Input disabled placeholder="Search" />
+                    </div>
+                ) : null}
                 <div className="flex flex-1 flex-col items-center justify-center gap-1 p-8 text-center">
                     <Tray size={28} className="text-colorTextQuaternary" />
                     <div className="text-xs font-medium">This drive is empty</div>
@@ -731,19 +758,29 @@ export function DriveExplorer({
         )
     }
     return (
-        // Splitter → the tree pane is draggable (widen to read long names); the tree body also
-        // scrolls horizontally (nowrap rows in a w-max wrapper) so long names are reachable without
-        // resizing. Two ways to see the full name, per the feedback.
+        // Splitter → the tree pane is draggable; widen it to read truncated long names.
         <Splitter className="min-h-0 w-full flex-1">
             <Splitter.Panel defaultSize={260} min={180} max="65%">
-                <div className="flex h-full min-h-0 flex-col gap-2 p-3">
-                    <Input
-                        allowClear
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search files"
-                        prefix={<MagnifyingGlass size={12} className="text-colorTextQuaternary" />}
-                    />
+                {/* No own search box when controlled → drop the top padding so the tree isn't pushed
+                    down by empty space (the embedding toolbar already spaces it). */}
+                <div
+                    className={`flex h-full min-h-0 flex-col gap-2 px-3 pb-3 ${
+                        controlledSearch ? "pt-0" : "pt-3"
+                    }`}
+                >
+                    {/* Own search box only when uncontrolled (build DriveDrawer). Embedded in
+                        FilesWindow the shared toolbar search drives it instead. */}
+                    {!controlledSearch ? (
+                        <Input
+                            allowClear
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search files"
+                            prefix={
+                                <MagnifyingGlass size={12} className="text-colorTextQuaternary" />
+                            }
+                        />
+                    ) : null}
                     <div
                         ref={treeRef}
                         className="min-h-0 flex-1 overflow-auto"
@@ -754,8 +791,8 @@ export function DriveExplorer({
                                 No files match.
                             </Text>
                         ) : (
-                            // Only the visible rows mount; each grows to its own width (nowrap names)
-                            // with a 100% floor, so the container still scrolls horizontally.
+                            // Only the visible rows mount. Rows fill the pane width (uniform hover /
+                            // selection); long names truncate — widen the pane (Splitter) to read them.
                             <div
                                 style={{
                                     height: treeVirtualizer.getTotalSize(),
@@ -774,8 +811,7 @@ export function DriveExplorer({
                                                 position: "absolute",
                                                 top: 0,
                                                 left: 0,
-                                                width: "max-content",
-                                                minWidth: "100%",
+                                                width: "100%",
                                                 transform: `translateY(${vRow.start}px)`,
                                             }}
                                         >

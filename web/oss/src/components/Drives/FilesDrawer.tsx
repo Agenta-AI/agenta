@@ -128,7 +128,8 @@ export function FilesDrawer({sessionId}: {sessionId: string}) {
             open={open}
             onClose={close}
             placement="right"
-            width={720}
+            // Match the build DriveDrawer (960) — the tree + preview two-pane needs the room.
+            width={960}
             destroyOnClose
             closeOnLayoutClick={false}
             title={

@@ -67,6 +67,9 @@ class MountFile(BaseModel):
 
 class MountFileList(BaseModel):
     files: List[MountFile] = Field(default_factory=list)
+    # Total real files matching the request BEFORE any limit — so a limited "latest N" listing can
+    # still report the true file count (the UI badge) without shipping the whole tree.
+    total: int = 0
 
 
 class MountFileContent(BaseModel):

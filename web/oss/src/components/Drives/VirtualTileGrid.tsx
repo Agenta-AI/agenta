@@ -9,13 +9,14 @@
  * so their height tracks the responsive column width). Scrolling binds to this component's own
  * `overflow-auto` element — drop it into a `min-h-0 flex-1` parent and it fills the space.
  */
-import {Fragment, type ReactNode, useRef} from "react"
+import {Fragment, type ReactNode, useEffect, useRef, useState} from "react"
 
 import {useVirtualizer} from "@tanstack/react-virtual"
 
 export function VirtualTileGrid<T>({
     items,
     columns,
+    minColumnWidth,
     getKey,
     renderTile,
     estimateRowHeight = 180,
@@ -25,8 +26,11 @@ export function VirtualTileGrid<T>({
     onKeyDown,
 }: {
     items: T[]
-    /** Fixed column count — the grids are `grid-cols-3`, so 3. */
-    columns: number
+    /** Fixed column count. Ignored when `minColumnWidth` is set (responsive). */
+    columns?: number
+    /** Responsive: fit as many columns as the measured container allows, each ≥ this px. Keeps tiles
+     * a sensible size in both the narrow config drawer and the wide chat drawer. */
+    minColumnWidth?: number
     getKey: (item: T, index: number) => string
     renderTile: (item: T, index: number) => ReactNode
     /** Rough row height (incl. gap) for the initial scrollbar; real heights are measured after mount. */
@@ -40,7 +44,20 @@ export function VirtualTileGrid<T>({
     onKeyDown?: React.KeyboardEventHandler<HTMLDivElement>
 }) {
     const parentRef = useRef<HTMLDivElement>(null)
-    const rowCount = Math.ceil(items.length / columns)
+    const [width, setWidth] = useState(0)
+    useEffect(() => {
+        const el = parentRef.current
+        if (!el || !minColumnWidth) return
+        const ro = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width))
+        ro.observe(el)
+        return () => ro.disconnect()
+    }, [minColumnWidth])
+
+    const cols =
+        minColumnWidth && width > 0
+            ? Math.max(1, Math.floor((width + gap) / (minColumnWidth + gap)))
+            : (columns ?? 3)
+    const rowCount = Math.ceil(items.length / cols)
     const virtualizer = useVirtualizer({
         count: rowCount,
         getScrollElement: () => parentRef.current,
@@ -56,8 +73,8 @@ export function VirtualTileGrid<T>({
         >
             <div style={{height: virtualizer.getTotalSize(), position: "relative", width: "100%"}}>
                 {virtualizer.getVirtualItems().map((row) => {
-                    const start = row.index * columns
-                    const cells = items.slice(start, start + columns)
+                    const start = row.index * cols
+                    const cells = items.slice(start, start + cols)
                     return (
                         <div
                             key={row.key}
@@ -74,7 +91,7 @@ export function VirtualTileGrid<T>({
                             <div
                                 className="grid auto-rows-min"
                                 style={{
-                                    gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+                                    gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
                                     gap,
                                     paddingBottom: gap,
                                 }}

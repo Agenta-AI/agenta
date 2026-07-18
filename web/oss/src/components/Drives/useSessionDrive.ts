@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
 import {
+    latestMountFilesQueryFamily,
     mountFilesQueryFamily,
     sessionFileActivityAtomFamily,
     sessionMountsQueryFamily,
@@ -11,7 +12,7 @@ import {
 import {useAtomValue} from "jotai"
 
 import {agentMountQueryFamily} from "./agentDrive"
-import {cleanPath, driveFileStats, relativeTime} from "./driveTree"
+import {cleanPath, driveFileStats, isInternalDrivePath, relativeTime} from "./driveTree"
 
 /** The agent's durable mount is symlinked into the session cwd under this name (runner:
  * `AGENT_FILES_LINK_NAME`). Its files live in a SEPARATE mount/prefix, so the drive folds them in
@@ -263,4 +264,142 @@ export function useSessionDrive(sessionId: string, artifactId?: string): Session
             resolveMount,
         }
     }, [structural, recents, lastTouchedAt])
+}
+
+/** The summary surfaces (chat rail, config Files section) render the latest 5 — so that's all the
+ * query fetches. */
+const SUMMARY_LATEST_LIMIT = 5
+
+/**
+ * Lightweight drive summary for the ALWAYS-MOUNTED chrome (chat rail, config Files section, runtime
+ * lens). It is backed by TWO purpose-built, deduped queries — a `limit=0` COUNT and a latest-N files
+ * slice — so it NEVER pulls the whole tree into the client and scales to tens of thousands of files
+ * where {@link useSessionDrive} (full tree) would choke. Returns the same {@link SessionDriveData}
+ * shape so consumers are unchanged; `files`/`totalSize` carry only the latest slice (0 size), never
+ * the full listing.
+ *
+ * ONE query per mount serves BOTH the count (its `total`) and the recents (its `files`): the backend
+ * must scan the whole listing to produce either (an object store can't sort-by-mtime or count without
+ * a full LIST), so a separate count query would just double that scan. Loading/error therefore hang
+ * off this single query — the recents are never blocked behind a slower, separate count.
+ */
+export function useSessionDriveSummary(sessionId: string, artifactId?: string): SessionDriveData {
+    const mountsQuery = useAtomValue(sessionMountsQueryFamily(sessionId))
+    const mounts = mountsQuery.data ?? []
+    const mount = mounts.find((m) => m.slug === "cwd") ?? mounts[0] ?? null
+
+    const agentMountQuery = useAtomValue(agentMountQueryFamily(artifactId ?? ""))
+    const agentMount = artifactId ? (agentMountQuery.data ?? null) : null
+
+    const cwdLatest = useAtomValue(
+        latestMountFilesQueryFamily({
+            mountId: mount?.id ?? "",
+            limit: SUMMARY_LATEST_LIMIT,
+            order: "recent",
+        }),
+    )
+    const agentLatest = useAtomValue(
+        latestMountFilesQueryFamily({
+            mountId: agentMount?.id ?? "",
+            limit: SUMMARY_LATEST_LIMIT,
+            order: "recent",
+        }),
+    )
+
+    return useMemo(() => {
+        // Backend already sorted by mtime (recency) and dropped runner-internal artifacts; expose
+        // mtime as `touchedAt` for the shared row UI. The `isInternalDrivePath` filter is defensive.
+        const cwdFiles: DriveRecentFile[] = (cwdLatest.data?.files ?? [])
+            .filter((f) => cleanPath(f.path) !== AGENT_FILES_DIR && !isInternalDrivePath(f.path))
+            .map((f) => ({...f, touchedAt: f.mtime ?? undefined}))
+        const agentFiles: DriveRecentFile[] = agentMount
+            ? (agentLatest.data?.files ?? [])
+                  .filter((f) => !isInternalDrivePath(f.path))
+                  .map((f) => ({
+                      ...f,
+                      path: `${AGENT_FILES_DIR}/${cleanPath(f.path)}`,
+                      touchedAt: f.mtime ?? undefined,
+                  }))
+            : []
+
+        // Each slice is per-mount sorted; merge + re-sort for the global latest across both mounts.
+        const recents = [...cwdFiles, ...agentFiles].sort((a, b) =>
+            (b.touchedAt ?? 0) !== (a.touchedAt ?? 0)
+                ? (b.touchedAt ?? 0) - (a.touchedAt ?? 0)
+                : a.path.localeCompare(b.path),
+        )
+        const lastTouchedAt = recents.length ? (recents[0].touchedAt ?? null) : null
+        const fileCount =
+            (cwdLatest.data?.total ?? 0) + (agentMount ? (agentLatest.data?.total ?? 0) : 0)
+
+        const resolveMount = (path: string): ResolvedMountPath | null => {
+            const rel = cleanPath(path)
+            if (agentMount && (rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`))) {
+                return {mount: agentMount, path: rel.slice(AGENT_FILES_DIR.length + 1)}
+            }
+            return mount ? {mount, path: rel} : null
+        }
+
+        const agentPending =
+            Boolean(artifactId) &&
+            (agentMountQuery.isPending || Boolean(agentMount && agentLatest.isPending))
+        const isLoading =
+            (Boolean(sessionId) &&
+                (mountsQuery.isPending || Boolean(mount && cwdLatest.isPending))) ||
+            agentPending
+        const sessionErrored =
+            Boolean(sessionId) &&
+            ((!mountsQuery.isPending && (mountsQuery.data === null || mountsQuery.isError)) ||
+                (Boolean(mount) &&
+                    !cwdLatest.isPending &&
+                    (cwdLatest.data === null || cwdLatest.isError)))
+        const agentErrored =
+            Boolean(artifactId) &&
+            ((!agentMountQuery.isPending &&
+                (agentMountQuery.data === null || agentMountQuery.isError)) ||
+                (Boolean(agentMount) &&
+                    !agentLatest.isPending &&
+                    (agentLatest.data === null || agentLatest.isError)))
+        const errored = sessionErrored || agentErrored
+
+        const summary = isLoading
+            ? "…"
+            : errored
+              ? "Unavailable"
+              : fileCount === 0
+                ? "No files yet"
+                : lastTouchedAt
+                  ? `Updated ${relativeTime(lastTouchedAt)} · ${fileCount} file${fileCount === 1 ? "" : "s"}`
+                  : `${fileCount} file${fileCount === 1 ? "" : "s"}`
+
+        return {
+            mount,
+            files: recents,
+            fileCount,
+            totalSize: 0,
+            recents,
+            lastTouchedAt,
+            summary,
+            isLoading,
+            errored,
+            resolveMount,
+        }
+    }, [
+        sessionId,
+        artifactId,
+        mount,
+        agentMount,
+        cwdLatest.data,
+        cwdLatest.isPending,
+        cwdLatest.isError,
+        agentLatest.data,
+        agentLatest.isPending,
+        agentLatest.isError,
+        agentMountQuery.data,
+        agentMountQuery.isPending,
+        agentMountQuery.isError,
+        mountsQuery.data,
+        mountsQuery.isPending,
+        mountsQuery.isError,
+    ])
 }

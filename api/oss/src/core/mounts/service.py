@@ -1,6 +1,9 @@
+from posixpath import basename
 from re import fullmatch, sub
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Optional, Tuple
 from uuid import UUID, uuid5, NAMESPACE_DNS
+
+import pathspec
 
 if TYPE_CHECKING:
     from oss.src.core.workflows.service import WorkflowsService
@@ -115,6 +118,64 @@ def validate_file_path(path: str) -> None:
             continue
         if segment == ".." or not fullmatch(_SEGMENT_RE, segment):
             raise MountPathInvalid()
+
+
+def _is_internal_mount_path(path: str) -> bool:
+    """Runner-owned runtime artifacts written into the durable cwd — hidden from flat file listings.
+    Mirrors the web `isInternalDrivePath`: the whole `agents/` namespace plus `.agenta-*` markers."""
+    rel = path.strip("/")
+    if not rel:
+        return False
+    if rel == "agents" or rel.startswith("agents/"):
+        return True
+    return any(segment.startswith(".agenta-") for segment in rel.split("/"))
+
+
+# Backstop on how many `.gitignore` files we read per listing (each is an object fetch). Real repos
+# have a handful once ignored dirs are pruned; this only guards a pathological tree.
+_MAX_GITIGNORE_FILES = 100
+
+
+def _is_git_plumbing(path: str) -> bool:
+    """The `.git` metadata directory. Git itself never lists it, so neither do we — this is git
+    plumbing, not a user file (and it can hold thousands of objects that would swamp the count)."""
+    return any(segment == ".git" for segment in path.strip("/").split("/"))
+
+
+def _path_gitignored(
+    rel_path: str,
+    is_dir: bool,
+    specs: List[Tuple[str, "pathspec.PathSpec"]],
+) -> bool:
+    """Is `rel_path` ignored by any in-scope `.gitignore`?
+
+    Tests the path AND every ancestor directory: git ignores everything under an ignored directory
+    and never descends into it, but pathspec's per-path `match_file` can miss deeply-nested
+    descendants (e.g. pnpm's `node_modules/.pnpm/<pkg>/node_modules/...`, which the pattern
+    `**/*/node_modules` matches as the `node_modules` DIRECTORY but not as that leaf file). Walking
+    the ancestors replicates git's directory-based model. Each spec is scoped to the directory its
+    `.gitignore` lives in; a trailing slash is added for directories so `dir/` patterns match.
+    Short-circuits on the first ignored ancestor. (Additive across levels; within-file negation is
+    handled by pathspec.)
+    """
+    segments = rel_path.split("/")
+    for i in range(1, len(segments) + 1):
+        prefix = "/".join(segments[:i])
+        # Ancestors are always directories; only the final segment keeps the caller's `is_dir`.
+        prefix_is_dir = is_dir if i == len(segments) else True
+        for dir_rel, spec in specs:
+            if dir_rel:
+                if prefix == dir_rel or prefix.startswith(dir_rel + "/"):
+                    sub_path = prefix[len(dir_rel) + 1 :]
+                else:
+                    continue
+            else:
+                sub_path = prefix
+            if not sub_path:
+                continue
+            if spec.match_file(sub_path + "/" if prefix_is_dir else sub_path):
+                return True
+    return False
 
 
 class MountsService:
@@ -425,13 +486,62 @@ class MountsService:
             expires_at=getattr(creds, "_expiration", None),
         )
 
+    async def _load_gitignore_specs(
+        self,
+        *,
+        gitignore_keys: List[Tuple[str, str]],
+    ) -> List[Tuple[str, "pathspec.PathSpec"]]:
+        """Read `.gitignore` files (given as `(dir_rel, object_key)`) into per-directory pathspecs.
+
+        Processed SHALLOW→DEEP, skipping any `.gitignore` that lives inside a directory already
+        ignored (by a shallower spec) or inside `.git` — so after a dependency install we never fetch
+        the hundreds of `.gitignore` files buried in `node_modules/`, which would be hundreds of
+        object reads and time the listing out. Capped as a final backstop. Bad ones are skipped.
+        """
+        ordered = sorted(
+            gitignore_keys, key=lambda dk: dk[0].count("/") if dk[0] else -1
+        )
+        specs: List[Tuple[str, "pathspec.PathSpec"]] = []
+        for dir_rel, key in ordered:
+            if len(specs) >= _MAX_GITIGNORE_FILES:
+                break
+            if dir_rel and (
+                _is_git_plumbing(dir_rel) or _path_gitignored(dir_rel, True, specs)
+            ):
+                continue  # this .gitignore is itself inside an ignored/plumbing directory
+            try:
+                raw = await self.mounts_store.get_object(bucket=self._bucket(), key=key)
+                spec = pathspec.PathSpec.from_lines(
+                    "gitwildmatch", raw.decode("utf-8", "ignore").splitlines()
+                )
+                specs.append((dir_rel, spec))
+            except Exception:  # noqa: BLE001 - a bad .gitignore must never fail the listing
+                continue
+        return specs
+
     async def list_files(
         self,
         *,
         project_id: UUID,
         mount_id: UUID,
         path: Optional[str] = None,
+        order: Optional[str] = None,
+        limit: Optional[int] = None,
+        include_ignored: bool = False,
     ) -> MountFileList:
+        """List a mount's files.
+
+        Default (no `order`/`limit`): the whole tree — real files plus synthesized folder entries —
+        for the browsable explorer. When `order` (`recent`|`name`|`path`) or `limit` is given, a FLAT
+        file view instead: real user files only (no folders, no runner-internal artifacts), sorted
+        and truncated, with `total` reporting the full pre-limit count so the UI can show it without
+        fetching the whole tree.
+
+        Git-aware in every mode: the `.git` directory is never listed (git plumbing), and — unless
+        `include_ignored` — paths matched by the repo's own `.gitignore` files are dropped (e.g. an
+        agent's `npm install` output). Files/folders left after that pruning drive both the count and
+        the tree.
+        """
         mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
 
         base = self._storage_key(project_id=project_id, mount=mount).rstrip("/")
@@ -451,6 +561,7 @@ class MountsService:
         mount_base = base + "/"
         files: List[MountFile] = []
         folders: set[str] = set()
+        gitignore_keys: List[Tuple[str, str]] = []
         for obj in objects:
             key = obj.key
             rel = key[len(mount_base) :] if key.startswith(mount_base) else key
@@ -461,13 +572,38 @@ class MountsService:
                     folders.add(folder_rel)
                 continue
             files.append(MountFile(path=rel, size=obj.size, mtime=obj.mtime))
+            if rel == ".gitignore" or rel.endswith("/.gitignore"):
+                dir_rel = "" if rel == ".gitignore" else rel[: -len("/.gitignore")]
+                gitignore_keys.append((dir_rel, key))
+
+        # Git-aware pruning applies to every view.
+        files = [f for f in files if not _is_git_plumbing(f.path)]
+        folders = {d for d in folders if not _is_git_plumbing(d)}
+        if not include_ignored and gitignore_keys:
+            specs = await self._load_gitignore_specs(gitignore_keys=gitignore_keys)
+            if specs:
+                files = [f for f in files if not _path_gitignored(f.path, False, specs)]
+                folders = {d for d in folders if not _path_gitignored(d, True, specs)}
+
+        if order is not None or limit is not None:
+            files = [f for f in files if not _is_internal_mount_path(f.path)]
+            total = len(files)
+            if order == "recent":
+                files.sort(key=lambda f: (f.mtime is None, -(f.mtime or 0), f.path))
+            elif order == "name":
+                files.sort(key=lambda f: basename(f.path).lower())
+            elif order == "path":
+                files.sort(key=lambda f: f.path.lower())
+            if limit is not None:
+                files = files[: max(0, limit)]
+            return MountFileList(files=files, total=total)
 
         existing = {f.path for f in files}
         for folder_rel in sorted(folders):
             if folder_rel not in existing:
                 files.append(MountFile(path=folder_rel, size=0, is_folder=True))
 
-        return MountFileList(files=files)
+        return MountFileList(files=files, total=len(files))
 
     async def read_file_bytes(
         self,

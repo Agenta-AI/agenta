@@ -17,7 +17,7 @@ import {useDriveArtifactId} from "@/oss/components/Drives/driveSessionContext"
 import {humanSize} from "@/oss/components/Drives/driveTree"
 import {filesDrawerOpenAtomFamily} from "@/oss/components/Drives/FilesDrawer"
 import {driveQuickLookAtomFamily} from "@/oss/components/Drives/quickLook"
-import {driveHasMixedOrigins, useSessionDrive} from "@/oss/components/Drives/useSessionDrive"
+import {driveHasMixedOrigins, useSessionDriveSummary} from "@/oss/components/Drives/useSessionDrive"
 import StatesTab from "@/oss/components/SessionInspector/tabs/StatesTab"
 import StreamsTab from "@/oss/components/SessionInspector/tabs/StreamsTab"
 
@@ -25,7 +25,7 @@ import StreamsTab from "@/oss/components/SessionInspector/tabs/StreamsTab"
  * the chat/config surfaces; "View all files" opens the full Files drawer. */
 const DriveFilesCard = ({sessionId}: {sessionId: string}) => {
     const artifactId = useDriveArtifactId()
-    const drive = useSessionDrive(sessionId, artifactId ?? undefined)
+    const drive = useSessionDriveSummary(sessionId, artifactId ?? undefined)
     const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId))
     const openFiles = useSetAtom(filesDrawerOpenAtomFamily(sessionId))
 
@@ -46,7 +46,7 @@ const DriveFilesCard = ({sessionId}: {sessionId: string}) => {
         <div className="flex flex-col">
             <MotionConfig reducedMotion="user">
                 <AnimatePresence mode="popLayout" initial={false}>
-                    {drive.recents.slice(0, 6).map((f) => (
+                    {drive.recents.slice(0, 5).map((f) => (
                         <motion.div
                             key={f.path}
                             layout
@@ -66,7 +66,7 @@ const DriveFilesCard = ({sessionId}: {sessionId: string}) => {
                     ))}
                 </AnimatePresence>
             </MotionConfig>
-            {drive.fileCount > 6 ? (
+            {drive.fileCount > 5 ? (
                 <button
                     type="button"
                     onClick={() => openFiles(true)}
