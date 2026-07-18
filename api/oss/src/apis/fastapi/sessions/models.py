@@ -18,7 +18,7 @@ from oss.src.core.sessions.interactions.dtos import (
 )
 from oss.src.core.sessions.mounts.dtos import SessionMount, SessionMountQuery
 from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn, SessionTurnQuery
-from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.shared.dtos import OTelSpanId, Reference, Windowing
 
 
 # ---------------------------------------------------------------------------
@@ -170,7 +170,7 @@ class SessionTurnAppendRequest(BaseModel):
     sandbox_id: Optional[str] = None
     references: Optional[List[Reference]] = None
     trace_id: Optional[UUID] = None
-    span_id: Optional[UUID] = None
+    span_id: Optional[OTelSpanId] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
 
@@ -208,4 +208,4 @@ class SessionRecordIngestRequest(BaseModel):
     # The turn this record belongs to; span_id bridges to observability when available.
     # Both forward-fill only (tracing-DB rule) — absent on producers that predate this.
     turn_id: Optional[str] = None
-    span_id: Optional[UUID] = None
+    span_id: Optional[OTelSpanId] = None

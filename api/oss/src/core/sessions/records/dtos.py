@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from oss.src.core.shared.dtos import Lifecycle
+from oss.src.core.shared.dtos import Lifecycle, OTelSpanId
 
 
 class SessionRecordEvent(BaseModel):
@@ -20,7 +20,7 @@ class SessionRecordEvent(BaseModel):
 
     # Forward-fill only (tracing-DB rule): populated on new records, null on old ones.
     turn_id: Optional[str] = None
-    span_id: Optional[UUID] = None
+    span_id: Optional[OTelSpanId] = None
 
 
 class SessionRecord(Lifecycle):
@@ -36,7 +36,7 @@ class SessionRecord(Lifecycle):
     attributes: Optional[Dict[str, Any]] = None
 
     turn_id: Optional[str] = None
-    span_id: Optional[UUID] = None
+    span_id: Optional[OTelSpanId] = None
 
 
 class SessionRecordQuery(BaseModel):

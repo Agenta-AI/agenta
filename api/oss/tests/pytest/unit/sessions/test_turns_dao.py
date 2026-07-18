@@ -147,6 +147,9 @@ async def test_append_turn_persists_and_sets_created_by_id(dao, project_and_stre
 
     workflow_ref = Reference(id=uuid.uuid4(), slug="my-workflow", version="v1")
 
+    # span_id is a 16-hex OTel span id (runner shape), NOT a UUID; trace_id is a 32-hex
+    # OTel trace id that still fits UUID.
+    span_id = uuid.uuid4().hex[:16]
     turn = await dao.append(
         project_id=project_id,
         user_id=user_id,
@@ -159,7 +162,7 @@ async def test_append_turn_persists_and_sets_created_by_id(dao, project_and_stre
             sandbox_id="sandbox-1",
             references=[workflow_ref],
             trace_id=uuid.uuid4(),
-            span_id=uuid.uuid4(),
+            span_id=span_id,
             start_time=datetime.now(timezone.utc),
         ),
     )
@@ -172,6 +175,7 @@ async def test_append_turn_persists_and_sets_created_by_id(dao, project_and_stre
     assert turn.agent_session_id == "agent-sess-abc"
     assert turn.sandbox_id == "sandbox-1"
     assert turn.references == [workflow_ref]
+    assert turn.span_id == span_id
     # jp's requirement: append_turn must populate created_by_id from the caller.
     assert turn.created_by_id == user_id
 
@@ -179,6 +183,40 @@ async def test_append_turn_persists_and_sets_created_by_id(dao, project_and_stre
     assert fetched is not None
     assert fetched.id == turn.id
     assert fetched.references == [workflow_ref]
+    assert fetched.span_id == span_id
+
+
+async def test_multi_turn_appends_persist_with_incrementing_index_and_stable_stream(
+    dao, project_and_stream
+):
+    """Two turns on one session persist as two rows with incrementing turn_index and the
+    same stream_id (the session_streams row id) — the durable-turns invariant a live
+    two-turn run relies on. Covers the E2E gap that no test asserted (TEST-GAPS.md §turns)."""
+    project_id = project_and_stream["project_id"]
+    stream_id = project_and_stream["stream_id"]
+    session_id = project_and_stream["session_id"]
+
+    for turn_index in (0, 1):
+        await dao.append(
+            project_id=project_id,
+            user_id=None,
+            turn=SessionTurnCreate(
+                session_id=session_id,
+                stream_id=stream_id,
+                turn_index=turn_index,
+                harness_kind=HarnessKind.PI,
+            ),
+        )
+
+    results = await dao.query_turns(
+        project_id=project_id,
+        query=SessionTurnQuery(session_id=session_id),
+    )
+
+    assert len(results) == 2
+    assert {t.turn_index for t in results} == {0, 1}
+    # Every turn in a session shares the one session_streams row id.
+    assert {t.stream_id for t in results} == {stream_id}
 
 
 async def test_query_turns_filters_by_references_gin_contains(dao, project_and_stream):

@@ -110,7 +110,9 @@ async def test_record_ingest_threads_turn_id_and_span_id():
     user_id = uuid4()
     organization_id = uuid4()
     session_id = uuid4()
-    span_id = uuid4()
+    # The runner posts a 16-hex OTel span id, NOT a UUID (regression: it was typed as UUID
+    # and every ingest 422'd — see FINDING-record-ingest-422.md).
+    span_id = uuid4().hex[:16]
 
     body = SessionRecordIngestRequest(
         session_id=str(session_id),
@@ -174,3 +176,23 @@ async def test_record_ingest_defaults_turn_id_and_span_id_to_none():
     event = mock_publish.await_args.kwargs["record_event"]
     assert event.turn_id is None
     assert event.span_id is None
+
+
+def test_ingest_model_accepts_otel_span_id_and_rejects_uuid():
+    """Contract pin for the 422 regression: the ingest model accepts the 16-hex OTel span id
+    the runner actually sends, and rejects a 32-hex UUID (which is what the field used to be
+    typed as — that mistyping made pydantic reject every real ingest with a 422)."""
+    from pydantic import ValidationError
+
+    session_id = str(uuid4())
+
+    # The real runner shape: a 16-hex span id validates.
+    body = SessionRecordIngestRequest(
+        session_id=session_id,
+        span_id="a1b2c3d4e5f6a7b8",
+    )
+    assert body.span_id == "a1b2c3d4e5f6a7b8"
+
+    # A 32-hex UUID string is NOT a span id and must be rejected.
+    with pytest.raises(ValidationError):
+        SessionRecordIngestRequest(session_id=session_id, span_id=uuid4().hex)
