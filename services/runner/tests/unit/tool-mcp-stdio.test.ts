@@ -284,6 +284,38 @@ describe("tool-mcp-stdio handler", () => {
     assert.equal(res.result.isError, true);
     assert.match(res.result.content[0].text, /upstream 500/);
   });
+
+  it("tools/call maps a paused relay answer to a benign, NON-error wait result", async () => {
+    const dir = tempDir("agenta-tool-mcp-");
+    const pending = handleToolMcpMessage(
+      {
+        jsonrpc: "2.0",
+        id: 6,
+        method: "tools/call",
+        params: { name: "get_weather", arguments: {} },
+      },
+      specs,
+      dir,
+    );
+    await waitFor(() =>
+      readdirSync(dir).some((f) => f.endsWith(RELAY_REQ_SUFFIX)),
+    );
+    const reqName = readdirSync(dir).find((f) => f.endsWith(RELAY_REQ_SUFFIX))!;
+    const id = reqName.slice(0, -RELAY_REQ_SUFFIX.length);
+    writeFileSync(
+      join(dir, `${id}${RELAY_RES_SUFFIX}`),
+      JSON.stringify({ ok: true, paused: true }),
+      "utf-8",
+    );
+    const res: any = await pending;
+    // A pause is NOT an error: the harness's turn ends cleanly instead of waiting out the
+    // per-tool timeout and emitting a late error frame.
+    assert.notEqual(res.result.isError, true);
+    // The fixed template names the tool and tells the model not to retry.
+    assert.match(res.result.content[0].text, /get_weather/);
+    assert.match(res.result.content[0].text, /[Dd]o not call/);
+    assert.match(res.result.content[0].text, /retry/);
+  });
 });
 
 describe("shim -> real relay loop round trip (semantic writer/reader contract)", () => {

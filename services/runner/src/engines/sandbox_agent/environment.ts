@@ -709,13 +709,15 @@ export async function acquireEnvironment(
       if (plan.isPi && plan.builtinGatingActive && !daytonaExtensionInstalled) {
         throw new Error(PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE);
       }
-      if (!plan.isPi && plan.executableToolSpecs.length > 0) {
+      if (!plan.isPi && plan.toolSpecs.length > 0) {
+        // Advertise the FULL tool set to the shim, client tools included: a parked client tool
+        // resolves through the relay's paused answer (see startToolRelay / tool-mcp-stdio.ts).
         internalToolMcp = await (
           deps.uploadToolMcpAssets ?? uploadToolMcpAssets
         )(
           environment.sandbox,
           plan.toolMcpDir,
-          advertisedToolSpecs(plan.executableToolSpecs),
+          advertisedToolSpecs(plan.toolSpecs),
           logger,
         );
       }
