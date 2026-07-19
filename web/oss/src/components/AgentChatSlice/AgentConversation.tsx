@@ -567,6 +567,8 @@ const AgentConversation = ({
 
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
+    // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
+    const liveGateInteractionRef = useRef(false)
 
     const {
         messages,
@@ -587,7 +589,11 @@ const AgentConversation = ({
         experimental_throttle: 50,
         // Approve AND deny both resume — a deny-only decision must re-send so the runner
         // gets the denial round-trip and the model continues (no `approval-responded` limbo).
-        sendAutomaticallyWhen: agentShouldResumeAfterApproval,
+        sendAutomaticallyWhen: ({messages}) =>
+            agentShouldResumeAfterApproval({
+                messages,
+                liveInteraction: liveGateInteractionRef.current,
+            }),
         // The turn's trace may not be ingested yet when the row asks for its summary —
         // marking it fresh lets the trace queries retry through the ingestion lag
         // (historical traces get no such grace; a 404 there means the trace is gone).
@@ -670,13 +676,6 @@ const AgentConversation = ({
         }
         // Seed once per mounted session tab; `sessionId` is stable for this instance.
     }, [sessionId])
-
-    // True once the user settles a gate (approval response / client-tool output) in THIS mount —
-    // i.e. the SDK's auto-resume genuinely is imminent, so the queue's pre-resume hold applies.
-    // Without a live interaction, a tail that READS as "resume imminent" is an orphan restored
-    // from storage (reload / remount killed the run mid-resume): nothing will ever fire that
-    // resume, and holding for it froze the composer forever (AGE-3937).
-    const liveGateInteractionRef = useRef(false)
 
     // Settle a parked client tool (#4920). The dispatcher calls this from a widget (e.g. the connect
     // widget) with the structured reference; `addToolOutput` matches the part by `toolCallId` on the

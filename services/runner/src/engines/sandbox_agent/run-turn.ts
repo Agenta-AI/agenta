@@ -240,6 +240,14 @@ export async function runTurn(
       env.sessionDestroyRequested = true;
       return env.sandbox.destroySession?.(env.session.id);
     });
+    if (opts.resume?.carriedForward.length) {
+      for (const gate of opts.resume.carriedForward) {
+        env.parkedApprovals.set(gate.toolCallId, gate);
+        env.parkedApproval ??= gate;
+        pause.markPausedToolCall(gate.toolCallId);
+      }
+      env.approvalGateCount = env.parkedApprovals.size;
+    }
     // A human pause resolves this signal exactly once, the moment the turn parks for input — the one
     // place every pause path converges, so the one place to retire the run-limits deadlines for good.
     void pause.signal.then(() => runLimits.notePaused());
@@ -627,11 +635,8 @@ export async function runTurn(
     // resolves, and the pause signal ends the turn.
     let promptPromise: Promise<unknown>;
     if (opts.resume) {
-      // The new (resume) turn owns streaming + tracing; the environment is already wired to route
-      // continued events into this turn's sink (env.currentTurn was set above). Every parked gate
-      // of the turn is answered here, one `respondPermission` per gate keyed by its tool-call id.
-      // All decisions share the ONE held prompt promise (one prompt per turn), so it is set once;
-      // answering the last gate lets the original prompt continue from here.
+      // The resume turn owns continued events; each decision answers one parked gate by id.
+      // Carried gates keep the shared original prompt pending until a later answer.
       const decisions = opts.resume.decisions;
       promptPromise = Promise.resolve(decisions[0]?.promptPromise);
       promptPromise.catch(() => {});
@@ -664,9 +669,8 @@ export async function runTurn(
         // independently — an approve and a deny in the same turn each land on the right call.
         await env.session.respondPermission(decision.permissionId, decision.reply);
         // The gate is answered: resolve its durable interaction row (the parked pending row the
-        // cold path would otherwise resolve via its decision map). The fresh per-turn pause
-        // controller starts with an EMPTY pausedToolCallIds set, so the resumed calls'
-        // `tool_call_update` frames are no longer suppressed and stream through.
+        // cold path would otherwise resolve via its decision map). Only carried-forward ids were
+        // re-marked paused, so answered calls stream their terminal frames normally.
         resolveInteractionToken(decision.interactionToken, {
           approved: decision.reply === "once",
           toolCallId: decision.toolCallId,
@@ -675,6 +679,9 @@ export async function runTurn(
           `[keepalive] resume answered gate reply=${decision.reply} tool=${decision.toolName ?? "?"}`,
         );
       }
+      // The harness still holds carried gates inside the original prompt, so re-arm the pause after
+      // this answer batch and let the normal park path refresh their approval TTL.
+      if (opts.resume.carriedForward.length > 0) pause.pause();
     } else {
       promptPromise = Promise.resolve(
         env.session.prompt([{ type: "text", text: turnText }]),

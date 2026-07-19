@@ -157,13 +157,13 @@ export interface RunTurnOptions {
    */
   approvalParkMode?: boolean;
   /**
-   * A live approval resume: answer every parked gate of the turn (keyed by tool-call id) and
-   * stream the continued prompt's events. A turn can hold more than one parked gate, so the
-   * resume carries a LIST — the server builds it from the inbound approval replies, one decision
-   * per parked gate. All decisions share the one held prompt promise (there is one prompt per
-   * turn); `runTurn` answers each gate then awaits that single continuation.
+   * A live approval resume: answer the matching parked gates and carry the untouched gates into
+   * the next park. All decisions share the one held prompt promise (there is one prompt per turn).
    */
-  resume?: { decisions: ResumeApprovalInput[] };
+  resume?: {
+    decisions: ResumeApprovalInput[];
+    carriedForward: ParkedApproval[];
+  };
 }
 
 /**

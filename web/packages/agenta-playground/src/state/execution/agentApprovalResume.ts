@@ -119,16 +119,20 @@ const isSettledToolPart = (part: ToolPartLike): boolean =>
         part.state === "approval-responded")
 
 /**
- * Resume when the last assistant turn carries at least one freshly-resolved parked interaction (an
- * approval response OR a browser-fulfilled client-tool result) and EVERY non-provider-executed tool
- * part on it is settled. Both paths share one rule so a single `sendAutomaticallyWhen` covers
- * approvals and client tools alike:
+ * Resume when the last assistant turn carries a freshly-resolved parked interaction. Approval
+ * responses dispatch per card; browser-fulfilled client tools retain the all-settled rule:
  *   - Approval (approve OR deny): a denied tool part is `approval-responded`, so a deny-only turn
  *     still resumes and the runner gets the denial round-trip (the deny dead-end fix).
  *   - Client tool: a `request_connection` the widget settled (success, cancel, failure, abandon)
  *     reads as a client-tool result, so the run resumes and the runner re-resolves on cold-replay.
  */
-export function agentShouldResumeAfterApproval({messages}: {messages: MessageLike[]}): boolean {
+export function agentShouldResumeAfterApproval({
+    messages,
+    liveInteraction = true,
+}: {
+    messages: MessageLike[]
+    liveInteraction?: boolean
+}): boolean {
     const last = messages[messages.length - 1]
     if (!last || last.role !== "assistant") return false
 
@@ -143,9 +147,15 @@ export function agentShouldResumeAfterApproval({messages}: {messages: MessageLik
     // browser-fulfilled client-tool result). Using the last one handles chained gates: a second
     // approval later in the turn is what should drive the (next) resume.
     let lastResolvedIdx = -1
+    let lastResolvedIsApproval = false
     for (let i = 0; i < parts.length; i++) {
-        if (isRespondedToolPart(parts[i]) || isClientToolResult(parts[i], renderMap))
+        if (isRespondedToolPart(parts[i])) {
             lastResolvedIdx = i
+            lastResolvedIsApproval = true
+        } else if (isClientToolResult(parts[i], renderMap)) {
+            lastResolvedIdx = i
+            lastResolvedIsApproval = false
+        }
     }
     if (lastResolvedIdx === -1) return false
 
@@ -160,6 +170,15 @@ export function agentShouldResumeAfterApproval({messages}: {messages: MessageLik
         .some((part) => part.type === "step-start")
     if (resumedAlready) return false
 
-    const allSettled = toolParts.every(isSettledToolPart)
-    return allSettled
+    if (!liveInteraction) return false
+
+    // The AI SDK re-evaluates after message updates and waits for an in-flight stream to finish,
+    // so an approval clicked during a resume dispatches when that stream finishes.
+    if (lastResolvedIsApproval) {
+        const pendingClientTool = toolParts.some((part) =>
+            isPendingClientToolInteraction(part, renderMap),
+        )
+        return !pendingClientTool
+    }
+    return toolParts.every(isSettledToolPart)
 }

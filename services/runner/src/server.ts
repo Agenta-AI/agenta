@@ -37,6 +37,7 @@ import {
   runSandboxAgent,
   runTurn,
   shouldPark,
+  type ParkedApproval,
   type ResumeApprovalInput,
   type RunTurnOptions,
   type SessionEnvironment,
@@ -678,15 +679,12 @@ export async function runWithKeepalive(
     // history fingerprint (an edited transcript must not continue wrongly), and a hard mount-expiry
     // bound — if the parked session's mount credentials are past expiry, its durable cwd can no
     // longer be written, so evict to cold.
-    // The turn may hold several parked gates (parallel gated tool calls). Build one resume
-    // decision per parked gate, keyed by tool-call id. The whole turn resumes live ONLY when the
-    // request answers EVERY parked gate — the frontend's all-settled rule guarantees a resume /run
-    // is sent only after the human answered all cards, so a partial set is a mismatch that
-    // degrades to cold (which re-raises and multiplexes whatever subset). `parked` (the first
-    // gate) is the representative for logging and the per-turn-uniform checks.
+    // Split parallel parked gates by tool-call id. Any non-empty answer set resumes live; untouched
+    // gates stay pending in the same process and are carried into the next approval park.
     const parked = existing.environment.parkedApproval;
     const parkedList = [...existing.environment.parkedApprovals.values()];
     const resumeDecisions: ResumeApprovalInput[] = [];
+    const carriedForward: ParkedApproval[] = [];
     let mismatch: string | undefined;
     if (parkedList.length === 0) {
       mismatch = "no-parked-gate";
@@ -703,9 +701,8 @@ export async function runWithKeepalive(
         }
         const decision = approvalDecisionForToolCall(request, gate.toolCallId);
         if (!decision) {
-          // A gate with no matching reply: fresh user text, or the human answered only some cards.
-          mismatch = "no-matching-approval";
-          break;
+          carriedForward.push(gate);
+          continue;
         }
         resumeDecisions.push({
           permissionId: gate.permissionId,
@@ -746,7 +743,8 @@ export async function runWithKeepalive(
       ).length;
       const rejectCount = resumeDecisions.length - approveCount;
       klog(
-        `resume key=${key} gates=${resumeDecisions.length} ` +
+        `resume key=${key} gates=${parkedList.length} answered=${resumeDecisions.length} ` +
+          `carried=${carriedForward.length} ` +
           `approve=${approveCount} reject=${rejectCount} tool=${parked?.toolName ?? "?"}`,
       );
       let result: AgentRunResult;
@@ -761,7 +759,7 @@ export async function runWithKeepalive(
           signal,
           {
             approvalParkMode: true,
-            resume: { decisions: resumeDecisions },
+            resume: { decisions: resumeDecisions, carriedForward },
           },
         );
       } catch (err) {
@@ -839,8 +837,8 @@ const runAgent: RunAgent = (request, emit, signal, options) => {
 };
 
 /**
- * The durable interaction token of a parked approval gate this request answers in-band, if
- * any. The turn-start cancel-stale sweep must spare it: the gate belongs to the PREVIOUS turn
+ * The durable interaction tokens of parked approval gates this request answers in-band, if
+ * any. The turn-start cancel-stale sweep must spare them: each gate belongs to the PREVIOUS turn
  * (so the sweep's own `turn_id` exemption misses it), an in-band answer never transitions the
  * row off `pending` (only the interactions-plane respond endpoint does), and the resume
  * resolves the token after consuming the decision. Swept first, the granted gate's record
@@ -855,18 +853,13 @@ function inBandAnswerTokens(request: AgentRunRequest): string[] | undefined {
     keepalivePools[provider].awaitingApproval(sessionId)?.environment
       .parkedApprovals;
   if (!parked || parked.size === 0) return undefined;
-  // A turn can park several gates. Spare tokens from the stale sweep ONLY when this request
-  // answers EVERY parked gate — that is exactly when the dispatch resumes live and resolves them.
-  // If any gate is unanswered the turn degrades to cold (the all-or-cold resume rule), and sparing
-  // an answered subset would strand those interaction rows as pending forever (no live resume ever
-  // resolves them). In that case spare nothing: the cold path re-raises and the sweep correctly
-  // cancels the old rows.
+  // A partial resume resolves only the answered rows. Carried-forward rows stay pending and receive
+  // a fresh approval park, so only matching answer tokens are exempt from stale cancellation.
   const tokens: string[] = [];
   for (const gate of parked.values()) {
-    if (approvalDecisionForToolCall(request, gate.toolCallId) === undefined) {
-      return undefined;
+    if (approvalDecisionForToolCall(request, gate.toolCallId) !== undefined) {
+      tokens.push(gate.interactionToken);
     }
-    tokens.push(gate.interactionToken);
   }
   return tokens.length > 0 ? tokens : undefined;
 }
