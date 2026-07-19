@@ -105,9 +105,34 @@ Agenta traces every run and keeps a version history of each agent configuration.
 
 **Integrations.** Connect your agents to the applications you use through MCP, or integrate with more than 1,000 apps through Composio, including Gmail, Slack, Notion, and GitHub.
 
-## Roadmap
+## Get started
 
-Agenta is still evolving. Checked items are available today. Unchecked items are directions we plan to support.
+### Try Agenta Cloud
+
+The fastest way to try Agenta.
+
+<p align="center">
+  <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
+      <picture >
+        <source width="200" media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2"  >
+        <source width="200" media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2"  >
+        <img alt="Try Agenta Cloud" src="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2" >
+      </picture>
+  </a>
+</p>
+
+### Self-host Agenta
+
+Paste this into your agent and it will walk you through setup and testing:
+
+```
+1. Install the Agenta self-hosting skill: npx skills add Agenta-AI/agenta-skills
+2. Help me self-host Agenta with its repository.
+```
+
+For more details, read the [self-hosting documentation](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme).
+
+## Roadmap
 
 **Harnesses**
 
@@ -169,7 +194,7 @@ See the [complete roadmap](https://agenta.ai/docs/?utm_source=github&utm_medium=
 
 ### n8n, Activepieces, and Zapier
 
-These products are designed for workflows with predefined steps. Agenta is designed for work that requires an agent to plan, use tools, and adapt its approach. Use a workflow builder for predictable processes. Use Agenta when the work needs judgment, or when you want the same agent to work with you in chat and run in the background.
+These products are designed for building workflows with predefined steps. Agenta is designed for work that requires an agent to plan, use tools, and adapt its approach. Use a workflow builder for predictable processes. Use Agenta when the work needs judgment, or when you want the same agent to work with you in chat and run in the background.
 
 ### Claude Cowork
 
@@ -178,52 +203,6 @@ Claude Cowork provides a workspace built around Claude. Agenta is open source an
 ### Claude Code, Codex, Pi, and OpenCode
 
 These coding agents provide the execution layer that plans work and uses tools. Agenta adds the shared workspace around that execution layer: files, team access, triggers, versions, and traces. Agenta supports Claude Code and Pi today. Support for more harnesses is on the roadmap.
-
-## Get started
-
-### Try Agenta Cloud
-
-The fastest way to try Agenta.
-
-<p align="center">
-  <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
-      <picture >
-        <source width="200" media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2"  >
-        <source width="200" media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2"  >
-        <img alt="Try Agenta Cloud" src="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2" >
-      </picture>
-  </a>
-</p>
-
-### Self-host with Docker
-
-You need Docker and Docker Compose.
-
-```bash
-git clone https://github.com/Agenta-AI/agenta
-cd agenta
-cp hosting/docker-compose/oss/env.oss.gh.example hosting/docker-compose/oss/.env.oss.gh
-docker compose \
-  -f hosting/docker-compose/oss/docker-compose.gh.yml \
-  --env-file hosting/docker-compose/oss/.env.oss.gh \
-  --profile with-web \
-  --profile with-traefik \
-  up -d
-```
-
-Open http://localhost.
-
-For configuration, remote deployment, and upgrades, read the [self-hosting documentation](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme).
-
-### Python SDK
-
-This package is the Agenta Python SDK. Install it with:
-
-```bash
-pip install -U agenta
-```
-
-For usage, read the [documentation](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme).
 
 ## Community and contributing
 
