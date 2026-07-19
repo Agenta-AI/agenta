@@ -319,10 +319,26 @@ EvaluatorPlaygroundHeader / MetadataSidebar / annotationSessionController null-f
 sites fixed (evaluatorColumns audited: NOT a defect — the table pre-seeds molecule
 entities). Mounts/files remains owned on a separate branch.
 
+**Increment ④ round (commit 92a1173f3d):** vault secrets persisted as a REDACTED
+projection (`/secrets/` returns plaintext key material — dedicated
+`vaultSecretsPersister` stores truthy `"[redacted]"` sentinels;
+`refetchOnRestore: "always"` so sentinels never linger into the provider edit
+modal); session records paint-from-disk (`recordsPersister`, 7d,
+`refetchOnRestore: "always"` — fires observer-less, superseding build-note #4's
+caveat for persisters configured with "always"; one-shot loadSessionMessages gains
+`onRefreshed` re-delivery behind the existing busy/strictly-ahead stream guards);
+sidebar apps list + agent-flags gated at the sidebar source (page consumers
+untouched); orgs list `enabled: neededForBoot || idle` (boot flows immediate,
+workspace routes deferred). Backend smell filed for later: the secrets LIST
+endpoint returning decrypted values is a server-side design issue independent of
+client caching.
+
 Still open: live browser verification (warm-reload paint without revision request;
-commit → reload shows new revision; drawer catalogs instant on reopen; the jotai
-"store mutation during atom read" dev warning A/B via the kill switch), then
-increment ④ measurement on a prod build.
+commit → reload shows new revision; drawer catalogs instant on reopen; chat history
+instant paint + refresh; the jotai "store mutation during atom read" dev warning A/B
+via the kill switch), prod-build measurement, optional playground-route bundle
+analysis (`_app` was optimized in PR #4864; the playground route itself was never
+profiled).
 
 ## Out of scope
 
