@@ -1281,7 +1281,9 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
             (isAgent || !hasAllSchemas)
 
         const queryClient = get(queryClientAtom)
-        const queryKey = ["workflows", "inspect", revisionId, uri, serviceUrl, projectId]
+        // Service-scoped key (no revisionId): inspect depends only on uri+serviceUrl+projectId,
+        // and local draft ids rotate per reload — keying by them broke persister restores.
+        const queryKey = ["workflows", "inspect", uri, serviceUrl, projectId]
         return {
             queryKey,
             queryFn: async (): Promise<InspectWorkflowResponse | null> => {
@@ -1290,7 +1292,7 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
                 const lowPriority = queryClient.getQueryData(queryKey) !== undefined
                 return inspectWorkflow(uri, projectId, serviceUrl, {lowPriority})
             },
-            // IDB-persisted (per revision+uri+serviceUrl): paint from disk, then one revalidate when stale.
+            // IDB-persisted (per uri+serviceUrl+project): paint from disk, then one revalidate when stale.
             persister: catalogPersister.persisterFn,
             enabled: isEnabled,
             staleTime: 60_000,

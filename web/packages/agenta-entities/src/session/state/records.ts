@@ -16,19 +16,37 @@ import type {SessionRecord} from "../core/schema"
 export const sessionRecordsQueryKey = (projectId: string, sessionId: string) =>
     ["session", "records", projectId, sessionId] as const
 
+const SESSION_RECORDS_STALE_MS = 15_000
+
+// Single source of key + fn so atom subscribers and imperative fetches share one flight.
+const sessionRecordsQueryOptions = (projectId: string, sessionId: string) => ({
+    queryKey: sessionRecordsQueryKey(projectId, sessionId),
+    queryFn: ({signal}: {signal?: AbortSignal}) =>
+        querySessionRecords({sessionId, projectId, abortSignal: signal, lowPriority: true}),
+    staleTime: SESSION_RECORDS_STALE_MS,
+})
+
 /** The full, ordered record event log for one session. */
 export const sessionRecordsQueryFamily = atomFamily((sessionId: string) =>
     atomWithQuery<SessionRecord[] | null>((get) => {
         const projectId = get(projectIdAtom) ?? ""
         return {
-            queryKey: sessionRecordsQueryKey(projectId, sessionId),
-            queryFn: ({signal}) =>
-                querySessionRecords({sessionId, projectId, abortSignal: signal, lowPriority: true}),
+            ...sessionRecordsQueryOptions(projectId, sessionId),
             enabled: Boolean(sessionId && projectId),
-            staleTime: 15_000,
             refetchOnWindowFocus: false,
         }
     }),
+)
+
+/** Imperative records fetch through the shared cache — dedupes with atom subscribers instead of
+ * issuing a raw parallel request. Resolves from cache within the stale window. */
+export const fetchSessionRecordsAtom = atom(
+    null,
+    (get, _set, sessionId: string): Promise<SessionRecord[] | null> => {
+        const projectId = get(projectIdAtom) ?? ""
+        if (!projectId || !sessionId) return Promise.resolve(null)
+        return get(queryClientAtom).fetchQuery(sessionRecordsQueryOptions(projectId, sessionId))
+    },
 )
 
 /** Durable per-file recency (newest write/edit timestamp per tool path) derived from the record

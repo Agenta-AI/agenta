@@ -1,5 +1,4 @@
-import {querySessionRecords} from "@agenta/entities/session"
-import {projectIdAtom} from "@agenta/shared/state"
+import {fetchSessionRecordsAtom} from "@agenta/entities/session"
 import type {UIMessage} from "ai"
 import {getDefaultStore} from "jotai"
 
@@ -18,15 +17,13 @@ import {transcriptToMessages} from "./transcriptToMessages"
  * falls back to whatever is already in localStorage.
  */
 export const loadSessionMessages = async (sessionId: string): Promise<UIMessage[] | null> => {
-    const projectId = getDefaultStore().get(projectIdAtom)
-    if (!projectId) return null
-
-    // Replay hydration is secondary to the live conversation stream — send it low-priority so
-    // Chromium schedules it behind render-critical traffic. A transient fetch failure resolves to
-    // `null` (the documented "request failed" contract) so the caller shows the history-unavailable
+    // Fetch through the shared records query cache (same key as `sessionRecordsQueryFamily`) so
+    // hydration, revalidation, and the Inspector's atom subscribers share ONE network flight per
+    // stale window instead of each issuing a raw duplicate request. A failure resolves to `null`
+    // (the documented "request failed" contract) so the caller shows the history-unavailable
     // notice instead of leaking an unhandled rejection.
     try {
-        const records = await querySessionRecords({sessionId, projectId, lowPriority: true})
+        const records = await getDefaultStore().set(fetchSessionRecordsAtom, sessionId)
         if (!records || records.length === 0) return null
         return transcriptToMessages(records)
     } catch (err) {
