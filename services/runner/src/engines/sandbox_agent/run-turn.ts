@@ -59,6 +59,7 @@ import {
   sendLastMessageOnly,
   type CurrentTurn,
   type ParkedApproval,
+  type ParkedApprovedExecution,
   type RunTurnOptions,
   type SessionEnvironment,
 } from "./runtime-contracts.ts";
@@ -106,6 +107,11 @@ export async function runTurn(
   // Reset the per-turn approval-park bookkeeping. A fresh turn starts with no parked gates; this
   // turn re-records them only if it pauses on ACP permission gates. (The dispatch has already
   // captured any prior park into `opts.resume` before calling us.)
+  const carriedApprovedExecutions = opts.resume
+    ? [...(env.parkedApprovedExecutions?.values() ?? [])]
+    : [];
+  const parkedApprovedExecutions = new Map<string, ParkedApprovedExecution>();
+  env.parkedApprovedExecutions = parkedApprovedExecutions;
   env.parkedApprovals.clear();
   env.parkedApproval = undefined;
   env.approvalGateCount = 0;
@@ -253,6 +259,9 @@ export async function runTurn(
     void pause.signal.then(() => runLimits.notePaused());
 
     const openToolCallIds = (): string[] => run.openToolCallIds?.() ?? [];
+    const approvedExecutionSeeds = new Map<string, ParkedApprovedExecution>(
+      carriedApprovedExecutions.map((seed) => [seed.toolCallId, seed]),
+    );
     const bufferedPausedCompletedFrames = new Map<string, unknown>();
     const toolCallClosureWaiters = new Map<string, Set<() => void>>();
     const notifyToolCallClosed = (toolCallId: string): void => {
@@ -328,6 +337,30 @@ export async function runTurn(
           ) {
             env.lastTurnToolCallIds.push(frame.toolCallId);
           }
+          if (
+            frame?.sessionUpdate === "tool_call" &&
+            typeof frame.toolCallId === "string" &&
+            frame.toolCallId
+          ) {
+            const announced = update as {
+              name?: unknown;
+              title?: unknown;
+              kind?: unknown;
+              rawInput?: unknown;
+              input?: unknown;
+            };
+            const existing = approvedExecutionSeeds.get(frame.toolCallId);
+            const toolName = [announced.name, announced.title, announced.kind]
+              .find(
+                (value): value is string =>
+                  typeof value === "string" && value.length > 0,
+              ) ?? existing?.toolName;
+            approvedExecutionSeeds.set(frame.toolCallId, {
+              toolCallId: frame.toolCallId,
+              toolName,
+              args: announced.rawInput ?? announced.input ?? existing?.args,
+            });
+          }
           const toolCallId =
             typeof rawFrame.toolCallId === "string"
               ? rawFrame.toolCallId
@@ -379,6 +412,18 @@ export async function runTurn(
       extractClientToolOutputs(request),
     );
     const executionGrants = new ApprovedExecutionGrants();
+    const seedApprovedExecution = (seed: ParkedApprovedExecution): void => {
+      approvedExecutionSeeds.set(seed.toolCallId, seed);
+      run.handleUpdate({
+        sessionUpdate: "tool_call",
+        toolCallId: seed.toolCallId,
+        title: seed.toolName,
+        kind: seed.toolName,
+        rawInput: seed.args,
+      });
+      pause.markAllowedExecution(seed.toolCallId);
+      executionGrants.grant(seed.toolName, seed.args);
+    };
     const responder =
       deps.responderFactory?.(request) ??
       new ApprovalResponder(permissionPlan, decisions, logger);
@@ -641,6 +686,9 @@ export async function runTurn(
       const decisions = opts.resume.decisions;
       promptPromise = Promise.resolve(decisions[0]?.promptPromise);
       promptPromise.catch(() => {});
+      for (const seed of carriedApprovedExecutions) {
+        seedApprovedExecution(seed);
+      }
       for (const decision of decisions) {
         // Seed this run's trace with the parked tool call so the completing `tool_call_update`
         // closes it and the FE approval part flips to output-available even if the adapter
@@ -657,6 +705,11 @@ export async function runTurn(
         // confirm resolves) passes the relay guard. Claude resumes grant too — harmlessly, no
         // guard consults it.
         if (decision.reply === "once") {
+          approvedExecutionSeeds.set(decision.toolCallId, {
+            toolCallId: decision.toolCallId,
+            toolName: decision.toolName,
+            args: decision.args,
+          });
           pause.markAllowedExecution(decision.toolCallId);
           executionGrants.grant(decision.toolName, decision.args);
         }
@@ -709,19 +762,42 @@ export async function runTurn(
       settleBufferedPausedCompletions();
       const openAllowedExecutions = openToolCallIds()
         .filter((id) => pause.isAllowedExecution(id));
-      await Promise.all(
-        openAllowedExecutions.map(async (toolCallId) => {
-          const closed = await waitForToolCallClosure(
+      const piBatchBlockedByApproval = Boolean(
+        opts.resume &&
+          plan.isPi &&
+          opts.approvalParkMode &&
+          env.parkedApprovals.size > 0,
+      );
+      if (piBatchBlockedByApproval) {
+        // Pi prepares every call in a parallel batch before it executes any of them. While a
+        // sibling gate is pending, closure is impossible, so carry the approved spans and park.
+        for (const toolCallId of openAllowedExecutions) {
+          const seed = approvedExecutionSeeds.get(toolCallId) ?? {
             toolCallId,
-            resolvedRunLimits.toolCallMs,
-          );
-          if (closed) return;
+            toolName: undefined,
+            args: undefined,
+          };
+          parkedApprovedExecutions.set(toolCallId, seed);
           run.settleOpenToolCalls(
             (id) => id !== toolCallId,
             APPROVED_EXECUTION_RESULT_UNKNOWN,
           );
-        }),
-      );
+        }
+      } else {
+        await Promise.all(
+          openAllowedExecutions.map(async (toolCallId) => {
+            const closed = await waitForToolCallClosure(
+              toolCallId,
+              resolvedRunLimits.toolCallMs,
+            );
+            if (closed) return;
+            run.settleOpenToolCalls(
+              (id) => id !== toolCallId,
+              APPROVED_EXECUTION_RESULT_UNKNOWN,
+            );
+          }),
+        );
+      }
       settleBufferedPausedCompletions();
       run.settleOpenToolCalls(
         (id) =>

@@ -137,6 +137,17 @@ export interface ResumeApprovalInput {
   promptPromise?: Promise<unknown>;
 }
 
+/**
+ * An approved Pi call whose batched execution is still blocked by a sibling approval. The next
+ * resume seeds this context into its tracer and execution-grant ledger before Pi can emit the
+ * batch's real terminal frame.
+ */
+export interface ParkedApprovedExecution {
+  toolCallId: string;
+  toolName: string | undefined;
+  args: unknown;
+}
+
 /** Per-turn options for `runTurn`. Absent (flag off / cold) means today's byte-identical path. */
 export interface RunTurnOptions {
   /** A live continuation: send only the new user text instead of the full cold transcript. */
@@ -240,6 +251,11 @@ export interface SessionEnvironment {
    * The multi-answer resume and the all-parkable park check read `parkedApprovals`, not this.
    */
   parkedApproval?: ParkedApproval;
+  /**
+   * Approved Pi calls settled with the non-retry unknown-result sentinel while a sibling gate was
+   * parked. Consumed and re-seeded on the next live resume; empty outside that internal carry.
+   */
+  parkedApprovedExecutions?: Map<string, ParkedApprovedExecution>;
   /**
    * How many ACP permission gates resolved to pendingApproval THIS turn (reset at turn start).
    * Equals `parkedApprovals.size` when every gate carried a resumable tool-call id; a larger

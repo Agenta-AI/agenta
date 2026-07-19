@@ -1203,7 +1203,17 @@ interface FakeRun {
   }>;
 }
 
-function pausableHarness(opts: { clientTool?: boolean } = {}) {
+interface PiBatchCall {
+  permissionId: string;
+  toolCallId: string;
+  toolName: string;
+  args: unknown;
+  output: string;
+}
+
+function pausableHarness(
+  opts: { clientTool?: boolean; piBatching?: PiBatchCall[] } = {},
+) {
   const calls = {
     permissionReplies: [] as Array<{ id: string; reply: string }>,
     runs: [] as FakeRun[],
@@ -1218,6 +1228,49 @@ function pausableHarness(opts: { clientTool?: boolean } = {}) {
     onEvent: undefined as ((event: any) => void) | undefined,
     onPermissionRequest: undefined as ((req: any) => void) | undefined,
   };
+  const answeredPiBatchPermissions = new Set<string>();
+  const emittedPiBatchPermissions = new Set<string>();
+  const emitPiBatchGate = (call: PiBatchCall): void => {
+    if (emittedPiBatchPermissions.has(call.permissionId)) return;
+    emittedPiBatchPermissions.add(call.permissionId);
+    captured.onEvent?.({
+      payload: {
+        update: {
+          sessionUpdate: "tool_call",
+          toolCallId: call.toolCallId,
+          title: call.toolName,
+          rawInput: call.args,
+        },
+      },
+    });
+    captured.onPermissionRequest?.({
+      id: call.permissionId,
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        toolCallId: call.toolCallId,
+        name: call.toolName,
+        rawInput: call.args,
+      },
+    });
+  };
+  const emitPiBatchResults = (): void => {
+    for (const call of opts.piBatching ?? []) {
+      captured.onEvent?.({
+        payload: {
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId: call.toolCallId,
+            status: "completed",
+            content: call.output,
+          },
+        },
+      });
+    }
+    calls.resolvePrompt?.({
+      stopReason: "complete",
+      usage: { inputTokens: 1, outputTokens: 1 },
+    });
+  };
 
   const session = {
     id: "session-1",
@@ -1229,6 +1282,17 @@ function pausableHarness(opts: { clientTool?: boolean } = {}) {
     },
     async respondPermission(id: string, reply: string) {
       calls.permissionReplies.push({ id, reply });
+      const batch = opts.piBatching;
+      if (!batch || reply !== "once") return;
+      const index = batch.findIndex((call) => call.permissionId === id);
+      if (index < 0) return;
+      answeredPiBatchPermissions.add(id);
+      // Pi resolves every approval hook before executing any call in the parallel batch.
+      if (index + 1 < batch.length) {
+        queueMicrotask(() => emitPiBatchGate(batch[index + 1]));
+      } else if (answeredPiBatchPermissions.size === batch.length) {
+        queueMicrotask(emitPiBatchResults);
+      }
     },
     prompt(_blocks: any) {
       calls.promptCount += 1;
@@ -1236,6 +1300,10 @@ function pausableHarness(opts: { clientTool?: boolean } = {}) {
       // it — modelling the ORIGINAL prompt continuing after the parked gate is answered.
       return new Promise((resolve) => {
         calls.resolvePrompt = resolve;
+        const firstPiBatchCall = opts.piBatching?.[0];
+        if (firstPiBatchCall) {
+          queueMicrotask(() => emitPiBatchGate(firstPiBatchCall));
+        }
       });
     },
   };
@@ -2221,6 +2289,196 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     );
 
     await env.destroy();
+  });
+
+  it("re-parks a Pi batch without a closure wait and records real results after the final approval", async () => {
+    const batch: PiBatchCall[] = [
+      {
+        permissionId: "permission-a",
+        toolCallId: "tool-a",
+        toolName: "tool-a",
+        args: { target: "a" },
+        output: "tool-a real output",
+      },
+      {
+        permissionId: "permission-b",
+        toolCallId: "tool-b",
+        toolName: "tool-b",
+        args: { target: "b" },
+        output: "tool-b real output",
+      },
+    ];
+    const { deps } = pausableHarness({ piBatching: batch });
+    deps.createOtel = createSandboxAgentOtel as any;
+    const closureWaitMs = 314_159;
+    deps.resolveRunLimits = () => ({
+      totalMs: 1_000_000,
+      idleMs: 500_000,
+      ttfbMs: 500_000,
+      toolCallMs: closureWaitMs,
+    });
+    deps.createRunLimits = () => ({
+      onTrip() {},
+      noteToolCallStart() {},
+      noteToolCallEnd() {},
+      wrapEmit: (emit: (event: any) => void) => emit,
+      notePaused() {},
+      dispose() {},
+    });
+    const realSetTimeout = globalThis.setTimeout;
+    let closureWaitCount = 0;
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(
+      ((
+        handler: (...args: any[]) => void,
+        timeout?: number,
+        ...args: any[]
+      ) => {
+        if (timeout === closureWaitMs) {
+          closureWaitCount += 1;
+          return realSetTimeout(handler, 0, ...args);
+        }
+        return realSetTimeout(handler, timeout, ...args);
+      }) as typeof setTimeout,
+    );
+    let env: SessionEnvironment | undefined;
+
+    try {
+      const piRequest: AgentRunRequest = {
+        ...engineReq,
+        harness: "pi_agenta",
+        permissions: { default: "ask" },
+        customTools: batch.map((call) => ({
+          name: call.toolName,
+          permission: "ask",
+        })),
+        messages: [{ role: "user", content: "run both writes in parallel" }],
+      };
+      const acquired = await acquireEnvironment(piRequest, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      env = acquired.env;
+
+      const firstResult = await runTurn(
+        env,
+        piRequest,
+        undefined,
+        undefined,
+        { approvalParkMode: true },
+      );
+      assert.equal(firstResult.stopReason, "paused");
+      const gateA = env.parkedApprovals.get("tool-a")!;
+
+      env.clearTurn();
+      const secondResult = await runTurn(
+        env,
+        piRequest,
+        undefined,
+        undefined,
+        {
+          approvalParkMode: true,
+          resume: {
+            decisions: [
+              {
+                permissionId: gateA.permissionId,
+                reply: "once",
+                toolCallId: gateA.toolCallId,
+                toolName: gateA.toolName,
+                args: gateA.args,
+                interactionToken: gateA.interactionToken,
+                promptPromise: gateA.promptPromise,
+              },
+            ],
+            carriedForward: [],
+          },
+        },
+      );
+      assert.equal(secondResult.stopReason, "paused");
+      assert.equal(
+        closureWaitCount,
+        0,
+        "the pending Pi sibling must bypass the bounded closure wait",
+      );
+      assert.deepEqual(
+        (secondResult.events ?? []).filter(
+          (event) => event.type === "tool_result",
+        ),
+        [
+          {
+            type: "tool_result",
+            id: "tool-a",
+            output: APPROVED_EXECUTION_RESULT_UNKNOWN,
+            isError: true,
+          },
+        ],
+      );
+      assert.deepEqual(
+        [...(env.parkedApprovedExecutions?.keys() ?? [])],
+        ["tool-a"],
+      );
+      const gateB = env.parkedApprovals.get("tool-b")!;
+
+      env.clearTurn();
+      const thirdResult = await runTurn(
+        env,
+        piRequest,
+        undefined,
+        undefined,
+        {
+          approvalParkMode: true,
+          resume: {
+            decisions: [
+              {
+                permissionId: gateB.permissionId,
+                reply: "once",
+                toolCallId: gateB.toolCallId,
+                toolName: gateB.toolName,
+                args: gateB.args,
+                interactionToken: gateB.interactionToken,
+                promptPromise: gateB.promptPromise,
+              },
+            ],
+            carriedForward: [],
+          },
+        },
+      );
+      assert.equal(thirdResult.stopReason, "complete");
+
+      const eventLog = [
+        ...(firstResult.events ?? []),
+        ...(secondResult.events ?? []),
+        ...(thirdResult.events ?? []),
+      ];
+      const realResults = eventLog.filter(
+        (
+          event,
+        ): event is Extract<AgentEvent, { type: "tool_result" }> =>
+          event.type === "tool_result" &&
+          (event.output === "tool-a real output" ||
+            event.output === "tool-b real output"),
+      );
+      assert.deepEqual(
+        realResults.map((event) => event.id).sort(),
+        ["tool-a", "tool-b"],
+        "both batched calls record one real result",
+      );
+      const lastResultByCall = new Map<
+        string,
+        Extract<AgentEvent, { type: "tool_result" }>
+      >();
+      for (const event of eventLog) {
+        if (event.type === "tool_result" && event.id) {
+          lastResultByCall.set(event.id, event);
+        }
+      }
+      assert.equal(lastResultByCall.get("tool-a")?.output, "tool-a real output");
+      assert.equal(lastResultByCall.get("tool-a")?.isError, false);
+      assert.equal(lastResultByCall.get("tool-b")?.output, "tool-b real output");
+      assert.equal(lastResultByCall.get("tool-b")?.isError, false);
+      assert.equal(env.parkedApprovedExecutions?.size, 0);
+    } finally {
+      timeoutSpy.mockRestore();
+      if (env) await env.destroy();
+    }
   });
 
   it("records the non-retry sentinel when an approved result misses the bound", async () => {
