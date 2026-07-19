@@ -82,8 +82,9 @@ export interface RevisionDeltaPreview {
 
 /**
  * Classify what a delta would change against the current committed `parameters`.
- * Returns null for malformed/empty deltas or when nothing effectively changes —
- * the caller's signal to fall back to a generic (raw payload) rendering.
+ * Returns null for malformed/empty deltas, deltas reaching outside `parameters`,
+ * or when nothing effectively changes — the caller's signal to fall back to a
+ * generic (raw payload) rendering.
  */
 export function classifyRevisionDeltaChanges(
     currentParams: unknown,
@@ -95,6 +96,15 @@ export function classifyRevisionDeltaChanges(
         ? delta.remove.filter((p) => typeof p === "string")
         : []
     if (!set && !remove.length) return null
+
+    // The backend merges the delta onto the WHOLE revision data tree (url, script, headers, …),
+    // but this preview only renders `parameters` — a mixed delta would show its parameters half
+    // and silently hide the rest. The backend checks this scope only for test_run deltas
+    // (`_validate_delta_scope`), NOT for commits, so this guard is load-bearing.
+    const outOfScope =
+        (set && Object.keys(set).some((key) => key !== "parameters")) ||
+        remove.some((path) => path !== "parameters" && !path.startsWith("parameters."))
+    if (outOfScope) return null
 
     const base = isRecord(currentParams) ? currentParams : {}
     const data = applyRevisionDelta({parameters: base}, {set: set ?? {}, remove})
