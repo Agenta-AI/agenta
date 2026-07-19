@@ -113,7 +113,6 @@ import {
 import { hydrateHarnessSessionFromDurable } from "./session-continuity-durable.ts";
 import {
   eligibleAgentSessionId,
-  nextTurnIndex,
   sessionContinuityStore,
 } from "./session-continuity.ts";
 import { projectScopeFor } from "./session-identity.ts";
@@ -956,11 +955,6 @@ export async function acquireEnvironment(
       : undefined;
     const localSessionId = continuitySessionKey
       ? `${continuitySessionKey}:${plan.harness}`
-      : undefined;
-    // The index THIS turn will occupy once it completes: recorded post-turn against the SAME
-    // index read here, so a turn that authors turn N leaves the store agreeing with itself.
-    environment.continuityTurnIndex = continuitySessionKey
-      ? nextTurnIndex(continuitySessionKey, continuityStore)
       : undefined;
     // The live sandbox id rides forward as a field on the turn-append row written at turn end
     // (see `appendSessionTurn` call in `runTurn`), not a separate pre-turn pointer PUT: the

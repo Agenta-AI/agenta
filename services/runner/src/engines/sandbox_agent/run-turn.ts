@@ -66,7 +66,10 @@ import {
 import {
   appendSessionTurn,
 } from "./session-continuity-durable.ts";
-import { sessionContinuityStore } from "./session-continuity.ts";
+import {
+  nextTurnIndex,
+  sessionContinuityStore,
+} from "./session-continuity.ts";
 import { priorMessages } from "./transcript.ts";
 import { resolveRunUsage } from "./usage.ts";
 
@@ -86,6 +89,12 @@ export async function runTurn(
 ): Promise<AgentRunResult> {
   const { plan, logger, deps } = env;
   const sessionId = env.sessionId;
+  const continuityStore = deps.sessionContinuityStore ?? sessionContinuityStore;
+  // `turn_index` is a true conversation-turn counter, not an acquire counter: it advances once per completed turn across every environment serving the session.
+  // The shared store advances only on `record()` (paused turns record nothing), so park-and-resume consumes one index; compute it at turn start because a warm environment serves many turns.
+  env.continuityTurnIndex = sessionId
+    ? nextTurnIndex(sessionId, continuityStore)
+    : undefined;
   // Reset the per-turn tool-call id record (the park folds the completed turn's ids into the
   // expected next-history fingerprint).
   env.lastTurnToolCallIds = [];
