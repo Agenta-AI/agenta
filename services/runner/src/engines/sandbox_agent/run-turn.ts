@@ -34,7 +34,10 @@ import {
   TOOL_NOT_EXECUTED_PAUSED,
 } from "../../tracing/otel.ts";
 import { attachPermissionResponder } from "./acp-interactions.ts";
-import { buildClientToolRelay } from "./client-tools.ts";
+import {
+  buildClientToolRelay,
+  relayWritesPausedAnswer,
+} from "./client-tools.ts";
 import { invalidateContinuity } from "./environment.ts";
 import { conciseError } from "./errors.ts";
 import {
@@ -408,7 +411,14 @@ export async function runTurn(
         request.runContext,
         env.clientToolRelayRef.current,
         relayGuard,
-        { log: logger },
+        {
+          log: logger,
+          // Derived from the run plan's client-tool pause disposition (the closed set lives at
+          // the client-tool boundary; the relay only needs the boolean).
+          writePausedAnswer: relayWritesPausedAnswer(
+            plan.clientToolPauseDisposition,
+          ),
+        },
       );
       // Ordering invariant: the relay's stale-file sweep must complete before the
       // resume's respondPermission or the fresh prompt below can cause a legitimate
@@ -445,6 +455,11 @@ export async function runTurn(
       // guard consults it.
       if (opts.resume.reply === "once") {
         executionGrants.grant(opts.resume.toolName, opts.resume.args);
+      }
+      // A live-resume deny closes the seeded call as a failed tool call; flag it so the egress
+      // projects `tool-output-denied` (a decline), mirroring the cold decision-map deny path.
+      if (opts.resume.reply === "reject") {
+        run.markToolCallDenied(opts.resume.toolCallId);
       }
       await env.session.respondPermission(
         opts.resume.permissionId,

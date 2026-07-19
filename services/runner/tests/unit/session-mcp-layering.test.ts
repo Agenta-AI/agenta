@@ -350,7 +350,11 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
     assert.deepEqual(servers, [], "Pi never uses the stdio shim");
   });
 
-  it("(Daytona, non-Pi, internalToolMcp, only client tools) -> no internal entry (nothing executable)", async () => {
+  it("(Daytona, non-Pi, internalToolMcp, only client tools) -> advertises the shim (client tools ride it too)", async () => {
+    // The shim now advertises client tools as well as executable ones. A client-only run on
+    // Daytona must still build the internal stdio channel so Claude sees the client tool and can
+    // call it; the parked call resolves through the relay's paused answer. This is the direct
+    // guard against the old client-only silent drop.
     const clientTool: ResolvedToolSpec = {
       name: "request_connection",
       kind: "client",
@@ -368,10 +372,10 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
         specsPath: "/home/sandbox/x/tool-mcp-specs.json",
       },
     });
-    assert.deepEqual(
-      servers,
-      [],
-      "a client-only spec list advertises no stdio channel",
+    const stdio = servers.find((s) => s.name === "agenta-tools");
+    assert.ok(
+      stdio,
+      "a client-only spec list still advertises the internal stdio channel",
     );
   });
 

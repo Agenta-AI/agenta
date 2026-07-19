@@ -644,6 +644,15 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "truecallerabreham",
+      "name": "Abreham Melese",
+      "avatar_url": "https://avatars.githubusercontent.com/u/180291642?v=4",
+      "profile": "https://github.com/truecallerabreham",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "contributorsPerLine": 7,

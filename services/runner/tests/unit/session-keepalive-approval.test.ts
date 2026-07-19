@@ -978,6 +978,10 @@ function pausableHarness(opts: { clientTool?: boolean } = {}) {
           run.settled.push({ id, message });
         }
       },
+      denied: [] as string[],
+      markToolCallDenied(id: string | undefined) {
+        if (id) run.denied.push(id);
+      },
       traceId() {
         return "trace-1";
       },

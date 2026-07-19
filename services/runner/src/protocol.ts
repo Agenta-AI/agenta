@@ -345,6 +345,14 @@ export type AgentEvent =
       /** Structured output (object), used for generative UI; `output` stays the text form. */
       data?: unknown;
       isError?: boolean;
+      /**
+       * The result is a USER/POLICY DENIAL of a gated call, not a genuine tool failure. A denied
+       * call still rides `isError: true` (the harness closes it as a failed tool call), so this
+       * structural marker is the only reliable way for the egress to project `tool-output-denied`
+       * (a decline) instead of `tool-output-error` (a breakage). Set by the runner at the deny
+       * mapping, never inferred from the error text.
+       */
+      denied?: boolean;
       render?: RenderHint;
     }
   // A human-in-the-loop request the harness raised (ACP reverse-RPC). The kind is our own
