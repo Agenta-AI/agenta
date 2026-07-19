@@ -21,7 +21,7 @@
  * Sections are schema-driven: each renders only when its field exists in the resolved
  * schema, so the panel tracks the backend contract instead of hard-coding fields.
  */
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
 import type {SchemaProperty} from "@agenta/entities/shared"
@@ -122,7 +122,7 @@ const ModelHarnessSectionDrawerBody = ({
 // the agent populates them (see `useAutoExpandOnPopulate`).
 const CONTROLLED_SECTION_KEYS = new Set(["tools", "mcp", "skills", "triggers"])
 
-export function AgentTemplateControl({
+export const AgentTemplateControl = memo(function AgentTemplateControl({
     schema,
     value,
     onChange,
@@ -1045,4 +1045,4 @@ export function AgentTemplateControl({
             )}
         </div>
     )
-}
+})

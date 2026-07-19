@@ -23,6 +23,7 @@ import {hasPendingHydrationAtomFamily, isAgentModeAtomFamily} from "@agenta/play
 import {Select} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
+import {selectAtom} from "jotai/utils"
 import dynamic from "next/dynamic"
 
 import {extractJsonPaths, safeParseJson} from "@/oss/lib/helpers/extractJsonPaths"
@@ -45,6 +46,12 @@ const StorageFilesHeader = dynamic(() => import("@/oss/components/Drives/Storage
 
 // Stable empty catalog read for non-evaluator workflows (avoids the templates fetch).
 const EMPTY_TEMPLATES_DATA_ATOM = atom<EvaluatorCatalogTemplate[]>([])
+
+// Stable element: an inline `<AgentConfigSkeleton />` prop would defeat memo(PlaygroundConfigSection).
+const AGENT_CONFIG_SKELETON = <AgentConfigSkeleton />
+
+// Stable empty detection value for non-evaluator workflows (context value identity).
+const EMPTY_FIELDS_DETECTION = {}
 
 /**
  * PlaygroundVariantConfig manages the configuration interface for a single variant.
@@ -82,17 +89,41 @@ const PlaygroundVariantConfig: React.FC<
     // prompt chrome (view switcher) would flash for an agent. Treat as agent-header mode when it's an
     // agent, the early app-id signal says agent, OR agent-ness is still unknown (variant not settled).
     const earlyAgentState = useAtomValue(playgroundEarlyAgentStateAtom)
+    // Narrow to the pending flag: the full query object churns identity on every fetch-state flip.
     const variantQueryPending = useAtomValue(
-        useMemo(() => workflowMolecule.selectors.query(variantId || ""), [variantId]),
-    ).isPending
+        useMemo(
+            () => selectAtom(workflowMolecule.selectors.query(variantId || ""), (q) => q.isPending),
+            [variantId],
+        ),
+    )
     const isAgentHeaderMode = isAgent || earlyAgentState === "agent" || variantQueryPending
 
     // Refine prompt modal state
     const [refineModalOpen, setRefineModalOpen] = useState(false)
     const [refinePromptKey, setRefinePromptKey] = useState<string | null>(null)
 
-    // Get workflow data for evaluator detection
-    const runnableData = useAtomValue(workflowMolecule.selectors.data(variantId))
+    // Narrow reads for evaluator detection — a whole-data subscription re-renders this
+    // component (and its section tree) on every boot-time data resolution.
+    const workflowUri = useAtomValue(
+        useMemo(
+            () =>
+                selectAtom(
+                    workflowMolecule.selectors.data(variantId),
+                    (d) => d?.data?.uri as string | undefined,
+                ),
+            [variantId],
+        ),
+    )
+    const workflowParams = useAtomValue(
+        useMemo(
+            () =>
+                selectAtom(
+                    workflowMolecule.selectors.data(variantId),
+                    (d) => d?.data?.parameters as Record<string, unknown> | undefined,
+                ),
+            [variantId],
+        ),
+    )
     const isEvaluator = useAtomValue(workflowMolecule.selectors.isEvaluator(variantId))
     const dispatchUpdate = useSetAtom(workflowMolecule.actions.updateConfiguration)
 
@@ -107,10 +138,9 @@ const PlaygroundVariantConfig: React.FC<
     // which checks `entity.flags.is_evaluator`).
     const evaluatorKey = useMemo(() => {
         if (!isEvaluator) return null
-        const uri = runnableData?.data?.uri as string | undefined
-        if (!uri || !uri.startsWith("agenta:builtin:")) return null
-        return parseEvaluatorKeyFromUri(uri)
-    }, [isEvaluator, runnableData?.data?.uri])
+        if (!workflowUri || !workflowUri.startsWith("agenta:builtin:")) return null
+        return parseEvaluatorKeyFromUri(workflowUri)
+    }, [isEvaluator, workflowUri])
 
     // Read the evaluator template catalog only for evaluator workflows — apps
     // never use it, and an unconditional read fetches GET /evaluators/catalog/
@@ -176,7 +206,7 @@ const PlaygroundVariantConfig: React.FC<
     // Fields detection callback for JSON Multi-Field Match evaluator.
     // Reads the first testcase row and extracts JSON paths from the correct_answer field.
     const fieldsDetectionValue = useMemo(() => {
-        if (!evaluatorKey) return {}
+        if (!evaluatorKey) return EMPTY_FIELDS_DETECTION
         return {
             hasTestcaseData,
             detectFieldsFromTestcase: (): string[] | null => {
@@ -186,7 +216,7 @@ const PlaygroundVariantConfig: React.FC<
                 if (!firstTestcase?.data) return null
 
                 // Read correct_answer_key from the evaluator config
-                const params = runnableData?.data?.parameters as Record<string, unknown> | undefined
+                const params = workflowParams
                 const correctAnswerKey =
                     (params?.correct_answer_key as string) ??
                     ((params?.advanced_config as Record<string, unknown>)
@@ -205,7 +235,7 @@ const PlaygroundVariantConfig: React.FC<
                 return extractJsonPaths(parsed)
             },
         }
-    }, [evaluatorKey, hasTestcaseData, runnableData?.data?.parameters])
+    }, [evaluatorKey, hasTestcaseData, workflowParams])
 
     // View mode for config section (form/json/yaml)
     // When controlled externally (e.g. from the drawer), use the provided props.
@@ -243,7 +273,7 @@ const PlaygroundVariantConfig: React.FC<
                     embedded={embedded}
                     variantNameOverride={variantNameOverride}
                     revisionOverride={revisionOverride}
-                    evaluatorLabel={evaluatorInfo?.label}
+                    evaluatorLabel={evaluatorInfo?.label ?? undefined}
                     hasPresets={hasPresets}
                     onLoadPreset={() => setIsPresetModalOpen(true)}
                     extraActions={isAgentHeaderMode ? undefined : viewModeSelector}
@@ -280,7 +310,7 @@ const PlaygroundVariantConfig: React.FC<
                                     // section-row shape while the schema loads, instead of the
                                     // generic prompt-config pulse boxes.
                                     loadingFallback={
-                                        isAgentHeaderMode ? <AgentConfigSkeleton /> : undefined
+                                        isAgentHeaderMode ? AGENT_CONFIG_SKELETON : undefined
                                     }
                                 />
                             </PlaygroundNodeTokenPathProvider>

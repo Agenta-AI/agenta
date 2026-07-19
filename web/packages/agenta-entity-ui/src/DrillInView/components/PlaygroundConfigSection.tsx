@@ -36,9 +36,11 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {ArrowLeft, CaretDown, CaretRight, MagicWand} from "@phosphor-icons/react"
 import {Button, Dropdown, Popover, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
+import deepEqual from "fast-deep-equal"
 import type {Atom, WritableAtom} from "jotai"
 import {atom} from "jotai"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {selectAtom} from "jotai/utils"
 import yaml from "js-yaml"
 
 import {
@@ -291,6 +293,11 @@ function memoAtom<T>(factory: (id: string) => Atom<T>): (id: string) => Atom<T> 
     }
 }
 
+/** Content-stable wrapper: keep the previous value when a recompute yields equal content. */
+function stableAtom<T>(base: Atom<T>, equals: (a: T, b: T) => boolean): Atom<T> {
+    return selectAtom(base, (v) => v, equals)
+}
+
 // ============================================================================
 // DEFAULT ADAPTER (workflowMolecule — direct molecule access)
 // ============================================================================
@@ -413,34 +420,48 @@ const configUpdateRouterAtom = atom(
 function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
     return {
         atoms: {
+            // deepEqual-stable: upstream selectors mint fresh objects per query flip during boot.
             data: memoAtom((id: string) =>
-                atom((get) => {
-                    const config = get(workflowMolecule.selectors.configuration(id))
-                    const full = get(workflowMolecule.selectors.resolvedData(id))
-                    return mergeSiblingFields(config as Record<string, unknown> | null, full)
-                }),
+                stableAtom(
+                    atom((get) => {
+                        const config = get(workflowMolecule.selectors.configuration(id))
+                        const full = get(workflowMolecule.selectors.resolvedData(id))
+                        return mergeSiblingFields(config as Record<string, unknown> | null, full)
+                    }),
+                    deepEqual,
+                ),
             ),
             serverData: memoAtom((id: string) =>
-                atom((get) => {
-                    const config = get(workflowMolecule.selectors.serverConfiguration(id))
-                    const full = get(workflowMolecule.selectors.serverData(id))
-                    return mergeSiblingFields(config as Record<string, unknown> | null, full)
-                }),
+                stableAtom(
+                    atom((get) => {
+                        const config = get(workflowMolecule.selectors.serverConfiguration(id))
+                        const full = get(workflowMolecule.selectors.serverData(id))
+                        return mergeSiblingFields(config as Record<string, unknown> | null, full)
+                    }),
+                    deepEqual,
+                ),
             ),
             draft: (id: string) => workflowMolecule.atoms.draft(id),
             isDirty: (id: string) => workflowMolecule.selectors.isDirty(id),
             schemaQuery: memoAtom((id: string) =>
-                atom((get) => {
-                    const q = get(workflowMolecule.selectors.query(id))
-                    const rawSchema = get(workflowMolecule.selectors.parametersSchema(id))
-                    const schema = isEntitySchema(rawSchema) ? rawSchema : null
-                    return {
-                        isPending: q.isPending,
-                        isError: q.isError,
-                        error: q.error as Error | null,
-                        data: {agConfigSchema: schema},
-                    }
-                }),
+                stableAtom(
+                    atom((get) => {
+                        const q = get(workflowMolecule.selectors.query(id))
+                        const rawSchema = get(workflowMolecule.selectors.parametersSchema(id))
+                        const schema = isEntitySchema(rawSchema) ? rawSchema : null
+                        return {
+                            isPending: q.isPending,
+                            isError: q.isError,
+                            error: q.error as Error | null,
+                            data: {agConfigSchema: schema},
+                        }
+                    }),
+                    (a, b) =>
+                        a.isPending === b.isPending &&
+                        a.isError === b.isError &&
+                        a.error === b.error &&
+                        a.data?.agConfigSchema === b.data?.agConfigSchema,
+                ),
             ),
             agConfigSchema: memoAtom((id: string) =>
                 atom((get) => {
@@ -780,7 +801,7 @@ function PlaygroundConfigSection({
     // Stabilize via serialized key to prevent infinite re-render loops when the
     // parameters object reference changes but content is identical (e.g., during
     // entity loading in URL-driven drawer initialization).
-    const parametersKey = JSON.stringify(parameters)
+    const parametersKey = useMemo(() => JSON.stringify(parameters), [parameters])
     const {displayParameters, metadataMap} = useMemo(() => {
         return {
             displayParameters: stripAgentaMetadata(parameters),
@@ -1853,6 +1874,16 @@ function PlaygroundConfigSection({
         ],
     )
 
+    // Stable slots object — an inline literal would churn the drill-in provider's context value.
+    const drillInSlots = useMemo(
+        () => ({
+            fieldHeader: fieldHeaderSlot,
+            fieldActions: fieldActionsSlot,
+            fieldContent: fieldContentSlot,
+        }),
+        [fieldHeaderSlot, fieldActionsSlot, fieldContentSlot],
+    )
+
     // ========== LOADING / EMPTY STATE ==========
     const isConfigLoading = schemaQuery.isPending && !hasRenderableConfigSections(activeData)
 
@@ -1955,11 +1986,7 @@ function PlaygroundConfigSection({
                         rootTitle="Configuration"
                         showBreadcrumb={false}
                         collapsible={false}
-                        slots={{
-                            fieldHeader: fieldHeaderSlot,
-                            fieldActions: fieldActionsSlot,
-                            fieldContent: fieldContentSlot,
-                        }}
+                        slots={drillInSlots}
                     />
                 </>
             )}
