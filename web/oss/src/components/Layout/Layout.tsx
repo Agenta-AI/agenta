@@ -409,7 +409,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                     </ErrorBoundary>
                 </Layout>
             ) : (
-                <ProtectedRoute>
+                <ProtectedRoute shell="app">
                     <AppWithVariants
                         isAppRoute={isAppRoute}
                         classes={classes}

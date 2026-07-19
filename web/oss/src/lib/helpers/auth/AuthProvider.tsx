@@ -5,6 +5,7 @@ import SuperTokensReact, {SuperTokensWrapper} from "supertokens-auth-react"
 
 import {installTurnstileFetchPatch} from "@/oss/lib/helpers/auth/turnstile"
 import {getJWT} from "@/oss/services/api"
+import {prewarmBootQueryGraph} from "@/oss/state/boot/prewarmBootQueryGraph"
 
 import {AuthProviderType} from "./types"
 
@@ -20,6 +21,8 @@ const AuthProvider: AuthProviderType = ({children, pageProps}) => {
     const [isInitialized, setIsInitialized] = useState(false)
     useEffect(() => {
         const initSuperTokens = async () => {
+            // Overlaps the boot atom graph's first evaluation with the config chunk fetch
+            prewarmBootQueryGraph()
             installTurnstileFetchPatch()
             const {frontendConfig} = await loadFrontendConfig()
             SuperTokensReact.init(frontendConfig())
