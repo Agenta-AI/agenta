@@ -12,6 +12,7 @@
   <strong> <h1> The open-source workspace for building and running agents </h1></strong>
   Build agents that automate your work by chatting with them. Share them with your team, connect them to the apps you use, and run them in the background.
 </div>
+
 ---
 
 <h3 align="center">
