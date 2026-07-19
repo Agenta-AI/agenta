@@ -33,7 +33,7 @@ export function shouldSuppressPausedToolCallUpdate(
   pause: PendingApprovalPauseController,
 ): boolean {
   const frame = update as
-    | { sessionUpdate?: unknown; toolCallId?: unknown }
+    | { sessionUpdate?: unknown; toolCallId?: unknown; status?: unknown }
     | undefined;
   const kind = frame?.sessionUpdate;
   if (kind !== "tool_call" && kind !== "tool_call_update") return false;
