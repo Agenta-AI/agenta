@@ -41,13 +41,13 @@
 
 <p align="center">
     <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw">
-        <img src="https://custom-icon-badges.demolab.com/badge/Slack-4A154B?logo=slack&logoColor=fff" />
+        <img src="https://custom-icon-badges.demolab.com/badge/Slack-4A154B?logo=slack&logoColor=fff" alt="Join us on Slack" />
     </a>
     <a href="https://www.linkedin.com/company/agenta-ai/">
-        <img src="https://custom-icon-badges.demolab.com/badge/LinkedIn-0A66C2?logo=linkedin-white&logoColor=fff" />
+        <img src="https://custom-icon-badges.demolab.com/badge/LinkedIn-0A66C2?logo=linkedin-white&logoColor=fff" alt="Follow Agenta on LinkedIn" />
     </a>
     <a  href="https://twitter.com/agenta_ai">
-        <img src="https://img.shields.io/twitter/follow/agenta_ai?style=social" height="28" />
+        <img src="https://img.shields.io/twitter/follow/agenta_ai?style=social" height="28" alt="Follow @agenta_ai on X" />
     </a>
 </p>
 
@@ -77,11 +77,11 @@ For recurring work, you can build background agents. These agents run on a sched
 
 ### Use your Claude or ChatGPT subscription
 
-When you self-host Agenta, you can run agents locally with your existing Claude or ChatGPT subscription with [more harnesses planned](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme). 
+When you self-host Agenta, you can run agents locally with your existing Claude or ChatGPT subscription. You do not need to move every task to metered API billing.
 
 ### Choose your harness and model
 
-Switch harnesses and models without rebuilding your agent. Agenta already supports almost any model, whether self-hosted or through API. Agenta supports Claude Code and Pi as harnesses today, with [more harnesses planned](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme).
+Switch harnesses and models without rebuilding your agent. Agenta already supports almost any model, whether self-hosted or accessed through an API. Agenta supports Claude Code and Pi as harnesses today, with [more harnesses planned](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme).
 
 ### Build with open agent standards
 
@@ -125,7 +125,7 @@ The fastest way to try Agenta.
 
 Paste this into your agent and it will walk you through setup and testing:
 
-```
+```text
 1. Install the Agenta self-hosting skill: npx skills add Agenta-AI/agenta-skills
 2. Help me self-host Agenta with its repository.
 ```
@@ -141,28 +141,27 @@ For more details, read the [self-hosting documentation](https://agenta.ai/docs/s
 - [ ] Codex
 - [ ] Gemini
 - [ ] OpenCode
-- [ ] [Create an issue to add yours to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
+- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
 
 **Models**
 
 - [x] OpenAI
 - [x] Anthropic
-- [x] Openrouter
-- [x] OpenAI
+- [x] OpenRouter
 - [x] Mistral AI
--	[x] Cohere
--	[x] Anyscale
--	[x] Perplexity AI
--	[x] DeepInfra
--	[x] Together AI
--	[x] Groq
--	[x] Google Gemini
--	[x] Azure
--	[x] AWS Bedrock
--	[x] MiniMax
+- [x] Cohere
+- [x] Anyscale
+- [x] Perplexity AI
+- [x] DeepInfra
+- [x] Together AI
+- [x] Groq
+- [x] Google Gemini
+- [x] Azure
+- [x] AWS Bedrock
+- [x] MiniMax
 - [x] OpenAI-compatible models
 - [x] Self-hosted models (Ollama)
-- [ ] [Create an issue to add yours to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
+- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
 
 **Agent runtimes**
 
@@ -175,8 +174,7 @@ For more details, read the [self-hosting documentation](https://agenta.ai/docs/s
 - [ ] Cloudflare
 - [ ] Modal
 - [ ] BoxLite
-- [ ] [Create an issue to add yours to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
-
+- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
 
 **Features**
 
@@ -184,7 +182,7 @@ For more details, read the [self-hosting documentation](https://agenta.ai/docs/s
 - [x] Events from connected apps
 - [x] MCP servers (API key + unauthenticated)
 - [ ] Generic webhook triggers
-- [ ] Additional MCP transports (Oauth)
+- [ ] Additional MCP transports (OAuth)
 - [ ] Channels (Slack, Telegram, Discord, Teams)
 - [ ] Mobile version
 
