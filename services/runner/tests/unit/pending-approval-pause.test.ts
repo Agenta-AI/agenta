@@ -32,6 +32,25 @@ describe("PendingApprovalPauseController", () => {
     assert.deepEqual(queuedUpdates, ["session update"]);
   });
 
+  it("re-arms the bounded drain when a gate is classified after the first tick", async () => {
+    const pause = new PendingApprovalPauseController(() => {});
+    pause.markPausedToolCall("tool-first");
+    pause.pause();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    let lateGateClassified = false;
+    setImmediate(() => {
+      pause.markPausedToolCall("tool-late");
+      lateGateClassified = true;
+    });
+
+    await pause.waitForEventDrain();
+
+    assert.equal(lateGateClassified, true);
+    assert.equal(pause.isPausedToolCall("tool-late"), true);
+  });
+
   it("finishes the event drain when managed cancellation rejects", async () => {
     const pause = new PendingApprovalPauseController(() =>
       Promise.reject(new Error("session already gone")),

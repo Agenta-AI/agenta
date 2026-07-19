@@ -514,6 +514,7 @@ export async function runTurn(
       onPause: () => pause.pause(),
       onPausedToolCall: (id) => pause.markPausedToolCall(id),
       onAllowedExecution: (id) => pause.markAllowedExecution(id),
+      onAnsweredDeny: (id) => pause.markAnsweredDeny(id),
       onNonParkablePause: () => {
         env.nonParkablePauseCount += 1;
       },
@@ -663,6 +664,7 @@ export async function runTurn(
         // projects `tool-output-denied` (a decline), mirroring the cold decision-map deny path.
         if (decision.reply === "reject") {
           run.markToolCallDenied(decision.toolCallId);
+          pause.markAnsweredDeny(decision.toolCallId);
         }
         // Answer this gate on the live session. Each parked gate holds its OWN pending
         // `respondPermission` on the harness, so answering them one by one settles each

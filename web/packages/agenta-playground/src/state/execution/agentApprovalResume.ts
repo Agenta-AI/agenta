@@ -24,10 +24,15 @@
  */
 
 interface ApprovalLike {
+    id?: string
     approved?: boolean
 }
 
 import {buildRenderMap, renderKindFor, type RenderHintLike} from "./renderMap"
+
+export type LiveAgentInteraction =
+    | {kind: "approval"; id: string}
+    | {kind: "client_tool"; id: string}
 
 interface ToolPartLike {
     type?: string
@@ -128,10 +133,10 @@ const isSettledToolPart = (part: ToolPartLike): boolean =>
  */
 export function agentShouldResumeAfterApproval({
     messages,
-    liveInteraction = true,
+    liveInteraction,
 }: {
     messages: MessageLike[]
-    liveInteraction?: boolean
+    liveInteraction?: LiveAgentInteraction | null
 }): boolean {
     const last = messages[messages.length - 1]
     if (!last || last.role !== "assistant") return false
@@ -143,18 +148,26 @@ export function agentShouldResumeAfterApproval({
     // Message-scoped render hints (sibling `data-render` parts) for client-tool detection.
     const renderMap = buildRenderMap(parts)
 
-    // Index of the LAST freshly-resolved parked interaction (an approval response or a
-    // browser-fulfilled client-tool result). Using the last one handles chained gates: a second
-    // approval later in the turn is what should drive the (next) resume.
     let lastResolvedIdx = -1
     let lastResolvedIsApproval = false
-    for (let i = 0; i < parts.length; i++) {
-        if (isRespondedToolPart(parts[i])) {
-            lastResolvedIdx = i
-            lastResolvedIsApproval = true
-        } else if (isClientToolResult(parts[i], renderMap)) {
-            lastResolvedIdx = i
-            lastResolvedIsApproval = false
+    if (liveInteraction === null) return false
+    if (liveInteraction) {
+        lastResolvedIsApproval = liveInteraction.kind === "approval"
+        lastResolvedIdx = parts.findIndex((part) =>
+            liveInteraction.kind === "approval"
+                ? isRespondedToolPart(part) && part.approval?.id === liveInteraction.id
+                : isClientToolResult(part, renderMap) && part.toolCallId === liveInteraction.id,
+        )
+    } else {
+        // Queue/orphan checks omit a marker and inspect the latest resolved interaction shape.
+        for (let i = 0; i < parts.length; i++) {
+            if (isRespondedToolPart(parts[i])) {
+                lastResolvedIdx = i
+                lastResolvedIsApproval = true
+            } else if (isClientToolResult(parts[i], renderMap)) {
+                lastResolvedIdx = i
+                lastResolvedIsApproval = false
+            }
         }
     }
     if (lastResolvedIdx === -1) return false
@@ -170,10 +183,10 @@ export function agentShouldResumeAfterApproval({
         .some((part) => part.type === "step-start")
     if (resumedAlready) return false
 
-    if (!liveInteraction) return false
-
     // The AI SDK re-evaluates after message updates and waits for an in-flight stream to finish,
     // so an approval clicked during a resume dispatches when that stream finishes.
+    if (!liveInteraction) return toolParts.every(isSettledToolPart)
+
     if (lastResolvedIsApproval) {
         const pendingClientTool = toolParts.some((part) =>
             isPendingClientToolInteraction(part, renderMap),

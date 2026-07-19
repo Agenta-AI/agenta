@@ -17,6 +17,7 @@ import {
   storedDecisionKeyShape,
   type GateDescriptor,
   type PermissionPlan,
+  type StoredPermissionDecision,
   type StoredPermissionDecisions,
   type Verdict,
 } from "./permission-plan.ts";
@@ -256,13 +257,15 @@ export class ConversationDecisions implements StoredPermissionDecisions {
   }
 
   /** allow|deny for this exact call (name + canonical args), consumed on first take. */
-  take(gate: GateDescriptor): "allow" | "deny" | undefined {
+  take(
+    gate: GateDescriptor,
+  ): PermissionDecision | StoredPermissionDecision | undefined {
     const key = approvedCallKey(gate.toolName, gate.args);
     if (!key) return undefined;
     const queue = this.decisionQueues.get(key);
     if (!queue || queue.length === 0) return undefined;
     const value = queue[0];
-    if (!isPermissionDecision(value)) return undefined;
+    if (!isStoredPermissionDecision(value)) return undefined;
     queue.shift();
     if (queue.length === 0) this.decisionQueues.delete(key);
     return value;
@@ -338,7 +341,11 @@ export class ApprovalResponder implements Responder {
 
     if (permission === "ask") {
       const storedDecision = this.decisions.take(request.gate);
-      if (storedDecision === "deny") return { kind: "deny" };
+      const decision =
+        typeof storedDecision === "string"
+          ? storedDecision
+          : storedDecision?.decision;
+      if (decision === "deny") return { kind: "deny" };
     }
     return { kind: "pendingApproval" };
   }
@@ -364,7 +371,7 @@ export function extractApprovalDecisions(
   const decisions = new Map<string, unknown[]>();
   const callShapeById = buildCallShapeIndex(request);
   for (const block of toolResultBlocks(request)) {
-    const decision = approvalDecisionOf(block);
+    const decision = storedApprovalDecisionOf(block);
     if (decision === undefined) continue;
     const argsKey = coldReplayKey(block, callShapeById);
     if (!argsKey) continue;
@@ -485,6 +492,16 @@ function isPermissionDecision(value: unknown): value is PermissionDecision {
   return value === "allow" || value === "deny";
 }
 
+function isStoredPermissionDecision(
+  value: unknown,
+): value is PermissionDecision | StoredPermissionDecision {
+  if (isPermissionDecision(value)) return true;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  return isPermissionDecision(
+    (value as { decision?: unknown }).decision,
+  );
+}
+
 /**
  * Pause terminalization sentinels are runner bookkeeping, not browser outputs. A deferred call
  * may safely re-park, while an approved call with an unobserved result must never be retried.
@@ -498,25 +515,35 @@ function isPauseSyntheticResult(block: ContentBlock): boolean {
 }
 
 /**
- * An approval reply uses an `{ approved: boolean }` envelope (the Vercel adapter's
- * `_approval_response_blocks` shape), unique to a permission response. Returns
- * `"allow"`/`"deny"` for one, or `undefined` for any other tool_result (a real browser/client
- * output).
+ * Approval envelopes are the only tool results treated as permission decisions. Preserve their
+ * interaction token so a cold responder can resolve the original row after replying successfully;
+ * real browser/client outputs remain outside this path.
  */
+function storedApprovalDecisionOf(
+  block: ContentBlock,
+): StoredPermissionDecision | undefined {
+  if (!block || block.type !== "tool_result") return undefined;
+  const output = block.output;
+  if (!output || typeof output !== "object" || Array.isArray(output)) {
+    return undefined;
+  }
+  const envelope = output as {
+    approved?: unknown;
+    interactionToken?: unknown;
+  };
+  if (typeof envelope.approved !== "boolean") return undefined;
+  return {
+    decision: envelope.approved ? "allow" : "deny",
+    ...(typeof envelope.interactionToken === "string" && envelope.interactionToken
+      ? { interactionToken: envelope.interactionToken }
+      : {}),
+  };
+}
+
 export function approvalDecisionOf(
   block: ContentBlock,
 ): PermissionDecision | undefined {
-  if (!block || block.type !== "tool_result") return undefined;
-  const output = block.output;
-  if (
-    output &&
-    typeof output === "object" &&
-    !Array.isArray(output) &&
-    typeof (output as { approved?: unknown }).approved === "boolean"
-  ) {
-    return (output as { approved: boolean }).approved ? "allow" : "deny";
-  }
-  return undefined;
+  return storedApprovalDecisionOf(block)?.decision;
 }
 
 /**

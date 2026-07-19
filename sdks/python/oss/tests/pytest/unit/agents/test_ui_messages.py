@@ -212,7 +212,10 @@ class TestFromUIMessages:
                 "type": "tool_result",
                 "toolCallId": "call_1",
                 "toolName": "deleteFile",
-                "output": {"approved": False},
+                "output": {
+                    "approved": False,
+                    "interactionToken": "perm_1",
+                },
             },
         ]
 
@@ -238,7 +241,10 @@ class TestFromUIMessages:
         result = msgs[0].content[1]
         assert result.type == "tool_result"
         assert result.tool_call_id == "call_2"
-        assert result.output == {"approved": True}
+        assert result.output == {
+            "approved": True,
+            "interactionToken": "perm_2",
+        }
 
     def test_concurrent_inline_approvals_each_emit_their_own_result(self):
         # Concurrent approvals: the browser round-trips TWO tool parts in one turn, each with its
@@ -274,11 +280,11 @@ class TestFromUIMessages:
         # Each decision lands on its own toolCallId, in order, approve and deny preserved.
         assert (results[0].tool_call_id, results[0].output) == (
             "call_1",
-            {"approved": True},
+            {"approved": True, "interactionToken": "perm_1"},
         )
         assert (results[1].tool_call_id, results[1].output) == (
             "call_2",
-            {"approved": False},
+            {"approved": False, "interactionToken": "perm_2"},
         )
 
     def test_inline_output_denied_state_emits_denied_envelope(self):
@@ -304,7 +310,10 @@ class TestFromUIMessages:
         result = msgs[0].content[1]
         assert result.type == "tool_result"
         assert result.tool_call_id == "call_3"
-        assert result.output == {"approved": False}
+        assert result.output == {
+            "approved": False,
+            "interactionToken": "perm_3",
+        }
 
     def test_pending_approval_request_only_part_emits_no_decision(self):
         # A tool part still awaiting a decision (`approval-requested`, no `approval.approved`)

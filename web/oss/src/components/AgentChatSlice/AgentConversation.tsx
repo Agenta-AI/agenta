@@ -26,6 +26,7 @@ import {
     buildAgentRequest,
     buildTurnCapture,
     playgroundController,
+    type LiveAgentInteraction,
 } from "@agenta/playground"
 import {agentSelfCommitSignalAtom, simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
@@ -568,7 +569,7 @@ const AgentConversation = ({
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
-    const liveGateInteractionRef = useRef(false)
+    const liveGateInteractionRef = useRef<LiveAgentInteraction | null>(null)
 
     const {
         messages,
@@ -589,11 +590,14 @@ const AgentConversation = ({
         experimental_throttle: 50,
         // Approve AND deny both resume — a deny-only decision must re-send so the runner
         // gets the denial round-trip and the model continues (no `approval-responded` limbo).
-        sendAutomaticallyWhen: ({messages}) =>
-            agentShouldResumeAfterApproval({
+        sendAutomaticallyWhen: ({messages}) => {
+            const shouldDispatch = agentShouldResumeAfterApproval({
                 messages,
                 liveInteraction: liveGateInteractionRef.current,
-            }),
+            })
+            if (shouldDispatch) liveGateInteractionRef.current = null
+            return shouldDispatch
+        },
         // The turn's trace may not be ingested yet when the row asks for its summary —
         // marking it fresh lets the trace queries retry through the ingestion lag
         // (historical traces get no such grace; a 404 there means the trace is gone).
@@ -683,7 +687,7 @@ const AgentConversation = ({
     // is by id — so a cast onto the untyped UIMessage tool map is safe.
     const handleClientToolOutput = useCallback<ClientToolOutputHandler>(
         ({toolName, toolCallId, output, errorText}) => {
-            liveGateInteractionRef.current = true
+            liveGateInteractionRef.current = {kind: "client_tool", id: toolCallId}
             if (errorText !== undefined) {
                 addToolOutput({
                     state: "output-error",
@@ -1035,7 +1039,7 @@ const AgentConversation = ({
     // after a reload genuinely auto-resumes, so the queue's pre-resume hold must apply to it.
     const handleApprovalResponse = useCallback(
         (args: {id: string; approved: boolean}) => {
-            liveGateInteractionRef.current = true
+            liveGateInteractionRef.current = {kind: "approval", id: args.id}
             addToolApprovalResponse(args)
         },
         [addToolApprovalResponse],

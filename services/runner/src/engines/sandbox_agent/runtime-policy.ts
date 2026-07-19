@@ -42,13 +42,13 @@ export function shouldSuppressPausedToolCallUpdate(
   // F-024: a paused (gated) tool call's later frames are teardown artifacts and never reach the
   // stream.
   if (pause.isPausedToolCall(toolCallId)) return true;
-  // While pausing, a failed frame without an allow is a managed-cancel artifact that the sweep
-  // records as deferred; an allowed call failure is genuine terminal evidence and must pass.
+  // Answered allows and denies both carry authoritative terminal evidence through a sibling pause.
   if (
     kind === "tool_call_update" &&
     pause.active &&
     frame?.status === "failed" &&
-    !pause.isAllowedExecution(toolCallId)
+    !pause.isAllowedExecution(toolCallId) &&
+    !pause.isAnsweredDeny(toolCallId)
   ) {
     return true;
   }

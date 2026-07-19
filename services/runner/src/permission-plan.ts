@@ -57,11 +57,19 @@ export interface PiBuiltinIdentity {
   readOnly: boolean;
 }
 
+export interface StoredPermissionDecision {
+  decision: "allow" | "deny";
+  interactionToken?: string;
+}
+
 export type Verdict =
-  { kind: "allow" } | { kind: "deny" } | { kind: "pendingApproval" };
+  | { kind: "allow" | "deny"; interactionToken?: string }
+  | { kind: "pendingApproval" };
 
 export interface StoredPermissionDecisions {
-  take(gate: GateDescriptor): "allow" | "deny" | undefined;
+  take(
+    gate: GateDescriptor,
+  ): "allow" | "deny" | StoredPermissionDecision | undefined;
 }
 
 const PERMISSION_MODES: readonly PermissionMode[] = [
@@ -145,8 +153,18 @@ export function decide(
   if (permission === "allow") return { kind: "allow" };
 
   const storedDecision = stored.take(gate);
-  if (storedDecision === "allow") return { kind: "allow" };
-  if (storedDecision === "deny") return { kind: "deny" };
+  const decision =
+    typeof storedDecision === "string"
+      ? storedDecision
+      : storedDecision?.decision;
+  if (decision === "allow" || decision === "deny") {
+    return {
+      kind: decision,
+      ...(typeof storedDecision === "object" && storedDecision.interactionToken
+        ? { interactionToken: storedDecision.interactionToken }
+        : {}),
+    };
+  }
   return { kind: "pendingApproval" };
 }
 

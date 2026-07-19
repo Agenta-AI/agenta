@@ -56,7 +56,7 @@ describe("agentShouldResumeAfterApproval", () => {
 
     it("does NOT resume a rebuilt answered conversation without a live interaction", () => {
         const messages = [user("do it"), assistantWithTool("approval-responded", true)]
-        expect(agentShouldResumeAfterApproval({messages, liveInteraction: false})).toBe(false)
+        expect(agentShouldResumeAfterApproval({messages, liveInteraction: null})).toBe(false)
     })
 
     it("does NOT resume while a gate is still pending (approval-requested)", () => {
@@ -102,7 +102,12 @@ describe("agentShouldResumeAfterApproval", () => {
                 ],
             },
         ]
-        expect(agentShouldResumeAfterApproval({messages})).toBe(true)
+        expect(
+            agentShouldResumeAfterApproval({
+                messages,
+                liveInteraction: {kind: "approval", id: "perm_1"},
+            }),
+        ).toBe(true)
     })
 
     it("resumes when a responded gate sits alongside an already-completed tool", () => {
@@ -159,7 +164,59 @@ describe("agentShouldResumeAfterApproval", () => {
                 ],
             },
         ]
-        expect(agentShouldResumeAfterApproval({messages})).toBe(true)
+        expect(
+            agentShouldResumeAfterApproval({
+                messages,
+                liveInteraction: {kind: "approval", id: "perm_1"},
+            }),
+        ).toBe(true)
+    })
+
+    it("matches the clicked approval when a later client-tool result exists", () => {
+        const messages = [
+            user("approve one while connection result is present"),
+            {
+                id: "a1",
+                role: "assistant",
+                parts: [
+                    {type: "step-start"},
+                    {
+                        type: "tool-deleteFile",
+                        toolCallId: "call_clicked",
+                        state: "approval-responded",
+                        input: {path: "/x"},
+                        approval: {id: "perm_clicked", approved: true},
+                    },
+                    {
+                        type: "tool-writeFile",
+                        toolCallId: "call_pending",
+                        state: "approval-requested",
+                        input: {path: "/y"},
+                        approval: {id: "perm_pending"},
+                    },
+                    {
+                        type: "tool-request_connection",
+                        toolCallId: "call_client",
+                        state: "output-available",
+                        input: {integration: "github"},
+                        output: {connected: true},
+                    },
+                ],
+            },
+        ]
+
+        expect(
+            agentShouldResumeAfterApproval({
+                messages,
+                liveInteraction: {kind: "approval", id: "perm_clicked"},
+            }),
+        ).toBe(true)
+        expect(
+            agentShouldResumeAfterApproval({
+                messages,
+                liveInteraction: {kind: "approval", id: "perm_missing"},
+            }),
+        ).toBe(false)
     })
 
     it("RESUMES once BOTH concurrent approval cards are answered", () => {

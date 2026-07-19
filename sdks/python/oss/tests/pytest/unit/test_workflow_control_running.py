@@ -117,7 +117,6 @@ class _FakeSessionStore:
 
 @pytest.mark.asyncio
 async def test_send_on_idle_session_marks_alive_and_increments_token():
-
     store = _FakeSessionStore()
     started = asyncio.Event()
 
@@ -142,7 +141,6 @@ async def test_send_on_idle_session_marks_alive_and_increments_token():
 
 @pytest.mark.asyncio
 async def test_send_collision_when_alive_without_control_is_409():
-
     store = _FakeSessionStore()
     store.row("s1")["alive"] = True
 
@@ -154,7 +152,6 @@ async def test_send_collision_when_alive_without_control_is_409():
 
 @pytest.mark.asyncio
 async def test_steer_cancels_alive_run_and_restarts():
-
     store = _FakeSessionStore()
     row = store.row("s1")
     row["alive"] = True
@@ -176,7 +173,6 @@ async def test_steer_cancels_alive_run_and_restarts():
 
 @pytest.mark.asyncio
 async def test_cancel_marks_dead():
-
     store = _FakeSessionStore()
     row = store.row("s1")
     row["alive"] = True
@@ -194,7 +190,6 @@ async def test_cancel_marks_dead():
 
 @pytest.mark.asyncio
 async def test_attach_to_alive_detached_run():
-
     store = _FakeSessionStore()
     row = store.row("s1")
     row["alive"] = True
@@ -211,7 +206,6 @@ async def test_attach_to_alive_detached_run():
 
 @pytest.mark.asyncio
 async def test_detach_on_client_disconnect_keeps_run_alive():
-
     store = _FakeSessionStore()
     row = store.row("s1")
     row["alive"] = True

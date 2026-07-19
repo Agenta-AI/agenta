@@ -120,6 +120,7 @@ describe("transcriptToMessages approval hydration", () => {
                 output: "DEFERRED_NOT_EXECUTED: paused for another approval; retry the same call if still required.",
                 isError: true,
             }),
+            record("record-done-turn-1", {type: "done"}),
             record("record-response-a", {
                 type: "interaction_response",
                 id: "approval-a",
@@ -145,6 +146,7 @@ describe("transcriptToMessages approval hydration", () => {
                     },
                 },
             }),
+            record("record-done-turn-2", {type: "done"}),
         ])
 
         expect(messages).not.toBeNull()
@@ -152,7 +154,9 @@ describe("transcriptToMessages approval hydration", () => {
             role: "user",
             parts: [{type: "text", text: "run both writes"}],
         })
-        const assistantParts = messages?.[1].parts as unknown as Record<string, unknown>[]
+        const assistantParts = messages
+            ?.filter((message) => message.role === "assistant")
+            .flatMap((message) => message.parts) as unknown as Record<string, unknown>[]
         const callA = assistantParts.find((part) => part.toolCallId === "tool-a")
         const callB = assistantParts.find((part) => part.toolCallId === "tool-b")
 

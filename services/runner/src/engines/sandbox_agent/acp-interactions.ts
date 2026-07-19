@@ -54,6 +54,8 @@ export interface AttachPermissionResponderInput {
   onPausedToolCall?: (id: string) => void;
   /** Called before an allow reply can release the harness to execute this tool call. */
   onAllowedExecution?: (id: string) => void;
+  /** Called before a deny reply so its failed terminal frame remains authoritative. */
+  onAnsweredDeny?: (id: string) => void;
   /**
    * Called when a NON-parkable pause happens this turn (a client-tool ACP gate, which cannot be
    * answered across a turn boundary on the live session). The keep-alive dispatch reads this to
@@ -124,6 +126,7 @@ export function attachPermissionResponder({
   log,
   onPausedToolCall,
   onAllowedExecution,
+  onAnsweredDeny,
   onNonParkablePause,
   onCreateInteraction,
   onResolveInteraction,
@@ -225,13 +228,15 @@ export function attachPermissionResponder({
     onPause?.();
   };
 
-  // Resolve the durable row this gate created, if it created one.
-  const resolveIfCreated = (
+  // A cold responder has no local creation set, so its stored decision carries the original token.
+  const resolveAfterReply = (
     id: string,
     verdict?: { approved: boolean; toolCallId: string },
+    interactionToken?: string,
   ): void => {
-    if (!createdInteractionIds.delete(id)) return;
-    onResolveInteraction?.(id, verdict);
+    const token = createdInteractionIds.delete(id) ? id : interactionToken;
+    if (!token) return;
+    onResolveInteraction?.(token, verdict);
   };
 
   const replyPermission = async (
@@ -239,12 +244,16 @@ export function attachPermissionResponder({
     decision: PermissionDecision,
     availableReplies: string[],
     toolCallId?: string,
+    interactionToken?: string,
   ): Promise<void> => {
     // A deny replies `reject`, which makes the harness close the call as a FAILED tool call. Flag
     // the id first so the closing result carries `denied` and the egress renders a decline, not a
     // breakage. (A malformed-envelope / unknown-builtin fail-closed reject goes through
     // `rejectRequest`, not here, so it stays a plain error — it is not a user/policy denial.)
-    if (decision === "deny") run.markToolCallDenied?.(toolCallId);
+    if (decision === "deny") {
+      run.markToolCallDenied?.(toolCallId);
+      if (toolCallId) onAnsweredDeny?.(toolCallId);
+    }
     // Mark before replying because an allow can release the harness synchronously and its first
     // execution frame must already be protected from a concurrently active pause sweep.
     if (decision === "allow" && toolCallId) onAllowedExecution?.(toolCallId);
@@ -260,10 +269,14 @@ export function attachPermissionResponder({
       onPause?.();
       return;
     }
-    resolveIfCreated(id, {
-      approved: decision === "allow",
-      toolCallId: toolCallId ?? id,
-    });
+    resolveAfterReply(
+      id,
+      {
+        approved: decision === "allow",
+        toolCallId: toolCallId ?? id,
+      },
+      interactionToken,
+    );
   };
 
   const replyClientTool = async (
@@ -283,7 +296,7 @@ export function attachPermissionResponder({
       onPause?.();
       return;
     }
-    resolveIfCreated(id);
+    resolveAfterReply(id);
   };
 
   // A bare reject that answers the harness WITHOUT touching the durable interactions plane (no
@@ -369,7 +382,13 @@ export function attachPermissionResponder({
     if (verdict.kind === "allow" && envelope.gate === "pi-custom-tool") {
       onPiGateAllowed?.({ toolName: gate.toolName!, args: gate.args });
     }
-    await replyPermission(id, verdict.kind, availableReplies, envelope.toolCallId);
+    await replyPermission(
+      id,
+      verdict.kind,
+      availableReplies,
+      envelope.toolCallId,
+      verdict.interactionToken,
+    );
   };
 
   async function handleRequest(req: any): Promise<void> {
@@ -458,6 +477,7 @@ export function attachPermissionResponder({
       verdict.kind,
       availableReplies,
       stringValue(toolCall?.toolCallId),
+      verdict.interactionToken,
     );
   }
 }

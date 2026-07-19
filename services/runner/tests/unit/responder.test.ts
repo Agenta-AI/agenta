@@ -452,10 +452,10 @@ describe("extractApprovalDecisions", () => {
     const decisions = extractApprovalDecisions(request);
     assert.deepEqual(
       decisions.get(approvedCallKey("edit", { path: "a.txt" })!),
-      ["allow"],
+      [{ decision: "allow" }],
     );
     assert.deepEqual(decisions.get(approvedCallKey("bash", { cmd: "ls" })!), [
-      "deny",
+      { decision: "deny" },
     ]);
     assert.equal(decisions.has("edit"), false);
     assert.equal(decisions.has("tc-1"), false);
@@ -502,12 +502,15 @@ describe("extractApprovalDecisions", () => {
     const key = approvedCallKey("edit", { path: "a.txt" })!;
     const decisions = extractApprovalDecisions(request);
 
-    assert.deepEqual(decisions.get(key), ["allow", "allow"]);
+    assert.deepEqual(decisions.get(key), [
+      { decision: "allow" },
+      { decision: "allow" },
+    ]);
 
     const stored = new ConversationDecisions(decisions);
     const duplicateGate = gate({ toolName: "edit", args: { path: "a.txt" } });
-    assert.equal(stored.take(duplicateGate), "allow");
-    assert.equal(stored.take(duplicateGate), "allow");
+    assert.deepEqual(stored.take(duplicateGate), { decision: "allow" });
+    assert.deepEqual(stored.take(duplicateGate), { decision: "allow" });
     assert.equal(stored.take(duplicateGate), undefined);
   });
 
@@ -541,13 +544,13 @@ describe("extractApprovalDecisions", () => {
     };
     const stored = new ConversationDecisions(extractApprovalDecisions(request));
 
-    assert.equal(
+    assert.deepEqual(
       stored.take({
         executor: "harness",
         toolName: "mcp__agenta-tools__commit_revision",
         args: { workflow_revision: JSON.stringify(workflowRevision) },
       }),
-      "allow",
+      { decision: "allow" },
     );
   });
 
@@ -673,7 +676,7 @@ describe("client-tool output store (separate from approvals)", () => {
     // ...and lives only in the approval store.
     const decisions = extractApprovalDecisions(request);
     assert.deepEqual(decisions.get(approvedCallKey("edit", { path: "a" })!), [
-      "allow",
+      { decision: "allow" },
     ]);
   });
 

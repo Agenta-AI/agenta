@@ -837,12 +837,26 @@ const runAgent: RunAgent = (request, emit, signal, options) => {
 };
 
 /**
- * The durable interaction tokens of parked approval gates this request answers in-band, if
- * any. The turn-start cancel-stale sweep must spare them: each gate belongs to the PREVIOUS turn
- * (so the sweep's own `turn_id` exemption misses it), an in-band answer never transitions the
- * row off `pending` (only the interactions-plane respond endpoint does), and the resume
- * resolves the token after consuming the decision. Swept first, the granted gate's record
- * lands as `cancelled` and the resolve 404s.
+ * The stale-cancel exemptions for a parked approval set. A partial live resume owns both the
+ * answered and carried gates, so any answer spares every parked token; zero answers spare none.
+ */
+export function staleInteractionExemptTokens(
+  request: AgentRunRequest,
+  parked: ReadonlyMap<string, ParkedApproval>,
+): string[] | undefined {
+  const hasAnswer = [...parked.values()].some(
+    (gate) =>
+      approvalDecisionForToolCall(request, gate.toolCallId) !== undefined,
+  );
+  return hasAnswer
+    ? [...parked.values()].map((gate) => gate.interactionToken)
+    : undefined;
+}
+
+/**
+ * A live partial resume owns the whole parked set, including unanswered gates it carries into the
+ * next pause. Once any parked gate is answered, the stale sweep must spare every parked token; a
+ * zero-answer request owns none and receives no exemptions.
  */
 function inBandAnswerTokens(request: AgentRunRequest): string[] | undefined {
   const sessionId = request.sessionId?.trim();
@@ -853,15 +867,7 @@ function inBandAnswerTokens(request: AgentRunRequest): string[] | undefined {
     keepalivePools[provider].awaitingApproval(sessionId)?.environment
       .parkedApprovals;
   if (!parked || parked.size === 0) return undefined;
-  // A partial resume resolves only the answered rows. Carried-forward rows stay pending and receive
-  // a fresh approval park, so only matching answer tokens are exempt from stale cancellation.
-  const tokens: string[] = [];
-  for (const gate of parked.values()) {
-    if (approvalDecisionForToolCall(request, gate.toolCallId) !== undefined) {
-      tokens.push(gate.interactionToken);
-    }
-  }
-  return tokens.length > 0 ? tokens : undefined;
+  return staleInteractionExemptTokens(request, parked);
 }
 
 /**

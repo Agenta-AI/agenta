@@ -20,6 +20,7 @@ import type {
 } from "../../src/protocol.ts";
 import {
   runWithKeepalive,
+  staleInteractionExemptTokens,
   type KeepaliveContext,
   type KeepaliveEngine,
 } from "../../src/server.ts";
@@ -600,7 +601,7 @@ describe("runWithKeepalive: approval park + resume", () => {
     );
   });
 
-  it("resumes a partly answered two-gate turn live, re-parks, then completes live", async () => {
+  it("spares every parked token while a partial answer re-parks and then completes live", async () => {
     const { engine, calls } = makeApprovalEngine([
       {
         approvalPause: {
@@ -621,11 +622,21 @@ describe("runWithKeepalive: approval park + resume", () => {
     ];
     await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
 
-    const r2 = await runWithKeepalive(
-      approveResumeMulti(
-        [{ toolCallId: "tc-1", toolName: "read_a", approved: true }],
-        parkedCalls,
+    const partialRequest = approveResumeMulti(
+      [{ toolCallId: "tc-1", toolName: "read_a", approved: true }],
+      parkedCalls,
+    );
+    assert.deepEqual(
+      staleInteractionExemptTokens(
+        partialRequest,
+        calls.acquiredEnvs[0].parkedApprovals,
       ),
+      ["tc-1", "tc-2"],
+      "the carried gate must survive the turn-start stale sweep",
+    );
+
+    const r2 = await runWithKeepalive(
+      partialRequest,
       undefined,
       undefined,
       ctx,
@@ -681,8 +692,21 @@ describe("runWithKeepalive: approval park + resume", () => {
     const ctx = makeCtx(engine);
     await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
 
+    const zeroAnswerRequest = approveResumeMulti(
+      [],
+      [{ toolCallId: "tc-1" }, { toolCallId: "tc-2" }],
+    );
+    assert.equal(
+      staleInteractionExemptTokens(
+        zeroAnswerRequest,
+        calls.acquiredEnvs[0].parkedApprovals,
+      ),
+      undefined,
+      "zero answers leave stale cancellation enabled",
+    );
+
     await runWithKeepalive(
-      approveResumeMulti([], [{ toolCallId: "tc-1" }, { toolCallId: "tc-2" }]),
+      zeroAnswerRequest,
       undefined,
       undefined,
       ctx,
@@ -1172,6 +1196,7 @@ interface FakeRun {
   open: Set<string>;
   /** What settleOpenToolCalls settled: the orphaned-sibling record (F-024). */
   settled: Array<{ id: string; message: string }>;
+  denied: string[];
   sweeps: Array<{
     message: string;
     isExcluded: (id: string) => boolean;
@@ -1487,6 +1512,88 @@ describe("runTurn: real approval park + respondPermission resume", () => {
           payload: { toolCallId: "tc-gate", approved: true },
         },
       ],
+    );
+
+    await env.destroy();
+  });
+
+  it("preserves a denied call failed frame while a sibling gate is carried", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const firstTurn = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    for (const [toolCallId, title] of [["tc-denied", "commit"], ["tc-carried", "deploy"]]) {
+      captured.onEvent!(
+        updateEvent({ sessionUpdate: "tool_call", toolCallId, title }),
+      );
+    }
+    captured.onPermissionRequest!({
+      id: "perm-denied",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-denied", name: "commit", rawInput: {} },
+    });
+    captured.onPermissionRequest!({
+      id: "perm-carried",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-carried", name: "deploy", rawInput: {} },
+    });
+    await firstTurn;
+
+    const answered = env.parkedApprovals.get("tc-denied")!;
+    const carried = env.parkedApprovals.get("tc-carried")!;
+    env.clearTurn();
+    const resumeTurn = runTurn(env, approveResume(false), undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: answered.permissionId,
+            reply: "reject",
+            toolCallId: answered.toolCallId,
+            toolName: answered.toolName,
+            args: answered.args,
+            interactionToken: answered.interactionToken,
+            promptPromise: answered.promptPromise,
+          },
+        ],
+        carriedForward: [carried],
+      },
+    });
+    for (let i = 0; i < 5 && !env.currentTurn?.pause.active; i += 1) {
+      await Promise.resolve();
+    }
+    assert.equal(env.currentTurn?.pause.active, true);
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tc-denied",
+        status: "failed",
+        content: "user denied",
+      }),
+    );
+    const result = await resumeTurn;
+
+    assert.equal(result.stopReason, "paused");
+    const run = calls.runs[1];
+    assert.deepEqual(run.denied, ["tc-denied"]);
+    assert.equal(
+      run.handled.some(
+        (update) =>
+          update.toolCallId === "tc-denied" && update.status === "failed",
+      ),
+      true,
+      "the authoritative denial frame must reach the tracer",
+    );
+    assert.equal(
+      run.settled.some(({ id }) => id === "tc-denied"),
+      false,
+      "the deferred sentinel must not replace a denial",
     );
 
     await env.destroy();

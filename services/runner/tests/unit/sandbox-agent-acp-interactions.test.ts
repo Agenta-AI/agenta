@@ -6,12 +6,17 @@
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
-import type { AgentEvent, ResolvedToolSpec } from "../../src/protocol.ts";
+import type {
+  AgentEvent,
+  AgentRunRequest,
+  ResolvedToolSpec,
+} from "../../src/protocol.ts";
 import { toolSpecsByName } from "../../src/tools/public-spec.ts";
 import type { ClientToolVerdict, Responder } from "../../src/responder.ts";
 import {
   ApprovalResponder,
   ConversationDecisions,
+  extractApprovalDecisions,
 } from "../../src/responder.ts";
 import type { PermissionPlan, Verdict } from "../../src/permission-plan.ts";
 import {
@@ -444,6 +449,76 @@ describe("attachPermissionResponder", () => {
 
     assert.deepEqual(replies, [{ id: "client-1", reply: "once" }]);
     assert.deepEqual(events, []);
+  });
+
+  it("resolves the original interaction token after a cold stored-decision reply", async () => {
+    const decisions = extractApprovalDecisions({
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_call",
+              toolCallId: "tool-original",
+              toolName: "edit",
+              input: { path: "a.txt" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "tool-original",
+              output: {
+                approved: true,
+                interactionToken: "interaction-original",
+              },
+            },
+          ],
+        },
+      ],
+    } as AgentRunRequest);
+    const responder = new ApprovalResponder(
+      permissionPlan("ask"),
+      new ConversationDecisions(decisions),
+    );
+    const replies: Array<{ id: string; reply: string }> = [];
+    const resolved: Array<{
+      token: string;
+      verdict?: { approved: boolean; toolCallId: string };
+    }> = [];
+    const { session, emit } = makeSession(async (id, reply) => {
+      replies.push({ id, reply });
+    });
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder,
+      onResolveInteraction: (token, verdict) => {
+        resolved.push({ token, verdict });
+      },
+    });
+    emit({
+      id: "permission-cold",
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        toolCallId: "tool-cold",
+        name: "edit",
+        rawInput: { path: "a.txt" },
+      },
+    });
+    await flushPromises();
+
+    assert.deepEqual(replies, [{ id: "permission-cold", reply: "once" }]);
+    assert.deepEqual(resolved, [
+      {
+        token: "interaction-original",
+        verdict: { approved: true, toolCallId: "tool-cold" },
+      },
+    ]);
   });
 
   it("passes the approval verdict when resolving a previously created gate", async () => {

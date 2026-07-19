@@ -8,11 +8,16 @@
  */
 export const PAUSED = Symbol("paused");
 
+const EVENT_DRAIN_QUIET_TICKS = 2;
+const EVENT_DRAIN_MAX_TICKS = 6;
+
 export class PendingApprovalPauseController {
   private pendingApproval = false;
   private readonly pausedToolCallIds = new Set<string>();
   private readonly allowedExecutionToolCallIds = new Set<string>();
+  private readonly answeredDenyToolCallIds = new Set<string>();
   private resolvePause: (() => void) | undefined;
+  private gateClassificationVersion = 0;
   private eventDrain: Promise<void> = Promise.resolve();
 
   readonly signal: Promise<void>;
@@ -36,10 +41,25 @@ export class PendingApprovalPauseController {
     }
     this.eventDrain = Promise.resolve(destroyResult)
       .catch(() => {})
-      .then(() => new Promise<void>((resolve) => setImmediate(resolve)));
+      .then(() => this.waitForGateClassificationQuietPeriod());
     // The turn races this immediate signal; terminalization separately awaits eventDrain so the
     // permission callback never holds the human pause open while queued ACP updates still settle.
     this.resolvePause?.();
+  }
+
+  private async waitForGateClassificationQuietPeriod(): Promise<void> {
+    let observedVersion = this.gateClassificationVersion;
+    let quietTicks = 0;
+    for (let tick = 0; tick < EVENT_DRAIN_MAX_TICKS; tick += 1) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      if (observedVersion !== this.gateClassificationVersion) {
+        observedVersion = this.gateClassificationVersion;
+        quietTicks = 0;
+        continue;
+      }
+      quietTicks += 1;
+      if (quietTicks >= EVENT_DRAIN_QUIET_TICKS) return;
+    }
   }
 
   /** Wait until managed cancellation and already-queued ACP updates have drained. */
@@ -54,7 +74,10 @@ export class PendingApprovalPauseController {
    */
   markPausedToolCall(toolCallId: string): void {
     if (!toolCallId) return;
+    const added = !this.pausedToolCallIds.has(toolCallId);
     this.pausedToolCallIds.add(toolCallId);
+    // A late gate must extend terminalization long enough for its paused classification to land.
+    if (this.pendingApproval && added) this.gateClassificationVersion += 1;
   }
 
   isPausedToolCall(toolCallId: string | undefined): boolean {
@@ -65,6 +88,19 @@ export class PendingApprovalPauseController {
   markAllowedExecution(toolCallId: string): void {
     if (!toolCallId) return;
     this.allowedExecutionToolCallIds.add(toolCallId);
+  }
+
+  /** Record an answered deny so its authoritative failed frame survives a sibling pause. */
+  markAnsweredDeny(toolCallId: string): void {
+    if (!toolCallId) return;
+    this.answeredDenyToolCallIds.add(toolCallId);
+  }
+
+  isAnsweredDeny(toolCallId: string | undefined): boolean {
+    return (
+      toolCallId !== undefined &&
+      this.answeredDenyToolCallIds.has(toolCallId)
+    );
   }
 
   isAllowedExecution(toolCallId: string | undefined): boolean {
