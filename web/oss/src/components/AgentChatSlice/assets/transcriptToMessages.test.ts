@@ -3,12 +3,12 @@ import {describe, expect, it} from "vitest"
 
 import {transcriptToMessages} from "./transcriptToMessages"
 
-const record = (id: string, payload: Record<string, unknown>): SessionRecord => ({
+const record = (id: string, payload: Record<string, unknown>, sender = "agent"): SessionRecord => ({
     id,
     session_id: "session-1",
     project_id: "project-1",
     event_index: null,
-    sender: "agent",
+    sender,
     session_update: String(payload.type),
     payload,
     created_at: null,
@@ -97,5 +97,75 @@ describe("transcriptToMessages approval hydration", () => {
 
         expect(part.state).toBe("approval-responded")
         expect(part.approval).toEqual({id: "approval-1", approved: false})
+    })
+
+    it("rebuilds the persisted incident order with call a executed and call b pending", () => {
+        const messages = transcriptToMessages([
+            record("record-user", {type: "message", text: "run both writes"}, "user"),
+            record("record-call-a", {
+                type: "tool_call",
+                id: "tool-a",
+                name: "bash",
+                input: {command: "write a"},
+            }),
+            record("record-request-a", {
+                type: "interaction_request",
+                id: "approval-a",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-a"},
+            }),
+            record("record-result-b-deferred", {
+                type: "tool_result",
+                id: "tool-b",
+                output: "DEFERRED_NOT_EXECUTED: paused for another approval; retry the same call if still required.",
+                isError: true,
+            }),
+            record("record-response-a", {
+                type: "interaction_response",
+                id: "approval-a",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-a", approved: true},
+            }),
+            record("record-result-a", {
+                type: "tool_result",
+                id: "tool-a",
+                output: "tool-a real output",
+                isError: false,
+            }),
+            record("record-request-b", {
+                type: "interaction_request",
+                id: "approval-b",
+                kind: "user_approval",
+                payload: {
+                    toolCallId: "tool-b",
+                    toolCall: {
+                        toolCallId: "tool-b",
+                        name: "bash",
+                        rawInput: {command: "write b"},
+                    },
+                },
+            }),
+        ])
+
+        expect(messages).not.toBeNull()
+        expect(messages?.[0]).toMatchObject({
+            role: "user",
+            parts: [{type: "text", text: "run both writes"}],
+        })
+        const assistantParts = messages?.[1].parts as unknown as Record<string, unknown>[]
+        const callA = assistantParts.find((part) => part.toolCallId === "tool-a")
+        const callB = assistantParts.find((part) => part.toolCallId === "tool-b")
+
+        expect(callA).toMatchObject({
+            state: "output-available",
+            output: "tool-a real output",
+        })
+        expect(callB).toMatchObject({
+            state: "approval-requested",
+            approval: {id: "approval-b"},
+        })
+        expect(assistantParts.filter((part) => part.state === "approval-requested")).toEqual([
+            callB,
+        ])
     })
 })

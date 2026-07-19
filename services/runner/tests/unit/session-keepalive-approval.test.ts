@@ -1774,6 +1774,348 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     await env.destroy();
   });
 
+  it("replays the concurrent-approval incident with deferred closure and exactly-once real results", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    deps.createOtel = createSandboxAgentOtel as any;
+    const incidentRequest: AgentRunRequest = {
+      ...engineReq,
+      permissions: { default: "ask" },
+      customTools: [
+        { name: "tool-a", permission: "ask" },
+        { name: "tool-b", permission: "ask" },
+      ],
+      messages: [{ role: "user", content: "run both writes in parallel" }],
+    };
+    const acquired = await acquireEnvironment(incidentRequest, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const firstTurn = runTurn(
+      env,
+      incidentRequest,
+      undefined,
+      undefined,
+      { approvalParkMode: true },
+    );
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tool-a",
+        title: "tool-a",
+        rawInput: { target: "a" },
+      }),
+    );
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tool-b",
+        title: "tool-b",
+        rawInput: { target: "b" },
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "permission-a",
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        toolCallId: "tool-a",
+        name: "tool-a",
+        rawInput: { target: "a" },
+      },
+    });
+    for (let i = 0; i < 5 && !env.currentTurn?.pause.active; i += 1) {
+      await Promise.resolve();
+    }
+    assert.equal(env.currentTurn?.pause.active, true);
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tool-b",
+        status: "completed",
+        content: "tool-b cancellation closure",
+      }),
+    );
+    const firstResult = await firstTurn;
+
+    assert.equal(firstResult.ok, true);
+    assert.equal(firstResult.stopReason, "paused");
+    assert.equal(env.parkedApprovals.size, 1);
+    assert.deepEqual([...env.parkedApprovals.keys()], ["tool-a"]);
+    const gateA = env.parkedApprovals.get("tool-a")!;
+    const firstEvents = firstResult.events ?? [];
+    assert.equal(
+      firstEvents.filter(
+        (event) =>
+          event.type === "interaction_request" &&
+          (event.payload as { toolCallId?: string }).toolCallId === "tool-a",
+      ).length,
+      1,
+    );
+    assert.deepEqual(
+      firstEvents.filter(
+        (event) => event.type === "tool_result" && event.id === "tool-b",
+      ),
+      [
+        {
+          type: "tool_result",
+          id: "tool-b",
+          output: TOOL_NOT_EXECUTED_PAUSED,
+          isError: true,
+        },
+      ],
+    );
+    assert.equal(
+      firstEvents.some(
+        (event) => event.type === "tool_result" && event.isError === false,
+      ),
+      false,
+      "the never-started first-turn states have no success record",
+    );
+
+    env.clearTurn();
+    const secondTurn = runTurn(
+      env,
+      incidentRequest,
+      undefined,
+      undefined,
+      {
+        approvalParkMode: true,
+        resume: {
+          decisions: [
+            {
+              permissionId: gateA.permissionId,
+              reply: "once",
+              toolCallId: gateA.toolCallId,
+              toolName: gateA.toolName,
+              args: gateA.args,
+              interactionToken: gateA.interactionToken,
+              promptPromise: gateA.promptPromise,
+            },
+          ],
+          carriedForward: [],
+        },
+      },
+    );
+    for (
+      let i = 0;
+      i < 5 &&
+      !calls.permissionReplies.some((reply) => reply.id === gateA.permissionId);
+      i += 1
+    ) {
+      await Promise.resolve();
+    }
+    assert.equal(
+      calls.permissionReplies.filter((reply) => reply.id === gateA.permissionId)
+        .length,
+      1,
+    );
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tool-a",
+        status: "in_progress",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "permission-b",
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        toolCallId: "tool-b",
+        name: "tool-b",
+        rawInput: { target: "b" },
+      },
+    });
+    for (let i = 0; i < 5 && !env.currentTurn?.pause.active; i += 1) {
+      await Promise.resolve();
+    }
+    assert.equal(env.currentTurn?.pause.active, true);
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tool-a",
+        status: "completed",
+        content: "tool-a real output",
+      }),
+    );
+    const secondResult = await secondTurn;
+
+    assert.equal(secondResult.ok, true);
+    assert.equal(secondResult.stopReason, "paused");
+    assert.equal(env.parkedApprovals.size, 1);
+    assert.deepEqual([...env.parkedApprovals.keys()], ["tool-b"]);
+    const gateB = env.parkedApprovals.get("tool-b")!;
+    const secondEvents = secondResult.events ?? [];
+    assert.deepEqual(
+      secondEvents.filter(
+        (event) => event.type === "tool_result" && event.id === "tool-a",
+      ),
+      [
+        {
+          type: "tool_result",
+          id: "tool-a",
+          output: "tool-a real output",
+          isError: false,
+        },
+      ],
+    );
+    assert.equal(
+      secondEvents.filter(
+        (event) =>
+          event.type === "interaction_request" &&
+          (event.payload as { toolCallId?: string }).toolCallId === "tool-b",
+      ).length,
+      1,
+    );
+    assert.deepEqual(
+      secondEvents.filter(
+        (event) =>
+          event.type === "interaction_response" &&
+          (event.payload as { toolCallId?: string }).toolCallId === "tool-a",
+      ),
+      [
+        {
+          type: "interaction_response",
+          id: gateA.interactionToken,
+          kind: "user_approval",
+          payload: { toolCallId: "tool-a", approved: true },
+        },
+      ],
+    );
+
+    env.clearTurn();
+    const thirdTurn = runTurn(
+      env,
+      incidentRequest,
+      undefined,
+      undefined,
+      {
+        approvalParkMode: true,
+        resume: {
+          decisions: [
+            {
+              permissionId: gateB.permissionId,
+              reply: "once",
+              toolCallId: gateB.toolCallId,
+              toolName: gateB.toolName,
+              args: gateB.args,
+              interactionToken: gateB.interactionToken,
+              promptPromise: gateB.promptPromise,
+            },
+          ],
+          carriedForward: [],
+        },
+      },
+    );
+    for (
+      let i = 0;
+      i < 5 &&
+      !calls.permissionReplies.some((reply) => reply.id === gateB.permissionId);
+      i += 1
+    ) {
+      await Promise.resolve();
+    }
+    assert.equal(
+      calls.permissionReplies.filter((reply) => reply.id === gateB.permissionId)
+        .length,
+      1,
+    );
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tool-b",
+        status: "completed",
+        content: "tool-b real output",
+      }),
+    );
+    calls.resolvePrompt!({
+      stopReason: "complete",
+      usage: { inputTokens: 1, outputTokens: 1 },
+    });
+    const thirdResult = await thirdTurn;
+
+    assert.equal(thirdResult.ok, true);
+    assert.equal(thirdResult.stopReason, "complete");
+    const thirdEvents = thirdResult.events ?? [];
+    assert.deepEqual(
+      thirdEvents.filter(
+        (event) => event.type === "tool_result" && event.id === "tool-b",
+      ),
+      [
+        {
+          type: "tool_result",
+          id: "tool-b",
+          output: "tool-b real output",
+          isError: false,
+        },
+      ],
+    );
+    assert.deepEqual(
+      thirdEvents.filter(
+        (event) =>
+          event.type === "interaction_response" &&
+          (event.payload as { toolCallId?: string }).toolCallId === "tool-b",
+      ),
+      [
+        {
+          type: "interaction_response",
+          id: gateB.interactionToken,
+          kind: "user_approval",
+          payload: { toolCallId: "tool-b", approved: true },
+        },
+      ],
+    );
+
+    const allEvents = [...firstEvents, ...secondEvents, ...thirdEvents];
+    const realResults = allEvents.filter(
+      (
+        event,
+      ): event is Extract<AgentEvent, { type: "tool_result" }> =>
+        event.type === "tool_result" && event.isError === false,
+    );
+    assert.deepEqual(
+      realResults.map((event) => event.id).sort(),
+      ["tool-a", "tool-b"],
+      "each call records exactly one real result",
+    );
+    assert.equal(
+      allEvents.some(
+        (event) =>
+          event.type === "tool_result" &&
+          event.id === "tool-a" &&
+          (event.output === TOOL_NOT_EXECUTED_PAUSED ||
+            event.output === APPROVED_EXECUTION_RESULT_UNKNOWN),
+      ),
+      false,
+      "the approved tool-a result is never replaced by a sentinel",
+    );
+    assert.equal(
+      allEvents.some(
+        (event) =>
+          event.type === "tool_result" &&
+          event.output === "tool-b cancellation closure",
+      ),
+      false,
+      "the cancellation closure is never recorded as success",
+    );
+    const permissionReplyCounts = new Map<string, number>();
+    for (const reply of calls.permissionReplies) {
+      permissionReplyCounts.set(
+        reply.id,
+        (permissionReplyCounts.get(reply.id) ?? 0) + 1,
+      );
+    }
+    assert.deepEqual(
+      permissionReplyCounts,
+      new Map([
+        [gateA.permissionId, 1],
+        [gateB.permissionId, 1],
+      ]),
+    );
+
+    await env.destroy();
+  });
+
   it("records the non-retry sentinel when an approved result misses the bound", async () => {
     const { calls, deps, captured } = pausableHarness();
     deps.resolveRunLimits = () => ({
