@@ -307,12 +307,17 @@ when the list is skipped. Two follow-up increments landed:
 - Build-kit overlay (`__ag__build_kit`) persisted via `catalogPersister`
   (staleTime Infinity → 5m).
 
-Known remaining from the HAR (not in this batch): mounts/files 24s listing (owned
-on a separate branch), `sessions/records` triple-fetch (duplicate query stores),
-`spans/query` 1.9MB payload trim, billing-502 gating on OSS, and three secondary
-sites reusing the workflow-id-into-revision-molecule anti-pattern
-(`EvaluatorPlaygroundHeader.tsx:47`, `WorkflowRevisionDrawer/MetadataSidebar.tsx:44`,
-`evaluatorColumns.tsx:49` — fire on other views).
+Follow-up rounds (commits e63a5e928e + 9b3a6103c7), all verified across four HAR
+captures: sessions/records ×3 → ×1 (imperative loadSession path bypassed TanStack;
+"cancelled" flags discard results, not requests); inspect persist key service-scoped
+(draft ids rotate per reload — revisionId in the key caused a persister miss every
+draft reload); trace summaries Class-A persisted (1.9MB /spans/query once per session
+ever; /spans/query has no field-projection — server-side projection excluding
+`attributes.ag.data` for summary callers is the backend follow-up); billing queries
+config-gated on `isBillingEnabled()`; closed Inspector no longer fetches records;
+EvaluatorPlaygroundHeader / MetadataSidebar / annotationSessionController null-fetch
+sites fixed (evaluatorColumns audited: NOT a defect — the table pre-seeds molecule
+entities). Mounts/files remains owned on a separate branch.
 
 Still open: live browser verification (warm-reload paint without revision request;
 commit → reload shows new revision; drawer catalogs instant on reopen; the jotai
