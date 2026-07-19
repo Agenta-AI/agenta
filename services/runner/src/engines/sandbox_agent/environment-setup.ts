@@ -214,12 +214,14 @@ export async function prepareEnvironmentSetup(
       `piPublicTools=${piExtEnv.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ? "yes" : "no"}`,
   );
   if (!plan.isPi && plan.isDaytona) {
-    const omittedClientTools = plan.toolSpecs
+    const clientTools = plan.toolSpecs
       .filter((spec) => spec.kind === "client")
       .map((spec) => spec.name);
-    if (omittedClientTools.length > 0) {
+    if (clientTools.length > 0) {
+      // Client tools ride the Daytona stdio shim alongside executable tools: the model sees them,
+      // calls them, and the call parks (the relay writes a benign paused answer). See mcp.ts.
       logger(
-        `omitting client tools from Daytona stdio MCP shim: ${omittedClientTools.join(", ")}`,
+        `advertising client tools on the Daytona stdio MCP shim: ${clientTools.join(", ")}`,
       );
     }
   }

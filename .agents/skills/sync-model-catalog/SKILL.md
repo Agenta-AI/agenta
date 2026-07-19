@@ -52,18 +52,17 @@ in the output records the exact pi-ai version. The curated overlay is untouched 
 
 ### 2. Sync Claude to the live accepted set (needs a running runner)
 
-`claude_models.curated.json` must cover exactly the aliases the Claude harness accepts. Probe the
-live set: start a Claude session on a running runner and read the model config options (the same
-`getConfigOptions` call `allowedModels` uses in `services/runner/src/engines/sandbox_agent/model.ts`).
-Reconcile in two directions only: add a curated entry for any accepted alias the file lacks (seed its
-facts from pi-ai's `anthropic` block), and remove any entry the harness no longer accepts. This is how
-a new alias (e.g. a `fable` alias, if a Claude Code build starts accepting it) enters the catalog.
-Requires an authenticated Claude session, so it is a manual/periodic step, not a CI gate.
+`claude_models.curated.json` must cover the stable request values the Claude picker can send.
+Probe live sessions by reading the model config options (the same `getConfigOptions` call
+`allowedModels` uses in `services/runner/src/engines/sandbox_agent/model.ts`), but do not copy one
+session's set blindly. Account entitlements and promotions can add or remove context-hinted variants
+such as `claude-fable-5[1m]` while keeping the same model family.
 
-Note: today the accepted set is `default/sonnet/opus/haiku` plus their `[1m]` variants
-(`CLAUDE_MODEL_ALIASES` in `capabilities.py`). There is no `fable` alias yet; Fable reaches the
-picker through the Pi `anthropic` block. Do not add a `fable` Claude entry until the live probe
-confirms the harness accepts it.
+Use the stable bare canonical id when the runner can safely widen it to the session's hinted option.
+For Fable, publish `claude-fable-5`: it matches a bare live option exactly and the runner resolves it
+to `claude-fable-5[1m]` when that is the only offered variant. Do not publish the friendly forms
+`fable` or `fable[1m]`; the harness does not recognize that model family under those ids. Requires
+an authenticated Claude session, so this is a manual/periodic step, not a CI gate.
 
 ### 3. Refresh curated metadata from current public sources (before a release / on demand)
 

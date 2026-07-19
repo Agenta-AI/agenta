@@ -25,6 +25,45 @@ import type {
 type EmitRun = { emitEvent: (event: AgentEvent) => void };
 
 /**
+ * Lifecycle policy for a parked browser-fulfilled client tool: what happens to both the turn and
+ * the in-sandbox shim's blocking `tools/call` when it parks. Closed set:
+ *   - "pi-native":        Pi parks through its own extension; the relay writes no answer file.
+ *   - "cold-acknowledge": the non-Pi shim (Claude on Daytona) blocks on a relay answer file, so the
+ *                         relay writes a benign paused answer to end the `tools/call`. The only
+ *                         disposition that writes an answer.
+ *   - "warm-hold":        RESERVED, not built — keep the `tools/call` open inside the live turn (the
+ *                         way an ACP approval holds on a warm session). See #5384.
+ */
+export type ClientToolPauseDisposition =
+  | "pi-native"
+  | "cold-acknowledge"
+  | "warm-hold";
+
+/**
+ * Whether the relay loop writes the benign paused answer for this disposition — the single derived
+ * switch the relay consumes. Exhaustive on purpose: a new disposition (the warm hold) forces a
+ * decision here rather than silently falling through to the cold behavior.
+ */
+export function relayWritesPausedAnswer(
+  disposition: ClientToolPauseDisposition,
+): boolean {
+  switch (disposition) {
+    case "cold-acknowledge":
+      return true;
+    case "pi-native":
+      // Pi parks through its extension; the shim answer file is a non-Pi concept.
+      return false;
+    case "warm-hold":
+      // The warm hold keeps the call open inside the live turn, so it writes no cold answer.
+      return false;
+    default: {
+      const unreachable: never = disposition;
+      return unreachable;
+    }
+  }
+}
+
+/**
  * Correlates an MCP `tools/call` (which carries only name + arguments) to the real ACP
  * tool-call id Claude surfaced on the event stream, so the paused `client_tool` interaction
  * attaches to Claude's actual tool-call bubble (and `markPausedToolCall` suppresses that

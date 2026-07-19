@@ -133,6 +133,59 @@ describe("attachPermissionResponder", () => {
     assert.deepEqual(events, []);
   });
 
+  it("deny verdict flags the gated tool-call id denied so its result renders a decline", async () => {
+    const replies: Array<{ id: string; reply: string }> = [];
+    const { session, emit } = makeSession(async (id, reply) => {
+      replies.push({ id, reply });
+    });
+    const events: AgentEvent[] = [];
+    const denied: Array<string | undefined> = [];
+
+    attachPermissionResponder({
+      session,
+      run: {
+        emitEvent: (event) => events.push(event),
+        markToolCallDenied: (id) => denied.push(id),
+      },
+      responder: fakeResponder({ kind: "deny" }),
+      latch: new PendingApprovalLatch(),
+    });
+    emit({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tool-7", name: "edit", rawInput: { path: "a" } },
+    });
+    await flushPromises();
+
+    assert.deepEqual(replies, [{ id: "perm-1", reply: "reject" }]);
+    // The gate's tool-call id is flagged BEFORE the reject reply, keyed by the real toolCallId.
+    assert.deepEqual(denied, ["tool-7"]);
+  });
+
+  it("allow verdict does NOT flag the tool-call id denied", async () => {
+    const { session, emit } = makeSession(async () => {});
+    const events: AgentEvent[] = [];
+    const denied: Array<string | undefined> = [];
+
+    attachPermissionResponder({
+      session,
+      run: {
+        emitEvent: (event) => events.push(event),
+        markToolCallDenied: (id) => denied.push(id),
+      },
+      responder: fakeResponder({ kind: "allow" }),
+      latch: new PendingApprovalLatch(),
+    });
+    emit({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tool-7", name: "edit", rawInput: { path: "a" } },
+    });
+    await flushPromises();
+
+    assert.deepEqual(denied, []);
+  });
+
   it("pendingApproval emits, creates the interaction, pauses, and sends no reply", async () => {
     const replies: Array<{ id: string; reply: string }> = [];
     const { session, emit } = makeSession(async (id, reply) => {

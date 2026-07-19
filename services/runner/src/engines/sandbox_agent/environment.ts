@@ -93,6 +93,7 @@ import {
   combineAppendSystemPrompt,
   type ClaudeSystemPromptMeta,
 } from "./agent-mount-guidance.ts";
+import { claudeThinkingMeta } from "./claude-thinking.ts";
 import {
   routePermissionRequestToActiveTurn,
   routeSessionEventToActiveTurn,
@@ -709,13 +710,15 @@ export async function acquireEnvironment(
       if (plan.isPi && plan.builtinGatingActive && !daytonaExtensionInstalled) {
         throw new Error(PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE);
       }
-      if (!plan.isPi && plan.executableToolSpecs.length > 0) {
+      if (!plan.isPi && plan.toolSpecs.length > 0) {
+        // Advertise the FULL tool set to the shim, client tools included: a parked client tool
+        // resolves through the relay's paused answer (see startToolRelay / tool-mcp-stdio.ts).
         internalToolMcp = await (
           deps.uploadToolMcpAssets ?? uploadToolMcpAssets
         )(
           environment.sandbox,
           plan.toolMcpDir,
-          advertisedToolSpecs(plan.executableToolSpecs),
+          advertisedToolSpecs(plan.toolSpecs),
           logger,
         );
       }
@@ -927,10 +930,21 @@ export async function acquireEnvironment(
       environment.agentMountedPath && plan.acpAgent === "claude"
         ? claudeMountSystemPromptMeta(AGENT_MOUNT_SYSTEM_PROMPT_SEGMENT)
         : undefined;
+    // Claude-only: request visible ("summarized") extended-thinking display so the model's
+    // reasoning reaches the runner (and the playground). Without it, recent Claude models
+    // return signature-only thinking and no reasoning surfaces. See `claude-thinking.ts`.
+    const claudeThinking =
+      plan.acpAgent === "claude" ? claudeThinkingMeta() : undefined;
+    // Disjoint `_meta` keys (`systemPrompt` vs `claudeCode`), so a shallow merge keeps both.
+    // A future second `claudeCode` producer would need a deep merge here.
+    const claudeMeta =
+      claudeSystemPromptMeta || claudeThinking
+        ? { ...(claudeSystemPromptMeta ?? {}), ...(claudeThinking ?? {}) }
+        : undefined;
     const sessionInit = {
       cwd: plan.cwd,
       mcpServers: sessionMcp.servers,
-      ...(claudeSystemPromptMeta ? { _meta: claudeSystemPromptMeta } : {}),
+      ...(claudeMeta ? { _meta: claudeMeta } : {}),
     };
 
     // If this harness authored the conversation's most recent turn (staleness-guarded) and we

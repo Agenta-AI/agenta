@@ -2699,6 +2699,11 @@ export function invalidateWorkflowCache(workflowId: string, options?: StoreOptio
     const store = getStore(options)
     try {
         const qc = store.get(queryClientAtom)
+        const projectId = store.get(workflowProjectIdAtom)
+        qc.invalidateQueries({
+            queryKey: ["workflows", "detail", projectId, workflowId],
+            exact: true,
+        })
         qc.invalidateQueries({queryKey: ["workflows", "revision", workflowId], exact: false})
         qc.invalidateQueries({queryKey: ["workflows", "artifact", workflowId], exact: false})
     } catch {

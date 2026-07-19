@@ -88,22 +88,20 @@ PI_SUBSCRIPTION_MODELS: Dict[str, List[str]] = {
 }
 PI_SUBSCRIPTION_PROVIDERS: List[str] = list(PI_SUBSCRIPTION_MODELS)
 
-# Claude Code selects a model by alias, not a ``provider/id`` string. These are the aliases the
-# Claude harness accepts (``default``/``sonnet``/``opus``/``haiku``) plus their ``[1m]``
-# long-context variants. They live under the ``anthropic`` provider in the ``models`` map (Claude
-# reaches anthropic only). Revisit if the runner's accepted alias set changes (see
+# Claude Code selects a model by alias, not a ``provider/id`` string. These are stable request
+# values for the picker. A live Claude session can expose a context-hinted variant such as
+# ``claude-fable-5[1m]`` while promotional long-context access is available, then expose the bare
+# ``claude-fable-5`` value later. The runner safely widens a bare request to the hinted option
+# when that is the only available variant, so the catalog must keep the stable bare value. They
+# live under the ``anthropic`` provider in the ``models`` map (Claude reaches anthropic only).
+# Revisit if the model family changes (see the ``sync-model-catalog`` skill and
 # ``docs/design/agent-workflows/projects/model-config/``).
 CLAUDE_MODEL_ALIASES: List[str] = [
     "default",
     "sonnet",
-    "opus",
     "haiku",
-    "fable",
-    "default[1m]",
-    "sonnet[1m]",
     "opus[1m]",
-    "haiku[1m]",
-    "fable[1m]",
+    "claude-fable-5",
 ]
 
 # Both modes every harness supports today. (No ``default`` mode: the project default is just
