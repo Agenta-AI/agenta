@@ -838,7 +838,7 @@ body {
 
 /* === Dark theme overrides for the hardcoded light rules above === */
 .dark .evaluation-filters .ant-segmented-item {
-    background: #141414;
+    background: var(--ag-colorBgContainer);
     color: rgba(255, 255, 255, 0.65);
 }
 .dark .editor-inner:not(.code-editor) .editor-code {
@@ -851,7 +851,7 @@ body {
     background: #1f1f1f;
 }
 .dark .comparison-table .ant-table-tbody > tr.ant-table-expanded-row .ant-table-tbody > tr > td {
-    border-bottom-color: #303030 !important;
+    border-bottom-color: var(--ag-colorBorderSecondary) !important;
 }
 .dark .comparison-table .ant-table-tbody > tr[data-row-key*="-comp-"] {
     background-color: #1a1a1a !important;
@@ -869,7 +869,7 @@ body {
 .dark .auth-locked-input.ant-input:disabled {
     color: rgba(255, 255, 255, 0.65);
     background-color: #1f1f1f;
-    border-color: #424242;
+    border-color: var(--ag-colorBorder);
 }
 
 /* @lexical/code-shiki stamps the shiki theme's PAGE background onto the code node (and tints some

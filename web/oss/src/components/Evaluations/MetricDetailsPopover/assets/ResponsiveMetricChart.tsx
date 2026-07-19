@@ -288,7 +288,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                         ? yScaleVertical(tick)
                                                         : yScale(tick))
                                                 }
-                                                stroke="#05172933"
+                                                stroke="var(--ag-rgba-051729-18)"
                                                 strokeWidth={1}
                                                 strokeDasharray="5 5"
                                             />

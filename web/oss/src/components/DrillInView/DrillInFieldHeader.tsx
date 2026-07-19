@@ -240,7 +240,7 @@ function ViewModeDropdown({
             menu={{items, selectedKeys: [value]}}
             trigger={["click"]}
             placement="bottomRight"
-            overlayClassName="[&_.ant-dropdown-menu]:min-w-[220px] [&_.ant-dropdown-menu]:rounded-xl [&_.ant-dropdown-menu]:p-2.5 [&_.ant-dropdown-menu]:shadow-[0_12px_32px_rgba(5,23,41,0.16)]"
+            overlayClassName="[&_.ant-dropdown-menu]:min-w-[220px] [&_.ant-dropdown-menu]:rounded-xl [&_.ant-dropdown-menu]:p-2.5 [&_.ant-dropdown-menu]:shadow-[0_12px_32px_var(--ag-rgba-051729-18)]"
         >
             <Button type="text" size="small" className="inline-flex items-center gap-1 px-2 h-6">
                 <span className="text-[12px] text-[var(--ag-rgba-051729-55)]">

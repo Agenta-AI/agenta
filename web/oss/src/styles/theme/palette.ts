@@ -35,52 +35,52 @@ const antd = (token: string): AntdRef => ({antd: token})
 // ============================================================================
 
 export const surface = {
-    base: {light: "#ffffff", dark: "#000000"},
-    container: {light: "#ffffff", dark: "#141414"}, // [absorbs] --ag-c-FFFFFF, the #141414 literals
-    elevated: {light: "#ffffff", dark: "#242424"}, // [override] [absorbs] 25+ light surfaces → one dark
-    layout: {light: "#ffffff", dark: "#000000"},
-    spotlight: {light: "rgba(5, 23, 41, 0.9)", dark: "#424242"},
-    mask: {light: "rgba(5, 23, 41, 0.45)", dark: "rgba(0, 0, 0, 0.45)"},
-    containerDisabled: {light: "rgba(5, 23, 41, 0.04)", dark: "rgba(255, 255, 255, 0.08)"},
-    infoBg: {light: "#f5f7fa", dark: "#242424"}, // repurposed neutral (mirrors elevated), not blue
-    controlItemBgActive: {light: "#f5f7fa", dark: "#57572a"}, // yellow-tinted: derived from brand primary
+    base: {light: "#ffffff", dark: "#171516"},
+    container: {light: "#ffffff", dark: "#1e1c1d"}, // [absorbs] --ag-c-FFFFFF, the dark container literals
+    elevated: {light: "#ffffff", dark: "#2a2828"}, // [override] [absorbs] 25+ light surfaces → one dark
+    layout: {light: "#ffffff", dark: "#171516"},
+    spotlight: {light: "rgba(2, 1, 17, 0.9)", dark: "#3f3d3c"},
+    mask: {light: "rgba(2, 1, 17, 0.45)", dark: "rgba(0, 0, 0, 0.45)"},
+    containerDisabled: {light: "rgba(2, 1, 17, 0.04)", dark: "rgba(255, 255, 255, 0.08)"},
+    infoBg: {light: "#f6f5f3", dark: "#2a2828"}, // repurposed neutral (mirrors elevated), not blue
+    controlItemBgActive: {light: "#fbfbe9", dark: "#4a4a22"}, // yellow-tinted: derived from brand primary
     white: {light: "#ffffff", dark: "#ffffff"},
 } satisfies Record<string, Pair>
 
 export const text = {
-    primary: {light: "#1c2c3d", dark: "rgba(255, 255, 255, 0.85)"},
-    secondary: {light: "#586673", dark: "rgba(255, 255, 255, 0.65)"},
-    tertiary: {light: "#758391", dark: "rgba(255, 255, 255, 0.45)"},
-    quaternary: {light: "#bdc7d1", dark: "rgba(255, 255, 255, 0.25)"},
-    heading: {light: "#1c2c3d", dark: "rgba(255, 255, 255, 0.85)"},
-    label: {light: "#586673", dark: "rgba(255, 255, 255, 0.65)"},
-    description: {light: "#758391", dark: "rgba(255, 255, 255, 0.45)"},
-    disabled: {light: "#bdc7d1", dark: "rgba(255, 255, 255, 0.25)"},
-    placeholder: {light: "#bdc7d1", dark: "rgba(255, 255, 255, 0.38)"}, // [override]
+    primary: {light: "#242424", dark: "rgba(255, 255, 255, 0.85)"},
+    secondary: {light: "#676770", dark: "rgba(255, 255, 255, 0.65)"},
+    tertiary: {light: "rgba(2, 1, 17, 0.6)", dark: "rgba(255, 255, 255, 0.45)"},
+    quaternary: {light: "#9c9c9a", dark: "rgba(255, 255, 255, 0.25)"},
+    heading: {light: "#242424", dark: "rgba(255, 255, 255, 0.85)"},
+    label: {light: "#676770", dark: "rgba(255, 255, 255, 0.65)"},
+    description: {light: "rgba(2, 1, 17, 0.6)", dark: "rgba(255, 255, 255, 0.45)"},
+    disabled: {light: "#9c9c9a", dark: "rgba(255, 255, 255, 0.25)"},
+    placeholder: {light: "#9c9c9a", dark: "rgba(255, 255, 255, 0.38)"}, // [override]
     lightSolid: {light: "#ffffff", dark: "#ffffff"},
-    icon: {light: "#758391", dark: "rgba(255, 255, 255, 0.45)"}, // mirrors tertiary
-    iconHover: {light: "#1c2c3d", dark: "rgba(255, 255, 255, 0.85)"}, // mirrors primary
+    icon: {light: "rgba(2, 1, 17, 0.6)", dark: "rgba(255, 255, 255, 0.45)"}, // mirrors tertiary
+    iconHover: {light: "#242424", dark: "rgba(255, 255, 255, 0.85)"}, // mirrors primary
 } satisfies Record<string, Pair>
 
 export const border = {
-    default: {light: "#bdc7d1", dark: "#424242"}, // [absorbs] --ag-c-BDC7D1, zinc-4
-    secondary: {light: "#eaeff5", dark: "#303030"},
-    split: {light: "rgba(5, 23, 41, 0.06)", dark: "rgba(253, 253, 253, 0.12)"},
+    default: {light: "#d6d6d3", dark: "#3f3d3c"}, // [absorbs] --ag-c-BDC7D1, zinc-4
+    secondary: {light: "#e5e5e3", dark: "#33312f"},
+    split: {light: "rgba(2, 1, 17, 0.06)", dark: "rgba(229, 229, 227, 0.12)"},
 } satisfies Record<string, Pair>
 
 export const fill = {
-    fill: {light: "rgba(5, 23, 41, 0.15)", dark: "rgba(255, 255, 255, 0.18)"},
-    secondary: {light: "rgba(5, 23, 41, 0.06)", dark: "rgba(255, 255, 255, 0.12)"},
-    tertiary: {light: "rgba(5, 23, 41, 0.04)", dark: "rgba(255, 255, 255, 0.08)"},
-    quaternary: {light: "rgba(5, 23, 41, 0.02)", dark: "rgba(255, 255, 255, 0.04)"},
+    fill: {light: "rgba(2, 1, 17, 0.15)", dark: "rgba(255, 255, 255, 0.18)"},
+    secondary: {light: "rgba(2, 1, 17, 0.06)", dark: "rgba(255, 255, 255, 0.12)"},
+    tertiary: {light: "rgba(2, 1, 17, 0.04)", dark: "rgba(255, 255, 255, 0.08)"},
+    quaternary: {light: "rgba(2, 1, 17, 0.02)", dark: "rgba(255, 255, 255, 0.04)"},
 } satisfies Record<string, Pair>
 
 export const accent = {
-    primary: {light: "#1c2c3d", dark: "#f2f25c"}, // [override] navy → brand yellow
-    primaryText: {light: "#1c2c3d", dark: "#d1d151"}, // derived from the yellow primary
-    link: {light: "#1c2c3d", dark: "#58a6ff"}, // [override] [absorbs] the 6× #58a6ff literal
-    linkHover: {light: "#1c2c3d", dark: "#79b8ff"}, // [override]
-    linkActive: {light: "#1c2c3d", dark: "#3b8eea"}, // [override]
+    primary: {light: "#242424", dark: "#f2f25c"}, // dark neutral primary; yellow carries dark mode
+    primaryText: {light: "#242424", dark: "#f2f25c"}, // tracks the yellow primary
+    link: {light: "#242424", dark: "#58a6ff"}, // [override] [absorbs] the 6× #58a6ff literal
+    linkHover: {light: "#242424", dark: "#79b8ff"}, // [override]
+    linkActive: {light: "#242424", dark: "#3b8eea"}, // [override]
 } satisfies Record<string, Pair>
 
 export const semantic = {
@@ -129,13 +129,16 @@ export const shadow = {
 // Component-level dark overrides (antd `components` map).
 export const componentsDark = {
     Button: {
-        primaryColor: "#141414", // dark text on the bright-yellow primary
+        // darkAlgorithm dims the yellow seed to #d1d151; pin the true brand yellow here
+        // (component tokens bypass antd's seed-override strip).
+        colorPrimary: "#f2f25c",
+        primaryColor: "#1e1c1d", // dark text on the bright-yellow primary
         defaultBg: "transparent",
         defaultHoverBg: "rgba(255, 255, 255, 0.04)",
         defaultActiveBg: "rgba(255, 255, 255, 0.08)",
     },
     Drawer: {
-        colorBgElevated: "#141414", // full-height drawer = container surface, not elevated
+        colorBgElevated: "#1e1c1d", // full-height drawer = container surface, not elevated
     },
 }
 
@@ -215,16 +218,16 @@ export const scales = {
     slate: rampFrom(lightSlate),
     // zinc — brand slate ramp, 10-step, near-variant dark
     zinc: {
-        1: {light: "#f5f7fa", dark: "#242424"},
-        2: {light: "#eaeff5", dark: "#2a2a2a"},
-        3: {light: "#d6dee6", dark: "#383838"},
-        4: {light: "#bdc7d1", dark: "#424242"},
-        5: {light: "#97a4b0", dark: "#5c5c5c"},
-        6: {light: "#758391", dark: "rgba(255, 255, 255, 0.45)"},
-        7: {light: "#586673", dark: "rgba(255, 255, 255, 0.65)"},
-        8: {light: "#394857", dark: "rgba(255, 255, 255, 0.75)"},
-        9: {light: "#1c2c3d", dark: "rgba(255, 255, 255, 0.85)"},
-        10: {light: "#051729", dark: "rgba(255, 255, 255, 0.95)"},
+        1: {light: "#f6f5f3", dark: "#2a2828"},
+        2: {light: "#efefef", dark: "#302e2d"},
+        3: {light: "#e5e5e3", dark: "#3a3837"},
+        4: {light: "#d6d6d3", dark: "#3f3d3c"},
+        5: {light: "#a8a8a4", dark: "#5c5a58"},
+        6: {light: "#9c9c9a", dark: "rgba(255, 255, 255, 0.45)"},
+        7: {light: "#676770", dark: "rgba(255, 255, 255, 0.65)"},
+        8: {light: "#4a4a50", dark: "rgba(255, 255, 255, 0.75)"},
+        9: {light: "#242424", dark: "rgba(255, 255, 255, 0.85)"},
+        10: {light: "#020111", dark: "rgba(255, 255, 255, 0.95)"},
     },
     // ag-gray — Untitled-UI ramp, near-variant dark (#242424/#2f2f2f/#3d3d3d)
     agGray: {
@@ -244,21 +247,22 @@ export const scales = {
 
 // Alpha fills the codemod routed through --ag-rgba-* (navy-on-white → white-on-dark).
 export const alphaFill = {
-    "051729-02": {light: "rgba(5, 23, 41, 0.02)", dark: "rgba(255, 255, 255, 0.04)"},
-    "051729-04": {light: "rgba(5, 23, 41, 0.04)", dark: "rgba(255, 255, 255, 0.06)"},
-    "051729-06": {light: "rgba(5, 23, 41, 0.06)", dark: "rgba(255, 255, 255, 0.08)"},
-    "051729-08": {light: "rgba(5, 23, 41, 0.08)", dark: "rgba(255, 255, 255, 0.1)"},
-    "051729-10": {light: "rgba(5, 23, 41, 0.1)", dark: "rgba(255, 255, 255, 0.12)"},
-    "051729-14": {light: "rgba(5, 23, 41, 0.14)", dark: "rgba(255, 255, 255, 0.16)"},
-    "051729-18": {light: "rgba(5, 23, 41, 0.18)", dark: "rgba(255, 255, 255, 0.2)"},
-    "051729-45": {light: "rgba(5, 23, 41, 0.45)", dark: "rgba(255, 255, 255, 0.45)"},
-    "051729-55": {light: "rgba(5, 23, 41, 0.55)", dark: "rgba(255, 255, 255, 0.6)"},
-    "051729-65": {light: "rgba(5, 23, 41, 0.65)", dark: "rgba(255, 255, 255, 0.7)"},
-    "051729-72": {light: "rgba(5, 23, 41, 0.72)", dark: "rgba(255, 255, 255, 0.78)"},
+    // Names keep the historical 051729 stem; values now carry the warm near-black.
+    "051729-02": {light: "rgba(2, 1, 17, 0.02)", dark: "rgba(255, 255, 255, 0.04)"},
+    "051729-04": {light: "rgba(2, 1, 17, 0.04)", dark: "rgba(255, 255, 255, 0.06)"},
+    "051729-06": {light: "rgba(2, 1, 17, 0.06)", dark: "rgba(255, 255, 255, 0.08)"},
+    "051729-08": {light: "rgba(2, 1, 17, 0.08)", dark: "rgba(255, 255, 255, 0.1)"},
+    "051729-10": {light: "rgba(2, 1, 17, 0.1)", dark: "rgba(255, 255, 255, 0.12)"},
+    "051729-14": {light: "rgba(2, 1, 17, 0.14)", dark: "rgba(255, 255, 255, 0.16)"},
+    "051729-18": {light: "rgba(2, 1, 17, 0.18)", dark: "rgba(255, 255, 255, 0.2)"},
+    "051729-45": {light: "rgba(2, 1, 17, 0.45)", dark: "rgba(255, 255, 255, 0.45)"},
+    "051729-55": {light: "rgba(2, 1, 17, 0.55)", dark: "rgba(255, 255, 255, 0.6)"},
+    "051729-65": {light: "rgba(2, 1, 17, 0.65)", dark: "rgba(255, 255, 255, 0.7)"},
+    "051729-72": {light: "rgba(2, 1, 17, 0.72)", dark: "rgba(255, 255, 255, 0.78)"},
     "000-02": {light: "rgba(0, 0, 0, 0.02)", dark: "rgba(255, 255, 255, 0.04)"},
     "000-06": {light: "rgba(0, 0, 0, 0.06)", dark: "rgba(255, 255, 255, 0.08)"},
     "000-45": {light: "rgba(0, 0, 0, 0.45)", dark: "rgba(255, 255, 255, 0.45)"},
-    "fff-78": {light: "rgba(255, 255, 255, 0.78)", dark: "rgba(20, 20, 20, 0.82)"},
+    "fff-78": {light: "rgba(255, 255, 255, 0.78)", dark: "rgba(30, 28, 29, 0.82)"},
 } satisfies Record<string, Pair>
 
 // ============================================================================
@@ -340,21 +344,21 @@ export const workflowType = {
 // ============================================================================
 
 export const playgroundSurface = {
-    app: {light: "#e9ebee", dark: "#0a0a0c"},
-    gutter: {light: "#eceef1", dark: "#060607"},
-    divider: {light: "#ededee", dark: "#1c1c1f"},
-    raised: {light: "#ffffff", dark: "#1a1b1e"}, // Configuration panel; --ag-sidebar-bg tracks this
-    card: {light: "#ffffff", dark: "#212327"},
-    cardBorder: {light: "#e7e8eb", dark: "#2d3036"},
-    inset: {light: "#f3f4f6", dark: "#111214"},
-    insetBorder: {light: "#e7e8eb", dark: "#26282d"},
-    canvas: {light: "#f4f5f7", dark: "#0c0c0e"},
-    chat: {light: "#ffffff", dark: "#17181b"},
-    chatBorder: {light: "#e7e8eb", dark: "#26282d"},
-    chip: {light: "#edeef0", dark: "#2a2a2e"},
-    chipBorder: {light: "#e3e4e6", dark: "#303035"},
-    rowHover: {light: "#f3f4f6", dark: "#212327"},
-    accent: {light: "#c2d54a", dark: "#c2d54a"}, // brand accent, constant across themes
+    app: {light: "#f6f5f3", dark: "#0c0b0a"},
+    gutter: {light: "#f6f5f3", dark: "#070606"},
+    divider: {light: "#efefef", dark: "#1f1d1c"},
+    raised: {light: "#fcfbfa", dark: "#1e1b1a"}, // Configuration panel; --ag-sidebar-bg tracks this
+    card: {light: "#ffffff", dark: "#272321"},
+    cardBorder: {light: "#e5e5e3", dark: "#36302d"},
+    inset: {light: "#f6f5f3", dark: "#141211"},
+    insetBorder: {light: "#e5e5e3", dark: "#2d2826"},
+    canvas: {light: "#f6f5f3", dark: "#0e0c0c"},
+    chat: {light: "#ffffff", dark: "#1b1a19"},
+    chatBorder: {light: "#e5e5e3", dark: "#2d2826"},
+    chip: {light: "#efefef", dark: "#2e2a2a"},
+    chipBorder: {light: "#e5e5e3", dark: "#353230"},
+    rowHover: {light: "#f6f5f3", dark: "#272321"},
+    accent: {light: "#e7e712", dark: "#f2f25c"}, // brand yellow: edge tone on light, fill tone on dark
     raisedShadow: {
         light: "0 1px 3px rgba(16, 18, 22, 0.05)",
         dark: "inset 0 1px 0 rgba(255, 255, 255, 0.045)",
@@ -371,13 +375,13 @@ export const playgroundSurface = {
 } satisfies Record<string, Pair>
 
 export const composer = {
-    border: {light: "#e7e8eb", dark: "#2a2c30"},
-    focus: {light: "#c2d54a", dark: "rgba(194, 213, 74, 0.45)"},
-    placeholder: {light: "#767b82", dark: "#7e828a"},
-    sendDisabledBg: {light: "#eceef1", dark: "#26282c"},
-    sendDisabledFg: {light: "#a6abb1", dark: "#6e7176"},
-    userBubbleBg: {light: "#f4f6e4", dark: "rgba(194, 213, 74, 0.08)"},
-    userBubbleBorder: {light: "#dde4a0", dark: "rgba(194, 213, 74, 0.22)"},
+    border: {light: "#e5e5e3", dark: "#302c2a"},
+    focus: {light: "#e7e712", dark: "rgba(242, 242, 92, 0.45)"},
+    placeholder: {light: "#9c9c9a", dark: "#8a827e"},
+    sendDisabledBg: {light: "#efefef", dark: "#2c2826"},
+    sendDisabledFg: {light: "#a8a8a4", dark: "#76716e"},
+    userBubbleBg: {light: "#f6f5f3", dark: "rgba(255, 255, 255, 0.06)"},
+    userBubbleBorder: {light: "#e5e5e3", dark: "rgba(229, 229, 227, 0.14)"},
 } satisfies Record<string, Pair>
 
 // Drawer tier — dark-only today (light falls back to antd defaults).
@@ -387,7 +391,7 @@ export const drawerDark = {
     divider: "#2a2c30",
     fieldBg: "#141517",
     fieldBorder: "#2e3136",
-    fieldFocus: "#c2d54a",
+    fieldFocus: "#f2f25c",
     segTrack: "#141517",
     segActive: "#2c2f34",
     rail: "#1a1b1e",
@@ -413,9 +417,9 @@ export const status = {
 
 /** Evaluations "Application" cell tones. */
 export const appVariantCell = {
-    row: {light: "rgba(15, 23, 42, 0.55)", dark: "rgba(255, 255, 255, 0.65)"}, // mirrors text.secondary
-    label: {light: "rgba(15, 23, 42, 0.85)", dark: "rgba(255, 255, 255, 0.85)"}, // mirrors text.primary
-    chipBg: {light: "rgba(5, 23, 41, 0.08)", dark: "rgba(255, 255, 255, 0.12)"}, // mirrors fill.secondary
+    row: {light: "rgba(2, 1, 17, 0.55)", dark: "rgba(255, 255, 255, 0.65)"}, // mirrors text.secondary
+    label: {light: "rgba(2, 1, 17, 0.85)", dark: "rgba(255, 255, 255, 0.85)"}, // mirrors text.primary
+    chipBg: {light: "rgba(2, 1, 17, 0.08)", dark: "rgba(255, 255, 255, 0.12)"}, // mirrors fill.secondary
 } satisfies Record<string, Pair>
 
 /** Editor variable-token chips (painted via inline JS in TokenNode.ts). */
@@ -428,16 +432,16 @@ export const editorChip = {
 
 /** TemplateStrip feature family: colors with no existing semantic role. */
 export const templateStrip = {
-    inputBorder: {light: "#d6dee6", dark: "#2e3136"}, // mirrors drawerDark.fieldBorder
-    selectedBg: {light: "#f5f7fa", dark: "rgba(255, 255, 255, 0.06)"},
-    // Card surface: dark elevates above the page (container and page are both #141414,
+    inputBorder: {light: "#e5e5e3", dark: "#2e3136"}, // mirrors drawerDark.fieldBorder
+    selectedBg: {light: "#fbfbe9", dark: "rgba(255, 255, 255, 0.06)"},
+    // Card surface: dark elevates above the page (container and page share one dark bg,
     // so colorBgContainer gives no elevation) with a near-bg border; light keeps the
     // white-card-with-border look.
     cardBg: {light: "#ffffff", dark: "rgba(255, 255, 255, 0.04)"},
-    cardBorder: {light: "#eaeff5", dark: "#232327"},
-    cardBorderHover: {light: "#bdc7d1", dark: "#3a3a40"},
+    cardBorder: {light: "#e5e5e3", dark: "#272423"},
+    cardBorderHover: {light: "#d6d6d3", dark: "#403d3a"},
     cardHoverShadow: {
-        light: "0 2px 8px -2px rgba(28, 44, 61, 0.12)",
+        light: "0 2px 8px -2px rgba(2, 1, 17, 0.12)",
         dark: "0 2px 8px -2px rgba(0, 0, 0, 0.45)",
     },
 } satisfies Record<string, Pair>

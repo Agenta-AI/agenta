@@ -59,6 +59,18 @@ const DARK_TOKEN_OVERRIDES: Record<string, string> = {
     colorWarning: palette.semantic.warning.dark as string,
     colorError: palette.semantic.error.dark as string,
     colorBgElevated: palette.surface.elevated.dark as string,
+    // Warm dark surfaces/borders: without these map-token overrides antd's darkAlgorithm
+    // keeps its cool defaults (#141414/#424242) and drifts from the --ag vars.
+    // colorBgBase stays algorithm-owned: it is a seed token (overrides are stripped) and
+    // seeding it warm derives off-hue outputs.
+    colorBgContainer: palette.surface.container.dark as string,
+    colorBgLayout: palette.surface.layout.dark as string,
+    colorBgSpotlight: palette.surface.spotlight.dark as string,
+    colorBorder: palette.border.default.dark as string,
+    colorBorderSecondary: palette.border.secondary.dark as string,
+    colorSplit: palette.border.split.dark as string,
+    controlItemBgActive: palette.surface.controlItemBgActive.dark as string,
+    colorPrimaryText: palette.accent.primaryText.dark as string,
     colorTextPlaceholder: palette.text.placeholder.dark as string,
     boxShadow: palette.shadow.overlay.dark as string,
     boxShadowSecondary: palette.shadow.overlay.dark as string,

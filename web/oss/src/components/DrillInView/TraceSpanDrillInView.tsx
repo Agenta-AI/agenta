@@ -514,7 +514,7 @@ export const TraceSpanDrillInView = memo(
                     {(!allowSpanCollapse || !isCollapsed) && (
                         <div className="relative">
                             {isSearchOpen && isCodeMode && (
-                                <div className="absolute right-4 top-3 z-20 flex items-center gap-2 rounded-xl border border-[var(--ag-rgba-051729-14)] bg-[var(--ag-c-FFFFFF)] px-2 py-2 shadow-[0_8px_24px_rgba(5,23,41,0.12)] max-w-[calc(100%-2rem)]">
+                                <div className="absolute right-4 top-3 z-20 flex items-center gap-2 rounded-xl border border-[var(--ag-rgba-051729-14)] bg-[var(--ag-c-FFFFFF)] px-2 py-2 shadow-[0_8px_24px_var(--ag-rgba-051729-10)] max-w-[calc(100%-2rem)]">
                                     <Input
                                         className="w-[180px] min-w-[80px]"
                                         placeholder="Search..."

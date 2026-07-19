@@ -30,7 +30,7 @@ const CopiedToast = ({open, text, onDone}: {open: boolean; text: string; onDone:
         <div
             role="status"
             aria-live="polite"
-            className={`fixed bottom-[26px] left-1/2 z-[1100] flex -translate-x-1/2 items-center gap-[9px] rounded-[9px] bg-[var(--ag-colorBgSpotlight)] px-[18px] py-[11px] text-[13.5px] text-white shadow-[0_10px_26px_rgba(5,23,41,0.35)] transition-opacity duration-200 ${
+            className={`fixed bottom-[26px] left-1/2 z-[1100] flex -translate-x-1/2 items-center gap-[9px] rounded-[9px] bg-[var(--ag-colorBgSpotlight)] px-[18px] py-[11px] text-[13.5px] text-white shadow-[0_10px_26px_rgba(0,0,0,0.35)] transition-opacity duration-200 ${
                 visible ? "opacity-100" : "opacity-0"
             }`}
         >

@@ -126,7 +126,7 @@ const BarChart = ({
                 />
                 <YAxis
                     domain={yDomain as any}
-                    tickLine={{stroke: "#05172933"}}
+                    tickLine={{stroke: "var(--ag-rgba-051729-18)"}}
                     tick={{fill: "#666"}}
                     tickMargin={8}
                     width={yAxisWidth}
@@ -136,7 +136,7 @@ const BarChart = ({
                     strokeDasharray="3 2"
                     horizontal
                     vertical={false}
-                    stroke="#05172933"
+                    stroke="var(--ag-rgba-051729-18)"
                     {...cartesianGridProps}
                 />
 

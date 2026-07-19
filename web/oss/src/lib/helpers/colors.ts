@@ -41,7 +41,7 @@ const colorPairs = [
     {backgroundColor: "#D1F5F1", textColor: "#13C2C2"},
     {backgroundColor: "#ffd6e7", textColor: "#EB2F96"},
     {backgroundColor: "#f7cfcf", textColor: "#D61010"},
-    {backgroundColor: "#eaeff5", textColor: "#758391"},
+    {backgroundColor: "var(--ag-zinc-2)", textColor: "var(--ag-zinc-6)"},
     {backgroundColor: "#D1E4E8", textColor: "#5E7579"},
     {backgroundColor: "#F5E6D3", textColor: "#825E31"},
     {backgroundColor: "#F9F6C1", textColor: "#84803A"},

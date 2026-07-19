@@ -34,7 +34,7 @@ import {withRateLimitRetry} from "@/oss/state/newObservability/etl/withRateLimit
 const SUCCESS_DISMISS_MS = 5_000
 
 /** Brand primary used for the auto-dismiss countdown bar (matches antd's `colorPrimary`). */
-const PRIMARY_COLOR = "#1c2c3d"
+const PRIMARY_COLOR = "var(--ag-colorPrimary)"
 
 /**
  * Description wrapper that drives the success toast's own auto-dismiss timer:

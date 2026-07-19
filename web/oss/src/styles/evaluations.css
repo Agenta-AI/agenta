@@ -168,7 +168,7 @@
 }
 
 .filter-chip-select .ant-select-selection-overflow::-webkit-scrollbar-thumb {
-    background-color: rgba(5, 23, 41, 0.2);
+    background-color: var(--ag-rgba-051729-18);
     border-radius: 999px;
 }
 

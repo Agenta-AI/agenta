@@ -5,17 +5,17 @@
  * Uses Ant Design theme tokens from antd-tailwind.json for design system consistency.
  *
  * Token Reference (from antd-tailwind.json):
- * - zinc-1 to zinc-10: Gray scale (zinc-5 = #97a4b0, zinc-6 = #758391, zinc-7 = #586673, zinc-9 = #1c2c3d)
- * - colorText: #1c2c3d (primary text)
- * - colorTextSecondary: #586673 (secondary text)
- * - colorTextTertiary: #758391 (tertiary/muted text)
- * - colorTextQuaternary: #bdc7d1 (disabled/placeholder text)
- * - colorIcon: #758391 (icon color)
- * - colorIconHover: #1c2c3d (icon hover color)
- * - colorBorder: #bdc7d1 (primary border)
- * - colorBorderSecondary: #eaeff5 (secondary border)
- * - colorFillSecondary: rgba(5, 23, 41, 0.06) (subtle fill)
- * - colorFillTertiary: rgba(5, 23, 41, 0.04) (very subtle fill)
+ * - zinc-1 to zinc-10: Gray scale (zinc-5 = #a8a8a4, zinc-6 = #9c9c9a, zinc-7 = #676770, zinc-9 = #242424)
+ * - colorText: #242424 (primary text)
+ * - colorTextSecondary: #676770 (secondary text)
+ * - colorTextTertiary: rgba(2, 1, 17, 0.6) (tertiary/muted text)
+ * - colorTextQuaternary: #9c9c9a (disabled/placeholder text)
+ * - colorIcon: rgba(2, 1, 17, 0.6) (icon color)
+ * - colorIconHover: #242424 (icon hover color)
+ * - colorBorder: #d6d6d3 (primary border)
+ * - colorBorderSecondary: #e5e5e3 (secondary border)
+ * - colorFillSecondary: rgba(2, 1, 17, 0.06) (subtle fill)
+ * - colorFillTertiary: rgba(2, 1, 17, 0.04) (very subtle fill)
  *
  * @example
  * ```tsx
@@ -118,37 +118,37 @@ export const flexLayouts = {
 
 /**
  * Common text color classes for semantic styling
- * Uses Ant Design theme tokens: colorTextSecondary (#586673), colorTextTertiary (#758391), colorIcon (#758391)
+ * Uses Ant Design theme tokens: colorTextSecondary (#676770), colorTextTertiary (rgba(2, 1, 17, 0.6)), colorIcon (rgba(2, 1, 17, 0.6))
  *
  * @example
  * <span className={textColors.secondary}>{secondaryText}</span>
  */
 export const textColors = {
-    /** Primary text - colorText (#1c2c3d) - zinc-9 */
+    /** Primary text - colorText (#242424) - zinc-9 */
     primary: "text-zinc-9",
-    /** Secondary text - colorTextSecondary (#586673) - zinc-7 */
+    /** Secondary text - colorTextSecondary (#676770) - zinc-7 */
     secondary: "text-zinc-7",
-    /** Tertiary/muted text - colorTextTertiary (#758391) - zinc-6 */
+    /** Tertiary/muted text - colorTextTertiary (#9c9c9a) - zinc-6 */
     tertiary: "text-zinc-6",
-    /** Quaternary/disabled text - colorTextQuaternary (#bdc7d1) - zinc-4 */
+    /** Quaternary/disabled text - colorTextQuaternary (#d6d6d3) - zinc-4 */
     quaternary: "text-zinc-4",
     /** Muted/secondary text - alias for tertiary (colorTextTertiary) */
     muted: "text-zinc-6",
-    /** Separator/divider text - colorTextQuaternary (#bdc7d1) - zinc-4 */
+    /** Separator/divider text - colorTextQuaternary (#d6d6d3) - zinc-4 */
     separator: "text-zinc-4",
-    /** Icon color - colorIcon (#758391) - zinc-6 */
+    /** Icon color - colorIcon (#9c9c9a) - zinc-6 */
     icon: "text-zinc-6",
-    /** Icon hover color - colorIconHover (#1c2c3d) - zinc-9 */
+    /** Icon hover color - colorIconHover (#242424) - zinc-9 */
     iconHover: "hover:text-zinc-9",
-    /** Label text - colorTextSecondary (#586673) - zinc-7 */
+    /** Label text - colorTextSecondary (#676770) - zinc-7 */
     label: "text-zinc-7",
-    /** Subtle text - colorTextTertiary (#758391) - zinc-6 */
+    /** Subtle text - colorTextTertiary (#9c9c9a) - zinc-6 */
     subtle: "text-zinc-6",
-    /** Description text - colorTextDescription (#758391) - zinc-6 */
+    /** Description text - colorTextDescription (#9c9c9a) - zinc-6 */
     description: "text-zinc-6",
-    /** Placeholder text - colorTextPlaceholder (#bdc7d1) - zinc-4 */
+    /** Placeholder text - colorTextPlaceholder (#d6d6d3) - zinc-4 */
     placeholder: "text-zinc-4",
-    /** Disabled text - colorTextDisabled (#bdc7d1) - zinc-4 */
+    /** Disabled text - colorTextDisabled (#d6d6d3) - zinc-4 */
     disabled: "text-zinc-4",
 } as const
 
@@ -160,15 +160,15 @@ export const textColors = {
  * <span className={bgColors.chip}>{badge}</span>
  */
 export const bgColors = {
-    /** Chip/badge background - colorFillSecondary - zinc-1 (#f5f7fa) */
+    /** Chip/badge background - colorFillSecondary - zinc-1 (#f6f5f3) */
     chip: "bg-zinc-1",
-    /** Subtle background - colorFillTertiary - zinc-1 (#f5f7fa) */
+    /** Subtle background - colorFillTertiary - zinc-1 (#f6f5f3) */
     subtle: "bg-zinc-1",
-    /** Hover background - colorFillSecondary - zinc-2 (#eaeff5) */
+    /** Hover background - colorFillSecondary - zinc-2 (#efefef) */
     hover: "bg-zinc-2",
     /** Hover state background - for hover pseudo-class */
     hoverState: "hover:bg-zinc-2",
-    /** Active/selected background - controlItemBgActive - zinc-1 (#f5f7fa) */
+    /** Active/selected background - controlItemBgActive - zinc-1 (#f6f5f3) */
     active: "bg-zinc-1",
     /** Container background - colorBgContainer (#ffffff) */
     container: "bg-[var(--ag-c-FFFFFF)]",
@@ -180,19 +180,19 @@ export const bgColors = {
 
 /**
  * Common border color classes
- * Uses Ant Design theme tokens: colorBorder (#bdc7d1), colorBorderSecondary (#eaeff5)
+ * Uses Ant Design theme tokens: colorBorder (#d6d6d3), colorBorderSecondary (#e5e5e3)
  *
  * @example
  * <div className={borderColors.default} />
  */
 export const borderColors = {
-    /** Default border - colorBorder (#bdc7d1) - zinc-4 */
+    /** Default border - colorBorder (#d6d6d3) - zinc-4 */
     default: "border-zinc-4",
-    /** Secondary/subtle border - colorBorderSecondary (#eaeff5) - zinc-2 */
+    /** Secondary/subtle border - colorBorderSecondary (#efefef) - zinc-2 */
     secondary: "border-zinc-2",
-    /** Divider/separator border - colorBorderSecondary (#eaeff5) - zinc-2 */
+    /** Divider/separator border - colorBorderSecondary (#efefef) - zinc-2 */
     divider: "border-zinc-2",
-    /** Strong border - zinc-3 (#d6dee6) */
+    /** Strong border - zinc-3 (#e5e5e3) */
     strong: "border-zinc-3",
 } as const
 
@@ -236,9 +236,9 @@ export const statusColors = {
     error: "text-red-6",
     /** Error background - colorErrorBg (#fbe7e7) - red-1 */
     errorBg: "bg-red-1",
-    /** Info text - colorInfoText (#1c2c3d) - zinc-9 */
+    /** Info text - colorInfoText (#242424) - zinc-9 */
     info: "text-zinc-9",
-    /** Info background - colorInfoBg (#f5f7fa) - zinc-1 */
+    /** Info background - colorInfoBg (#f6f5f3) - zinc-1 */
     infoBg: "bg-zinc-1",
 } as const
 

@@ -121,7 +121,7 @@ export const OverviewLoadingPlaceholder = ({
             <div className="opacity-80 h-full w-full">
                 <ResponsiveContainer width="100%" height="100%">
                     <RadarChart cx="50%" cy="50%" outerRadius="72%" data={data}>
-                        <PolarGrid stroke="#EAEFF5" />
+                        <PolarGrid stroke="var(--ag-colorBorderSecondary)" />
                         <PolarAngleAxis dataKey="subject" tick={false} />
                         <PolarRadiusAxis domain={[0, 100]} axisLine={false} tick={false} />
                         <Radar

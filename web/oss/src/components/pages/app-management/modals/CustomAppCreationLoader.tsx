@@ -11,7 +11,7 @@ const CustomAppCreationLoader = ({isFinish}: {isFinish: boolean}) => {
             >
                 <path
                     d="M77 140C62.0921 139.336 47.9729 133.117 37.4232 122.568C26.8734 112.018 20.6577 97.902 20 83"
-                    stroke="#D6DEE6"
+                    stroke="var(--ag-zinc-3)"
                 />
 
                 <path
@@ -22,11 +22,11 @@ const CustomAppCreationLoader = ({isFinish}: {isFinish: boolean}) => {
 
                 <path
                     d="M83 20C97.9073 20.663 112.026 26.8817 122.576 37.4314C133.126 47.9812 139.342 62.0974 140 77"
-                    stroke="#D6DEE6"
+                    stroke="var(--ag-zinc-3)"
                 />
                 <path
                     d="M140 83C139.337 97.9069 133.119 112.025 122.569 122.575C112.019 133.125 97.903 139.341 83 140"
-                    stroke="#D6DEE6"
+                    stroke="var(--ag-zinc-3)"
                 />
                 <defs>
                     <filter

@@ -389,7 +389,7 @@ const V2CompareColumn = memo(
         const isBase = index === 0
         const comparisonColor = getComparisonColor(index)
         const swatchColor = isBase
-            ? "#1c2c3d"
+            ? "var(--ag-colorPrimary)"
             : comparisonColor !== "transparent"
               ? comparisonColor
               : "#2f54eb"

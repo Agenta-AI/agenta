@@ -1,5 +1,5 @@
 body {
-    --not-available-stripe: #eaeff5;
+    --not-available-stripe: var(--ag-zinc-2);
     --not-available-bg: transparent;
 
     :has(.human-eval) {

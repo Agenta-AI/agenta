@@ -121,7 +121,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                                               key={model}
                                               variant="filled"
                                               color="default"
-                                              className="bg-[#0517290F] px-2 py-[1px] m-0"
+                                              className="bg-[var(--ag-c-0517290F)] px-2 py-[1px] m-0"
                                           >
                                               {model}
                                           </Tag>

@@ -591,7 +591,7 @@
     --editor-text: rgba(255, 255, 255, 0.85);
     --editor-line-number: #6e7681;
     --editor-gutter-bg: #181818;
-    --editor-gutter-border: #303030;
+    --editor-gutter-border: var(--ag-colorBorderSecondary);
     --editor-selection-bg: rgba(56, 90, 140, 0.5);
     --editor-cursor: #ffffff;
     --editor-error-bg: rgba(255, 0, 0, 0.12);

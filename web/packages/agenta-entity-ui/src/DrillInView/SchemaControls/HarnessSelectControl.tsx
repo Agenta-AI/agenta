@@ -37,7 +37,7 @@ interface HarnessMeta {
  */
 const HARNESS_META: Record<string, HarnessMeta> = {
     pi_core: {label: "Pi", short: "Pi", color: "#6b5bd6"},
-    pi_agenta: {label: "Pi (Agenta)", short: "Ag", color: "#1c2c3d"},
+    pi_agenta: {label: "Pi (Agenta)", short: "Ag", color: "var(--ag-colorBgSpotlight)"},
     claude: {label: "Claude Code", short: "CC", color: "#d97757"},
 }
 
@@ -69,7 +69,7 @@ function metaFor(value: string): HarnessMeta {
             .replace(/[^A-Za-z0-9]/g, "")
             .slice(0, 2)
             .toUpperCase() || "?"
-    return {label, short, color: "#586673"}
+    return {label, short, color: "var(--ag-colorBgSpotlight)"}
 }
 
 function HarnessAvatar({meta, size = 22}: {meta: HarnessMeta; size?: number}) {

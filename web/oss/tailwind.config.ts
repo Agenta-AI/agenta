@@ -2,7 +2,9 @@ import {theme} from "antd"
 import type {Config} from "tailwindcss"
 import colors from "tailwindcss/colors"
 import antdTailwind from "./src/styles/tokens/antd-tailwind.json"
-const token = theme.getDesignToken()
+import antdThemeConfig from "./src/styles/tokens/antd-themeConfig.json"
+// Seed with the app's light tokens; an unseeded call returns antd's stock blue.
+const token = theme.getDesignToken({token: antdThemeConfig.token})
 
 // Theme-aware colors backed by CSS variables defined in styles/theme-variables.css.
 // Light values are unchanged; the `.dark` selector flips the variables. Any class

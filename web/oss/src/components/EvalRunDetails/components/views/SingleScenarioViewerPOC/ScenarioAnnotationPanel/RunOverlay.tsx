@@ -9,7 +9,7 @@ interface RunOverlayProps {
 
 const RunOverlay = ({isRunning, onRun}: RunOverlayProps) => {
     return (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90 dark:bg-[#141414]/90 backdrop-blur-md rounded-lg">
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[var(--ag-rgba-fff-78)] backdrop-blur-md rounded-lg">
             <Typography.Text type="secondary" className="mb-4 text-center px-4 font-medium">
                 {isRunning ? "Generating output..." : "Generate output to annotate"}
             </Typography.Text>

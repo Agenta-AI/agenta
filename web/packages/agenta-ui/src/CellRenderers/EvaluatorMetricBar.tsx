@@ -18,8 +18,8 @@ const LABEL_COLORS = ["#0f766e", "#475467", "#475467", "#475467"]
 
 const TRUE_SEGMENT_COLOR = "#389e0d"
 const TRUE_LABEL_COLOR = "#389e0d"
-const FALSE_SEGMENT_COLOR = "#bdc7d1"
-const FALSE_LABEL_COLOR = "#586673"
+const FALSE_SEGMENT_COLOR = "var(--ag-zinc-4)"
+const FALSE_LABEL_COLOR = "var(--ag-colorTextSecondary)"
 
 const normalizeBoolLabel = (label: unknown) => label?.toString().toLowerCase()
 
@@ -89,7 +89,7 @@ const resolveSegments = (stats?: BasicStats): {label: string; value: number}[] =
 }
 
 /** Bar track background — matches Figma `remainingcolor` token */
-const TRACK_BG = "rgba(5, 23, 41, 0.06)"
+const TRACK_BG = "var(--ag-colorFillSecondary)"
 
 /**
  * Boolean bar layout matching Figma design:

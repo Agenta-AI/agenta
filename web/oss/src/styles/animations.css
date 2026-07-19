@@ -37,7 +37,7 @@
     }
     26%,
     100% {
-        stroke: #d6dee6;
+        stroke: var(--ag-zinc-3);
     }
 }
 

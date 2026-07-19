@@ -185,7 +185,7 @@ export function describeTool(tool: unknown): ItemDescriptor {
             monoName: false,
             description: description ? capitalizeFirst(description) : undefined,
             mono: monogram(gateway.integration),
-            color: "#1c2c3d",
+            color: "var(--ag-colorBgSpotlight)",
             tags: [gateway.integration],
             typeLabel: "third-party",
             subtitle: `Connected app tool · ${gateway.integration}`,

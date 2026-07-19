@@ -7,7 +7,15 @@ export const DARK_TOKEN_OVERRIDES = {
     colorSuccess: "#52c41a",
     colorWarning: "#faad14",
     colorError: "#ff4d4f",
-    colorBgElevated: "#242424",
+    colorBgElevated: "#2a2828",
+    colorBgContainer: "#1e1c1d",
+    colorBgLayout: "#171516",
+    colorBgSpotlight: "#3f3d3c",
+    colorBorder: "#3f3d3c",
+    colorBorderSecondary: "#33312f",
+    colorSplit: "rgba(229, 229, 227, 0.12)",
+    controlItemBgActive: "#4a4a22",
+    colorPrimaryText: "#f2f25c",
     colorTextPlaceholder: "rgba(255, 255, 255, 0.38)",
     boxShadow:
         "0 0 0 1px rgba(255, 255, 255, 0.16), 0 6px 16px 0 rgba(0, 0, 0, 0.44), 0 3px 6px -4px rgba(0, 0, 0, 0.52), 0 9px 28px 8px rgba(0, 0, 0, 0.28)",
@@ -27,12 +35,13 @@ export const DARK_TOKEN_OVERRIDES = {
 
 export const darkComponents = {
     Button: {
-        primaryColor: "#141414",
+        colorPrimary: "#f2f25c",
+        primaryColor: "#1e1c1d",
         defaultBg: "transparent",
         defaultHoverBg: "rgba(255, 255, 255, 0.04)",
         defaultActiveBg: "rgba(255, 255, 255, 0.08)",
     },
     Drawer: {
-        colorBgElevated: "#141414",
+        colorBgElevated: "#1e1c1d",
     },
 }

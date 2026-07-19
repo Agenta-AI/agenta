@@ -693,13 +693,13 @@ pre::-webkit-scrollbar-thumb {
     color: rgba(255, 255, 255, 0.85);
 }
 .dark .toolbar {
-    background: #141414;
+    background: var(--ag-colorBgContainer);
 }
 .dark .toolbar .toolbar-item:hover:not([disabled]) {
     background-color: #2a2a2a;
 }
 .dark .toolbar .divider {
-    background-color: #303030;
+    background-color: var(--ag-colorBorderSecondary);
 }
 .dark .toolbar .toolbar-item .text,
 .dark .other a {
@@ -717,7 +717,7 @@ pre::-webkit-scrollbar-thumb {
     color: rgba(255, 255, 255, 0.65);
 }
 .dark .editor-quote {
-    border-left-color: #424242;
+    border-left-color: var(--ag-colorBorder);
 }
 .dark .editor-placeholder {
     color: rgba(255, 255, 255, 0.45);
@@ -727,7 +727,7 @@ pre::-webkit-scrollbar-thumb {
 }
 .dark .editor-tableFrozenRow tr:nth-of-type(1) > td,
 .dark .editor-tableFrozenColumn tr > td:first-child {
-    background-color: #141414;
+    background-color: var(--ag-colorBgContainer);
 }
 .dark .editor-tableFrozenRow tr:nth-of-type(1) > th,
 .dark .editor-tableFrozenColumn tr > th:first-child,
@@ -738,12 +738,12 @@ pre::-webkit-scrollbar-thumb {
     background-color: #1a1a1a;
 }
 .dark .editor-tableCell {
-    border-color: #424242;
+    border-color: var(--ag-colorBorder);
 }
 .dark .editor-tableFrozenRow tr:nth-of-type(1) > th:after,
 .dark .editor-tableFrozenRow tr:nth-of-type(1) > td:after,
 .dark .editor-tableFrozenColumn tr > :first-child::after {
-    border-color: #424242;
+    border-color: var(--ag-colorBorder);
 }
 .dark .editor-tableAddColumns,
 .dark .editor-tableAddRows,

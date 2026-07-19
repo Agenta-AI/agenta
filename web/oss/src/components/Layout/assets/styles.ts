@@ -5,13 +5,13 @@ import type {JSSTheme, StyleProps as MainStyleProps} from "@/oss/lib/Types"
 export type StyleProps = MainStyleProps
 
 export const useStyles = createUseStyles((theme: JSSTheme) => ({
-    layout: ({themeMode}: StyleProps) => ({
+    layout: {
         display: "flex",
-        background: themeMode === "dark" ? "#141414" : "#ffffff",
+        background: theme.colorBgContainer,
         height: "100%",
         minHeight: "100vh",
         position: "relative",
-    }),
+    },
     content: {
         height: "100%",
         paddingTop: "24px",
@@ -43,7 +43,8 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         top: 0,
         left: 0,
         height: 38,
-        backgroundColor: "#1c2c3d",
+        // Fixed white text sits on this; colorBgSpotlight stays dark in both themes.
+        backgroundColor: theme.colorBgSpotlight,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

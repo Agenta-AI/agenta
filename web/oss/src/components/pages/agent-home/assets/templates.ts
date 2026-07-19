@@ -150,7 +150,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         name: "PR reviewer",
         category: "Engineering",
         initials: "PR",
-        color: "#1c2c3d",
+        color: "var(--ag-colorBgSpotlight)",
         description: "Reviews PRs, comments inline, flags risky changes.",
         overview:
             "Reviews every opened pull request. Comments inline on risky changes, flags missing tests, and posts a plain-English summary for the author.",
@@ -970,7 +970,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
         name: "Docs Q&A",
         category: "Knowledge",
         initials: "Q",
-        color: "#1c2c3d",
+        color: "var(--ag-colorBgSpotlight)",
         description: "Answers questions from your docs workspace.",
         overview:
             "Answers questions from your docs workspace with concise, cited answers — in chat or on mention.",

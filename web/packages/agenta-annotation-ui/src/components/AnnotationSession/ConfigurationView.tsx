@@ -55,7 +55,7 @@ function CollapsibleSection({
         <div className="flex flex-col bg-[var(--ag-c-FFFFFF)] rounded-lg border border-solid border-[var(--ag-rgba-051729-06)] overflow-hidden">
             <div
                 className="flex items-center justify-between px-4 h-11 cursor-pointer bg-[var(--ag-rgba-051729-02)]"
-                style={{borderBottom: collapsed ? undefined : "1px solid rgba(5,23,41,0.06)"}}
+                style={{borderBottom: collapsed ? undefined : "1px solid var(--ag-colorSplit)"}}
                 role="button"
                 tabIndex={0}
                 onClick={toggle}
@@ -324,7 +324,7 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
                 className="flex h-10 items-center justify-between gap-2 bg-[var(--ag-rgba-051729-02)] px-3"
                 style={{
                     borderBottom:
-                        "var(--Components-Collapse-Global-lineWidth, 1px) solid var(--Colors-Neutral-Border-colorSplit, rgba(5, 23, 41, 0.06))",
+                        "var(--Components-Collapse-Global-lineWidth, 1px) solid var(--ag-colorSplit)",
                 }}
             >
                 <div className="flex min-w-0 items-center gap-2">

@@ -29,7 +29,9 @@ const DeleteFolderModal = ({
                 <div className="text-gray-500">
                     <div>You are about to delete:</div>
                     <div className="mt-2 flex items-center gap-2">
-                        <FolderFilled style={{fontSize: 16, color: "#BDC7D1"}} />
+                        <FolderFilled
+                            style={{fontSize: 16, color: "var(--ag-colorTextQuaternary)"}}
+                        />
                         <span className="font-medium">{folderName || "this folder"}</span>
                     </div>
                 </div>

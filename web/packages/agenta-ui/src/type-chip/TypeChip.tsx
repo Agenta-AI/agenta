@@ -181,7 +181,7 @@ export function TypeChip({
                 }}
                 onMouseEnter={(e) => {
                     e.currentTarget.style.transform = "translateY(-1px)"
-                    e.currentTarget.style.boxShadow = "0 1px 3px rgba(5, 23, 41, 0.12)"
+                    e.currentTarget.style.boxShadow = "0 1px 3px var(--ag-rgba-051729-10)"
                 }}
                 onMouseLeave={(e) => {
                     e.currentTarget.style.transform = "translateY(0)"
