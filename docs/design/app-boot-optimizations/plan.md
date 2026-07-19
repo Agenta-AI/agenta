@@ -4,6 +4,13 @@ Status: ANALYSIS + PLAN (2026-07-19) — T1.1 + T1.2 BUILT (e423d17708, warmup v
 for T1.2 preserving the recipe code-split). T2 BUILT (33e06521eb — all four items;
 ProtectedRoute deviation: its five hooks are side-effectful mounts, moved to a memo'd
 null island rather than an atom; snapshot `timestamp` dropped entirely, zero consumers).
+T1.3 BUILT (c14e768072 — latch `raw || (latch && sessionExists)`, BootShell sidebar
+ghost pre-ready, prewarmBootQueryGraph() overlapping the config-chunk fetch; the 157ms
+"ProtectedRoute first read" was the boot query-atom graph's initial evaluation).
+Config-accordion hygiene BUILT (620054a6c6 — equality-stable adapter atoms,
+narrowed PlaygroundVariantConfig subscriptions, stable DrillInUIContext value; the
+accordion agent was cut off by a session limit and two type fixes landed at
+integration). Remaining: T1.4 /__env.js inlining; profiler re-run.
 Profiler-driven extras (25f527a016): seven anonymous forwardRefs named — the profile's
 top line "ForwardRef(Anonymous)" ×594 was their aggregate, dominated by EnhancedButton —
 and EnhancedButton no longer wraps tooltip-less buttons in Tooltip/Trigger (the
