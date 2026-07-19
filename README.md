@@ -9,19 +9,10 @@
   </a>
   
 <div align="center">
-  <strong> <h1> The Open-source LLMOps Platform </h1></strong>
-  Build reliable LLM applications with prompt management, evaluation, and observability.
+  <strong> <h1> The open-source workspace for building and running agents </h1></strong>
+  Build agents that automate your work by chatting with them. Share them with your team, connect them to the apps you use, and run them in the background.
 </div>
 
-
-  <br />
-      <div align="center" >
-        <a href="https://www.youtube.com/watch?v=zZJfqkc608M" target="_blank">
-          <picture >
-            <img alt="Agenta platform walkthrough" src="https://github.com/user-attachments/assets/992d4880-86ce-44bc-bfe4-e9eae9b731c8" >
-          </picture>
-        </a>
-    </div>
 </div>
 
 ---
@@ -42,23 +33,21 @@
   <a href="https://github.com/Agenta-AI/agenta/blob/main/CONTRIBUTING.md">
     <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen" alt="PRs welcome" />
   </a>
-  <img src="https://img.shields.io/github/contributors/Agenta-AI/agenta" alt="Contributors">
   <a href="https://pypi.org/project/agenta/">
     <img src="https://img.shields.io/pypi/dm/agenta" alt="PyPI - Downloads">
   </a>
-  <img src="https://img.shields.io/github/last-commit/Agenta-AI/agenta" alt="Last Commit">
 </br>
 </p>
 
 <p align="center">
     <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw">
-        <img src="https://img.shields.io/badge/JOIN US ON SLACK-4A154B?style=for-the-badge&logo=slack&logoColor=white" />
+        <img src="https://custom-icon-badges.demolab.com/badge/Slack-4A154B?logo=slack&logoColor=fff" alt="Join us on Slack" />
     </a>
     <a href="https://www.linkedin.com/company/agenta-ai/">
-        <img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white" />
+        <img src="https://custom-icon-badges.demolab.com/badge/LinkedIn-0A66C2?logo=linkedin-white&logoColor=fff" alt="Follow Agenta on LinkedIn" />
     </a>
     <a  href="https://twitter.com/agenta_ai">
-        <img src="https://img.shields.io/twitter/follow/agenta_ai?style=social" height="28" />
+        <img src="https://img.shields.io/twitter/follow/agenta_ai?style=social" height="28" alt="Follow @agenta_ai on X" />
     </a>
 </p>
 
@@ -76,102 +65,154 @@
 
 ## What is Agenta?
 
-Agenta is a platform for building production-grade LLM applications. It helps **engineering** and **product teams** create reliable LLM apps faster through integrated prompt management, evaluation, and observability.
+Agenta is an open-source workspace where you build specialized agents that automate and augment your work.
 
-## Core Features
+You build agents by chatting with them. You describe the work, connect the apps they need, and improve them through feedback.
 
-### 🧪 Prompt Management & Prompt Engineering
-Collaborate with Subject Matter Experts (SMEs) on prompt engineering and make sure nothing breaks in production.
+You can work with your agents directly in chat and share them with your team.
 
-- **Interactive LLM Playground**: Compare prompts side by side against your test cases
-- **Multi-Model Support**: Experiment with 50+ LLM models or [bring-your-own models](https://agenta.ai/docs/prompt-engineering/playground/custom-providers?utm_source=github&utm_medium=referral&utm_campaign=readme)
-- **Version Control**: Version prompts and configurations with branching and environments
-- **Complex Configurations**: Enable SMEs to collaborate on [complex configuration schemas](https://agenta.ai/docs/custom-workflows/overview?utm_source=github&utm_medium=referral&utm_campaign=readme) beyond simple prompts
+For recurring work, you can build background agents. These agents run on a schedule or when an event occurs.
 
-[Explore prompt management →](https://agenta.ai/docs/prompt-engineering/concepts?utm_source=github&utm_medium=referral&utm_campaign=readme)
+## Why use Agenta?
 
-### 📊 LLM Evaluation
-Evaluate your LLM applications systematically with both human and automated feedback.
-- **Flexible Testsets**: Create testcases from production data, playground experiments, or upload CSVs
-- **Pre-built and Custom Evaluators**: Use LLM-as-judge, one of our 20+ pre-built evaluators, or your custom evaluators
-- **UI and API Access**: Run evaluations via UI (for SMEs) or programmatically (for engineers)
-- **Human Feedback Integration**: Collect and incorporate expert annotations
+### Use your Claude or ChatGPT subscription
 
-[Explore evaluation frameworks →](https://agenta.ai/docs/evaluation/overview?utm_source=github&utm_medium=referral&utm_campaign=readme)
+When you self-host Agenta, you can run agents locally with your existing Claude or ChatGPT subscription. You do not need to move every task to metered API billing.
 
-### 📡 LLM Observability
-Get visibility into your LLM applications in production.
-- **Cost & Performance Tracking**: Monitor spending, latency, and usage patterns
-- **LLM Tracing**: Debug complex workflows with detailed traces
-- **Open Standards**: OpenTelemetry native tracing compatible with OpenLLMetry, and OpenInference
-- **Integrations**: Comes with pre-built integrations for most models and frameworks
+### Choose your harness and model
 
-[Learn about observability →](https://agenta.ai/docs/observability/overview?utm_source=github&utm_medium=referral&utm_campaign=readme)
+Switch harnesses and models without rebuilding your agent. Agenta already supports almost any model, whether self-hosted or accessed through an API. Agenta supports Claude Code and Pi as harnesses today, with [more harnesses planned](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme).
 
-## 📸 Screenshots
+### Build with open agent standards
 
-<img alt="Playground" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/a4f67ac4-1acc-40c6-7a1a-5616eee7bb00/large" />
-<img alt="Prompt Management" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/65f697d0-3221-4e3c-7232-f350b1976a00/large" />
-<img alt="Evaluation" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/19b5b77e-6945-4419-15b9-cfea197e1300/large" />
-<img  alt="Observability" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/efc8a24c-2a2a-427c-f285-7d8b41200700/large" />
+Define your agent with `AGENTS.md`, skills, and MCP servers. You can bring skills and MCP servers from the agent ecosystem into Agenta.
 
-## 🚀 Getting Started 
+### Make your agents more reliable over time
 
-### Agenta Cloud (Recommended):
-The easiest way to get started is through Agenta Cloud. Free tier available with no credit card required.
+Agenta traces every run and keeps a version history of each agent configuration. Use this history to understand failures, compare changes, and improve your agents over time.
+
+## Features
+
+**Workspaces for you and your agents.** Work with your agent on files in a shared workspace. Together, you can write documents, organize research, or maintain a wiki.
+
+**Human approval and permissions.** Specify permissions for each tool. Choose which actions background agents can run automatically, which need your approval, and which are blocked.
+
+**Background agents.** Run agents on a schedule or start them when an event occurs in a connected app.
+
+**Tracing, usage, and cost.** Inspect every model and tool call. Track model requests, token usage, and estimated costs for each agent.
+
+**Team access.** The open-source version lets you share agents with your team and control access by role.
+
+**Integrations.** Connect your agents to the applications you use through MCP, or integrate with more than 1,000 apps through Composio, including Gmail, Slack, Notion, and GitHub.
+
+## Get started
+
+### Try Agenta Cloud
+
+The fastest way to try Agenta.
 
 <p align="center">
   <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
       <picture >
         <source width="200" media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2"  >
         <source width="200" media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2"  >
-        <img alt="Try Agenta Live Demo" src="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2" >
+        <img alt="Try Agenta Cloud" src="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2" >
       </picture>
   </a>
 </p>
 
-  
-   
-### Self-hosting Agenta
+### Self-host Agenta
 
-1. Clone Agenta:
-```bash
-git clone https://github.com/Agenta-AI/agenta && cd agenta
-```
-2. Copy configuration:
+Paste this into your agent and it will walk you through setup and testing:
 
-Before starting the services, create the environment file from the example:
-
-```bash
-cp hosting/docker-compose/oss/env.oss.gh.example hosting/docker-compose/oss/.env.oss.gh
+```text
+1. Install the Agenta self-hosting skill: npx skills add Agenta-AI/agenta-skills
+2. Help me self-host Agenta with its repository.
 ```
 
-3. Start Agenta services:
-```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
-```
+For more details, read the [self-hosting documentation](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme).
 
-4. Access Agenta at `http://localhost`.
+## Roadmap
 
-For deploying on a remote host, or using different ports refer to our [self-hosting](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme) and [remote deployment documentation](https://agenta.ai/docs/self-host/guides/deploy-remotely?utm_source=github&utm_medium=referral&utm_campaign=readme).
+**Harnesses**
 
-## 💬 Community
+- [x] Claude Code
+- [x] Pi
+- [ ] Codex
+- [ ] Gemini
+- [ ] OpenCode
+- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
 
-Find help, explore resources, or get involved:
+**Models**
 
-### 🧰 Support
+- [x] OpenAI
+- [x] Anthropic
+- [x] OpenRouter
+- [x] Mistral AI
+- [x] Cohere
+- [x] Anyscale
+- [x] Perplexity AI
+- [x] DeepInfra
+- [x] Together AI
+- [x] Groq
+- [x] Google Gemini
+- [x] Azure
+- [x] AWS Bedrock
+- [x] MiniMax
+- [x] OpenAI-compatible models
+- [x] Self-hosted models (Ollama)
+- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
 
-- **📚 [Documentation](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Full guides and API reference  
-- **📋 [Changelog](https://agenta.ai/docs/changelog?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Track recent updates  
-- **💬 [Slack Community](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw)** – Ask questions and get support  
+**Agent runtimes**
 
-### 🤝 Contribute
+- [x] Local runtime
+- [x] Daytona sandboxes
+- [x] Docker sandboxes
+- [ ] E2B sandboxes
+- [ ] AgentComputer
+- [ ] Vercel
+- [ ] Cloudflare
+- [ ] Modal
+- [ ] BoxLite
+- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
 
-We welcome contributions of all kinds, from filing issues and sharing ideas to improving the codebase. Check out our [CONTRIBUTING.md](CONTRIBUTING.md) and:
+**Features**
 
-- **🐛 [Report bugs](https://github.com/Agenta-AI/agenta/issues)** – Help us by reporting problems you encounter  
-- **💡 [Share ideas and feedback](https://github.com/Agenta-AI/agenta/discussions)** – Suggest features or vote on ideas
-- **🔧 [Contribute to the codebase](https://agenta.ai/docs/contributing/overview?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Read the guide and open a pull request
+- [x] Schedules
+- [x] Events from connected apps
+- [x] MCP servers (API key + unauthenticated)
+- [ ] Generic webhook triggers
+- [ ] Additional MCP transports (OAuth)
+- [ ] Channels (Slack, Telegram, Discord, Teams)
+- [ ] Mobile version
+
+See the [complete roadmap](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme). Want to help with one of these items? [Open a discussion](https://github.com/Agenta-AI/agenta/discussions) or contribute.
+
+## How Agenta compares
+
+### n8n, Activepieces, and Zapier
+
+These products are designed for building workflows with predefined steps. Agenta is designed for work that requires an agent to plan, use tools, and adapt its approach. Use a workflow builder for predictable processes. Use Agenta when the work needs judgment, or when you want the same agent to work with you in chat and run in the background.
+
+### Claude Cowork
+
+Claude Cowork provides a workspace built around Claude. Agenta is open source and lets you choose your harness and model, inspect the components of your agents, and run them interactively or in the background.
+
+### Claude Code, Codex, Pi, and OpenCode
+
+These coding agents provide the execution layer that plans work and uses tools. Agenta adds the shared workspace around that execution layer: files, team access, triggers, versions, and traces. Agenta supports Claude Code and Pi today. Support for more harnesses is on the roadmap.
+
+## Community and contributing
+
+Agenta is open source under the MIT License. You can inspect the code, run it yourself, and help shape what we build next.
+
+- [Read the documentation](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme)
+- [Report a bug](https://github.com/Agenta-AI/agenta/issues)
+- [Request a feature or share an idea](https://github.com/Agenta-AI/agenta/discussions)
+- [Read the contributing guide](CONTRIBUTING.md)
+- [Join the Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw)
+
+If Agenta is useful to you, star the repository and tell us what you build.
 
 ## ⭐ Star Agenta
 
@@ -296,7 +337,3 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
 This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind are welcome!
-
-## Disabling Anonymized Tracking
-
-By default, Agenta automatically reports anonymized basic usage statistics. This helps us understand how Agenta is used and track its overall usage and growth. This data does not include any sensitive information. To disable anonymized telemetry set `AGENTA_TELEMETRY_ENABLED` to `false` in your `.env` file.
