@@ -11,18 +11,6 @@
 <div align="center">
   <strong> <h1> The open-source workspace for building and running agents </h1></strong>
   Build agents that automate your work by chatting with them. Share them with your team, connect them to the apps you use, and run them in the background.
-</div>
-  <br />
-      <div align="center" >
-        <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
-          <picture >
-        <source media="(prefers-color-scheme: dark)" srcset="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/6fa19a9d-9785-4acf-5d08-e81b1e38b100/large"  >
-        <source media="(prefers-color-scheme: light)" srcset="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/6fa19a9d-9785-4acf-5d08-e81b1e38b100/large"  >
-        <img alt="Shows the logo of agenta" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/6fa19a9d-9785-4acf-5d08-e81b1e38b100/large" >
-          </picture>
-        </a>
-    </div>
-</div>
 
 ---
 
@@ -88,15 +76,15 @@ For recurring work, you can build background agents. These agents run on a sched
 
 ### Use your Claude or ChatGPT subscription
 
-When you self-host Agenta, you can run agents with your existing Claude or ChatGPT subscription. You do not need to move every task to metered API billing.
+When you self-host Agenta, you can run agents locally with your existing Claude or ChatGPT subscription with [more harnesses planned](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme). 
 
 ### Choose your harness and model
 
-Switch harnesses and models without rebuilding your agent. Agenta already supports almost any model, whether self-hosted or accessed through an API. Agenta supports Claude Code and Pi as harnesses today, with more harnesses planned. See the [support matrix](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme).
+Switch harnesses and models without rebuilding your agent. Agenta already supports almost any model, whether self-hosted or through API. Agenta supports Claude Code and Pi as harnesses today, with [more harnesses planned](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme).
 
 ### Build with open agent standards
 
-Define your agent with AGENTS.md, skills, and MCP servers. Bring skills and MCP servers from the wider agent ecosystem into Agenta, then inspect and adapt them for your agent.
+Define your agent with `AGENTS.md`, skills, and MCP servers. You can bring skills and MCP servers from the agent ecosystem into Agenta.
 
 ### Make your agents more reliable over time
 
@@ -104,12 +92,17 @@ Agenta traces every run and keeps a version history of each agent configuration.
 
 ## Features
 
-- **Workspaces for you and your agents.** Work with your agent on files in a shared workspace. Together, you can write documents, organize research, and maintain a wiki.
-- **Human approval and permissions.** Specify permissions for each tool. Choose which actions background agents can run automatically, which need your approval, and which are blocked.
-- **Background agents.** Run agents on a schedule or start them when an event occurs in a connected app.
-- **Tracing, usage, and cost.** Inspect every model and tool call. Track model requests, token usage, and estimated costs for each agent.
-- **Team access.** The open-source version lets you share agents with your team and control access by role.
-- **Integrations.** Connect your agents to more than 1,000 apps through Composio, including Gmail, Slack, Notion, and GitHub. Use MCP servers to connect other services.
+**Workspaces for you and your agents.** Work with your agent on files in a shared workspace. Together, you can write documents, organize research, or maintain a wiki.
+
+**Human approval and permissions.** Specify permissions for each tool. Choose which actions background agents can run automatically, which need your approval, and which are blocked.
+
+**Background agents.** Run agents on a schedule or start them when an event occurs in a connected app.
+
+**Tracing, usage, and cost.** Inspect every model and tool call. Track model requests, token usage, and estimated costs for each agent.
+
+**Team access.** The open-source version lets you share agents with your team and control access by role.
+
+**Integrations.** Connect your agents to the applications you use through MCP, or integrate with more than 1,000 apps through Composio, including Gmail, Slack, Notion, and GitHub.
 
 ## Roadmap
 
@@ -120,29 +113,54 @@ Agenta is still evolving. Checked items are available today. Unchecked items are
 - [x] Claude Code
 - [x] Pi
 - [ ] Codex
+- [ ] Gemini
 - [ ] OpenCode
-- [ ] More harnesses
+- [ ] [Create an issue to add yours to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
 
 **Models**
 
-- [x] Models accessed through provider APIs
-- [ ] OpenAI-compatible models
-- [ ] Self-hosted models
+- [x] OpenAI
+- [x] Anthropic
+- [x] Openrouter
+- [x] OpenAI
+- [x] Mistral AI
+-	[x] Cohere
+-	[x] Anyscale
+-	[x] Perplexity AI
+-	[x] DeepInfra
+-	[x] Together AI
+-	[x] Groq
+-	[x] Google Gemini
+-	[x] Azure
+-	[x] AWS Bedrock
+-	[x] MiniMax
+- [x] OpenAI-compatible models
+- [x] Self-hosted models (Ollama)
+- [ ] [Create an issue to add yours to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
 
 **Agent runtimes**
 
 - [x] Local runtime
 - [x] Daytona sandboxes
-- [ ] Docker sandboxes
+- [x] Docker sandboxes
 - [ ] E2B sandboxes
+- [ ] AgentComputer
+- [ ] Vercel
+- [ ] Cloudflare
+- [ ] Modal
+- [ ] BoxLite
+- [ ] [Create an issue to add yours to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
 
-**Triggers and connections**
+
+**Features**
 
 - [x] Schedules
 - [x] Events from connected apps
-- [x] MCP servers
+- [x] MCP servers (API key + unauthenticated)
 - [ ] Generic webhook triggers
-- [ ] Additional MCP transports
+- [ ] Additional MCP transports (Oauth)
+- [ ] Channels (Slack, Telegram, Discord, Teams)
+- [ ] Mobile version
 
 See the [complete roadmap](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme). Want to help with one of these items? [Open a discussion](https://github.com/Agenta-AI/agenta/discussions) or contribute.
 
