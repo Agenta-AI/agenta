@@ -204,9 +204,11 @@ natively. Today that splits cleanly into two paths.
   (`services/runner/src/tools/tool-mcp-stdio.ts`, bundled by `build:extension`) plus a
   public-specs JSON file into an ephemeral in-VM dir and advertises them as a stdio entry the
   harness spawns; the shim's `tools/call` writes relay request files that the runner-side
-  relay loop executes server-side. The shim carries executable (gateway/callback) tools only;
-  client tools on a non-Pi remote run are refused up front, and a non-Daytona remote provider
-  fails closed (see "Client tools" below). The full transport and env contract lives in the
+  relay loop executes server-side. The shim carries BOTH executable (gateway/callback) AND
+  `client` tools: an executable call relays inline, and a `client` call parks — the relay writes
+  a benign "paused" answer so the shim ends its `tools/call` cleanly while the runner ends the
+  turn (see "Client tools" below). A non-Daytona remote provider still fails closed. The full
+  transport and env contract lives in the
   [runner-to-MCP interface page](../interfaces/cross-service/runner-to-mcp-server.md).
 
 Both paths funnel execution through one function, `runResolvedTool` in
@@ -356,19 +358,23 @@ The pause itself is shared by both delivery paths through one seam
 
 - **Pi** calls the tool through its extension; the runner's file relay pauses it (writes no
   response file) and the seam emits the interaction.
-- **Claude** calls the tool over the internal `agenta-tools` MCP server, and the runner pauses it
-  inside the `tools/call` handler: it emits NO JSON-RPC result and aborts that in-flight request,
-  so Claude cannot settle the call before the turn ends `paused`. The browser result resumes it
-  next turn (the MCP handler returns the stored output if the model re-calls). This pause is
-  local-only: the Daytona stdio shim has no pause path (the relay loop parks a client call and
-  writes no response file, so the shim would hang until the relay timeout and teach the model
-  the tool is broken), so a non-Pi remote run carrying a client tool is refused up front
-  (`REMOTE_CLIENT_TOOLS_UNSUPPORTED_MESSAGE`), never delivered silently. Executable tools DO
-  deliver on Claude+Daytona through the shim; a remote provider that is not Daytona still
-  refuses ANY custom tool (`REMOTE_TOOLS_UNSUPPORTED_MESSAGE`) until in-sandbox delivery is
-  proven there. (The ACP permission gate in `acp-interactions.ts` keeps its own
-  `kind: "client"` pause branch as a live fallback for a harness that raises a permission gate
-  carrying a resolved client spec.)
+- **Claude on the LOCAL sandbox** calls the tool over the internal `agenta-tools` loopback MCP
+  server, and the runner pauses it inside the `tools/call` handler: it emits NO JSON-RPC result
+  and aborts that in-flight request, so Claude cannot settle the call before the turn ends
+  `paused`. The browser result resumes it next turn (the MCP handler returns the stored output if
+  the model re-calls).
+- **Claude on DAYTONA** calls the tool over the in-sandbox stdio shim. The shim blocks on a relay
+  answer file, so the runner cannot simply drop the response the way the local path aborts its
+  request. Instead the relay loop writes a benign "paused" answer (`{ ok: true, paused: true }`,
+  gated by the run plan's `writePausedAnswer` flag), and the shim returns a non-error wait result
+  that names the tool and tells the model not to retry. Claude's turn ends cleanly while the
+  runner ends the turn on the shared pause seam; the browser result returns on the cold-replay
+  resume turn, exactly as on the local and Pi paths. This closes the Claude+Daytona gap (#5256)
+  and the residual mixed-set silent drop (#4984). A remote provider that is NOT Daytona still
+  refuses ANY custom tool (`REMOTE_TOOLS_UNSUPPORTED_MESSAGE`) until in-sandbox delivery is proven
+  there. (The ACP permission gate in `acp-interactions.ts` keeps its own `kind: "client"` pause
+  branch as a live fallback for a harness that raises a permission gate carrying a resolved client
+  spec.)
 
 A client tool's `render` hint can be `{ kind: "connect" }` (e.g. `request_connection`), the typed
 member of `RenderHint` that asks the frontend to draw the connect widget.

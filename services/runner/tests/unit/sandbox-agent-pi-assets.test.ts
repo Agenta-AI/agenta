@@ -9,6 +9,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -31,8 +32,19 @@ import {
   resolvePiSkillSnapshot,
   uploadDirToSandbox,
   writeOtlpAuthFile,
+  writePiModelsConfigLocal,
   writeSystemPromptLocal,
 } from "../../src/engines/sandbox_agent/pi-assets.ts";
+import type { PiModelConfigPlan } from "../../src/engines/sandbox_agent/pi-model-config.ts";
+
+const MODEL_CONFIG_PLAN: PiModelConfigPlan = {
+  providerId: "my-ollama",
+  providerFamily: "openai",
+  api: "openai-completions",
+  baseUrl: "https://example.test/v1",
+  apiKeyEnv: "OPENAI_API_KEY",
+  models: [{ id: "qwen2.5-coder:7b" }],
+};
 
 describe("Pi session workspace", () => {
   it("uses one stable transcript directory inside the conversation cwd", () => {
@@ -388,6 +400,60 @@ describe("prepareLocalAgentDir", () => {
       else process.env.SANDBOX_AGENT_EXTENSION_BUNDLE = previous;
     }
   });
+
+  it("with seedCredentials=false, skips the operator's auth.json but keeps settings.json", () => {
+    const source = tempDir("agenta-pi-source-nocreds-");
+    writeFileSync(join(source, "auth.json"), '{"token":"personal"}', "utf-8");
+    writeFileSync(join(source, "settings.json"), '{"model":"gpt"}', "utf-8");
+
+    const { dir: runDir } = prepareLocalAgentDir(source, undefined, {
+      seedCredentials: false,
+    });
+    dirs.push(runDir);
+
+    // The operator's personal login never leaks into a managed custom run's isolated dir...
+    assert.equal(existsSync(join(runDir, "auth.json")), false);
+    // ...but non-credential settings are still carried.
+    assert.equal(
+      readFileSync(join(runDir, "settings.json"), "utf-8"),
+      '{"model":"gpt"}',
+    );
+  });
+});
+
+describe("writePiModelsConfigLocal", () => {
+  it("writes an exact 0600 models.json via an atomic temp-file + rename", () => {
+    const dir = tempDir("agenta-pi-models-config-");
+
+    writePiModelsConfigLocal(dir, MODEL_CONFIG_PLAN);
+
+    const path = join(dir, "models.json");
+    assert.equal(statSync(path).mode & 0o777, 0o600);
+    assert.deepEqual(JSON.parse(readFileSync(path, "utf-8")), {
+      providers: {
+        "my-ollama": {
+          baseUrl: "https://example.test/v1",
+          api: "openai-completions",
+          apiKey: "$OPENAI_API_KEY",
+          models: [{ id: "qwen2.5-coder:7b" }],
+        },
+      },
+    });
+    // No staging file lingers.
+    assert.equal(
+      readdirSync(dir).some((n) => n.startsWith(".models.json.")),
+      false,
+    );
+  });
+
+  it("throws when the target cannot be written (materialization is terminal)", () => {
+    const dir = tempDir("agenta-pi-models-config-fail-");
+    // A non-empty directory occupying models.json makes the rename fail.
+    mkdirSync(join(dir, "models.json"));
+    writeFileSync(join(dir, "models.json", "keep.txt"), "x", "utf-8");
+
+    assert.throws(() => writePiModelsConfigLocal(dir, MODEL_CONFIG_PLAN));
+  });
 });
 
 describe("prepareLocalPiAssets (managed/none routes through a throwaway dir)", () => {
@@ -438,6 +504,66 @@ describe("prepareLocalPiAssets (managed/none routes through a throwaway dir)", (
         delete process.env.SANDBOX_AGENT_EXTENSION_BUNDLE;
       else process.env.SANDBOX_AGENT_EXTENSION_BUNDLE = previous;
     }
+  });
+
+  it("reports modelConfigWritten=true for a plain run with no model-config plan", () => {
+    const { dir: runDir, modelConfigWritten } = prepareLocalPiAssets({
+      plan: plainPiPlan,
+      env: {},
+    });
+    if (runDir) dirs.push(runDir);
+    assert.equal(modelConfigWritten, true);
+    assert.equal(existsSync(join(runDir as string, "models.json")), false);
+  });
+
+  it("still copies the operator's auth.json for a managed run WITHOUT a model-config plan (unchanged)", () => {
+    const source = tempDir("agenta-pi-managed-noplan-source-");
+    writeFileSync(join(source, "auth.json"), '{"token":"managed"}', "utf-8");
+
+    const { dir: runDir } = prepareLocalPiAssets({
+      plan: { ...plainPiPlan, sourcePiAgentDir: source },
+      env: {},
+    });
+    assert.ok(runDir);
+    dirs.push(runDir as string);
+    assert.equal(
+      readFileSync(join(runDir as string, "auth.json"), "utf-8"),
+      '{"token":"managed"}',
+    );
+  });
+
+  it("for a model-config plan: writes models.json, omits auth.json, and points PI_CODING_AGENT_DIR at the dir", () => {
+    const source = tempDir("agenta-pi-managed-plan-source-");
+    writeFileSync(join(source, "auth.json"), '{"token":"personal"}', "utf-8");
+    writeFileSync(join(source, "settings.json"), '{"model":"x"}', "utf-8");
+    const env: Record<string, string> = {};
+
+    const { dir: runDir, modelConfigWritten } = prepareLocalPiAssets({
+      plan: { ...plainPiPlan, sourcePiAgentDir: source },
+      env,
+      piModelConfig: MODEL_CONFIG_PLAN,
+    });
+
+    assert.ok(runDir);
+    dirs.push(runDir as string);
+    assert.equal(modelConfigWritten, true);
+    assert.equal(env.PI_CODING_AGENT_DIR, runDir);
+    // The managed custom run authenticates from $OPENAI_API_KEY, never the operator's login.
+    assert.equal(existsSync(join(runDir as string, "auth.json")), false);
+    // Non-credential settings are still carried.
+    assert.equal(
+      readFileSync(join(runDir as string, "settings.json"), "utf-8"),
+      '{"model":"x"}',
+    );
+    // The exact models.json is present and references only the env var.
+    const modelsText = readFileSync(
+      join(runDir as string, "models.json"),
+      "utf-8",
+    );
+    assert.equal(modelsText.includes("$OPENAI_API_KEY"), true);
+    assert.deepEqual(JSON.parse(modelsText).providers["my-ollama"].models, [
+      { id: "qwen2.5-coder:7b" },
+    ]);
   });
 });
 

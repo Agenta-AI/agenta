@@ -364,7 +364,12 @@ async def test_custom_gateway_api_key_from_extras_and_endpoint(fake_http, connec
     assert resolved.endpoint.base_url == "https://93.184.216.34/v1"
 
 
-async def test_custom_provider_private_url_is_dropped_not_pinned(fake_http, connection):
+async def test_custom_provider_private_url_fails_loud_not_dropped(
+    fake_http, connection
+):
+    # Decision 4: a chosen named custom connection whose endpoint is blocked must fail loud, not
+    # silently continue endpoint-less onto a provider default. The error names the slug, points
+    # at AGENTA_INSECURE_EGRESS_ALLOWED, and never carries the API key.
     fake_http(
         connections,
         payload=[
@@ -377,14 +382,18 @@ async def test_custom_provider_private_url_is_dropped_not_pinned(fake_http, conn
             )
         ],
     )
-    resolved = await VaultConnectionResolver(connection).resolve(
-        model=_model("internal-gw", provider="anthropic", model="gpt-5.5"),
-        context=RuntimeAuthContext(harness="claude"),
-    )
-    assert resolved.endpoint is None
+    with pytest.raises(ConnectionResolutionError) as exc:
+        await VaultConnectionResolver(connection).resolve(
+            model=_model("internal-gw", provider="anthropic", model="gpt-5.5"),
+            context=RuntimeAuthContext(harness="claude"),
+        )
+    message = str(exc.value)
+    assert "internal-gw" in message
+    assert "AGENTA_INSECURE_EGRESS_ALLOWED" in message
+    assert "sk-gw" not in message
 
 
-async def test_custom_provider_loopback_url_is_dropped_not_pinned(
+async def test_custom_provider_loopback_url_fails_loud_not_dropped(
     fake_http, connection
 ):
     fake_http(
@@ -399,11 +408,12 @@ async def test_custom_provider_loopback_url_is_dropped_not_pinned(
             )
         ],
     )
-    resolved = await VaultConnectionResolver(connection).resolve(
-        model=_model("loopback-gw", provider="anthropic", model="gpt-5.5"),
-        context=RuntimeAuthContext(harness="claude"),
-    )
-    assert resolved.endpoint is None
+    with pytest.raises(ConnectionResolutionError) as exc:
+        await VaultConnectionResolver(connection).resolve(
+            model=_model("loopback-gw", provider="anthropic", model="gpt-5.5"),
+            context=RuntimeAuthContext(harness="claude"),
+        )
+    assert "loopback-gw" in str(exc.value)
 
 
 async def test_custom_provider_ssrf_guard_defaults_secure(fake_http, connection):
@@ -425,12 +435,75 @@ async def test_custom_provider_ssrf_guard_defaults_secure(fake_http, connection)
             )
         ],
     )
-    resolved = await VaultConnectionResolver(connection).resolve(
-        model=_model("private-gw", provider="anthropic", model="gpt-5.5"),
-        context=RuntimeAuthContext(harness="claude"),
+    # Blocked by default (secure) — and a chosen custom connection fails loud rather than
+    # continuing endpoint-less.
+    with pytest.raises(ConnectionResolutionError) as exc:
+        await VaultConnectionResolver(connection).resolve(
+            model=_model("private-gw", provider="anthropic", model="gpt-5.5"),
+            context=RuntimeAuthContext(harness="claude"),
+        )
+    assert "AGENTA_INSECURE_EGRESS_ALLOWED" in str(exc.value)
+
+
+async def test_openai_compatible_custom_normalizes_to_openai(fake_http, connection):
+    # Decision 2: a provider-less named custom connection resolves to the openai provider family,
+    # keeps deployment=custom and the exact model id + endpoint, and routes its key through
+    # OPENAI_API_KEY only (the family's canonical env var). The connection slug stays identity,
+    # never the provider family.
+    endpoint = "https://93.184.216.34/v1"
+    model_id = "qwen2.5-coder:7b"
+    fake_http(
+        connections,
+        payload=[
+            _custom_provider(
+                "my-ollama",
+                "custom",
+                key="sk-oai-compatible",
+                url=endpoint,
+                models=[model_id],
+            )
+        ],
     )
-    # Blocked with no env var required — secure by default.
-    assert resolved.endpoint is None
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            model=model_id, connection={"mode": "agenta", "slug": "my-ollama"}
+        ),
+        context=_context(),
+    )
+    assert resolved.provider == "openai"
+    assert resolved.deployment == "custom"
+    assert resolved.model == model_id
+    assert resolved.endpoint.base_url == endpoint
+    assert resolved.credential_mode == "env"
+    assert resolved.env == {"OPENAI_API_KEY": "sk-oai-compatible"}
+
+
+async def test_openai_compatible_custom_missing_url_fails_loud(fake_http, connection):
+    # Decision 4: an explicit named custom connection with no base URL fails loud (naming the
+    # slug), rather than resolving with endpoint=None and letting the harness pick a default.
+    fake_http(
+        connections,
+        payload=[
+            _custom_provider(
+                "my-ollama",
+                "custom",
+                key="sk-oai-compatible",
+                url=None,
+                models=["qwen2.5-coder:7b"],
+            )
+        ],
+    )
+    with pytest.raises(ConnectionResolutionError) as exc:
+        await VaultConnectionResolver(connection).resolve(
+            model=ModelRef(
+                model="qwen2.5-coder:7b",
+                connection={"mode": "agenta", "slug": "my-ollama"},
+            ),
+            context=_context(),
+        )
+    message = str(exc.value)
+    assert "my-ollama" in message
+    assert "sk-oai-compatible" not in message
 
 
 async def test_full_custom_model_key_selects_and_strips_to_backend_model(

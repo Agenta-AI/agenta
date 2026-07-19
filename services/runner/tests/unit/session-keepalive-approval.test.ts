@@ -23,10 +23,8 @@ import {
   type KeepaliveContext,
   type KeepaliveEngine,
 } from "../../src/server.ts";
-import {
-  SessionPool,
-  type KeepaliveConfig,
-} from "../../src/engines/sandbox_agent/session-pool.ts";
+import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
+import type { KeepaliveConfig } from "../../src/engines/sandbox_agent/session-identity.ts";
 import type { MountCredentials } from "../../src/engines/sandbox_agent/mount.ts";
 import {
   acquireEnvironment,
@@ -979,6 +977,10 @@ function pausableHarness(opts: { clientTool?: boolean } = {}) {
           run.open.delete(id);
           run.settled.push({ id, message });
         }
+      },
+      denied: [] as string[],
+      markToolCallDenied(id: string | undefined) {
+        if (id) run.denied.push(id);
       },
       traceId() {
         return "trace-1";

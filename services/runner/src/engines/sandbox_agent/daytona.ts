@@ -6,6 +6,11 @@ import {
   uploadSkillsToSandbox,
   uploadSystemPromptToSandbox,
 } from "./pi-assets.ts";
+import {
+  PI_MODELS_JSON_FILENAME,
+  serializePiModelsJson,
+  type PiModelConfigPlan,
+} from "./pi-model-config.ts";
 import { type RunPlan } from "./run-plan.ts";
 
 type Log = (message: string) => void;
@@ -139,6 +144,49 @@ export async function ensurePiInSandbox(
   }
 }
 
+/**
+ * Upload the exact Pi `models.json` into a Daytona sandbox's Pi agent dir, overwriting any stale
+ * file left by an earlier configuration on a reused sandbox. THROWS on failure so the caller makes
+ * materialization terminal — a managed custom run must never fall through to a default provider
+ * (design Decision 6). The document carries only the `$OPENAI_API_KEY` reference; the key value
+ * itself rides `daytonaEnvVars` into the sandbox env.
+ */
+export async function uploadPiModelsConfigToSandbox(
+  sandbox: any,
+  agentDir: string,
+  plan: PiModelConfigPlan,
+  log: Log = () => {},
+): Promise<void> {
+  await sandbox.mkdirFs({ path: agentDir });
+  await sandbox.writeFsFile(
+    { path: `${agentDir}/${PI_MODELS_JSON_FILENAME}` },
+    serializePiModelsJson(plan),
+  );
+  log(
+    `pi models.json uploaded provider=${plan.providerId} api=${plan.api} ` +
+      `model=${plan.models.map((m) => m.id).join(",")}`,
+  );
+}
+
+/**
+ * Remove any stale Pi `models.json` from a reused sandbox when the current run has NO model-config
+ * plan, so a reused/parked sandbox never retains a custom provider from an earlier configuration.
+ * Best-effort: an absent file (or a provider without a delete op) is fine.
+ */
+export async function removePiModelsConfigFromSandbox(
+  sandbox: any,
+  agentDir: string,
+  log: Log = () => {},
+): Promise<void> {
+  try {
+    await sandbox.deleteFsEntry?.({
+      path: `${agentDir}/${PI_MODELS_JSON_FILENAME}`,
+    });
+  } catch (err) {
+    log(`pi models.json cleanup skipped: ${(err as Error).message}`);
+  }
+}
+
 export interface PrepareDaytonaPiAssetsInput {
   sandbox: any;
   plan: Pick<
@@ -149,6 +197,12 @@ export interface PrepareDaytonaPiAssetsInput {
     | "systemPrompt"
     | "appendSystemPrompt"
   >;
+  /**
+   * A managed OpenAI-compatible custom run's Pi provider config. When set, its `models.json` is
+   * uploaded before the ACP session starts; when absent, any stale `models.json` on a reused
+   * sandbox is removed so no earlier provider survives.
+   */
+  piModelConfig?: PiModelConfigPlan;
   log?: Log;
 }
 
@@ -161,6 +215,7 @@ export interface PrepareDaytonaPiAssetsInput {
 export async function prepareDaytonaPiAssets({
   sandbox,
   plan,
+  piModelConfig,
   log = () => {},
 }: PrepareDaytonaPiAssetsInput): Promise<boolean> {
   if (!plan.isPi) return true;
@@ -174,6 +229,19 @@ export async function prepareDaytonaPiAssets({
     DAYTONA_PI_DIR,
     log,
   );
+  // Managed OpenAI-compatible custom provider: upload the exact models.json (overwriting stale)
+  // before the session starts. No plan: remove any stale file so a reused sandbox keeps no earlier
+  // provider. Upload failure THROWS here and is terminal in the engine's acquire try.
+  if (piModelConfig) {
+    await uploadPiModelsConfigToSandbox(
+      sandbox,
+      DAYTONA_PI_DIR,
+      piModelConfig,
+      log,
+    );
+  } else {
+    await removePiModelsConfigFromSandbox(sandbox, DAYTONA_PI_DIR, log);
+  }
   if (plan.skillDirs.length > 0) {
     await uploadSkillsToSandbox(sandbox, DAYTONA_PI_DIR, plan.skillDirs, log);
   }

@@ -7,7 +7,6 @@ import {
   buildToolMcpServers,
 } from "../../tools/mcp-bridge.ts";
 import type { ClientToolRelay } from "../../tools/client-tool-relay.ts";
-import { executableToolSpecs } from "../../tools/public-spec.ts";
 // The shim's env contract, from the dependency-free names module — never from the shim's
 // bundle entrypoint (`tool-mcp-stdio.ts`), which server code must not import.
 import {
@@ -267,17 +266,20 @@ export interface SessionMcpServers {
  *
  * TWO INDEPENDENT LAYERS — do not merge their gates (the #4831 regression this fixed conflated
  * them into one switch; project gateway-tool-mcp):
- *  1. INTERNAL gateway-tool channel: the runner-synthesized advertisement of the run's resolved
- *     gateway/callback tools. Carries only public metadata; execution relays server-side. Two
+ *  1. INTERNAL tool channel: the runner-synthesized advertisement of the run's resolved tools —
+ *     gateway/callback tools AND browser-fulfilled `client` tools (the model must SEE a client
+ *     tool to call it; the call then parks). Carries only public metadata; execution relays
+ *     server-side (a `client` call parks rather than executing). Two
  *     transports by where the harness runs: LOCAL keeps the loopback HTTP MCP server
  *     (`buildToolMcpServers`); on DAYTONA the harness runs IN the sandbox (where `127.0.0.1`
  *     is the sandbox's loopback, not the runner's), so the channel is the uploaded in-sandbox
  *     stdio MCP shim instead (`buildInternalToolMcpEntry`, fed by `uploadToolMcpAssets` — its
- *     `tools/call` writes relay request files the runner-side loop executes). Daytona WITHOUT
- *     uploaded shim assets means no delivery path; `run-plan.ts` refuses undeliverable
- *     combinations (non-Daytona remotes, client tools on Daytona) before a session is ever
- *     built, and the log below states honestly whether an advertisement happened — it must
- *     never claim a delivery that isn't happening (the F1 false log).
+ *     `tools/call` writes relay request files the runner-side loop executes; a `client` tool
+ *     parks and the loop writes a benign paused answer). Daytona WITHOUT uploaded shim assets
+ *     means no delivery path; `run-plan.ts` refuses the one still-undeliverable combination (a
+ *     non-Daytona remote provider) before a session is ever built, and the log below states
+ *     honestly whether an advertisement happened — it must never claim a delivery that isn't
+ *     happening (the F1 false log).
  *  2. USER MCP capability (`toAcpMcpServers`): the user's own declared servers — stdio DISABLED,
  *     http delivered (#4834). UNCHANGED on every sandbox: a user http MCP is a REMOTE url the
  *     harness dials directly (not a runner loopback), so it stays reachable from a Daytona sandbox.
@@ -320,9 +322,10 @@ export async function buildSessionMcpServers({
   //    as the internal TYPELESS stdio entry instead — the in-sandbox harness launches the
   //    uploaded `tool-mcp-stdio.js`, which writes relay request files the runner-side relay
   //    loop executes (the loop already polls the sandbox FS; see `engines/sandbox_agent.ts`).
-  //    Only executable specs ride this channel (client tools have no pause path through the
-  //    shim; `run-plan.ts` refuses them on this path). Without uploaded assets there is no
-  //    delivery path and the honest no-channel log below fires.
+  //    BOTH executable and client specs ride this channel: an executable call relays inline,
+  //    a client call parks and the relay writes a benign paused answer so the shim ends its
+  //    `tools/call` cleanly while the runner ends the turn (see `startToolRelay`). Without
+  //    uploaded assets there is no delivery path and the honest no-channel log below fires.
   let internal: SessionMcpServers;
   if (!isDaytona) {
     internal = await buildToolMcpServers(toolSpecs, relayDir, {
@@ -330,7 +333,7 @@ export async function buildSessionMcpServers({
       signal,
       log,
     });
-  } else if (internalToolMcp && executableToolSpecs(toolSpecs).length > 0) {
+  } else if (internalToolMcp && toolSpecs.length > 0) {
     internal = {
       servers: [buildInternalToolMcpEntry(internalToolMcp, relayDir)],
       close: async () => {},
@@ -339,9 +342,11 @@ export async function buildSessionMcpServers({
     internal = { servers: [], close: async () => {} };
   }
   if (isDaytona && toolSpecs.length > 0) {
+    // Count every advertised tool, executable and client alike: both kinds now ride the shim
+    // (executable tools relay inline; a client tool parks and resolves via the paused answer).
     log(
       internal.servers.length > 0
-        ? `daytona: ${executableToolSpecs(toolSpecs).length} gateway tool(s) advertised via ` +
+        ? `daytona: ${toolSpecs.length} tool(s) advertised via ` +
             `the in-sandbox stdio MCP shim (the loopback MCP URL is unreachable from the sandbox)`
         : `daytona: ${toolSpecs.length} tool(s) NOT advertised (no in-sandbox tool MCP assets ` +
             `for this harness — run-plan should have refused this run)`,
