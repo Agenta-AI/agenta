@@ -42,7 +42,11 @@ const NoMobilePageWrapper = dynamic(
     },
 )
 const CustomPosthogProvider = dynamic(() => import("@/oss/lib/helpers/analytics/AgPosthogProvider"))
-const Layout = dynamic(() => import("@/oss/components/Layout/Layout"), {
+const loadLayout = () => import("@/oss/components/Layout/Layout")
+// Warm the Layout chunk during hydration — it otherwise downloads only after the
+// SuperTokens init gate releases, adding a serial round-trip before any chrome paints.
+if (typeof window !== "undefined") void loadLayout()
+const Layout = dynamic(loadLayout, {
     ssr: false,
 })
 
