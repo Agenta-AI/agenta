@@ -1,6 +1,9 @@
 > The runnable release gate now lives in the `agent-release-gate` skill
-> (`.agents/skills/agent-release-gate/`). This folder remains the design and findings archive for
-> that work.
+> (`.agents/skills/agent-release-gate/`), whose `SKILL.md` is the authoritative operating manual.
+> This folder is the design and findings archive for that work. **Everything below is historical**:
+> the recipe, commands, and artifact paths (`runs/`, `qa/runs/`, `qa/scripts/`) describe the manual
+> program that produced the skill and are kept for provenance. Run the gate from the skill, whose
+> artifacts land in `./qa-gate-runs/`, not from these instructions.
 
 # Agent-workflows QA and autohealing recipe
 

@@ -116,8 +116,11 @@ Check `docker ps` uptimes before believing a failure. Re-run before reporting.
 ## 10. Read-only by construction when real accounts are connected
 
 The project has live Gmail and GitHub connections. QA must never send mail, reply to a thread, or
-write to GitHub as a side effect. Derive tools from read-only use-cases AND filter any action whose
-name contains SEND/REPLY/CREATE/DELETE/UPDATE/MODIFY/TRASH/DRAFT/MERGE before it reaches an agent.
+write to GitHub as a side effect. Derive tools from read-only use-cases, then **allowlist** the
+result: keep only actions whose name begins with a known read verb (FETCH/LIST/GET/READ/SEARCH/
+VIEW/DESCRIBE/COUNT/FIND) and drop everything else. A write-verb *denylist* fails open — an action
+whose verb you never anticipated slips through and could mutate the real account. The allowlist
+fails closed: an unfamiliar action is dropped rather than run against the connected account.
 
 ## 11. The product fails OPEN, so absence of an error means nothing
 

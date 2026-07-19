@@ -133,6 +133,11 @@ def main() -> int:
     print(f"session={session_id}", file=sys.stderr)
     frames: list[str] = []
     text: list[str] = []
+    # A 2xx stream can still be a failure: empty, truncated, malformed, or carrying an `error`
+    # frame. Track those so the exit status reflects a genuinely completed response, not just
+    # that bytes arrived.
+    stream_errors: list[str] = []
+    finished_ok = False
     with httpx.Client(timeout=180.0) as client:
         with client.stream(
             "POST", url, params={"project_id": PROJECT}, json=body, headers=headers
@@ -152,11 +157,16 @@ def main() -> int:
                 try:
                     frame = json.loads(payload)
                 except json.JSONDecodeError:
+                    stream_errors.append(f"malformed SSE data frame: {payload[:200]}")
                     continue
                 t = frame.get("type", "?")
                 frames.append(t)
                 if t == "text-delta":
                     text.append(frame.get("delta", ""))
+                elif t == "error":
+                    stream_errors.append(json.dumps(frame)[:400])
+                elif t == "finish":
+                    finished_ok = frame.get("finishReason") == "stop"
                 if t in ("error", "finish", "tool-approval-request"):
                     print(f"  !! {t}: {json.dumps(frame)[:400]}", file=sys.stderr)
 
@@ -164,8 +174,18 @@ def main() -> int:
     dedup = [f for i, f in enumerate(frames) if i == 0 or frames[i - 1] != f]
     print(" -> ".join(dedup))
     print("\n--- assistant text ---")
-    print("".join(text).strip() or "(empty)")
-    return 0
+    body_text = "".join(text).strip()
+    print(body_text or "(empty)")
+    if stream_errors:
+        print(f"\n!! stream errors: {stream_errors}", file=sys.stderr)
+    ok = finished_ok and bool(body_text) and not stream_errors
+    if not ok:
+        print(
+            f"\n!! incomplete stream (finish=stop:{finished_ok} text:{bool(body_text)} "
+            f"errors:{len(stream_errors)})",
+            file=sys.stderr,
+        )
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":

@@ -52,17 +52,20 @@ READ_ONLY_USE_CASES = [
     "list my github repositories",
     "read github issues",
 ]
-# Any action whose name suggests a write is dropped, belt-and-braces, before it reaches an agent.
-_WRITE_ISH = (
-    "SEND",
-    "REPLY",
-    "CREATE",
-    "DELETE",
-    "UPDATE",
-    "MODIFY",
-    "TRASH",
-    "DRAFT",
-    "MERGE",
+# Fail CLOSED against a live connected account: keep only actions whose name begins with a known
+# read verb, and drop everything else. A denylist of write verbs fails open — an unrecognized
+# write action (a verb we never anticipated) would slip through and could mutate the real mailbox
+# or repository. The allowlist inverts that: an unfamiliar action is dropped, not run.
+_READ_ONLY_VERBS = (
+    "FETCH",
+    "LIST",
+    "GET",
+    "READ",
+    "SEARCH",
+    "VIEW",
+    "DESCRIBE",
+    "COUNT",
+    "FIND",
 )
 BASH = {"type": "builtin", "name": "bash"}
 
@@ -96,13 +99,11 @@ def discover_tools() -> list:
     }
     tools = [{k: v for k, v in t.items() if k in allowed} for t in tools]
     safe = [
-        t
-        for t in tools
-        if not any(w in t.get("action", "").upper() for w in _WRITE_ISH)
+        t for t in tools if t.get("action", "").upper().startswith(_READ_ONLY_VERBS)
     ]
     dropped = [t["action"] for t in tools if t not in safe]
     if dropped:
-        print(f"    dropped write-capable actions: {dropped}", flush=True)
+        print(f"    dropped non-read-only actions: {dropped}", flush=True)
     print(
         f"    discovered {len(safe)} read-only tools: {[t['action'] for t in safe]}",
         flush=True,
@@ -153,12 +154,23 @@ def probe_gmail(sandbox: str) -> dict:
         p,
         timeout=420.0,
     )
-    ok = qa.tool_ran(t) and not t.errors
+    # Require a GMAIL tool specifically to have executed with an `available` outcome, not merely
+    # "any tool ran": a run that only invoked bash or only GitHub would otherwise pass this probe.
+    gmail_ran = any(
+        t.tool_outcomes.get(c["toolCallId"]) == "available"
+        for c in t.tool_calls
+        if (c.get("toolName") or "").lower().startswith("gmail__")
+    )
+    ok = gmail_ran and not t.errors
+    # The reply carries live inbox subjects and repository names. Drop it before persisting so
+    # results.json never records real mailbox/repo metadata.
+    turn = t.summary()
+    turn.pop("reply", None)
     return {
         "pass": ok,
         "why": "a Gmail gateway tool executed (tool-output-available) with no error",
         "tools_called": [c.get("toolName") for c in t.tool_calls],
-        "turn": t.summary(),
+        "turn": turn,
     }
 
 
@@ -307,12 +319,15 @@ def main() -> int:
             flush=True,
         )
 
+    # Second-resolution timestamps collide when two runs start in the same second; a short random
+    # suffix keeps concurrent runs from overwriting each other's evidence.
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    d = qa.RUNS / f"longctx-{args.sandbox}-{stamp}"
+    d = qa.RUNS / f"longctx-{args.sandbox}-{stamp}-{uuid.uuid4().hex[:6]}"
     d.mkdir(parents=True, exist_ok=True)
     (d / "results.json").write_text(json.dumps(out, indent=2))
     print(f"results: {d}")
-    return 0
+    failed = any(not r.get("pass") for r in out.values())
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
