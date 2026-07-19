@@ -110,8 +110,11 @@ export const currentSubscriptionQueryAtom = atomWithQuery((get) => {
         refetchOnReconnect: false,
         refetchOnMount: true,
         // Deferred to browser idle (billing chrome, not first-paint critical).
+        // isBillingEnabled: config-gated — deployments without the billing service
+        // (e.g. local EE dev) otherwise burn a guaranteed 502 on every load.
         enabled:
             isEE() &&
+            isBillingEnabled() &&
             sessionExists &&
             !!organizationId &&
             !!user &&
@@ -155,7 +158,7 @@ export const catalogQueryAtom = atomWithQuery((get) => {
         refetchOnReconnect: false,
         refetchOnMount: true,
         // Deferred to browser idle (billing chrome, not first-paint critical).
-        enabled: isEE() && sessionExists && get(idleReadyAtom),
+        enabled: isEE() && isBillingEnabled() && sessionExists && get(idleReadyAtom),
         retry: entitlementRetry,
     }
 })
@@ -176,7 +179,7 @@ export const pricingQueryAtom = atomWithQuery((get) => {
         refetchOnReconnect: false,
         refetchOnMount: true,
         // Deferred to browser idle (billing chrome, not first-paint critical).
-        enabled: isEE() && sessionExists && get(idleReadyAtom),
+        enabled: isEE() && isBillingEnabled() && sessionExists && get(idleReadyAtom),
         retry: entitlementRetry,
     }
 })
