@@ -23,10 +23,8 @@ import {
   type KeepaliveContext,
   type KeepaliveEngine,
 } from "../../src/server.ts";
-import {
-  SessionPool,
-  type KeepaliveConfig,
-} from "../../src/engines/sandbox_agent/session-pool.ts";
+import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
+import type { KeepaliveConfig } from "../../src/engines/sandbox_agent/session-identity.ts";
 import type { MountCredentials } from "../../src/engines/sandbox_agent/mount.ts";
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
 

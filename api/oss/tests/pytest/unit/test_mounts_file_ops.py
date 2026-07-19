@@ -19,6 +19,7 @@ import pytest
 
 from oss.src.core.mounts.dtos import Mount
 from oss.src.core.mounts.service import MountsService, validate_file_path
+from oss.src.core.store.dtos import StoreObject
 from oss.src.core.mounts.types import (
     MountFileNotFound,
     MountPathInvalid,
@@ -71,11 +72,13 @@ class FakeMountStorage:
         # {bucket: {key: bytes}}
         self._store: dict[str, dict[str, bytes]] = {}
 
-    async def list_objects_v2(
-        self, *, bucket: str, prefix: str
-    ) -> List[Tuple[str, int]]:
+    async def list_objects_v2(self, *, bucket: str, prefix: str) -> List[StoreObject]:
         b = self._store.get(bucket, {})
-        return [(k, len(v)) for k, v in b.items() if k.startswith(prefix)]
+        return [
+            StoreObject(key=k, size=len(v))
+            for k, v in b.items()
+            if k.startswith(prefix)
+        ]
 
     async def get_object(self, *, bucket: str, key: str) -> bytes:
         b = self._store.get(bucket, {})
@@ -98,7 +101,7 @@ class FakeMountStorage:
 
     async def delete_prefix(self, *, bucket: str, prefix: str) -> int:
         objects = await self.list_objects_v2(bucket=bucket, prefix=prefix)
-        return await self.delete_keys(bucket=bucket, keys=[k for k, _ in objects])
+        return await self.delete_keys(bucket=bucket, keys=[o.key for o in objects])
 
 
 _BUCKET = "agenta-test"

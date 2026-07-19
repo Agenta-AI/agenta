@@ -62,12 +62,15 @@ def _patch_handler(monkeypatch, backend, *, builtins=(), tool_callback=None):
         return []
 
     async def _no_connection(*, model, context):
-        # a no-credential plan so existing response-body/lifecycle/cross-harness tests run clean
-        return ResolvedConnection(
-            provider="openai",
-            model="m",
-            credential_mode="runtime_provided",
-            env={},
+        # No connection is configured for the default model, so the resolve fails and the handler
+        # degrades to a no-credential ``runtime_provided`` plan (harness login / self-managed).
+        # This is the realistic "no connection" simulation: it exercises the degraded path that
+        # every harness tolerates, so the response-body / lifecycle / cross-harness tests run
+        # clean regardless of harness. A stubbed *successful* resolve would instead pin a single
+        # provider and be rejected by the post-resolve capability gate on a mismatched harness
+        # (e.g. ``openai`` on ``claude``), which is not what these tests are exercising.
+        raise ConnectionResolutionError(
+            "no connection configured for the default model"
         )
 
     monkeypatch.setattr(app, "resolve_tools", _tools)

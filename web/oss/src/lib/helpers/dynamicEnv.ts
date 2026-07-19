@@ -17,6 +17,12 @@ export const processEnv = {
     // ephemeral agent (templates + "what do you want to build?" composer) and commits it in place on
     // send — no redirect. Set to "false" to keep the agent-home + redirect onboarding.
     NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING: process.env.NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING,
+    // Agent chat Stop button: when "true", clicking Stop also kills the session (tears down the
+    // live sandbox + halts server-side compute) instead of only aborting the client stream. Off by
+    // default — kill ends the current run + cancels pending approvals; durable state and the
+    // object-store-backed cwd/agent mounts survive and remount on resume (#5197 merged).
+    NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION:
+        process.env.NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION,
     // Agent chat message virtualization (react-virtuoso spike): when "true", the playground settings
     // dropdown exposes the Virtualization section and the chat can window its settled history. Gated
     // so it's off everywhere unless explicitly enabled while the approach is evaluated.

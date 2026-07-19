@@ -20,10 +20,10 @@ import {
   priorConversation,
   readKeepaliveConfig,
   resolvesToLocalProvider,
-  SessionPool,
   tailIsFreshUserMessage,
   type CredentialEpoch,
-} from "../../src/engines/sandbox_agent/session-pool.ts";
+} from "../../src/engines/sandbox_agent/session-identity.ts";
+import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 
 describe("resolvesToLocalProvider (local/remote gate)", () => {
   it("is true when the request explicitly asks for local", () => {
@@ -248,6 +248,42 @@ describe("configFingerprint", () => {
       configFingerprint({ ...base, tools: ["read"] }),
     );
   });
+
+  // Custom OpenAI-compatible warm-session safety (design Decision 7): a change to the connection,
+  // model, or endpoint must cold-start rather than reuse a mismatched live session. No new
+  // fingerprint field is needed — these already ride configFingerprint.
+  it("changes when the connection changes (custom provider identity)", () => {
+    const withConn = {
+      ...base,
+      provider: "openai",
+      deployment: "custom",
+      connection: { mode: "agenta", slug: "ollama-a" },
+      endpoint: { baseUrl: "https://a.test/v1" },
+    };
+    assert.notEqual(
+      configFingerprint(withConn),
+      configFingerprint({
+        ...withConn,
+        connection: { mode: "agenta", slug: "ollama-b" },
+      }),
+    );
+  });
+
+  it("changes when the endpoint base URL changes", () => {
+    const withEndpoint = {
+      ...base,
+      deployment: "custom",
+      connection: { mode: "agenta", slug: "ollama-a" },
+      endpoint: { baseUrl: "https://a.test/v1" },
+    };
+    assert.notEqual(
+      configFingerprint(withEndpoint),
+      configFingerprint({
+        ...withEndpoint,
+        endpoint: { baseUrl: "https://b.test/v1" },
+      }),
+    );
+  });
 });
 
 describe("historyFingerprint (pruned-array contract)", () => {
@@ -410,6 +446,20 @@ describe("credential epoch", () => {
       c.secretsHash,
       "a rotated same-slug secret changes the hash",
     );
+  });
+
+  it("a rotated OPENAI_API_KEY invalidates the epoch (custom provider key rotation)", () => {
+    // Rotating the custom OpenAI-compatible connection's key for the same slug must cold-start
+    // with the fresh key rather than reuse a warm session baked with the old one (design
+    // Decision 7 — the credential epoch already covers this; no new key is needed).
+    const parked = computeCredentialEpoch({
+      secrets: { OPENAI_API_KEY: "sk-old" },
+    });
+    const rotated = computeCredentialEpoch({
+      secrets: { OPENAI_API_KEY: "sk-new" },
+    });
+    assert.notEqual(parked.secretsHash, rotated.secretsHash);
+    assert.equal(credentialEpochValid(parked, rotated, Date.now()), false);
   });
 
   it("a re-minted tool-callback bearer does NOT change the hash (per-turn material)", () => {
@@ -587,10 +637,7 @@ describe("SessionPool", () => {
     );
     // Only the awaiting_approval entry matches, and only by its own session id.
     assert.equal(pool.awaitingApproval("s-idle"), undefined);
-    assert.equal(
-      pool.awaitingApproval("s-gated")?.environment,
-      parked.env,
-    );
+    assert.equal(pool.awaitingApproval("s-gated")?.environment, parked.env);
     assert.equal(pool.awaitingApproval("s-unknown"), undefined);
   });
 
@@ -654,11 +701,9 @@ describe("SessionPool", () => {
         stoppingEnv.state.reasons.push(reason);
       },
     };
-    const pool = new SessionPool(
-      { poolMax: 1 },
-      () => {},
-      { strictCapacity: true },
-    );
+    const pool = new SessionPool({ poolMax: 1 }, () => {}, {
+      strictCapacity: true,
+    });
     await pool.park(parkInput("a", stoppingEnv).input, 10_000);
 
     const replacement = parkInput("b");
@@ -673,17 +718,19 @@ describe("SessionPool", () => {
 
     releaseTeardown?.();
     assert.equal(await parked, true);
-    assert.equal(teardownCompleted, true, "teardown completes before park resolves");
+    assert.equal(
+      teardownCompleted,
+      true,
+      "teardown completes before park resolves",
+    );
     assert.equal(pool.get("a"), undefined);
     assert.equal(pool.get("b")?.state, "idle");
   });
 
   it("strict capacity returns false at cap when no idle entry exists", async () => {
-    const pool = new SessionPool(
-      { poolMax: 1 },
-      () => {},
-      { strictCapacity: true },
-    );
+    const pool = new SessionPool({ poolMax: 1 }, () => {}, {
+      strictCapacity: true,
+    });
     const busy = parkInput("busy");
     await pool.park(busy.input, 10_000);
     pool.checkoutIdle("busy");
@@ -696,16 +743,10 @@ describe("SessionPool", () => {
   });
 
   it("strict approval checkout stays seated while it is busy", async () => {
-    const pool = new SessionPool(
-      { poolMax: 1 },
-      () => {},
-      { strictCapacity: true },
-    );
-    await pool.park(
-      parkInput("approval").input,
-      10_000,
-      "awaiting_approval",
-    );
+    const pool = new SessionPool({ poolMax: 1 }, () => {}, {
+      strictCapacity: true,
+    });
+    await pool.park(parkInput("approval").input, 10_000, "awaiting_approval");
 
     const live = pool.checkoutApproval("approval");
 
@@ -725,11 +766,9 @@ describe("SessionPool", () => {
           releaseTeardown = resolve;
         }),
     };
-    const pool = new SessionPool(
-      { poolMax: 1 },
-      () => {},
-      { strictCapacity: true },
-    );
+    const pool = new SessionPool({ poolMax: 1 }, () => {}, {
+      strictCapacity: true,
+    });
     await pool.park(parkInput("a", environment).input, 10_000);
     const stopping = pool.get("a")!;
     const replacement = pool.park(parkInput("b").input, 10_000);
@@ -739,14 +778,22 @@ describe("SessionPool", () => {
     assert.equal(pool.checkoutIdle("a"), undefined);
     assert.equal(pool.checkoutApproval("a"), undefined);
     assert.equal(
-      await pool.repark(stopping, {
-        configFingerprint: "new",
-        historyFingerprint: "new",
-        credentialEpoch: epoch,
-      }, 10_000),
+      await pool.repark(
+        stopping,
+        {
+          configFingerprint: "new",
+          historyFingerprint: "new",
+          credentialEpoch: epoch,
+        },
+        10_000,
+      ),
       false,
     );
-    assert.equal(pool.get("a"), stopping, "repark does not clobber the seated stop");
+    assert.equal(
+      pool.get("a"),
+      stopping,
+      "repark does not clobber the seated stop",
+    );
 
     releaseTeardown?.();
     assert.equal(await replacement, true);
