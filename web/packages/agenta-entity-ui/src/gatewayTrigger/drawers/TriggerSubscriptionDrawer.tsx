@@ -50,7 +50,7 @@ import {
     Plus,
     Tag,
 } from "@phosphor-icons/react"
-import {Button, Form, Input, Modal, Spin, Tooltip, Typography} from "antd"
+import {Button, Collapse, Form, Input, Modal, Spin, Tooltip, Typography} from "antd"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {AppLogo} from "../../drawers/shared/CatalogAppCard"
@@ -759,8 +759,14 @@ function SubscriptionForm({
                 savedId = result.id ?? null
                 message.success("Trigger created")
             }
-            if (onSaved && savedId) onSaved(savedId)
-            else onClose()
+            if (!isEdit) {
+                // A newly created trigger dismisses the drawer; it now shows in the triggers list.
+                onClose()
+            } else if (onSaved && savedId) {
+                onSaved(savedId)
+            } else {
+                onClose()
+            }
         } catch (error) {
             message.error(triggerApiErrorMessage(error, "Failed to save trigger"))
         }
@@ -790,7 +796,10 @@ function SubscriptionForm({
             .then((samples) => {
                 if (!cancelled) setRecentSamples(samples)
             })
-            .catch(() => {})
+            .catch(() => {
+                // A fetch failure must not render as "no events captured yet" (WEB-2).
+                if (!cancelled) message.error("Couldn't load recent events")
+            })
         return () => {
             cancelled = true
         }
@@ -811,6 +820,7 @@ function SubscriptionForm({
                     return null
                 }
                 setRecentSamples(result.recent)
+                message.success("Event captured — sample applied to the mapping.")
                 return result.sample
             } catch (error) {
                 message.error(triggerApiErrorMessage(error, "Failed to capture an event"))
@@ -844,13 +854,19 @@ function SubscriptionForm({
                 message.info("No event captured yet — trigger it from the app, then try again.")
                 return null
             }
-            return {
+            // The user is likely off in the other app; make the late capture audible.
+            message.success("Event captured — sample applied to the mapping.")
+            const sample: SampledEvent = {
                 id: res.delivery.id ?? "live",
                 label: sampleLabel,
                 preview: getScheduleMessagePreview(payload) || undefined,
-                timeAgo: "just now",
+                timeAgo: dayjs().format("MMM D, HH:mm"),
                 payload,
             }
+            // Teardown cascade-deletes the throwaway sub's delivery server-side, so keep
+            // the capture client-side or "Recent events" stays empty for drafts.
+            setRecentSamples((prev) => [sample, ...prev].slice(0, 3))
+            return sample
         } catch (error) {
             message.error(triggerApiErrorMessage(error, "Failed to capture an event"))
             return null
@@ -1598,6 +1614,29 @@ function InputsMappingField({
                     )}
                 </div>
             )}
+            {eventPayload && (
+                <Collapse
+                    ghost
+                    size="small"
+                    defaultActiveKey={["sample"]}
+                    className="mt-1 [&_.ant-collapse-content-box]:!p-0 [&_.ant-collapse-header]:!px-0 [&_.ant-collapse-header]:!py-1"
+                    items={[
+                        {
+                            key: "sample",
+                            label: (
+                                <Typography.Text type="secondary" className="!text-[11px]">
+                                    test event attributes
+                                </Typography.Text>
+                            ),
+                            children: (
+                                <pre className="m-0 max-h-[240px] overflow-auto rounded bg-[var(--ag-colorFillTertiary)] p-2 text-[11px] leading-snug text-[var(--ag-colorText)]">
+                                    {JSON.stringify(eventPayload, null, 2)}
+                                </pre>
+                            ),
+                        },
+                    ]}
+                />
+            )}
             {!parseError && leaves.length > 0 && (
                 <div className="mt-1.5 flex flex-col gap-0.5">
                     {leaves.map((leaf, i) => (
@@ -1757,6 +1796,7 @@ function MappingSection({
                         onPick={onSample}
                         onWaitForEvent={onWaitForEvent}
                         waitHint="trigger it from the app now"
+                        captureMode
                     />
                 </div>
                 <InputsMappingField
@@ -1814,6 +1854,7 @@ function MappingSection({
                                 onPick={onSample}
                                 onWaitForEvent={onWaitForEvent}
                                 waitHint="trigger it from the app now"
+                                captureMode
                             />
                         </div>
                         <div className="flex max-h-[220px] flex-col gap-0.5 overflow-y-auto">

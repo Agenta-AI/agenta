@@ -20,6 +20,41 @@ import {fetchHarnessCapabilities} from "../api"
 
 import {persistedCatalogSeed, writePersistedCatalog} from "./persistedCatalog"
 
+/** A real, sourced price (USD per million tokens). Never a rating. */
+export interface ModelPricing {
+    input_per_mtok: number
+    output_per_mtok: number
+    cache_read_per_mtok?: number | null
+    cache_write_per_mtok?: number | null
+    currency?: string
+}
+
+/** Curated, relative 1-5 scores. Higher is better; `cost` is cost-efficiency. Never a price. */
+export interface ModelRatings {
+    cost?: number | null
+    intelligence?: number | null
+    speed?: number | null
+}
+
+/**
+ * One curated catalog record. Identity (`id`/`provider`) is the join key to the accepted set;
+ * `name`/`pricing`/`context_window`/`modalities` are objective facts; `label`/`description`/
+ * `ratings` are curated judgments. Everything past identity + `source` is optional.
+ * Source: `sdks/python/agenta/sdk/agents/model_catalog.py`.
+ */
+export interface ModelCatalogEntry {
+    id: string
+    provider: string
+    source?: string
+    name?: string | null
+    pricing?: ModelPricing | null
+    context_window?: number | null
+    modalities?: string[] | null
+    label?: string | null
+    description?: string | null
+    ratings?: ModelRatings | null
+}
+
 /** One harness's connection-relevant capabilities, as served by the `harnesses` catalog. */
 export interface HarnessCapabilities {
     /** Provider families the harness can reach (a literal list; never `"*"`). */
@@ -32,6 +67,19 @@ export interface HarnessCapabilities {
     model_selection: string
     /** Selectable models per provider family (provider -> list of ids/aliases). */
     models: Record<string, string[]>
+    /**
+     * The curated per-model catalog (label / description / pricing / ratings), keyed by the same
+     * ids as `models`. Published additively next to `models`; the picker prefers it when present
+     * and falls back to `models`. Absent on an older backend.
+     */
+    model_catalog?: ModelCatalogEntry[]
+    /** External MCP servers the selected harness can consume. */
+    mcp?: {
+        user_servers?: {
+            connection_types: string[]
+            credentials: string[]
+        } | null
+    } | null
 }
 
 /** The full per-harness capability map (harness type -> capabilities). */

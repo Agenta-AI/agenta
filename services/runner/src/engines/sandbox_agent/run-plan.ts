@@ -5,17 +5,17 @@ import { basename, join } from "node:path";
 
 import {
   type AgentRunRequest,
-  type McpServerConfig,
   type ResolvedToolSpec,
   type SandboxPermission,
   resolvePromptText,
 } from "../../protocol.ts";
 import { executableToolSpecs } from "../../tools/public-spec.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "../../tools/code.ts";
+import { PI_USER_MCP_UNSUPPORTED_MESSAGE } from "../../tools/mcp-bridge.ts";
 import {
-  PI_USER_MCP_UNSUPPORTED_MESSAGE,
-  USER_MCP_UNSUPPORTED_MESSAGE,
-} from "../../tools/mcp-bridge.ts";
+  INTERNAL_TOOL_MCP_SERVER_NAME,
+  RESERVED_MCP_SERVER_NAME_MESSAGE,
+} from "./mcp.ts";
 import {
   PI_BUILTIN_TOOL_IDENTITY,
   permissionsFromRequest,
@@ -27,7 +27,13 @@ import {
   resolveSkillDirs as defaultResolveSkillDirs,
 } from "../skills.ts";
 import { assert } from "./capabilities.ts";
+import type { ClientToolPauseDisposition } from "./client-tools.ts";
 import { buildTurnText } from "./transcript.ts";
+import {
+  KNOWN_SANDBOX_PROVIDER_IDS,
+  loadRunnerConfig,
+  type SandboxProviderId,
+} from "../../config/runner-config.ts";
 
 type Log = (message: string) => void;
 
@@ -49,24 +55,41 @@ export const FILESYSTEM_UNSUPPORTED_MESSAGE =
   "remove sandbox_permission.filesystem.";
 
 /**
- * A non-Pi harness (MCP-only tool delivery) on a remote sandbox cannot receive gateway/custom
- * tools at all today (F1, audit finding): the internal tool-MCP channel is a runner-loopback
- * (`127.0.0.1`) HTTP server, unreachable from inside a remote sandbox, so
- * `buildSessionMcpServers` skips it there; the fallback path (the file relay) has a
- * sandbox-side writer ONLY inside Pi's bundled extension (`extensions/agenta.ts`
- * `registerTools`), which no other harness loads. Before this gate, the run proceeded anyway,
- * `mcp.ts` logged a false "delivered via the file relay", and the harness silently received
- * zero tools with `ok:true` (the silent-tool-drop bug). Refuse loud instead, mirroring the
- * other not-implemented gates above. The gate keys on "not local" rather than "is daytona" so
- * a NEW remote provider (e.g. the in-flight E2B one) fails closed with this error until tool
- * delivery is proven there, instead of silently re-opening F1 one provider over.
+ * A non-Pi harness (MCP-only tool delivery) on a NON-DAYTONA remote sandbox cannot receive
+ * gateway/custom tools: the internal tool-MCP channel is either a runner-loopback HTTP server
+ * (unreachable from inside a remote sandbox) or the in-sandbox stdio MCP shim, and the shim's
+ * upload + spawn path is proven for Daytona only. The gate keys on "remote but not daytona"
+ * so a NEW remote provider (e.g. the in-flight E2B one) fails closed with this error until
+ * tool delivery is proven there, instead of silently re-opening the F1 zero-tools drop one
+ * provider over (before this gate existed, the run proceeded, silently dropped every tool,
+ * and returned ok:true).
  */
 export const REMOTE_TOOLS_UNSUPPORTED_MESSAGE =
-  "Tools are not supported for a non-Pi harness on a remote sandbox: the internal " +
-  "tool-MCP channel is loopback-only (unreachable from inside the sandbox), and there is no " +
-  "in-sandbox relay client for this harness (only Pi's bundled extension writes the file " +
-  "relay). Run on the local sandbox, use the Pi harness, or remove the tools. Tracked in " +
-  "docs/design/agent-workflows/projects/remote-tools-delivery/.";
+  "Tools are not supported for a non-Pi harness on this remote sandbox provider: in-sandbox " +
+  "tool delivery (the stdio MCP shim feeding the file relay) is proven for Daytona only, so " +
+  "other remote providers fail closed until it is proven there. Run on daytona or the local " +
+  "sandbox, use the Pi harness, or remove the tools. Tracked in " +
+  "docs/design/agent-workflows/projects/in-sandbox-tool-mcp/.";
+
+/**
+ * `runtime_provided` (subscription) auth means the harness authenticates from explicitly prepared
+ * local runtime state (a mounted Pi/Claude login). That state lives only in the runner container
+ * and is never shipped to a third-party sandbox (interface.md sections 5-6), so the combination is
+ * unsupported on Daytona in version 1 rather than silently falling back to an unauthenticated run.
+ */
+export const DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE =
+  "Daytona sandboxes do not support runtime-provided (subscription) authentication. " +
+  "Use a managed API key (credentialMode 'env'), or run this harness on the local sandbox.";
+
+/**
+ * A local `runtime_provided` run reads the operator's subscription state from a read-write mount
+ * named by the harness config var. With no mount configured there is nothing to authenticate
+ * with, so the run fails up front (interface.md section 6) instead of silently proceeding and
+ * having the harness discover the runner's own home directory.
+ */
+export const LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE =
+  "runtime_provided local run requires a mounted subscription: set PI_CODING_AGENT_DIR " +
+  "(Pi) or CLAUDE_CONFIG_DIR (Claude) to a read-write mount of your harness login.";
 
 export interface RunPlan {
   harness: string;
@@ -79,22 +102,31 @@ export interface RunPlan {
   agentsMd?: string;
   secrets: Record<string, string>;
   /**
-   * Back-compat inputs to the OAuth-upload decision (see `shouldUploadOwnLogin`). `legacyHarnessApiKeyVar`
-   * does not choose the provider; it only feeds the fallback `hasApiKey` heuristic for an un-migrated caller that sends no
-   * `credentialMode`.
+   * The provider api-key env var name the harness would read by default (`ANTHROPIC_API_KEY` for
+   * Claude, `OPENAI_API_KEY` otherwise). It does not choose the provider; it only names the key
+   * whose presence sets `hasApiKey`.
    */
   legacyHarnessApiKeyVar: string;
+  /** Whether the resolved `secrets` already carry `legacyHarnessApiKeyVar`. */
   hasApiKey: boolean;
   /**
    * How the credential is delivered: "env" (managed, resolved key) | "runtime_provided" (the
    * harness owns its login) | "none". From the resolved connection (provider-model-auth design,
-   * Concern 3). `undefined` when an un-migrated caller sends no credentialMode; the run then
-   * falls back to the `hasApiKey` heuristic. Drives clear-then-apply env (Security rule 5) and
-   * the OAuth-upload gate (rule 6).
+   * Concern 3). `undefined` when an un-migrated caller sends no credentialMode. Drives
+   * clear-then-apply env (Security rule 5).
    */
   credentialMode?: string;
   cwd: string;
   relayDir: string;
+  /**
+   * Where the in-sandbox stdio MCP shim assets (bundle + public-specs file) are uploaded on
+   * the Daytona non-Pi executable-tools path (`uploadToolMcpAssets`). An ephemeral in-VM
+   * SIBLING of the relay dir, keyed the same way: NOT inside the relay dir (the relay loop
+   * sweeps and watches that dir, and the shim files would read as relay traffic) and NOT on
+   * the durable geesefs cwd (a flaky mount would surface as ENOTCONN on the harness's spawn
+   * of the shim).
+   */
+  toolMcpDir: string;
   usageOutPath?: string;
   toolSpecs: ResolvedToolSpec[];
   executableToolSpecs: ResolvedToolSpec[];
@@ -103,6 +135,13 @@ export interface RunPlan {
   /** True when Pi builtin grants or permissions need extension enforcement. */
   builtinGatingActive: boolean;
   useToolRelay: boolean;
+  /**
+   * How a parked client tool disposes of the turn and the in-sandbox shim's blocking call (closed
+   * set: `ClientToolPauseDisposition`). Kept on the plan so a future harness, or the reserved warm
+   * hold, is a local change rather than an `!isPi` test scattered across call sites. Today: Pi →
+   * "pi-native", the non-Pi shim (Claude on Daytona) → "cold-acknowledge".
+   */
+  clientToolPauseDisposition: ClientToolPauseDisposition;
   systemPrompt?: string;
   appendSystemPrompt?: string;
   hasSystemPrompt: boolean;
@@ -131,26 +170,14 @@ export type BuildRunPlanResult =
 
 export interface BuildRunPlanDeps {
   sandboxProvider?: string;
+  /** Providers this deployment enables; a request for anything outside this set is rejected. */
+  enabledProviders?: readonly SandboxProviderId[];
   createLocalCwd?: (durableCwd?: string) => string;
   createDaytonaCwd?: (durableCwd?: string) => string;
   /** Pre-computed durable cwd derived from the sign prefix; when set, skips the ephemeral helpers. */
   durableCwd?: string;
   resolveSkillDirs?: typeof defaultResolveSkillDirs;
   log?: Log;
-}
-
-/**
- * True when an MCP server runs as a host command (stdio) rather than a remote URL. Mirrors
- * the delivery rule in `mcp.ts` (`toAcpMcpServers`): the default transport is `stdio`, and a
- * stdio server only runs when it carries a `command`. Such a server is an arbitrary process
- * on the RUNNER HOST, so a network-blocked sandbox does not confine it. HTTP servers
- * (`transport: "http"`) are delivered (the harness connects to the remote URL with the secret
- * in a header) and are NOT flagged here — they have no runner-host process to confine.
- */
-function hasStdioMcpServer(servers: McpServerConfig[] | undefined): boolean {
-  return (servers ?? []).some(
-    (s) => (s.transport ?? "stdio") === "stdio" && !!s.command,
-  );
 }
 
 /**
@@ -238,7 +265,8 @@ function defaultDaytonaCwd(durableCwd?: string): string {
 export function buildRunPlan(
   request: AgentRunRequest,
   {
-    sandboxProvider = process.env.SANDBOX_AGENT_PROVIDER,
+    sandboxProvider,
+    enabledProviders,
     createLocalCwd = defaultLocalCwd,
     createDaytonaCwd = defaultDaytonaCwd,
     durableCwd,
@@ -246,8 +274,26 @@ export function buildRunPlan(
     log = () => {},
   }: BuildRunPlanDeps = {},
 ): BuildRunPlanResult {
+  const runnerConfig = loadRunnerConfig();
+  const defaultProvider = sandboxProvider ?? runnerConfig.providers.default;
+  const enabled = enabledProviders ?? runnerConfig.providers.enabled;
   const harness = request.harness || "pi_core";
-  const sandboxId = request.sandbox || sandboxProvider || "local";
+  const sandboxId = request.sandbox || defaultProvider || "local";
+
+  // Deployment posture gate (interface.md section 2, rule 7): a request for a known but disabled
+  // provider fails here, before any cwd/temp dir, mount, file, secret, or sandbox is created.
+  // There is no silent fallback to another provider.
+  if (
+    (KNOWN_SANDBOX_PROVIDER_IDS as readonly string[]).includes(sandboxId) &&
+    !enabled.includes(sandboxId as SandboxProviderId)
+  ) {
+    return {
+      ok: false,
+      error:
+        `Sandbox provider '${sandboxId}' is not enabled on this deployment ` +
+        `(enabled: ${enabled.join(", ")}).`,
+    };
+  }
 
   // The harness identity maps to a real ACP agent the daemon knows (`pi` / `claude`).
   // `pi_core` (plain Pi) and `pi_agenta` (Pi with Agenta's forced skills/prompt/policy) both
@@ -279,6 +325,26 @@ export function buildRunPlan(
   // it must fail CLOSED: a future provider (E2B et al.) has no proven delivery path until it
   // ships one, and "unknown" must not silently behave like "reachable loopback".
   const isRemoteSandbox = sandboxId !== "local";
+
+  // Subscription (runtime_provided) auth is a LOCAL-only capability: the harness reads and refreshes
+  // its login on a read-write mount that lives in the runner container and is never shipped to a
+  // third-party sandbox. Reject Daytona + runtime_provided here, before any sandbox is created,
+  // rather than silently falling back to an unauthenticated remote run (interface.md sections 5-6).
+  if (isDaytona && request.credentialMode === "runtime_provided") {
+    return { ok: false, error: DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE };
+  }
+
+  // A local runtime_provided run authenticates from an explicitly mounted subscription. If the
+  // harness config var is unset there is no mount to read, so fail up front with an actionable
+  // message rather than letting the harness fall back to discovering the runner's own home dir
+  // (interface.md section 6). Managed ("env") / "none" runs are unaffected.
+  if (!isDaytona && request.credentialMode === "runtime_provided") {
+    const subscriptionEnvVar =
+      acpAgent === "claude" ? "CLAUDE_CONFIG_DIR" : "PI_CODING_AGENT_DIR";
+    if (!process.env[subscriptionEnvVar]) {
+      return { ok: false, error: LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE };
+    }
+  }
 
   const secrets = request.secrets ?? {};
   const legacyHarnessApiKeyVar =
@@ -326,33 +392,29 @@ export function buildRunPlan(
 
   // Pi delivers tools through its bundled extension, not over ACP MCP, so a user MCP server on
   // a Pi run is DROPPED by `buildSessionMcpServers` (it returns [] for Pi). Dropping it silently
-  // (no log, HTTP 200) is the F-032 silent-drop bug. Refuse ANY user MCP server (stdio AND http)
-  // on Pi up front with a Pi-specific message, the way the stdio-MCP and code-tool gates fail
-  // loud. This MUST precede the harness-agnostic stdio gate so Pi gets the clearer reason for
-  // both transports (http MCP is otherwise a Claude-only capability, #4834).
+  // (no log, HTTP 200) is the F-032 silent-drop bug. Refuse any external user MCP server
+  // on Pi up front with a Pi-specific message.
   if (isPi && (request.mcpServers?.length ?? 0) > 0) {
     return { ok: false, error: PI_USER_MCP_UNSUPPORTED_MESSAGE };
   }
 
-  // stdio MCP servers run as arbitrary processes on the RUNNER HOST, outside the sandbox
-  // boundary, and the sidecar's stdio MCP implementation is disabled (parity with the removed
-  // code execution) until its security is fixed. Refuse any run carrying one, the way code
-  // tools are gated — keep the wire shape, but the delivery is not supported.
-  if (hasStdioMcpServer(request.mcpServers)) {
-    return { ok: false, error: USER_MCP_UNSUPPORTED_MESSAGE };
+  // The internal gateway-tool channel's name is reserved on every transport: the Python
+  // Claude adapter renders permission rules against `agenta-tools`, so a user server with
+  // that name would collide with the internal channel and inherit/steal its rendered rules.
+  // Refuse at declaration time; `buildSessionMcpServers` repeats the check at session
+  // materialization as defense in depth.
+  if (
+    (request.mcpServers ?? []).some(
+      (server) => server.name === INTERNAL_TOOL_MCP_SERVER_NAME,
+    )
+  ) {
+    return { ok: false, error: RESERVED_MCP_SERVER_NAME_MESSAGE };
   }
 
-  // F1 (audit finding, silent-tool-drop): a non-Pi harness on a remote sandbox has NO working
-  // delivery path for ANY custom tool. The internal tool-MCP is loopback-only (unreachable from
-  // inside the sandbox), and the file-relay fallback has a sandbox-side writer only inside Pi's
-  // bundled extension. Before this gate the run proceeded, silently dropped every tool, and
-  // still returned `ok:true`. Refuse up front, the way the other not-implemented gates above do,
-  // and fail CLOSED for any non-local provider (see `isRemoteSandbox`) so a new remote provider
-  // cannot silently re-open F1. The gate counts ALL tools (`toolSpecs`), `client` kind included:
-  // client tools now ride the same internal MCP channel on local Claude (advertised + paused in
-  // `tools/call`), so on a remote sandbox they are exactly as undeliverable as gateway tools —
-  // the model would never see or be able to call them.
-  if (!isPi && isRemoteSandbox && toolSpecs.length > 0) {
+  // Non-Pi + remote + tools: executable and client tools are both deliverable on Daytona via the
+  // in-sandbox stdio MCP shim. A non-Daytona remote provider fails CLOSED because the shim's
+  // upload + spawn path is proven for Daytona only.
+  if (!isPi && isRemoteSandbox && !isDaytona && toolSpecs.length > 0) {
     return { ok: false, error: REMOTE_TOOLS_UNSUPPORTED_MESSAGE };
   }
 
@@ -389,6 +451,13 @@ export function buildRunPlan(
     ? "/home/sandbox/agenta/relay"
     : join(tmpdir(), "agenta", "relay");
   const relayDir = join(relayBase, basename(cwd));
+  // The in-sandbox stdio MCP shim assets live in an ephemeral SIBLING of the relay dir, keyed
+  // the same way (stable across turns of one conversation). Never inside the relay dir — the
+  // relay loop sweeps/watches it — and never on the geesefs mount (see `toolMcpDir` docs).
+  const toolMcpBase = isDaytona
+    ? "/home/sandbox/agenta/tool-mcp"
+    : join(tmpdir(), "agenta", "tool-mcp");
+  const toolMcpDir = join(toolMcpBase, basename(cwd));
 
   // Skills materialize once from the resolved inline packages. Pi/Agenta consume the dirs
   // through Pi's agent-dir user scope; Claude consumes the same packages from the project-local
@@ -416,6 +485,14 @@ export function buildRunPlan(
     `relay dir '${relayDir}' must be a distinct ephemeral dir, not the durable cwd`,
   );
   assert(
+    !!toolMcpDir &&
+      toolMcpDir !== cwd &&
+      toolMcpDir !== relayDir &&
+      !toolMcpDir.startsWith(`${relayDir}/`),
+    `tool MCP dir '${toolMcpDir}' must be an ephemeral sibling of the relay dir — never the ` +
+      `durable cwd, the relay dir, or nested inside it (the relay loop sweeps that dir)`,
+  );
+  assert(
     isPi === (acpAgent === "pi"),
     `isPi (${isPi}) disagrees with acpAgent '${acpAgent}'`,
   );
@@ -437,6 +514,7 @@ export function buildRunPlan(
       credentialMode: request.credentialMode,
       cwd,
       relayDir,
+      toolMcpDir,
       // Usage capture is ephemeral runner output, not durable session data — keep it off the
       // geesefs mount alongside the relay dir (a mount write would risk ENOTCONN).
       usageOutPath: isPi ? join(relayDir, ".agenta-usage.json") : undefined,
@@ -447,6 +525,9 @@ export function buildRunPlan(
       // The relay carries tool EXECUTION only (permission gates ride the extension's
       // `ctx.ui.confirm` dialog onto the ACP plane), so a builtin-gating-only run needs no relay.
       useToolRelay: toolSpecs.length > 0,
+      // Pi parks through its own extension (no answer file); the non-Pi shim blocks on an answer
+      // file, so a parked client tool is acknowledged with a benign paused answer.
+      clientToolPauseDisposition: isPi ? "pi-native" : "cold-acknowledge",
       systemPrompt,
       appendSystemPrompt,
       hasSystemPrompt: !!(systemPrompt || appendSystemPrompt),
@@ -460,24 +541,4 @@ export function buildRunPlan(
       harnessFiles: request.harnessFiles,
     },
   };
-}
-
-/**
- * Whether to upload Pi's fallback `auth.json` (the harness's own OAuth login) into the run.
- *
- * The provider-model-auth design (Security rule 6) gates this on the harness owning its login,
- * NOT on a provider guessed from the harness name:
- *  - `credentialMode === "env"` (a resolved key): NEVER upload the fallback (the resolved key is
- *    the credential).
- *  - `credentialMode === "runtime_provided"`: upload (the harness authenticates with its login).
- *  - `credentialMode === "none"`: do not upload (no credential asserted).
- *  - no `credentialMode` on the wire (un-migrated caller): fall back to today's heuristic —
- *    upload only when no api key was supplied (`!hasApiKey`).
- */
-export function shouldUploadOwnLogin(
-  plan: Pick<RunPlan, "credentialMode" | "hasApiKey">,
-): boolean {
-  if (plan.credentialMode === "runtime_provided") return true;
-  if (plan.credentialMode) return false; // "env" / "none": a resolved decision, never upload
-  return !plan.hasApiKey; // back-compat: un-migrated caller, no credentialMode
 }

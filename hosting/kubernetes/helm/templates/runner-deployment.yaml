@@ -1,5 +1,8 @@
 {{- $runner := default dict .Values.agentRunner -}}
-{{- $daytona := default dict $runner.daytona -}}
+{{- $providers := default dict $runner.providers -}}
+{{- $enabledProviders := default (list "local") $providers.enabled -}}
+{{- $daytona := default dict $providers.daytona -}}
+{{- $auth := default dict $runner.auth -}}
 {{- if eq (include "agenta.agentRunner.enabled" .) "true" }}
 apiVersion: apps/v1
 kind: Deployment
@@ -46,37 +49,51 @@ spec:
               containerPort: {{ include "agenta.agentRunner.port" . }}
               protocol: TCP
           env:
+            {{- /* Narrow by design (runner-selfhosting-cleanup): a local harness process shares
+                   this container, so anything here is readable from /proc. Only the runner's own
+                   config and the API URL it needs to reach the platform — never the full
+                   commonEnv (DB/auth/crypt/license/redis/store secrets). See
+                   tests/test_runner_secret_absence.py. */}}
+            - name: AGENTA_API_URL
+              value: {{ include "agenta.apiUrlEffective" . | quote }}
+            {{- $agentaVals := include "agenta.values" . | fromYaml -}}
+            {{- if (default dict $agentaVals.agenta).apiInternalUrl }}
+            - name: AGENTA_API_INTERNAL_URL
+              value: {{ $agentaVals.agenta.apiInternalUrl | quote }}
+            {{- end }}
             - name: AGENTA_RUNNER_PORT
               value: {{ include "agenta.agentRunner.port" . | quote }}
-            - name: SANDBOX_AGENT_PROVIDER
-              value: {{ default "local" $runner.provider | quote }}
+            - name: AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS
+              value: {{ join "," $enabledProviders | quote }}
+            - name: AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER
+              value: {{ default "local" $providers.default | quote }}
             {{- if not (hasKey (default dict $runner.env) "PI_CODING_AGENT_DIR") }}
             - name: PI_CODING_AGENT_DIR
               value: {{ default "/pi-agent" $runner.piAgentDir | quote }}
             {{- end }}
             {{- if $runner.logLevel }}
-            - name: SANDBOX_AGENT_LOG_LEVEL
+            - name: AGENTA_RUNNER_LOG_LEVEL
               value: {{ $runner.logLevel | quote }}
             {{- end }}
             {{- if $daytona.apiUrl }}
-            - name: DAYTONA_API_URL
+            - name: AGENTA_RUNNER_DAYTONA_API_URL
               value: {{ $daytona.apiUrl | quote }}
             {{- end }}
             {{- if $daytona.target }}
-            - name: DAYTONA_TARGET
+            - name: AGENTA_RUNNER_DAYTONA_TARGET
               value: {{ $daytona.target | quote }}
             {{- end }}
             {{- if $daytona.snapshot }}
-            - name: DAYTONA_SNAPSHOT
+            - name: AGENTA_RUNNER_DAYTONA_SNAPSHOT
               value: {{ $daytona.snapshot | quote }}
             {{- end }}
             {{- if $daytona.image }}
-            - name: DAYTONA_IMAGE
+            - name: AGENTA_RUNNER_DAYTONA_IMAGE
               value: {{ $daytona.image | quote }}
             {{- end }}
-            {{- if $daytona.autostopDelay }}
-            - name: DAYTONA_AUTOSTOP
-              value: {{ $daytona.autostopDelay | quote }}
+            {{- if $daytona.autostopMinutes }}
+            - name: AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES
+              value: {{ $daytona.autostopMinutes | quote }}
             {{- end }}
             {{- if hasKey $daytona "sessionIdleTtlMs" }}
             - name: AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS
@@ -86,22 +103,35 @@ spec:
             - name: AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM
               value: {{ $daytona.sessionMaxWarm | quote }}
             {{- end }}
-            {{- if $daytona.autodeleteDelay }}
-            - name: DAYTONA_AUTODELETE
-              value: {{ $daytona.autodeleteDelay | quote }}
+            {{- if $daytona.autodeleteMinutes }}
+            - name: AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES
+              value: {{ $daytona.autodeleteMinutes | quote }}
             {{- end }}
-            {{- if hasKey $daytona "installPi" }}
-            - name: AGENTA_AGENT_SANDBOX_PI_INSTALLED
-              value: {{ $daytona.installPi | quote }}
-            {{- end }}
-            {{- if or $daytona.apiKey (eq (default "local" $runner.provider) "daytona") }}
-            - name: DAYTONA_API_KEY
+            {{- if $daytona.apiKeySecretRef }}
+            - name: AGENTA_RUNNER_DAYTONA_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "agenta.secretName" . }}
-                  key: DAYTONA_API_KEY
+                  name: {{ $daytona.apiKeySecretRef.name | quote }}
+                  key: {{ $daytona.apiKeySecretRef.key | quote }}
                   optional: true
             {{- end }}
+            {{- /* Shared runner protocol credential (interface.md section 2): the runner verifies it
+                   and Services sends the same value (see agentRunner.servicesEnv). REQUIRED — the
+                   runner refuses to boot without it, so this is always rendered and never
+                   `optional`. An explicit `auth.tokenSecretRef` overrides the platform Secret for
+                   operators who keep the runner credential in their own vault. Note this mounts a
+                   SINGLE key, not the whole Secret: the runner's env must stay narrow, because a
+                   local harness shares its container and can read /proc (tests/test_runner_secret_absence.py). */}}
+            - name: AGENTA_RUNNER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  {{- if $auth.tokenSecretRef }}
+                  name: {{ $auth.tokenSecretRef.name | quote }}
+                  key: {{ $auth.tokenSecretRef.key | quote }}
+                  {{- else }}
+                  name: {{ include "agenta.fullname" . | quote }}
+                  key: AGENTA_RUNNER_TOKEN
+                  {{- end }}
             {{- range $key, $val := $runner.env }}
             - name: {{ $key }}
               value: {{ $val | quote }}

@@ -1,9 +1,3 @@
-import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
-
-import {expect} from "@agenta/web-tests/utils"
-import {expectAuthenticatedSession} from "../utils/auth"
-import {createScenarios} from "../utils/scenarios"
-import {buildAcceptanceTags} from "../utils/tags"
 import {
     TestCoverage,
     TestcaseType,
@@ -15,6 +9,12 @@ import {
     TestRoleType,
     TestSpeedType,
 } from "@agenta/web-tests/playwright/config/testTags"
+import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
+import {expect} from "@agenta/web-tests/utils"
+
+import {expectAuthenticatedSession} from "../utils/auth"
+import {createScenarios} from "../utils/scenarios"
+import {buildAcceptanceTags} from "../utils/tags"
 
 /**
  * E2E: Model Hub & API Keys Management
@@ -67,7 +67,7 @@ const modelHubTests = () => {
 
         await scenarios.then('the "Custom providers" table lists the "mock" provider', async () => {
             const customProvidersSection = page
-                .getByText("Custom providers", {exact: true})
+                .getByText("OpenAI-compatible endpoint", {exact: true})
                 .locator("xpath=ancestor::section[1]")
                 .first()
             const providersTable = customProvidersSection.getByRole("table").first()
@@ -206,12 +206,15 @@ const modelHubTests = () => {
                 "the user creates a new custom provider via the drawer",
                 async () => {
                     const customProvidersSection = page
-                        .getByText("Custom providers", {exact: true})
+                        .getByText("OpenAI-compatible endpoint", {exact: true})
                         .locator("xpath=ancestor::section[1]")
                         .first()
 
+                    // The section's own label IS the trigger button now — "Create" was
+                    // renamed to "OpenAI-compatible endpoint".
                     const createButton = customProvidersSection.getByRole("button", {
-                        name: "Create",
+                        name: "OpenAI-compatible endpoint",
+                        exact: true,
                     })
                     await expect(createButton).toBeVisible({timeout: 15000})
                     await createButton.click()
@@ -222,7 +225,7 @@ const modelHubTests = () => {
                         timeout: 15000,
                     })
 
-                    // Select "Custom Provider" from the provider type dropdown
+                    // Select "OpenAI-compatible endpoint" from the provider type dropdown
                     const providerSelect = drawer.locator(".ant-select").first()
                     await expect(providerSelect).toBeVisible({timeout: 15000})
                     await providerSelect.click()
@@ -232,7 +235,7 @@ const modelHubTests = () => {
 
                     const optionTexts = (await options.allTextContents()).map((t) => t.trim())
                     const customProviderIndex = optionTexts.findIndex(
-                        (t) => t === "Custom Provider",
+                        (t) => t === "OpenAI-compatible endpoint",
                     )
 
                     // Click the target option directly — keyboard ArrowDown navigation is unreliable with AntD v5 selects
@@ -263,7 +266,7 @@ const modelHubTests = () => {
                 "the new custom provider row appears in the Custom providers table",
                 async () => {
                     const customProvidersSection = page
-                        .getByText("Custom providers", {exact: true})
+                        .getByText("OpenAI-compatible endpoint", {exact: true})
                         .locator("xpath=ancestor::section[1]")
                         .first()
 
@@ -282,7 +285,7 @@ const modelHubTests = () => {
 
             await scenarios.when("the user deletes the newly created custom provider", async () => {
                 const customProvidersSection = page
-                    .getByText("Custom providers", {exact: true})
+                    .getByText("OpenAI-compatible endpoint", {exact: true})
                     .locator("xpath=ancestor::section[1]")
                     .first()
 
@@ -303,7 +306,7 @@ const modelHubTests = () => {
 
             await scenarios.then("the deleted provider row is no longer visible", async () => {
                 const customProvidersSection = page
-                    .getByText("Custom providers", {exact: true})
+                    .getByText("OpenAI-compatible endpoint", {exact: true})
                     .locator("xpath=ancestor::section[1]")
                     .first()
 

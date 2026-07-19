@@ -1,0 +1,113 @@
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index cf6e52b462bd8d70530c6a56b515e25c1f1d8a5e..19d526b52c496b38dda200a1dcbd36dc017c9e5c 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -66,4 +66,6 @@ declare class AcpHttpClient {
+     get clientSideConnection(): ClientSideConnection;
+ }
+ 
+-export { type AcpEnvelopeDirection, type AcpEnvelopeObserver, AcpHttpClient, type AcpHttpClientOptions, AcpHttpError, type AcpHttpTransportOptions, AcpRpcError, type ProblemDetails, type QueryValue, type RpcErrorResponse };
++declare function isRetryableAcpWriteError(error: unknown): boolean;
++
++export { type AcpEnvelopeDirection, type AcpEnvelopeObserver, AcpHttpClient, type AcpHttpClientOptions, AcpHttpError, type AcpHttpTransportOptions, AcpRpcError, type ProblemDetails, type QueryValue, type RpcErrorResponse, isRetryableAcpWriteError };
+diff --git a/dist/index.js b/dist/index.js
+index b0f33f0766f1a93c14ee4970f45ef3f519e4aaea..9eccca0fa94ea46a11ff8f4d41e31707a0491899 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -17,6 +17,22 @@ var AcpHttpError = class extends Error {
+     this.response = response;
+   }
+ };
++var RETRYABLE_ERROR_PATTERN = /ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|SocketError|other side closed|fetch failed|UND_ERR_SOCKET/i;
++function isRetryableAcpWriteError(error) {
++  if (error instanceof AcpHttpError) {
++    return error.status >= 500 || error.status === 408 || error.status === 429;
++  }
++  if (error instanceof Error) {
++    const cause = error.cause;
++    const haystack = [error.code, error.name, error.message, cause?.code, cause?.name, cause?.message].filter(Boolean).join(" ");
++    return RETRYABLE_ERROR_PATTERN.test(haystack);
++  }
++  return false;
++}
++function jitteredBackoffMs(baseDelayMs, attempt) {
++  const exp = baseDelayMs * 2 ** (attempt - 1);
++  return exp + Math.random() * baseDelayMs;
++}
+ var RPC_CODE_LABELS = {
+   [-32700]: "Parse error",
+   [-32600]: "Invalid request",
+@@ -242,28 +258,45 @@ var StreamableHttpAcpTransport = class {
+     void this.postMessage(url, headers, message);
+   }
+   async postMessage(url, headers, message) {
+-    try {
+-      const response = await this.fetcher(url, {
+-        method: "POST",
+-        headers,
+-        body: JSON.stringify(message)
+-      });
+-      if (!response.ok) {
+-        throw new AcpHttpError(response.status, await readProblem(response), response);
+-      }
+-      if (response.status === 200) {
+-        const text = await response.text();
+-        if (text.trim()) {
+-          const envelope = JSON.parse(text);
+-          this.pushInbound(envelope);
++    const maxAttempts = 3;
++    const baseDelayMs = 150;
++    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
++      try {
++        const response = await this.fetcher(url, {
++          method: "POST",
++          headers,
++          body: JSON.stringify(message)
++        });
++        if (!response.ok) {
++          throw new AcpHttpError(response.status, await readProblem(response), response);
+         }
++        if (response.status === 200) {
++          const text = await response.text();
++          if (text.trim()) {
++            const envelope = JSON.parse(text);
++            this.pushInbound(envelope);
++          }
++          return;
++        }
++        await response.text().catch(() => {
++        });
+         return;
++      } catch (error) {
++        const isLastAttempt = attempt === maxAttempts;
++        if (!isRetryableAcpWriteError(error) || isLastAttempt) {
++          console.error("ACP write error:", error);
++          this.failReadable(error);
++          return;
++        }
++        console.error(`ACP write retry ${attempt}/${maxAttempts}:`, error);
++        if (this.closed) {
++          return;
++        }
++        await delay(jitteredBackoffMs(baseDelayMs, attempt));
++        if (this.closed) {
++          return;
++        }
+       }
+-      await response.text().catch(() => {
+-      });
+-    } catch (error) {
+-      console.error("ACP write error:", error);
+-      this.failReadable(error);
+     }
+   }
+   ensureSseLoop() {
+@@ -531,6 +564,7 @@ export {
+   AcpHttpClient,
+   AcpHttpError,
+   AcpRpcError,
+-  PROTOCOL_VERSION2 as PROTOCOL_VERSION
++  PROTOCOL_VERSION2 as PROTOCOL_VERSION,
++  isRetryableAcpWriteError
+ };
+ //# sourceMappingURL=index.js.map

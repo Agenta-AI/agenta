@@ -63,11 +63,6 @@ class SessionStreamDBE(
             "created_at",
         ),
         Index(
-            "ix_session_streams_project_id_session_id",
-            "project_id",
-            "session_id",
-        ),
-        Index(
             "ix_session_streams_flags",
             "flags",
             postgresql_using="gin",

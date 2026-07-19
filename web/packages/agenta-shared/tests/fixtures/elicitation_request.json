@@ -30,6 +30,12 @@
                     }
                 ]
             },
+            "run_schedule": {
+                "type": "string",
+                "title": "Run schedule",
+                "format": "cron",
+                "default": "0 9 * * *"
+            },
             "time_of_day": {
                 "type": "string",
                 "title": "At what time",

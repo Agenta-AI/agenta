@@ -2,13 +2,14 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
-from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.dtos import Status, Windowing
 from oss.src.core.triggers.dtos import (
     TriggerCatalogEventDetails,
     TriggerCatalogEventsPage,
     TriggerCatalogProvider,
     TriggerDelivery,
     TriggerDeliveryCreate,
+    TriggerDeliveryData,
     TriggerDeliveryQuery,
     TriggerSchedule,
     TriggerScheduleCreate,
@@ -146,6 +147,16 @@ class TriggersDAOInterface(ABC):
     ) -> List[TriggerSubscription]: ...
 
     @abstractmethod
+    async def fetch_subscription_by_trigger_id(
+        self,
+        *,
+        project_id: UUID,
+        trigger_id: str,
+    ) -> Optional[TriggerSubscription]:
+        """Fetch the live (non-deleted) subscription owning ``trigger_id`` in this project."""
+        ...
+
+    @abstractmethod
     async def get_project_and_subscription_by_trigger_id(
         self,
         *,
@@ -175,6 +186,42 @@ class TriggersDAOInterface(ABC):
         ...
 
     @abstractmethod
+    async def claim_delivery(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        #
+        delivery: TriggerDeliveryCreate,
+    ) -> Optional[TriggerDelivery]:
+        """Atomically reserve the delivery row for (subscription|schedule, event_id).
+
+        Backed by the same partial-unique index ``write_delivery`` upserts on:
+        ``INSERT ... ON CONFLICT DO NOTHING ... RETURNING``. Returns the newly
+        inserted (reserved) row, or ``None`` if a row for this event already
+        exists — meaning another caller already claimed (or completed) it and
+        this caller must NOT invoke the bound workflow.
+        """
+        ...
+
+    @abstractmethod
+    async def update_delivery(
+        self,
+        *,
+        project_id: UUID,
+        delivery_id: UUID,
+        #
+        status: Status,
+        data: Optional[TriggerDeliveryData] = None,
+    ) -> Optional[TriggerDelivery]:
+        """Complete a previously claimed delivery row to its terminal status.
+
+        Updates the row IN PLACE by id (never inserts) so a post-invoke write
+        failure cannot manifest as "no row exists" on retry.
+        """
+        ...
+
+    @abstractmethod
     async def fetch_delivery(
         self,
         *,
@@ -193,6 +240,19 @@ class TriggersDAOInterface(ABC):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[TriggerDelivery]: ...
+
+    @abstractmethod
+    async def poll_delivery_after(
+        self,
+        *,
+        project_id: UUID,
+        subscription_id: UUID,
+        baseline_id: Optional[UUID],
+        timeout_seconds: float,
+        interval_seconds: float = 1.0,
+    ) -> Optional[TriggerDelivery]:
+        """Wait (on one held connection) for a delivery newer than baseline_id."""
+        ...
 
     @abstractmethod
     async def dedup_seen(

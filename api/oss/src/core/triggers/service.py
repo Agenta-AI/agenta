@@ -59,6 +59,7 @@ from oss.src.core.triggers.interfaces import TriggersDAOInterface
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
 from oss.src.core.triggers.utils import WebhookSecretResolver
 from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.workflows.service import WorkflowsService
 
 
@@ -928,6 +929,27 @@ class TriggersService:
             connection_id=subscription.connection_id,
         )
 
+        # The provider call below is an upsert, so a duplicate create would silently
+        # rewrite the live trigger's config before the unique index rejects the row.
+        # Conflict on (connection, event) locally first to keep the provider untouched.
+        existing = await self.dao.query_subscriptions(
+            project_id=project_id,
+            subscription=TriggerSubscriptionQuery(
+                connection_id=subscription.connection_id,
+                event_key=subscription.data.event_key,
+            ),
+            windowing=Windowing(limit=1),
+        )
+        if existing:
+            raise EntityCreationConflict(
+                entity="Trigger subscription",
+                message="A subscription for this connection and event already exists.",
+                conflict={
+                    "subscription_id": str(existing[0].id),
+                    "trigger_id": existing[0].trigger_id,
+                },
+            )
+
         adapter = self.adapter_registry.get(connection.provider_key.value)
 
         trigger_id = await adapter.create_subscription(
@@ -1175,38 +1197,65 @@ class TriggersService:
         #
         subscription: TriggerSubscriptionCreate,
     ) -> Optional[TriggerDelivery]:
-        """One-shot test: create a test subscription, wait for the first captured
-        delivery (or a timeout), then tear it down.
+        """One-shot test: capture the first delivery for this (connection, event),
+        then tear down.
 
-        Pure convenience over the primitives — the same create / poll-deliveries /
-        delete lifecycle a client can drive itself. The test subscription is always
-        deleted, including on timeout and on any error.
+        Normally mints a short-lived test subscription and deletes it (including on
+        timeout and on any error). If a live subscription already owns the provider
+        trigger (the partial-unique index forbids a duplicate active row), capture
+        against that existing subscription instead and leave it in place.
         """
         subscription.flags.is_test = True
 
-        created = await self.create_subscription(
-            project_id=project_id,
-            user_id=user_id,
-            subscription=subscription,
-        )
+        owns_created = True
+        try:
+            created = await self.create_subscription(
+                project_id=project_id,
+                user_id=user_id,
+                subscription=subscription,
+            )
+        except EntityCreationConflict as err:
+            # Capture against the exact colliding subscription (project-scoped, non-deleted),
+            # not a fuzzy connection+event match that could land on a stale or inactive row.
+            trigger_id = (err.conflict or {}).get("trigger_id")
+            existing = (
+                await self.dao.fetch_subscription_by_trigger_id(
+                    project_id=project_id,
+                    trigger_id=trigger_id,
+                )
+                if trigger_id
+                else None
+            )
+            if existing is None:
+                raise
+            created = existing
+            owns_created = False
+
+        # A reused live subscription may already carry past deliveries; capture only
+        # a delivery newer than the current latest. A freshly minted test
+        # subscription has none, so no baseline is taken and the first delivery wins.
+        baseline_id = None
+        if not owns_created:
+            baseline = await self.dao.query_deliveries(
+                project_id=project_id,
+                delivery=TriggerDeliveryQuery(subscription_id=created.id),
+                windowing=Windowing(limit=1),
+            )
+            baseline_id = baseline[0].id if baseline else None
 
         try:
-            deadline = asyncio.get_event_loop().time() + _TEST_TIMEOUT_SECONDS
-            while asyncio.get_event_loop().time() < deadline:
-                deliveries = await self.dao.query_deliveries(
-                    project_id=project_id,
-                    delivery=TriggerDeliveryQuery(subscription_id=created.id),
-                    windowing=Windowing(limit=1),
-                )
-                if deliveries:
-                    return deliveries[0]
-                await asyncio.sleep(1.0)
-            return None
-        finally:
-            await self.delete_subscription(
+            return await self.dao.poll_delivery_after(
                 project_id=project_id,
                 subscription_id=created.id,
+                baseline_id=baseline_id,
+                timeout_seconds=_TEST_TIMEOUT_SECONDS,
             )
+        finally:
+            if owns_created:
+                await self.delete_subscription(
+                    project_id=project_id,
+                    subscription_id=created.id,
+                )
 
     async def _set_valid(
         self,
@@ -1511,7 +1560,6 @@ class TriggersService:
                     timeout=_ENQUEUE_TIMEOUT_SECONDS,
                 )
 
-                log.tick("triggers.enqueued", dims={"queue": "triggers"})
                 log.info(
                     "[SCHEDULE] Dispatched.   ",
                     project_id=project_id,

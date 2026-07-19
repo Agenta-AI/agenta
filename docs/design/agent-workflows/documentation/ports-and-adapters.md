@@ -159,6 +159,7 @@ result fields should update both sides and the wire tests in the same PR.
 - Session history is not persisted: the runtime is cold and completed `/messages` turns are
   not stored.
 - `AgentaHarness` policy content is placeholder product copy.
-- MCP server resolution is disabled unless `AGENTA_AGENT_MCPS_ENABLED` is truthy.
+- External HTTP MCP servers are resolved without a deployment flag. Harness capability metadata
+  exposes authoring for Claude and hides it for Pi until Pi has a delivery bridge.
 - The code still has historical WP labels in some comments. Those labels should not guide new
   design decisions.

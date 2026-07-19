@@ -9,10 +9,12 @@
  */
 import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
+import * as http from "node:http";
 import type { AddressInfo } from "node:net";
 
 import {
   createAgentServer,
+  normalizeKillProjectId,
   registerShutdownHandler,
   type RunAgent,
 } from "../../src/server.ts";
@@ -30,9 +32,19 @@ afterEach(() => {
   else process.env[LIMIT_ENV] = previousLimit;
 });
 
+/**
+ * The token is REQUIRED to serve, so a booted runner always has one. `listen` therefore configures
+ * it (unless a test already set its own) and `AUTH` presents it: tests about something OTHER than
+ * auth should not have to think about auth. Tests that probe the gate itself override the env
+ * and/or omit `AUTH` deliberately.
+ */
+const TEST_TOKEN = "test-runner-token";
+const AUTH = { authorization: `Bearer ${TEST_TOKEN}` };
+
 async function listen(
   run: RunAgent,
 ): Promise<{ url: string; close: () => Promise<void> }> {
+  if (!process.env[TOKEN_ENV]) process.env[TOKEN_ENV] = TEST_TOKEN;
   const server = createAgentServer(run);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
@@ -69,6 +81,7 @@ describe("createAgentServer", () => {
     try {
       const res = await fetch(`${s.url}/run`, {
         method: "POST",
+        headers: AUTH,
         body: JSON.stringify({ harness: "pi_core" }),
       });
       assert.equal(res.status, 200);
@@ -85,6 +98,7 @@ describe("createAgentServer", () => {
     try {
       const res = await fetch(`${s.url}/run`, {
         method: "POST",
+        headers: AUTH,
         body: "{not json",
       });
       assert.equal(res.status, 400);
@@ -100,7 +114,11 @@ describe("createAgentServer", () => {
     const failRun: RunAgent = async () => ({ ok: false, error: "boom" });
     const s = await listen(failRun);
     try {
-      const res = await fetch(`${s.url}/run`, { method: "POST", body: "{}" });
+      const res = await fetch(`${s.url}/run`, {
+        method: "POST",
+        headers: AUTH,
+        body: "{}",
+      });
       assert.equal(res.status, 500);
       const body = (await res.json()) as { ok: boolean; error: string };
       assert.equal(body.ok, false);
@@ -110,12 +128,14 @@ describe("createAgentServer", () => {
     }
   });
 
-  it("POST /run is accepted with no token configured (default-off, network isolation only)", async () => {
-    delete process.env[TOKEN_ENV];
+  it("POST /run is REJECTED when no token is configured (fails closed; there is no unauthenticated mode)", async () => {
+    // `assertRunnerToken` stops a tokenless runner at boot, so this state is only reachable if the
+    // env is mutated out from under a live process. The gate must deny, never fall open.
     const s = await listen(okRun);
+    delete process.env[TOKEN_ENV];
     try {
       const res = await fetch(`${s.url}/run`, { method: "POST", body: "{}" });
-      assert.equal(res.status, 200);
+      assert.equal(res.status, 401);
     } finally {
       await s.close();
     }
@@ -192,14 +212,179 @@ describe("createAgentServer", () => {
     }
   });
 
-  it("POST /kill drains the pool + sandboxes and returns 200 (idempotent)", async () => {
+  it("POST /kill with sessionId + projectId drains that session's pool entry + sandboxes (idempotent)", async () => {
     // With keep-alive off (default) the pool is empty, so the drain is a no-op that still 200s.
     const s = await listen(okRun);
     try {
-      const res = await fetch(`${s.url}/kill`, { method: "POST" });
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "proj-1" }),
+      });
       assert.equal(res.status, 200);
       const body = (await res.json()) as { ok: boolean };
       assert.equal(body.ok, true);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill without a sessionId is rejected as unscoped (400)", async () => {
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ projectId: "proj-1" }),
+      });
+      assert.equal(res.status, 400);
+      const body = (await res.json()) as { ok: boolean; error: string };
+      assert.equal(body.ok, false);
+      assert.match(body.error, /sessionId/);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill without a projectId is rejected as under-scoped (400), not half-executed", async () => {
+    // The two teardown halves (pool key vs in-flight sandbox filter) must agree on scope; a
+    // missing projectId is rejected outright instead of silently draining one and sweeping
+    // the other unscoped.
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1" }),
+      });
+      assert.equal(res.status, 400);
+      const body = (await res.json()) as { ok: boolean; error: string };
+      assert.equal(body.ok, false);
+      assert.match(body.error, /projectId/);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill with an empty-string projectId is rejected as under-scoped (400)", async () => {
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "" }),
+      });
+      assert.equal(res.status, 400);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill with a non-string projectId is rejected as under-scoped (400)", async () => {
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1", projectId: 12345 }),
+      });
+      assert.equal(res.status, 400);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill with invalid JSON returns 400", async () => {
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: "{not json",
+      });
+      assert.equal(res.status, 400);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill with a whitespace-only projectId is rejected: a blank scope is no scope", async () => {
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "   " }),
+      });
+      assert.equal(res.status, 400);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill with an oversized body is rejected with 413, not buffered in full", async () => {
+    const s = await listen(okRun);
+    try {
+      const oversized = JSON.stringify({
+        sessionId: "sess-1",
+        // 16 KiB cap: this comfortably exceeds it.
+        projectId: "p".repeat(64 * 1024),
+      });
+      // Stream the body in small chunks with a real event-loop tick between them (rather than
+      // one synchronous fetch() write) so the server has a chance to detect the overage, respond
+      // 413, and destroy the socket WHILE the client is still writing — the same interleaving an
+      // actual oversized upload would race, and the scenario the destroy-mid-write guard exists
+      // for. A reset while writing is an acceptable client-side outcome as long as the guard
+      // itself fired before the whole body was ever buffered; a 413 response is the ideal case.
+      const url = new URL(`${s.url}/kill`);
+      const responseStatus = await new Promise<number | "reset">((resolve) => {
+        const req = http.request(
+          {
+            hostname: url.hostname,
+            port: url.port,
+            path: url.pathname,
+            method: "POST",
+            // Authorized: the token gate runs BEFORE the body is read, so an un-tokened request
+            // would 401 without ever exercising the 413 cap this test is about.
+            headers: { "content-type": "application/json", ...AUTH },
+          },
+          (res) => {
+            res.resume();
+            resolve(res.statusCode ?? -1);
+          },
+        );
+        req.on("error", () => resolve("reset"));
+        (async () => {
+          const chunkSize = 1024;
+          for (let i = 0; i < oversized.length; i += chunkSize) {
+            if (req.destroyed) return;
+            const ok = req.write(oversized.slice(i, i + chunkSize));
+            if (!ok) await new Promise((r) => req.once("drain", r));
+            await new Promise((r) => setImmediate(r));
+          }
+          if (!req.destroyed) req.end();
+        })();
+      });
+      // Either outcome proves the guard fired before the full 64 KiB body was accepted: a clean
+      // 413, or the connection being reset mid-write once the cap was crossed.
+      assert.ok(
+        responseStatus === 413 || responseStatus === "reset",
+        `expected 413 or a reset, got ${responseStatus}`,
+      );
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("POST /kill with a body within the cap is unaffected by the 413 guard", async () => {
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/kill`, {
+        method: "POST",
+        headers: AUTH,
+        body: JSON.stringify({ sessionId: "sess-1", projectId: "proj-1" }),
+      });
+      assert.equal(res.status, 200);
     } finally {
       await s.close();
     }
@@ -219,7 +404,7 @@ describe("createAgentServer", () => {
     try {
       const res = await fetch(`${s.url}/run`, {
         method: "POST",
-        headers: { accept: "application/x-ndjson" },
+        headers: { accept: "application/x-ndjson", ...AUTH },
         body: "{}",
       });
       assert.equal(res.status, 200);
@@ -248,6 +433,27 @@ describe("createAgentServer", () => {
   });
 });
 
+describe("normalizeKillProjectId (blank projectId scope-agreement)", () => {
+  it("normalizes undefined to undefined", () => {
+    assert.equal(normalizeKillProjectId(undefined), undefined);
+  });
+
+  it("normalizes a whitespace-only string to undefined", () => {
+    assert.equal(normalizeKillProjectId("   "), undefined);
+    assert.equal(normalizeKillProjectId(""), undefined);
+    assert.equal(normalizeKillProjectId("\t\n"), undefined);
+  });
+
+  it("normalizes a non-string value to undefined", () => {
+    assert.equal(normalizeKillProjectId(123), undefined);
+    assert.equal(normalizeKillProjectId(null), undefined);
+  });
+
+  it("trims and keeps a real projectId", () => {
+    assert.equal(normalizeKillProjectId("  proj-1  "), "proj-1");
+  });
+});
+
 describe("createAgentServer: per-box concurrency admission gate", () => {
   it("rejects with 429 once the configured cap is reached", async () => {
     process.env[LIMIT_ENV] = "1";
@@ -258,11 +464,19 @@ describe("createAgentServer: per-box concurrency admission gate", () => {
       });
     const s = await listen(holdingRun);
     try {
-      const first = fetch(`${s.url}/run`, { method: "POST", body: "{}" });
+      const first = fetch(`${s.url}/run`, {
+        method: "POST",
+        headers: AUTH,
+        body: "{}",
+      });
       // Give the first request a chance to reserve its slot before the second fires.
       await new Promise((resolve) => setImmediate(resolve));
 
-      const second = await fetch(`${s.url}/run`, { method: "POST", body: "{}" });
+      const second = await fetch(`${s.url}/run`, {
+        method: "POST",
+        headers: AUTH,
+        body: "{}",
+      });
       assert.equal(second.status, 429);
       const body = (await second.json()) as { ok: boolean; error: string };
       assert.equal(body.ok, false);
@@ -280,7 +494,11 @@ describe("createAgentServer: per-box concurrency admission gate", () => {
     process.env[LIMIT_ENV] = "2";
     const s = await listen(okRun);
     try {
-      const res = await fetch(`${s.url}/run`, { method: "POST", body: "{}" });
+      const res = await fetch(`${s.url}/run`, {
+        method: "POST",
+        headers: AUTH,
+        body: "{}",
+      });
       assert.equal(res.status, 200);
     } finally {
       await s.close();
@@ -291,9 +509,17 @@ describe("createAgentServer: per-box concurrency admission gate", () => {
     process.env[LIMIT_ENV] = "1";
     const s = await listen(okRun);
     try {
-      const first = await fetch(`${s.url}/run`, { method: "POST", body: "{}" });
+      const first = await fetch(`${s.url}/run`, {
+        method: "POST",
+        headers: AUTH,
+        body: "{}",
+      });
       assert.equal(first.status, 200);
-      const second = await fetch(`${s.url}/run`, { method: "POST", body: "{}" });
+      const second = await fetch(`${s.url}/run`, {
+        method: "POST",
+        headers: AUTH,
+        body: "{}",
+      });
       assert.equal(second.status, 200);
     } finally {
       await s.close();

@@ -37,6 +37,15 @@ class MountsDAOInterface(ABC):
     ) -> Optional[Mount]: ...
 
     @abstractmethod
+    async def fetch_mount_by_slug(
+        self,
+        *,
+        project_id: UUID,
+        #
+        slug: str,
+    ) -> Optional[Mount]: ...
+
+    @abstractmethod
     async def edit_mount(
         self,
         *,

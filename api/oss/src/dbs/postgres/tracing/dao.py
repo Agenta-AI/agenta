@@ -37,6 +37,7 @@ from oss.src.dbs.postgres.tracing.mappings import (
     map_span_dto_to_span_dbe,
     map_span_dbe_to_span_dto,
     map_buckets,
+    sort_buckets_by_timestamp,
 )
 from oss.src.dbs.postgres.tracing.utils import (
     TIMEOUT_STMT,
@@ -523,7 +524,7 @@ class TracingDAO(TracingDAOInterface):
         # log.trace([b.model_dump(mode="json", exclude_none=True) for b in buckets])
         # ---------
 
-        return buckets
+        return sort_buckets_by_timestamp(buckets)
 
     @suppress_exceptions(default=[])
     async def legacy_analytics(
@@ -715,7 +716,7 @@ class TracingDAO(TracingDAOInterface):
                 # )
                 # ---------
 
-            return buckets
+            return sort_buckets_by_timestamp(buckets)
 
         except DBAPIError as e:
             log.error(f"{type(e).__name__}: {e}")

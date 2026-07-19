@@ -2,7 +2,12 @@ import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import type { RunPlan } from "./run-plan.ts";
-import { uploadDirToSandbox } from "./pi-assets.ts";
+import {
+  materializeDaytonaPiSkillSnapshot,
+  materializeLocalPiSkillSnapshot,
+  type PiSkillSnapshot,
+  uploadDirToSandbox,
+} from "./pi-assets.ts";
 
 type Log = (message: string) => void;
 
@@ -12,6 +17,7 @@ export interface Workspace {
 
 export interface PrepareWorkspaceInput {
   sandbox: any;
+  piSkillSnapshot?: PiSkillSnapshot;
   plan: Pick<
     RunPlan,
     | "isDaytona"
@@ -29,9 +35,9 @@ export interface PrepareWorkspaceInput {
 
 /**
  * Prepare the run cwd, relay directory, the instructions memory file, generic `harnessFiles`,
- * and non-Pi skill packages for local or Daytona runs. `harnessFiles` are written blind: the
+ * and harness skill packages for local or Daytona runs. `harnessFiles` are written blind: the
  * Python harness adapter already rendered them. Skills stay resolved inline packages on the
- * wire; Pi installs them through its agent dir, while Claude loads project-local
+ * wire; Pi loads one immutable `agents/skills/<digest>` snapshot, while Claude loads project-local
  * `.claude/skills/<name>` directories from the cwd.
  *
  * The instructions (`agentsMd`) filename is harness-aware. Claude runs through
@@ -43,6 +49,7 @@ export interface PrepareWorkspaceInput {
 export async function prepareWorkspace({
   sandbox,
   plan,
+  piSkillSnapshot,
   log = () => {},
 }: PrepareWorkspaceInput): Promise<Workspace> {
   const harnessFiles = plan.harnessFiles ?? [];
@@ -86,6 +93,9 @@ export async function prepareWorkspace({
       });
       await sandbox.writeFsFile({ path }, file.content);
     }
+    if (piSkillSnapshot) {
+      await materializeDaytonaPiSkillSnapshot(sandbox, piSkillSnapshot);
+    }
     if (projectSkillRoot) {
       for (const skill of plan.skillDirs) {
         await uploadDirToSandbox(
@@ -102,6 +112,11 @@ export async function prepareWorkspace({
     return { cleanup: async () => {} };
   }
 
+  // A durable local cwd mount is best-effort. When geesefs cannot mount (for example, the
+  // runner has no /dev/fuse), acquisition deliberately falls back to an ephemeral cwd. Ensure
+  // that fallback exists before writing CLAUDE.md/AGENTS.md or any harness files into it.
+  mkdirSync(plan.cwd, { recursive: true });
+
   if (plan.useToolRelay) {
     // Clear stale .req.json from a prior turn: relayDir is keyed on the durable cwd and
     // is never otherwise cleared, so an old request would be re-picked-up by the fresh `seen` set.
@@ -115,6 +130,7 @@ export async function prepareWorkspace({
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, file.content, "utf-8");
   }
+  if (piSkillSnapshot) materializeLocalPiSkillSnapshot(piSkillSnapshot);
   if (projectSkillRoot) {
     for (const skill of plan.skillDirs) {
       const dest = join(plan.cwd, projectSkillRoot, skill.name);

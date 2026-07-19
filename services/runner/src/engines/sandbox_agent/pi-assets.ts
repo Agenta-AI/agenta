@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from "node:crypto";
 import {
   copyFileSync,
   cpSync,
@@ -6,6 +7,8 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  renameSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -16,15 +19,298 @@ import type { AgentRunRequest, ResolvedToolSpec } from "../../protocol.ts";
 import { advertisedToolSpecs } from "../../tools/public-spec.ts";
 import type { MaterializedSkill } from "../skills.ts";
 import { PKG_ROOT } from "./daemon.ts";
+import {
+  PI_MODELS_JSON_FILENAME,
+  serializePiModelsJson,
+  type PiModelConfigPlan,
+} from "./pi-model-config.ts";
 import type { RunPlan } from "./run-plan.ts";
 
 type Log = (message: string) => void;
 
-// The bundled Agenta Pi extension (tracing + tools). Built by `pnpm run build:extension`
-// and baked into the image; installed into Pi's agent dir so Pi loads it on every run.
-export const EXTENSION_BUNDLE =
-  process.env.SANDBOX_AGENT_EXTENSION_BUNDLE ??
-  join(PKG_ROOT, "dist", "extensions", "agenta.js");
+/**
+ * Pi native transcripts belong to the Agenta conversation, not the temporary Pi agent dir.
+ * The session cwd is already the durable, session-scoped workspace on both local and Daytona
+ * runs, so keeping transcripts below it gives Pi a stable path without persisting credentials,
+ * settings, extensions, or system prompts.
+ */
+export function piSessionWorkspaceDir(cwd: string): string {
+  return join(cwd, "agents", "sessions", "pi");
+}
+
+/** Point Pi at the durable conversation-scoped transcript directory. */
+export function configurePiSessionWorkspace(
+  plan: Pick<RunPlan, "isPi" | "cwd">,
+  env: Record<string, string>,
+): string | undefined {
+  if (!plan.isPi) return undefined;
+  const sessionDir = piSessionWorkspaceDir(plan.cwd);
+  env.PI_CODING_AGENT_SESSION_DIR = sessionDir;
+  return sessionDir;
+}
+
+export const PI_SKILL_SNAPSHOT_MARKER = ".agenta-skill-set.json";
+
+export interface PiSkillSnapshot {
+  digest: string;
+  dir: string;
+  marker: string;
+  skills: MaterializedSkill[];
+}
+
+interface SkillFile {
+  path: string;
+  mode: number;
+  content: Buffer;
+}
+
+function listSkillFiles(dir: string, relativeDir = ""): SkillFile[] {
+  const files: SkillFile[] = [];
+  for (const entry of readdirSync(join(dir, relativeDir), {
+    withFileTypes: true,
+  }).sort((a, b) => a.name.localeCompare(b.name))) {
+    const relativePath = relativeDir
+      ? `${relativeDir}/${entry.name}`
+      : entry.name;
+    const sourcePath = join(dir, relativePath);
+    const stat = entry.isSymbolicLink() ? statSync(sourcePath) : undefined;
+    if (entry.isDirectory() || stat?.isDirectory()) {
+      files.push(...listSkillFiles(dir, relativePath));
+    } else if (entry.isFile() || stat?.isFile()) {
+      files.push({
+        path: relativePath,
+        mode: statSync(sourcePath).mode & 0o777,
+        content: readFileSync(sourcePath),
+      });
+    }
+  }
+  return files;
+}
+
+function hashPart(
+  hash: ReturnType<typeof createHash>,
+  value: string | Buffer,
+): void {
+  const bytes = typeof value === "string" ? Buffer.from(value, "utf-8") : value;
+  const length = Buffer.alloc(8);
+  length.writeBigUInt64BE(BigInt(bytes.length));
+  hash.update(length);
+  hash.update(bytes);
+}
+
+/** Resolve the immutable project-local snapshot selected for this Pi run. */
+export function resolvePiSkillSnapshot(
+  plan: Pick<RunPlan, "isPi" | "cwd" | "skillDirs">,
+): PiSkillSnapshot | undefined {
+  if (!plan.isPi || plan.skillDirs.length === 0) return undefined;
+
+  const skills = [...plan.skillDirs].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+  const hash = createHash("sha256");
+  hashPart(hash, "agenta-pi-skill-set-v1");
+  for (const skill of skills) {
+    hashPart(hash, skill.name);
+    for (const file of listSkillFiles(skill.dir)) {
+      hashPart(hash, file.path);
+      hashPart(hash, file.mode.toString(8));
+      hashPart(hash, file.content);
+    }
+  }
+  const digest = hash.digest("hex");
+  const marker = `${JSON.stringify({
+    version: 1,
+    digest,
+    skills: skills.map((skill) => skill.name),
+  })}\n`;
+  return {
+    digest,
+    dir: join(plan.cwd, "agents", "skills", digest),
+    marker,
+    skills,
+  };
+}
+
+/** Tell Pi to load only the explicitly selected project-local snapshot. */
+export function configurePiSkillSnapshot(
+  snapshot: PiSkillSnapshot | undefined,
+  env: Record<string, string>,
+): void {
+  if (snapshot) env.PI_CODING_AGENT_SKILL_DIR = snapshot.dir;
+}
+
+function validateLocalPiSkillSnapshot(snapshot: PiSkillSnapshot): boolean {
+  if (!existsSync(snapshot.dir)) return false;
+  const markerPath = join(snapshot.dir, PI_SKILL_SNAPSHOT_MARKER);
+  if (
+    !existsSync(markerPath) ||
+    readFileSync(markerPath, "utf-8") !== snapshot.marker
+  ) {
+    throw new Error(
+      `Pi skill snapshot ${snapshot.dir} exists without the expected completion marker`,
+    );
+  }
+  return true;
+}
+
+/** Publish a local snapshot once; existing snapshots are only validated and reused. */
+export function materializeLocalPiSkillSnapshot(
+  snapshot: PiSkillSnapshot,
+): void {
+  if (validateLocalPiSkillSnapshot(snapshot)) return;
+
+  const root = dirname(snapshot.dir);
+  mkdirSync(root, { recursive: true });
+  const staging = mkdtempSync(join(root, `.${snapshot.digest}.tmp-`));
+  try {
+    for (const skill of snapshot.skills) {
+      cpSync(skill.dir, join(staging, skill.name), {
+        recursive: true,
+        dereference: true,
+      });
+    }
+    writeFileSync(
+      join(staging, PI_SKILL_SNAPSHOT_MARKER),
+      snapshot.marker,
+      "utf-8",
+    );
+    try {
+      renameSync(staging, snapshot.dir);
+    } catch (err) {
+      if (!validateLocalPiSkillSnapshot(snapshot)) throw err;
+    }
+  } finally {
+    rmSync(staging, { recursive: true, force: true });
+  }
+}
+
+async function readDaytonaSnapshotMarker(
+  sandbox: any,
+  snapshot: PiSkillSnapshot,
+): Promise<string | undefined> {
+  try {
+    const bytes = await sandbox.readFsFile({
+      path: `${snapshot.dir}/${PI_SKILL_SNAPSHOT_MARKER}`,
+    });
+    return Buffer.from(bytes).toString("utf-8");
+  } catch {
+    return undefined;
+  }
+}
+
+async function validateDaytonaPiSkillSnapshot(
+  sandbox: any,
+  snapshot: PiSkillSnapshot,
+): Promise<boolean> {
+  const marker = await readDaytonaSnapshotMarker(sandbox, snapshot);
+  if (marker === undefined) return false;
+  if (marker !== snapshot.marker) {
+    throw new Error(
+      `Pi skill snapshot ${snapshot.dir} exists without the expected completion marker`,
+    );
+  }
+  return true;
+}
+
+/** Publish a Daytona snapshot through a unique staging dir and a non-overwriting move. */
+export async function materializeDaytonaPiSkillSnapshot(
+  sandbox: any,
+  snapshot: PiSkillSnapshot,
+): Promise<void> {
+  if (await validateDaytonaPiSkillSnapshot(sandbox, snapshot)) return;
+
+  const root = dirname(snapshot.dir);
+  const staging = `${root}/.${snapshot.digest}.tmp-${randomUUID()}`;
+  await sandbox.mkdirFs({ path: staging });
+  try {
+    for (const skill of snapshot.skills) {
+      await uploadDirToSandbox(sandbox, skill.dir, `${staging}/${skill.name}`);
+    }
+    await sandbox.writeFsFile(
+      { path: `${staging}/${PI_SKILL_SNAPSHOT_MARKER}` },
+      snapshot.marker,
+    );
+    try {
+      await sandbox.moveFs({
+        from: staging,
+        to: snapshot.dir,
+        overwrite: false,
+      });
+    } catch (err) {
+      if (!(await validateDaytonaPiSkillSnapshot(sandbox, snapshot))) throw err;
+    }
+  } finally {
+    if (typeof sandbox.runProcess === "function") {
+      await sandbox
+        .runProcess({ command: "rm", args: ["-rf", "--", staging] })
+        .catch(() => {});
+    }
+  }
+}
+
+// The bundled Agenta Pi extension (tracing + tools + permission gating). Built by
+// `pnpm run build:extension` and baked into the image; installed into Pi's agent dir so Pi loads
+// it on every run. Resolved lazily (a function, not a module-level const) so
+// `SANDBOX_AGENT_EXTENSION_BUNDLE` is honored at call time — tests point it at a fixture, and it
+// mirrors `toolMcpBundlePath()` in tool-mcp-assets.ts. The override selects code, so it is trusted
+// deployment configuration, never run or request configuration.
+export function extensionBundlePath(): string {
+  return (
+    process.env.SANDBOX_AGENT_EXTENSION_BUNDLE ??
+    join(PKG_ROOT, "dist", "extensions", "agenta.js")
+  );
+}
+
+/**
+ * Thrown when the policy could gate a Pi built-in tool (`builtinGatingActive`) but the Agenta
+ * permission extension could not be installed, so Pi would run its built-in tools with NO policy
+ * enforcement. Fail closed: stop the run rather than run unprotected. Mirrors
+ * `TOOL_MCP_UNAVAILABLE_MESSAGE` in tool-mcp-assets.ts — a named message the engine's own catch
+ * turns into `{ ok: false, error }` and a visible error frame. Single line so `conciseError`
+ * (which keeps only the first line) surfaces it verbatim.
+ */
+export const PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE =
+  "The agent could not enforce its permission policy: the permission component failed to install, " +
+  "so no built-in tool could be gated. The run was stopped so no tool ran outside your policy. " +
+  "Ask your deployment operator to make the runner's Pi agent directory writable, or rebuild and " +
+  "republish the runner image.";
+
+/**
+ * Thrown (via the engine's named-message pattern) when a managed OpenAI-compatible custom run has
+ * a model-config plan but its `models.json` could not be materialized. Fail closed: the custom
+ * provider would not be registered, so the run must stop rather than fall back to a default
+ * provider (design Decision 6). Single line so `conciseError` surfaces it verbatim.
+ */
+export const PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE =
+  "The agent could not write its model configuration (models.json), so the OpenAI-compatible " +
+  "custom provider could not be registered. The run was stopped rather than fall back to a " +
+  "default provider. Ask your deployment operator to make the runner's Pi agent directory writable.";
+
+/**
+ * Write the Pi `models.json` into a local (throwaway) agent dir with mode `0600` via an atomic
+ * temp-file-plus-rename. THROWS on failure so the caller can make materialization terminal — a
+ * managed custom run must never fall through to a default provider (design Decision 6). The file
+ * carries only the `$OPENAI_API_KEY` reference, never the key value.
+ */
+export function writePiModelsConfigLocal(
+  agentDir: string,
+  plan: PiModelConfigPlan,
+): void {
+  const document = serializePiModelsJson(plan);
+  const target = join(agentDir, PI_MODELS_JSON_FILENAME);
+  const staging = join(
+    agentDir,
+    `.${PI_MODELS_JSON_FILENAME}.${randomUUID()}.tmp`,
+  );
+  mkdirSync(agentDir, { recursive: true });
+  writeFileSync(staging, document, { encoding: "utf-8", mode: 0o600 });
+  try {
+    renameSync(staging, target);
+  } catch (err) {
+    rmSync(staging, { force: true });
+    throw err;
+  }
+}
 
 /**
  * Env the Agenta Pi extension reads. Tool env contains only public metadata plus the
@@ -70,6 +356,13 @@ export function buildPiExtensionEnv(
   if (specs.length && opts.relayDir) {
     env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify(specs);
     env.AGENTA_AGENT_TOOLS_RELAY_DIR = opts.relayDir;
+    // Hop-1 response-watch kill switch (event-driven-tool-relay plan, decision 7): the
+    // in-sandbox writer defaults it to true, so it is only forwarded — verbatim — when
+    // the operator set it on the runner.
+    const responseWatch =
+      process.env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED;
+    if (responseWatch !== undefined)
+      env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED = responseWatch;
   }
   // Builtin gating needs no relay dir: the gate rides the extension's `ctx.ui.confirm`
   // dialog onto the ACP permission plane (Pi approval parking), not the file relay.
@@ -101,23 +394,28 @@ export function writeOtlpAuthFile(
   }
 }
 
-/** Install the extension bundle into a local Pi agent dir's extensions/. Best-effort. */
+/**
+ * Install the extension bundle into a local Pi agent dir's extensions/. Reports whether the
+ * install succeeded so the caller can fail closed when the policy needs it (a missing bundle or
+ * an unwritable dir returns false rather than silently proceeding with no enforcement).
+ */
 export function installPiExtensionLocal(
   agentDir: string,
   log: Log = () => {},
-): void {
-  if (!existsSync(EXTENSION_BUNDLE)) {
-    log(
-      `pi extension bundle missing at ${EXTENSION_BUNDLE} (run build:extension)`,
-    );
-    return;
+): boolean {
+  const bundle = extensionBundlePath();
+  if (!existsSync(bundle)) {
+    log(`pi extension bundle missing at ${bundle} (run build:extension)`);
+    return false;
   }
   try {
     const dir = join(agentDir, "extensions");
     mkdirSync(dir, { recursive: true });
-    copyFileSync(EXTENSION_BUNDLE, join(dir, "agenta.js"));
+    copyFileSync(bundle, join(dir, "agenta.js"));
+    return true;
   } catch (err) {
     log(`pi extension install skipped: ${(err as Error).message}`);
+    return false;
   }
 }
 
@@ -174,53 +472,65 @@ export async function uploadSystemPromptToSandbox(
   }
 }
 
-/** Upload the extension bundle into a Daytona sandbox's Pi extensions dir. Best-effort. */
+/**
+ * Upload the extension bundle into a Daytona sandbox's Pi extensions dir. Reports whether the
+ * upload succeeded so the caller can fail closed when the policy needs enforcement (a missing
+ * bundle or a failed upload returns false rather than silently proceeding with no enforcement).
+ */
 export async function uploadPiExtensionToSandbox(
   sandbox: any,
   agentDir: string,
   log: Log = () => {},
-): Promise<void> {
-  if (!existsSync(EXTENSION_BUNDLE)) return;
+): Promise<boolean> {
+  const bundle = extensionBundlePath();
+  if (!existsSync(bundle)) {
+    log(`pi extension bundle missing at ${bundle} (run build:extension)`);
+    return false;
+  }
   try {
     const dir = `${agentDir}/extensions`;
     await sandbox.mkdirFs({ path: dir });
     await sandbox.writeFsFile(
       { path: `${dir}/agenta.js` },
-      readFileSync(EXTENSION_BUNDLE, "utf-8"),
+      readFileSync(bundle, "utf-8"),
     );
+    return true;
   } catch (err) {
     log(`pi extension upload skipped: ${(err as Error).message}`);
+    return false;
   }
 }
 
-/** Install materialized skill dirs into a local Pi agent dir's user-scope `skills/`. */
-export function installSkillsLocal(
-  agentDir: string,
-  skillDirs: MaterializedSkill[],
-  log: Log = () => {},
-): void {
-  for (const skill of skillDirs) {
-    try {
-      const dest = join(agentDir, "skills", skill.name);
-      mkdirSync(dirname(dest), { recursive: true });
-      cpSync(skill.dir, dest, { recursive: true, dereference: true });
-    } catch (err) {
-      log(`skill install skipped for ${skill.name}: ${(err as Error).message}`);
-    }
-  }
+export interface PreparedLocalAgentDir {
+  /** The throwaway per-run agent dir the runtime user owns (under the system temp path). */
+  dir: string;
+  /** False when the Agenta permission extension could not be installed into it. */
+  extensionInstalled: boolean;
 }
 
 /**
  * Seed a throwaway local Pi agent dir from `sourceAgentDir` and install the Agenta extension
- * plus the run's materialized skills into it.
+ * into it. The temp dir lives under the system temp path, which the runtime user owns, so the
+ * install never depends on the operator-configured `PI_CODING_AGENT_DIR` being writable. Reports
+ * whether the extension install succeeded.
+ *
+ * `seedCredentials` (default true) controls whether the operator's `auth.json` is copied in. A
+ * managed OpenAI-compatible custom run sets it FALSE: that run authenticates purely from the
+ * vault-resolved `$OPENAI_API_KEY` plus its `models.json`, so the operator's personal Pi login
+ * must not leak into it (a copied `auth.json` could let Pi fall back to the operator's own
+ * provider). The non-credential `settings.json` is always carried.
  */
 export function prepareLocalAgentDir(
   sourceAgentDir: string,
-  skillDirs: MaterializedSkill[],
   log: Log = () => {},
-): string {
+  opts: { seedCredentials?: boolean } = {},
+): PreparedLocalAgentDir {
+  const seedCredentials = opts.seedCredentials ?? true;
   const dir = mkdtempSync(join(tmpdir(), "agenta-pi-agentdir-"));
-  for (const name of ["auth.json", "settings.json"]) {
+  const seedFiles = seedCredentials
+    ? ["auth.json", "settings.json"]
+    : ["settings.json"];
+  for (const name of seedFiles) {
     const src = join(sourceAgentDir, name);
     try {
       if (existsSync(src)) copyFileSync(src, join(dir, name));
@@ -228,9 +538,8 @@ export function prepareLocalAgentDir(
       log(`agent-dir seed skipped for ${name}: ${(err as Error).message}`);
     }
   }
-  installPiExtensionLocal(dir, log);
-  installSkillsLocal(dir, skillDirs, log);
-  return dir;
+  const extensionInstalled = installPiExtensionLocal(dir, log);
+  return { dir, extensionInstalled };
 }
 
 export interface PrepareLocalPiAssetsInput {
@@ -238,6 +547,7 @@ export interface PrepareLocalPiAssetsInput {
     RunPlan,
     | "isPi"
     | "isDaytona"
+    | "credentialMode"
     | "skillDirs"
     | "hasSystemPrompt"
     | "systemPrompt"
@@ -245,48 +555,122 @@ export interface PrepareLocalPiAssetsInput {
     | "sourcePiAgentDir"
   >;
   env: Record<string, string>;
+  /**
+   * A managed OpenAI-compatible custom run's Pi provider config. When set, the isolated per-run
+   * agent dir receives a `models.json` for this provider and does NOT get the operator's personal
+   * `auth.json`; the run authenticates from the vault key referenced by `$OPENAI_API_KEY`.
+   */
+  piModelConfig?: PiModelConfigPlan;
   log?: Log;
 }
 
+export interface PrepareLocalPiAssetsResult {
+  /**
+   * The THROWAWAY per-run dir when one was created — `undefined` means "nothing here for the caller
+   * to delete" (the caller `rmSync`s `dir` at teardown, so the operator's own login must never be
+   * returned).
+   */
+  dir: string | undefined;
+  /**
+   * False when the Agenta permission extension could not be installed for this run. The caller
+   * fails the run closed when the policy could gate a Pi built-in tool (`builtinGatingActive`).
+   */
+  extensionInstalled: boolean;
+  /**
+   * False only when a model-config plan was present but its `models.json` could not be written;
+   * true when there was nothing to write or the write succeeded. The caller fails the run closed
+   * when this is false (materialization is terminal — design Decision 6).
+   */
+  modelConfigWritten: boolean;
+}
+
 /**
- * Prepare local Pi's agent dir assets and return the throwaway per-run dir when one was
- * created. Skills and system prompts always use an isolated dir; plain Pi runs only install
- * the inert Agenta extension into the configured shared dir.
+ * Prepare local Pi's agent dir assets and report the throwaway dir plus whether the permission
+ * extension installed.
+ *
+ * Two shapes:
+ *
+ * - Subscription (`runtime_provided`): the harness runs directly out of the operator's read-write
+ *   mounted login, exactly like a normal local Pi install. Pi refreshes its OAuth token mid-run and
+ *   writes the new one back into its agent dir; a per-run copy would throw that refresh away, so
+ *   once the provider rotated the refresh token the next run would fail and the operator would have
+ *   to log in by hand. Returns `dir: undefined` so teardown cannot delete the mount. The extension
+ *   still installs into the mount; a non-writable mount reports `extensionInstalled: false`.
+ * - Managed / none: no credential to preserve, so every run (plain, or with skills / a system
+ *   prompt) gets an isolated per-run copy under the system temp path the runtime user owns, and the
+ *   extension installs there. This removes the fail-open that shipped when the configured
+ *   `PI_CODING_AGENT_DIR` (e.g. `/pi-agent` on the published image) was not writable by the runtime
+ *   user: the install no longer depends on that directory being writable.
+ *
+ * Tradeoff (interface.md section 6): concurrent local subscription runs share the one agent dir,
+ * the same way two local `pi` sessions do. This path is single-trusted-operator only.
  */
 export function prepareLocalPiAssets({
   plan,
   env,
+  piModelConfig,
   log = () => {},
-}: PrepareLocalPiAssetsInput): string | undefined {
-  if (!plan.isPi || plan.isDaytona) return undefined;
+}: PrepareLocalPiAssetsInput): PrepareLocalPiAssetsResult {
+  // Not a local Pi run: nothing to install here, so enforcement is not this path's concern.
+  if (!plan.isPi || plan.isDaytona)
+    return {
+      dir: undefined,
+      extensionInstalled: true,
+      modelConfigWritten: true,
+    };
 
-  if (plan.skillDirs.length > 0 || plan.hasSystemPrompt) {
-    const runAgentDir = prepareLocalAgentDir(
-      plan.sourcePiAgentDir,
-      plan.skillDirs,
-      log,
-    );
+  // buildRunPlan already rejected a local runtime_provided run with no configured
+  // PI_CODING_AGENT_DIR, so `sourcePiAgentDir` here IS the operator's mount. A model-config plan
+  // never reaches here (it requires credentialMode "env"), so there is no models.json to write.
+  if (plan.credentialMode === "runtime_provided") {
+    const agentDir = plan.sourcePiAgentDir;
+    const extensionInstalled = installPiExtensionLocal(agentDir, log);
     if (plan.hasSystemPrompt) {
       writeSystemPromptLocal(
-        runAgentDir,
+        agentDir,
         plan.systemPrompt,
         plan.appendSystemPrompt,
         log,
       );
     }
-    env.PI_CODING_AGENT_DIR = runAgentDir;
-    return runAgentDir;
+    env.PI_CODING_AGENT_DIR = agentDir;
+    // Deliberately NOT returned as a throwaway: this is the operator's login, not a temp dir.
+    return { dir: undefined, extensionInstalled, modelConfigWritten: true };
   }
 
-  if (process.env.PI_CODING_AGENT_DIR) {
-    installPiExtensionLocal(process.env.PI_CODING_AGENT_DIR, log);
-  } else {
-    // unset here means this run has no Agenta extension (tracing + tools); warn so it's visible.
-    log(
-      "PI_CODING_AGENT_DIR is unset; plain local Pi run has no Agenta extension installed",
+  // Managed / none: always route through a throwaway per-run dir the runtime user owns, so the
+  // extension install never depends on the configured PI_CODING_AGENT_DIR being writable. A
+  // managed OpenAI-compatible custom run (a model-config plan is present) additionally gets a
+  // models.json and does NOT receive the operator's personal auth.json.
+  const { dir: runAgentDir, extensionInstalled } = prepareLocalAgentDir(
+    plan.sourcePiAgentDir,
+    log,
+    { seedCredentials: !piModelConfig },
+  );
+  if (plan.hasSystemPrompt) {
+    writeSystemPromptLocal(
+      runAgentDir,
+      plan.systemPrompt,
+      plan.appendSystemPrompt,
+      log,
     );
   }
-  return undefined;
+  let modelConfigWritten = true;
+  if (piModelConfig) {
+    try {
+      writePiModelsConfigLocal(runAgentDir, piModelConfig);
+      log(
+        `pi models.json written provider=${piModelConfig.providerId} ` +
+          `api=${piModelConfig.api} model=${piModelConfig.models.map((m) => m.id).join(",")}`,
+      );
+    } catch (err) {
+      // Terminal: the caller stops the run rather than fall back to a default provider.
+      modelConfigWritten = false;
+      log(`pi models.json write failed: ${(err as Error).message}`);
+    }
+  }
+  env.PI_CODING_AGENT_DIR = runAgentDir;
+  return { dir: runAgentDir, extensionInstalled, modelConfigWritten };
 }
 
 /** Upload materialized skill dirs into a Daytona sandbox's Pi `skills/` user scope. */

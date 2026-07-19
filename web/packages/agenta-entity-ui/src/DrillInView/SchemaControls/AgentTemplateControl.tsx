@@ -48,7 +48,6 @@ import {
     Cpu,
     FileText,
     GraduationCap,
-    Lightning,
     Plugs,
     Plus,
     SlidersHorizontal,
@@ -61,6 +60,7 @@ import {useAtom, useAtomValue, useStore} from "jotai"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {AddTextLink} from "./AddTextLink"
+import {useAutoExpandOnPopulate} from "./agentSectionAutoExpand"
 import {AgentIntegrationDrawer} from "./agentTemplate/AgentIntegrationDrawer"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {AgentToolSelectorPopover} from "./agentTemplate/AgentToolSelectorPopover"
@@ -78,17 +78,13 @@ import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
 import {parseGatewayTool, type ParsedGatewayTool, type ToolObj} from "./toolUtils"
-import {
-    AddTriggerDropdown,
-    TriggerManagementSection,
-    useAgentTriggers,
-} from "./TriggerManagementSection"
+import {useAgentTriggers} from "./TriggerManagementSection"
 import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
 
 // Tooltip copy for the config-panel draft/validation indicators.
 const INVALID_ITEM_TIP: Record<ItemKind, string> = {
     tool: "This tool is missing its name.",
-    mcp: "This server is missing a required field (name, command, or URL).",
+    mcp: "This server is missing its name or URL.",
     skill: "This skill is missing its name.",
 }
 const DRAFT_TIP: Record<string, string> = {
@@ -123,6 +119,10 @@ const ModelHarnessSectionDrawerBody = ({
     const mh = useModelHarness(params)
     return <>{section === "advanced" ? mh.advancedDrawerBody : mh.modelHarnessDrawerBody}</>
 }
+
+// The four list sections whose open-state is controlled so the accordion can auto-expand when
+// the agent populates them (see `useAutoExpandOnPopulate`).
+const CONTROLLED_SECTION_KEYS = new Set(["tools", "mcp", "skills", "triggers"])
 
 export function AgentTemplateControl({
     schema,
@@ -288,6 +288,10 @@ export function AgentTemplateControl({
     const revisionId = drillIn?.entityId ?? null
     revisionIdRef.current = revisionId
 
+    // Trigger count for the section auto-expand/summary state (the Triggers UI itself now lives in
+    // the sibling AgentOperationsSections; this shares the same deduped query).
+    const {count: triggerCount} = useAgentTriggers(revisionId)
+
     // ── Agent self-commit: surface WHAT the agent just changed ──────────────────────────
     // The chat raises the signal (with the outgoing revision's parameters) when the agent
     // commits itself and the playground switches in place. Once this control renders the
@@ -333,10 +337,6 @@ export function AgentTemplateControl({
         },
         [agentChangedKeys, commitSignal?.version],
     )
-    // Triggers bound to this agent (for the section count badge). The section body and the header
-    // add-dropdown derive scoping from the same hook.
-    const {count: triggerCount} = useAgentTriggers(revisionId)
-
     // Model & harness + Advanced own a lot of coupled, stateful logic (the model/connection state
     // feeds both sections), so they live in their own hook that returns the summaries + bodies.
     //
@@ -371,7 +371,7 @@ export function AgentTemplateControl({
         referenceableWorkflows,
     } = useAgentTools({config, onChange, configRef, openCreate, workflowReference})
 
-    // MCP servers: a flat array of McpServer shapes (stdio command/args/env or remote url + secrets).
+    // External HTTP MCP servers from the saved agent template.
     const mcpServers = useMemo(
         () => (Array.isArray(config.mcps) ? (config.mcps as unknown[]) : []),
         [config.mcps],
@@ -391,6 +391,30 @@ export function AgentTemplateControl({
         [openCreate],
     )
 
+    // Controlled open-state for the four list sections so the accordion can react to the agent
+    // populating a section. Seeded once from the initial counts; the edge hook below flips it.
+    const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>(() => ({
+        tools: tools.length > 0,
+        mcp: mcpServers.length > 0,
+        skills: skills.length > 0,
+        triggers: triggerCount > 0,
+    }))
+    const setSectionOpenByKey = useCallback(
+        (key: string, open: boolean) =>
+            setSectionOpen((m) => (m[key] === open ? m : {...m, [key]: open})),
+        [],
+    )
+    const sectionCounts = useMemo(
+        () => ({
+            tools: tools.length,
+            mcp: mcpServers.length,
+            skills: skills.length,
+            triggers: triggerCount,
+        }),
+        [tools.length, mcpServers.length, skills.length, triggerCount],
+    )
+    useAutoExpandOnPopulate(sectionCounts, setSectionOpenByKey)
+
     // ``instructions.agents_md`` is the one instruction document (flat on the template).
     const instructions =
         config.instructions && typeof config.instructions === "object"
@@ -400,7 +424,7 @@ export function AgentTemplateControl({
 
     const hasInstructions = Boolean(props.instructions)
     const hasTools = Boolean(props.tools)
-    const hasMcp = Boolean(props.mcps)
+    const hasMcp = Boolean(props.mcps) && mh.mcpSupported
     const hasSkills = Boolean(props.skills)
 
     // Per-field section headers read their label from the template schema (`props.<field>.title`),
@@ -604,7 +628,7 @@ export function AgentTemplateControl({
         }
         if (key === "mcp")
             return mcpServers.some((m) => ITEM_KINDS.mcp.draftInvalid(m as Record<string, unknown>))
-                ? "An MCP server is missing a required field."
+                ? "An MCP server is missing its name or URL."
                 : null
         if (key === "skills")
             return skills.some((s) => ITEM_KINDS.skill.draftInvalid(s as Record<string, unknown>))
@@ -820,15 +844,6 @@ export function AgentTemplateControl({
                 />
             ),
         },
-        {
-            key: "triggers",
-            icon: <Lightning size={16} />,
-            title: "Triggers",
-            summary: countSummary(triggerCount, "trigger"),
-            extra: !disabled ? <AddTriggerDropdown entityId={revisionId} /> : undefined,
-            defaultOpen: triggerCount > 0,
-            content: <TriggerManagementSection entityId={revisionId} disabled={disabled} />,
-        },
         mh.hasAdvanced && {
             key: "advanced",
             icon: <SlidersHorizontal size={16} />,
@@ -923,7 +938,7 @@ export function AgentTemplateControl({
                 />
             ) : layout === "cards" ? (
                 <div className="flex flex-col gap-3 pt-1">
-                    {sections.map((s, index) => (
+                    {sections.map((s) => (
                         <ConfigAccordionSection
                             key={s.key}
                             icon={s.icon}
@@ -942,25 +957,33 @@ export function AgentTemplateControl({
                     ))}
                 </div>
             ) : (
-                sections.map((s, index) => (
-                    <ConfigAccordionSection
-                        key={s.key}
-                        icon={s.icon}
-                        title={s.title}
-                        titleBadge={sectionBadge(s.key)}
-                        summary={s.summary}
-                        extra={s.extra}
-                        indicator={s.indicator ?? agentChangeIndicator(s.key)}
-                        onOpen={s.onOpen}
-                        defaultOpen={s.defaultOpen}
-                        noDivider={index === sections.length - 1}
-                        // Mount collapsed, then unfold via the normal collapse transition — first
-                        // paint matches the skeleton's collapsed rows instead of shifting the layout.
-                        animateInitialOpen
-                    >
-                        {s.content}
-                    </ConfigAccordionSection>
-                ))
+                sections.map((s, index) => {
+                    // Controlled keys drive `open`/`onOpenChange` so the agent can auto-expand them;
+                    // everything else keeps the mount-collapsed-then-unfold `defaultOpen` behaviour.
+                    const controlled = CONTROLLED_SECTION_KEYS.has(s.key)
+                    return (
+                        <ConfigAccordionSection
+                            key={s.key}
+                            icon={s.icon}
+                            title={s.title}
+                            titleBadge={sectionBadge(s.key)}
+                            summary={s.summary}
+                            extra={s.extra}
+                            indicator={s.indicator ?? agentChangeIndicator(s.key)}
+                            onOpen={s.onOpen}
+                            noDivider={index === sections.length - 1}
+                            {...(controlled
+                                ? {
+                                      open: sectionOpen[s.key] ?? s.defaultOpen ?? false,
+                                      onOpenChange: (open: boolean) =>
+                                          setSectionOpenByKey(s.key, open),
+                                  }
+                                : {defaultOpen: s.defaultOpen, animateInitialOpen: true})}
+                        >
+                            {s.content}
+                        </ConfigAccordionSection>
+                    )
+                })
             )}
 
             {shownEditing

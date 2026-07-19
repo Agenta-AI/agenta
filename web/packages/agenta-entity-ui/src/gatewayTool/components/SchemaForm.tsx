@@ -8,6 +8,7 @@ import {
     useState,
 } from "react"
 
+import {cronToBuilder, describeBuilder} from "@agenta/entities/gatewayTrigger"
 import {buildFormFieldsFromSchema, type FormFieldDescriptor} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
 import {CaretLeft, CaretRight, Check, MinusCircle, Plus} from "@phosphor-icons/react"
@@ -25,9 +26,13 @@ import {
 } from "antd"
 import type {FormInstance, InputRef} from "antd"
 
+import {ScheduleBuilderField} from "../../gatewayTrigger/drawers/ScheduleBuilderField"
+
 import {
+    DEFAULT_CRON,
     OTHER_ENUM_OPTION,
     commitCustomValue,
+    cronInitialValue,
     enumOptionsOf,
     isOffOptionsValue,
     partitionCustomValues,
@@ -40,10 +45,29 @@ import {
     type EnumOption,
 } from "./schemaFormOptions"
 
+export interface StepInfo {
+    /** Current field index; equals `total` on the review step. */
+    step: number
+    total: number
+    isReview: boolean
+    /** True only when stepper mode is actually active (`stepper` && >1 field). */
+    isStepper: boolean
+    /** A previous step exists (⌘← applies). */
+    canGoBack: boolean
+    /** A forward step exists — another question or the review (⌘→ applies). */
+    canGoNext: boolean
+    /** The current question renders choice cards, so 1–9 digit selection applies. */
+    pickable: boolean
+}
+
 export interface SchemaFormHandle {
     getValues: () => Promise<Record<string, unknown>>
     /** Stepper mode: jump to the step holding this field (e.g. after a validation failure). */
     goToField?: (name: string | (string | number)[]) => void
+    /** Stepper mode: advance one step (into review at the end); no-op otherwise. */
+    next?: () => void
+    /** Stepper mode: go back one step; no-op otherwise. */
+    prev?: () => void
 }
 
 interface Props {
@@ -61,11 +85,24 @@ interface Props {
     onValuesChange?: (values: Record<string, unknown>) => void
     /** One question at a time + a final review step (elicitation "x-ag-stepper" hint). */
     stepper?: boolean
+    /** Reports the current stepper position so a host footer can show Next vs Accept. */
+    onStepChange?: (info: StepInfo) => void
 }
 
 const SchemaForm = forwardRef<SchemaFormHandle, Props>(
     (
-        {schema, form, disabled, jsonMode, flat, formats, openEnums, onValuesChange, stepper},
+        {
+            schema,
+            form,
+            disabled,
+            jsonMode,
+            flat,
+            formats,
+            openEnums,
+            onValuesChange,
+            stepper,
+            onStepChange,
+        },
         ref,
     ) => {
         const fields = useMemo(
@@ -97,6 +134,18 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                 )?.focus()
             })
         }, [step, stepperOn, onReview])
+        useEffect(() => {
+            const current = onReview ? undefined : fields[step]
+            onStepChange?.({
+                step,
+                total: fields.length,
+                isReview: onReview,
+                isStepper: stepperOn,
+                canGoBack: stepperOn && step > 0,
+                canGoNext: stepperOn && !onReview,
+                pickable: stepperOn && !!current && wantsChoiceCards(current),
+            })
+        }, [step, fields, onReview, stepperOn, onStepChange])
         Form.useWatch([], form) // review rows re-render as answers change
         const optionalFields = useMemo(() => fields.filter((f) => !f.required), [fields])
 
@@ -158,8 +207,10 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                     const i = fields.findIndex((f) => f.name === flatName)
                     if (i >= 0) setStep(i)
                 },
+                next: () => setStep((s) => (stepperOn ? Math.min(s + 1, fields.length) : s)),
+                prev: () => setStep((s) => Math.max(0, s - 1)),
             }),
-            [jsonMode, form, fields],
+            [jsonMode, form, fields, stepperOn],
         )
 
         if (fields.length === 0 && !jsonMode) {
@@ -329,22 +380,9 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                 }}
                                 className={step === i ? undefined : "hidden"}
                             >
-                                <SchemaFormField
-                                    field={field}
-                                    hideLabel
-                                    onAnswered={() =>
-                                        window.setTimeout(
-                                            // Idempotent per-question: advance only if still on
-                                            // this question, so a double-pick or a stale timer
-                                            // after manual nav can't skip ahead.
-                                            () =>
-                                                setStep((s) =>
-                                                    s === i ? Math.min(i + 1, fields.length) : s,
-                                                ),
-                                            180,
-                                        )
-                                    }
-                                />
+                                {/* No auto-advance on pick — the user pages with Next / arrows so a
+                                    choice never skips ahead before they've seen the next question. */}
+                                <SchemaFormField field={field} hideLabel />
                             </div>
                         ))}
                         {onReview && (
@@ -869,9 +907,22 @@ function ChoiceCards({
     )
 }
 
+/** ScheduleBuilderField is controlled on a cron STRING and cannot take undefined. The form value
+ * is seeded via cronInitialValue, so the fallback only covers a post-mount clear (stepper Skip). */
+function CronField({value, onChange}: {value?: string; onChange?: (cron: string) => void}) {
+    return <ScheduleBuilderField value={value || DEFAULT_CRON} onChange={(c) => onChange?.(c)} />
+}
+
 /** Compact review-row value: option labels, joined chips, Yes/No, formatted dates. */
-function formatReviewValue(field: FormFieldDescriptor, value: unknown): string {
+export function formatReviewValue(field: FormFieldDescriptor, value: unknown): string {
     if (value === undefined || value === null || value === "") return "\u2014"
+    if (field.format === "cron" && typeof value === "string") {
+        try {
+            return describeBuilder(cronToBuilder(value).state)
+        } catch {
+            return value
+        }
+    }
     if (Array.isArray(value)) return value.map(String).join(", ") || "\u2014"
     if (typeof value === "object" && typeof (value as {format?: unknown}).format === "function")
         return (value as {format: (f: string) => string}).format("YYYY-MM-DD HH:mm")
@@ -1037,6 +1088,20 @@ function SchemaFormField({
 
         default:
             // Format-aware controls appear only when the host opted in via `formats`.
+            if (field.format === "cron") {
+                // Seed the displayed schedule as the value — the builder has no empty state,
+                // so an unseeded required field would look answered while Accept stays disabled.
+                return (
+                    <Form.Item
+                        name={field.name.split(".")}
+                        label={label}
+                        rules={rules}
+                        initialValue={cronInitialValue(field.default)}
+                    >
+                        <CronField />
+                    </Form.Item>
+                )
+            }
             if (field.format === "date" || field.format === "date-time") {
                 // No initialValue: a wire default is an ISO STRING and DatePicker requires dayjs —
                 // a string value crashes it. Date fields render empty; other types prefill.

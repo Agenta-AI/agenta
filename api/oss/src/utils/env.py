@@ -1,11 +1,12 @@
 import os
 import hashlib
 import warnings
+from typing import List, Optional
 from uuid import getnode
 from json import loads
 from urllib.parse import urlparse, quote_plus
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 _TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
@@ -319,15 +320,6 @@ class LoggingConfig(BaseModel):
         or os.getenv("AGENTA_LOG_OTLP_LEVEL")
         or "INFO"
     ).upper()
-
-    # EMF metric lines (`log.tick(...)`) to stdout — the CloudWatch agent already
-    # ships container stdout, so this needs no new port/infra to light up.
-    metrics_enabled: bool = (
-        os.getenv("AGENTA_LOGGING_METRICS_ENABLED") or "true"
-    ).lower() in _TRUTHY
-    metrics_namespace: str = (
-        os.getenv("AGENTA_LOGGING_METRICS_NAMESPACE") or "Agenta/Workers"
-    )
 
     model_config = ConfigDict(extra="ignore")
 
@@ -668,7 +660,10 @@ class CrispConfig(BaseModel):
 class DaytonaConfig(BaseModel):
     api_key: str | None = os.getenv("DAYTONA_API_KEY")
     api_url: str | None = os.getenv("DAYTONA_API_URL")
-    snapshot: str | None = os.getenv("DAYTONA_SNAPSHOT")
+    # Code-evaluator override first, then the snapshot shared with the agent runner.
+    snapshot: str | None = os.getenv("DAYTONA_SNAPSHOT_CODE") or os.getenv(
+        "DAYTONA_SNAPSHOT"
+    )
     target: str | None = os.getenv("DAYTONA_TARGET")
 
     model_config = ConfigDict(extra="ignore")
@@ -966,28 +961,103 @@ class LoopsConfig(BaseModel):
 
 _SANDBOX_LOCAL_WARNED = False
 
+# Sandbox providers this runner can provision. Kept in lockstep with the runner's
+# KNOWN_SANDBOX_PROVIDER_IDS and the SDK's KNOWN_SANDBOX_PROVIDERS so all three readers agree.
+_KNOWN_SANDBOX_PROVIDERS = ("local", "daytona")
+
+
+def _parse_enabled_sandbox_providers(raw: Optional[str]) -> List[str]:
+    """Parse ``AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`` with the runner's rules.
+
+    Unset -> ``["local"]``; explicit empty invalid; ids normalized lowercase; unknown and
+    duplicate ids invalid. Reimplements the TypeScript runner parser so the API's provider
+    pre-filter matches the runner's final authority (runner-selfhosting-cleanup/interface.md
+    sections 2 and 4).
+    """
+    if raw is None:
+        return ["local"]
+    trimmed = raw.strip()
+    if trimmed == "":
+        raise ValueError(
+            "AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS is set but empty; unset it for the "
+            "default 'local', or list at least one provider."
+        )
+    ids = [part.strip().lower() for part in trimmed.split(",")]
+    seen: set = set()
+    for provider_id in ids:
+        if provider_id == "":
+            raise ValueError(
+                f"AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS has an empty entry in '{trimmed}'."
+            )
+        if provider_id not in _KNOWN_SANDBOX_PROVIDERS:
+            raise ValueError(
+                f"AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS lists unknown provider "
+                f"'{provider_id}'; known: {', '.join(_KNOWN_SANDBOX_PROVIDERS)}."
+            )
+        if provider_id in seen:
+            raise ValueError(
+                f"AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS lists provider '{provider_id}' "
+                f"more than once."
+            )
+        seen.add(provider_id)
+    return ids
+
+
+def _parse_default_sandbox_provider(raw: Optional[str], enabled: List[str]) -> str:
+    """Parse ``AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER``; unset -> ``local``; must be enabled."""
+    value = (raw or "").strip().lower() or "local"
+    if value not in _KNOWN_SANDBOX_PROVIDERS:
+        raise ValueError(
+            f"AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER is unknown provider '{value}'; "
+            f"known: {', '.join(_KNOWN_SANDBOX_PROVIDERS)}."
+        )
+    if value not in enabled:
+        raise ValueError(
+            f"AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER '{value}' is not in the enabled set "
+            f"[{', '.join(enabled)}]."
+        )
+    return value
+
+
+def _enabled_sandbox_providers_default() -> List[str]:
+    return _parse_enabled_sandbox_providers(
+        os.getenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS")
+    )
+
+
+def _default_sandbox_provider_default() -> str:
+    return _parse_default_sandbox_provider(
+        os.getenv("AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER"),
+        _enabled_sandbox_providers_default(),
+    )
+
 
 class RunnerConfig(BaseModel):
     """Agent runner (services/runner) sidecar configuration."""
 
     concurrency_limit: int = int(os.getenv("AGENTA_RUNNER_CONCURRENCY_LIMIT") or "1000")
 
-    # `local` sandbox runs unconfined host bash — not a tenant boundary; on by default
-    # for zero-config self-host. Canonical declaration; services/oss reads the same var directly.
-    sandbox_local_allowed: bool = (
-        os.getenv("AGENTA_SANDBOX_LOCAL_ALLOWED") or "true"
-    ).lower() in _TRUTHY
+    # The sandbox-provider registry the runner and API share. `local` is unconfined host bash —
+    # not a tenant boundary; enabled by default for zero-config self-host. Canonical declaration;
+    # services/oss and the SDK read the same variables directly with the same rules.
+    enabled_sandbox_providers: List[str] = Field(
+        default_factory=_enabled_sandbox_providers_default
+    )
+    default_sandbox_provider: str = Field(
+        default_factory=_default_sandbox_provider_default
+    )
 
     model_config = ConfigDict(extra="ignore")
 
     @model_validator(mode="after")
     def _warn_local_sandbox(self) -> "RunnerConfig":
         global _SANDBOX_LOCAL_WARNED
-        if self.sandbox_local_allowed and not _SANDBOX_LOCAL_WARNED:
+        if "local" in self.enabled_sandbox_providers and not _SANDBOX_LOCAL_WARNED:
             _SANDBOX_LOCAL_WARNED = True
             warnings.warn(
-                "AGENTA_SANDBOX_LOCAL_ALLOWED is on (default): local sandbox is not a "
-                "tenant boundary. Set it to false to harden a shared/multi-tenant deployment.",
+                "local sandbox is enabled (default): it is unconfined host bash, not a "
+                "tenant boundary. Set AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS=daytona to "
+                "harden a shared/multi-tenant deployment.",
                 stacklevel=2,
             )
         return self
@@ -1190,6 +1260,55 @@ class RedisConfig(BaseModel):
     def enabled(self) -> bool:
         """Redis enabled if URIs are configured"""
         return bool(self.uri_volatile or self.uri_durable)
+
+
+# ---------------------------------------------------------------------------
+# sessions — coordination-plane Redis contract (api/oss/src/dbs/redis/sessions/contract.py)
+# ---------------------------------------------------------------------------
+
+
+class SessionsRedisConfig(BaseModel):
+    """TTLs and caps for the session coordination-plane Redis keys.
+
+    Defaults mirror the golden fixture (services/runner/tests/fixtures/sessions/
+    redis_contract.json) shared with the TypeScript runner. Do not change a default
+    without updating that fixture and the TS side in lockstep.
+    """
+
+    alive_ttl_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_ALIVE_TTL_SECONDS")
+        or 3600
+    )
+    running_ttl_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_RUNNING_TTL_SECONDS")
+        or 3600
+    )
+    attached_ttl_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_ATTACHED_TTL_SECONDS")
+        or 60
+    )
+    owner_ttl_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_OWNER_TTL_SECONDS")
+        or 120
+    )
+    heartbeat_interval_seconds: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_SESSIONS_REDIS_HEARTBEAT_INTERVAL_SECONDS"
+        )
+        or 30
+    )
+    heartbeat_write_threshold_seconds: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_SESSIONS_REDIS_HEARTBEAT_WRITE_THRESHOLD_SECONDS"
+        )
+        or 60
+    )
+    concurrency_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_CONCURRENCY_LIMIT")
+        or 1000
+    )
+
+    model_config = ConfigDict(extra="ignore")
 
 
 # ---------------------------------------------------------------------------
@@ -1397,6 +1516,7 @@ class EnvironSettings(BaseModel):
     posthog: PostHogConfig = PostHogConfig()
     redis: RedisConfig = RedisConfig()
     runner: RunnerConfig = RunnerConfig()
+    sessions: SessionsRedisConfig = SessionsRedisConfig()
     smtp: SmtpConfig = SmtpConfig()
     sendgrid: SendgridConfig = SendgridConfig()
     store: StoreConfig = StoreConfig()

@@ -9,17 +9,15 @@
  * the SAME dispatch the Pi path uses (`runResolvedTool` → relay → `/tools/call`), so every
  * credentialed action still happens server-side in runner memory.
  *
- * Why HTTP-on-loopback and not the old stdio bridge:
- *  - No runner-host child process. The old `mcp-server.ts` spawned `tsx mcp-server.ts` on the
- *    runner host, outside the sandbox boundary — the same execution hole PR #4831 closed for
- *    USER stdio MCP servers. This endpoint launches nothing; it is served by the already-running
- *    runner process and is reachable only from loopback.
+ * Why HTTP on loopback:
+ *  - No runner-host child process. This endpoint is served by the already-running runner process
+ *    and is reachable only from loopback.
  *  - Reuses #4834's proven transport. Claude consumes a `type: "http"` MCP server natively (the
  *    bundled `@agentclientprotocol/claude-agent-acp` maps it to the Claude SDK's HTTP MCP client).
  *
  * This server is INDEPENDENT of the user MCP capability (`engines/sandbox_agent/mcp.ts`
- * `toAcpMcpServers`): user stdio MCP stays disabled, user HTTP MCP is unchanged, and this
- * internal channel is its own thing. Do not merge their gates (see project gateway-tool-mcp).
+ * `toAcpMcpServers`): external HTTP MCP is passed separately and this internal channel remains
+ * its own thing.
  *
  * Transport: MCP Streamable HTTP in stateless JSON mode. The MCP client (`@modelcontextprotocol/sdk`
  * `StreamableHTTPClientTransport`) POSTs JSON-RPC with `Accept: application/json, text/event-stream`;
@@ -28,7 +26,7 @@
  * tolerates. No session id, no streaming — the simplest conformant server. Pin against the MCP SDK
  * version bundled with the installed Claude harness if the framing ever drifts.
  */
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import {
   createServer,
   type IncomingMessage,
@@ -38,18 +36,17 @@ import {
 import type { AddressInfo } from "node:net";
 
 import type { ResolvedToolSpec } from "../protocol.ts";
-import { EMPTY_OBJECT_SCHEMA } from "./callback.ts";
+import { EMPTY_OBJECT_SCHEMA, MAX_BODY_BYTES } from "./callback.ts";
 import { runResolvedTool } from "./dispatch.ts";
 import type { ClientToolRelay } from "./client-tool-relay.ts";
 import { assertRequiredArguments, specInputSchema } from "./spec-schema.ts";
+import { toolSpecsByName } from "./public-spec.ts";
 
 type Log = (message: string) => void;
 
 const DEFAULT_PROTOCOL = "2025-06-18";
-/** Loopback only: never reachable off-host, carries no credentials. */
+/** Loopback only: never reachable off-host. Access also requires a per-server bearer token. */
 const HOST = "127.0.0.1";
-/** Bound the request body so a malformed/oversized POST cannot exhaust runner memory. */
-const MAX_BODY_BYTES = 1_000_000;
 
 /**
  * A paused client tool. The handler returns this sentinel INSTEAD of a JSON-RPC response so the
@@ -76,6 +73,8 @@ export interface InternalToolMcpServerOptions {
 export interface InternalToolMcpServer {
   /** The loopback URL to advertise to the harness as a `type: "http"` MCP server. */
   url: string;
+  /** Per-server credential to advertise only as the endpoint's Authorization header. */
+  authorizationToken: string;
   /** Stop the server and release the port. Idempotent; safe in the engine `finally`. */
   close: () => Promise<void>;
 }
@@ -86,7 +85,12 @@ function mcpToolError(id: unknown, err: unknown): unknown {
     jsonrpc: "2.0",
     id,
     result: {
-      content: [{ type: "text", text: err instanceof Error ? err.message : String(err) }],
+      content: [
+        {
+          type: "text",
+          text: err instanceof Error ? err.message : String(err),
+        },
+      ],
       isError: true,
     },
   };
@@ -133,18 +137,17 @@ async function handle(
         // than executing it. (`buildToolMcpServers` already dropped `client` specs when no relay
         // is wired.) Only public metadata (name/description/inputSchema) crosses to the harness
         // — never the callRef, code, scoped env, or callback auth, which stay in runner memory.
-        tools: specs
-          .map((s) => ({
-            name: s.name,
-            description: s.description ?? s.name,
-            // Read via the shared accessor (camelCase `inputSchema` OR snake-case
-            // `input_schema`). Reading `s.inputSchema` alone advertised an EMPTY schema for every
-            // snake-case platform-catalog tool (`request_connection`, `commit_revision`), so
-            // Claude received no argument schema — a live bug, not just a client-tool one.
-            inputSchema:
-              (specInputSchema(s) as Record<string, unknown>) ??
-              EMPTY_OBJECT_SCHEMA,
-          })),
+        tools: specs.map((s) => ({
+          name: s.name,
+          description: s.description ?? s.name,
+          // Read via the shared accessor (camelCase `inputSchema` OR snake-case
+          // `input_schema`). Reading `s.inputSchema` alone advertised an EMPTY schema for every
+          // snake-case platform-catalog tool (`request_connection`, `commit_revision`), so
+          // Claude received no argument schema — a live bug, not just a client-tool one.
+          inputSchema:
+            (specInputSchema(s) as Record<string, unknown>) ??
+            EMPTY_OBJECT_SCHEMA,
+        })),
       },
     };
   }
@@ -173,7 +176,9 @@ async function handle(
       if (!clientToolRelay) {
         return mcpToolError(
           id,
-          new Error(`client tool '${spec.name}' cannot be delivered on this run`),
+          new Error(
+            `client tool '${spec.name}' cannot be delivered on this run`,
+          ),
         );
       }
       const callId = randomUUID();
@@ -191,14 +196,19 @@ async function handle(
         return MCP_PAUSED;
       }
       if (decision === "deny") {
-        return mcpToolError(id, new Error(`Client tool '${spec.name}' was denied.`));
+        return mcpToolError(
+          id,
+          new Error(`Client tool '${spec.name}' was denied.`),
+        );
       }
       // Resume: the browser already fulfilled the call; return its structured output as content.
       return {
         jsonrpc: "2.0",
         id,
         result: {
-          content: [{ type: "text", text: JSON.stringify(decision.output ?? {}) }],
+          content: [
+            { type: "text", text: JSON.stringify(decision.output ?? {}) },
+          ],
         },
       };
     }
@@ -261,6 +271,27 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
+/** Authenticate a bearer token without leaking comparison timing for equal-length values. */
+function hasValidAuthorization(
+  authorization: string | undefined,
+  expectedToken: string,
+): boolean {
+  if (!authorization) return false;
+  const [scheme, presentedToken, ...extra] = authorization.split(" ");
+  if (
+    scheme?.toLowerCase() !== "bearer" ||
+    !presentedToken ||
+    extra.length > 0
+  ) {
+    return false;
+  }
+  const presented = Buffer.from(presentedToken);
+  const expected = Buffer.from(expectedToken);
+  return (
+    presented.length === expected.length && timingSafeEqual(presented, expected)
+  );
+}
+
 /**
  * Start the internal gateway-tool MCP server on loopback. Returns the URL to advertise and a
  * `close()`. The caller decides whether to start it; this function does not filter — it serves
@@ -274,7 +305,8 @@ export function startInternalToolMcpServer(
   options: InternalToolMcpServerOptions = {},
 ): Promise<InternalToolMcpServer> {
   const { clientToolRelay, signal, log = () => {} } = options;
-  const specByName = new Map(specs.map((s) => [s.name, s]));
+  const authorizationToken = randomBytes(32).toString("base64url");
+  const specByName = toolSpecsByName(specs);
   // Track in-flight responses so the engine abort signal can destroy them deterministically (a
   // paused client tool destroys its OWN response below; the signal is the backstop for any other
   // request still open when the turn ends).
@@ -289,6 +321,19 @@ export function startInternalToolMcpServer(
   const requestListener = (req: IncomingMessage, res: ServerResponse): void => {
     active.add(res);
     res.on("close", () => active.delete(res));
+    // Authenticate every MCP transport verb before dispatching or revealing method support.
+    if (!hasValidAuthorization(req.headers.authorization, authorizationToken)) {
+      res.writeHead(401, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: null,
+          error: { code: -32001, message: "unauthorized" },
+        }),
+      );
+      return;
+    }
+
     // The MCP Streamable-HTTP client opens a GET SSE stream and sends a DELETE on close; this
     // stateless server offers neither, so it returns 405 (the client tolerates 405 for both).
     if (req.method !== "POST") {
@@ -316,6 +361,27 @@ export function startInternalToolMcpServer(
         // A batch is an array; handle each and answer with an array of the responses that have
         // an id (notifications produce none).
         if (Array.isArray(parsed)) {
+          // A client tool crosses a turn boundary and cannot safely participate in concurrent
+          // batch execution. Preflight the whole batch so no sibling item executes first.
+          const containsClientToolCall = parsed.some((message) => {
+            if (message?.method !== "tools/call") return false;
+            const spec = specByName.get(message?.params?.name);
+            return spec && (spec.kind ?? "callback") === "client";
+          });
+          if (containsClientToolCall) {
+            res.writeHead(400, { "content-type": "application/json" });
+            res.end(
+              JSON.stringify({
+                jsonrpc: "2.0",
+                id: null,
+                error: {
+                  code: -32600,
+                  message: "client tools/call is not supported in a batch",
+                },
+              }),
+            );
+            return;
+          }
           const responses = await Promise.all(
             parsed.map((m) =>
               handle(m, specByName, specs, relayDir, clientToolRelay, log),
@@ -407,6 +473,7 @@ export function startInternalToolMcpServer(
       log(`internal tool MCP server on ${url} serving ${specs.length} tool(s)`);
       resolve({
         url,
+        authorizationToken,
         close: () =>
           new Promise<void>((done) => {
             signal?.removeEventListener("abort", onAbort);

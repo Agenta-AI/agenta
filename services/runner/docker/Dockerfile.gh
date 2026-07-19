@@ -69,6 +69,15 @@ ENV NODE_ENV=production \
 
 EXPOSE 8765
 
+# Pi's agent dir (the published deployment sets PI_CODING_AGENT_DIR=/pi-agent) is where the runner
+# installs the permission-enforcing extension at the start of every run. The runtime user `node`
+# (uid 1000) cannot create a directory at the container root, so create it here and hand it to
+# `node` before dropping privileges. Without this the install fails with EACCES and — before the
+# fail-closed guard — the policy silently did nothing. The runner also routes managed/no-key runs
+# through a per-run temp dir the runtime user owns, so this is the fast path for the default dir,
+# not the only safeguard.
+RUN mkdir -p /pi-agent && chown node:node /pi-agent
+
 USER node
 
 # Call the local tsx binary directly to avoid pnpm/corepack HOME writes when the

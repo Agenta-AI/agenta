@@ -3,18 +3,28 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-run-plan.test.ts)
  */
-import { afterEach, describe, it } from "vitest";
+import { afterEach, beforeEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
-import { USER_MCP_UNSUPPORTED_MESSAGE } from "../../src/tools/mcp-bridge.ts";
 import {
   buildRunPlan,
-  shouldUploadOwnLogin,
+  DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE,
+  LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE,
 } from "../../src/engines/sandbox_agent/run-plan.ts";
+import { RESERVED_MCP_SERVER_NAME_MESSAGE } from "../../src/engines/sandbox_agent/mcp.ts";
+import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
 
 const previousPiDir = process.env.PI_CODING_AGENT_DIR;
 const previousDenyPermissions = process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
+
+// These cases exercise Daytona runs, so enable it (with a provisioning credential) on top of the
+// hermetic scrub, then drop the memoized config so buildRunPlan reads the enabled set.
+beforeEach(() => {
+  process.env.AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS = "local,daytona";
+  process.env.AGENTA_RUNNER_DAYTONA_API_KEY = "test-key";
+  resetRunnerConfigCache();
+});
 
 afterEach(() => {
   if (previousPiDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
@@ -457,57 +467,27 @@ describe("buildRunPlan", () => {
     assert.equal(result.ok, true);
   });
 
-  it("errors on any run carrying a stdio MCP server (MCP disabled)", () => {
-    // The stdio MCP implementation is disabled in the sidecar; a stdio server errors the
-    // not-implemented way regardless of sandbox/enforcement, even with no network policy.
-    const result = buildRunPlan(
-      {
-        harness: "claude",
-        sandbox: "daytona",
-        messages: [{ role: "user", content: "hello" }],
-        mcpServers: [{ name: "fs", transport: "stdio", command: "mcp-fs" }],
-      } as AgentRunRequest,
-      { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" },
-    );
-
-    assert.equal(result.ok, false);
-    if (result.ok) return;
-    assert.equal(result.error, USER_MCP_UNSUPPORTED_MESSAGE);
-  });
-
-  it("errors on a stdio MCP server on the local sandbox too (non-Pi harness)", () => {
+  it("refuses a user MCP server that claims the reserved internal name 'agenta-tools'", () => {
+    // The internal gateway-tool channel is keyed by name and claude_settings.py renders
+    // permission rules against it; a user server with the name would collide/steal them.
     const result = buildRunPlan(
       {
         harness: "claude",
         sandbox: "local",
         messages: [{ role: "user", content: "hello" }],
-        mcpServers: [{ name: "fs", transport: "stdio", command: "mcp-fs" }],
+        mcpServers: [
+          {
+            name: "agenta-tools",
+            connection: { type: "http", url: "https://mcp.example.com/mcp" },
+            policy: { tools: { mode: "all" } },
+          },
+        ],
       } as AgentRunRequest,
       { createLocalCwd: () => "/tmp/local-cwd" },
     );
-
     assert.equal(result.ok, false);
     if (result.ok) return;
-    assert.equal(result.error, USER_MCP_UNSUPPORTED_MESSAGE);
-  });
-
-  it("errors LOUD on a Pi run carrying a user STDIO MCP server (F-032, Pi-specific)", () => {
-    // Pi delivers tools through its bundled extension, not MCP, so a user MCP server would be
-    // dropped silently (the F-032 bug). The Pi gate refuses it up front with a Pi-specific
-    // message (precedes the harness-agnostic stdio gate).
-    const result = buildRunPlan(
-      {
-        harness: "pi_core",
-        sandbox: "local",
-        messages: [{ role: "user", content: "hello" }],
-        mcpServers: [{ name: "fs", transport: "stdio", command: "mcp-fs" }],
-      } as AgentRunRequest,
-      { createLocalCwd: () => "/tmp/local-cwd" },
-    );
-
-    assert.equal(result.ok, false);
-    if (result.ok) return;
-    assert.match(result.error, /not supported on the Pi harness/);
+    assert.equal(result.error, RESERVED_MCP_SERVER_NAME_MESSAGE);
   });
 
   it("errors LOUD on a Pi run carrying a user HTTP MCP server (F-032 silent-drop fix)", () => {
@@ -523,8 +503,8 @@ describe("buildRunPlan", () => {
         mcpServers: [
           {
             name: "linear",
-            transport: "http",
-            url: "https://mcp.linear.app/sse",
+            connection: { type: "http", url: "https://mcp.linear.app/sse" },
+            policy: { tools: { mode: "all" } },
           },
         ],
       } as AgentRunRequest,
@@ -555,8 +535,8 @@ describe("buildRunPlan", () => {
         mcpServers: [
           {
             name: "linear",
-            transport: "http",
-            url: "https://mcp.linear.app/sse",
+            connection: { type: "http", url: "https://mcp.linear.app/sse" },
+            policy: { tools: { mode: "all" } },
           },
         ],
       } as AgentRunRequest,
@@ -566,13 +546,12 @@ describe("buildRunPlan", () => {
     assert.equal(result.ok, true);
   });
 
-  describe("remote-tools gate (F1: non-Pi harness x remote sandbox x tools)", () => {
-    it("refuses claude x daytona x tools (no delivery path exists)", () => {
-      // F1, audit finding: the internal tool-MCP is loopback-only (unreachable from inside the
-      // sandbox), and the file-relay fallback has a sandbox-side writer only inside Pi's bundled
-      // extension. Before this gate the run proceeded, silently dropped every tool, and returned
-      // ok:true. Refuse up front, before any cwd/sandbox is created.
-      let created = false;
+  describe("remote-tools gate (non-Pi harness x remote sandbox x tools)", () => {
+    it("allows claude x daytona x executable tools (delivered via the in-sandbox stdio MCP shim)", () => {
+      // The in-sandbox-tool-mcp slice 1: executable (gateway/callback) tools are deliverable
+      // on Claude+Daytona — the runner uploads the stdio MCP shim into `plan.toolMcpDir` and
+      // the calls ride the file relay. The plan must carry the shim dir (an ephemeral SIBLING
+      // of the relay dir, never inside it) and still start the relay loop.
       const result = buildRunPlan(
         {
           harness: "claude",
@@ -580,33 +559,33 @@ describe("buildRunPlan", () => {
           messages: [{ role: "user", content: "hello" }],
           customTools: [{ name: "server_tool", kind: "callback" }],
         } as AgentRunRequest,
-        {
-          createDaytonaCwd: () => {
-            created = true;
-            return "/home/sandbox/agenta-fixed";
-          },
-        },
+        { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" },
       );
 
-      assert.equal(result.ok, false);
-      if (result.ok) return;
-      assert.match(result.error, /non-Pi harness on a remote sandbox/);
-      assert.match(
-        result.error,
-        /docs\/design\/agent-workflows\/projects\/remote-tools-delivery\//,
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.equal(
+        result.plan.toolMcpDir,
+        "/home/sandbox/agenta/tool-mcp/agenta-fixed",
+      );
+      assert.notEqual(result.plan.toolMcpDir, result.plan.relayDir);
+      assert.ok(
+        !result.plan.toolMcpDir.startsWith(`${result.plan.relayDir}/`),
+        "the shim dir is never nested inside the relay dir (the relay loop sweeps it)",
       );
       assert.equal(
-        created,
-        false,
-        "fails before any cwd is created (up-front gate)",
+        result.plan.useToolRelay,
+        true,
+        "the relay loop still starts (it executes the shim's requests)",
       );
     });
 
     it("refuses claude x UNKNOWN remote provider x tools (fails closed, not open)", () => {
-      // The gate keys on `sandbox !== "local"`, not `sandbox === "daytona"`, so a new remote
-      // provider (the in-flight E2B one, or anything after it) is refused with the same loud
-      // error until it ships a proven tool-delivery path — instead of silently re-opening the
-      // F1 zero-tools drop one provider over.
+      // In-sandbox delivery is proven for Daytona only, so a new remote provider (the
+      // in-flight E2B one, or anything after it) is refused with the same loud error until
+      // delivery is proven there — instead of silently re-opening the F1 zero-tools drop one
+      // provider over.
+      let created = false;
       const result = buildRunPlan(
         {
           harness: "claude",
@@ -614,12 +593,30 @@ describe("buildRunPlan", () => {
           messages: [{ role: "user", content: "hello" }],
           customTools: [{ name: "server_tool", kind: "callback" }],
         } as AgentRunRequest,
-        { createLocalCwd: () => "/tmp/local-cwd" },
+        {
+          createLocalCwd: () => {
+            created = true;
+            return "/tmp/local-cwd";
+          },
+        },
       );
 
       assert.equal(result.ok, false);
       if (result.ok) return;
-      assert.match(result.error, /non-Pi harness on a remote sandbox/);
+      assert.match(
+        result.error,
+        /non-Pi harness on this remote sandbox provider/,
+      );
+      assert.match(result.error, /proven for Daytona only/);
+      assert.match(
+        result.error,
+        /docs\/design\/agent-workflows\/projects\/in-sandbox-tool-mcp\//,
+      );
+      assert.equal(
+        created,
+        false,
+        "fails before any cwd is created (up-front gate)",
+      );
     });
 
     it("allows claude x daytona x NO tools", () => {
@@ -679,13 +676,43 @@ describe("buildRunPlan", () => {
       assert.equal(result.ok, true);
     });
 
-    it("refuses claude x daytona x client-only tools (they ride the MCP channel now)", () => {
-      // Client tools are delivered to Claude over the same internal loopback MCP channel as
-      // gateway tools (advertised in tools/list, paused in tools/call). On a remote sandbox that
-      // channel is unreachable, so a client tool is exactly as undeliverable as a gateway tool:
-      // the model would never see it. The old exemption (client tools "not routed through the
-      // channel") is gone; the gate now counts ALL custom tools.
-      let created = false;
+    it("allows claude x daytona x mixed tools and advertises both kinds on the shim", () => {
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "daytona",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [
+            { name: "server_tool", kind: "callback" },
+            { name: "request_connection", kind: "client" },
+          ],
+        } as AgentRunRequest,
+        {
+          createDaytonaCwd: () => "/home/sandbox/agenta-fixed",
+        },
+      );
+
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.deepEqual(
+        result.plan.toolSpecs.map((tool) => tool.name),
+        ["server_tool", "request_connection"],
+      );
+      assert.deepEqual(
+        result.plan.executableToolSpecs.map((tool) => tool.name),
+        ["server_tool"],
+      );
+      assert.equal(
+        result.plan.clientToolPauseDisposition,
+        "cold-acknowledge",
+      );
+    });
+
+    it("allows claude x daytona x client-ONLY tools (the shim advertises them and the relay parks)", () => {
+      // The shim now advertises client tools too. A client-only run on Daytona builds a normal
+      // plan: the client tool rides toolSpecs, and the pause disposition is "cold-acknowledge" so
+      // a parked client tool gets a benign paused answer (the runner ends the turn; the browser
+      // result returns on the cold-replay resume). This replaces the interim #5366 refusal.
       const result = buildRunPlan(
         {
           harness: "claude",
@@ -694,21 +721,24 @@ describe("buildRunPlan", () => {
           customTools: [{ name: "request_connection", kind: "client" }],
         } as AgentRunRequest,
         {
-          createDaytonaCwd: () => {
-            created = true;
-            return "/home/sandbox/agenta-fixed";
-          },
+          createDaytonaCwd: () => "/home/sandbox/agenta-fixed",
         },
       );
 
-      assert.equal(result.ok, false);
-      if (result.ok) return;
-      assert.match(result.error, /non-Pi harness on a remote sandbox/);
-      assert.equal(
-        created,
-        false,
-        "fails before any cwd is created (up-front gate)",
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.deepEqual(
+        result.plan.toolSpecs.map((tool) => tool.name),
+        ["request_connection"],
       );
+      // No executable tool remains, but the run is no longer refused.
+      assert.deepEqual(result.plan.executableToolSpecs, []);
+      assert.equal(
+        result.plan.clientToolPauseDisposition,
+        "cold-acknowledge",
+        "non-Pi shim path acknowledges a parked client tool with a paused answer",
+      );
+      assert.equal(result.plan.useToolRelay, true);
     });
 
     it("allows pi x daytona x client-only tools (Pi's extension + file relay deliver them)", () => {
@@ -723,6 +753,32 @@ describe("buildRunPlan", () => {
       );
 
       assert.equal(result.ok, true);
+      if (!result.ok) return;
+      // Pi parks through its own extension, so its disposition is "pi-native" (no paused answer).
+      assert.equal(result.plan.clientToolPauseDisposition, "pi-native");
+    });
+
+    it("still refuses claude x daytona x executable tools under strict restricted network", () => {
+      // The Layer-2 strict-network gate is UNCHANGED by the shim: the shim only advertises;
+      // execution still happens on the RUNNER HOST via the relay, outside the sandbox egress
+      // boundary, so a strict restricted-network run with executable tools stays refused.
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "daytona",
+          messages: [{ role: "user", content: "hello" }],
+          customTools: [{ name: "server_tool", kind: "callback" }],
+          sandboxPermission: {
+            network: { mode: "off" },
+            enforcement: "strict",
+          },
+        } as AgentRunRequest,
+        { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" },
+      );
+
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.match(result.error, /bypass the sandbox network boundary/);
     });
   });
 
@@ -785,7 +841,11 @@ describe("buildRunPlan", () => {
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
         mcpServers: [
-          { name: "remote", transport: "http", url: "https://mcp.example" },
+          {
+            name: "remote",
+            connection: { type: "http", url: "https://mcp.example" },
+            policy: { tools: { mode: "all" } },
+          },
         ],
         sandboxPermission: {
           network: { mode: "off" },
@@ -919,8 +979,7 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.usageOutPath, undefined);
     assert.equal(result.plan.legacyHarnessApiKeyVar, "ANTHROPIC_API_KEY");
     assert.equal(result.plan.hasApiKey, true);
-    // The resolved credentialMode is carried onto the plan (drives clear-then-apply + the
-    // OAuth-upload gate).
+    // The resolved credentialMode is carried onto the plan (drives clear-then-apply).
     assert.equal(result.plan.credentialMode, "env");
     assert.equal(result.plan.systemPrompt, undefined);
     assert.equal(result.plan.hasSystemPrompt, false);
@@ -1038,53 +1097,102 @@ describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
   });
 });
 
-describe("shouldUploadOwnLogin", () => {
-  it("never uploads when the connection resolved a real key (credentialMode 'env')", () => {
-    // A resolved key is the credential (Security rule 6); the fallback auth.json must not load,
-    // even if hasApiKey somehow disagrees.
-    assert.equal(
-      shouldUploadOwnLogin({ credentialMode: "env", hasApiKey: true }),
-      false,
-    );
-    assert.equal(
-      shouldUploadOwnLogin({ credentialMode: "env", hasApiKey: false }),
-      false,
-    );
-  });
+describe("buildRunPlan runtime_provided (subscription) gates", () => {
+  const withEnv = (
+    vars: Record<string, string | undefined>,
+    fn: () => void,
+  ): void => {
+    const saved: Record<string, string | undefined> = {};
+    for (const [key, value] of Object.entries(vars)) {
+      saved[key] = process.env[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    try {
+      fn();
+    } finally {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  };
 
-  it("uploads for runtime_provided (the harness authenticates with its own login)", () => {
-    assert.equal(
-      shouldUploadOwnLogin({
+  it("rejects a Daytona runtime_provided run before any sandbox side effect", () => {
+    let created = false;
+    const result = buildRunPlan(
+      {
+        harness: "pi_core",
+        sandbox: "daytona",
+        messages: [{ role: "user", content: "hello" }],
         credentialMode: "runtime_provided",
-        hasApiKey: false,
-      }),
-      true,
+      },
+      {
+        createDaytonaCwd: () => {
+          created = true;
+          return "/home/sandbox/should-not-happen";
+        },
+      },
     );
-    assert.equal(
-      shouldUploadOwnLogin({
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE);
+    assert.equal(created, false);
+  });
+
+  it("rejects a local Pi runtime_provided run when PI_CODING_AGENT_DIR is unset", () => {
+    withEnv({ PI_CODING_AGENT_DIR: undefined }, () => {
+      const result = buildRunPlan({
+        harness: "pi_core",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
         credentialMode: "runtime_provided",
-        hasApiKey: true,
-      }),
-      true,
-    );
+      });
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.equal(result.error, LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE);
+    });
   });
 
-  it("never uploads for credentialMode 'none' (no credential asserted)", () => {
-    assert.equal(
-      shouldUploadOwnLogin({ credentialMode: "none", hasApiKey: false }),
-      false,
-    );
+  it("rejects a local Claude runtime_provided run when CLAUDE_CONFIG_DIR is unset", () => {
+    withEnv({ CLAUDE_CONFIG_DIR: undefined }, () => {
+      const result = buildRunPlan({
+        harness: "claude",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        credentialMode: "runtime_provided",
+      });
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.equal(result.error, LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE);
+    });
   });
 
-  it("falls back to the hasApiKey heuristic for an un-migrated caller (no credentialMode)", () => {
-    // No credentialMode on the wire: upload only when no api key was supplied (today's behavior).
-    assert.equal(
-      shouldUploadOwnLogin({ credentialMode: undefined, hasApiKey: false }),
-      true,
-    );
-    assert.equal(
-      shouldUploadOwnLogin({ credentialMode: undefined, hasApiKey: true }),
-      false,
-    );
+  it("accepts a local Pi runtime_provided run when PI_CODING_AGENT_DIR names a mount", () => {
+    withEnv({ PI_CODING_AGENT_DIR: "/agenta/harness/pi" }, () => {
+      const result = buildRunPlan({
+        harness: "pi_core",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        credentialMode: "runtime_provided",
+      });
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.equal(result.plan.credentialMode, "runtime_provided");
+      assert.equal(result.plan.sourcePiAgentDir, "/agenta/harness/pi");
+    });
+  });
+
+  it("does not gate a managed (env) local run on a subscription mount", () => {
+    withEnv({ PI_CODING_AGENT_DIR: undefined }, () => {
+      const result = buildRunPlan({
+        harness: "pi_core",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        secrets: { OPENAI_API_KEY: "sk-test" },
+        credentialMode: "env",
+      });
+      assert.equal(result.ok, true);
+    });
   });
 });

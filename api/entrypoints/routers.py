@@ -163,7 +163,7 @@ from oss.src.core.triggers.service import TriggersService
 from oss.src.apis.fastapi.triggers.router import TriggersRouter
 from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
 from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
-from taskiq_redis import RedisStreamBroker
+from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.src.core.mounts.service import MountsService
@@ -685,7 +685,10 @@ evaluations_service = EvaluationsService(
 # Producer side of the evaluations pipeline: enqueues onto queues:evaluations;
 # entrypoints/worker_queues.py consumes them.
 evaluations_worker = build_evaluations_worker(
-    broker=build_evaluations_broker(consumer_group_name="api-evaluations-producer"),
+    broker=build_evaluations_broker(
+        consumer_group_name="api-evaluations-producer",
+        producer_only=True,
+    ),
     tracing_service=tracing_service,
     simple_evaluators_service=simple_evaluators_service,
     testsets_service=testsets_service,
@@ -805,7 +808,7 @@ async def _dispatch_detached_run(*, project_id, user_id, request) -> str:
 
 # Producer side of the interactions pipeline: the respond route enqueues
 # `interactions.respond` tasks here; entrypoints/worker_queues.py consumes them.
-_interactions_broker = RedisStreamBroker(
+_interactions_broker = ProducerOnlyRedisStreamBroker(
     url=env.redis.uri_durable,
     queue_name="queues:interactions",
     consumer_group_name="api-interactions-producer",
@@ -826,7 +829,7 @@ _interactions_worker = InteractionsWorker(
 
 # Producer side of the inbound dispatch pipeline: the ingress route enqueues
 # `triggers.dispatch` tasks here; entrypoints/worker_queues.py consumes them.
-_triggers_broker = RedisStreamBroker(
+_triggers_broker = ProducerOnlyRedisStreamBroker(
     url=env.redis.uri_durable,
     queue_name="queues:triggers",
     consumer_group_name="api-triggers-producer",
@@ -862,6 +865,7 @@ mounts_service = MountsService(
     mounts_store=store,
     bucket=env.store.bucket,
     namespace=env.store.namespace,
+    workflows_service=workflows_service,
 )
 
 session_mounts_service = SessionMountsService(

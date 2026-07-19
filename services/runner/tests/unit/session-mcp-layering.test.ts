@@ -2,16 +2,13 @@
  * Layering regression guard for buildSessionMcpServers — the test that FAILS if the internal
  * gateway-tool channel and the user MCP capability are ever re-merged into one gate.
  *
- * PR #4831 conflated two independent things into a single `MCP_UNSUPPORTED_MESSAGE` switch, which
- * disabled gateway-tool delivery to Claude as collateral with the (correct) user stdio MCP
- * disable. The fix (project gateway-tool-mcp) split them into:
+ * The gateway-tool repair split two independent things into:
  *   1. INTERNAL gateway-tool channel — restored over loopback HTTP MCP; toggles on executable tools.
- *   2. USER MCP capability — stdio DISABLED, http delivered (#4834).
+ *   2. USER MCP capability — external HTTP delivered separately.
  *
- * These three cases pin that the two layers toggle independently:
+ * These cases pin that the two layers toggle independently:
  *   (a) gateway tools + NO user MCP        -> internal channel present, no throw
- *   (b) user stdio MCP + NO gateway tools  -> refused (user gate)
- *   (c) gateway tools + user http MCP      -> BOTH delivered; user stdio still refused
+ *   (b) gateway tools + user HTTP MCP       -> both delivered
  *
  * Plus: Pi gets [] (native delivery), and the channel never carries a credential.
  *
@@ -22,9 +19,11 @@ import assert from "node:assert/strict";
 
 import {
   buildSessionMcpServers,
+  RESERVED_MCP_SERVER_NAME_MESSAGE,
+  type McpServerStdio,
   type SessionMcpServers,
 } from "../../src/engines/sandbox_agent/mcp.ts";
-import { USER_MCP_UNSUPPORTED_MESSAGE } from "../../src/tools/mcp-bridge.ts";
+import type { ToolMcpAssets } from "../../src/engines/sandbox_agent/tool-mcp-assets.ts";
 import type {
   HarnessCapabilities,
   McpServerConfig,
@@ -76,27 +75,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
     );
   });
 
-  it("(b) user stdio MCP + no gateway tools -> refused (user gate untouched)", async () => {
-    const userMcpServers: McpServerConfig[] = [
-      { name: "github", transport: "stdio", command: "npx", args: ["x"] },
-    ];
-    await assert.rejects(
-      () =>
-        buildSessionMcpServers({
-          isPi: false,
-          isDaytona: false,
-          capabilities: mcpCapable,
-          harness: "claude",
-          toolSpecs: [],
-          userMcpServers,
-          relayDir,
-        }),
-      new RegExp(USER_MCP_UNSUPPORTED_MESSAGE),
-      "a user stdio MCP server is still refused",
-    );
-  });
-
-  it("(c) gateway tools + user http MCP -> BOTH delivered; user stdio still refused", async () => {
+  it("(b) gateway tools + user HTTP MCP -> both delivered", async () => {
     const { servers } = await build({
       isPi: false,
       isDaytona: false,
@@ -106,9 +85,12 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
       userMcpServers: [
         {
           name: "linear",
-          transport: "http",
-          url: "https://mcp.linear.app/sse",
-          env: { Authorization: "Bearer x" },
+          connection: {
+            type: "http",
+            url: "https://mcp.linear.app/sse",
+            headers: { Authorization: "Bearer x" },
+          },
+          policy: { tools: { mode: "all" } },
         },
       ],
       relayDir,
@@ -121,20 +103,6 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
     const names = servers.map((s) => s.name).sort();
     assert.deepEqual(names, ["agenta-tools", "linear"]);
 
-    // The user stdio path is still refused even alongside a gateway tool.
-    await assert.rejects(
-      () =>
-        buildSessionMcpServers({
-          isPi: false,
-          isDaytona: false,
-          capabilities: mcpCapable,
-          harness: "claude",
-          toolSpecs: [gatewayTool],
-          userMcpServers: [{ name: "evil", transport: "stdio", command: "rm" }],
-          relayDir,
-        }),
-      new RegExp(USER_MCP_UNSUPPORTED_MESSAGE),
-    );
   });
 
   it("Pi gets [] (native delivery, no MCP channel) even with gateway tools", async () => {
@@ -165,7 +133,7 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
     assert.deepEqual(servers, []);
   });
 
-  it("the internal channel advertisement carries no credential (server-side invariant)", async () => {
+  it("the internal channel advertises only a loopback guard, never a provider credential", async () => {
     const { servers } = await build({
       isPi: false,
       isDaytona: false,
@@ -176,11 +144,15 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
     });
     const internal = servers.find((s) => s.name === "agenta-tools");
     assert.ok(internal);
-    assert.deepEqual(
-      (internal as { headers: unknown }).headers,
-      [],
-      "no auth header on the internal channel",
-    );
+    // WP1 (#5201): the loopback HTTP endpoint now carries a per-session bearer so another local
+    // process cannot list or call tools through it. That token is a locally minted access guard,
+    // NOT a provider/control-plane credential — the private callRef still never reaches the
+    // advertisement (asserted below), which is the invariant that actually matters here.
+    const headers = (internal as { headers: Array<{ name: string; value: string }> })
+      .headers;
+    assert.equal(headers.length, 1, "exactly the loopback guard header");
+    assert.equal(headers[0].name, "Authorization");
+    assert.match(headers[0].value, /^Bearer .+/, "a non-empty loopback guard token");
     assert.ok(
       !JSON.stringify(internal).includes("composio.search"),
       "the private callRef never reaches the advertisement",
@@ -232,6 +204,206 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
     );
   });
 
+  it("(Daytona, non-Pi, internalToolMcp) delivers user HTTP and the internal stdio entry", async () => {
+    // The uploaded in-sandbox shim becomes the internal TYPELESS stdio entry and a user HTTP MCP
+    // rides along unchanged. The internal entry carries only the two env names:
+    // no credential, no callRef, no loopback URL. The response-watch flag is cleared for the
+    // duration (buildInternalToolMcpEntry forwards it verbatim when the runner env sets it,
+    // which would add a third env entry; the with-flag shape has its own test below).
+    const savedResponseWatch =
+      process.env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED;
+    delete process.env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED;
+    const internalToolMcp: ToolMcpAssets = {
+      bundlePath: "/home/sandbox/agenta/tool-mcp/agenta-abc/tool-mcp-stdio.js",
+      specsPath: "/home/sandbox/agenta/tool-mcp/agenta-abc/tool-mcp-specs.json",
+    };
+    try {
+      // Deliberately auth-free: this pin is about WHICH servers are delivered on the
+      // three-layer Daytona shape; user-MCP auth delivery has its own tests and its wire
+      // shape is owned by another seam.
+      const userHttp: McpServerConfig = {
+        name: "linear",
+        connection: { type: "http", url: "https://mcp.linear.app/sse" },
+        policy: { tools: { mode: "all" } },
+      };
+      const { servers } = await build({
+        isPi: false,
+        isDaytona: true,
+        capabilities: mcpCapable,
+        harness: "claude",
+        toolSpecs: [gatewayTool],
+        userMcpServers: [userHttp],
+        relayDir,
+        internalToolMcp,
+      });
+      assert.deepEqual(
+        servers.map((s) => s.name).sort(),
+        ["agenta-tools", "linear"],
+        "internal stdio channel AND the user http server",
+      );
+
+      const internal = servers.find((s) => s.name === "agenta-tools");
+      assert.ok(internal, "the internal channel is advertised");
+      assert.ok(
+        !("type" in internal!),
+        "the internal stdio entry is TYPELESS (the ACP adapter maps typeless -> stdio)",
+      );
+      const stdio = internal as McpServerStdio;
+      assert.equal(stdio.command, "node");
+      assert.deepEqual(stdio.args, [internalToolMcp.bundlePath]);
+      assert.deepEqual(
+        stdio.env.map((e) => e.name).sort(),
+        [
+          "AGENTA_AGENT_TOOLS_PUBLIC_SPECS_FILE",
+          "AGENTA_AGENT_TOOLS_RELAY_DIR",
+        ],
+        "ONLY the specs-file path and the relay dir ride the env",
+      );
+      assert.equal(
+        stdio.env.find((e) => e.name === "AGENTA_AGENT_TOOLS_RELAY_DIR")?.value,
+        relayDir,
+      );
+      const serialized = JSON.stringify(internal);
+      assert.ok(!serialized.includes("composio.search"), "no private callRef");
+      assert.ok(
+        !serialized.includes("mcp.linear.app"),
+        "no user MCP url leaks into the internal entry",
+      );
+      assert.ok(!serialized.includes("127.0.0.1"), "no loopback URL");
+
+    } finally {
+      if (savedResponseWatch === undefined) {
+        delete process.env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED;
+      } else {
+        process.env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED =
+          savedResponseWatch;
+      }
+    }
+  });
+
+  it("(Daytona, non-Pi, internalToolMcp) the runner's response-watch flag is forwarded verbatim as a THIRD env entry", async () => {
+    // Companion to the exact-two-names pin above: when the operator set the hop-1
+    // response-watch kill switch on the RUNNER, buildInternalToolMcpEntry forwards it —
+    // verbatim — to the in-sandbox shim (mirroring buildPiExtensionEnv).
+    const savedResponseWatch =
+      process.env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED;
+    process.env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED = "false";
+    try {
+      const { servers } = await build({
+        isPi: false,
+        isDaytona: true,
+        capabilities: mcpCapable,
+        harness: "claude",
+        toolSpecs: [gatewayTool],
+        relayDir,
+        internalToolMcp: {
+          bundlePath: "/home/sandbox/x/tool-mcp-stdio.js",
+          specsPath: "/home/sandbox/x/tool-mcp-specs.json",
+        },
+      });
+      const stdio = servers.find(
+        (s) => s.name === "agenta-tools",
+      ) as McpServerStdio;
+      assert.ok(stdio, "the internal channel is advertised");
+      assert.deepEqual(
+        stdio.env.map((e) => e.name).sort(),
+        [
+          "AGENTA_AGENT_TOOLS_PUBLIC_SPECS_FILE",
+          "AGENTA_AGENT_TOOLS_RELAY_DIR",
+          "AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED",
+        ],
+        "the flag rides as the third env entry",
+      );
+      assert.deepEqual(
+        stdio.env.find(
+          (e) => e.name === "AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED",
+        ),
+        {
+          name: "AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED",
+          value: "false",
+        },
+        "forwarded verbatim",
+      );
+    } finally {
+      if (savedResponseWatch === undefined) {
+        delete process.env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED;
+      } else {
+        process.env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED =
+          savedResponseWatch;
+      }
+    }
+  });
+
+  it("(Daytona, Pi, internalToolMcp) still gets [] (Pi delivers via its extension, never the shim)", async () => {
+    const { servers } = await build({
+      isPi: true,
+      isDaytona: true,
+      capabilities: mcpCapable,
+      harness: "pi_agenta",
+      toolSpecs: [gatewayTool],
+      relayDir,
+      internalToolMcp: {
+        bundlePath: "/home/sandbox/x/tool-mcp-stdio.js",
+        specsPath: "/home/sandbox/x/tool-mcp-specs.json",
+      },
+    });
+    assert.deepEqual(servers, [], "Pi never uses the stdio shim");
+  });
+
+  it("(Daytona, non-Pi, internalToolMcp, only client tools) -> advertises the shim (client tools ride it too)", async () => {
+    // The shim now advertises client tools as well as executable ones. A client-only run on
+    // Daytona must still build the internal stdio channel so Claude sees the client tool and can
+    // call it; the parked call resolves through the relay's paused answer. This is the direct
+    // guard against the old client-only silent drop.
+    const clientTool: ResolvedToolSpec = {
+      name: "request_connection",
+      kind: "client",
+      description: "browser-fulfilled",
+    };
+    const { servers } = await build({
+      isPi: false,
+      isDaytona: true,
+      capabilities: mcpCapable,
+      harness: "claude",
+      toolSpecs: [clientTool],
+      relayDir,
+      internalToolMcp: {
+        bundlePath: "/home/sandbox/x/tool-mcp-stdio.js",
+        specsPath: "/home/sandbox/x/tool-mcp-specs.json",
+      },
+    });
+    const stdio = servers.find((s) => s.name === "agenta-tools");
+    assert.ok(
+      stdio,
+      "a client-only spec list still advertises the internal stdio channel",
+    );
+  });
+
+  it("a user-declared MCP server named 'agenta-tools' is rejected (reserved name)", async () => {
+    // The internal channel's name is coupled to the rendered permission rules
+    // (claude_settings.py renders `mcp__agenta-tools__<tool>`), so a user server must never
+    // claim it — on any sandbox, any transport.
+    await assert.rejects(
+      () =>
+        buildSessionMcpServers({
+          isPi: false,
+          isDaytona: false,
+          capabilities: mcpCapable,
+          harness: "claude",
+          toolSpecs: [],
+          userMcpServers: [
+            {
+              name: "agenta-tools",
+              connection: { type: "http", url: "https://mcp.example.com/mcp" },
+              policy: { tools: { mode: "all" } },
+            },
+          ],
+          relayDir,
+        }),
+      new RegExp(RESERVED_MCP_SERVER_NAME_MESSAGE.slice(0, 40)),
+    );
+  });
+
   it("(Daytona) a user http MCP is STILL delivered (remote url, not a runner loopback)", async () => {
     // The Daytona guard is scoped to the INTERNAL loopback channel only. A user http MCP is a
     // remote url the harness dials directly, so it stays reachable from the sandbox and must be
@@ -245,9 +417,12 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
       userMcpServers: [
         {
           name: "linear",
-          transport: "http",
-          url: "https://mcp.linear.app/sse",
-          env: { Authorization: "Bearer x" },
+          connection: {
+            type: "http",
+            url: "https://mcp.linear.app/sse",
+            headers: { Authorization: "Bearer x" },
+          },
+          policy: { tools: { mode: "all" } },
         },
       ],
       relayDir,

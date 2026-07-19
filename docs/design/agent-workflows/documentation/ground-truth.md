@@ -51,16 +51,21 @@ this page and the referenced code as the source of truth.
 - Callback tools route through `/tools/call`. On Daytona, Pi tool calls use the runner file
   relay.
 - Gateway/code tool delivery to non-Pi harnesses (Claude) exists through the internal MCP
-  channel, served over a loopback HTTP MCP endpoint the runner stands up (no runner-host child
-  process). User-declared MCP resolution is feature-gated (`AGENTA_AGENT_MCPS_ENABLED`, off by
-  default).
+  channel, on two transports: a loopback HTTP MCP endpoint the runner stands up on the local
+  sandbox (no runner-host child process), and an in-sandbox stdio MCP shim the runner uploads
+  on Daytona (`tools/tool-mcp-stdio.ts`; the harness spawns it, its `tools/call` writes relay
+  request files, and the runner-side relay loop executes server-side). The channel's name
+  `agenta-tools` is reserved; a user-declared MCP server claiming it is refused. User-declared
+  external HTTP MCP configuration is resolved for every run. Harness capabilities expose the
+  editor for Claude and hide it for Pi until Pi has a delivery bridge.
 - `client` tools (browser-fulfilled, e.g. `request_connection`) are delivered to Claude too on
   the local path: advertised over the same internal MCP channel and PAUSED in the `tools/call`
   handler (no JSON-RPC result + abort the request), then resumed from the browser result next
   turn — the same cross-turn pause Pi gets via the file relay, through one shared seam
   (`services/runner/src/engines/sandbox_agent/client-tools.ts`). On a remote sandbox the
-  loopback channel is unreachable, so a non-Pi run carrying ANY custom tool — client kind
-  included — is refused up front (`REMOTE_TOOLS_UNSUPPORTED_MESSAGE`), never dropped silently.
+  in-sandbox stdio shim has no pause path, so a non-Pi run carrying a client tool is refused
+  up front (`REMOTE_CLIENT_TOOLS_UNSUPPORTED_MESSAGE`); a remote provider that is not Daytona
+  refuses ANY custom tool (`REMOTE_TOOLS_UNSUPPORTED_MESSAGE`). Never dropped silently.
 
 ## Not Implemented
 
@@ -80,10 +85,10 @@ this page and the referenced code as the source of truth.
   per option (`HARNESS_IDENTITIES`); the stored/wire harness value stays the bare string.
 - Per-request model override is not honored on the Pi ACP path. pi-acp accepts only its
   default model and silently falls back (`projects/qa/findings.md`, F-007).
-- User-declared MCP transports split: remote (`http`) servers are delivered by the runner
-  (`toAcpMcpServers`, #4834); stdio servers are disabled (`USER_MCP_UNSUPPORTED_MESSAGE`) because
-  they launch a process on the runner host. The runner's own internal gateway-tool channel is a
-  separate thing and is delivered over loopback HTTP.
+- User-declared MCP servers are HTTP-only. The runner delivers them to Claude through
+  `toAcpMcpServers`; Pi refuses them until its MCP bridge exists. The runner's own internal
+  gateway-tool channel is separate and uses loopback HTTP locally or a trusted in-sandbox stdio
+  shim on Daytona.
 - Trigger lifecycle, Compose.io trigger integration, and event-to-agent mapping are not
   implemented in the agent workflow code.
 - A persisted agent template object that separates `AGENTS.md`, skills, tools,

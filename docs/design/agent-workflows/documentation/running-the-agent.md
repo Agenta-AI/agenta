@@ -113,8 +113,7 @@ In the EE dev compose, the relevant services are:
 - `services`. Runs uvicorn on port `8080` inside the container
   (`hosting/docker-compose/ee/docker-compose.dev.yml:519`). It hosts the Python agent
   service. Traefik routes `/services/` to it. It sets `AGENTA_RUNNER_INTERNAL_URL` to
-  `http://runner:8765` and `AGENTA_AGENT_MCPS_ENABLED` to `false` by default (lines 564 to
-  565). It depends on `runner` being healthy (lines 573 to 574).
+  `http://runner:8765`. It depends on `runner` being healthy.
 
 - `runner`. The Node runner (line 588 onward). In dev it runs `tsx src/server.ts` after
   rebuilding the Pi extension. It listens on `8765`. Its health check hits
@@ -132,15 +131,17 @@ instead of building from source.
 The dev compose overrides the image CMD with a shell command (around line 600):
 
 ```sh
-mkdir -p /pi-agent && cp -a /pi-agent-ro/. /pi-agent/ 2>/dev/null || true;
 node scripts/build-extension.mjs &&
 exec node_modules/.bin/tsx src/server.ts
 ```
 
-It does three things. It copies the read-only mounted Pi login into a writable path so OAuth
-refresh stays in the container. It rebuilds the Pi extension from the mounted `src`, because
-`dist/` is not bind-mounted and a restart would otherwise keep a stale bundle and silently
-drop custom tools. It then starts the server with `tsx`.
+It does two things. It rebuilds the Pi extension from the mounted `src`, because `dist/` is not
+bind-mounted and a restart would otherwise keep a stale bundle and silently drop custom tools. It
+then starts the server with `tsx`.
+
+The Pi login itself is bind-mounted read-write at `/pi-agent` and the harness runs directly out of
+it, so an OAuth token the harness refreshes mid-run persists back to the host login instead of
+dying with the container.
 
 ## Ports
 
@@ -167,7 +168,6 @@ sections).
   `http://runner:8765`. When unset, the Python service spawns the runner CLI locally instead
   (see `runner_url` in `services/oss/src/agent/config.py` and `select_backend` in
   `services/oss/src/agent/app.py`).
-- `AGENTA_AGENT_MCPS_ENABLED`. Gates MCP server resolution. Default `false`.
 - `SANDBOX_AGENT_PROVIDER`. `local` or `daytona`. Default `local`.
 - `SANDBOX_AGENT_DAYTONA_API_KEY`, `_API_URL`, `_TARGET`, `_SNAPSHOT`, `_IMAGE`,
   `_INSTALL_PI`. Daytona credentials the runner reads for the `daytona` sandbox provider.
@@ -176,6 +176,10 @@ sections).
   this non-zero auto-stop so a sandbox the runner leaks (a process KILL skips the per-run
   teardown) self-reaps instead of burning credit. Values below `1` fall back to the default
   (a `0` would re-disable auto-stop and reintroduce the leak).
+- `SANDBOX_AGENT_RELAY_MCP_BUNDLE`. Overrides the path of the in-sandbox stdio MCP shim bundle
+  the runner uploads to Daytona for non-Pi tool delivery. Default
+  `dist/tools/tool-mcp-stdio.js` (built by `pnpm run build:extension`). Trusted deployment
+  configuration — it selects code — never run or request configuration.
 - `AGENTA_RUNNER_SESSION_KEEPALIVE`. Gates session keep-alive: after a turn ends, the runner
   parks the live harness session and continues it on the next matching message in the same
   conversation, instead of cold-replaying the transcript. Default off. Local sandbox only;

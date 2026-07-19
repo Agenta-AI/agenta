@@ -21,6 +21,8 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
+import { piSessionWorkspaceDir } from "./pi-assets.ts";
+
 /** A Pi transcript `session` record (first line of the .jsonl). */
 interface PiSessionRecord {
   type?: string;
@@ -89,50 +91,43 @@ function readSessionRecord(jsonlPath: string): PiSessionRecord | undefined {
 }
 
 /**
- * Find the Pi transcript for a run (matched by its unique `cwd`) and return the last
- * assistant turn's `errorMessage`, or undefined when there is none.
+ * Find the Pi transcript for a run (identified by its unique `sessionWorkspaceCwd`) and
+ * return the last assistant turn's `errorMessage`, or undefined when there is none.
  *
- * Each run gets a unique cwd, and Pi stamps the cwd on every transcript's `session` record,
- * so matching on cwd locates this run's transcript without depending on Pi's dir-name
- * encoding. Among matches (a resumed session can have several), the newest file wins.
+ * The transcript location is derived from the same shared helper (`piSessionWorkspaceDir`)
+ * that `configurePiSessionWorkspace` uses to point Pi at it, so the two can never disagree.
+ * Because that directory is passed to Pi explicitly (PI_CODING_AGENT_SESSION_DIR), Pi writes
+ * transcripts flat into it, one `.jsonl` per session. Pi also stamps the cwd on every
+ * transcript's `session` record; matching on it guards against stale or copied transcripts.
+ * Among matches (a resumed session can have several), the newest file wins.
  */
 export function findSwallowedPiError(
-  piAgentDir: string,
-  cwd: string,
+  sessionWorkspaceCwd: string,
 ): string | undefined {
-  const sessionsRoot = join(piAgentDir, "sessions");
-  let dirs: string[];
+  const transcriptDir = piSessionWorkspaceDir(sessionWorkspaceCwd);
+  let files: string[];
   try {
-    dirs = readdirSync(sessionsRoot);
+    files = readdirSync(transcriptDir);
   } catch {
     return undefined;
   }
 
   let newestPath: string | undefined;
   let newestMtime = -1;
-  for (const dir of dirs) {
-    const dirPath = join(sessionsRoot, dir);
-    let files: string[];
+  for (const file of files) {
+    if (!file.endsWith(".jsonl")) continue;
+    const filePath = join(transcriptDir, file);
+    const session = readSessionRecord(filePath);
+    if (session?.cwd !== sessionWorkspaceCwd) continue;
+    let mtime: number;
     try {
-      files = readdirSync(dirPath);
+      mtime = statSync(filePath).mtimeMs;
     } catch {
       continue;
     }
-    for (const file of files) {
-      if (!file.endsWith(".jsonl")) continue;
-      const filePath = join(dirPath, file);
-      const session = readSessionRecord(filePath);
-      if (session?.cwd !== cwd) continue;
-      let mtime: number;
-      try {
-        mtime = statSync(filePath).mtimeMs;
-      } catch {
-        continue;
-      }
-      if (mtime > newestMtime) {
-        newestMtime = mtime;
-        newestPath = filePath;
-      }
+    if (mtime > newestMtime) {
+      newestMtime = mtime;
+      newestPath = filePath;
     }
   }
 

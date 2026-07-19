@@ -13,7 +13,8 @@ Not part of the `web/` pnpm workspace. It has its OWN `pnpm-lock.yaml`, builds i
 image, and pins Node 24 / pnpm 10.30 / ESM (`"type": "module"`). It runs through `tsx` (no
 app compile step); the only build is `pnpm run build:extension` (esbuild-bundles the Pi
 extension into `dist/`). Keep it standalone so the sidecar image stays decoupled from the web
-dependency graph.
+dependency graph. `pnpm run build:extension` bundles both the Pi extension and the in-sandbox
+tool MCP shim into `dist/`.
 
 ## Commands
 
@@ -31,6 +32,28 @@ pnpm run typecheck        # tsc --noEmit (src + tests + vitest.config)
 
 - Runtime code: `src/` — `engines/` (one engine: `sandbox_agent`), `tools/`, `tracing/`,
   `extensions/`. Entrypoints: `cli.ts`, `server.ts`. The `/run` wire contract is `protocol.ts`.
+- The `sandbox_agent` engine is split into small files under `engines/sandbox_agent/`, and
+  `engines/sandbox_agent.ts` is a thin facade that only re-exports the public surface (import the
+  engine from there, not from the internal files). Where each concern lives:
+  - Composition and lifecycle: `engine.ts` (`runSandboxAgent` = acquire, run one turn, tear down;
+    plus `shouldPark`). Shared interfaces and types: `runtime-contracts.ts`. Small pure policy
+    helpers (credential extraction, permission map, strict-model flag, transport-disconnect
+    checks): `runtime-policy.ts`.
+  - Acquire a session-scoped environment: `environment.ts` (`acquireEnvironment`, the destroy and
+    keepalive helpers) and `environment-setup.ts` (`prepareEnvironmentSetup`, the setup prefix it
+    runs first). Providers and placement: `provider.ts`, `daytona.ts`, `daytona-provider.ts`,
+    `mount.ts`, `agent-mount*.ts`, `workspace.ts`, `model.ts`, `capabilities.ts`. Run plan:
+    `run-plan.ts`.
+  - Run one turn: `run-turn.ts` (`runTurn`), with `transcript.ts`, `usage.ts`, `run-limits.ts`,
+    `pause.ts`, `acp-interactions.ts`, `pi-error.ts`.
+  - Session keepalive: `session-pool.ts` (the mutable pool) and `session-identity.ts` (fingerprints,
+    credential epochs, pool keys), plus `session-continuity*.ts`, `session-events.ts`,
+    `sandbox-reconnect.ts`.
+  - Tool delivery: `mcp.ts`, `tool-mcp-assets.ts`, `relay-guard.ts`, `client-tools.ts`,
+    `pi-gate-envelope.ts`, `pi-assets.ts`.
+  - `daemon.ts` resolves the harness binary using a package root derived from its own file location
+    (three directory levels up). Do NOT move it into a subfolder without adjusting that derivation,
+    or binary resolution breaks at runtime (the unit tests will not catch it).
 - Tests: `tests/unit/**/*.test.ts` (vitest, `node:assert` is fine inside `it`). Shared test
   helpers and fixtures live in `tests/utils/`. This mirrors `web/packages/*` and the repo
   testing.structure spec. Do not add tests back under a flat `test/` directory.

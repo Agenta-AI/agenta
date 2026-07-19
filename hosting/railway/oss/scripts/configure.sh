@@ -15,6 +15,7 @@ POSTGRES_REF_NS="${RAILWAY_POSTGRES_REF_NS:-Postgres}"
 REDIS_SERVICE="${RAILWAY_REDIS_SERVICE:-redis}"
 AGENTA_AUTH_KEY="${AGENTA_AUTH_KEY:-replace-me}"
 AGENTA_CRYPT_KEY="${AGENTA_CRYPT_KEY:-replace-me}"
+AGENTA_RUNNER_TOKEN="${AGENTA_RUNNER_TOKEN:-replace-me}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"
 AGENTA_STORE_ACCESS_KEY="${AGENTA_STORE_ACCESS_KEY:-}"
 AGENTA_STORE_SECRET_KEY="${AGENTA_STORE_SECRET_KEY:-}"
@@ -86,6 +87,69 @@ _service_id() {
           | .serviceInstances.edges[].node | select(.serviceName==$n) | .serviceId][0] // empty' 2>/dev/null || true
 }
 
+# _refresh_status_json: re-fetch the cached status snapshot; keep the old one
+# if the fetch fails so a transient error cannot blank out working IDs.
+_refresh_status_json() {
+    local fresh
+    fresh="$(railway_call status --json 2>/dev/null || true)"
+    [ -n "$fresh" ] && RAILWAY_STATUS_JSON="$fresh"
+}
+
+# _service_id_with_retry <service-name> -> serviceId (empty when unresolved).
+# A service bootstrap created seconds earlier may not be visible in the status
+# snapshot yet (bootstrap→configure eventual-consistency race), so re-fetch the
+# snapshot and retry a few times before giving up. First-try hits (the normal
+# case) cost zero extra API calls and zero sleeps.
+_service_id_with_retry() {
+    local service="$1" svc_id attempt
+    local attempts="${RAILWAY_SERVICE_RESOLVE_ATTEMPTS:-6}"
+    local delay="${RAILWAY_SERVICE_RESOLVE_DELAY:-5}"
+
+    for ((attempt = 1; attempt <= attempts; attempt++)); do
+        svc_id="$(_service_id "$service")"
+        if [ -n "$svc_id" ]; then
+            printf '%s' "$svc_id"
+            return 0
+        fi
+        if [ "$attempt" -lt "$attempts" ]; then
+            printf "Service id for '%s' not in status snapshot yet; re-fetching in %ds (attempt %d/%d)\n" \
+                "$service" "$delay" "$attempt" "$attempts" >&2
+            sleep "$delay"
+            _refresh_status_json
+        fi
+    done
+    # Empty output: the caller falls back to the CLI path.
+    return 0
+}
+
+# _cli_set_vars <service> KEY=VALUE ...
+# CLI-path variable set. "Service '<name>' not found" seconds after bootstrap
+# created it is the same eventual-consistency race, so retry that specific
+# failure a couple of times instead of failing the deploy on the first hit.
+# Other failures surface immediately (railway_call already retries transient
+# network errors internally).
+_cli_set_vars() {
+    local service="$1"
+    shift
+    local attempts="${RAILWAY_CLI_SET_ATTEMPTS:-3}"
+    local delay="${RAILWAY_SERVICE_RESOLVE_DELAY:-5}"
+    local try output
+
+    for ((try = 1; try <= attempts; try++)); do
+        if output="$(railway_call variable set --service "$service" --environment "$ENV_NAME" --skip-deploys "$@" 2>&1)"; then
+            return 0
+        fi
+        if [ "$try" -lt "$attempts" ] && printf '%s' "$output" | grep -qi "not found"; then
+            printf "railway variable set: service '%s' not visible yet, retrying in %ds (attempt %d/%d)\n" \
+                "$service" "$delay" "$try" "$attempts" >&2
+            sleep "$delay"
+            continue
+        fi
+        [ -n "$output" ] && printf '%s\n' "$output" >&2
+        return 1
+    done
+}
+
 # _vars_to_json KEY=VALUE ... -> {"KEY":"VALUE",...}  (split on the first '=')
 _vars_to_json() {
     local json='{}' kv key val
@@ -110,18 +174,18 @@ upsert_service_vars() {
     [ "$#" -gt 0 ] || return 0
 
     if [ -z "${RAILWAY_API_TOKEN:-}" ] || [ -z "$RAILWAY_PROJECT_ID" ]; then
-        railway_call variable set --service "$service" --environment "$ENV_NAME" --skip-deploys "$@" >/dev/null
+        _cli_set_vars "$service" "$@"
         return 0
     fi
 
     local svc_id
-    svc_id="$(_service_id "$service")"
+    svc_id="$(_service_id_with_retry "$service")"
     if [ -z "$svc_id" ]; then
         # Name didn't match the cached status JSON (e.g. unexpected casing). Don't
         # hard-fail the deploy where the CLI's --service would have worked; fall
         # back to it.
         printf "Could not resolve service id for '%s'; falling back to CLI variable set.\n" "$service" >&2
-        railway_call variable set --service "$service" --environment "$ENV_NAME" --skip-deploys "$@" >/dev/null
+        _cli_set_vars "$service" "$@"
         return 0
     fi
 
@@ -189,8 +253,8 @@ main() {
     require_cmd railway
     require_railway_auth
 
-    if [ "$AGENTA_AUTH_KEY" = "replace-me" ] || [ "$AGENTA_CRYPT_KEY" = "replace-me" ]; then
-        printf "WARNING: Using default placeholder auth/crypt keys. Set AGENTA_AUTH_KEY and AGENTA_CRYPT_KEY for production deployments.\n" >&2
+    if [ "$AGENTA_AUTH_KEY" = "replace-me" ] || [ "$AGENTA_CRYPT_KEY" = "replace-me" ] || [ "$AGENTA_RUNNER_TOKEN" = "replace-me" ]; then
+        printf "WARNING: Using default placeholder secrets. Set AGENTA_AUTH_KEY, AGENTA_CRYPT_KEY and AGENTA_RUNNER_TOKEN for production deployments.\n" >&2
     fi
 
     railway_call link --project "$PROJECT_NAME" --environment "$ENV_NAME" --json >/dev/null
@@ -288,7 +352,7 @@ main() {
         POSTGRES_URI_TRACING="$pg_async_tracing" \
         POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens" \
         AGENTA_RUNNER_INTERNAL_URL="$agent_runner_url" \
-        AGENTA_AGENT_MCPS_ENABLED="${AGENTA_AGENT_MCPS_ENABLED:-false}" \
+        AGENTA_RUNNER_TOKEN="$AGENTA_RUNNER_TOKEN" \
         AGENTA_STORE_ENDPOINT_URL="$seaweedfs_endpoint_url" \
         AGENTA_STORE_ACCESS_KEY="$AGENTA_STORE_ACCESS_KEY" \
         AGENTA_STORE_SECRET_KEY="$AGENTA_STORE_SECRET_KEY" \
@@ -302,7 +366,9 @@ main() {
 
     set_vars runner \
         AGENTA_RUNNER_PORT=8765 \
-        SANDBOX_AGENT_PROVIDER="${SANDBOX_AGENT_PROVIDER:-local}" \
+        AGENTA_RUNNER_TOKEN="$AGENTA_RUNNER_TOKEN" \
+        AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS="${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}" \
+        AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER="${AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER:-local}" \
         AGENTA_STORE_ENDPOINT_URL="$seaweedfs_endpoint_url" \
         AGENTA_STORE_ACCESS_KEY="$AGENTA_STORE_ACCESS_KEY" \
         AGENTA_STORE_SECRET_KEY="$AGENTA_STORE_SECRET_KEY" \
@@ -314,14 +380,15 @@ main() {
     set_optional_vars runner \
         "AGENTA_API_URL=${AGENTA_API_URL:-}" \
         "AGENTA_API_KEY=${AGENTA_API_KEY:-}" \
-        "DAYTONA_API_KEY=${DAYTONA_API_KEY:-}" \
-        "DAYTONA_API_URL=${DAYTONA_API_URL:-}" \
-        "DAYTONA_TARGET=${DAYTONA_TARGET:-}" \
-        "DAYTONA_SNAPSHOT=${DAYTONA_SNAPSHOT:-}" \
-        "DAYTONA_IMAGE=${DAYTONA_IMAGE:-}" \
-        "AGENTA_AGENT_SANDBOX_PI_INSTALLED=${AGENTA_AGENT_SANDBOX_PI_INSTALLED:-}"
+        "AGENTA_RUNNER_DAYTONA_API_KEY=${AGENTA_RUNNER_DAYTONA_API_KEY:-}" \
+        "AGENTA_RUNNER_DAYTONA_API_URL=${AGENTA_RUNNER_DAYTONA_API_URL:-}" \
+        "AGENTA_RUNNER_DAYTONA_TARGET=${AGENTA_RUNNER_DAYTONA_TARGET:-}" \
+        "AGENTA_RUNNER_DAYTONA_SNAPSHOT=${AGENTA_RUNNER_DAYTONA_SNAPSHOT:-}" \
+        "AGENTA_RUNNER_DAYTONA_IMAGE=${AGENTA_RUNNER_DAYTONA_IMAGE:-}"
 
-    unset_vars runner AGENTA_LICENSE SCRIPT_NAME REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI POSTGRES_URI_CORE POSTGRES_URI_TRACING POSTGRES_URI_SUPERTOKENS DAYTONA_API_KEY DAYTONA_API_URL DAYTONA_SNAPSHOT DAYTONA_TARGET
+    # Do NOT list the runner's AGENTA_RUNNER_DAYTONA_* vars here: unset_vars always deletes,
+    # which previously wiped a Daytona-configured runner's credentials right after setting them.
+    unset_vars runner AGENTA_LICENSE SCRIPT_NAME REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI POSTGRES_URI_CORE POSTGRES_URI_TRACING POSTGRES_URI_SUPERTOKENS
 
     set_vars worker-streams \
         AGENTA_WEB_URL="https://${public_domain_ref}" \

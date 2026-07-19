@@ -4,8 +4,8 @@
  * Harnesses that accept tools over MCP only (Claude Code) cannot receive Agenta gateway/callback
  * tools the way Pi does (Pi loads them through the bundled extension). So the runner advertises
  * the run's resolved tools to the harness as an internal MCP server. Each tool call relays back
- * to the runner, where the private spec / callback auth are applied server-side — the sandbox and
- * harness never see a credential.
+ * to the runner, where the private spec / callback auth are applied server-side. The harness sees
+ * only a per-server bearer token that prevents other local processes from using this endpoint.
  *
  * Transport: an internal loopback HTTP MCP endpoint the runner serves (`tool-mcp-http.ts`). This
  * REPLACES the pre-#4831 stdio bridge, which spawned a child process on the runner host outside
@@ -13,10 +13,8 @@
  * loopback HTTP endpoint launches no process; it is served by the already-running runner. This
  * is why restoring delivery here does NOT reopen #4831's hole (see project gateway-tool-mcp).
  *
- * IMPORTANT — this is NOT the user MCP capability:
- *  - USER stdio MCP servers stay DISABLED (`engines/sandbox_agent/mcp.ts` `toAcpMcpServers` +
- *    `run-plan.ts` `hasStdioMcpServer`, fail with `USER_MCP_UNSUPPORTED_MESSAGE`).
- *  - USER http MCP servers are delivered unchanged (#4834).
+ * IMPORTANT: this is not the user MCP capability:
+ *  - External user HTTP MCP servers are delivered separately.
  *  - THIS internal channel is synthesized by the runner from `customTools`; the user never
  *    declares it. The two layers toggle independently — do not merge their gates.
  */
@@ -28,21 +26,12 @@ import { startInternalToolMcpServer } from "./tool-mcp-http.ts";
 export type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
 
 /**
- * USER-facing MCP refusal. Means ONLY "user-declared MCP servers are not supported" — used by
- * the user stdio gate (`run-plan.ts` `hasStdioMcpServer`) and the user stdio branch
- * (`toAcpMcpServers`). The INTERNAL gateway-tool channel below must NEVER borrow this constant:
- * conflating the two is exactly the #4831 regression this project fixed.
- */
-export const USER_MCP_UNSUPPORTED_MESSAGE =
-  "MCPs are not supported by the sidecar.";
-
-/**
- * Pi-family refusal for ANY user-declared MCP server (stdio AND http). The Pi runtime delivers
+ * Pi-family refusal for an external user-declared HTTP MCP server. The Pi runtime delivers
  * tools through the bundled Agenta extension, not over ACP MCP (`buildSessionMcpServers` returns
  * `[]` for Pi), so a user MCP server attached to a Pi run would be DROPPED — silently, with no
  * log and an HTTP 200. That is exactly the silent-drop F-032 forbids. The `run-plan.ts` gate
  * refuses it up front (the way the stdio-MCP and code-tool gates do) so the failure is loud
- * instead of a "successful" empty run. Http MCP is a Claude-only capability (#4834); pick a
+ * instead of a "successful" empty run. HTTP MCP is a Claude-only capability for now; pick a
  * non-Pi harness to use one.
  */
 export const PI_USER_MCP_UNSUPPORTED_MESSAGE =
@@ -50,18 +39,9 @@ export const PI_USER_MCP_UNSUPPORTED_MESSAGE =
   "extension, not MCP). Use a non-Pi harness (e.g. claude) for a user MCP server, or remove " +
   "mcpServers.";
 
-/** ACP McpServerStdio entry: env is a list of {name, value}. Kept for the disabled user path. */
-interface EnvVariable {
-  name: string;
-  value: string;
-}
-
-export interface McpServerStdio {
-  name: string;
-  command: string;
-  args: string[];
-  env: EnvVariable[];
-}
+// The ACP `McpServerStdio` shape lives in `engines/sandbox_agent/mcp.ts` (ACP entry
+// materialization), produced only by the internal in-sandbox shim constructor there. This
+// module is the LOCAL HTTP channel and deliberately exports no stdio entry type.
 
 type Log = (message: string) => void;
 
@@ -91,8 +71,9 @@ export interface BuildToolMcpServersOptions {
  * (no pause path), so an all-`client` list with no relay stays a no-op as before.
  *
  * The returned `close()` MUST be called when the run ends (the engine does this in its `finally`)
- * to release the bound port. The channel carries no secret: the HTTP entry has empty `headers`,
- * the server holds only public specs + the relay dir, and it is bound to loopback.
+ * to release the bound port. The HTTP entry carries a per-server bearer token so another local
+ * process cannot list or call tools through the loopback endpoint. Private tool credentials stay
+ * in runner memory.
  */
 export async function buildToolMcpServers(
   specs: ResolvedToolSpec[],
@@ -121,9 +102,14 @@ export async function buildToolMcpServers(
         // The harness keys MCP servers by name; "agenta-tools" matches the pre-#4831 name.
         name: "agenta-tools",
         url: server.url,
-        // No credential on the wire: the channel is unauthenticated on loopback and carries
-        // only public metadata. Every credentialed action happens server-side via the relay.
-        headers: [],
+        // Scope the credential to the HTTP endpoint it authenticates. Each server instance owns
+        // a distinct token, which protects the loopback endpoint from other local processes.
+        headers: [
+          {
+            name: "Authorization",
+            value: `Bearer ${server.authorizationToken}`,
+          },
+        ],
       },
     ],
     close: server.close,

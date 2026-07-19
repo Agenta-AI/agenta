@@ -31,27 +31,43 @@ not when the harness name is something in particular. In practice the capability
 static per-harness fallback (`engines/sandbox_agent/capabilities.ts`): the daemon rarely fills
 a real `info.capabilities`, so the runner uses `mcpTools: true` for any non-Pi harness.
 
-The mechanism is a small MCP server named `agenta-tools` (`tools/tool-mcp-http.ts`, built by
-`tools/mcp-bridge.ts` `buildToolMcpServers`) that the runner serves on a loopback HTTP endpoint
-and attaches to the session as an ACP `type: "http"` MCP server. This is an Agenta tool DELIVERY
+The mechanism is a small MCP server named `agenta-tools`. This is an Agenta tool DELIVERY
 vehicle, not a user-declared MCP server: it carries the same gateway and code specs the Pi
-extension would register, just exposed over MCP because Claude cannot take a native tool. It runs
-in the already-running runner process (no runner-host child) and is reachable only from loopback;
-it holds only public metadata (names, descriptions, schemas) and a relay directory; the
+extension would register, just exposed over MCP because Claude cannot take a native tool. It
+holds only public metadata (names, descriptions, schemas) and a relay directory; the
 `call_ref`, the code, the scoped secrets, and the callback auth never reach it. When the model
 calls a tool, the server relays the request back to the runner over the file relay
 (`tools/relay.ts`), and the runner runs the private spec from memory and POSTs to `/tools/call`.
 The safety property is identical to Pi's: the provider key and the connection auth stay
-server-side, and the agent only ever asks Agenta to run a named tool.
+server-side, and the agent only ever asks Agenta to run a named tool. The name `agenta-tools`
+is reserved (the settings rules below are rendered against it), so a user-declared MCP server
+claiming it is refused up front.
 
-(This internal channel was disabled as collateral with the user-stdio-MCP disable in PR #4831 and
-restored over loopback HTTP by the gateway-tool-mcp project. It is independent of the user MCP
-capability below — the two toggle separately.)
+The channel has two transports, picked by where Claude runs:
 
-User-declared `mcp_servers` are a separate thing and effectively off today. They would reach
-Claude through `toAcpMcpServers` as additional ACP stdio servers, but only when
-`AGENTA_AGENT_MCPS_ENABLED` is set (off by default), so in practice no user MCP server is
-attached. See [tools.md](../tools.md#status-and-known-gaps).
+- **Local sandbox: loopback HTTP.** `buildToolMcpServers` (`tools/mcp-bridge.ts`, server in
+  `tools/tool-mcp-http.ts`) serves the channel on a loopback HTTP endpoint and attaches it as
+  an ACP `type: "http"` MCP server. It runs in the already-running runner process (no
+  runner-host child) and is reachable only from loopback. It also carries `client` tools,
+  paused in `tools/call`.
+- **Daytona: in-sandbox stdio shim.** Claude runs inside the sandbox, where the loopback URL
+  is unreachable, so the runner uploads the bundled shim (`tools/tool-mcp-stdio.ts`) plus a
+  public-specs JSON file into an ephemeral in-VM dir and advertises a typeless ACP stdio entry
+  the adapter spawns as `node tool-mcp-stdio.js`. The shim's `tools/call` writes relay request
+  files the runner-side relay loop executes server-side. Executable (gateway/callback) tools
+  only: a client tool on this path is refused up front (the shim cannot pause a call), and a
+  remote provider that is not Daytona refuses any custom tool. Contract details:
+  [runner-to-MCP interface page](../../interfaces/cross-service/runner-to-mcp-server.md).
+
+(This internal channel was disabled as collateral with the user-stdio-MCP disable in PR #4831,
+restored over loopback HTTP by the gateway-tool-mcp project, and extended to Daytona by the
+in-sandbox-tool-mcp project. It is independent of the user MCP capability below — the two
+toggle separately.)
+
+User-declared `mcp_servers` are separate from `agenta-tools`. Claude accepts external HTTP MCP
+servers through ACP session initialization. The service resolves named header-secret references
+before the runner builds the ACP HTTP entries. Public stdio configuration is not accepted. See
+[tools.md](../tools.md#status-and-known-gaps).
 
 ## Permissions
 

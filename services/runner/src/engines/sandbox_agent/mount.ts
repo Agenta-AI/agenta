@@ -18,6 +18,11 @@ import { promisify } from "node:util";
 
 const pExecFile = promisify(execFile);
 
+/** POSIX single-quote escaping for values interpolated into `sh -c` strings. */
+export function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
 /** Signed, scoped, short-lived credentials for one mount (mirror of the API `MountCredentials`). */
 export interface MountCredentials {
   endpoint?: string;
@@ -271,9 +276,14 @@ async function isMounted(
 }
 
 export interface MountStorageDeps {
-  /** Injectable command runner for tests; defaults to execFile(geesefs ...). */
-  runGeesefs?: (args: string[], env: Record<string, string>) => Promise<void>;
+  /** Injectable mount attempt for tests; the returned stop handle prevents a late FUSE attach. */
+  runGeesefs?: (
+    args: string[],
+    env: Record<string, string>,
+  ) => Promise<{ stop: () => Promise<void> } | void>;
   checkMounted?: (cwd: string) => Promise<boolean>;
+  /** Injectable command/probe seams while retaining production unmountStorage behavior. */
+  unmountDeps?: UnmountStorageDeps;
   log?: (msg: string) => void;
 }
 
@@ -282,8 +292,9 @@ export interface MountStorageDeps {
  *
  * Idempotent: a no-op when `cwd` is already a mountpoint. The scoped credentials ride the
  * child env (AWS_*), never the argv, so they do not leak to the process table. Returns true
- * when the mount is live, false when it could not be established — the caller proceeds on the
- * plain (ephemeral) cwd rather than aborting (best-effort).
+ * when the mount is live, false when it could not be established AND detach was confirmed — the
+ * caller then proceeds on the plain (ephemeral) cwd. Throws when detach is mounted/inconclusive,
+ * because recursive ephemeral cleanup must never target a possibly-live FUSE mount.
  */
 export async function mountStorage(
   cwd: string,
@@ -306,7 +317,17 @@ export async function mountStorage(
 
   // Not alive: a prior stale node may still occupy the mountpoint. Force-detach before
   // remounting, else geesefs fails "mountpoint is not empty" / re-stacks on the dead node.
-  await unmountStorage(cwd, { log });
+  const staleMountDetached = await unmountStorage(cwd, {
+    ...deps.unmountDeps,
+    log,
+  });
+  if (!staleMountDetached) {
+    throw new Error(
+      "pre-mount detach could not be confirmed for " +
+        cwd +
+        "; refusing to start geesefs",
+    );
+  }
 
   const args = geesefsArgs(creds, cwd);
   const env = credEnv(creds);
@@ -322,6 +343,13 @@ export async function mountStorage(
         detached: true,
         stdio: ["ignore", "ignore", "pipe"],
       });
+      let processExited = false;
+      const exited = new Promise<void>((resolve) => {
+        child.once("exit", () => {
+          processExited = true;
+          resolve();
+        });
+      });
       child.stderr?.on("data", (d) => {
         const s = String(d).trim();
         if (s) log(`geesefs stderr: ${s.slice(0, 400)}`);
@@ -330,31 +358,69 @@ export async function mountStorage(
       // Poll up to ~15s for the mountpoint to serve I/O; geesefs logs "successfully mounted"
       // within ~1s normally. Resolve as soon as it's alive; the caller re-verifies after.
       for (let i = 0; i < 30; i++) {
-        if (await isMounted(cwd, () => {})) return;
+        if (await isMounted(cwd, () => {})) break;
         await new Promise((r) => setTimeout(r, 500));
       }
+      return {
+        stop: async () => {
+          const waitForExit = async (): Promise<boolean> => {
+            if (processExited) return true;
+            await Promise.race([
+              exited,
+              new Promise<void>((resolve) => setTimeout(resolve, 2_000)),
+            ]);
+            return processExited;
+          };
+          if (processExited) return;
+          child.kill("SIGTERM");
+          if (await waitForExit()) return;
+          child.kill("SIGKILL");
+          if (await waitForExit()) return;
+          throw new Error(
+            `geesefs process did not exit after SIGTERM and SIGKILL cwd=${cwd}`,
+          );
+        },
+      };
     });
 
+  let attempt: { stop: () => Promise<void> } | undefined;
+  let failure: unknown;
   try {
     log(`geesefs mount argv: ${args.join(" ")}`);
-    await run(args, env);
+    const started = await run(args, env);
+    attempt = started || undefined;
     // Confirm the new mount actually serves I/O — a still-not-alive cwd means geesefs failed
     // to mount (invalid STS creds, store unreachable) or did not come up within the poll window.
     if (!(await checkMounted(cwd))) {
-      log(
+      failure = new Error(
         `mount reported success but cwd is NOT alive ${creds.bucket}:${creds.prefix} -> ${cwd} ` +
           `— likely expired/invalid STS creds or store unreachable`,
       );
-      return false;
+    } else {
+      log(`mounted ${creds.bucket}:${creds.prefix} -> ${cwd} (verified alive)`);
+      return true;
     }
-    log(`mounted ${creds.bucket}:${creds.prefix} -> ${cwd} (verified alive)`);
-    return true;
   } catch (err) {
-    log(
-      `mount failed ${creds.bucket}:${creds.prefix} -> ${cwd}: ${String(err instanceof Error ? err.message : err).slice(0, 300)}`,
-    );
-    return false;
+    failure = err;
   }
+
+  // Never detach/fallback while a failed geesefs attempt may still attach later.
+  await attempt?.stop();
+  const detached = await unmountStorage(cwd, { ...deps.unmountDeps, log });
+  const detail = String(
+    failure instanceof Error ? failure.message : failure,
+  ).slice(0, 300);
+  if (!detached) {
+    throw new Error(
+      `mount failed and detach could not be confirmed for ${cwd}; refusing ephemeral cwd fallback ` +
+        `to avoid recursively deleting a live or indeterminate FUSE mount: ${detail}`,
+    );
+  }
+  log(
+    `mount failed ${creds.bucket}:${creds.prefix} -> ${cwd}; detach confirmed, ` +
+      `running on ephemeral cwd: ${detail}`,
+  );
+  return false;
 }
 
 export interface UnmountStorageDeps {
@@ -392,7 +458,6 @@ export async function unmountStorage(
     log(
       `unmount failed ${cwd}: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
     );
-    return false;
   }
   // Lazy unmount can leave the node attached until the dead daemon's last ref drops; that
   // residual node serves ENOTCONN and poisons the next session. Verify it's actually gone.
@@ -406,9 +471,18 @@ export async function unmountStorage(
   return false;
 }
 
-// `mountpoint -q` exits 0 = still mounted, 1 = not a mountpoint (confirmed gone). Any other
-// failure (missing binary, unexpected error) is NOT confirmation, so the caller never deletes
-// through a possibly-live mount.
+// util-linux `mountpoint -q` exits 0 = mounted and 32 = not a mountpoint. Some implementations
+// use 1 for the latter. Node may surface child-process exit codes as numbers or strings. Every
+// other failure remains inconclusive, so callers never delete through a possibly-live mount.
+export function mountpointFailureState(
+  error: unknown,
+): "gone" | "inconclusive" {
+  const code = (error as { code?: unknown } | null | undefined)?.code;
+  return code === 1 || code === 32 || code === "1" || code === "32"
+    ? "gone"
+    : "inconclusive";
+}
+
 async function defaultCheckMountpoint(
   cwd: string,
 ): Promise<"gone" | "mounted" | "inconclusive"> {
@@ -416,7 +490,7 @@ async function defaultCheckMountpoint(
     await pExecFile("mountpoint", ["-q", cwd]);
     return "mounted";
   } catch (err) {
-    return (err as { code?: number }).code === 1 ? "gone" : "inconclusive";
+    return mountpointFailureState(err);
   }
 }
 
@@ -514,7 +588,10 @@ async function remoteMountAlive(
     try {
       const res = await sandbox.runProcess({
         command: "sh",
-        args: ["-c", `mountpoint -q ${cwd} && ls ${cwd} >/dev/null 2>&1`],
+        args: [
+          "-c",
+          `mountpoint -q ${shellQuote(cwd)} && ls ${shellQuote(cwd)} >/dev/null 2>&1`,
+        ],
         timeoutMs: 5_000,
       });
       consecutiveThrows = 0;
@@ -545,7 +622,7 @@ async function unmountRemoteDeadMount(
       command: "sh",
       args: [
         "-c",
-        `fusermount -u ${cwd} 2>/dev/null || umount -l ${cwd} 2>/dev/null || true`,
+        `fusermount -u ${shellQuote(cwd)} 2>/dev/null || umount -l ${shellQuote(cwd)} 2>/dev/null || true`,
       ],
       timeoutMs: 10_000,
     });
@@ -575,13 +652,14 @@ export async function mountStorageRemote(
     // Ensure the directory exists before mounting.
     await sandbox.runProcess({
       command: "sh",
-      args: ["-c", `mkdir -p ${cwd}`],
+      args: ["-c", `mkdir -p ${shellQuote(cwd)}`],
       timeoutMs: 30_000,
     });
     // Background geesefs with its logs to a file so the RPC returns immediately.
     const args = geesefsArgs(creds, cwd, deps.endpoint, false);
     const logFile = "/tmp/geesefs-mount.log";
-    const geefsCmd = `geesefs --log-file ${logFile} ${args.join(" ")} >>${logFile} 2>&1 &`;
+    const quotedArgs = args.map(shellQuote).join(" ");
+    const geefsCmd = `geesefs --log-file ${shellQuote(logFile)} ${quotedArgs} >>${shellQuote(logFile)} 2>&1 &`;
     log(`remote geesefs argv: ${args.join(" ")}`);
     const res = await sandbox.runProcess({
       command: "sh",
@@ -611,7 +689,9 @@ export async function mountStorageRemote(
       await unmountRemoteDeadMount(sandbox, cwd, log);
       return false;
     }
-    log(`remote mounted ${creds.bucket}:${creds.prefix} -> ${cwd} (verified alive)`);
+    log(
+      `remote mounted ${creds.bucket}:${creds.prefix} -> ${cwd} (verified alive)`,
+    );
     return true;
   } catch (err) {
     log(
@@ -667,7 +747,11 @@ export async function mountHarnessSessionDirs(
       dir.name,
     );
     if (!creds) {
-      log(`harness session mount '${dir.name}' not signed — skipping ${dir.path}`);
+      // A resumable harness session expects its transcript dir mounted. Same structured degrade
+      // signal as the session/agent mounts (behavior unchanged; the run proceeds without it).
+      log(
+        `mount degraded kind=harness_transcript cause=sign_returned_no_mount session=${sessionId} dir=${dir.name}`,
+      );
       continue;
     }
     await mountRemote(sandbox, dir.path, creds, {

@@ -1,4 +1,4 @@
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -1083,13 +1083,17 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if not scenario_dbes:
                 return []
 
-            # One session across the loop to prevent connection pool exhaustion
-            for scenario_dbe in scenario_dbes:
-                run_flags = await _get_run_flags(
+            # Fetch run_flags once per distinct run_id, not once per row.
+            run_flags_by_run_id: Dict[UUID, dict] = {}
+            for run_id in {scenario_dbe.run_id for scenario_dbe in scenario_dbes}:  # type: ignore
+                run_flags_by_run_id[run_id] = await _get_run_flags(
                     session=session,
                     project_id=project_id,
-                    run_id=scenario_dbe.run_id,  # type: ignore
+                    run_id=run_id,
                 )
+
+            for scenario_dbe in scenario_dbes:
+                run_flags = run_flags_by_run_id[scenario_dbe.run_id]  # type: ignore
 
                 if run_flags.get("is_closed", False):
                     raise EvaluationClosedConflict(
@@ -1192,13 +1196,17 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if not scenario_dbes:
                 return []
 
-            # One session across the loop to prevent connection pool exhaustion
-            for scenario_dbe in scenario_dbes:
-                run_flags = await _get_run_flags(
+            # Fetch run_flags once per distinct run_id, not once per row.
+            run_flags_by_run_id: Dict[UUID, dict] = {}
+            for run_id in {scenario_dbe.run_id for scenario_dbe in scenario_dbes}:  # type: ignore
+                run_flags_by_run_id[run_id] = await _get_run_flags(
                     session=session,
                     project_id=project_id,
-                    run_id=scenario_dbe.run_id,  # type: ignore
+                    run_id=run_id,
                 )
+
+            for scenario_dbe in scenario_dbes:
+                run_flags = run_flags_by_run_id[scenario_dbe.run_id]  # type: ignore
 
                 if run_flags.get("is_closed", False):
                     raise EvaluationClosedConflict(
@@ -1696,13 +1704,17 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if not result_dbes:
                 return []
 
-            # One session across the loop to prevent connection pool exhaustion
-            for result_dbe in result_dbes:
-                run_flags = await _get_run_flags(
+            # Fetch run_flags once per distinct run_id, not once per row.
+            run_flags_by_run_id: Dict[UUID, dict] = {}
+            for run_id in {result_dbe.run_id for result_dbe in result_dbes}:  # type: ignore
+                run_flags_by_run_id[run_id] = await _get_run_flags(
                     session=session,
                     project_id=project_id,
-                    run_id=result_dbe.run_id,  # type: ignore
+                    run_id=run_id,
                 )
+
+            for result_dbe in result_dbes:
+                run_flags = run_flags_by_run_id[result_dbe.run_id]  # type: ignore
 
                 if run_flags.get("is_closed", False):
                     raise EvaluationClosedConflict(
@@ -2168,13 +2180,17 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if not metric_dbes:
                 return []
 
-            # One session across the loop to prevent connection pool exhaustion
-            for metric_dbe in metric_dbes:
-                run_flags = await _get_run_flags(
+            # Fetch run_flags once per distinct run_id, not once per row.
+            run_flags_by_run_id: Dict[UUID, dict] = {}
+            for run_id in {metric_dbe.run_id for metric_dbe in metric_dbes}:  # type: ignore
+                run_flags_by_run_id[run_id] = await _get_run_flags(
                     session=session,
                     project_id=project_id,
-                    run_id=metric_dbe.run_id,  # type: ignore
+                    run_id=run_id,
                 )
+
+            for metric_dbe in metric_dbes:
+                run_flags = run_flags_by_run_id[metric_dbe.run_id]  # type: ignore
 
                 if run_flags.get("is_closed", False):
                     raise EvaluationClosedConflict(
@@ -2586,13 +2602,17 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if not queue_dbes:
                 return []
 
-            # One session across the loop to prevent connection pool exhaustion
-            for queue_dbe in queue_dbes:
-                run_flags = await _get_run_flags(
+            # Fetch run_flags once per distinct run_id, not once per row.
+            run_flags_by_run_id: Dict[UUID, dict] = {}
+            for run_id in {queue_dbe.run_id for queue_dbe in queue_dbes}:  # type: ignore
+                run_flags_by_run_id[run_id] = await _get_run_flags(
                     session=session,
                     project_id=project_id,
-                    run_id=queue_dbe.run_id,  # type: ignore
+                    run_id=run_id,
                 )
+
+            for queue_dbe in queue_dbes:
+                run_flags = run_flags_by_run_id[queue_dbe.run_id]  # type: ignore
 
                 if run_flags.get("is_closed", False):
                     raise EvaluationClosedConflict(

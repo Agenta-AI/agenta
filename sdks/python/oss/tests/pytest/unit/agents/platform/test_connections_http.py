@@ -169,13 +169,13 @@ async def test_missing_provider_hint_is_harness_correct_for_claude(
 
 
 async def test_bare_claude_alias_resolves_to_anthropic(fake_http, connection):
-    # F-031: a bare Claude alias (haiku/sonnet/opus + [1m]) is unambiguously Anthropic, so the
-    # F-017 prefix rule must NOT reject it. It resolves against the vault's anthropic key the
-    # same way the documented `anthropic/haiku` form does, instead of failing loud.
+    # F-031: a bare Claude alias from the curated Claude alias list is unambiguously Anthropic,
+    # so the F-017 prefix rule must NOT reject it. It resolves against the vault's anthropic key
+    # the same way the documented `anthropic/haiku` form does, instead of failing loud.
     fake_http(
         connections, payload=[_provider_key("anthropic-prod", "anthropic", "sk-ant")]
     )
-    for alias in ("haiku", "sonnet", "opus", "opus[1m]"):
+    for alias in ("haiku", "sonnet", "opus[1m]"):
         resolved = await VaultConnectionResolver(connection).resolve(
             model=ModelRef.coerce(alias),
             context=RuntimeAuthContext(harness="claude"),
@@ -214,6 +214,48 @@ async def test_bare_model_matching_a_candidate_infers_the_provider(
         model=ModelRef.coerce("gpt-4o-mini"), context=_context()
     )
     assert resolved.credential_mode == "env"
+
+
+@pytest.mark.parametrize(
+    ("provider", "environment_name"),
+    [
+        ("openai", "OPENAI_API_KEY"),
+        ("anthropic", "ANTHROPIC_API_KEY"),
+        ("openrouter", "OPENROUTER_API_KEY"),
+    ],
+)
+async def test_known_direct_custom_provider_uses_direct_deployment(
+    fake_http, connection, provider, environment_name
+):
+    endpoint = "https://93.184.216.34/v1"
+    model_id = "vendor/model-v1"
+    fake_http(
+        connections,
+        payload=[
+            _custom_provider(
+                "custom-direct",
+                provider,
+                key="provider-key",
+                url=endpoint,
+                models=[model_id],
+            )
+        ],
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model("custom-direct", provider=provider, model=model_id),
+        context=_context(),
+    )
+
+    assert resolved.provider == provider
+    assert resolved.deployment == "direct"
+    assert resolved.model == model_id
+    assert resolved.endpoint.base_url == endpoint
+    if hasattr(resolved, "plaintext_environment"):
+        environment = resolved.plaintext_environment()
+    else:
+        environment = resolved.env
+    assert environment == {environment_name: "provider-key"}
 
 
 async def test_missing_named_connection_fails_loud(fake_http, connection):
@@ -322,7 +364,12 @@ async def test_custom_gateway_api_key_from_extras_and_endpoint(fake_http, connec
     assert resolved.endpoint.base_url == "https://93.184.216.34/v1"
 
 
-async def test_custom_provider_private_url_is_dropped_not_pinned(fake_http, connection):
+async def test_custom_provider_private_url_fails_loud_not_dropped(
+    fake_http, connection
+):
+    # Decision 4: a chosen named custom connection whose endpoint is blocked must fail loud, not
+    # silently continue endpoint-less onto a provider default. The error names the slug, points
+    # at AGENTA_INSECURE_EGRESS_ALLOWED, and never carries the API key.
     fake_http(
         connections,
         payload=[
@@ -335,14 +382,18 @@ async def test_custom_provider_private_url_is_dropped_not_pinned(fake_http, conn
             )
         ],
     )
-    resolved = await VaultConnectionResolver(connection).resolve(
-        model=_model("internal-gw", provider="anthropic", model="gpt-5.5"),
-        context=RuntimeAuthContext(harness="claude"),
-    )
-    assert resolved.endpoint is None
+    with pytest.raises(ConnectionResolutionError) as exc:
+        await VaultConnectionResolver(connection).resolve(
+            model=_model("internal-gw", provider="anthropic", model="gpt-5.5"),
+            context=RuntimeAuthContext(harness="claude"),
+        )
+    message = str(exc.value)
+    assert "internal-gw" in message
+    assert "AGENTA_INSECURE_EGRESS_ALLOWED" in message
+    assert "sk-gw" not in message
 
 
-async def test_custom_provider_loopback_url_is_dropped_not_pinned(
+async def test_custom_provider_loopback_url_fails_loud_not_dropped(
     fake_http, connection
 ):
     fake_http(
@@ -357,11 +408,12 @@ async def test_custom_provider_loopback_url_is_dropped_not_pinned(
             )
         ],
     )
-    resolved = await VaultConnectionResolver(connection).resolve(
-        model=_model("loopback-gw", provider="anthropic", model="gpt-5.5"),
-        context=RuntimeAuthContext(harness="claude"),
-    )
-    assert resolved.endpoint is None
+    with pytest.raises(ConnectionResolutionError) as exc:
+        await VaultConnectionResolver(connection).resolve(
+            model=_model("loopback-gw", provider="anthropic", model="gpt-5.5"),
+            context=RuntimeAuthContext(harness="claude"),
+        )
+    assert "loopback-gw" in str(exc.value)
 
 
 async def test_custom_provider_ssrf_guard_defaults_secure(fake_http, connection):
@@ -383,12 +435,75 @@ async def test_custom_provider_ssrf_guard_defaults_secure(fake_http, connection)
             )
         ],
     )
-    resolved = await VaultConnectionResolver(connection).resolve(
-        model=_model("private-gw", provider="anthropic", model="gpt-5.5"),
-        context=RuntimeAuthContext(harness="claude"),
+    # Blocked by default (secure) — and a chosen custom connection fails loud rather than
+    # continuing endpoint-less.
+    with pytest.raises(ConnectionResolutionError) as exc:
+        await VaultConnectionResolver(connection).resolve(
+            model=_model("private-gw", provider="anthropic", model="gpt-5.5"),
+            context=RuntimeAuthContext(harness="claude"),
+        )
+    assert "AGENTA_INSECURE_EGRESS_ALLOWED" in str(exc.value)
+
+
+async def test_openai_compatible_custom_normalizes_to_openai(fake_http, connection):
+    # Decision 2: a provider-less named custom connection resolves to the openai provider family,
+    # keeps deployment=custom and the exact model id + endpoint, and routes its key through
+    # OPENAI_API_KEY only (the family's canonical env var). The connection slug stays identity,
+    # never the provider family.
+    endpoint = "https://93.184.216.34/v1"
+    model_id = "qwen2.5-coder:7b"
+    fake_http(
+        connections,
+        payload=[
+            _custom_provider(
+                "my-ollama",
+                "custom",
+                key="sk-oai-compatible",
+                url=endpoint,
+                models=[model_id],
+            )
+        ],
     )
-    # Blocked with no env var required — secure by default.
-    assert resolved.endpoint is None
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            model=model_id, connection={"mode": "agenta", "slug": "my-ollama"}
+        ),
+        context=_context(),
+    )
+    assert resolved.provider == "openai"
+    assert resolved.deployment == "custom"
+    assert resolved.model == model_id
+    assert resolved.endpoint.base_url == endpoint
+    assert resolved.credential_mode == "env"
+    assert resolved.env == {"OPENAI_API_KEY": "sk-oai-compatible"}
+
+
+async def test_openai_compatible_custom_missing_url_fails_loud(fake_http, connection):
+    # Decision 4: an explicit named custom connection with no base URL fails loud (naming the
+    # slug), rather than resolving with endpoint=None and letting the harness pick a default.
+    fake_http(
+        connections,
+        payload=[
+            _custom_provider(
+                "my-ollama",
+                "custom",
+                key="sk-oai-compatible",
+                url=None,
+                models=["qwen2.5-coder:7b"],
+            )
+        ],
+    )
+    with pytest.raises(ConnectionResolutionError) as exc:
+        await VaultConnectionResolver(connection).resolve(
+            model=ModelRef(
+                model="qwen2.5-coder:7b",
+                connection={"mode": "agenta", "slug": "my-ollama"},
+            ),
+            context=_context(),
+        )
+    message = str(exc.value)
+    assert "my-ollama" in message
+    assert "sk-oai-compatible" not in message
 
 
 async def test_full_custom_model_key_selects_and_strips_to_backend_model(

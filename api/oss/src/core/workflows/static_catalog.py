@@ -192,9 +192,11 @@ def _request_input_revision() -> WorkflowRevision:
                         "in one click. Enum options are SUGGESTIONS, not a hard constraint — "
                         "the form lets the user type their own value, so keep enums short and "
                         "likely rather than exhaustive. Supported `format` values: "
-                        "'date', 'date-time', 'email', 'uri', and 'multiline' — use 'multiline' "
-                        "for any long or free-form text field (notes, a description, a message "
-                        'body). For a form with SEVERAL questions, set "x-ag-stepper": true on '
+                        "'date', 'date-time', 'email', 'uri', 'multiline', and 'cron' — use "
+                        "'multiline' for any long or free-form text field (notes, a "
+                        "description, a message body) and 'cron' for a recurring schedule "
+                        "(renders a friendly schedule builder; the value is a 5-field cron "
+                        'expression). For a form with SEVERAL questions, set "x-ag-stepper": true on '
                         "requestedSchema to present one question at a time with a final "
                         "review step. NEVER request secrets "
                         "(passwords, API keys, tokens); use request_connection for credentials. "

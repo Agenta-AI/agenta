@@ -3,8 +3,8 @@
 Two distinct vault reads, both best-effort (an outage returns empty rather than failing the
 run, since a project with no secret-bearing tools still runs):
 
-- `resolve_named_secrets` (`POST /secrets/resolve`): named secret values for code-tool and
-  MCP environments, resolved by explicit name. Pairs with the resolver's
+- `resolve_named_secrets` (`GET /secrets/{slug}`): named secret values for code-tool and
+  MCP environments, resolved by explicit slug. Pairs with the resolver's
   `MissingSecretPolicy.ERROR`, so a tool whose declared secret is absent then hard-fails.
 - `resolve_provider_keys` (`GET /secrets/`): the project's LLM provider keys, mapped to the
   env vars a harness reads. Optional by design: when the vault has none, the harness falls
@@ -15,7 +15,8 @@ Logs never include secret names or values, only counts.
 
 from __future__ import annotations
 
-from typing import Dict, Mapping, Optional, Sequence
+from typing import Any, Dict, Mapping, Optional, Sequence
+from urllib.parse import quote
 
 import httpx
 
@@ -32,7 +33,7 @@ async def resolve_named_secrets(
     *,
     connection: Optional[PlatformConnection] = None,
 ) -> Dict[str, str]:
-    """Resolve project vault secrets by name for tool and MCP environments. Best-effort."""
+    """Resolve text project secrets by slug for tool and MCP environments. Best-effort."""
     if not names:
         return {}
 
@@ -41,42 +42,46 @@ async def resolve_named_secrets(
     if not api_base:
         return {}
 
-    try:
-        async with httpx.AsyncClient(timeout=connection.timeout) as client:
-            response = await client.post(
-                f"{api_base}/secrets/resolve",
-                json={"names": list(names)},
-                headers=connection.headers(),
-            )
-        if response.status_code >= 400:
-            log.warning(
-                "agent: named-secret resolve HTTP %s for %d name(s)",
-                response.status_code,
-                len(names),
-            )
-            return {}
-        data = response.json() or {}
-    except Exception:  # pylint: disable=broad-except
-        log.warning(
-            "agent: named-secret resolve failed for %d name(s)",
-            len(names),
-            exc_info=True,
-        )
-        return {}
+    requested = list(dict.fromkeys(str(name) for name in names))
+    resolved: Dict[str, str] = {}
+    headers = connection.headers()
 
-    resolved = data.get("secrets") if isinstance(data, dict) else None
-    resolved = resolved if isinstance(resolved, dict) else {}
-    requested = {str(name) for name in names}
-    missing = [name for name in names if name not in resolved]
-    if missing:
-        log.warning("agent: %d named secret(s) unresolved", len(missing))
-    # Restrict to the requested set so an upstream that returns extras never leaks
-    # unrequested secrets into runtime memory.
-    return {
-        str(key): str(value)
-        for key, value in resolved.items()
-        if value is not None and str(key) in requested
-    }
+    async with httpx.AsyncClient(timeout=connection.timeout) as client:
+        for name in requested:
+            try:
+                response = await client.get(
+                    f"{api_base}/secrets/{quote(name, safe='')}",
+                    headers=headers,
+                )
+                if response.status_code == 404:
+                    continue
+                if response.status_code >= 400:
+                    log.warning(
+                        "agent: named-secret read HTTP %s", response.status_code
+                    )
+                    continue
+                value = _text_custom_secret_value(response.json())
+                if value is not None:
+                    resolved[name] = value
+            except Exception:  # pylint: disable=broad-except
+                log.warning("agent: named-secret read failed", exc_info=True)
+
+    missing_count = len(requested) - len(resolved)
+    if missing_count:
+        log.warning("agent: %d named secret(s) unresolved", missing_count)
+    return resolved
+
+
+def _text_custom_secret_value(payload: Any) -> Optional[str]:
+    """Extract only the vault shape MCP headers can safely consume."""
+    if not isinstance(payload, dict) or payload.get("kind") != "custom_secret":
+        return None
+    data = payload.get("data")
+    secret = data.get("secret") if isinstance(data, dict) else None
+    if not isinstance(secret, dict) or secret.get("format") != "text":
+        return None
+    content = secret.get("content")
+    return content if isinstance(content, str) else None
 
 
 class AgentaNamedSecretProvider:
@@ -107,9 +112,10 @@ async def resolve_provider_keys(
     ``custom_provider`` secrets). It is superseded by
     :func:`agenta.sdk.agents.platform.resolve_connection` /
     :class:`agenta.sdk.agents.platform.VaultConnectionResolver`, which resolve exactly one
-    least-privilege connection and fail loud. Kept callable here only because the running agent
-    service still calls it via ``resolve_secrets`` in ``services/oss/src/agent/app.py``; removing
-    that call site (and this function) is Slice 3, so each slice stays green.
+    least-privilege connection and fail loud. The agent ``/invoke`` path no longer calls it —
+    ``services/oss/src/agent/app.py`` resolves one connection via ``resolve_connection``. It is
+    kept callable only for the deprecated re-export in ``services/oss/src/agent/secrets.py`` and
+    its integration test; removing both (and this function) is Slice 3.
     """
     connection = connection or PlatformConnection()
     api_base = connection.base_url()

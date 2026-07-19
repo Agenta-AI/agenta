@@ -1,4 +1,4 @@
-import {lazy, Suspense, useEffect, useRef, useState} from "react"
+import {lazy, Suspense, useEffect, useRef, useState, type CSSProperties} from "react"
 
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {Splitter, Tabs} from "antd"
@@ -6,10 +6,10 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
-// Direct file import — the barrel would statically pull the inspector drawer into this chunk.
-import SessionInspectorButton from "@/oss/components/SessionInspector/SessionInspectorButton"
 
+// Direct file import — the barrel would statically pull the inspector drawer into this chunk.
 import {ConversationSkeleton, SessionBarSkeleton} from "./components/AgentChatSkeleton"
+import InspectSessionButton from "./components/Inspector/InspectSessionButton"
 import MountFade from "./components/MountFade"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import {chatPanelMaximizedAtom} from "./state/panelLayout"
@@ -18,6 +18,7 @@ import {
     activeSessionIdAtomFamily,
     addSessionAtomFamily,
     closeSessionAtomFamily,
+    pruneSessionHusksAtomFamily,
     renameSessionAtomFamily,
     sessionsListAtomFamily,
     setActiveSessionAtomFamily,
@@ -66,6 +67,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const closeSession = useSetAtom(closeSessionAtomFamily(scope))
     const renameSession = useSetAtom(renameSessionAtomFamily(scope))
     const setActiveSession = useSetAtom(setActiveSessionAtomFamily(scope))
+    const pruneSessionHusks = useSetAtom(pruneSessionHusksAtomFamily(scope))
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
     // Shared entrance latch: the composer's Reveal plays for the first conversation this
     // panel mounts; every additional session pane skips it (no per-switch flash).
@@ -81,6 +83,13 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
         }
         if (sessions.length > 0) seeded.current = false
     }, [sessions.length, addSession])
+
+    // Sweep husks (never-run, untitled, empty sessions) that accumulated in history — from before
+    // the close-time cleanup, or orphaned by a reload. Open tabs are untouched, so this never drops
+    // the blank tab you're about to type in.
+    useEffect(() => {
+        pruneSessionHusks()
+    }, [pruneSessionHusks])
 
     // Tolerate a stale active id (its tab was closed) by falling back to the first tab.
     const activeId = sessions.some((s) => s.id === rawActiveId) ? rawActiveId : sessions[0]?.id
@@ -102,6 +111,9 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // in the SAME commit as the size flip (else it snaps), then held ~280ms; off during drag/resize.
     const prevMaximizedRef = useRef(chatMaximized)
     const [holdAnimate, setHoldAnimate] = useState(false)
+    // Rail pane is controlled: 0 while collapsed (build mode), the dragged width while open.
+    // Keeping `size` always defined + an `onResize` satisfies antd's controlled-Splitter contract.
+    const [railSize, setRailSize] = useState<number>(RAIL_WIDTH)
     const justToggled = prevMaximizedRef.current !== chatMaximized
     // Deps = toggle value ONLY: with `justToggled` in deps, the holdAnimate re-render re-ran the
     // effect and its cleanup cancelled the timer — the class stuck on and every drag lagged.
@@ -127,25 +139,30 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                     "playground-splitter-animated": animateRailSplit,
                 },
             )}
+            onResize={(sizes) => {
+                if (chatMaximized) setRailSize(sizes[0])
+            }}
         >
             <Splitter.Panel
                 defaultSize={RAIL_WIDTH}
-                size={chatMaximized ? undefined : 0}
+                size={chatMaximized ? railSize : 0}
                 min={RAIL_MIN_WIDTH}
                 max={RAIL_MAX_WIDTH}
                 collapsible={false}
                 className="!overflow-hidden !p-0"
             >
-                {/* `inert` drops the clipped rail from tab order + a11y while collapsed. */}
-                <div className="h-full w-full" inert={!chatMaximized}>
+                {/* `inert` drops the clipped rail from tab order + a11y while collapsed. Flex-bounded
+                    (not a plain h-full cascade) so the rail's session list actually scrolls — a bare
+                    h-full chain through the fade wrapper grew with content and never bounded. */}
+                <div className="flex h-full min-h-0 w-full flex-col" inert={!chatMaximized}>
                     {/* Rail pane is width-0 unless maximized, so no visible fallback is needed. */}
                     <Suspense fallback={null}>
                         {/* min-w matches RAIL_MIN_WIDTH (Tailwind needs the literal). */}
-                        <MountFade className="h-full w-full">
+                        <MountFade className="flex min-h-0 w-full flex-1 flex-col">
                             <SessionRail
                                 activeId={activeId}
                                 addDisabled={addLocked}
-                                className="h-full w-full min-w-[240px]"
+                                className="min-h-0 w-full min-w-[240px] flex-1"
                             />
                         </MountFade>
                     </Suspense>
@@ -154,18 +171,33 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
             <Splitter.Panel collapsible={false} className="!overflow-hidden !p-0">
                 <Tabs
                     animated={false}
-                    className="flex h-full min-h-0 min-w-0 w-full flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-tabpane]:h-full"
+                    // The session bar is an ABSOLUTE overlay (`.ant-tabs-nav` pinned top) so its
+                    // presence never reflows the content. The build↔chat motion is published as a
+                    // CSS var (`--agent-bar-inset`: 48 in build, 0 in chat) that the TRANSCRIPT column
+                    // consumes as its top padding — so only the transcript eases, not the context rail
+                    // beside it (which the shared content-holder padding used to drag up too).
+                    style={
+                        {
+                            "--agent-bar-inset": chromeHidden || chatMaximized ? "0px" : "48px",
+                        } as CSSProperties
+                    }
+                    className="relative flex h-full min-h-0 min-w-0 w-full flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-tabpane]:h-full [&_.ant-tabs-nav]:!mb-0"
                     activeKey={activeId}
                     onChange={setActiveSession}
                     renderTabBar={() => (
-                        // Kept mounted in ALL states so its height ANIMATES on transitions rather than the node
-                        // mounting at full height (which snapped the content down). Collapsed to 0 in chat mode
-                        // (controls live in the SessionRail) AND during onboarding (single ephemeral session);
-                        // expands to 48 when the committed build view takes over — same eased height transition
-                        // as the rail/config panes.
+                        // renderTabBar's node stands in for the nav, so making IT absolute (pinned top,
+                        // bounded to the pane width) takes the bar out of flow — the transcript no longer
+                        // reflows when it appears, and the strip has a bounded width so tabs scroll. It just
+                        // fades (opacity) out in chat mode / onboarding while the content padding animates.
                         <div
-                            className="min-w-0 shrink-0 overflow-hidden motion-safe:transition-[height] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
-                            style={{height: chromeHidden || chatMaximized ? 0 : 48}}
+                            className="absolute inset-x-0 top-0 z-10 min-w-0 overflow-hidden motion-safe:transition-opacity motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
+                            style={{
+                                opacity: chromeHidden || chatMaximized ? 0 : 1,
+                                pointerEvents: chromeHidden || chatMaximized ? "none" : undefined,
+                            }}
+                            // opacity/pointerEvents hide it visually + for the mouse; `inert` also drops
+                            // the hidden tabs from keyboard tab order + a11y (mirrors the rail above).
+                            inert={chromeHidden || chatMaximized}
                         >
                             {/* Region fallback = the same bar skeleton the pre-confirmation gate
                             renders, so the strip's lane holds its shape while this chunk loads; the
@@ -184,7 +216,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                                         extra={
                                             chatMaximized ? undefined : (
                                                 <>
-                                                    <SessionInspectorButton
+                                                    <InspectSessionButton
                                                         sessionId={activeId ?? null}
                                                     />
                                                     <SessionHistoryMenu />

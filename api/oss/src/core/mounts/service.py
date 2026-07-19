@@ -1,6 +1,9 @@
 from re import fullmatch, sub
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 from uuid import UUID, uuid5, NAMESPACE_DNS
+
+if TYPE_CHECKING:
+    from oss.src.core.workflows.service import WorkflowsService
 
 from oss.src.core.mounts.dtos import (
     Mount,
@@ -18,6 +21,8 @@ from oss.src.core.mounts.dtos import (
 from oss.src.core.mounts.interfaces import MountsDAOInterface
 from oss.src.core.store.storage import ObjectStore
 from oss.src.core.mounts.types import (
+    MountArtifactIdInvalid,
+    MountArtifactNotFound,
     MountFileNotFound,
     MountNameInvalid,
     MountNotFound,
@@ -25,7 +30,7 @@ from oss.src.core.mounts.types import (
     MountSlugReserved,
     MountStorageUnavailable,
 )
-from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.dtos import Reference, Windowing
 
 # Folder/file path segments: word chars, dots, spaces, hyphens — no path traversal.
 _SEGMENT_RE = r"[\w. -]+"
@@ -64,13 +69,28 @@ def slugify_mount_name(name: str) -> str:
 
 
 def mint_session_slug(*, session_id: str, name: str) -> str:
-    """Stored slug for a session mount: __ag__<uuid5(session)>__<slugified-name>.
+    """Stored slug for a session mount: __ag__session__<uuid5(session)>__<slugified-name>.
 
-    The full dashed uuid5 keeps it deterministic (re-attach the same files) and
-    project-unique without truncation, so the existing unique(project_id, slug)
-    constraint holds for both session and non-session mounts.
+    The uuid5 keeps it deterministic (re-attach the same files) and project-unique
+    without truncation, so the existing unique(project_id, slug) constraint holds
+    for both session and non-session mounts.
     """
-    return f"{_RESERVED_SLUG_PREFIX}{uuid5(_MOUNTS_NAMESPACE, session_id)}__{slugify_mount_name(name)}"
+    return f"{_RESERVED_SLUG_PREFIX}session__{uuid5(_MOUNTS_NAMESPACE, session_id)}__{slugify_mount_name(name)}"
+
+
+def mint_agent_slug(*, artifact_id: str, name: str) -> str:
+    """Mint the deterministic reserved slug for an artifact mount.
+
+    Artifact IDs are UUID-parsed and rendered lowercase. Sign and query must use
+    this same derivation byte-identically so they address the same mount.
+    """
+    try:
+        canonical_artifact_id = UUID(str(artifact_id))
+    except (ValueError, TypeError, AttributeError) as e:
+        raise MountArtifactIdInvalid(str(artifact_id)) from e
+
+    slug_name = slugify_mount_name(name)
+    return f"{_RESERVED_SLUG_PREFIX}agent__{canonical_artifact_id}__{slug_name}"
 
 
 def reject_reserved_slug(slug: str) -> None:
@@ -105,11 +125,13 @@ class MountsService:
         mounts_store: Optional[ObjectStore] = None,
         bucket: Optional[str] = None,
         namespace: Optional[str] = None,
+        workflows_service: Optional["WorkflowsService"] = None,
     ):
         self.mounts_dao = mounts_dao
         self.mounts_store = mounts_store
         self.bucket = bucket
         self.namespace = namespace
+        self.workflows_service = workflows_service
 
     def _storage_key(self, *, project_id: UUID, mount: Mount, path: str = "") -> str:
         """Object-key prefix for a mount: [<namespace>/]mounts/<project_id>/<mount_id>/<path>.
@@ -188,6 +210,58 @@ class MountsService:
             mount_create=mount_create,
         )
 
+    async def _verify_agent_artifact(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: str,
+    ) -> None:
+        """The bound artifact must exist in the project; static-catalog ids resolve in code, not the DB."""
+        if self.workflows_service is None:
+            return
+
+        try:
+            artifact_uuid = UUID(str(artifact_id))
+        except (ValueError, TypeError, AttributeError) as e:
+            raise MountArtifactIdInvalid(str(artifact_id)) from e
+
+        static_catalog = self.workflows_service.static_catalog
+        if static_catalog is not None and static_catalog.is_static_id(artifact_uuid):
+            return
+
+        workflow = await self.workflows_service.fetch_workflow(
+            project_id=project_id,
+            workflow_ref=Reference(id=artifact_uuid),
+            include_archived=False,
+        )
+        if workflow is None:
+            raise MountArtifactNotFound(str(artifact_id))
+
+    async def get_or_create_agent_mount(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        artifact_id: str,
+        name: str = "default",
+    ) -> Mount:
+        """Bind idempotently one durable mount for an artifact, keyed by name."""
+        await self._verify_agent_artifact(
+            project_id=project_id,
+            artifact_id=artifact_id,
+        )
+
+        slug_name = slugify_mount_name(name)
+        mount_create = MountCreate(
+            slug=mint_agent_slug(artifact_id=artifact_id, name=name),
+            name=slug_name,
+        )
+        return await self.mounts_dao.upsert_mount(
+            project_id=project_id,
+            user_id=user_id,
+            mount_create=mount_create,
+        )
+
     async def get_or_create_session_cwd(
         self,
         *,
@@ -214,6 +288,20 @@ class MountsService:
         return await self.mounts_dao.fetch_mount(
             project_id=project_id,
             mount_id=mount_id,
+        )
+
+    async def fetch_agent_mount(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: str,
+        name: str = "default",
+    ) -> Optional[Mount]:
+        """Fetch the active artifact mount keyed by name without creating it."""
+        slug = mint_agent_slug(artifact_id=artifact_id, name=name)
+        return await self.mounts_dao.fetch_mount_by_slug(
+            project_id=project_id,
+            slug=slug,
         )
 
     async def edit_mount(
@@ -363,7 +451,8 @@ class MountsService:
         mount_base = base + "/"
         files: List[MountFile] = []
         folders: set[str] = set()
-        for key, size in objects:
+        for obj in objects:
+            key = obj.key
             rel = key[len(mount_base) :] if key.startswith(mount_base) else key
             # Hide bare trailing-slash marker objects (empty-folder markers).
             if key.endswith("/"):
@@ -371,7 +460,7 @@ class MountsService:
                 if folder_rel:
                     folders.add(folder_rel)
                 continue
-            files.append(MountFile(path=rel, size=size))
+            files.append(MountFile(path=rel, size=obj.size, mtime=obj.mtime))
 
         existing = {f.path for f in files}
         for folder_rel in sorted(folders):
@@ -471,14 +560,14 @@ class MountsService:
             bucket=bucket,
             prefix=folder_prefix,
         )
-        keys = [key for key, _ in objects]
+        keys = [obj.key for obj in objects]
 
         # The exact file (or the folder marker) may also exist alongside contents.
         single = await self.mounts_store.list_objects_v2(
             bucket=bucket,
             prefix=exact_key,
         )
-        if any(key == exact_key for key, _ in single):
+        if any(obj.key == exact_key for obj in single):
             keys.append(exact_key)
 
         unique_keys = list(dict.fromkeys(keys))

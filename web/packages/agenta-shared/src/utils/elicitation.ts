@@ -26,7 +26,14 @@ export const SECRET_FIELD_PATTERN =
 const FIELD_TYPES = new Set(["string", "number", "integer", "boolean"])
 
 /** `format` values the renderer maps to dedicated controls; unknown formats fall back to text. */
-export const KNOWN_STRING_FORMATS = new Set(["date", "date-time", "email", "uri", "multiline"])
+export const KNOWN_STRING_FORMATS = new Set([
+    "date",
+    "date-time",
+    "email",
+    "uri",
+    "multiline",
+    "cron",
+])
 
 /** Natural aliases an author (often an LLM) emits for a known format. */
 const STRING_FORMAT_ALIASES: Record<string, string> = {
@@ -38,6 +45,7 @@ const STRING_FORMAT_ALIASES: Record<string, string> = {
     long_text: "multiline",
     datetime: "date-time",
     url: "uri",
+    crontab: "cron",
 }
 
 /** Resolve a schema `format` to a renderer-known format (aliases → canonical), or undefined. */

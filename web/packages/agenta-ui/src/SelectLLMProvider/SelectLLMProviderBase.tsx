@@ -148,6 +148,11 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
 
     const renderTooltipContent = (metadata: Record<string, unknown>) => (
         <div className="flex flex-col gap-0.5">
+            {typeof metadata.description === "string" && metadata.description && (
+                <Typography.Text className="text-[10px] max-w-[220px] inline-block mb-0.5">
+                    {metadata.description}
+                </Typography.Text>
+            )}
             {(metadata.input !== undefined || metadata.output !== undefined) && (
                 <>
                     <div className="flex justify-between gap-4">
@@ -271,7 +276,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
 
                     {/* When not searching and has model options with showGroup: show provider/model panels */}
                     {!isSearching && hasModelOptions && showGroup && (
-                        <div className="relative min-w-0">
+                        <div className="relative flex min-h-[220px] min-w-0">
                             <div
                                 className="flex min-w-0 flex-col"
                                 style={{width: providerPanelWidth}}
@@ -312,7 +317,9 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                     })}
                                 </div>
 
-                                {footerContent}
+                                {footerContent && (
+                                    <div className="mt-auto w-full">{footerContent}</div>
+                                )}
                             </div>
 
                             {hoveredGroup && (

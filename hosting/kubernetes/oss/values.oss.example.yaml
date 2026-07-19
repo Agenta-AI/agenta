@@ -15,6 +15,7 @@ agenta:
   # --- Secrets (REPLACE in production!) ---
   authKey: "replace-me"
   cryptKey: "replace-me"
+  runnerToken: "replace-me"
 
 # ================================================================== #
 # === Images ===

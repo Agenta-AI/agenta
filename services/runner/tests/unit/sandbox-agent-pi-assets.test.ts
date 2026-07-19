@@ -9,6 +9,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -20,13 +21,61 @@ import { join } from "node:path";
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import {
   buildPiExtensionEnv,
+  configurePiSkillSnapshot,
+  configurePiSessionWorkspace,
+  materializeDaytonaPiSkillSnapshot,
+  materializeLocalPiSkillSnapshot,
+  PI_SKILL_SNAPSHOT_MARKER,
+  piSessionWorkspaceDir,
   prepareLocalAgentDir,
   prepareLocalPiAssets,
+  resolvePiSkillSnapshot,
   uploadDirToSandbox,
-  uploadSkillsToSandbox,
   writeOtlpAuthFile,
+  writePiModelsConfigLocal,
   writeSystemPromptLocal,
 } from "../../src/engines/sandbox_agent/pi-assets.ts";
+import type { PiModelConfigPlan } from "../../src/engines/sandbox_agent/pi-model-config.ts";
+
+const MODEL_CONFIG_PLAN: PiModelConfigPlan = {
+  providerId: "my-ollama",
+  providerFamily: "openai",
+  api: "openai-completions",
+  baseUrl: "https://example.test/v1",
+  apiKeyEnv: "OPENAI_API_KEY",
+  models: [{ id: "qwen2.5-coder:7b" }],
+};
+
+describe("Pi session workspace", () => {
+  it("uses one stable transcript directory inside the conversation cwd", () => {
+    assert.equal(
+      piSessionWorkspaceDir("/work/session-1"),
+      "/work/session-1/agents/sessions/pi",
+    );
+
+    const env: Record<string, string> = {};
+    const sessionDir = configurePiSessionWorkspace(
+      { isPi: true, cwd: "/work/session-1" },
+      env,
+    );
+
+    assert.equal(sessionDir, "/work/session-1/agents/sessions/pi");
+    assert.equal(
+      env.PI_CODING_AGENT_SESSION_DIR,
+      "/work/session-1/agents/sessions/pi",
+    );
+  });
+
+  it("does not add Pi configuration to another harness", () => {
+    const env: Record<string, string> = {};
+
+    assert.equal(
+      configurePiSessionWorkspace({ isPi: false, cwd: "/work/session-1" }, env),
+      undefined,
+    );
+    assert.equal(env.PI_CODING_AGENT_SESSION_DIR, undefined);
+  });
+});
 
 const dirs: string[] = [];
 
@@ -235,6 +284,35 @@ describe("buildPiExtensionEnv", () => {
     );
   });
 
+  describe("hop-1 response-watch kill switch forwarding", () => {
+    const FLAG = "AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED";
+    const previous = process.env[FLAG];
+    const relayRequest = {
+      customTools: [{ name: "safe_tool", kind: "callback" }],
+    } as AgentRunRequest;
+
+    afterEach(() => {
+      if (previous === undefined) delete process.env[FLAG];
+      else process.env[FLAG] = previous;
+    });
+
+    it("forwards the flag verbatim into the sandbox env when the operator set it", () => {
+      process.env[FLAG] = "false";
+      const env = buildPiExtensionEnv(relayRequest, false, {
+        relayDir: "/tmp/relay",
+      });
+      assert.equal(env[FLAG], "false");
+    });
+
+    it("omits the flag when the operator did not set it (writer defaults to true)", () => {
+      delete process.env[FLAG];
+      const env = buildPiExtensionEnv(relayRequest, false, {
+        relayDir: "/tmp/relay",
+      });
+      assert.equal(env[FLAG], undefined);
+    });
+  });
+
   it("never leaks the bearer into env when no auth file path is given", () => {
     const env = buildPiExtensionEnv(
       {
@@ -283,20 +361,16 @@ describe("writeSystemPromptLocal", () => {
 });
 
 describe("prepareLocalAgentDir", () => {
-  it("seeds auth/settings and installs materialized skills into a throwaway dir", () => {
+  it("seeds auth/settings without copying skills into the agent dir", () => {
     const source = tempDir("agenta-pi-source-test-");
     writeFileSync(join(source, "auth.json"), '{"token":"x"}', "utf-8");
     writeFileSync(join(source, "settings.json"), '{"model":"gpt"}', "utf-8");
 
-    const skill = tempDir("agenta-pi-skill-test-");
-    writeFileSync(join(skill, "SKILL.md"), "---\nname: skill\n---\n", "utf-8");
-
-    const runDir = prepareLocalAgentDir(source, [
-      { name: "skill", dir: skill },
-    ]);
+    const { dir: runDir, extensionInstalled } = prepareLocalAgentDir(source);
     dirs.push(runDir);
 
     assert.notEqual(runDir, source);
+    assert.equal(extensionInstalled, true);
     assert.equal(
       readFileSync(join(runDir, "auth.json"), "utf-8"),
       '{"token":"x"}',
@@ -305,23 +379,84 @@ describe("prepareLocalAgentDir", () => {
       readFileSync(join(runDir, "settings.json"), "utf-8"),
       '{"model":"gpt"}',
     );
-    // The dest dir is named by the skill's `name`, not the (throwaway) source dir basename.
+    assert.equal(existsSync(join(runDir, "skills")), false);
+  });
+
+  it("reports failure when the extension cannot be installed (bundle missing)", () => {
+    const source = tempDir("agenta-pi-source-nobundle-");
+    const previous = process.env.SANDBOX_AGENT_EXTENSION_BUNDLE;
+    process.env.SANDBOX_AGENT_EXTENSION_BUNDLE = join(
+      tmpdir(),
+      "agenta-nonexistent-extension-bundle.js",
+    );
+    try {
+      const { dir: runDir, extensionInstalled } = prepareLocalAgentDir(source);
+      dirs.push(runDir);
+      assert.equal(extensionInstalled, false);
+      assert.equal(existsSync(join(runDir, "extensions", "agenta.js")), false);
+    } finally {
+      if (previous === undefined)
+        delete process.env.SANDBOX_AGENT_EXTENSION_BUNDLE;
+      else process.env.SANDBOX_AGENT_EXTENSION_BUNDLE = previous;
+    }
+  });
+
+  it("with seedCredentials=false, skips the operator's auth.json but keeps settings.json", () => {
+    const source = tempDir("agenta-pi-source-nocreds-");
+    writeFileSync(join(source, "auth.json"), '{"token":"personal"}', "utf-8");
+    writeFileSync(join(source, "settings.json"), '{"model":"gpt"}', "utf-8");
+
+    const { dir: runDir } = prepareLocalAgentDir(source, undefined, {
+      seedCredentials: false,
+    });
+    dirs.push(runDir);
+
+    // The operator's personal login never leaks into a managed custom run's isolated dir...
+    assert.equal(existsSync(join(runDir, "auth.json")), false);
+    // ...but non-credential settings are still carried.
     assert.equal(
-      readFileSync(join(runDir, "skills", "skill", "SKILL.md"), "utf-8"),
-      "---\nname: skill\n---\n",
+      readFileSync(join(runDir, "settings.json"), "utf-8"),
+      '{"model":"gpt"}',
     );
   });
 });
 
-describe("prepareLocalPiAssets (PI_CODING_AGENT_DIR guard)", () => {
-  const ENV_VAR = "PI_CODING_AGENT_DIR";
-  const previous = process.env[ENV_VAR];
+describe("writePiModelsConfigLocal", () => {
+  it("writes an exact 0600 models.json via an atomic temp-file + rename", () => {
+    const dir = tempDir("agenta-pi-models-config-");
 
-  afterEach(() => {
-    if (previous === undefined) delete process.env[ENV_VAR];
-    else process.env[ENV_VAR] = previous;
+    writePiModelsConfigLocal(dir, MODEL_CONFIG_PLAN);
+
+    const path = join(dir, "models.json");
+    assert.equal(statSync(path).mode & 0o777, 0o600);
+    assert.deepEqual(JSON.parse(readFileSync(path, "utf-8")), {
+      providers: {
+        "my-ollama": {
+          baseUrl: "https://example.test/v1",
+          api: "openai-completions",
+          apiKey: "$OPENAI_API_KEY",
+          models: [{ id: "qwen2.5-coder:7b" }],
+        },
+      },
+    });
+    // No staging file lingers.
+    assert.equal(
+      readdirSync(dir).some((n) => n.startsWith(".models.json.")),
+      false,
+    );
   });
 
+  it("throws when the target cannot be written (materialization is terminal)", () => {
+    const dir = tempDir("agenta-pi-models-config-fail-");
+    // A non-empty directory occupying models.json makes the rename fail.
+    mkdirSync(join(dir, "models.json"));
+    writeFileSync(join(dir, "models.json", "keep.txt"), "x", "utf-8");
+
+    assert.throws(() => writePiModelsConfigLocal(dir, MODEL_CONFIG_PLAN));
+  });
+});
+
+describe("prepareLocalPiAssets (managed/none routes through a throwaway dir)", () => {
   const plainPiPlan = {
     isPi: true,
     isDaytona: false,
@@ -332,35 +467,272 @@ describe("prepareLocalPiAssets (PI_CODING_AGENT_DIR guard)", () => {
     sourcePiAgentDir: "/unused",
   };
 
-  it("logs a clear warning when a plain local Pi run has no PI_CODING_AGENT_DIR", () => {
-    delete process.env[ENV_VAR];
-    const logs: string[] = [];
+  it("installs the extension into a per-run temp dir it owns, independent of PI_CODING_AGENT_DIR", () => {
+    const env: Record<string, string> = {};
 
-    const runDir = prepareLocalPiAssets({
+    const { dir: runDir, extensionInstalled } = prepareLocalPiAssets({
       plan: plainPiPlan,
-      env: {},
-      log: (msg) => logs.push(msg),
+      env,
     });
 
-    assert.equal(runDir, undefined);
-    assert.ok(
-      logs.some((m) => m.includes("PI_CODING_AGENT_DIR is unset")),
-      `expected a PI_CODING_AGENT_DIR warning, got: ${JSON.stringify(logs)}`,
+    assert.ok(runDir, "a plain local Pi run gets a throwaway per-run dir");
+    assert.notEqual(runDir, "/unused");
+    assert.equal(env.PI_CODING_AGENT_DIR, runDir);
+    assert.equal(extensionInstalled, true);
+    assert.equal(
+      existsSync(join(runDir as string, "extensions", "agenta.js")),
+      true,
+    );
+    dirs.push(runDir as string);
+  });
+
+  it("reports extensionInstalled=false when the extension could not be installed", () => {
+    const previous = process.env.SANDBOX_AGENT_EXTENSION_BUNDLE;
+    process.env.SANDBOX_AGENT_EXTENSION_BUNDLE = join(
+      tmpdir(),
+      "agenta-nonexistent-extension-bundle.js",
+    );
+    try {
+      const { dir: runDir, extensionInstalled } = prepareLocalPiAssets({
+        plan: plainPiPlan,
+        env: {},
+      });
+      if (runDir) dirs.push(runDir);
+      assert.equal(extensionInstalled, false);
+    } finally {
+      if (previous === undefined)
+        delete process.env.SANDBOX_AGENT_EXTENSION_BUNDLE;
+      else process.env.SANDBOX_AGENT_EXTENSION_BUNDLE = previous;
+    }
+  });
+
+  it("reports modelConfigWritten=true for a plain run with no model-config plan", () => {
+    const { dir: runDir, modelConfigWritten } = prepareLocalPiAssets({
+      plan: plainPiPlan,
+      env: {},
+    });
+    if (runDir) dirs.push(runDir);
+    assert.equal(modelConfigWritten, true);
+    assert.equal(existsSync(join(runDir as string, "models.json")), false);
+  });
+
+  it("still copies the operator's auth.json for a managed run WITHOUT a model-config plan (unchanged)", () => {
+    const source = tempDir("agenta-pi-managed-noplan-source-");
+    writeFileSync(join(source, "auth.json"), '{"token":"managed"}', "utf-8");
+
+    const { dir: runDir } = prepareLocalPiAssets({
+      plan: { ...plainPiPlan, sourcePiAgentDir: source },
+      env: {},
+    });
+    assert.ok(runDir);
+    dirs.push(runDir as string);
+    assert.equal(
+      readFileSync(join(runDir as string, "auth.json"), "utf-8"),
+      '{"token":"managed"}',
     );
   });
 
-  it("installs the extension silently (no warning) when PI_CODING_AGENT_DIR is set", () => {
-    const dir = tempDir("agenta-pi-configured-dir-");
-    process.env[ENV_VAR] = dir;
-    const logs: string[] = [];
+  it("for a model-config plan: writes models.json, omits auth.json, and points PI_CODING_AGENT_DIR at the dir", () => {
+    const source = tempDir("agenta-pi-managed-plan-source-");
+    writeFileSync(join(source, "auth.json"), '{"token":"personal"}', "utf-8");
+    writeFileSync(join(source, "settings.json"), '{"model":"x"}', "utf-8");
+    const env: Record<string, string> = {};
 
-    prepareLocalPiAssets({
-      plan: plainPiPlan,
-      env: {},
-      log: (msg) => logs.push(msg),
+    const { dir: runDir, modelConfigWritten } = prepareLocalPiAssets({
+      plan: { ...plainPiPlan, sourcePiAgentDir: source },
+      env,
+      piModelConfig: MODEL_CONFIG_PLAN,
     });
 
-    assert.ok(!logs.some((m) => m.includes("PI_CODING_AGENT_DIR is unset")));
+    assert.ok(runDir);
+    dirs.push(runDir as string);
+    assert.equal(modelConfigWritten, true);
+    assert.equal(env.PI_CODING_AGENT_DIR, runDir);
+    // The managed custom run authenticates from $OPENAI_API_KEY, never the operator's login.
+    assert.equal(existsSync(join(runDir as string, "auth.json")), false);
+    // Non-credential settings are still carried.
+    assert.equal(
+      readFileSync(join(runDir as string, "settings.json"), "utf-8"),
+      '{"model":"x"}',
+    );
+    // The exact models.json is present and references only the env var.
+    const modelsText = readFileSync(
+      join(runDir as string, "models.json"),
+      "utf-8",
+    );
+    assert.equal(modelsText.includes("$OPENAI_API_KEY"), true);
+    assert.deepEqual(JSON.parse(modelsText).providers["my-ollama"].models, [
+      { id: "qwen2.5-coder:7b" },
+    ]);
+  });
+});
+
+describe("Pi skill snapshots", () => {
+  it("publishes content-addressed local snapshots without replacing older versions", () => {
+    const cwd = tempDir("agenta-pi-snapshot-cwd-");
+    const skill = tempDir("agenta-pi-snapshot-skill-");
+    mkdirSync(join(skill, "references"));
+    writeFileSync(join(skill, "SKILL.md"), "first", "utf-8");
+    writeFileSync(join(skill, "references", "guide.md"), "guide", "utf-8");
+
+    const first = resolvePiSkillSnapshot({
+      isPi: true,
+      cwd,
+      skillDirs: [{ name: "release-notes", dir: skill }],
+    });
+    assert.ok(first);
+    assert.match(first.dir, new RegExp(`${cwd}/agents/skills/[a-f0-9]{64}$`));
+    const env: Record<string, string> = {};
+    configurePiSkillSnapshot(first, env);
+    assert.equal(env.PI_CODING_AGENT_SKILL_DIR, first.dir);
+
+    materializeLocalPiSkillSnapshot(first);
+    assert.equal(
+      readFileSync(
+        join(first.dir, "release-notes", "references", "guide.md"),
+        "utf-8",
+      ),
+      "guide",
+    );
+    assert.equal(
+      readFileSync(join(first.dir, PI_SKILL_SNAPSHOT_MARKER), "utf-8"),
+      first.marker,
+    );
+    materializeLocalPiSkillSnapshot(first);
+
+    writeFileSync(join(skill, "SKILL.md"), "second", "utf-8");
+    const second = resolvePiSkillSnapshot({
+      isPi: true,
+      cwd,
+      skillDirs: [{ name: "release-notes", dir: skill }],
+    });
+    assert.ok(second);
+    assert.notEqual(second.dir, first.dir);
+    materializeLocalPiSkillSnapshot(second);
+    assert.equal(existsSync(first.dir), true);
+    assert.equal(
+      readFileSync(join(second.dir, "release-notes", "SKILL.md"), "utf-8"),
+      "second",
+    );
+  });
+
+  it("fails closed when the digest path exists without its completion marker", () => {
+    const cwd = tempDir("agenta-pi-snapshot-invalid-cwd-");
+    const skill = tempDir("agenta-pi-snapshot-invalid-skill-");
+    writeFileSync(join(skill, "SKILL.md"), "skill", "utf-8");
+    const snapshot = resolvePiSkillSnapshot({
+      isPi: true,
+      cwd,
+      skillDirs: [{ name: "release-notes", dir: skill }],
+    });
+    assert.ok(snapshot);
+    mkdirSync(snapshot.dir, { recursive: true });
+    writeFileSync(join(snapshot.dir, "partial.txt"), "keep", "utf-8");
+
+    assert.throws(
+      () => materializeLocalPiSkillSnapshot(snapshot),
+      /expected completion marker/,
+    );
+    assert.equal(
+      readFileSync(join(snapshot.dir, "partial.txt"), "utf-8"),
+      "keep",
+    );
+  });
+
+  it("does not configure snapshots for non-Pi or empty-skill runs", () => {
+    assert.equal(
+      resolvePiSkillSnapshot({ isPi: false, cwd: "/work", skillDirs: [] }),
+      undefined,
+    );
+    assert.equal(
+      resolvePiSkillSnapshot({ isPi: true, cwd: "/work", skillDirs: [] }),
+      undefined,
+    );
+    const env: Record<string, string> = {};
+    configurePiSkillSnapshot(undefined, env);
+    assert.equal(env.PI_CODING_AGENT_SKILL_DIR, undefined);
+  });
+});
+
+/**
+ * A local subscription (`runtime_provided`) run authenticates from the operator's READ-WRITE
+ * mounted login, and the harness runs directly out of that mount: Pi refreshes its OAuth token
+ * mid-run and writes the new one back, so a per-run copy would discard the refresh and the next
+ * run would fail once the provider rotated the refresh token.
+ */
+describe("prepareLocalPiAssets (runtime_provided runs out of the mount, read-write)", () => {
+  const subscriptionPlan = (
+    mount: string,
+    over: Record<string, unknown> = {},
+  ) => ({
+    isPi: true,
+    isDaytona: false,
+    credentialMode: "runtime_provided",
+    skillDirs: [],
+    hasSystemPrompt: false,
+    systemPrompt: undefined,
+    appendSystemPrompt: undefined,
+    sourcePiAgentDir: mount,
+    ...over,
+  });
+
+  it("points PI_CODING_AGENT_DIR at the mount itself, not at a per-run copy", () => {
+    const mount = tempDir("agenta-pi-subscription-mount-");
+    writeFileSync(join(mount, "auth.json"), '{"token":"live"}', "utf-8");
+    const env: Record<string, string> = {};
+
+    prepareLocalPiAssets({ plan: subscriptionPlan(mount) as never, env });
+
+    assert.equal(
+      env.PI_CODING_AGENT_DIR,
+      mount,
+      "a subscription run must run out of the operator's mount so a refreshed token persists",
+    );
+  });
+
+  /**
+   * The caller `rmSync`s whatever this returns at teardown. Returning the mount would delete the
+   * operator's actual login, so the contract is: a subscription run reports NO throwaway dir.
+   */
+  it("returns undefined so teardown can never delete the operator's login", () => {
+    const mount = tempDir("agenta-pi-subscription-mount-");
+    writeFileSync(join(mount, "auth.json"), '{"token":"live"}', "utf-8");
+
+    const { dir: runDir } = prepareLocalPiAssets({
+      plan: subscriptionPlan(mount, {
+        skillDirs: [],
+        hasSystemPrompt: true,
+        appendSystemPrompt: "extra",
+      }) as never,
+      env: {},
+    });
+
+    assert.equal(runDir, undefined);
+    // The login itself survives: nothing moved it, and the harness still has its token to refresh.
+    assert.ok(existsSync(join(mount, "auth.json")));
+  });
+
+  it("still isolates a MANAGED run's skills in a throwaway copy (no credential at stake)", () => {
+    const source = tempDir("agenta-pi-managed-source-");
+    writeFileSync(join(source, "auth.json"), '{"token":"managed"}', "utf-8");
+    const env: Record<string, string> = {};
+
+    const { dir: runDir } = prepareLocalPiAssets({
+      plan: subscriptionPlan(source, {
+        credentialMode: "env",
+        hasSystemPrompt: true,
+        appendSystemPrompt: "extra",
+      }) as never,
+      env,
+    });
+
+    assert.ok(
+      runDir,
+      "a managed run with a system prompt still gets a per-run dir",
+    );
+    assert.notEqual(runDir, source);
+    assert.equal(env.PI_CODING_AGENT_DIR, runDir);
+    dirs.push(runDir as string);
   });
 });
 
@@ -393,21 +765,58 @@ describe("sandbox uploads", () => {
     ]);
   });
 
-  it("uploads each materialized skill under the Pi skills directory", async () => {
-    const skill = tempDir("agenta-pi-skill-upload-test-");
+  it("publishes and reuses a Daytona snapshot with a non-overwriting move", async () => {
+    const skill = tempDir("agenta-pi-daytona-snapshot-skill-");
     writeFileSync(join(skill, "SKILL.md"), "skill", "utf-8");
-    const written: string[] = [];
+    const snapshot = resolvePiSkillSnapshot({
+      isPi: true,
+      cwd: "/workspace",
+      skillDirs: [{ name: "release-notes", dir: skill }],
+    });
+    assert.ok(snapshot);
+
+    const files = new Map<string, string>();
+    const moves: Array<{ from: string; to: string; overwrite: boolean }> = [];
     const sandbox = {
       mkdirFs: async () => {},
-      writeFsFile: async ({ path }: { path: string }) => written.push(path),
+      writeFsFile: async ({ path }: { path: string }, body: string) => {
+        files.set(path, body);
+      },
+      readFsFile: async ({ path }: { path: string }) => {
+        const body = files.get(path);
+        if (body === undefined) throw new Error("missing");
+        return Buffer.from(body, "utf-8");
+      },
+      moveFs: async ({
+        from,
+        to,
+        overwrite,
+      }: {
+        from: string;
+        to: string;
+        overwrite: boolean;
+      }) => {
+        moves.push({ from, to, overwrite });
+        for (const [path, body] of [...files.entries()]) {
+          if (path === from || path.startsWith(`${from}/`)) {
+            files.set(`${to}${path.slice(from.length)}`, body);
+            files.delete(path);
+          }
+        }
+      },
     };
 
-    await uploadSkillsToSandbox(sandbox, "/agent", [
-      { name: "release-notes", dir: skill },
-    ]);
+    await materializeDaytonaPiSkillSnapshot(sandbox, snapshot);
+    assert.equal(moves.length, 1);
+    assert.equal(moves[0]?.to, snapshot.dir);
+    assert.equal(moves[0]?.overwrite, false);
+    assert.equal(files.get(`${snapshot.dir}/release-notes/SKILL.md`), "skill");
+    assert.equal(
+      files.get(`${snapshot.dir}/${PI_SKILL_SNAPSHOT_MARKER}`),
+      snapshot.marker,
+    );
 
-    assert.equal(existsSync(skill), true);
-    // The sandbox dest dir is named by the skill's `name`.
-    assert.deepEqual(written, ["/agent/skills/release-notes/SKILL.md"]);
+    await materializeDaytonaPiSkillSnapshot(sandbox, snapshot);
+    assert.equal(moves.length, 1);
   });
 });

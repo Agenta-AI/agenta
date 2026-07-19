@@ -31,7 +31,12 @@ from uuid import uuid4
 from taskiq import AsyncBroker, TaskiqEvents
 from taskiq.receiver import Receiver
 from taskiq.cli.worker.run import shutdown_broker
-from taskiq_redis import RedisStreamBroker
+
+from oss.src.tasks.taskiq.shared.broker import (
+    TrimOnAckRedisStreamBroker,
+    prune_idle_consumers,
+    stable_consumer_name,
+)
 
 from oss.src.core.embeds.service import EmbedsService
 from oss.src.core.environments.service import EnvironmentsService
@@ -123,10 +128,11 @@ def _selected_queues() -> List[str]:
 
 
 def _build_webhooks_broker() -> tuple[AsyncBroker, int]:
-    broker = RedisStreamBroker(
+    broker = TrimOnAckRedisStreamBroker(
         url=env.redis.uri_durable,
         queue_name="queues:webhooks",
         consumer_group_name="worker-webhooks",
+        consumer_name=stable_consumer_name("worker-webhooks"),
         maxlen=MAXLEN_QUEUES_WEBHOOKS,
         approximate=True,
     )
@@ -135,10 +141,11 @@ def _build_webhooks_broker() -> tuple[AsyncBroker, int]:
 
 
 def _build_triggers_broker() -> tuple[AsyncBroker, int]:
-    broker = RedisStreamBroker(
+    broker = TrimOnAckRedisStreamBroker(
         url=env.redis.uri_durable,
         queue_name="queues:triggers",
         consumer_group_name="worker-triggers",
+        consumer_name=stable_consumer_name("worker-triggers"),
         maxlen=MAXLEN_QUEUES_TRIGGERS,
         approximate=True,
     )
@@ -175,10 +182,11 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
 
 
 def _build_interactions_broker() -> tuple[AsyncBroker, int]:
-    broker = RedisStreamBroker(
+    broker = TrimOnAckRedisStreamBroker(
         url=env.redis.uri_durable,
         queue_name="queues:interactions",
         consumer_group_name="worker-interactions",
+        consumer_name=stable_consumer_name("worker-interactions"),
         maxlen=MAXLEN_QUEUES_INTERACTIONS,
         approximate=True,
     )
@@ -314,6 +322,16 @@ async def _run_receiver(
     # process-forking/signal-handling parts (done once for the whole
     # process by main_async, not per-broker).
     broker.is_worker_process = True
+
+    removed = await prune_idle_consumers(
+        url=env.redis.uri_durable,
+        queue_name=broker.queue_name,
+        consumer_group_name=broker.consumer_group_name,
+        keep=broker.consumer_name,
+    )
+    if removed:
+        log.info(f"[QUEUES] Pruned {removed} idle consumers on queue={name}")
+
     executor = ThreadPoolExecutor()
     try:
         receiver = Receiver(

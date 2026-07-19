@@ -111,9 +111,9 @@ Batch `/invoke` follows this path:
 2. `_agent` parses one `AgentConfig` from request parameters; it carries the run-selection
    fields `harness` and `sandbox`, plus the permission policy at
    `runner.permissions.default`.
-3. The service resolves three things independently: tools, MCP servers, and provider-key
-   secrets. MCP resolution is gated by `AGENTA_AGENT_MCPS_ENABLED`
-   (`services/oss/src/agent/tools/resolver.py:23`, off by default).
+3. The service resolves three things independently: tools, external HTTP MCP servers, and
+   provider-key secrets. There is no deployment feature flag for MCP resolution. Harness
+   capabilities control authoring, and unsupported Pi runs fail loudly.
 4. The service builds `SessionConfig` and constructs a harness over an `Environment` and
    `SandboxAgentBackend`.
 5. The harness opens a cold session, sends one `/run` request to the sidecar, and tears the

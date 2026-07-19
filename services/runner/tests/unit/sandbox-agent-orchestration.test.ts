@@ -3,9 +3,10 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-orchestration.test.ts)
  */
-import { describe, it } from "vitest";
+import { beforeEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
@@ -14,13 +15,22 @@ import {
   TOOL_NOT_EXECUTED_PAUSED,
 } from "../../src/tracing/otel.ts";
 import { PendingApprovalPauseController } from "../../src/engines/sandbox_agent/pause.ts";
+import { mountStorage } from "../../src/engines/sandbox_agent/mount.ts";
 import { buildPiGateEnvelope } from "../../src/engines/sandbox_agent/pi-gate-envelope.ts";
-import { USER_MCP_UNSUPPORTED_MESSAGE } from "../../src/tools/mcp-bridge.ts";
 import type { PermissionDecision } from "../../src/responder.ts";
 import {
   runSandboxAgent,
   type SandboxAgentDeps,
 } from "../../src/engines/sandbox_agent.ts";
+import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
+
+// Orchestration cases include Daytona runs: enable it (with a provisioning credential) on top of
+// the hermetic scrub, then drop the memoized config so the run plan reads the enabled set.
+beforeEach(() => {
+  process.env.AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS = "local,daytona";
+  process.env.AGENTA_RUNNER_DAYTONA_API_KEY = "test-key";
+  resetRunnerConfigCache();
+});
 
 function flushPromises(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
@@ -60,14 +70,18 @@ interface FakeOptions {
 function fakeHarness(options: FakeOptions = {}) {
   const calls = {
     daemonAgent: "",
-    daemonOptions: undefined as { clearProviderEnv?: boolean } | undefined,
+    daemonOptions: undefined as
+      | { clearProviderEnv?: boolean; provider?: string; deployment?: string }
+      | undefined,
     providerArgs: [] as unknown[],
+    mkdirFsPaths: [] as string[],
     startOptions: undefined as any,
     createSessionOptions: undefined as any,
     promptBlocks: undefined as any,
     runStart: undefined as any,
     otelOptions: undefined as any,
     workspacePlan: undefined as any,
+    workspacePiSkillSnapshot: undefined as any,
     workspaceCleanup: 0,
     sandboxDestroyed: 0,
     sandboxDisposed: 0,
@@ -146,6 +160,9 @@ function fakeHarness(options: FakeOptions = {}) {
   };
 
   const sandbox = {
+    async mkdirFs({ path }: { path: string }) {
+      calls.mkdirFsPaths.push(path);
+    },
     async createSession(opts: any) {
       calls.createSessionOptions = opts;
       return session;
@@ -234,8 +251,9 @@ function fakeHarness(options: FakeOptions = {}) {
       }
       return sandbox;
     }) as any,
-    prepareWorkspace: (async ({ plan }: any) => {
+    prepareWorkspace: (async ({ plan, piSkillSnapshot }: any) => {
       calls.workspacePlan = plan;
+      calls.workspacePiSkillSnapshot = piSkillSnapshot;
       return {
         cleanup: async () => {
           calls.workspaceCleanup += 1;
@@ -342,6 +360,335 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(calls.sandboxDestroyed, 1);
     assert.equal(calls.sandboxDisposed, 1);
     assert.equal(calls.workspaceCleanup, 1);
+  });
+
+  it("points local Pi and pi-acp at the conversation workspace transcript directory", async () => {
+    const cwd = join(
+      tmpdir(),
+      "agenta-pi-session-dir-" + process.pid + "-" + Date.now(),
+    );
+    const { calls, deps } = fakeHarness({ cwd });
+
+    const result = await runSandboxAgent(
+      { harness: "pi_core", messages: [{ role: "user", content: "hello" }] },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const expected = join(cwd, "agents", "sessions", "pi");
+    assert.equal(
+      (calls.providerArgs[1] as Record<string, string>)
+        .PI_CODING_AGENT_SESSION_DIR,
+      expected,
+    );
+    assert.equal(
+      (calls.providerArgs[3] as Record<string, string>)
+        .PI_CODING_AGENT_SESSION_DIR,
+      expected,
+    );
+    assert.equal(existsSync(expected), true);
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("creates the configured Pi transcript directory inside a Daytona cwd", async () => {
+    const { calls, deps } = fakeHarness();
+    deps.prepareDaytonaPiAssets = (async () => true) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        sandbox: "daytona",
+        messages: [{ role: "user", content: "hello" }],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const expected = "/home/sandbox/agenta-fake-cwd/agents/sessions/pi";
+    assert.equal(
+      (calls.providerArgs[1] as Record<string, string>)
+        .PI_CODING_AGENT_SESSION_DIR,
+      expected,
+    );
+    assert.equal(
+      (calls.providerArgs[3] as Record<string, string>)
+        .PI_CODING_AGENT_SESSION_DIR,
+      expected,
+    );
+    assert.ok(calls.mkdirFsPaths.includes(expected));
+  });
+
+  it("requests the fully qualified <slug>/<model> for a managed OpenAI-compatible custom run", async () => {
+    // Design Decision 7 hazard: the vault key rides in as OPENAI_API_KEY, so Pi keeps advertising
+    // its built-in `openai/<model>` alongside the custom `my-conn/<model>`. Passing the bare wire
+    // id "gpt-4o" would let suffix matching pick the built-in (api.openai.com) over the user's
+    // endpoint. The runner must pass the exact `<connection-slug>/<model-id>` so it always wins.
+    const { calls, deps } = fakeHarness();
+    deps.prepareDaytonaPiAssets = (async () => true) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        sandbox: "daytona",
+        messages: [{ role: "user", content: "hello" }],
+        model: "gpt-4o",
+        provider: "openai",
+        deployment: "custom",
+        connection: { mode: "agenta", slug: "my-conn" },
+        endpoint: { baseUrl: "https://proxy.test/v1" },
+        credentialMode: "env",
+        secrets: { OPENAI_API_KEY: "sk-vault-xyz" },
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(calls.applyModelArgs.length, 1);
+    assert.equal(calls.applyModelArgs[0].model, "my-conn/gpt-4o");
+  });
+
+  it("passes the same Pi skill snapshot to local Pi and workspace preparation", async () => {
+    const cwd = join(
+      tmpdir(),
+      `agenta-pi-skill-dir-${process.pid}-${Date.now()}`,
+    );
+    const skill = join(
+      tmpdir(),
+      `agenta-pi-skill-source-${process.pid}-${Date.now()}`,
+    );
+    mkdirSync(skill, { recursive: true });
+    writeFileSync(join(skill, "SKILL.md"), "skill", "utf-8");
+    const { calls, deps } = fakeHarness({ cwd });
+    deps.resolveSkillDirs = () => ({
+      skills: [{ name: "release-notes", dir: skill }],
+      cleanup: () => {},
+    });
+
+    const result = await runSandboxAgent(
+      { harness: "pi_core", messages: [{ role: "user", content: "hello" }] },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const selected = calls.workspacePiSkillSnapshot;
+    assert.ok(selected);
+    assert.match(
+      selected.dir,
+      new RegExp(`${cwd}/agents/skills/[a-f0-9]{64}$`),
+    );
+    assert.equal(
+      (calls.providerArgs[1] as Record<string, string>)
+        .PI_CODING_AGENT_SKILL_DIR,
+      selected.dir,
+    );
+    assert.equal(
+      (calls.providerArgs[3] as Record<string, string>)
+        .PI_CODING_AGENT_SKILL_DIR,
+      selected.dir,
+    );
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(skill, { recursive: true, force: true });
+  });
+
+  it("keeps configured skills out of the Daytona Pi agent directory", async () => {
+    const skill = join(
+      tmpdir(),
+      `agenta-pi-daytona-skill-${process.pid}-${Date.now()}`,
+    );
+    mkdirSync(skill, { recursive: true });
+    writeFileSync(join(skill, "SKILL.md"), "skill", "utf-8");
+    const { calls, deps } = fakeHarness();
+    deps.resolveSkillDirs = () => ({
+      skills: [{ name: "release-notes", dir: skill }],
+      cleanup: () => {},
+    });
+    let agentDirSkillCount = -1;
+    deps.prepareDaytonaPiAssets = (async ({ plan }: any) => {
+      agentDirSkillCount = plan.skillDirs.length;
+      return true;
+    }) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        sandbox: "daytona",
+        messages: [{ role: "user", content: "hello" }],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(agentDirSkillCount, 0);
+    assert.match(
+      calls.workspacePiSkillSnapshot.dir,
+      /^\/home\/sandbox\/agenta-fake-cwd\/agents\/skills\/[a-f0-9]{64}$/,
+    );
+    rmSync(skill, { recursive: true, force: true });
+  });
+
+  it("advertises durable agent storage only after a confirmed local mount", async () => {
+    const cwd = join(
+      tmpdir(),
+      `agenta-agent-mount-success-${process.pid}-${Date.now()}`,
+    );
+    mkdirSync(cwd, { recursive: true });
+    const { calls, deps } = fakeHarness({ cwd });
+    deps.signAgentMountCredentials = (async () => ({
+      endpoint: "http://seaweedfs:8333",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix: "mounts/proj-1/agent-1",
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    })) as any;
+    deps.mountStorage = (async () => true) as any;
+    deps.unmountStorage = (async () => true) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        runContext: { workflow: { artifact: { id: "artifact-1" } } },
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(
+      (calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR,
+      `${cwd}-agent`,
+    );
+    assert.match(
+      calls.createSessionOptions.sessionInit._meta.systemPrompt.append,
+      /agent-files\//,
+    );
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("removes a safe failed agent mountpoint without advertising it to Pi", async () => {
+    const cwd = join(
+      tmpdir(),
+      `agenta-agent-mount-failure-${process.pid}-${Date.now()}`,
+    );
+    mkdirSync(cwd, { recursive: true });
+    const { calls, deps } = fakeHarness({ cwd });
+    deps.signAgentMountCredentials = (async () => ({
+      endpoint: "http://seaweedfs:8333",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix: "mounts/proj-1/agent-1",
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    })) as any;
+    deps.mountStorage = (async () => false) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        runContext: { workflow: { artifact: { id: "artifact-1" } } },
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(
+      (calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR,
+      undefined,
+    );
+    assert.equal(calls.workspacePlan.appendSystemPrompt, undefined);
+    assert.equal(existsSync(`${cwd}-agent`), false);
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("preserves the durable cwd when failed mount detach is unsafe", async () => {
+    const prefix = "unsafe-mount-" + process.pid + "-" + Date.now();
+    const cwd = join(tmpdir(), "agenta", prefix);
+    const sentinel = join(cwd, "must-not-delete.txt");
+    mkdirSync(cwd, { recursive: true });
+    writeFileSync(sentinel, "durable data");
+    const { calls, deps } = fakeHarness();
+    deps.signSessionMountCredentials = (async () => ({
+      endpoint: "http://seaweedfs:8333",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix,
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    })) as any;
+    let mountpointProbes = 0;
+    deps.mountStorage = ((cwd: string, creds: any, options: any) =>
+      mountStorage(cwd, creds, {
+        ...options,
+        checkMounted: async () => false,
+        runGeesefs: async () => {
+          throw new Error("fuse: device not found");
+        },
+        unmountDeps: {
+          runUnmount: async () => {},
+          checkMountpoint: async () => {
+            mountpointProbes += 1;
+            return mountpointProbes === 1 ? "gone" : "mounted";
+          },
+        },
+      })) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "sess-1",
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(
+      result.error ?? "",
+      /detach could not be confirmed.*refusing ephemeral cwd fallback/,
+    );
+    assert.equal(
+      calls.workspacePlan,
+      undefined,
+      "unsafe detach fails before workspace preparation",
+    );
+    assert.equal(
+      calls.workspaceCleanup,
+      0,
+      "prepareWorkspace cleanup never starts after unsafe mount acquisition",
+    );
+    assert.equal(
+      existsSync(sentinel),
+      true,
+      "environment teardown must preserve the possibly-live durable cwd",
+    );
+    rmSync(cwd, { recursive: true, force: true });
   });
 
   it("re-signs, remounts, and retries local workspace prep on durable cwd ENOTCONN", async () => {
@@ -506,6 +853,80 @@ describe("runSandboxAgent orchestration", () => {
       1,
       "cleanup waits for runtime remount before unmount",
     );
+  });
+
+  it("re-signs and remounts the agent mount when an ACP event reports ENOTCONN", async () => {
+    // Sessionless: exercises the agent-mount-only recovery gate.
+    const cwd = join(
+      tmpdir(),
+      `agenta-agent-mount-enotconn-${process.pid}-${Date.now()}`,
+    );
+    mkdirSync(cwd, { recursive: true });
+    const { deps } = fakeHarness({
+      cwd,
+      promptEvents: [
+        {
+          payload: {
+            update: {
+              kind: "tool_result",
+              content:
+                "cat 'agent-files/notes.md': Transport endpoint is not connected",
+            },
+          },
+        },
+      ],
+    });
+    const seenMountAccessKeys: string[] = [];
+    let signAgentCalls = 0;
+    let mountCalls = 0;
+
+    deps.signAgentMountCredentials = (async () => {
+      signAgentCalls += 1;
+      return {
+        endpoint: "http://seaweedfs:8333",
+        region: "us-east-1",
+        bucket: "agenta-store",
+        prefix: "mounts/proj-1/agent-1",
+        accessKey: `AK-${signAgentCalls}`,
+        secretKey: `SK-${signAgentCalls}`,
+        sessionToken: `TOK-${signAgentCalls}`,
+      };
+    }) as any;
+    deps.mountStorage = (async (_path: string, creds: any) => {
+      mountCalls += 1;
+      seenMountAccessKeys.push(creds.accessKey);
+      return true;
+    }) as any;
+    deps.unmountStorage = (async () => true) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        runContext: { workflow: { artifact: { id: "artifact-1" } } },
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(
+      signAgentCalls,
+      2,
+      "initial sign + one capped runtime re-sign after ENOTCONN",
+    );
+    assert.equal(
+      mountCalls,
+      2,
+      "initial agent mount + one capped runtime remount after ENOTCONN",
+    );
+    assert.deepEqual(seenMountAccessKeys, ["AK-1", "AK-2"]);
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(`${cwd}-agent`, { recursive: true, force: true });
   });
 
   it("skips the durable cwd delete when unmount is not confirmed", async () => {
@@ -707,10 +1128,65 @@ describe("runSandboxAgent orchestration", () => {
     // A Pi run passes the execution guard: the relay dir is sandbox-writable, so every execute
     // record is re-checked runner-side (a forged record must not run an ask/deny tool).
     assert.equal(typeof calls.toolRelayArgs?.[6], "function");
+    // The 8th argument carries the log sink: without it the relay skips pickup
+    // telemetry (and its per-request stat) entirely, so the engine must pass one.
+    assert.equal(
+      typeof (calls.toolRelayArgs?.[7] as { log?: unknown } | undefined)?.log,
+      "function",
+    );
     assert.equal(
       calls.toolRelayStops,
       2,
       "stopped after prompt and again in finally",
+    );
+  });
+
+  it("wires Pi ask grants into the captured relay guard while non-Pi ask passes", async () => {
+    const request = {
+      messages: [{ role: "user", content: "use the tool" }],
+      permissions: { default: "ask" },
+      customTools: [
+        { name: "server_tool", kind: "callback", permission: "ask" },
+      ],
+    } as AgentRunRequest;
+    const relayRequest = {
+      toolName: "server_tool",
+      toolCallId: "forged-call",
+      args: {},
+    };
+
+    const pi = fakeHarness();
+    const piResult = await runSandboxAgent(
+      { ...request, harness: "pi_core" },
+      undefined,
+      undefined,
+      pi.deps,
+    );
+    assert.equal(piResult.ok, true);
+    const piGuard = pi.calls.toolRelayArgs?.[6] as Function;
+    assert.deepEqual(
+      piGuard(request.customTools?.[0], relayRequest),
+      {
+        allow: false,
+        reason:
+          "Tool 'server_tool' was not approved via the permission dialog.",
+      },
+      "Pi ask without a grant fails closed",
+    );
+
+    const claude = fakeHarness();
+    const claudeResult = await runSandboxAgent(
+      { ...request, harness: "claude" },
+      undefined,
+      undefined,
+      claude.deps,
+    );
+    assert.equal(claudeResult.ok, true);
+    const claudeGuard = claude.calls.toolRelayArgs?.[6] as Function;
+    assert.deepEqual(
+      claudeGuard(request.customTools?.[0], relayRequest),
+      { allow: true },
+      "non-Pi ask remains gated by the harness and passes the relay guard",
     );
   });
 
@@ -738,9 +1214,11 @@ describe("runSandboxAgent orchestration", () => {
       true,
       "the run succeeds; gateway tools reach Claude",
     );
-    // The relay carries execution only; Claude's own ACP gates decide before a call reaches it,
-    // so a Claude run never gets the Pi execution guard.
-    assert.equal(calls.toolRelayArgs?.[6], undefined);
+    // The relay dir is sandbox-writable on every harness, so a Claude run gets the execution
+    // guard too — its non-Pi shape enforces the hard deny boundary against forged records
+    // while `ask` stays with Claude's own harness dialog (see buildRelayExecutionGuard; the
+    // non-Pi semantics are pinned in tool-relay-guard.test.ts).
+    assert.equal(typeof calls.toolRelayArgs?.[6], "function");
     const mcpServers =
       calls.createSessionOptions?.sessionInit?.mcpServers ?? [];
     assert.equal(
@@ -759,32 +1237,17 @@ describe("runSandboxAgent orchestration", () => {
       /^http:\/\/127\.0\.0\.1:\d+\/mcp$/,
       "loopback url",
     );
-    assert.deepEqual(mcpServers[0].headers, [], "no credential on the channel");
+    // WP1 (#5201): the loopback HTTP endpoint carries a per-session bearer guard so another local
+    // process cannot reach it. It is a locally minted access token, not a provider credential.
+    assert.equal(mcpServers[0].headers.length, 1, "the loopback guard header");
+    assert.equal(mcpServers[0].headers[0].name, "Authorization");
+    assert.match(
+      mcpServers[0].headers[0].value,
+      /^Bearer .+/,
+      "per-session loopback guard token",
+    );
     // The internal server is opened then released, so its port does not leak past the run.
     assert.equal(calls.sandboxDestroyed, 1, "sandbox disposed in finally");
-  });
-
-  it("still refuses a run carrying a USER stdio MCP server (user gate untouched)", async () => {
-    // The user-facing stdio MCP path stays disabled (parity with removed code execution); only
-    // the internal gateway-tool channel was restored. A user-declared stdio MCP server is still
-    // rejected up front with the user-facing message.
-    const { deps } = fakeHarness();
-
-    const result = await runSandboxAgent(
-      {
-        harness: "claude",
-        messages: [{ role: "user", content: "go" }],
-        mcpServers: [{ name: "github", transport: "stdio", command: "npx" }],
-      } as AgentRunRequest,
-      undefined,
-      undefined,
-      deps,
-    );
-
-    assert.deepEqual(result, {
-      ok: false,
-      error: USER_MCP_UNSUPPORTED_MESSAGE,
-    });
   });
 
   it("fails loud when a non-Pi harness probes mcpTools:false but the run carries tools", async () => {
@@ -967,7 +1430,7 @@ describe("runSandboxAgent orchestration", () => {
 
     assert.equal(result.ok, true);
     // Managed run -> clear-then-apply: buildDaemonEnv is asked to clear the inherited provider env.
-    assert.deepEqual(calls.daemonOptions, { clearProviderEnv: true });
+    assert.equal(calls.daemonOptions?.clearProviderEnv, true);
     // The env handed to buildSandboxProvider carries only the resolved key + the custom base url.
     const env = calls.providerArgs[1] as Record<string, string>;
     assert.equal(env.ANTHROPIC_API_KEY, "resolved");
@@ -1088,22 +1551,65 @@ describe("runSandboxAgent orchestration", () => {
   it("does not clear provider env or set a base url on a runtime_provided run", async () => {
     const { calls, deps } = fakeHarness();
 
-    const result = await runSandboxAgent(
-      {
-        harness: "claude",
-        messages: [{ role: "user", content: "hello" }],
-        credentialMode: "runtime_provided",
-      } as AgentRunRequest,
-      undefined,
-      undefined,
-      deps,
-    );
+    // A local runtime_provided run authenticates from a mounted subscription, so buildRunPlan
+    // requires the harness config var (here CLAUDE_CONFIG_DIR) to name a mount.
+    const previousClaudeConfigDir = process.env.CLAUDE_CONFIG_DIR;
+    process.env.CLAUDE_CONFIG_DIR = "/agenta/harness/claude";
+    let result;
+    try {
+      result = await runSandboxAgent(
+        {
+          harness: "claude",
+          messages: [{ role: "user", content: "hello" }],
+          credentialMode: "runtime_provided",
+        } as AgentRunRequest,
+        undefined,
+        undefined,
+        deps,
+      );
+    } finally {
+      if (previousClaudeConfigDir === undefined)
+        delete process.env.CLAUDE_CONFIG_DIR;
+      else process.env.CLAUDE_CONFIG_DIR = previousClaudeConfigDir;
+    }
 
     assert.equal(result.ok, true);
     // runtime_provided -> keep the harness's own inherited env (do not clear).
-    assert.deepEqual(calls.daemonOptions, { clearProviderEnv: false });
+    assert.equal(calls.daemonOptions?.clearProviderEnv, false);
     const env = calls.providerArgs[1] as Record<string, string>;
     assert.equal(env.ANTHROPIC_BASE_URL, undefined);
+  });
+
+  it("passes the run's declared provider/deployment so the inherited keys narrow (RUN-SEC-1)", async () => {
+    const { calls, deps } = fakeHarness();
+
+    // A local runtime_provided run authenticates from a mounted subscription, so buildRunPlan
+    // requires the harness config var (here CLAUDE_CONFIG_DIR) to name a mount.
+    const previousClaudeConfigDir = process.env.CLAUDE_CONFIG_DIR;
+    process.env.CLAUDE_CONFIG_DIR = "/agenta/harness/claude";
+    let result;
+    try {
+      result = await runSandboxAgent(
+        {
+          harness: "claude",
+          messages: [{ role: "user", content: "hello" }],
+          credentialMode: "runtime_provided",
+          provider: "anthropic",
+          deployment: "bedrock",
+        } as AgentRunRequest,
+        undefined,
+        undefined,
+        deps,
+      );
+    } finally {
+      if (previousClaudeConfigDir === undefined)
+        delete process.env.CLAUDE_CONFIG_DIR;
+      else process.env.CLAUDE_CONFIG_DIR = previousClaudeConfigDir;
+    }
+
+    assert.equal(result.ok, true);
+    assert.equal(calls.daemonOptions?.provider, "anthropic");
+    assert.equal(calls.daemonOptions?.deployment, "bedrock");
   });
 });
 

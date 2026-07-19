@@ -15,11 +15,13 @@ import {
   signSessionMountCredentials,
   mountStorage,
   unmountStorage,
+  mountpointFailureState,
   discoverTunnelEndpoint,
   mountStorageRemote,
   harnessSessionMounts,
   mountHarnessSessionDirs,
   storeReachableFromSandbox,
+  shellQuote,
   type MountCredentials,
 } from "../../src/engines/sandbox_agent/mount.ts";
 
@@ -252,6 +254,10 @@ describe("mountStorage", () => {
         seenArgs = args;
         seenEnv = env;
       },
+      unmountDeps: {
+        runUnmount: async () => {},
+        checkMountpoint: async () => "gone",
+      },
       log: SILENT,
     });
 
@@ -285,6 +291,10 @@ describe("mountStorage", () => {
         runGeesefs: async (args) => {
           seenArgs = args;
         },
+        unmountDeps: {
+          runUnmount: async () => {},
+          checkMountpoint: async () => "gone",
+        },
         log: SILENT,
       },
     );
@@ -304,16 +314,85 @@ describe("mountStorage", () => {
     assert.equal(ran, false);
   });
 
-  it("returns false (does not throw) when geesefs fails", async () => {
+  it("falls back after stop when fusermount errors but the production probe confirms gone", async () => {
+    const calls: string[] = [];
     const ok = await mountStorage("/work/cwd", CREDS, {
       checkMounted: async () => false,
       runGeesefs: async () => {
-        throw new Error("fuse: device not found");
+        calls.push("mount");
+        return {
+          stop: async () => {
+            calls.push("stop");
+          },
+        };
+      },
+      unmountDeps: {
+        runUnmount: async () => {
+          calls.push("fusermount-error");
+          throw new Error("not mounted");
+        },
+        checkMountpoint: async () => (calls.push("probe-gone"), "gone"),
       },
       log: SILENT,
     });
     assert.equal(ok, false);
+    assert.deepEqual(calls, [
+      "fusermount-error",
+      "probe-gone",
+      "mount",
+      "stop",
+      "fusermount-error",
+      "probe-gone",
+    ]);
   });
+
+  it("refuses fallback when the failed geesefs process does not stop", async () => {
+    const calls: string[] = [];
+    await assert.rejects(
+      mountStorage("/work/cwd", CREDS, {
+        checkMounted: async () => false,
+        runGeesefs: async () => ({
+          stop: async () => {
+            calls.push("stop-unconfirmed");
+            throw new Error("geesefs process did not exit after SIGTERM and SIGKILL");
+          },
+        }),
+        unmountDeps: {
+          runUnmount: async () => {
+            calls.push("unmount");
+          },
+          checkMountpoint: async () => (calls.push("probe"), "gone"),
+        },
+        log: SILENT,
+      }),
+      /geesefs process did not exit after SIGTERM and SIGKILL/,
+    );
+    assert.deepEqual(calls, ["unmount", "probe", "stop-unconfirmed"]);
+  });
+
+  for (const detachState of ["mounted", "inconclusive"] as const) {
+    it("fails clearly when the failed mount remains " + detachState, async () => {
+      let probes = 0;
+      await assert.rejects(
+        mountStorage("/work/cwd", CREDS, {
+          checkMounted: async () => false,
+          runGeesefs: async () => {
+            throw new Error("fuse: device not found");
+          },
+          unmountDeps: {
+            runUnmount: async () => {},
+            checkMountpoint: async () => {
+              probes += 1;
+              return probes === 1 ? "gone" : detachState;
+            },
+          },
+          log: SILENT,
+        }),
+        /detach could not be confirmed.*refusing ephemeral cwd fallback.*fuse: device not found/,
+      );
+      assert.equal(probes, 2);
+    });
+  }
 });
 
 describe("unmountStorage", () => {
@@ -333,11 +412,26 @@ describe("unmountStorage", () => {
       runUnmount: async () => {
         throw new Error("not mounted");
       },
+      checkMountpoint: async () => "inconclusive",
       log: SILENT,
     });
     // No throw == pass, but callers must not treat this as safe to delete the cwd.
     assert.equal(ok, false);
   });
+});
+
+describe("mountpointFailureState", () => {
+  for (const code of [1, 32, "1", "32"]) {
+    it("treats not-a-mountpoint exit code " + code + " as gone", () => {
+      assert.equal(mountpointFailureState({ code }), "gone");
+    });
+  }
+
+  for (const code of [0, 2, 127, "ENOENT", undefined]) {
+    it("keeps unexpected exit code " + String(code) + " inconclusive", () => {
+      assert.equal(mountpointFailureState({ code }), "inconclusive");
+    });
+  }
 });
 
 describe("unmountStorage confirmation", () => {
@@ -461,7 +555,7 @@ describe("mountStorageRemote", () => {
     assert.ok(geesefs);
     const shellCmd = geesefs.args![1];
     // Tunnel endpoint overrides the in-network one.
-    assert.ok(shellCmd.includes("--endpoint https://abc.ngrok.io"));
+    assert.ok(shellCmd.includes("--endpoint' 'https://abc.ngrok.io"));
     assert.ok(shellCmd.includes("agenta-store:mounts/proj-1/mount-9"));
     assert.ok(shellCmd.includes("/home/sandbox/work"));
     // Backgrounded so the RPC returns instead of blocking on a foreground mount.
@@ -577,8 +671,8 @@ describe("mountStorageRemote", () => {
       2,
       "cleans before mounting and again after the alive check fails",
     );
-    assert.ok(unmountCalls[1].includes("fusermount -u /home/sandbox/work"));
-    assert.ok(unmountCalls[1].includes("umount -l /home/sandbox/work"));
+    assert.ok(unmountCalls[1].includes("fusermount -u '/home/sandbox/work'"));
+    assert.ok(unmountCalls[1].includes("umount -l '/home/sandbox/work'"));
   });
 
   it("uses the store's own endpoint when no tunnel is passed", async () => {
@@ -595,7 +689,7 @@ describe("mountStorageRemote", () => {
       log: SILENT,
     });
     assert.ok(
-      shellCmd.includes(`--endpoint ${CREDS.endpoint}`),
+      shellCmd.includes(`--endpoint' '${CREDS.endpoint}`),
       "falls back to the store's own endpoint",
     );
   });
@@ -621,5 +715,60 @@ describe("storeReachableFromSandbox", () => {
     assert.equal(storeReachableFromSandbox("http://127.0.0.1:8333"), false);
     assert.equal(storeReachableFromSandbox("http://10.0.0.5:8333"), false);
     assert.equal(storeReachableFromSandbox("http://192.168.1.5:8333"), false);
+  });
+});
+
+describe("shell injection hardening (RUN-SHELL-1)", () => {
+  it("shellQuote neutralizes a single quote break-out", () => {
+    const hostile = "x' ; rm -rf / #";
+    const quoted = shellQuote(hostile);
+    // Wrapped in single quotes with any embedded quote escaped — never a bare, unquoted `;`.
+    assert.ok(quoted.startsWith("'") && quoted.endsWith("'"));
+    assert.equal(quoted, `'x'"'"' ; rm -rf / #'`);
+  });
+
+  it("mountStorageRemote quotes a cwd containing shell metacharacters", async () => {
+    const calls: string[] = [];
+    const sandbox = {
+      runProcess: async (opts: { command: string; args?: string[] }) => {
+        if (opts.command === "sh") calls.push(opts.args?.[1] ?? "");
+        return { exitCode: 0 };
+      },
+    };
+    const hostileCwd = "/tmp/work'; touch /tmp/pwned; echo '";
+
+    await mountStorageRemote(sandbox, hostileCwd, CREDS, {
+      endpoint: "https://abc.ngrok.io",
+      aliveAttempts: 1,
+      log: SILENT,
+    });
+
+    // Every shell string touching cwd must carry the exact shellQuote() escaping — proof the
+    // embedded `'` never breaks out to run `touch /tmp/pwned` as a separate command.
+    const touched = calls.filter((cmd) => cmd.includes("pwned"));
+    assert.ok(touched.length > 0);
+    for (const cmd of touched) {
+      assert.ok(
+        cmd.includes(shellQuote(hostileCwd)),
+        `hostile cwd was not fully quoted: ${cmd}`,
+      );
+    }
+  });
+
+  it("mountStorageRemote quotes the geesefs argv (bucket:prefix and cwd)", async () => {
+    let shellCmd = "";
+    const sandbox = {
+      runProcess: async (opts: { command: string; args?: string[] }) => {
+        if (opts.command === "sh" && (opts.args?.[1] ?? "").includes("geesefs"))
+          shellCmd = opts.args![1];
+        return { exitCode: 0 };
+      },
+    };
+    await mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
+      endpoint: "https://abc.ngrok.io",
+      log: SILENT,
+    });
+    assert.ok(shellCmd.includes("'agenta-store:mounts/proj-1/mount-9'"));
+    assert.ok(shellCmd.includes("'/home/sandbox/work'"));
   });
 });

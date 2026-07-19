@@ -5,10 +5,11 @@ from __future__ import annotations
 from typing import Mapping, Sequence
 
 from agenta.sdk.agents.tools.models import MissingSecretPolicy
+from agenta.sdk.utils.net import assert_endpoint_url_allowed
 
-from .errors import MissingMCPSecretError
+from .errors import MCPServerURLBlockedError, MissingMCPSecretError
 from .interfaces import MCPSecretProvider
-from .models import MCPServerConfig, ResolvedMCPServer
+from .models import MCPHeaderSecretRefs, MCPServerConfig, ResolvedMCPServer
 
 
 class MCPResolver:
@@ -29,7 +30,8 @@ class MCPResolver:
             {
                 secret_name
                 for server_config in server_configs
-                for secret_name in server_config.secrets.values()
+                if isinstance(server_config.connection.credentials, MCPHeaderSecretRefs)
+                for secret_name in server_config.connection.credentials.headers.values()
             }
         )
         secret_values: Mapping[str, str] = (
@@ -38,9 +40,15 @@ class MCPResolver:
 
         resolved: list[ResolvedMCPServer] = []
         for server_config in server_configs:
+            credentials = server_config.connection.credentials
+            secret_refs = (
+                credentials.headers
+                if isinstance(credentials, MCPHeaderSecretRefs)
+                else {}
+            )
             missing = [
                 secret_name
-                for secret_name in server_config.secrets.values()
+                for secret_name in secret_refs.values()
                 if secret_name not in secret_values
             ]
             if missing and self._missing_secret_policy == MissingSecretPolicy.ERROR:
@@ -49,21 +57,26 @@ class MCPResolver:
                     secret_names=missing,
                 )
 
-            env = dict(server_config.env)
-            for env_var, secret_name in server_config.secrets.items():
+            headers = dict(server_config.connection.headers)
+            for header_name, secret_name in secret_refs.items():
                 if secret_name in secret_values:
-                    env[env_var] = secret_values[secret_name]
+                    headers[header_name] = secret_values[secret_name]
+
+            if server_config.connection.url:
+                try:
+                    assert_endpoint_url_allowed(server_config.connection.url)
+                except ValueError as exc:
+                    raise MCPServerURLBlockedError(
+                        server_name=server_config.name,
+                        url=server_config.connection.url,
+                    ) from exc
 
             resolved.append(
                 ResolvedMCPServer(
                     name=server_config.name,
-                    transport=server_config.transport,
-                    command=server_config.command,
-                    args=list(server_config.args),
-                    env=env,
-                    url=server_config.url,
-                    tools=list(server_config.tools),
-                    permission=server_config.permission,
+                    url=server_config.connection.url,
+                    headers=headers,
+                    policy=server_config.policy,
                 )
             )
         return resolved

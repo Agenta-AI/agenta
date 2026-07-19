@@ -44,6 +44,46 @@ def test_absent_record_id_falls_back_to_uuid4():
     assert dbe.record_id.version == 4
 
 
+class _FakeResult:
+    def scalars(self):
+        class _S:
+            def first(_self):
+                return None
+
+        return _S()
+
+
+class _FakeSession:
+    def __init__(self):
+        self.commit_calls = 0
+        self.flush_calls = 0
+
+    async def execute(self, stmt):
+        return _FakeResult()
+
+    async def commit(self):
+        self.commit_calls += 1
+
+    async def flush(self):
+        self.flush_calls += 1
+
+
+class _FakeEngine:
+    def __init__(self):
+        self.opened_sessions = []
+
+    def session(self):
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def _cm():
+            fake = _FakeSession()
+            self.opened_sessions.append(fake)
+            yield fake
+
+        return _cm()
+
+
 def test_append_upserts_preserving_index():
     """The append statement must be an ON CONFLICT DO UPDATE on (project_id, record_id)
     that overwrites attributes but does not touch record_index."""
@@ -51,35 +91,24 @@ def test_append_upserts_preserving_index():
 
     captured = {}
 
-    class _FakeResult:
-        def scalars(self):
-            class _S:
-                def first(_self):
-                    return None
-
-            return _S()
-
-    class _FakeSession:
+    class _CapturingSession(_FakeSession):
         async def execute(self, stmt):
             captured["stmt"] = stmt
-            return _FakeResult()
+            return await super().execute(stmt)
 
-        async def commit(self):
-            pass
-
-    class _FakeEngine:
+    class _CapturingEngine(_FakeEngine):
         def session(self):
             from contextlib import asynccontextmanager
 
             @asynccontextmanager
             async def _cm():
-                yield _FakeSession()
+                yield _CapturingSession()
 
             return _cm()
 
     import asyncio
 
-    dao = RecordsDAO(engine=_FakeEngine())
+    dao = RecordsDAO(engine=_CapturingEngine())
     asyncio.run(dao.append(event=_event()))
 
     compiled = str(captured["stmt"]).lower()
@@ -88,3 +117,32 @@ def test_append_upserts_preserving_index():
     # payload columns are overwritten; the ordinal is not in the update set.
     assert "attributes" in compiled
     assert "set record_index" not in compiled
+
+
+def test_append_commits_when_it_opens_its_own_session():
+    from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
+    import asyncio
+
+    engine = _FakeEngine()
+    dao = RecordsDAO(engine=engine)
+    asyncio.run(dao.append(event=_event()))
+
+    assert len(engine.opened_sessions) == 1
+    assert engine.opened_sessions[0].commit_calls == 1
+
+
+def test_append_does_not_commit_a_caller_supplied_session():
+    """A caller threading its own session through owns the transaction boundary;
+    append must flush (so the row is visible in-transaction) but never commit it."""
+    from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
+    import asyncio
+
+    engine = _FakeEngine()
+    dao = RecordsDAO(engine=engine)
+    caller_session = _FakeSession()
+
+    asyncio.run(dao.append(event=_event(), session=caller_session))
+
+    assert caller_session.commit_calls == 0
+    assert caller_session.flush_calls == 1
+    assert engine.opened_sessions == []

@@ -165,7 +165,7 @@ class WireToolCallback(_WireModel):
     """Where callback (gateway) tools route their calls back to."""
 
     endpoint: Optional[str] = None
-    authorization: Optional[str] = None
+    authorization: Optional[str] = Field(default=None, repr=False)
 
 
 class WireRunContextReference(_WireModel):
@@ -285,17 +285,11 @@ class WirePermissions(_WireModel):
 
 
 class WireMcpServer(_WireModel):
-    """A user-declared MCP server (stdio or http), mirrors ``mcp_servers_to_wire``."""
+    """A resolved external HTTP MCP server, mirrors ``mcp_servers_to_wire``."""
 
     name: str
-    transport: Optional[str] = None
-    command: Optional[str] = None
-    args: Optional[List[str]] = None
-    env: Optional[Dict[str, str]] = None
-    url: Optional[str] = None
-    headers: Optional[Dict[str, str]] = None
-    tools: Optional[List[str]] = None
-    permission: Optional[str] = None
+    connection: Dict[str, Any]
+    policy: Dict[str, Any]
 
 
 class WireSkillFile(_WireModel):

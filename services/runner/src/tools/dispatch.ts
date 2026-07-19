@@ -2,8 +2,8 @@
  * Shared tool dispatch: execute one backend-resolved tool, branching on its executor `kind`.
  *
  * The same "branch on spec.kind to run a resolved tool" logic was duplicated across the
- * delivery paths (extensions/agenta.ts Pi-under-sandbox-agent, tools/mcp-server.ts the MCP
- * bridge). This module owns that dispatch ONCE so a change to how a kind is executed is a
+ * delivery paths (the Pi extension and internal MCP channels). This module owns that dispatch
+ * once so a change to how a kind is executed is a
  * one-line edit, not several. Each call site still keeps its OWN result-wrapping shape (the Pi
  * extension's tool details, the MCP `content` envelope) and its OWN advertise/skip behavior
  * for `client` tools — only the execution itself is shared.
@@ -16,30 +16,18 @@
  *    so the call is relayed through the runner via files (see tools/relay.ts) when `relayDir`
  *    is set; otherwise it POSTs directly.
  *
- * `relayToolCall` lives here (not in extensions/agenta.ts) so this module is the single
- * dispatch home with no import cycle back into a call site.
+ * `relayToolCall` now lives in tools/relay-client.ts (the bundle-safe in-sandbox writer)
+ * and is re-exported here so existing importers keep working.
  */
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  unlinkSync,
-  writeFileSync,
-} from "node:fs";
-
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { callAgentaTool } from "./callback.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "./code.ts";
+import { relayToolCall, RELAY_PAUSED } from "./relay-client.ts";
 import { assertRequiredArguments } from "./spec-schema.ts";
-import {
-  RELAY_POLL_MS,
-  RELAY_REQ_SUFFIX,
-  RELAY_RES_SUFFIX,
-  RELAY_TIMEOUT_MS,
-  sanitizeRelayId,
-  sleep,
-  type RelayResponse,
-} from "./relay.ts";
+
+// Compatibility re-export: the writer moved to `relay-client.ts`; importers that still
+// reach it through this module keep working while they migrate.
+export { relayToolCall } from "./relay-client.ts";
 
 /** Options for executing a resolved tool. `endpoint`/`authorization`/`relayDir` only matter for callbacks. */
 export interface RunResolvedToolOpts {
@@ -56,54 +44,19 @@ export interface RunResolvedToolOpts {
 }
 
 /**
- * Daytona tool call: the in-sandbox process can't reach Agenta, so write the request to a
- * file the runner watches and poll for the response it writes back (see tools/relay.ts).
+ * This dispatch path (the Pi extension and the local loopback MCP) never opts into the cold-pause
+ * protocol — `writePausedAnswer` is off for Pi and the local MCP parks in-process — so a
+ * `RELAY_PAUSED` reaching here is a contract violation. Fail loud rather than laundering the
+ * sentinel into a string; only the in-sandbox shim handles a pause.
  */
-export async function relayToolCall(
-  dir: string,
-  toolName: string,
-  toolCallId: string,
-  params: unknown,
-  timeoutMs?: number,
-  signal?: AbortSignal,
-): Promise<string> {
-  const id = sanitizeRelayId(toolCallId);
-  const reqPath = `${dir}/${id}${RELAY_REQ_SUFFIX}`;
-  const resPath = `${dir}/${id}${RELAY_RES_SUFFIX}`;
-  try {
-    mkdirSync(dir, { recursive: true });
-  } catch {
-    // The runner also creates it; a race here is harmless.
+function assertNotPaused(
+  name: string,
+  result: string | typeof RELAY_PAUSED,
+): string {
+  if (result === RELAY_PAUSED) {
+    throw new Error(`unexpected paused relay answer for tool '${name}'`);
   }
-  writeFileSync(
-    reqPath,
-    JSON.stringify({ toolName, toolCallId, args: params ?? {} }),
-    "utf-8",
-  );
-
-  const deadline =
-    Date.now() +
-    (timeoutMs && timeoutMs > 0 ? timeoutMs + 10_000 : RELAY_TIMEOUT_MS);
-  while (Date.now() < deadline) {
-    if (signal?.aborted) throw new Error("aborted");
-    if (existsSync(resPath)) {
-      const res = JSON.parse(readFileSync(resPath, "utf-8")) as RelayResponse;
-      try {
-        unlinkSync(reqPath);
-      } catch {
-        /* best-effort cleanup */
-      }
-      try {
-        unlinkSync(resPath);
-      } catch {
-        /* best-effort cleanup */
-      }
-      if (res.ok) return res.text ?? "";
-      throw new Error(res.error || `tool relay failed for ${toolName}`);
-    }
-    await sleep(RELAY_POLL_MS);
-  }
-  throw new Error(`tool relay timed out for ${toolName}`);
+  return result;
 }
 
 /**
@@ -130,13 +83,16 @@ export async function runResolvedTool(
   }
   if (spec.kind === "client") {
     if (opts.relayDir) {
-      return relayToolCall(
-        opts.relayDir,
+      return assertNotPaused(
         spec.name,
-        opts.toolCallId,
-        params,
-        spec.timeoutMs,
-        opts.signal,
+        await relayToolCall(
+          opts.relayDir,
+          spec.name,
+          opts.toolCallId,
+          params,
+          spec.timeoutMs,
+          opts.signal,
+        ),
       );
     }
     throw new Error(
@@ -145,13 +101,16 @@ export async function runResolvedTool(
   }
   // callback (default): route back to Agenta's /tools/call (directly or via the Daytona relay).
   if (opts.relayDir) {
-    return relayToolCall(
-      opts.relayDir,
+    return assertNotPaused(
       spec.name,
-      opts.toolCallId,
-      params,
-      spec.timeoutMs,
-      opts.signal,
+      await relayToolCall(
+        opts.relayDir,
+        spec.name,
+        opts.toolCallId,
+        params,
+        spec.timeoutMs,
+        opts.signal,
+      ),
     );
   }
   return callAgentaTool(

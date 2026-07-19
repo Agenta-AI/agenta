@@ -37,10 +37,6 @@ const CatalogDrawer = dynamic(
     () => import("@agenta/entity-ui/gatewayTool").then((m) => m.CatalogDrawer),
     {ssr: false},
 )
-const SessionInspectorDrawer = dynamic(
-    () => import("@/oss/components/SessionInspector/SessionInspectorDrawer"),
-    {ssr: false},
-)
 
 /**
  * Sync state tag slot — renders the sync state badge in each row header.
@@ -133,7 +129,6 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
                     renderConfigOverride={agentOnboarding.renderConfigOverride}
                 />
                 <CatalogDrawer />
-                <SessionInspectorDrawer />
             </div>
         </OSSPlaygroundShell>
     )

@@ -1,5 +1,4 @@
 import asyncio
-import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
@@ -218,14 +217,10 @@ class EventsWorker(StreamConsumer):
 
         while True:
             try:
-                # 1. Read batch from stream (idle blocks return empty, never tick)
-                read_started = time.perf_counter()
+                # 1. Read batch from stream
                 batch = await self.read_batch()
                 if not batch:
                     continue
-
-                read_ms = (time.perf_counter() - read_started) * 1000
-                started = time.perf_counter()
 
                 # 2. Process batch
                 ingested, processed_ids, batches = await self.process_batch(batch)
@@ -245,10 +240,6 @@ class EventsWorker(StreamConsumer):
                             "[EVENTS] Skipping ACK/DEL due to webhook dispatch failure",
                             batch_size=len(batch),
                         )
-                        log.tick(
-                            f"{self.metric_stream}.errors",
-                            dims={"stream": self.metric_stream},
-                        )
                         continue
                 else:
                     log.info(
@@ -264,16 +255,6 @@ class EventsWorker(StreamConsumer):
                     batch_size=len(batch),
                     ingested=ingested,
                 )
-                log.tick(
-                    f"{self.metric_stream}.processed",
-                    count=len(processed_ids),
-                    duration_ms=(time.perf_counter() - started) * 1000,
-                    read_ms=read_ms,
-                    dims={"stream": self.metric_stream},
-                )
             except Exception:
                 log.error("[EVENTS] Worker loop error", exc_info=True)
-                log.tick(
-                    f"{self.metric_stream}.errors", dims={"stream": self.metric_stream}
-                )
                 await asyncio.sleep(1)
