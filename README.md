@@ -13,16 +13,8 @@
   Build agents that automate your work by chatting with them. Share them with your team, connect them to the apps you use, and run them in the background.
 </div>
 
-
-  <br />
-      <div align="center" >
-        <a href="https://www.youtube.com/watch?v=zZJfqkc608M" target="_blank">
-          <picture >
-            <img alt="Agenta platform walkthrough" src="https://github.com/user-attachments/assets/992d4880-86ce-44bc-bfe4-e9eae9b731c8" >
-          </picture>
-        </a>
-    </div>
 </div>
+
 ---
 
 <h3 align="center">
@@ -41,11 +33,9 @@
   <a href="https://github.com/Agenta-AI/agenta/blob/main/CONTRIBUTING.md">
     <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen" alt="PRs welcome" />
   </a>
-  <img src="https://img.shields.io/github/contributors/Agenta-AI/agenta" alt="Contributors">
   <a href="https://pypi.org/project/agenta/">
     <img src="https://img.shields.io/pypi/dm/agenta" alt="PyPI - Downloads">
   </a>
-  <img src="https://img.shields.io/github/last-commit/Agenta-AI/agenta" alt="Last Commit">
 </br>
 </p>
 
