@@ -37,7 +37,12 @@ export interface PiToolSpecMeta {
 
 export interface AttachPermissionResponderInput {
   session: any;
-  run: { emitEvent: (event: AgentEvent) => void; events?: () => AgentEvent[] };
+  run: {
+    emitEvent: (event: AgentEvent) => void;
+    events?: () => AgentEvent[];
+    /** Flag the gated call as a deny so its closing failed result projects `tool-output-denied`. */
+    markToolCallDenied?: (toolCallId: string | undefined) => void;
+  };
   responder: Responder;
   latch: PendingApprovalLatch;
   serverPermissions?: ReadonlyMap<string, ToolPermission>;
@@ -218,7 +223,13 @@ export function attachPermissionResponder({
     id: string,
     decision: PermissionDecision,
     availableReplies: string[],
+    toolCallId?: string,
   ): Promise<void> => {
+    // A deny replies `reject`, which makes the harness close the call as a FAILED tool call. Flag
+    // the id first so the closing result carries `denied` and the egress renders a decline, not a
+    // breakage. (A malformed-envelope / unknown-builtin fail-closed reject goes through
+    // `rejectRequest`, not here, so it stays a plain error — it is not a user/policy denial.)
+    if (decision === "deny") run.markToolCallDenied?.(toolCallId);
     try {
       await session.respondPermission(
         id,
@@ -337,7 +348,7 @@ export function attachPermissionResponder({
     if (verdict.kind === "allow" && envelope.gate === "pi-custom-tool") {
       onPiGateAllowed?.({ toolName: gate.toolName!, args: gate.args });
     }
-    await replyPermission(id, verdict.kind, availableReplies);
+    await replyPermission(id, verdict.kind, availableReplies, envelope.toolCallId);
   };
 
   async function handleRequest(req: any): Promise<void> {
@@ -421,7 +432,12 @@ export function attachPermissionResponder({
       pauseUserApproval(req, id, gate, "claude-acp-permission");
       return;
     }
-    await replyPermission(id, verdict.kind, availableReplies);
+    await replyPermission(
+      id,
+      verdict.kind,
+      availableReplies,
+      stringValue(toolCall?.toolCallId),
+    );
   }
 }
 

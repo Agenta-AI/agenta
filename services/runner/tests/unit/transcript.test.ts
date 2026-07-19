@@ -175,7 +175,7 @@ describe("buildTurnText history window", () => {
       assert.match(logs[0], /^\[HITL\] cold replay: /);
       assert.match(logs[0], /evicted 1\/2 messages/);
       assert.match(logs[0], /pendingNudge=false/);
-      assert.match(logs[0], /resumeFrame=false/);
+      assert.match(logs[0], /resumeFrame=none/);
       assert.match(logs[0], /turnText \d+ chars/);
     } finally {
       restoreEnv();
@@ -254,6 +254,69 @@ describe("buildTurnText approval-resume closing frame", () => {
 
     assert.match(text, /Continue the conversation\. The user now says:\ncontinue/);
     assert.doesNotMatch(text, /responded to the pending approval above/);
+  });
+
+  it("closes with the client-resume frame when the newest content is an elicitation answer (#5357)", () => {
+    const staleCommand = "help me schedule a report";
+    const request: AgentRunRequest = {
+      messages: [
+        { role: "user", content: staleCommand },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_call",
+              toolCallId: "call-1",
+              toolName: "__ag__request_input",
+              input: { message: "What color?", requestedSchema: {} },
+            },
+            {
+              type: "tool_result",
+              toolCallId: "call-1",
+              toolName: "__ag__request_input",
+              output: { action: "accept", content: { color: "green" } },
+            },
+          ] as ContentBlock[],
+        },
+      ],
+    };
+    const text = buildTurnText(request);
+
+    // The just-submitted answer must not be re-framed as a fresh request that restarts the task.
+    assert.match(text, /responded to the request/);
+    assert.match(text, /do not restart the task or ask again/);
+    assert.doesNotMatch(text, /The user now says/);
+    assert.doesNotMatch(text, /responded to the pending approval/);
+    // The answer stays visible in the replayed history and the stale command keeps its position.
+    assert.match(text, /request_input returned: .*green/);
+    assert.ok(text.includes(`user: ${staleCommand}`), "stale command stays in history");
+  });
+
+  it("keeps the normal closing frame when a client-tool result precedes a new user turn", () => {
+    const text = turnTextFor([
+      { role: "user", content: "help me schedule a report" },
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_call",
+            toolCallId: "call-1",
+            toolName: "__ag__request_input",
+            input: { message: "What color?", requestedSchema: {} },
+          },
+          {
+            type: "tool_result",
+            toolCallId: "call-1",
+            toolName: "__ag__request_input",
+            output: { action: "accept", content: { color: "green" } },
+          },
+        ] as ContentBlock[],
+      },
+    ]);
+
+    // A settled client tool followed by NEW user text is a normal turn, not a resume.
+    assert.match(text, /Continue the conversation\. The user now says:\ncontinue/);
+    assert.doesNotMatch(text, /responded to the request/);
   });
 
   it("keeps the normal closing frame when the approved call already executed", () => {
