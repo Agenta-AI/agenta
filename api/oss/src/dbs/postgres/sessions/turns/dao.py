@@ -2,6 +2,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from sqlalchemy import delete as sa_delete, select
+from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.sessions.turns.dtos import (
     HarnessKind,
@@ -11,6 +12,7 @@ from oss.src.core.sessions.turns.dtos import (
 )
 from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
 from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.dbs.postgres.sessions.turns.dbes import SessionTurnDBE
 from oss.src.dbs.postgres.sessions.turns.mappings import (
     map_turn_dbe_to_dto,
@@ -44,9 +46,26 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
             turn=turn,
         )
         async with self.engine.session() as session:
-            session.add(dbe)
-            await session.commit()
-            await session.refresh(dbe)
+            try:
+                session.add(dbe)
+                await session.commit()
+                await session.refresh(dbe)
+            except IntegrityError as e:
+                await session.rollback()
+                error_str = str(e.orig) if e.orig else str(e)
+                if "ix_session_turns_project_id_session_id_turn_index" in error_str:
+                    raise EntityCreationConflict(
+                        entity="Session turn",
+                        message=(
+                            f"Session turn {turn.turn_index} already exists for "
+                            f"session {turn.session_id}."
+                        ),
+                        conflict={
+                            "session_id": turn.session_id,
+                            "turn_index": turn.turn_index,
+                        },
+                    ) from e
+                raise
         return map_turn_dbe_to_dto(turn_dbe=dbe)
 
     async def fetch_turn(
