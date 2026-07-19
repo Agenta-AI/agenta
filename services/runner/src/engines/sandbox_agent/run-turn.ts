@@ -1,4 +1,7 @@
-import { permissionsFromRequest } from "../../permission-plan.ts";
+import {
+  effectivePermission,
+  permissionsFromRequest,
+} from "../../permission-plan.ts";
 import {
   resolvePromptText,
   type AgentRunRequest,
@@ -27,10 +30,14 @@ import {
   type RelayExecutionGuard,
 } from "../../tools/relay.ts";
 import {
+  APPROVED_EXECUTION_RESULT_UNKNOWN,
   createSandboxAgentOtel,
   TOOL_NOT_EXECUTED_PAUSED,
 } from "../../tracing/otel.ts";
-import { attachPermissionResponder } from "./acp-interactions.ts";
+import {
+  attachPermissionResponder,
+  buildGateDescriptor,
+} from "./acp-interactions.ts";
 import {
   buildClientToolRelay,
   relayWritesPausedAnswer,
@@ -115,8 +122,9 @@ export async function runTurn(
   // caller's teardown (`runSandboxAgent`'s `finally`, or the keep-alive dispatch's evict-on-failure)
   // reclaims the sandbox exactly as any other error does. Disposed in the `finally` on every path.
   // A human pause retires the deadlines (`notePaused`): a HITL wait is legitimate, not a wedge.
+  const resolvedRunLimits = (deps.resolveRunLimits ?? resolveRunLimits)(logger);
   const runLimits = (deps.createRunLimits ?? createRunLimits)(
-    (deps.resolveRunLimits ?? resolveRunLimits)(logger),
+    resolvedRunLimits,
     { log: logger },
   );
   let runLimitTrip: (() => void) | undefined;
@@ -216,8 +224,8 @@ export async function runTurn(
       // emit its own approval card. The orphan settle is deferred to the post-drain sweep below
       // (which runs on every paused turn, after `waitForEventDrain` lets every pending gate mark
       // its call paused) plus the in-band re-sweep in `handleUpdate` for a sibling announced after
-      // the pause. Both exclude paused (gated) calls, so every carded gate stays open for its
-      // resume and only a genuine orphan (announced, never gated) settles.
+      // the pause. Both exclude paused gates and allowed executions, so each keeps its own
+      // terminal outcome while only a genuine orphan settles.
       // Park mode: at least one parkable permission gate (Claude ACP or Pi ACP) recorded into
       // `env.parkedApprovals` BEFORE firing this pause (the onUserApprovalGate hook runs as each
       // gate resolves). Keep the live session — the gated tools run on the resume — so skip ONLY
@@ -235,6 +243,43 @@ export async function runTurn(
     // A human pause resolves this signal exactly once, the moment the turn parks for input — the one
     // place every pause path converges, so the one place to retire the run-limits deadlines for good.
     void pause.signal.then(() => runLimits.notePaused());
+
+    const openToolCallIds = (): string[] => run.openToolCallIds?.() ?? [];
+    const bufferedPausedCompletedFrames = new Map<string, unknown>();
+    const toolCallClosureWaiters = new Map<string, Set<() => void>>();
+    const notifyToolCallClosed = (toolCallId: string): void => {
+      if (openToolCallIds().includes(toolCallId)) return;
+      const waiters = toolCallClosureWaiters.get(toolCallId);
+      if (!waiters) return;
+      toolCallClosureWaiters.delete(toolCallId);
+      for (const waiter of waiters) waiter();
+    };
+    const waitForToolCallClosure = (
+      toolCallId: string,
+      timeoutMs: number,
+    ): Promise<boolean> => {
+      if (!openToolCallIds().includes(toolCallId)) {
+        return Promise.resolve(true);
+      }
+      return new Promise<boolean>((resolve) => {
+        let timeout: NodeJS.Timeout | undefined;
+        let finished = false;
+        const finish = (closed: boolean): void => {
+          if (finished) return;
+          finished = true;
+          if (timeout) clearTimeout(timeout);
+          const waiters = toolCallClosureWaiters.get(toolCallId);
+          waiters?.delete(onClosed);
+          if (waiters?.size === 0) toolCallClosureWaiters.delete(toolCallId);
+          resolve(closed);
+        };
+        const onClosed = (): void => finish(true);
+        const waiters = toolCallClosureWaiters.get(toolCallId) ?? new Set();
+        waiters.add(onClosed);
+        toolCallClosureWaiters.set(toolCallId, waiters);
+        timeout = setTimeout(() => finish(false), timeoutMs);
+      });
+    };
 
     // Publish this turn's sink so the session-lifetime listeners route into it. handleUpdate
     // reproduces the old per-event routing (suppress paused frames, handleUpdate, pause re-sweep).
@@ -275,12 +320,35 @@ export async function runTurn(
           ) {
             env.lastTurnToolCallIds.push(frame.toolCallId);
           }
+          const toolCallId =
+            typeof rawFrame.toolCallId === "string"
+              ? rawFrame.toolCallId
+              : undefined;
+          if (
+            pause.active &&
+            (rawFrame.sessionUpdate === "tool_call" ||
+              rawFrame.sessionUpdate === "tool_call_update") &&
+            rawFrame.status === "completed" &&
+            toolCallId &&
+            !pause.isPausedToolCall(toolCallId) &&
+            !pause.isAllowedExecution(toolCallId)
+          ) {
+            bufferedPausedCompletedFrames.set(toolCallId, update);
+            return;
+          }
           run.handleUpdate(update);
-          // A non-gated sibling announced AFTER the pause can never execute this turn; settle it
-          // immediately so the client never holds an orphaned part (idempotent re-sweep).
+          if (
+            toolCallId &&
+            (rawFrame.status === "completed" || rawFrame.status === "failed")
+          ) {
+            notifyToolCallClosed(toolCallId);
+          }
+          // A sibling announced after the pause with neither a gate nor an allow cannot execute;
+          // the idempotent re-sweep closes it so the client never holds an orphaned part.
           if (pause.active) {
             run.settleOpenToolCalls(
-              (id) => pause.isPausedToolCall(id),
+              (id) =>
+                pause.isPausedToolCall(id) || pause.isAllowedExecution(id),
               TOOL_NOT_EXECUTED_PAUSED,
             );
           }
@@ -342,6 +410,62 @@ export async function runTurn(
     // The SAME name->spec index the relay execute loop hands to the relay execution guard, so
     // the approval card and the guard cannot disagree about a tool's permission/readOnly.
     const specsByName = toolSpecsByName(plan.toolSpecs);
+    const settleBufferedPausedCompletions = (): void => {
+      for (const [toolCallId, update] of [
+        ...bufferedPausedCompletedFrames.entries(),
+      ]) {
+        bufferedPausedCompletedFrames.delete(toolCallId);
+        if (pause.isPausedToolCall(toolCallId)) continue;
+        if (pause.isAllowedExecution(toolCallId)) {
+          run.handleUpdate(update);
+          notifyToolCallClosed(toolCallId);
+          continue;
+        }
+        const frame = update as {
+          sessionUpdate?: unknown;
+          name?: unknown;
+          title?: unknown;
+          kind?: unknown;
+          rawInput?: unknown;
+          input?: unknown;
+        };
+        const { gate } = buildGateDescriptor(
+          {
+            toolCallId,
+            name: frame.name,
+            title: frame.title,
+            kind: frame.kind,
+            rawInput: frame.rawInput,
+            input: frame.input,
+          },
+          run,
+          serverPermissions,
+          specsByName,
+        );
+        const permission = effectivePermission(gate, permissionPlan);
+        if (permission === "allow") {
+          run.handleUpdate(update);
+          notifyToolCallClosed(toolCallId);
+          continue;
+        }
+        // Execution of an ask-policy call requires an answered allow; both harness gate paths fail
+        // closed. A completed frame during a pause for an unanswered ask-policy call is therefore
+        // a cancellation-closure artifact, not evidence of execution.
+        if (
+          frame.sessionUpdate === "tool_call" &&
+          !openToolCallIds().includes(toolCallId)
+        ) {
+          run.handleUpdate({
+            ...(update as Record<string, unknown>),
+            status: undefined,
+          });
+        }
+        run.settleOpenToolCalls(
+          (id) => id !== toolCallId,
+          TOOL_NOT_EXECUTED_PAUSED,
+        );
+      }
+    };
     // Build the per-turn permission handler WITHOUT attaching to the live session: the
     // session-lifetime `onPermissionRequest` (in acquireEnvironment) routes into it via
     // `currentTurn`. A capturing shim reuses attachPermissionResponder unchanged; its
@@ -360,6 +484,7 @@ export async function runTurn(
       log: logger,
       onPause: () => pause.pause(),
       onPausedToolCall: (id) => pause.markPausedToolCall(id),
+      onAllowedExecution: (id) => pause.markAllowedExecution(id),
       onNonParkablePause: () => {
         env.nonParkablePauseCount += 1;
       },
@@ -505,6 +630,7 @@ export async function runTurn(
         // confirm resolves) passes the relay guard. Claude resumes grant too — harmlessly, no
         // guard consults it.
         if (decision.reply === "once") {
+          pause.markAllowedExecution(decision.toolCallId);
           executionGrants.grant(decision.toolName, decision.args);
         }
         // A live-resume deny closes the seeded call as a failed tool call; flag it so the egress
@@ -543,15 +669,40 @@ export async function runTurn(
     }
     const stopReason =
       raced === PAUSED || pause.active ? "paused" : (raced as any)?.stopReason;
-    // Pause notification is immediate, but terminalization must wait for managed cancellation
-    // and already-queued ACP updates. Re-sweep after the drain so a sibling announced during
-    // cancellation receives exactly one deterministic terminal result before `done`.
+    // Terminalization drains queued gates, classifies pause-time completions, and gives allowed
+    // executions their original per-call bound before the orphan sweep closes the turn.
     if (stopReason === "paused") {
       await pause.waitForEventDrain();
+      settleBufferedPausedCompletions();
+      const openAllowedExecutions = openToolCallIds()
+        .filter((id) => pause.isAllowedExecution(id));
+      await Promise.all(
+        openAllowedExecutions.map(async (toolCallId) => {
+          const closed = await waitForToolCallClosure(
+            toolCallId,
+            resolvedRunLimits.toolCallMs,
+          );
+          if (closed) return;
+          run.settleOpenToolCalls(
+            (id) => id !== toolCallId,
+            APPROVED_EXECUTION_RESULT_UNKNOWN,
+          );
+        }),
+      );
+      settleBufferedPausedCompletions();
       run.settleOpenToolCalls(
-        (id) => pause.isPausedToolCall(id),
+        (id) =>
+          pause.isPausedToolCall(id) || pause.isAllowedExecution(id),
         TOOL_NOT_EXECUTED_PAUSED,
       );
+      const unexpectedOpenToolCallIds = openToolCallIds()
+        .filter((id) => !pause.isPausedToolCall(id));
+      if (unexpectedOpenToolCallIds.length > 0) {
+        logger(
+          "[HITL] paused-turn transcript invariant left non-gated calls open: " +
+            unexpectedOpenToolCallIds.join(","),
+        );
+      }
     }
     const result = raced === PAUSED ? undefined : raced;
     // A parkable pause this turn: hand the still-pending prompt promise to EVERY parked record so a

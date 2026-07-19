@@ -52,6 +52,8 @@ export interface AttachPermissionResponderInput {
   log?: (msg: string) => void;
   /** Called with the ACP tool-call id when a gate pauses the turn. */
   onPausedToolCall?: (id: string) => void;
+  /** Called before an allow reply can release the harness to execute this tool call. */
+  onAllowedExecution?: (id: string) => void;
   /**
    * Called when a NON-parkable pause happens this turn (a client-tool ACP gate, which cannot be
    * answered across a turn boundary on the live session). The keep-alive dispatch reads this to
@@ -118,6 +120,7 @@ export function attachPermissionResponder({
   onPause,
   log,
   onPausedToolCall,
+  onAllowedExecution,
   onNonParkablePause,
   onCreateInteraction,
   onResolveInteraction,
@@ -236,6 +239,9 @@ export function attachPermissionResponder({
     // breakage. (A malformed-envelope / unknown-builtin fail-closed reject goes through
     // `rejectRequest`, not here, so it stays a plain error — it is not a user/policy denial.)
     if (decision === "deny") run.markToolCallDenied?.(toolCallId);
+    // Mark before replying because an allow can release the harness synchronously and its first
+    // execution frame must already be protected from a concurrently active pause sweep.
+    if (decision === "allow" && toolCallId) onAllowedExecution?.(toolCallId);
     try {
       await session.respondPermission(
         id,
@@ -518,7 +524,7 @@ function recordedToolName(
  * strip that prefix so the lookup hits). This is the ONLY source of a tool's true
  * `permission`/`readOnly`, so both the approval card and this descriptor come from one lookup.
  */
-function buildGateDescriptor(
+export function buildGateDescriptor(
   toolCall: any,
   run: { events?: () => AgentEvent[] },
   serverPermissions: ReadonlyMap<string, ToolPermission>,

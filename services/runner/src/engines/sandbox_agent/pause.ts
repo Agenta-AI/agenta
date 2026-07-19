@@ -3,14 +3,15 @@
  *
  * F-040: an unanswered approval must end the turn, destroy the session, and never reply to the
  * harness gate. Historical docs call this "park"; this module uses pause/pendingApproval names.
- * The destroy callback also settles every announced-but-unresolved sibling tool call with a
- * deterministic `tool_result` before teardown, so the client never holds an orphaned part.
+ * Terminalization classifies every announced-but-unresolved sibling after managed cancellation
+ * drains, so the client never holds an orphaned part or an invented execution result.
  */
 export const PAUSED = Symbol("paused");
 
 export class PendingApprovalPauseController {
   private pendingApproval = false;
   private readonly pausedToolCallIds = new Set<string>();
+  private readonly allowedExecutionToolCallIds = new Set<string>();
   private resolvePause: (() => void) | undefined;
   private eventDrain: Promise<void> = Promise.resolve();
 
@@ -58,6 +59,19 @@ export class PendingApprovalPauseController {
 
   isPausedToolCall(toolCallId: string | undefined): boolean {
     return toolCallId !== undefined && this.pausedToolCallIds.has(toolCallId);
+  }
+
+  /** Record that this turn answered allow for the call, so pause cleanup preserves its result. */
+  markAllowedExecution(toolCallId: string): void {
+    if (!toolCallId) return;
+    this.allowedExecutionToolCallIds.add(toolCallId);
+  }
+
+  isAllowedExecution(toolCallId: string | undefined): boolean {
+    return (
+      toolCallId !== undefined &&
+      this.allowedExecutionToolCallIds.has(toolCallId)
+    );
   }
 
   get active(): boolean {

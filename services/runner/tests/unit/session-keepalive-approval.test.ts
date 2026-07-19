@@ -33,7 +33,12 @@ import {
   type SandboxAgentDeps,
   type SessionEnvironment,
 } from "../../src/engines/sandbox_agent.ts";
-import { TOOL_NOT_EXECUTED_PAUSED } from "../../src/tracing/otel.ts";
+import {
+  APPROVED_EXECUTION_RESULT_UNKNOWN,
+  createSandboxAgentOtel,
+  DEFERRED_NOT_EXECUTED_PREFIX,
+  TOOL_NOT_EXECUTED_PAUSED,
+} from "../../src/tracing/otel.ts";
 
 function flush(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
@@ -1088,6 +1093,10 @@ interface FakeRun {
   open: Set<string>;
   /** What settleOpenToolCalls settled: the orphaned-sibling record (F-024). */
   settled: Array<{ id: string; message: string }>;
+  sweeps: Array<{
+    message: string;
+    isExcluded: (id: string) => boolean;
+  }>;
 }
 
 function pausableHarness(opts: { clientTool?: boolean } = {}) {
@@ -1149,6 +1158,7 @@ function pausableHarness(opts: { clientTool?: boolean } = {}) {
       emitted: [],
       open: new Set<string>(),
       settled: [],
+      sweeps: [],
       start() {},
       // Track open tool calls the way the real otel run does, so settleOpenToolCalls is
       // meaningful: a tool_call opens an id, a completed/failed tool_call_update closes it.
@@ -1187,11 +1197,15 @@ function pausableHarness(opts: { clientTool?: boolean } = {}) {
         isExcluded: (id: string) => boolean,
         message: string,
       ) {
+        run.sweeps.push({ message, isExcluded });
         for (const id of [...run.open]) {
           if (isExcluded(id)) continue;
           run.open.delete(id);
           run.settled.push({ id, message });
         }
+      },
+      openToolCallIds() {
+        return [...run.open];
       },
       denied: [] as string[],
       markToolCallDenied(id: string | undefined) {
@@ -1381,6 +1395,276 @@ describe("runTurn: real approval park + respondPermission resume", () => {
           u.sessionUpdate === "tool_call_update" && u.toolCallId === "tc-gate",
       ),
       "the post-resume tool_call_update streamed (not suppressed) into the new run",
+    );
+
+    await env.destroy();
+  });
+
+  it("excludes an allowed execution from both pause sweeps", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const firstTurn = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-approved",
+        title: "commit",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-approved",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-approved", name: "commit" },
+    });
+    await firstTurn;
+
+    const held = env.parkedApproval!.promptPromise!;
+    env.clearTurn();
+    const resumeTurn = runTurn(env, approveResume(true), undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: "perm-approved",
+            reply: "once",
+            toolCallId: "tc-approved",
+            toolName: "commit",
+            args: {},
+            interactionToken: "tc-approved",
+            promptPromise: held,
+          },
+        ],
+      },
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-gate-2",
+        title: "deploy",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-2",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-gate-2", name: "deploy" },
+    });
+    for (let i = 0; i < 5 && !env.currentTurn?.pause.active; i += 1) {
+      await Promise.resolve();
+    }
+    assert.equal(env.currentTurn?.pause.active, true);
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tc-approved",
+        status: "in_progress",
+      }),
+    );
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tc-approved",
+        status: "completed",
+        content: "real result",
+      }),
+    );
+    await resumeTurn;
+
+    const run = calls.runs[1];
+    const deferredSweeps = run.sweeps.filter(
+      (sweep) => sweep.message === TOOL_NOT_EXECUTED_PAUSED,
+    );
+    assert.ok(deferredSweeps.length >= 2);
+    assert.equal(
+      deferredSweeps.every((sweep) => sweep.isExcluded("tc-approved")),
+      true,
+    );
+    assert.equal(
+      run.settled.some(
+        (entry) =>
+          entry.id === "tc-approved" &&
+          entry.message === TOOL_NOT_EXECUTED_PAUSED,
+      ),
+      false,
+    );
+
+    await env.destroy();
+  });
+
+  it("records an approved completion that arrives after a sibling pause", async () => {
+    const { deps, captured } = pausableHarness();
+    deps.createOtel = createSandboxAgentOtel as any;
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const firstTurn = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-approved",
+        title: "commit",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-approved",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-approved", name: "commit" },
+    });
+    await firstTurn;
+
+    const held = env.parkedApproval!.promptPromise!;
+    env.clearTurn();
+    const resumeTurn = runTurn(env, approveResume(true), undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: "perm-approved",
+            reply: "once",
+            toolCallId: "tc-approved",
+            toolName: "commit",
+            args: {},
+            interactionToken: "tc-approved",
+            promptPromise: held,
+          },
+        ],
+      },
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-gate-2",
+        title: "deploy",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-2",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-gate-2", name: "deploy" },
+    });
+    for (let i = 0; i < 5 && !env.currentTurn?.pause.active; i += 1) {
+      await Promise.resolve();
+    }
+    assert.equal(env.currentTurn?.pause.active, true);
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tc-approved",
+        status: "completed",
+        content: "approved call completed",
+      }),
+    );
+    const result = await resumeTurn;
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const approvedResults = result.events?.filter(
+      (event) => event.type === "tool_result" && event.id === "tc-approved",
+    );
+    assert.deepEqual(approvedResults, [
+      {
+        type: "tool_result",
+        id: "tc-approved",
+        output: "approved call completed",
+        isError: false,
+      },
+    ]);
+
+    await env.destroy();
+  });
+
+  it("records the non-retry sentinel when an approved result misses the bound", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    deps.resolveRunLimits = () => ({
+      totalMs: 1_000,
+      idleMs: 500,
+      ttfbMs: 500,
+      toolCallMs: 5,
+    });
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const firstTurn = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-approved",
+        title: "commit",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-approved",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-approved", name: "commit" },
+    });
+    await firstTurn;
+
+    const held = env.parkedApproval!.promptPromise!;
+    env.clearTurn();
+    const resumeTurn = runTurn(env, approveResume(true), undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: "perm-approved",
+            reply: "once",
+            toolCallId: "tc-approved",
+            toolName: "commit",
+            args: {},
+            interactionToken: "tc-approved",
+            promptPromise: held,
+          },
+        ],
+      },
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-gate-2",
+        title: "deploy",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-2",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-gate-2", name: "deploy" },
+    });
+    const result = await resumeTurn;
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(
+      calls.runs[1].settled.filter((entry) => entry.id === "tc-approved"),
+      [
+        {
+          id: "tc-approved",
+          message: APPROVED_EXECUTION_RESULT_UNKNOWN,
+        },
+      ],
+    );
+    assert.equal(
+      APPROVED_EXECUTION_RESULT_UNKNOWN.startsWith(
+        DEFERRED_NOT_EXECUTED_PREFIX,
+      ),
+      false,
     );
 
     await env.destroy();

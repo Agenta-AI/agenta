@@ -15,6 +15,7 @@ import {
   TOOL_NOT_EXECUTED_PAUSED,
 } from "../../src/tracing/otel.ts";
 import { PendingApprovalPauseController } from "../../src/engines/sandbox_agent/pause.ts";
+import { shouldSuppressPausedToolCallUpdate } from "../../src/engines/sandbox_agent/runtime-policy.ts";
 import { mountStorage } from "../../src/engines/sandbox_agent/mount.ts";
 import { buildPiGateEnvelope } from "../../src/engines/sandbox_agent/pi-gate-envelope.ts";
 import type { PermissionDecision } from "../../src/responder.ts";
@@ -219,6 +220,9 @@ function fakeHarness(options: FakeOptions = {}) {
       _isExcluded: (id: string) => boolean,
       _message: string,
     ) {},
+    openToolCallIds() {
+      return [];
+    },
     traceId() {
       return "trace-1";
     },
@@ -313,6 +317,24 @@ describe("PendingApprovalPauseController", () => {
 
     assert.equal(pause.isPausedToolCall("tool-1"), true);
     assert.equal(pause.isPausedToolCall("tool-2"), false);
+  });
+
+  it("passes through a failed frame for an allowed execution during a pause", () => {
+    const pause = new PendingApprovalPauseController(() => {});
+    pause.markAllowedExecution("tool-allowed");
+    pause.pause();
+
+    assert.equal(
+      shouldSuppressPausedToolCallUpdate(
+        {
+          sessionUpdate: "tool_call_update",
+          toolCallId: "tool-allowed",
+          status: "failed",
+        },
+        pause,
+      ),
+      false,
+    );
   });
 });
 
@@ -1348,6 +1370,9 @@ describe("runSandboxAgent orchestration", () => {
           return [];
         },
         settleOpenToolCalls() {},
+        openToolCallIds() {
+          return [];
+        },
         traceId() {
           return "trace-1";
         },
@@ -2095,6 +2120,105 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
         })),
       [{ id: "tool-2", output: TOOL_NOT_EXECUTED_PAUSED, isError: true }],
     );
+  });
+
+  it("classifies pause-time completed frames by effective permission", async () => {
+    const { deps } = fakeHarness({
+      promptEvents: [
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call",
+              toolCallId: "tool-ask",
+              title: "ask_sibling",
+            },
+          },
+        },
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call",
+              toolCallId: "tool-allow",
+              title: "allow_sibling",
+            },
+          },
+        },
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call",
+              toolCallId: "tool-gate",
+              title: "pause_gate",
+            },
+          },
+        },
+      ],
+      emitPermission: true,
+      permissionToolCallId: "tool-gate",
+      permissionToolName: "pause_gate",
+      postPermissionEvents: [
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call_update",
+              toolCallId: "tool-ask",
+              status: "completed",
+              content: "cancellation closure",
+            },
+          },
+        },
+        {
+          payload: {
+            update: {
+              sessionUpdate: "tool_call_update",
+              toolCallId: "tool-allow",
+              status: "completed",
+              content: "real allow result",
+            },
+          },
+        },
+      ],
+      hangPrompt: true,
+    });
+    delete deps.responderFactory;
+    deps.createOtel = createSandboxAgentOtel as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        permissions: { default: "ask" },
+        customTools: [
+          { name: "ask_sibling", permission: "ask" },
+          { name: "allow_sibling", permission: "allow" },
+          { name: "pause_gate", permission: "ask" },
+        ],
+        messages: [{ role: "user", content: "run the siblings" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.stopReason, "paused");
+    const toolResults = new Map(
+      result.events
+        ?.filter((event) => event.type === "tool_result")
+        .map((event) => [(event as any).id, event]),
+    );
+    assert.deepEqual(toolResults.get("tool-ask"), {
+      type: "tool_result",
+      id: "tool-ask",
+      output: TOOL_NOT_EXECUTED_PAUSED,
+      isError: true,
+    });
+    assert.deepEqual(toolResults.get("tool-allow"), {
+      type: "tool_result",
+      id: "tool-allow",
+      output: "real allow result",
+      isError: false,
+    });
   });
 
   it("park ENDS the turn even when the prompt hangs: terminal stopReason 'paused', no harness reply (F-040)", async () => {

@@ -7,6 +7,7 @@ import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import {
+  APPROVED_EXECUTION_RESULT_UNKNOWN,
   createSandboxAgentOtel,
   TOOL_NOT_EXECUTED_PAUSED,
 } from "../../src/tracing/otel.ts";
@@ -701,6 +702,14 @@ describe("client-tool output store (separate from approvals)", () => {
               output: TOOL_NOT_EXECUTED_PAUSED,
               isError: true,
             },
+            {
+              type: "tool_result",
+              toolCallId: "c-linear",
+              toolName: "request_connection",
+              input: { integration: "linear" },
+              output: APPROVED_EXECUTION_RESULT_UNKNOWN,
+              isError: true,
+            },
           ],
         },
       ],
@@ -719,7 +728,13 @@ describe("client-tool output store (separate from approvals)", () => {
       ),
       false,
     );
-    // So the model's retry of slack re-parks (a fresh widget) instead of resolving as fulfilled.
+    assert.equal(
+      outputs.has(
+        approvedCallKey("request_connection", { integration: "linear" })!,
+      ),
+      false,
+    );
+    // So the model retry of slack re-parks (a fresh widget) instead of resolving as fulfilled.
     const responder = new ApprovalResponder(
       plan("ask"),
       new ConversationDecisions(extractApprovalDecisions(request), outputs),

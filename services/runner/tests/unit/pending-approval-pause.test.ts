@@ -53,4 +53,18 @@ describe("PendingApprovalPauseController", () => {
     await assert.doesNotReject(pause.signal);
     await assert.doesNotReject(pause.waitForEventDrain());
   });
+
+  it("tracks allowed execution ids independently from paused gates", () => {
+    const pause = new PendingApprovalPauseController(() => {});
+
+    assert.equal(pause.isAllowedExecution(undefined), false);
+    assert.equal(pause.isAllowedExecution("tool-1"), false);
+
+    pause.markAllowedExecution("tool-1");
+    pause.markPausedToolCall("tool-2");
+
+    assert.equal(pause.isAllowedExecution("tool-1"), true);
+    assert.equal(pause.isPausedToolCall("tool-1"), false);
+    assert.equal(pause.isAllowedExecution("tool-2"), false);
+  });
 });
