@@ -25,6 +25,7 @@
  *    `project_id` only travels alongside auth — mirroring `executionItems.ts`.
  */
 import {
+    buildKitDisabledItemsAtom,
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitEnabledAtomFamily,
     workflowMolecule,
@@ -326,11 +327,13 @@ export async function buildAgentRequest(
     const agentTemplateOverlay = store.get(
         workflowAgentTemplateOverlayAtomFamily(entityId),
     ) as AgentTemplate | null
+    const buildKitDisabledItems = store.get(buildKitDisabledItemsAtom) as string[]
     const parameters = pruneBlankEntries(
         withBuildKitOverlay(
             withAgentRunDefaults(config ?? {}) as Record<string, unknown>,
             agentTemplateOverlay,
             buildKitEnabled,
+            buildKitDisabledItems,
         ),
     ) as Record<string, unknown>
 

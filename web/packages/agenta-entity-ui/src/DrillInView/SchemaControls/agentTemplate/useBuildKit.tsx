@@ -13,16 +13,24 @@
  *
  * Kept beside useModelHarness (which owns the Advanced section) so the overlay and the user's own
  * sandbox/permission controls render together.
+ *
+ * Each tool/skill also carries its own switch: every entry costs model context on every turn, so a
+ * user who never uses (say) the schedule ops can drop them. Disabled ids are filtered out of the
+ * overlay before it is merged into the run parameters (`withBuildKitOverlay`), so they never reach
+ * the wire. The preference is global and persisted — see `buildKitItems.ts`.
  */
-import {useMemo} from "react"
+import {useCallback, useMemo} from "react"
 
 import {
+    buildKitDisabledItemsAtom,
+    buildKitSkillId,
+    buildKitToolId,
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitEnabledAtomFamily,
 } from "@agenta/entities/workflow"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {Warning, Wrench} from "@phosphor-icons/react"
-import {Switch, Tag, Tooltip, Typography} from "antd"
+import {Button, Switch, Tag, Tooltip, Typography} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 import {RailField} from "../../../drawers/shared/RailField"
@@ -114,6 +122,7 @@ export function useBuildKit({
     sandboxPermissions,
     disabled,
     enabledOverride,
+    disabledItemsOverride,
 }: {
     revisionId: string | null
     sandboxPermissions: Record<string, unknown> | null
@@ -123,6 +132,8 @@ export function useBuildKit({
      * section drawer can scope the change to its draft and commit it to the atom only on Save.
      */
     enabledOverride?: {value: boolean; onChange: (value: boolean) => void}
+    /** Same draft-buffer contract as `enabledOverride`, for the per-item switches. */
+    disabledItemsOverride?: {value: string[]; onChange: (value: string[]) => void}
 }) {
     const agentTemplateOverlay = useAtomValue(
         useMemo(() => workflowAgentTemplateOverlayAtomFamily(revisionId ?? ""), [revisionId]),
@@ -132,6 +143,19 @@ export function useBuildKit({
     )
     const buildKitEnabled = enabledOverride ? enabledOverride.value : atomBuildKitEnabled
     const setBuildKitEnabled = enabledOverride ? enabledOverride.onChange : setAtomBuildKitEnabled
+    const [atomDisabledItems, setAtomDisabledItems] = useAtom(buildKitDisabledItemsAtom)
+    const disabledItems = disabledItemsOverride ? disabledItemsOverride.value : atomDisabledItems
+    const setDisabledItems = disabledItemsOverride
+        ? disabledItemsOverride.onChange
+        : setAtomDisabledItems
+    const disabledSet = useMemo(() => new Set(disabledItems), [disabledItems])
+    const setItemEnabled = useCallback(
+        (id: string, enabled: boolean) => {
+            const next = disabledItems.filter((entry) => entry !== id)
+            setDisabledItems(enabled ? next : [...next, id])
+        },
+        [disabledItems, setDisabledItems],
+    )
 
     const overlayTools = useMemo(
         () => (Array.isArray(agentTemplateOverlay?.tools) ? agentTemplateOverlay.tools : []),
@@ -171,6 +195,50 @@ export function useBuildKit({
         [buildKitEnabled, sandboxPermissions, overlayPermissions],
     )
 
+    // Switches are inert while the whole kit is off — nothing is sent either way — but the per-item
+    // choices are kept, so flipping the kit back on restores exactly what was on before.
+    const togglesDisabled = Boolean(disabled) || !buildKitEnabled
+    /** Rail label with the enabled count and (only when something is off) an Enable all action. */
+    const railLabel = useCallback(
+        (label: string, ids: (string | undefined)[]) => {
+            const scoped = ids.filter((id): id is string => Boolean(id))
+            const offCount = scoped.filter((id) => disabledSet.has(id)).length
+            return (
+                <div className="flex flex-col items-start gap-0.5">
+                    <span>{label}</span>
+                    <Typography.Text type="secondary" className="text-[11px] leading-snug">
+                        {scoped.length - offCount} of {scoped.length} enabled
+                    </Typography.Text>
+                    {offCount > 0 ? (
+                        <Button
+                            type="link"
+                            size="small"
+                            disabled={togglesDisabled}
+                            onClick={() =>
+                                setDisabledItems(disabledItems.filter((id) => !scoped.includes(id)))
+                            }
+                            className="h-auto p-0 text-[11px]"
+                        >
+                            Enable all
+                        </Button>
+                    ) : null}
+                </div>
+            )
+        },
+        [disabledSet, disabledItems, setDisabledItems, togglesDisabled],
+    )
+    const itemToggle = useCallback(
+        (id: string | undefined) =>
+            id
+                ? {
+                      checked: !disabledSet.has(id),
+                      onChange: (checked: boolean) => setItemEnabled(id, checked),
+                      disabled: togglesDisabled,
+                  }
+                : undefined,
+        [disabledSet, setItemEnabled, togglesDisabled],
+    )
+
     const buildKitSection = hasBuildKitOverlay ? (
         <ConfigAccordionSection
             size="compact"
@@ -201,36 +269,51 @@ export function useBuildKit({
                 </div>
             ) : null}
             {platformOverlayTools.length > 0 ? (
-                <RailField label="Platform tools">
-                    {platformOverlayTools.map((tool, index) => (
-                        <ItemRow
-                            key={`build-kit-platform-tool-${index}`}
-                            descriptor={describeBuildKitPlatformTool(tool)}
-                            locked
-                        />
-                    ))}
+                <RailField
+                    label={railLabel("Platform tools", platformOverlayTools.map(buildKitToolId))}
+                >
+                    <div className="flex flex-col gap-1.5">
+                        {platformOverlayTools.map((tool, index) => (
+                            <ItemRow
+                                key={`build-kit-platform-tool-${index}`}
+                                descriptor={describeBuildKitPlatformTool(tool)}
+                                locked
+                                toggle={itemToggle(buildKitToolId(tool))}
+                            />
+                        ))}
+                    </div>
                 </RailField>
             ) : null}
             {embeddedOverlayTools.length > 0 ? (
-                <RailField label="Embedded tools">
-                    {embeddedOverlayTools.map((tool, index) => (
-                        <ItemRow
-                            key={`build-kit-embedded-tool-${index}`}
-                            descriptor={describeBuildKitEmbed(tool, "tool")}
-                            locked
-                        />
-                    ))}
+                <RailField
+                    label={railLabel("Embedded tools", embeddedOverlayTools.map(buildKitToolId))}
+                >
+                    <div className="flex flex-col gap-1.5">
+                        {embeddedOverlayTools.map((tool, index) => (
+                            <ItemRow
+                                key={`build-kit-embedded-tool-${index}`}
+                                descriptor={describeBuildKitEmbed(tool, "tool")}
+                                locked
+                                toggle={itemToggle(buildKitToolId(tool))}
+                            />
+                        ))}
+                    </div>
                 </RailField>
             ) : null}
             {embeddedOverlaySkills.length > 0 ? (
-                <RailField label="Embedded skills">
-                    {embeddedOverlaySkills.map((skill, index) => (
-                        <ItemRow
-                            key={`build-kit-embedded-skill-${index}`}
-                            descriptor={describeBuildKitEmbed(skill, "skill")}
-                            locked
-                        />
-                    ))}
+                <RailField
+                    label={railLabel("Embedded skills", embeddedOverlaySkills.map(buildKitSkillId))}
+                >
+                    <div className="flex flex-col gap-1.5">
+                        {embeddedOverlaySkills.map((skill, index) => (
+                            <ItemRow
+                                key={`build-kit-embedded-skill-${index}`}
+                                descriptor={describeBuildKitEmbed(skill, "skill")}
+                                locked
+                                toggle={itemToggle(buildKitSkillId(skill))}
+                            />
+                        ))}
+                    </div>
                 </RailField>
             ) : null}
             {overlayPermissions && Object.keys(overlayPermissions).length > 0 ? (

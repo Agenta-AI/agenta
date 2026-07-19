@@ -27,6 +27,7 @@ import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/enti
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {
     agentCreationPrefsAtom,
+    buildKitDisabledItemsAtom,
     workflowBuildKitEnabledAtomFamily,
     workflowMolecule,
 } from "@agenta/entities/workflow"
@@ -184,9 +185,12 @@ export function AgentTemplateControl({
     const [openSection, setOpenSection] = useState<null | "model-harness" | "advanced">(null)
     const [draftConfig, setDraftConfig] = useState<Record<string, unknown> | null>(null)
     const [draftBuildKit, setDraftBuildKit] = useState<boolean | null>(null)
-    const sectionBaseline = useRef<{config: Record<string, unknown>; buildKit: boolean} | null>(
-        null,
-    )
+    const [draftBuildKitItems, setDraftBuildKitItems] = useState<string[] | null>(null)
+    const sectionBaseline = useRef<{
+        config: Record<string, unknown>
+        buildKit: boolean
+        buildKitItems: string[]
+    } | null>(null)
     const store = useStore()
     const revisionIdRef = useRef<string | null>(null)
     const applyDraftConfig = useCallback(
@@ -200,8 +204,9 @@ export function AgentTemplateControl({
             openSection !== null &&
             sectionBaseline.current !== null &&
             (!deepEqual(draftConfig, sectionBaseline.current.config) ||
-                draftBuildKit !== sectionBaseline.current.buildKit),
-        [openSection, draftConfig, draftBuildKit],
+                draftBuildKit !== sectionBaseline.current.buildKit ||
+                !deepEqual(draftBuildKitItems, sectionBaseline.current.buildKitItems)),
+        [openSection, draftConfig, draftBuildKit, draftBuildKitItems],
     )
     const openSectionDrawer = useCallback(
         (key: "model-harness" | "advanced") => {
@@ -213,9 +218,15 @@ export function AgentTemplateControl({
             const snapshotBuildKit = store.get(
                 workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""),
             )
+            const snapshotBuildKitItems = store.get(buildKitDisabledItemsAtom)
             setDraftConfig(snapshotConfig)
             setDraftBuildKit(snapshotBuildKit)
-            sectionBaseline.current = {config: snapshotConfig, buildKit: snapshotBuildKit}
+            setDraftBuildKitItems(snapshotBuildKitItems)
+            sectionBaseline.current = {
+                config: snapshotConfig,
+                buildKit: snapshotBuildKit,
+                buildKitItems: snapshotBuildKitItems,
+            }
             setOpenSection(key)
         },
         [value, store, openSection, isCurrentSectionDirty],
@@ -224,6 +235,7 @@ export function AgentTemplateControl({
         setOpenSection(null)
         setDraftConfig(null)
         setDraftBuildKit(null)
+        setDraftBuildKitItems(null)
         sectionBaseline.current = null
     }, [])
 
@@ -263,8 +275,19 @@ export function AgentTemplateControl({
         if (draftBuildKit !== null) {
             store.set(workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""), draftBuildKit)
         }
+        if (draftBuildKitItems !== null) {
+            store.set(buildKitDisabledItemsAtom, draftBuildKitItems)
+        }
         closeSectionDraft()
-    }, [draftConfig, draftBuildKit, openSection, onChange, store, closeSectionDraft])
+    }, [
+        draftConfig,
+        draftBuildKit,
+        draftBuildKitItems,
+        openSection,
+        onChange,
+        store,
+        closeSectionDraft,
+    ])
     // Enable Save only when the draft actually differs from what we opened with (config or build-kit).
     const sectionDirty = isCurrentSectionDirty()
 
@@ -352,6 +375,13 @@ export function AgentTemplateControl({
         () =>
             draftBuildKit !== null ? {value: draftBuildKit, onChange: setDraftBuildKit} : undefined,
         [draftBuildKit],
+    )
+    const draftBuildKitItemsOverride = useMemo(
+        () =>
+            draftBuildKitItems !== null
+                ? {value: draftBuildKitItems, onChange: setDraftBuildKitItems}
+                : undefined,
+        [draftBuildKitItems],
     )
     // "Current" marks the SAVED harness (from the live entity), not the draft pick.
     const savedHarnessValue =
@@ -1072,6 +1102,7 @@ export function AgentTemplateControl({
                     withTooltip={withTooltip}
                     revisionId={revisionId}
                     buildKitEnabledOverride={draftBuildKitOverride}
+                    buildKitDisabledItemsOverride={draftBuildKitItemsOverride}
                     savedHarnessValue={savedHarnessValue}
                 />
             </SectionDrawer>
@@ -1095,6 +1126,7 @@ export function AgentTemplateControl({
                     withTooltip={withTooltip}
                     revisionId={revisionId}
                     buildKitEnabledOverride={draftBuildKitOverride}
+                    buildKitDisabledItemsOverride={draftBuildKitItemsOverride}
                     savedHarnessValue={savedHarnessValue}
                 />
             </SectionDrawer>

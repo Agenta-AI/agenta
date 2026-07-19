@@ -7,7 +7,7 @@ import {type ReactNode} from "react"
 
 import {cn} from "@agenta/ui/styles"
 import {CaretRight, Trash} from "@phosphor-icons/react"
-import {Tag, Tooltip, Typography} from "antd"
+import {Switch, Tag, Tooltip, Typography} from "antd"
 
 import {describeInstruction, type ItemDescriptor} from "./itemDescriptors"
 
@@ -71,6 +71,9 @@ export function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
  * `locked` renders a read-only variant (muted fill, a "Locked" tag, no chevron/remove and no
  * interaction) — used for platform-owned items that can be shown but not edited, e.g. the
  * playground build kit. Passing no `onEdit` also makes the row non-interactive.
+ *
+ * `toggle` adds an enable/disable switch and replaces the "Locked" tag (the row is still not
+ * editable — only whether it is sent is up to the user). A switched-off row renders faded.
  */
 export function ItemRow({
     descriptor,
@@ -78,6 +81,7 @@ export function ItemRow({
     onRemove,
     disabled,
     locked,
+    toggle,
     status,
 }: {
     descriptor: ItemDescriptor
@@ -85,6 +89,7 @@ export function ItemRow({
     onRemove?: () => void
     disabled?: boolean
     locked?: boolean
+    toggle?: {checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean}
     status?: ItemRowStatus
 }) {
     const interactive = Boolean(onEdit) && !locked
@@ -113,32 +118,60 @@ export function ItemRow({
                 locked && "bg-[var(--ant-color-fill-quaternary)] opacity-70",
             )}
         >
-            <ItemAvatar descriptor={descriptor} />
-            <div className="min-w-0 flex-1">
-                <div
-                    className={`truncate text-xs font-medium ${
-                        descriptor.monoName === false ? "" : "font-mono"
-                    }`}
-                >
-                    {descriptor.name}
-                </div>
-                {descriptor.description ? (
-                    <Typography.Text
-                        type="secondary"
-                        className="block truncate text-xs leading-tight"
+            {/* A switched-off item fades; its switch and state label stay legible. */}
+            <div
+                className={cn(
+                    "flex min-w-0 flex-1 items-center gap-2.5 transition-opacity",
+                    toggle && !toggle.checked && "opacity-45",
+                )}
+            >
+                <ItemAvatar descriptor={descriptor} />
+                <div className="min-w-0 flex-1">
+                    <div
+                        className={`truncate text-xs font-medium ${
+                            descriptor.monoName === false ? "" : "font-mono"
+                        }`}
                     >
-                        {descriptor.description}
-                    </Typography.Text>
-                ) : null}
+                        {descriptor.name}
+                    </div>
+                    {descriptor.description ? (
+                        <Typography.Text
+                            type="secondary"
+                            className="block truncate text-xs leading-tight"
+                        >
+                            {descriptor.description}
+                        </Typography.Text>
+                    ) : null}
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                    {status ? <StatusTag status={status} /> : null}
+                    {descriptor.tags.map((tag) => (
+                        <Tag key={tag} className="m-0 text-[11px]">
+                            {tag}
+                        </Tag>
+                    ))}
+                </div>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
-                {status ? <StatusTag status={status} /> : null}
-                {descriptor.tags.map((tag) => (
-                    <Tag key={tag} className="m-0 text-[11px]">
-                        {tag}
-                    </Tag>
-                ))}
-                {locked ? <Tag className="m-0 text-[11px]">Locked</Tag> : null}
+                {locked && !toggle ? <Tag className="m-0 text-[11px]">Locked</Tag> : null}
+                {toggle ? (
+                    <>
+                        <Typography.Text
+                            type="secondary"
+                            className="text-[11px] tabular-nums"
+                            aria-hidden
+                        >
+                            {toggle.checked ? "Enabled" : "Disabled"}
+                        </Typography.Text>
+                        <Switch
+                            size="small"
+                            checked={toggle.checked}
+                            onChange={toggle.onChange}
+                            disabled={toggle.disabled}
+                            aria-label={`${toggle.checked ? "Disable" : "Enable"} ${descriptor.name}`}
+                        />
+                    </>
+                ) : null}
                 {onRemove && !disabled && !locked ? (
                     <button
                         type="button"

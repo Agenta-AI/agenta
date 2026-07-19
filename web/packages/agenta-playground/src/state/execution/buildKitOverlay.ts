@@ -11,26 +11,19 @@
  *  - list sections (`tools`/`skills`/`mcps`) identity-merge: an overlay entry replaces a base entry
  *    with the same identity (platform op, embed slug, or name), otherwise it is appended.
  */
-import {type AgentTemplate} from "@agenta/entities/workflow"
+import {
+    type AgentTemplate,
+    buildKitMcpId,
+    buildKitSkillId,
+    buildKitToolId,
+    filterDisabledBuildKitItems,
+} from "@agenta/entities/workflow"
 
 type AgentTemplateListKey = "tools" | "skills" | "mcps"
 type AgentTemplateObjectKey = "sandbox" | "runner" | "harness" | "llm" | "instructions"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     Boolean(value && typeof value === "object" && !Array.isArray(value))
-
-const embedWorkflowSlug = (entry: unknown): string | undefined => {
-    if (!isRecord(entry)) return undefined
-    const embed = entry["@ag.embed"]
-    if (!isRecord(embed)) return undefined
-    const refs = embed["@ag.references"]
-    if (!isRecord(refs)) return undefined
-    const workflow = refs.workflow
-    if (isRecord(workflow) && typeof workflow.slug === "string") return workflow.slug
-    const revision = refs.workflow_revision
-    if (isRecord(revision) && typeof revision.slug === "string") return revision.slug
-    return undefined
-}
 
 const deepMerge = (
     base: Record<string, unknown>,
@@ -42,24 +35,6 @@ const deepMerge = (
         result[key] = isRecord(existing) && isRecord(value) ? deepMerge(existing, value) : value
     }
     return result
-}
-
-const getToolIdentity = (entry: unknown): string | undefined => {
-    if (!isRecord(entry)) return undefined
-    if (entry.type === "platform" && typeof entry.op === "string") return `platform:${entry.op}`
-    const slug = embedWorkflowSlug(entry)
-    if (slug) return `workflow:${slug}`
-    return typeof entry.name === "string" ? `name:${entry.name}` : undefined
-}
-
-const getSkillIdentity = (entry: unknown): string | undefined => {
-    const slug = embedWorkflowSlug(entry)
-    return slug ? `workflow:${slug}` : undefined
-}
-
-const getMcpIdentity = (entry: unknown): string | undefined => {
-    if (!isRecord(entry)) return undefined
-    return typeof entry.name === "string" ? entry.name : undefined
 }
 
 const identityMerge = (
@@ -109,9 +84,9 @@ export function applyBuildKitOverlay(
     }
 
     const listMergers: Record<AgentTemplateListKey, (entry: unknown) => string | undefined> = {
-        tools: getToolIdentity,
-        skills: getSkillIdentity,
-        mcps: getMcpIdentity,
+        tools: buildKitToolId,
+        skills: buildKitSkillId,
+        mcps: buildKitMcpId,
     }
 
     for (const key of Object.keys(listMergers) as AgentTemplateListKey[]) {
@@ -132,18 +107,23 @@ export function applyBuildKitOverlay(
  * Apply the overlay to the run parameters. Handles both shapes `buildAgentRequest` produces: a
  * `{agent: <template>}` wrapper and a bare template (no `agent` key). Skipping the bare shape would
  * silently drop the build kit for the bare published default.
+ *
+ * `disabledItems` are the build-kit entries the user switched off: they are dropped BEFORE the merge,
+ * so their tool schemas never reach the model (the whole point — they are pure context cost).
  */
 export const withBuildKitOverlay = (
     parameters: Record<string, unknown>,
     overlay: AgentTemplate | null,
     enabled: boolean,
+    disabledItems: readonly string[] = [],
 ): Record<string, unknown> => {
     if (!enabled || !overlay) return parameters
+    const effective = filterDisabledBuildKitItems(overlay, disabledItems)
     if (isRecord(parameters.agent)) {
         return {
             ...parameters,
-            agent: applyBuildKitOverlay(parameters.agent as AgentTemplate, overlay),
+            agent: applyBuildKitOverlay(parameters.agent as AgentTemplate, effective),
         }
     }
-    return applyBuildKitOverlay(parameters as AgentTemplate, overlay) as Record<string, unknown>
+    return applyBuildKitOverlay(parameters as AgentTemplate, effective) as Record<string, unknown>
 }

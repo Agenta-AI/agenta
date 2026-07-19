@@ -73,6 +73,7 @@ export function useModelHarness({
     withTooltip,
     revisionId,
     buildKitEnabledOverride,
+    buildKitDisabledItemsOverride,
     savedHarnessValue,
 }: {
     schema?: SchemaProperty | null
@@ -83,6 +84,8 @@ export function useModelHarness({
     revisionId?: string | null
     /** Draft buffer for the build-kit toggle (used by the section drawer's scoped-edit mode). */
     buildKitEnabledOverride?: {value: boolean; onChange: (value: boolean) => void}
+    /** Draft buffer for the build-kit per-item switches (same scoped-edit mode). */
+    buildKitDisabledItemsOverride?: {value: string[]; onChange: (value: string[]) => void}
     /**
      * The SAVED (committed) harness value, for the "Current" badge — so it marks the persisted harness
      * even while `config` holds an unsaved draft pick (the draft pick is shown by the radio, not the
@@ -397,6 +400,7 @@ export function useModelHarness({
         sandboxPermissions: (sandbox.permissions as Record<string, unknown> | null) ?? null,
         disabled,
         enabledOverride: buildKitEnabledOverride,
+        disabledItemsOverride: buildKitDisabledItemsOverride,
     })
 
     const hasAdvanced = Boolean(

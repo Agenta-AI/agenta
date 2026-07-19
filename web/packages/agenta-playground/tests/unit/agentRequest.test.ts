@@ -43,6 +43,7 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
 })
 
 import {
+    buildKitDisabledItemsAtom,
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitEnabledAtomFamily,
     workflowMolecule,
@@ -74,6 +75,7 @@ function seed(
         isDirty?: boolean
         overlay?: Record<string, unknown> | null
         buildKitEnabled?: boolean
+        buildKitDisabledItems?: string[]
     },
 ) {
     set(
@@ -93,6 +95,7 @@ function seed(
         workflowBuildKitEnabledAtomFamily(id) as PrimitiveAtom<unknown>,
         over.buildKitEnabled ?? true,
     )
+    store.set(buildKitDisabledItemsAtom, over.buildKitDisabledItems ?? [])
 }
 
 const authoringSkill = {
@@ -300,6 +303,63 @@ describe("buildAgentRequest", () => {
             {type: "platform", op: "commit_revision"},
         ])
         expect(params.skills).toEqual([authoringSkill])
+    })
+
+    it("drops the build-kit items the user switched off, keeping the rest", async () => {
+        // The whole point of the per-item switches: a disabled entry must never reach the wire —
+        // its tool schema is pure context cost on every turn.
+        seed(store, "e", {
+            config: {agent: {tools: [{type: "client", name: "weather"}]}},
+            overlay: {
+                tools: [
+                    {type: "builtin", name: "read"},
+                    {type: "platform", op: "commit_revision"},
+                    {type: "platform", op: "query_spans"},
+                    requestConnectionTool,
+                ],
+                skills: [authoringSkill],
+            },
+            buildKitEnabled: true,
+            buildKitDisabledItems: [
+                "platform:commit_revision",
+                "workflow:__ag__request_connection",
+                "workflow:__ag__getting_started_with_agenta",
+            ],
+        })
+
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const template = (req!.requestBody.data as any).parameters.agent
+
+        expect(template.tools).toEqual([
+            {type: "client", name: "weather"},
+            {type: "builtin", name: "read"},
+            {type: "platform", op: "query_spans"},
+        ])
+        expect(template.skills).toEqual([])
+    })
+
+    it("never drops the forced builtin grants, even if an id somehow matches", async () => {
+        // `read`/`bash` are load-bearing: any custom tool on the wire flips the harness's builtin
+        // gating to granted-only, so losing `read` leaves skills announced but unloadable.
+        seed(store, "e", {
+            config: {agent: {}},
+            overlay: {
+                tools: [
+                    {type: "builtin", name: "read"},
+                    {type: "builtin", name: "bash"},
+                ],
+            },
+            buildKitEnabled: true,
+            buildKitDisabledItems: ["name:read", "name:bash"],
+        })
+
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const template = (req!.requestBody.data as any).parameters.agent
+
+        expect(template.tools).toEqual([
+            {type: "builtin", name: "read"},
+            {type: "builtin", name: "bash"},
+        ])
     })
 
     it("sends the bare agent config unchanged when the build kit is off", async () => {

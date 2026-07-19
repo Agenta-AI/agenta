@@ -66,6 +66,13 @@ export {
     workflowBuildKitEnabledAtomFamily,
     workflowBuildKitOverlayReadyAtomFamily,
     type AgentTemplate,
+    // Per-item build-kit switches: shared identity so the UI and the overlay merge agree on ids.
+    buildKitDisabledItemsAtom,
+    buildKitEmbedSlug,
+    buildKitToolId,
+    buildKitSkillId,
+    buildKitMcpId,
+    filterDisabledBuildKitItems,
 } from "./state"
 
 // ============================================================================
