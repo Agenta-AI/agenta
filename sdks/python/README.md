@@ -41,10 +41,10 @@
 
 <p align="center">
     <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw">
-        <img src="https://img.shields.io/badge/JOIN US ON SLACK-4A154B?style=for-the-badge&logo=slack&logoColor=white" />
+        <img src="https://custom-icon-badges.demolab.com/badge/Slack-4A154B?logo=slack&logoColor=fff" />
     </a>
     <a href="https://www.linkedin.com/company/agenta-ai/">
-        <img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white" />
+        <img src="https://custom-icon-badges.demolab.com/badge/LinkedIn-0A66C2?logo=linkedin-white&logoColor=fff" />
     </a>
     <a  href="https://twitter.com/agenta_ai">
         <img src="https://img.shields.io/twitter/follow/agenta_ai?style=social" height="28" />
