@@ -18,6 +18,15 @@ import type {UIMessage} from "ai"
 
 type Part = Record<string, unknown>
 
+// Mirrors services/runner/src/tracing/otel.ts; park sentinels report skipped or unobserved work, not final results.
+export const DEFERRED_NOT_EXECUTED_PREFIX = "DEFERRED_NOT_EXECUTED"
+export const APPROVED_EXECUTION_RESULT_UNKNOWN =
+    "APPROVED_EXECUTION_RESULT_UNKNOWN: the approved call started but its result was not observed before the pause ended the turn; do not assume it failed and do not retry a side-effecting call."
+export const APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX = APPROVED_EXECUTION_RESULT_UNKNOWN.slice(
+    0,
+    APPROVED_EXECUTION_RESULT_UNKNOWN.indexOf(":"),
+)
+
 interface DraftMessage {
     id: string
     role: "user" | "assistant"
@@ -80,6 +89,14 @@ const newDraft = (id: string, role: "user" | "assistant"): DraftMessage => ({
 })
 
 const toolPartType = (name?: string | null): string => (name ? `tool-${name}` : "dynamic-tool")
+
+const isRunnerSentinelError = (part: Part): boolean => {
+    const errorText = typeof part.errorText === "string" ? part.errorText : ""
+    return (
+        errorText.startsWith(DEFERRED_NOT_EXECUTED_PREFIX) ||
+        errorText === APPROVED_EXECUTION_RESULT_UNKNOWN
+    )
+}
 
 /** Apply one transcript event's payload onto the current assistant/user draft message. */
 function applyEvent(
@@ -174,8 +191,12 @@ function applyEvent(
                 index.tools.set(toolCallId, part)
             }
             index.approvals.set(str(payload.id), part)
-            // Only park if still unsettled — a later `tool_result` overwrites this.
-            if (part.state === "input-available") {
+            const canRequestApproval =
+                part.state === "input-available" ||
+                (part.state === "output-error" && isRunnerSentinelError(part))
+            if (canRequestApproval) {
+                delete part.errorText
+                delete part.output
                 part.state = "approval-requested"
                 part.approval = {id: str(payload.id)}
             }

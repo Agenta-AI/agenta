@@ -43,6 +43,30 @@ const assistantWithClientTool = (state: string, output?: unknown) => ({
     ],
 })
 
+const warmResumedSecondApproval = () => ({
+    id: "a1",
+    role: "assistant",
+    parts: [
+        {type: "step-start"},
+        {
+            type: "tool-bash",
+            toolCallId: "call_1",
+            state: "output-error",
+            input: {command: "command a"},
+            errorText: "APPROVED_EXECUTION_RESULT_UNKNOWN: result was not observed",
+            approval: {id: "perm_1", approved: true},
+        },
+        {
+            type: "tool-bash",
+            toolCallId: "call_2",
+            state: "approval-responded",
+            input: {command: "command b"},
+            approval: {id: "perm_2", approved: true},
+        },
+        {type: "step-start"},
+    ],
+})
+
 describe("agentShouldResumeAfterApproval", () => {
     it("RESUMES on a deny-only decision (the F-036 dead-end fix)", () => {
         const messages = [user("do it"), assistantWithTool("approval-responded", false)]
@@ -431,6 +455,23 @@ describe("agentShouldResumeAfterApproval", () => {
                 ],
             },
         ]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(false)
+    })
+
+    it("dispatches a live second-card answer before a warm-resume step tail", () => {
+        const messages = [user("run two commands"), warmResumedSecondApproval()]
+
+        expect(
+            agentShouldResumeAfterApproval({
+                messages,
+                liveInteraction: {kind: "approval", id: "perm_2"},
+            }),
+        ).toBe(true)
+    })
+
+    it("keeps the same warm-resume step tail inert without a live marker", () => {
+        const messages = [user("run two commands"), warmResumedSecondApproval()]
+
         expect(agentShouldResumeAfterApproval({messages})).toBe(false)
     })
 

@@ -172,16 +172,13 @@ export function agentShouldResumeAfterApproval({
     }
     if (lastResolvedIdx === -1) return false
 
-    // ALREADY RESUMED guard (the post-resolve loop). The cold-replay runner re-issues the approved
-    // tool under a FRESH id, so its execution output attaches to a NEW part and the original
-    // `approval-responded` part LINGERS in this same assistant message forever. Once the model has
-    // continued past the approval, a new step begins — a `step-start` part appears AFTER it. Without
-    // this guard the predicate keeps seeing the lingering `approval-responded` and auto-resends after
-    // every completion, re-running the whole turn endlessly (the loop the HITL fix exposed).
-    const resumedAlready = parts
-        .slice(lastResolvedIdx + 1)
-        .some((part) => part.type === "step-start")
-    if (resumedAlready) return false
+    if (!liveInteraction) {
+        // Restored tails need this guard; exact live markers are single-use and may target a part before `step-start`.
+        const resumedAlready = parts
+            .slice(lastResolvedIdx + 1)
+            .some((part) => part.type === "step-start")
+        if (resumedAlready) return false
+    }
 
     // The AI SDK re-evaluates after message updates and waits for an in-flight stream to finish,
     // so an approval clicked during a resume dispatches when that stream finishes.

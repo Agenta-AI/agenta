@@ -1,7 +1,7 @@
 import type {SessionRecord} from "@agenta/entities/session"
 import {describe, expect, it} from "vitest"
 
-import {transcriptToMessages} from "./transcriptToMessages"
+import {APPROVED_EXECUTION_RESULT_UNKNOWN, transcriptToMessages} from "./transcriptToMessages"
 
 const record = (id: string, payload: Record<string, unknown>, sender = "agent"): SessionRecord => ({
     id,
@@ -99,7 +99,7 @@ describe("transcriptToMessages approval hydration", () => {
         expect(part.approval).toEqual({id: "approval-1", approved: false})
     })
 
-    it("rebuilds the persisted incident order with call a executed and call b pending", () => {
+    it("reopens deferred call b when its turn-2 approval request arrives", () => {
         const messages = transcriptToMessages([
             record("record-user", {type: "message", text: "run both writes"}, "user"),
             record("record-call-a", {
@@ -107,6 +107,12 @@ describe("transcriptToMessages approval hydration", () => {
                 id: "tool-a",
                 name: "bash",
                 input: {command: "write a"},
+            }),
+            record("record-call-b", {
+                type: "tool_call",
+                id: "tool-b",
+                name: "bash",
+                input: {command: "write b"},
             }),
             record("record-request-a", {
                 type: "interaction_request",
@@ -121,17 +127,12 @@ describe("transcriptToMessages approval hydration", () => {
                 isError: true,
             }),
             record("record-done-turn-1", {type: "done"}),
+            record("record-user-turn-2", {type: "message", text: "run both writes"}, "user"),
             record("record-response-a", {
                 type: "interaction_response",
                 id: "approval-a",
                 kind: "user_approval",
                 payload: {toolCallId: "tool-a", approved: true},
-            }),
-            record("record-result-a", {
-                type: "tool_result",
-                id: "tool-a",
-                output: "tool-a real output",
-                isError: false,
             }),
             record("record-request-b", {
                 type: "interaction_request",
@@ -145,6 +146,12 @@ describe("transcriptToMessages approval hydration", () => {
                         rawInput: {command: "write b"},
                     },
                 },
+            }),
+            record("record-result-a", {
+                type: "tool_result",
+                id: "tool-a",
+                output: APPROVED_EXECUTION_RESULT_UNKNOWN,
+                isError: true,
             }),
             record("record-done-turn-2", {type: "done"}),
         ])
@@ -161,15 +168,51 @@ describe("transcriptToMessages approval hydration", () => {
         const callB = assistantParts.find((part) => part.toolCallId === "tool-b")
 
         expect(callA).toMatchObject({
-            state: "output-available",
-            output: "tool-a real output",
+            state: "output-error",
+            errorText: APPROVED_EXECUTION_RESULT_UNKNOWN,
+            approval: {id: "approval-a", approved: true},
         })
-        expect(callB).toMatchObject({
+        expect(callB).toEqual({
+            type: "tool-bash",
+            toolCallId: "tool-b",
             state: "approval-requested",
+            input: {command: "write b"},
             approval: {id: "approval-b"},
         })
         expect(assistantParts.filter((part) => part.state === "approval-requested")).toEqual([
             callB,
         ])
+    })
+
+    it("keeps a real tool error closed when a late approval request arrives", () => {
+        const part = firstPart([
+            record("record-call-b", {
+                type: "tool_call",
+                id: "tool-b",
+                name: "bash",
+                input: {command: "write b"},
+            }),
+            record("record-result-b", {
+                type: "tool_result",
+                id: "tool-b",
+                output: "permission denied",
+                isError: true,
+            }),
+            record("record-done-turn-1", {type: "done"}),
+            record("record-request-b", {
+                type: "interaction_request",
+                id: "approval-b",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-b"},
+            }),
+        ])
+
+        expect(part).toEqual({
+            type: "tool-bash",
+            toolCallId: "tool-b",
+            state: "output-error",
+            input: {command: "write b"},
+            errorText: "permission denied",
+        })
     })
 })
