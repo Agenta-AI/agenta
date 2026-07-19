@@ -825,6 +825,9 @@ importers:
       '@phosphor-icons/react':
         specifier: '>=2.0.0'
         version: 2.1.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@tanstack/query-persist-client-core':
+        specifier: 5.100.9
+        version: 5.100.9
       '@tanstack/react-query':
         specifier: '>=5.0.0'
         version: 5.100.9(react@19.2.6)

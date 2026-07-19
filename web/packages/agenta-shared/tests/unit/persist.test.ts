@@ -7,7 +7,11 @@ import type {QueryKey, QueryPersister} from "@tanstack/react-query"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
 import {clearPersistedQueryCache, idbQueryStorage} from "../../src/api/persist/idbStorage"
-import {catalogPersister, immutablePersister} from "../../src/api/persist/persisters"
+import {
+    catalogPersister,
+    immutablePersister,
+    recordsPersister,
+} from "../../src/api/persist/persisters"
 import {PERSIST_SCHEMA_VERSION} from "../../src/api/persist/version"
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -31,6 +35,7 @@ const neverFetch = <T,>() =>
 
 const immStorageKey = (key: QueryKey) => `agenta-imm-${hashKey(key)}`
 const catStorageKey = (key: QueryKey) => `agenta-cat-${hashKey(key)}`
+const recStorageKey = (key: QueryKey) => `agenta-rec-${hashKey(key)}`
 
 // persistQuery / afterRestore run on notifyManager.schedule (setTimeout 0)
 const flushMacrotasks = async (rounds = 3) => {
@@ -268,6 +273,75 @@ describe("catalogPersister (Class B)", () => {
         // stale entry was dropped, fresh fetch re-persisted
         const stored = await waitForStored(catStorageKey(key))
         expect(stored.state.data).toEqual(freshBody)
+    })
+})
+
+describe("recordsPersister (session records)", () => {
+    it("fetchQuery restore background-refetches even WITHOUT an observer (refetchOnRestore always)", async () => {
+        const key: QueryKey = ["session", "records", "proj-1", "sess-1"]
+        const staleLog = [{id: "r1"}]
+        const freshLog = [{id: "r1"}, {id: "r2"}]
+        await idbQueryStorage.setItem(
+            recStorageKey(key),
+            makePersisted(key, staleLog, Date.now() - 60_000),
+        )
+
+        const client = newClient()
+        const spy = vi.fn(async () => freshLog)
+        const restored = await client.fetchQuery({
+            queryKey: key,
+            queryFn: spy,
+            persister: asPersister<typeof staleLog>(recordsPersister.persisterFn),
+            staleTime: 15_000,
+        })
+        // paints from disk first...
+        expect(restored).toEqual(staleLog)
+        // ...then the afterRestore task fires query.fetch() despite zero observers
+        await vi.waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
+        await vi.waitFor(() => expect(client.getQueryData(key)).toEqual(freshLog))
+    })
+
+    it("revalidates even a restore fresher than staleTime — disk is never authoritative", async () => {
+        const key: QueryKey = ["session", "records", "proj-1", "sess-2"]
+        const diskLog = [{id: "r1"}]
+        await idbQueryStorage.setItem(
+            recStorageKey(key),
+            makePersisted(key, diskLog, Date.now() - 5_000),
+        )
+
+        const client = newClient()
+        const spy = vi.fn(async () => [{id: "r1"}, {id: "r2"}])
+        const restored = await client.fetchQuery({
+            queryKey: key,
+            queryFn: spy,
+            persister: asPersister<typeof diskLog>(recordsPersister.persisterFn),
+            staleTime: 15_000,
+        })
+        expect(restored).toEqual(diskLog)
+        await vi.waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
+    })
+
+    it("discards entries older than 7d and takes the network path", async () => {
+        const key: QueryKey = ["session", "records", "proj-1", "sess-3"]
+        const freshLog = [{id: "r-new"}]
+        await idbQueryStorage.setItem(
+            recStorageKey(key),
+            makePersisted(key, [{id: "r-old"}], Date.now() - 8 * DAY_MS),
+        )
+
+        const client = newClient()
+        const spy = vi.fn(async () => freshLog)
+        const result = await client.fetchQuery({
+            queryKey: key,
+            queryFn: spy,
+            persister: asPersister<typeof freshLog>(recordsPersister.persisterFn),
+            staleTime: 15_000,
+        })
+        expect(result).toEqual(freshLog)
+        expect(spy).toHaveBeenCalledTimes(1)
+
+        const stored = await waitForStored(recStorageKey(key))
+        expect(stored.state.data).toEqual(freshLog)
     })
 })
 

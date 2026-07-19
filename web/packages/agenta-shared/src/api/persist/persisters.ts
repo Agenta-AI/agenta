@@ -37,4 +37,24 @@ export const catalogPersister = experimental_createQueryPersister<PersistedQuery
     prefix: "agenta-cat",
 })
 
+const RECORDS_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * Class D-with-restore — live, append-only logs (session records): paint-from-disk, but disk
+ * is NEVER authoritative. `refetchOnRestore: "always"` fires `query.fetch()` from the persister's
+ * post-restore task even with zero observers, so both the observer path and bare
+ * `fetchQuery` restores get exactly one revalidation (a stale-only policy would skip a
+ * sub-staleTime restore). Shorter maxAge than catalogs: entries are big (~200KB+/session) and a
+ * week-untouched session's log is cheap to refetch once.
+ */
+export const recordsPersister = experimental_createQueryPersister<PersistedQuery>({
+    storage: idbQueryStorage,
+    buster: PERSIST_SCHEMA_VERSION,
+    maxAge: RECORDS_MAX_AGE_MS,
+    serialize: identity,
+    deserialize: identity,
+    refetchOnRestore: "always",
+    prefix: "agenta-rec",
+})
+
 export type QueryPersister = typeof immutablePersister

@@ -1,6 +1,6 @@
 import {isPersistDebugEnabled, persistLog} from "./debug"
 import {idbQueryStorage} from "./idbStorage"
-import {catalogPersister, immutablePersister} from "./persisters"
+import {catalogPersister, immutablePersister, recordsPersister} from "./persisters"
 
 let scheduled = false
 
@@ -18,6 +18,7 @@ export function schedulePersistedQueryGc(): void {
             : undefined
         await immutablePersister.persisterGc().catch(() => undefined)
         await catalogPersister.persisterGc().catch(() => undefined)
+        await recordsPersister.persisterGc().catch(() => undefined)
         if (before !== undefined) {
             const after = (await idbQueryStorage.entries?.())?.length ?? 0
             persistLog("gc", `${before} entries → ${after} (${before - after} swept)`)

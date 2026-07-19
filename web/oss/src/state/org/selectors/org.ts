@@ -1,4 +1,4 @@
-import {logAtom} from "@agenta/shared/state"
+import {idleReadyAtom, logAtom} from "@agenta/shared/state"
 import type {User} from "@agenta/shared/types"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -120,6 +120,10 @@ export const resolveWorkspaceIdForOrg = async (
 
 export const orgsQueryAtom = atomWithQuery<Org[]>((get) => {
     const userId = (get(userAtom) as User | null)?.id
+    // Boot resolution needs the list only when the URL carries no workspace id (auth
+    // redirects, /w selection). On workspace-scoped routes it is switcher/settings
+    // chrome, so defer it to the first idle moment instead of the load burst.
+    const neededForBoot = !get(appIdentifiersAtom).workspaceId
     return {
         queryKey: ["orgs", userId || ""],
         queryFn: async () => fetchAllOrgsList(),
@@ -127,7 +131,7 @@ export const orgsQueryAtom = atomWithQuery<Org[]>((get) => {
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         refetchOnMount: false,
-        enabled: !!userId,
+        enabled: !!userId && (neededForBoot || get(idleReadyAtom)),
     }
 })
 
@@ -204,6 +208,12 @@ const normalizeOrgIdentifier = async (
     const {projectId} = get(appIdentifiersAtom)
 
     if (Array.isArray(orgs) && orgs.some((org) => org.id === id)) {
+        return {orgId: id, workspaceId: null}
+    }
+
+    // Pre-idle the deferred list is empty; a cached workspace→org map VALUE still proves
+    // `id` is an org id, keeping the fetchProject fallback off the cold-load path.
+    if (Object.values(readWorkspaceOrgMap()).includes(id)) {
         return {orgId: id, workspaceId: null}
     }
 

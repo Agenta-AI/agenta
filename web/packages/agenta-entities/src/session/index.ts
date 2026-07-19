@@ -71,6 +71,7 @@ export {
     revalidateSessionRecordsAtom,
     fetchSessionRecordsAtom,
     sessionRecordsQueryKey,
+    type SessionRecordsFetchResult,
 } from "./state/records"
 export {
     sessionMountsQueryFamily,
