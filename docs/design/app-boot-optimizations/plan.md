@@ -1,6 +1,14 @@
 # App boot optimizations — collapsing the serial gate chain
 
-Status: ANALYSIS + PLAN (2026-07-19) — T1.1 + T1.2 BUILT (e423d17708, warmup variant for T1.2 preserving the recipe code-split); T1.3/T1.4/T2 pending measurement.
+Status: ANALYSIS + PLAN (2026-07-19) — T1.1 + T1.2 BUILT (e423d17708, warmup variant
+for T1.2 preserving the recipe code-split). T2 BUILT (33e06521eb — all four items;
+ProtectedRoute deviation: its five hooks are side-effectful mounts, moved to a memo'd
+null island rather than an atom; snapshot `timestamp` dropped entirely, zero consumers).
+Profiler-driven extras (25f527a016): seven anonymous forwardRefs named — the profile's
+top line "ForwardRef(Anonymous)" ×594 was their aggregate, dominated by EnhancedButton —
+and EnhancedButton no longer wraps tooltip-less buttons in Tooltip/Trigger (the
+Tooltip ×173 / Trigger ×231 churn). T1.3/T1.4 pending; profiler re-run pending
+(expect Context.Provider/Sidebar/PlaygroundHeader render counts to drop).
 Scope: initial-load time of the web app (agent playground as the reference route).
 Constraints: Next.js pages router stays; no Next upgrade; no app-router migration;
 SuperTokens stays.
