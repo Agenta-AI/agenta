@@ -111,6 +111,16 @@ def test_claude_catalog_covers_exactly_the_accepted_alias_set():
         assert "/" not in entry.id  # bare aliases, not provider-prefixed
 
 
+def test_claude_catalog_uses_stable_harness_request_values():
+    assert CLAUDE_MODEL_ALIASES == [
+        "default",
+        "sonnet",
+        "haiku",
+        "opus[1m]",
+        "claude-fable-5",
+    ]
+
+
 def test_fable_ships_as_a_current_fact_via_the_pi_anthropic_block():
     # Fable is the current Anthropic frontier and reaches the picker through the Pi catalog even
     # though it is not (yet) a Claude Code alias.
