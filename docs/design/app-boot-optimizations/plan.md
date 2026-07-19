@@ -1,6 +1,6 @@
 # App boot optimizations — collapsing the serial gate chain
 
-Status: ANALYSIS + PLAN (2026-07-19, not built)
+Status: ANALYSIS + PLAN (2026-07-19) — T1.1 + T1.2 BUILT (e423d17708, warmup variant for T1.2 preserving the recipe code-split); T1.3/T1.4/T2 pending measurement.
 Scope: initial-load time of the web app (agent playground as the reference route).
 Constraints: Next.js pages router stays; no Next upgrade; no app-router migration;
 SuperTokens stays.
@@ -26,14 +26,14 @@ HTML → [BLOCK] /__env.js (beforeInteractive, Cache-Control: no-store)
                (session + profile + project + org resolution; the atom FLIPS MULTIPLE
                TIMES during auth resolution — each flip unmounts/remounts the whole
                page subtree)
-     → GATE 4  Playground chunk (dynamic ssr:false, ~10.19 MB uncompressed, 37 files)
+     → GATE 4  Playground chunk (dynamic ssr:false, ~3.2 MB uncompressed, 63 files (an earlier stale manifest overstated this as 10 MB))
                [SEQUENTIAL CHUNK ROUND-TRIP, ZERO preload/warmup anywhere]
      → data gates (revision/inspect/records — now largely IndexedDB-served)
 ```
 
 Key facts with evidence:
 
-- **The 10 MB Playground graph has no warmup.** It is discovered only after Gates 1–3
+- **The Playground graph (~3.2 MB) has no warmup.** It is discovered only after Gates 1–3
   release. The only prefetch in the codebase (`VariantsComponents/index.tsx:125`)
   warms the 326 KB page-route chunk, not this lazy leaf. `preloadEditorPlugins` runs
   *after* Playground mounts.
@@ -81,7 +81,7 @@ Key facts with evidence:
 
 **T1.1 Warm the Playground chunk immediately.** Hoist the `import()` thunk
 (`const load = () => import("../Playground/Playground")`), share it with `dynamic()`,
-and invoke it at PlaygroundRouter module-eval (or first idle) — the 10 MB download+parse
+and invoke it at PlaygroundRouter module-eval (or first idle) — the ~3.2 MB download+parse
 then runs IN PARALLEL with Gates 1–3 instead of after them. Same pattern for the Layout
 chunk from `_app`. This is the single biggest structural win: it converts the two
 sequential chunk round-trips into parallel work behind the auth/data gates.
@@ -121,7 +121,7 @@ churn.
 
 ### Tier 3 — flagged, not recommended now
 
-- **Split the 10 MB Playground graph** (agent vs prompt branches; MainLayout statically
+- **Split the Playground graph (~3.2 MB)** (agent vs prompt branches; MainLayout statically
   imports ExecutionItems/comparison views). Real but large refactor; T1.1 removes the
   serialization pain first — re-measure before considering.
 - **SSR/streaming shell** — excluded by constraints (pages router, ssr:false layers,
