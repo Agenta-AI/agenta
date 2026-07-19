@@ -5,7 +5,7 @@ import {
     type Workflow,
     type WorkflowFlags,
 } from "@agenta/entities/workflow"
-import {atom} from "jotai"
+import {atom, type Getter} from "jotai"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 
@@ -84,7 +84,7 @@ export interface CurrentWorkflowContext {
     isError: boolean
 }
 
-export const currentWorkflowContextAtom = atom<CurrentWorkflowContext>((get) => {
+const computeCurrentWorkflowContext = (get: Getter): CurrentWorkflowContext => {
     const id = get(routerAppIdAtom)
 
     if (!id) {
@@ -148,6 +148,27 @@ export const currentWorkflowContextAtom = atom<CurrentWorkflowContext>((get) => 
         isNotFound: false,
         isError: false,
     }
+}
+
+const workflowContextEquals = (a: CurrentWorkflowContext, b: CurrentWorkflowContext): boolean =>
+    a.workflow === b.workflow &&
+    a.workflowId === b.workflowId &&
+    a.workflowKind === b.workflowKind &&
+    a.isResolving === b.isResolving &&
+    a.isNotFound === b.isNotFound &&
+    a.isError === b.isError
+
+let previousWorkflowContext: CurrentWorkflowContext | null = null
+
+// Reuse the previous object when all fields are unchanged, so query-phase identity
+// churn in the underlying detail query doesn't re-render subscribers.
+export const currentWorkflowContextAtom = atom<CurrentWorkflowContext>((get) => {
+    const next = computeCurrentWorkflowContext(get)
+    if (previousWorkflowContext && workflowContextEquals(previousWorkflowContext, next)) {
+        return previousWorkflowContext
+    }
+    previousWorkflowContext = next
+    return next
 })
 
 /**

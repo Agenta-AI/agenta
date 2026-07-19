@@ -1,4 +1,4 @@
-import {type FC, type PropsWithChildren} from "react"
+import {memo, type FC, type PropsWithChildren} from "react"
 
 import {useAtomValue} from "jotai"
 
@@ -8,15 +8,27 @@ import {useProfileData} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"
 import {protectedRouteReadyAtom} from "@/oss/state/url/test"
 
-const ProtectedRoute: FC<PropsWithChildren> = ({children}) => {
+// Null-rendering island for the boot-volatile session/project/profile/org hook mounts:
+// their effects and query subscriptions must stay alive here, but their re-renders
+// must not drag the page subtree along.
+const BootSubscriptions = memo(function BootSubscriptions() {
     useSession()
     useProjectData()
     useProfileData()
     useAtomValue(selectedOrgAtom)
     useAtomValue(selectedOrgQueryAtom)
+    return null
+})
+
+const ProtectedRoute: FC<PropsWithChildren> = ({children}) => {
     const ready = useAtomValue(protectedRouteReadyAtom)
 
-    return ready ? children : null
+    return (
+        <>
+            <BootSubscriptions />
+            {ready ? children : null}
+        </>
+    )
 }
 
 export default ProtectedRoute

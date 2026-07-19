@@ -1,4 +1,4 @@
-import {ReactNode} from "react"
+import {ReactNode, useMemo} from "react"
 
 import {theme as antdTheme} from "antd"
 import {ThemeProvider} from "react-jss"
@@ -10,8 +10,12 @@ import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 const ThemeContextBridge = ({children}: {children: ReactNode}) => {
     const {appTheme} = useAppTheme()
     const {token} = antdTheme.useToken()
+    const isDark = appTheme === "dark"
 
-    return <ThemeProvider theme={{...token, isDark: appTheme === "dark"}}>{children}</ThemeProvider>
+    // antd's useToken returns a per-theme-cached token object, so this only changes on theme swaps
+    const jssTheme = useMemo(() => ({...token, isDark}), [token, isDark])
+
+    return <ThemeProvider theme={jssTheme}>{children}</ThemeProvider>
 }
 
 export default ThemeContextBridge
