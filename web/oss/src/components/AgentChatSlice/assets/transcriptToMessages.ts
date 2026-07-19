@@ -174,6 +174,29 @@ function applyEvent(draft: DraftMessage, payload: Record<string, unknown>): void
             }
             return
         }
+        case "interaction_response": {
+            if (payload.kind !== "user_approval") return
+            const responsePayload = (payload.payload ?? {}) as Record<string, unknown>
+            const responseId = str(payload.id)
+            const toolCallId = str(responsePayload.toolCallId)
+            let part = toolCallId ? draft.tools.get(toolCallId) : undefined
+            if (!part) {
+                part = draft.parts.find((candidate) => {
+                    const approval = (candidate.approval ?? {}) as Record<string, unknown>
+                    return str(approval.id) === responseId
+                })
+            }
+            if (
+                !part ||
+                part.state !== "approval-requested" ||
+                typeof responsePayload.approved !== "boolean"
+            ) {
+                return
+            }
+            part.state = "approval-responded"
+            part.approval = {id: responseId, approved: responsePayload.approved}
+            return
+        }
         case "file": {
             draft.parts.push({
                 type: "file",

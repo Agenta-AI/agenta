@@ -8,6 +8,11 @@ import { apiBase } from "../apiBase.ts";
 
 export type InteractionKind = "user_approval" | "user_input" | "client_tool";
 
+export type InteractionResolution = {
+  verdict: "approved" | "denied";
+  tool_call_id: string;
+};
+
 /** A platform entity reference (the API `Reference` shape). */
 type Reference = { id?: string; slug?: string; version?: string };
 
@@ -98,6 +103,7 @@ export async function resolveInteraction(
   sessionId: string,
   token: string,
   auth: () => string,
+  resolution?: InteractionResolution,
 ): Promise<void> {
   try {
     const res = await fetch(`${apiBase()}/sessions/interactions/transition`, {
@@ -107,6 +113,7 @@ export async function resolveInteraction(
         session_id: sessionId,
         token,
         status: "resolved",
+        ...(resolution ? { resolution } : {}),
       }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

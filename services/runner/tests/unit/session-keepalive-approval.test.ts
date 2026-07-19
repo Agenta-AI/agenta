@@ -1397,6 +1397,18 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       "the post-resume tool_call_update streamed (not suppressed) into the new run",
     );
 
+    assert.deepEqual(
+      run2.emitted.filter((event) => event.type === "interaction_response"),
+      [
+        {
+          type: "interaction_response",
+          id: "tc-gate",
+          kind: "user_approval",
+          payload: { toolCallId: "tc-gate", approved: true },
+        },
+      ],
+    );
+
     await env.destroy();
   });
 
@@ -1714,6 +1726,19 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     assert.deepEqual(calls.permissionReplies, [
       { id: "perm-1", reply: "reject" },
     ]);
+    assert.deepEqual(
+      calls.runs[1].emitted.filter(
+        (event) => event.type === "interaction_response",
+      ),
+      [
+        {
+          type: "interaction_response",
+          id: "tc-gate",
+          kind: "user_approval",
+          payload: { toolCallId: "tc-gate", approved: false },
+        },
+      ],
+    );
     await env.destroy();
   });
 

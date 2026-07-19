@@ -647,6 +647,7 @@ class InteractionsRouter:
                     session_id=body.session_id,
                     token=body.token,
                     status=body.status,
+                    resolution=body.resolution,
                 ),
             )
         except InteractionNotFound:

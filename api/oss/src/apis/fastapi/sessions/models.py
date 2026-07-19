@@ -106,6 +106,7 @@ class SessionInteractionTransitionRequest(BaseModel):
     session_id: str
     token: str
     status: SessionInteractionStatus
+    resolution: Optional[Dict[str, Any]] = None
 
 
 class SessionInteractionCancelStaleRequest(BaseModel):

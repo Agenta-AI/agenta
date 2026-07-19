@@ -69,7 +69,10 @@ export interface AttachPermissionResponderInput {
     kind: "user_approval" | "client_tool",
   ) => void;
   /** Called after a stored decision was successfully forwarded to the harness. */
-  onResolveInteraction?: (token: string) => void;
+  onResolveInteraction?: (
+    token: string,
+    verdict?: { approved: boolean; toolCallId: string },
+  ) => void;
   /**
    * Fires for EVERY parkable permission gate (a Claude ACP gate or a Pi ACP gate) that
    * resolves to pendingApproval. Keep-alive uses it to record every parked permission id /
@@ -223,9 +226,12 @@ export function attachPermissionResponder({
   };
 
   // Resolve the durable row this gate created, if it created one.
-  const resolveIfCreated = (id: string): void => {
+  const resolveIfCreated = (
+    id: string,
+    verdict?: { approved: boolean; toolCallId: string },
+  ): void => {
     if (!createdInteractionIds.delete(id)) return;
-    onResolveInteraction?.(id);
+    onResolveInteraction?.(id, verdict);
   };
 
   const replyPermission = async (
@@ -254,7 +260,10 @@ export function attachPermissionResponder({
       onPause?.();
       return;
     }
-    resolveIfCreated(id);
+    resolveIfCreated(id, {
+      approved: decision === "allow",
+      toolCallId: toolCallId ?? id,
+    });
   };
 
   const replyClientTool = async (

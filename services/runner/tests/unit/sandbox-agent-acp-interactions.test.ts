@@ -446,6 +446,98 @@ describe("attachPermissionResponder", () => {
     assert.deepEqual(events, []);
   });
 
+  it("passes the approval verdict when resolving a previously created gate", async () => {
+    const { session, emit } = makeSession();
+    let permissionCalls = 0;
+    const resolved: Array<{
+      token: string;
+      verdict?: { approved: boolean; toolCallId: string };
+    }> = [];
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: {
+        async onPermission() {
+          permissionCalls += 1;
+          return permissionCalls === 1
+            ? ({ kind: "pendingApproval" } as const)
+            : ({ kind: "deny" } as const);
+        },
+        async onClientTool() {
+          return { kind: "deny" } as const;
+        },
+      },
+      onResolveInteraction: (token, verdict) => {
+        resolved.push({ token, verdict });
+      },
+    });
+    const request = {
+      id: "approval-1",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tool-1", name: "bash" },
+    };
+    emit(request);
+    await flushPromises();
+    emit(request);
+    await flushPromises();
+
+    assert.deepEqual(resolved, [
+      {
+        token: "approval-1",
+        verdict: { approved: false, toolCallId: "tool-1" },
+      },
+    ]);
+  });
+
+  it("resolves a client-tool row without an approval verdict", async () => {
+    const replies: Array<{ id: string; reply: string }> = [];
+    const { session, emit } = makeSession(async (id, reply) => {
+      replies.push({ id, reply });
+    });
+    let clientCalls = 0;
+    const resolved: Array<{
+      token: string;
+      verdict?: { approved: boolean; toolCallId: string };
+    }> = [];
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: {
+        async onPermission() {
+          return { kind: "deny" } as const;
+        },
+        async onClientTool() {
+          clientCalls += 1;
+          return clientCalls === 1
+            ? ({ kind: "pendingApproval" } as const)
+            : ({ kind: "fulfilled", output: { connected: true } } as const);
+        },
+      },
+      toolSpecsByName: specsByName([CLIENT_SPEC]),
+      onResolveInteraction: (token, verdict) => {
+        resolved.push({ token, verdict });
+      },
+    });
+    const request = {
+      id: "client-1",
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        toolCallId: "tool-client",
+        name: "request_connection",
+        input: { integration: "slack" },
+      },
+    };
+    emit(request);
+    await flushPromises();
+    emit(request);
+    await flushPromises();
+
+    assert.deepEqual(replies, [{ id: "client-1", reply: "once" }]);
+    assert.deepEqual(resolved, [{ token: "client-1", verdict: undefined }]);
+  });
+
   it("onResolveInteraction never fires for an auto-allowed gate (no durable row exists)", async () => {
     // Only a PAUSED gate creates a durable interaction row. An auto-allowed gate replies to
     // the harness without ever creating one, so resolving its id would 404 against the

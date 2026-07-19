@@ -401,10 +401,31 @@ export async function runTurn(
     // interactions-plane answer already transitioned it to responded, and an in-band answer is
     // detected at sweep time (`inBandAnswerToken`) and exempted via the sweep's `tokens` — the
     // row stays pending until this resolve lands it as resolved, never cancelled.
-    const resolveInteractionToken = (token: string): void => {
+    const resolveInteractionToken = (
+      token: string,
+      verdict?: { approved: boolean; toolCallId: string },
+    ): void => {
+      if (verdict) {
+        run.emitEvent({
+          type: "interaction_response",
+          id: token,
+          kind: "user_approval",
+          payload: verdict,
+        });
+      }
       const cred = runCredential(request);
       if (!cred) return;
-      void resolveInteraction(sessionId, token, () => cred);
+      void resolveInteraction(
+        sessionId,
+        token,
+        () => cred,
+        verdict
+          ? {
+              verdict: verdict.approved ? "approved" : "denied",
+              tool_call_id: verdict.toolCallId,
+            }
+          : undefined,
+      );
     };
     const serverPermissions = serverPermissionsFromRequest(request);
     // The SAME name->spec index the relay execute loop hands to the relay execution guard, so
@@ -646,7 +667,10 @@ export async function runTurn(
         // cold path would otherwise resolve via its decision map). The fresh per-turn pause
         // controller starts with an EMPTY pausedToolCallIds set, so the resumed calls'
         // `tool_call_update` frames are no longer suppressed and stream through.
-        resolveInteractionToken(decision.interactionToken);
+        resolveInteractionToken(decision.interactionToken, {
+          approved: decision.reply === "once",
+          toolCallId: decision.toolCallId,
+        });
         logger(
           `[keepalive] resume answered gate reply=${decision.reply} tool=${decision.toolName ?? "?"}`,
         );
