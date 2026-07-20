@@ -69,12 +69,18 @@ import {atom, getDefaultStore, useAtomValue, useSetAtom, useStore} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
+import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {useLLMProviderConfig} from "@/oss/hooks/useLLMProviderConfig"
 import {isToolsEnabled} from "@/oss/lib/helpers/isEE"
 import {isDemo} from "@/oss/lib/helpers/utils"
 
 interface OSSdrillInUIProviderProps {
     children: ReactNode
+}
+
+const openTrace = ({traceId, spanId}: {traceId: string; spanId?: string | null}) => {
+    if (!traceId) return
+    getDefaultStore().set(openTraceDrawerAtom, {traceId, activeSpanId: spanId})
 }
 
 function useGatewayToolsIntegrationInfo(integrationKey: string) {
@@ -685,6 +691,7 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
                         EditorProvider,
                         SharedEditor,
                         workflowReference,
+                        openTrace,
                         deployment,
                     }}
                 >
@@ -774,6 +781,7 @@ function GatewayToolsEnabledProvider({
                 SharedEditor,
                 gatewayTools,
                 workflowReference,
+                openTrace,
                 deployment,
             }}
         >
