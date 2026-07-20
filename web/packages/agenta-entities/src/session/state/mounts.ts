@@ -16,6 +16,7 @@ import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {
     queryLatestMountFiles,
+    queryMountDir,
     queryMountFiles,
     querySessionMounts,
     readMountFile,
@@ -26,8 +27,8 @@ import type {Mount, MountFile} from "../core/schema"
 // Query keys, factored so the revalidate atom and the families can never drift.
 export const sessionMountsQueryKey = (projectId: string, sessionId: string) =>
     ["session", "mounts", projectId, sessionId] as const
-export const mountFilesQueryKey = (projectId: string, mountId: string) =>
-    ["mounts", "files", projectId, mountId] as const
+export const mountFilesQueryKey = (projectId: string, mountId: string, includeGitignored = false) =>
+    ["mounts", "files", projectId, mountId, includeGitignored] as const
 export const latestMountFilesQueryKey = (
     projectId: string,
     mountId: string,
@@ -36,6 +37,14 @@ export const latestMountFilesQueryKey = (
 ) => ["mounts", "files-latest", projectId, mountId, order, limit] as const
 export const mountFileContentQueryKey = (projectId: string, mountId: string, path: string) =>
     ["mounts", "file", projectId, mountId, path] as const
+export const mountRootQueryKey = (projectId: string, mountId: string) =>
+    ["mounts", "files-root", projectId, mountId] as const
+export const mountDirQueryKey = (
+    projectId: string,
+    mountId: string,
+    path: string,
+    includeGitignored = false,
+) => ["mounts", "files-dir", projectId, mountId, path, includeGitignored] as const
 
 /** The mounts (drives) bound to one session. */
 export const sessionMountsQueryFamily = atomFamily((sessionId: string) =>
@@ -52,19 +61,30 @@ export const sessionMountsQueryFamily = atomFamily((sessionId: string) =>
     }),
 )
 
-/** One mount's full file tree (folded to a one-level view client-side via `deriveMountRows`). */
-export const mountFilesQueryFamily = atomFamily((mountId: string) =>
-    atomWithQuery<MountFile[] | null>((get) => {
-        const projectId = get(projectIdAtom) ?? ""
-        return {
-            queryKey: mountFilesQueryKey(projectId, mountId),
-            queryFn: ({signal}) =>
-                queryMountFiles({mountId, projectId, abortSignal: signal, lowPriority: true}),
-            enabled: Boolean(mountId && projectId),
-            staleTime: 30_000,
-            refetchOnWindowFocus: false,
-        }
-    }),
+/** One mount's full file tree (folded to a one-level view client-side via `deriveMountRows`).
+ * `includeGitignored` (default false) surfaces `.gitignore`d files too — the drawer's search uses it
+ * when the "show git-ignored files" toggle is on. */
+export const mountFilesQueryFamily = atomFamily(
+    ({mountId, includeGitignored = false}: {mountId: string; includeGitignored?: boolean}) =>
+        atomWithQuery<MountFile[] | null>((get) => {
+            const projectId = get(projectIdAtom) ?? ""
+            return {
+                queryKey: mountFilesQueryKey(projectId, mountId, includeGitignored),
+                queryFn: ({signal}) =>
+                    queryMountFiles({
+                        mountId,
+                        projectId,
+                        includeGitignored,
+                        abortSignal: signal,
+                        lowPriority: true,
+                    }),
+                enabled: Boolean(mountId && projectId),
+                staleTime: 30_000,
+                refetchOnWindowFocus: false,
+            }
+        }),
+    (a, b) =>
+        a.mountId === b.mountId && Boolean(a.includeGitignored) === Boolean(b.includeGitignored),
 )
 
 /**
@@ -103,6 +123,73 @@ export const latestMountFilesQueryFamily = atomFamily(
     (a, b) => a.mountId === b.mountId && a.limit === b.limit && a.order === b.order,
 )
 
+/**
+ * A mount's TOP-LEVEL entries only (`depth=1` — one server-side delimiter listing), for the summary
+ * surfaces to show "what's in this drive" when the record log holds no recent changes. Constant cost
+ * regardless of tree size, so it's safe to run from the always-mounted chrome.
+ */
+export const mountRootQueryFamily = atomFamily((mountId: string) =>
+    atomWithQuery<MountFile[] | null>((get) => {
+        const projectId = get(projectIdAtom) ?? ""
+        return {
+            queryKey: mountRootQueryKey(projectId, mountId),
+            queryFn: ({signal}) =>
+                queryMountDir({
+                    mountId,
+                    projectId,
+                    path: "",
+                    abortSignal: signal,
+                    lowPriority: true,
+                }),
+            enabled: Boolean(mountId && projectId),
+            staleTime: 30_000,
+            refetchOnWindowFocus: false,
+        }
+    }),
+)
+
+/**
+ * ONE directory level of a mount (`depth=1`, WITH folder child-counts) — the unit the lazy drawer
+ * loads as you navigate. Keyed by `(mountId, path)` so every visited directory caches independently;
+ * opening a huge mount fetches only the root, and each folder its own level on demand. `path=""` is
+ * the root. Distinct from {@link mountRootQueryFamily} (the count-free summary root).
+ */
+export const mountDirQueryFamily = atomFamily(
+    ({
+        mountId,
+        path,
+        includeGitignored = false,
+    }: {
+        mountId: string
+        path: string
+        /** Include `.gitignore`d entries too (the "show git-ignored files" toggle). */
+        includeGitignored?: boolean
+    }) =>
+        atomWithQuery<MountFile[] | null>((get) => {
+            const projectId = get(projectIdAtom) ?? ""
+            return {
+                queryKey: mountDirQueryKey(projectId, mountId, path, includeGitignored),
+                queryFn: ({signal}) =>
+                    queryMountDir({
+                        mountId,
+                        projectId,
+                        path,
+                        withCounts: true,
+                        includeGitignored,
+                        abortSignal: signal,
+                        lowPriority: true,
+                    }),
+                enabled: Boolean(mountId && projectId),
+                staleTime: 30_000,
+                refetchOnWindowFocus: false,
+            }
+        }),
+    (a, b) =>
+        a.mountId === b.mountId &&
+        a.path === b.path &&
+        Boolean(a.includeGitignored) === Boolean(b.includeGitignored),
+)
+
 /** One mount file's text content. Bodies can be ~1.5 MB strings, so retention is short:
  * a minute after the last viewer unmounts the string is dropped (refetch is cheap). */
 export const mountFileContentQueryFamily = atomFamily(
@@ -134,16 +221,27 @@ export const revalidateSessionMountsAtom = atom(null, (get, _set, sessionId: str
     if (!projectId || !sessionId) return
     const queryClient = get(queryClientAtom)
 
+    // `cancelRefetch: false` — a turn streaming/finishing (incl. the SDK auto-resuming the last turn
+    // on reload) fires this while the FIRST mount fetch may still be in flight; the default would
+    // CANCEL that in-flight request and start another (the duplicate `?…&limit=5` seen on reload).
+    // An in-flight fetch already returns fresh data, so let it finish and only refetch settled ones.
+    const opts = {cancelRefetch: false} as const
+
     // The session's mount LIST (a run can add a mount).
-    void queryClient.invalidateQueries({queryKey: sessionMountsQueryKey(projectId, sessionId)})
+    void queryClient.invalidateQueries(
+        {queryKey: sessionMountsQueryKey(projectId, sessionId)},
+        opts,
+    )
     // Every mount's file listing + bodies for the project (prefix match). This covers the session
     // cwd mounts AND the artifact-scoped agent mount folded into the session drive under
     // `agent-files/`: the agent mount is keyed by ARTIFACT, not session, so a per-session loop
     // missed it — files written there stayed stale until a reload. Inactive queries just refetch on
-    // next open; active ones (the open drive) refetch now.
-    void queryClient.invalidateQueries({queryKey: ["mounts", "files", projectId]})
-    void queryClient.invalidateQueries({queryKey: ["mounts", "files-latest", projectId]})
-    void queryClient.invalidateQueries({queryKey: ["mounts", "file", projectId]})
+    // next open; active ones (the open drive) refetch now (unless already fetching).
+    void queryClient.invalidateQueries({queryKey: ["mounts", "files", projectId]}, opts)
+    void queryClient.invalidateQueries({queryKey: ["mounts", "files-latest", projectId]}, opts)
+    void queryClient.invalidateQueries({queryKey: ["mounts", "files-root", projectId]}, opts)
+    void queryClient.invalidateQueries({queryKey: ["mounts", "files-dir", projectId]}, opts)
+    void queryClient.invalidateQueries({queryKey: ["mounts", "file", projectId]}, opts)
     // The agent-mount lookup itself (`agentDrive` key), in case the first write just created it.
-    void queryClient.invalidateQueries({queryKey: ["mounts", "agent", projectId]})
+    void queryClient.invalidateQueries({queryKey: ["mounts", "agent", projectId]}, opts)
 })

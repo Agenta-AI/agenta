@@ -926,10 +926,26 @@ export class MountsClient {
         request: AgentaApi.GetMountFilesRequest,
         requestOptions?: MountsClient.RequestOptions,
     ): Promise<core.WithRawResponse<unknown>> {
-        const { mount_id: mountId, path, read } = request;
+        const {
+            mount_id: mountId,
+            path,
+            read,
+            order,
+            limit,
+            depth,
+            with_counts: withCounts,
+            git_aware: gitAware,
+            include_gitignored: includeGitignored,
+        } = request;
         const _queryParams: Record<string, unknown> = {
             path,
             read,
+            order,
+            limit,
+            depth,
+            with_counts: withCounts,
+            git_aware: gitAware,
+            include_gitignored: includeGitignored,
         };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
