@@ -449,6 +449,7 @@ export const appWorkflowsListQueryAtom = atomWithQuery((get) => {
 export const workflowDetailQueryAtomFamily = atomFamily((workflowId: string | null) =>
     atomWithQuery((get) => {
         const projectId = get(workflowProjectIdAtom)
+        const queryClient = get(queryClientAtom)
         return {
             queryKey: ["workflows", "detail", projectId, workflowId],
             queryFn: async (): Promise<Workflow | null> => {
@@ -463,7 +464,17 @@ export const workflowDetailQueryAtomFamily = atomFamily((workflowId: string | nu
                     workflowRefs: [{id: workflowId}],
                     includeArchived: true,
                 })
-                return (response.workflows?.[0] as Workflow | undefined) ?? null
+                const workflow = (response.workflows?.[0] as Workflow | undefined) ?? null
+                // Same endpoint + body as the artifact query, under a different key. Prime it so
+                // whichever of the two runs first satisfies the other (this fired twice on boot:
+                // once from the boot prewarm, once when the playground mounted).
+                if (workflow?.id) {
+                    queryClient.setQueryData(
+                        ["workflows", "artifact", workflow.id, projectId],
+                        workflow,
+                    )
+                }
+                return workflow
             },
             enabled: get(sessionAtom) && !!projectId && !!workflowId,
             staleTime: 30_000,
@@ -1077,11 +1088,19 @@ const workflowArtifactBatchFetcher = createBatchFetcher<WorkflowArtifactRequest,
  */
 export const workflowArtifactScopedQueryAtomFamily = atomFamily(
     ({projectId, workflowId}: WorkflowArtifactRequest) =>
-        atomWithQuery(() => ({
+        atomWithQuery((get) => ({
             queryKey: ["workflows", "artifact", workflowId, projectId],
             queryFn: async (): Promise<Workflow | null> => {
                 if (!projectId || !workflowId) return null
-                return workflowArtifactBatchFetcher({projectId, workflowId})
+                const workflow = await workflowArtifactBatchFetcher({projectId, workflowId})
+                // Reverse of the priming in `workflowDetailQueryAtomFamily`: same request, other key.
+                if (workflow) {
+                    get(queryClientAtom).setQueryData(
+                        ["workflows", "detail", projectId, workflowId],
+                        workflow,
+                    )
+                }
+                return workflow
             },
             enabled:
                 !!projectId &&

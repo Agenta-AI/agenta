@@ -111,7 +111,11 @@ export const sessionRecordFileRecencyAtomFamily = atomFamily((sessionId: string)
 export const revalidateSessionRecordsAtom = atom(null, (get, _set, sessionId: string) => {
     const projectId = get(projectIdAtom) ?? ""
     if (!projectId || !sessionId) return
-    void get(queryClientAtom).invalidateQueries({
-        queryKey: sessionRecordsQueryKey(projectId, sessionId),
-    })
+    // `cancelRefetch: false` — mirrors `revalidateSessionMountsAtom`. A turn finishing (incl. the
+    // SDK auto-resuming the restored last turn on reload) fires this while the FIRST records fetch
+    // is still in flight; the default cancels that request and starts an identical one.
+    void get(queryClientAtom).invalidateQueries(
+        {queryKey: sessionRecordsQueryKey(projectId, sessionId)},
+        {cancelRefetch: false},
+    )
 })
