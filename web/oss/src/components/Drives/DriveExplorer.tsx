@@ -56,7 +56,7 @@ import {
 } from "antd"
 import {atom, useAtom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
-import {AnimatePresence, motion} from "motion/react"
+import {AnimatePresence, animate, motion, useMotionValue} from "motion/react"
 
 import {projectIdAtom} from "@/oss/state/project"
 
@@ -678,6 +678,7 @@ const FolderView = ({
     hideHeader,
     detailsOpen,
     autoFocus,
+    anticipateShift,
     onSelect,
 }: {
     folderPath: string
@@ -693,6 +694,9 @@ const FolderView = ({
     detailsOpen?: boolean
     /** Focus the first tile on mount (grid is the primary nav — not the list view's right pane). */
     autoFocus?: boolean
+    /** Announced pane-width shift (tree pane toggling) — forwarded to the tile grid so it lays out
+     * for the final width immediately instead of chasing the mid-animation width. */
+    anticipateShift?: {delta: number; seq: number} | null
     onSelect: (path: string) => void
 }) => {
     const now = useRecentChangeClock(drive.lastTouchedAt)
@@ -837,6 +841,7 @@ const FolderView = ({
                                 items={entries}
                                 autoFocus={autoFocus}
                                 autoFocusKey={folderPath}
+                                anticipateShift={anticipateShift}
                                 // Responsive tiles, windowed so a folder with thousands of children
                                 // stays smooth.
                                 minColumnWidth={200}
@@ -1192,30 +1197,47 @@ export function DriveExplorer({
     // the results), so the effective visibility is `showTree || searchActive` (see `treeVisible`).
     const [showTree, setShowTree] = useState(true)
     const toggleTree = useCallback(() => setShowTree((v) => !v), [])
-    // Draggable tree-pane width (persisted across a hide/show, so re-showing restores it). While
-    // dragging, the width follows the pointer 1:1 (transition off); the show/hide toggle animates it.
+    // Draggable tree-pane width. The REST width is React state (persists across a hide/show and feeds
+    // the toggle's anticipated-shift math), committed ONCE at drag end. The LIVE width is a
+    // MotionValue pair driven straight from the pointer — motion writes the DOM directly, so a drag
+    // re-renders NOTHING per move (state-per-move re-rendered this whole component per pointer event,
+    // which is exactly the jank a splitter drag can't afford). `paneW` is the clipping pane (0 when
+    // hidden); `innerW` is the tree content, which follows a DRAG (content reflows to the new width)
+    // but holds its rest width through a COLLAPSE (content clips, never reflows).
     const [treeWidth, setTreeWidth] = useState(TREE_WIDTH)
     const [treeDragging, setTreeDragging] = useState(false)
+    const paneW = useMotionValue(TREE_WIDTH)
+    const innerW = useMotionValue(TREE_WIDTH)
     const treeDrag = useRef<{startX: number; startW: number} | null>(null)
     const onTreeHandleDown = useCallback(
         (e: React.PointerEvent<HTMLDivElement>) => {
             e.preventDefault()
             e.currentTarget.setPointerCapture(e.pointerId)
-            treeDrag.current = {startX: e.clientX, startW: treeWidth}
+            treeDrag.current = {startX: e.clientX, startW: paneW.get()}
             setTreeDragging(true)
         },
-        [treeWidth],
+        [paneW],
     )
-    const onTreeHandleMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-        const st = treeDrag.current
-        if (!st) return
-        setTreeWidth(Math.min(TREE_MAX, Math.max(TREE_MIN, st.startW + (e.clientX - st.startX))))
-    }, [])
-    const onTreeHandleUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-        treeDrag.current = null
-        setTreeDragging(false)
-        e.currentTarget.releasePointerCapture?.(e.pointerId)
-    }, [])
+    const onTreeHandleMove = useCallback(
+        (e: React.PointerEvent<HTMLDivElement>) => {
+            const st = treeDrag.current
+            if (!st) return
+            const w = Math.min(TREE_MAX, Math.max(TREE_MIN, st.startW + (e.clientX - st.startX)))
+            paneW.set(w)
+            innerW.set(w)
+        },
+        [paneW, innerW],
+    )
+    const onTreeHandleUp = useCallback(
+        (e: React.PointerEvent<HTMLDivElement>) => {
+            if (!treeDrag.current) return
+            treeDrag.current = null
+            setTreeDragging(false)
+            setTreeWidth(Math.round(paneW.get()))
+            e.currentTarget.releasePointerCapture?.(e.pointerId)
+        },
+        [paneW],
+    )
 
     // "Download all" — ONE streaming zip spanning every mount the drive folds in (cwd at the root,
     // the agent's durable folder under `agent-files/`). The toast rides App.useApp (dark-mode safe).
@@ -1278,6 +1300,28 @@ export function DriveExplorer({
     // The tree pane shows whenever the user hasn't hidden it OR a search is active (the filtered tree
     // rows ARE the search results, so search always needs it).
     const treeVisible = showTree || searchActive
+    // ANTICIPATED pane shift — the moment the tree pane's visibility flips, the content pane's FINAL
+    // width is already known (current ± treeWidth). Announce it to the tile grid so it lays out ONCE
+    // for the final rest layout and springs there in one monotonic motion; deriving columns from the
+    // live mid-tween width instead would grow tiles toward the column threshold and then shrink them
+    // past it (the "larger then smaller" artifact). Detected DURING render so the announcement lands
+    // in the same commit as the width flip. Rapid re-toggles chain: the grid adds deltas onto its
+    // in-flight target, so hide-then-show mid-tween resolves back to the original layout.
+    const [prevTreeVisible, setPrevTreeVisible] = useState(treeVisible)
+    const [treeShift, setTreeShift] = useState<{delta: number; seq: number} | null>(null)
+    if (treeVisible !== prevTreeVisible) {
+        setPrevTreeVisible(treeVisible)
+        setTreeShift((s) => ({
+            delta: treeVisible ? -treeWidth : treeWidth,
+            seq: (s?.seq ?? 0) + 1,
+        }))
+    }
+    // Animate the pane's MotionValue on a visibility flip (a drag writes the value directly instead —
+    // see the drag block). Re-running on a drag-end `treeWidth` commit is a no-op (already there).
+    useEffect(() => {
+        const controls = animate(paneW, treeVisible ? treeWidth : 0, TREE_TRANSITION)
+        return () => controls.stop()
+    }, [treeVisible, treeWidth, paneW])
     // Directories to keep loaded: the root, every expanded folder, and the open folder. A selection
     // that LOOKS like a file (has an extension) is skipped — its preview reads by path, no dir needed.
     const activePaths = useMemo(() => {
@@ -1679,6 +1723,7 @@ export function DriveExplorer({
                     // With the tree hidden, the folder grid is the only nav surface → focus its first
                     // tile on open. With the tree shown, the tree owns focus, so don't.
                     autoFocus={!treeVisible}
+                    anticipateShift={treeShift}
                     onSelect={select}
                 />
             ) : (
@@ -1703,20 +1748,20 @@ export function DriveExplorer({
         // `overflow-hidden`, so it slides out cleanly (its rows never reflow as the pane narrows).
         body = (
             <div className="flex min-h-0 w-full flex-1">
+                {/* Width rides the `paneW` MotionValue: the toggle animates it (see the effect above),
+                    a drag writes it per pointer move — either way motion updates the DOM directly,
+                    no React render per frame. */}
                 <motion.div
                     className="min-h-0 shrink-0 overflow-hidden border-0 border-r border-solid border-colorBorderSecondary"
-                    initial={false}
-                    animate={{width: treeVisible ? treeWidth : 0}}
-                    // Drag → follow the pointer 1:1 (no tween); toggle → animate the collapse/expand.
-                    transition={treeDragging ? {duration: 0} : TREE_TRANSITION}
+                    style={{width: paneW}}
                 >
-                    {/* Inner pinned to the current `treeWidth` so the tree doesn't reflow while the pane
-                    COLLAPSES (it clips instead); a drag changes `treeWidth`, so the tree does reflow to
-                    the new width then. `box-border` keeps `h-full`+padding inside the box (preflight is
-                    off → content-box by default). */}
-                    <div
+                    {/* Inner rides `innerW`, which a DRAG updates (content reflows to the new width)
+                    but a COLLAPSE leaves at the rest width — the tree clips out cleanly instead of
+                    reflowing as the pane narrows. `box-border` keeps `h-full`+padding inside the box
+                    (preflight is off → content-box by default). */}
+                    <motion.div
                         className="box-border flex h-full min-h-0 flex-col overflow-hidden px-3 pb-3 pt-2"
-                        style={{width: treeWidth}}
+                        style={{width: innerW}}
                     >
                         <div
                             ref={treeScrollRef}
@@ -1822,7 +1867,7 @@ export function DriveExplorer({
                                 </div>
                             )}
                         </div>
-                    </div>
+                    </motion.div>
                 </motion.div>
                 {/* Resize handle — a WIDE invisible hit target straddling the tree's right edge, with a
                     thin 1px line that only lights up on hover/drag (the tree's own border is the resting
