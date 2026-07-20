@@ -24,8 +24,18 @@ export const EMPTY_OBJECT_SCHEMA = {
 };
 
 /** Bound a tool result body so a malformed/oversized upstream response cannot exhaust runner
- *  memory or blow out the model's context. Same cap and mechanism as tool-mcp-http.ts. */
+ *  memory. Same cap and mechanism as tool-mcp-http.ts. This is a *memory* backstop, not the
+ *  model-context budget — live turns use MODEL_TOOL_RESULT_MAX_CHARS for the text handed to
+ *  the model (parity with transcript rebuilds; see #5341). */
 export const MAX_BODY_BYTES = 1_000_000;
+
+/**
+ * Model-facing cap for ONE live tool result body (characters), matching
+ * `transcript.ts` TOOL_RESULT_RENDER_MAX_CHARS. Without this, a single oversized tool
+ * output (e.g. a full PR patch) enters context on the live turn and burns the window
+ * even though replay would have been capped at 4k (#5341 / RUN-TOOLCAP-1 follow-up).
+ */
+export const MODEL_TOOL_RESULT_MAX_CHARS = 4000;
 
 /**
  * Hard ceiling on the RAW wire body read off the socket, before any JSON parsing. Larger than
@@ -74,6 +84,20 @@ export function capToolResultText(text: string, maxBytes: number = MAX_BODY_BYTE
   const safeEnd = maxBytes - trailingIncompleteUtf8Length(buf, maxBytes);
   const truncated = buf.subarray(0, safeEnd).toString("utf-8");
   return `${truncated} [... ${buf.length - safeEnd} bytes omitted]`;
+}
+
+/** Cap a tool result for the *model* using the same char budget as transcript rebuilds.
+ *  Applied after the memory byte cap so live turns cannot dump multi-hundred-KB blobs
+ *  into context (#5341). */
+export function capToolResultForModel(
+  text: string,
+  maxChars: number = MODEL_TOOL_RESULT_MAX_CHARS,
+): string {
+  // First enforce the memory byte backstop, then the model char budget.
+  const memorySafe = capToolResultText(text, MAX_BODY_BYTES);
+  if (memorySafe.length <= maxChars) return memorySafe;
+  const omitted = memorySafe.length - maxChars;
+  return `${memorySafe.slice(0, maxChars)} [... ${omitted} chars omitted]`;
 }
 
 /**
@@ -219,16 +243,16 @@ export async function callAgentaTool(
         : undefined;
     if (statusMessage) {
       const detail = typeof content === "string" ? content : "";
-      return capToolResultText(
+      return capToolResultForModel(
         detail
           ? `tool call ${callRef} failed: ${statusMessage}\n${detail}`
           : `tool call ${callRef} failed: ${statusMessage}`,
       );
     }
-    if (typeof content === "string") return capToolResultText(content);
-    if (content != null) return capToolResultText(JSON.stringify(content));
-    return capToolResultText(bodyText);
+    if (typeof content === "string") return capToolResultForModel(content);
+    if (content != null) return capToolResultForModel(JSON.stringify(content));
+    return capToolResultForModel(bodyText);
   } catch {
-    return capToolResultText(bodyText);
+    return capToolResultForModel(bodyText);
   }
 }

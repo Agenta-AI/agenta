@@ -14,9 +14,11 @@ import assert from "node:assert/strict";
 import {
   callAgentaTool,
   capToolResultText,
+  capToolResultForModel,
   readBoundedResponseText,
   MAX_BODY_BYTES,
   MAX_RAW_RESPONSE_BYTES,
+  MODEL_TOOL_RESULT_MAX_CHARS,
 } from "../../src/tools/callback.ts";
 
 const realFetch = globalThis.fetch;
@@ -160,8 +162,9 @@ describe("callAgentaTool result capping (RUN-TOOLCAP-1)", () => {
       "call-1",
       {},
     );
-    assert.ok(Buffer.byteLength(result, "utf-8") <= MAX_BODY_BYTES + 200);
-    assert.ok(result.includes("bytes omitted"));
+    // Live model path uses the 4k char budget (#5341), not the 1MB memory backstop alone.
+    assert.ok(result.length <= MODEL_TOOL_RESULT_MAX_CHARS + 40);
+    assert.ok(result.includes("chars omitted"));
   });
 
   it("caps an oversized non-string `content` (JSON.stringify'd) before returning it", async () => {
@@ -177,7 +180,8 @@ describe("callAgentaTool result capping (RUN-TOOLCAP-1)", () => {
       "call-1",
       {},
     );
-    assert.ok(result.includes("bytes omitted"));
+    assert.ok(result.length <= MODEL_TOOL_RESULT_MAX_CHARS + 40);
+    assert.ok(result.includes("chars omitted"));
   });
 
   it("caps a raw oversized body when the response is not the expected envelope shape", async () => {
@@ -189,7 +193,8 @@ describe("callAgentaTool result capping (RUN-TOOLCAP-1)", () => {
       "call-1",
       {},
     );
-    assert.ok(result.includes("bytes omitted"));
+    assert.ok(result.length <= MODEL_TOOL_RESULT_MAX_CHARS + 40);
+    assert.ok(result.includes("chars omitted"));
   });
 
   it("leaves a small result untouched", async () => {
@@ -298,5 +303,27 @@ describe("callAgentaTool error disclosure (RUN-TOOLERR-1)", () => {
       {},
     );
     assert.equal(result, "sent");
+  });
+});
+
+describe("capToolResultForModel (#5341)", () => {
+  it("leaves short results unchanged", () => {
+    assert.equal(capToolResultForModel("hello"), "hello");
+  });
+
+  it("caps at MODEL_TOOL_RESULT_MAX_CHARS with a chars-omitted marker", () => {
+    const text = "a".repeat(MODEL_TOOL_RESULT_MAX_CHARS + 500);
+    const capped = capToolResultForModel(text);
+    assert.ok(capped.startsWith("a".repeat(MODEL_TOOL_RESULT_MAX_CHARS)));
+    assert.ok(capped.includes("500 chars omitted"));
+    assert.ok(capped.length < text.length);
+  });
+
+  it("keeps live tool results far below the 1MB memory backstop", () => {
+    // A ~100KB patch must not reach the model whole on a live turn.
+    const text = "x".repeat(100_000);
+    const capped = capToolResultForModel(text);
+    assert.equal(capped.length <= MODEL_TOOL_RESULT_MAX_CHARS + 40, true);
+    assert.ok(capped.includes("chars omitted"));
   });
 });
