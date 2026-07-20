@@ -345,6 +345,91 @@ describe("recordsPersister (session records)", () => {
     })
 })
 
+// Phase-2 gate: before persisting the workflow LIST queries (variants / revisions), establish
+// what `isPending`/`isFetched`/`isStale` look like on a catalog-restored list query — those are
+// exactly the flags the selection auto-select logic (resolveAutoSelectLatestChild) reads. The
+// decision consequence is asserted against the real function in @agenta/entity-ui; this pins the
+// upstream fact the persister produces.
+describe("catalog list-query restore — flags at restore (Phase 2 gate)", () => {
+    it("non-empty restore: isPending false, isFetched TRUE, data present before any revalidate", async () => {
+        const key: QueryKey = ["workflows", "revisionsByWorkflow", "wf-1", "proj-1"]
+        const diskList = {count: 2, refs: [{id: "rev-2"}, {id: "rev-1"}]}
+        await idbQueryStorage.setItem(
+            catStorageKey(key),
+            makePersisted(key, diskList, Date.now() - 120_000), // stale → will revalidate
+        )
+
+        const clientB = newClient()
+        const spy = vi.fn(async () => ({count: 3, refs: [{id: "rev-3"}, {id: "rev-2"}, {id: "rev-1"}]}))
+        const observer = new QueryObserver<typeof diskList>(clientB, {
+            queryKey: key,
+            queryFn: spy,
+            persister: asPersister<typeof diskList>(catalogPersister.persisterFn),
+            staleTime: 30_000,
+            retry: false,
+        })
+
+        // Snapshot the observer state at the FIRST emission carrying restored data — i.e. what a
+        // consumer sees the instant paint-from-disk lands, independent of the background refetch.
+        let atRestore: ReturnType<QueryObserver<typeof diskList>["getCurrentResult"]> | null = null
+        const unsubscribe = observer.subscribe((result) => {
+            if (atRestore === null && result.data !== undefined) atRestore = result
+        })
+
+        try {
+            await vi.waitFor(() => expect(atRestore).not.toBeNull())
+            const r = atRestore!
+            expect(r.data).toEqual(diskList) // painted from disk, not from the network spy
+            expect(r.isPending).toBe(false) // ← SWR-safe: isPending consumers never flash
+            expect(r.isFetched).toBe(true) // ← the finding: restore marks the query fetched
+            // ...and the background revalidate still fires exactly once (restored entry was stale).
+            await vi.waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
+        } finally {
+            unsubscribe()
+        }
+    })
+
+    it("EMPTY restore also reports isFetched TRUE — the auto-select hazard", async () => {
+        const key: QueryKey = ["workflows", "revisionsByWorkflow", "wf-empty", "proj-1"]
+        const emptyList = {count: 0, refs: [] as {id: string}[]}
+        await idbQueryStorage.setItem(
+            catStorageKey(key),
+            makePersisted(key, emptyList, Date.now() - 120_000),
+        )
+
+        const clientB = newClient()
+        const spy = vi.fn(async () => ({count: 1, refs: [{id: "rev-1"}]}))
+        const observer = new QueryObserver<typeof emptyList>(clientB, {
+            queryKey: key,
+            queryFn: spy,
+            persister: asPersister<typeof emptyList>(catalogPersister.persisterFn),
+            staleTime: 30_000,
+            retry: false,
+        })
+
+        let atRestore: ReturnType<QueryObserver<typeof emptyList>["getCurrentResult"]> | null = null
+        const unsubscribe = observer.subscribe((result) => {
+            if (atRestore === null && result.data !== undefined) atRestore = result
+        })
+
+        try {
+            await vi.waitFor(() => expect(atRestore).not.toBeNull())
+            const r = atRestore!
+            expect(r.data).toEqual(emptyList)
+            expect(r.isPending).toBe(false)
+            // An empty disk list restores as fetched:true — so resolveAutoSelectLatestChild's
+            // `isFetched === false` wait-guard is bypassed and it would COMPLETE with no selection
+            // before the revalidate below brings the real revision. This is the gate result: Phase 2
+            // needs a selection-hook change (distinguish restored-but-revalidating from settled),
+            // NOT a blind persister-add.
+            expect(r.isFetched).toBe(true)
+            await vi.waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
+        } finally {
+            unsubscribe()
+        }
+    })
+})
+
 describe("buster mismatch", () => {
     it("discards the stale entry, fetches, and re-persists with the current buster", async () => {
         const key: QueryKey = ["imm", "busted"]
