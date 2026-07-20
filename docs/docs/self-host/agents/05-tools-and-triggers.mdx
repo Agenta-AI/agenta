@@ -15,6 +15,20 @@ setup. Connecting to third-party apps needs a gateway. This page explains which 
 - **Schedule triggers.** Run an agent on a time schedule (for example, every morning). These read
   from your own database and need no third-party service.
 
+## Connect an MCP server
+
+An agent can use tools from an external MCP (Model Context Protocol) server over HTTP. You bring the
+server and configure it on the agent with its URL and any auth headers. This does not go through
+Composio.
+
+The runner must be able to reach the server. Outbound egress is restricted by default: plain
+`http://` and private, loopback, or cloud-metadata addresses are blocked. A public `https://` server
+works as-is. To use a server on `http` or a private network, allow it:
+
+```bash
+AGENTA_INSECURE_EGRESS_ALLOWED=true
+```
+
 ## App tools and event triggers need Composio
 
 Connecting an agent to a third-party app goes through **Composio**, a tool gateway. This covers two
