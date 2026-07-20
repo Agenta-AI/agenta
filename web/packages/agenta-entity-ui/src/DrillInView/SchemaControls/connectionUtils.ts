@@ -432,6 +432,10 @@ export function vaultPickedProviderFamily(
     const family = familyFromModelId(modelId, capabilities)
     if (family) return family
     if (metadataProvider && !isDeploymentProviderKind(metadataProvider)) return metadataProvider
+    // The OpenAI-compatible (`custom`) deployment defaults to openai rather than deferring to the
+    // caller's prior (likely unrelated) provider fallback.
+    if (metadataProvider?.toLowerCase() === OPENAI_COMPATIBLE_KIND)
+        return OPENAI_COMPATIBLE_DEFAULT_FAMILY
     return null
 }
 
@@ -443,6 +447,13 @@ export function vaultPickedProviderFamily(
 // either flavor (its provider Select offers both azure/bedrock/vertex_ai/custom AND every standard
 // provider), so both must be recognized here or one flavor's connections silently vanish.
 const DEPLOYMENT_KINDS = new Set(["direct", "custom", "azure", "bedrock", "vertex_ai", "sagemaker"])
+
+// The `custom` deployment kind is the "OpenAI-compatible endpoint": its models are bare ids that
+// encode no vendor, and the v1 runner speaks the OpenAI Chat Completions dialect. So it resolves to
+// the `openai` provider family — used both to default a provider-less pick and to gate visibility
+// (a harness must reach openai, not just consume the `custom` deployment).
+const OPENAI_COMPATIBLE_KIND = "custom"
+const OPENAI_COMPATIBLE_DEFAULT_FAMILY = "openai"
 
 /**
  * Whether a custom_provider `kind` names a DEPLOYMENT surface (a hosting mechanism, not itself a
@@ -466,7 +477,15 @@ function harnessReachesCustomProviderKind(
 ): boolean {
     if (isDeploymentProviderKind(kind)) {
         const consumable = allowedDeployments(capabilities, harness)
-        return consumable.includes("*") || consumable.some((d) => d.toLowerCase() === kind)
+        const deploymentOk =
+            consumable.includes("*") || consumable.some((d) => d.toLowerCase() === kind)
+        if (!deploymentOk) return false
+        // An OpenAI-compatible (`custom`) deployment resolves to the openai provider family, so the
+        // harness must ALSO reach openai — otherwise a Claude-only-Anthropic harness that consumes
+        // `custom` would still be offered an OpenAI-compatible connection it cannot run.
+        if (kind === OPENAI_COMPATIBLE_KIND)
+            return harnessAllowsProvider(capabilities, harness, OPENAI_COMPATIBLE_DEFAULT_FAMILY)
+        return true
     }
     const providers = allowedProviders(capabilities, harness)
     return providers.includes("*") || providers.some((p) => p.toLowerCase() === kind)

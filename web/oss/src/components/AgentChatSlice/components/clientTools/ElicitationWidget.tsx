@@ -14,6 +14,7 @@ import {
     type StepInfo,
     formatReviewValue,
 } from "@agenta/entity-ui/gatewayTool"
+import {useModifierKey} from "@agenta/shared/hooks"
 import {
     type ElicitationResult,
     buildAcceptResult,
@@ -119,8 +120,12 @@ const SubmittedAnswers = ({
 const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHandlerProps) => {
     const [form] = Form.useForm()
     const formRef = useRef<SchemaFormHandle>(null)
+    const modifierKey = useModifierKey()
     const [submitting, setSubmitting] = useState(false)
     const [stepInfo, setStepInfo] = useState<StepInfo | null>(null)
+    // ⌘↵ only reaches this widget while focus lives inside it. Track that so the hint shows
+    // exactly when the shortcut works — a stepper auto-focuses; other forms once the user engages.
+    const [formFocused, setFormFocused] = useState(false)
 
     const parsed = useMemo(() => parseElicitationPayload(meta.input), [meta.input])
 
@@ -290,9 +295,30 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
     }
 
     const inStepper = stepInfo?.isStepper === true && stepInfo.isReview === false
+    const handlePrimaryAction = () => {
+        if (inStepper) {
+            formRef.current?.next?.()
+            return
+        }
+        if (requiredReady && !submitting) void handleAccept()
+    }
 
     return (
-        <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary p-3 my-1 max-w-2xl">
+        <div
+            className="flex min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary p-3 my-1 max-w-2xl"
+            onFocusCapture={() => setFormFocused(true)}
+            onBlurCapture={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+                    setFormFocused(false)
+            }}
+            onKeyDownCapture={(event) => {
+                if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey) || event.repeat)
+                    return
+                event.preventDefault()
+                event.stopPropagation()
+                handlePrimaryAction()
+            }}
+        >
             <div className="flex items-start gap-2">
                 <Question size={14} weight="fill" className="shrink-0 mt-0.5 text-colorPrimary" />
                 <div className="flex min-w-0 flex-col">
@@ -318,18 +344,26 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                 onStepChange={setStepInfo}
             />
 
-            {stepInfo?.isStepper &&
-            (stepInfo.canGoBack || stepInfo.canGoNext || stepInfo.pickable) ? (
+            {/* ⌘↵ is advertised whenever it works: in a stepper (auto-focused) or in any form the
+                user has focused. Paging/pick hints are stepper-only. */}
+            {stepInfo && (stepInfo.isStepper || formFocused) ? (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-0.5">
-                    {stepInfo.canGoBack ? <ShortcutHint keys="⌘ ←" label="back" /> : null}
-                    {stepInfo.canGoNext ? <ShortcutHint keys="⌘ →" label="next" /> : null}
-                    {stepInfo.pickable ? <ShortcutHint keys="1–9" label="pick" /> : null}
+                    {stepInfo.isStepper && stepInfo.canGoBack ? (
+                        <ShortcutHint keys={`${modifierKey} ←`} label="back" />
+                    ) : null}
+                    {stepInfo.isStepper && stepInfo.canGoNext ? (
+                        <ShortcutHint keys={`${modifierKey} →`} label="forward" />
+                    ) : null}
+                    {stepInfo.isStepper && stepInfo.pickable ? (
+                        <ShortcutHint keys="1–9" label="pick" />
+                    ) : null}
+                    <ShortcutHint keys={`${modifierKey} ↵`} label={inStepper ? "next" : "accept"} />
                 </div>
             ) : null}
 
             <div className="flex items-center gap-2">
                 {inStepper ? (
-                    <Button type="primary" onClick={() => formRef.current?.next?.()}>
+                    <Button type="primary" onClick={handlePrimaryAction}>
                         Next
                     </Button>
                 ) : (
@@ -342,7 +376,7 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
                                 ? undefined
                                 : `${missingRequired.length} required ${missingRequired.length === 1 ? "answer" : "answers"} to go`
                         }
-                        onClick={handleAccept}
+                        onClick={handlePrimaryAction}
                     >
                         Accept
                     </Button>

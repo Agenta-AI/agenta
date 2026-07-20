@@ -321,15 +321,6 @@ class LoggingConfig(BaseModel):
         or "INFO"
     ).upper()
 
-    # EMF metric lines (`log.tick(...)`) to stdout — the CloudWatch agent already
-    # ships container stdout, so this needs no new port/infra to light up.
-    metrics_enabled: bool = (
-        os.getenv("AGENTA_LOGGING_METRICS_ENABLED") or "true"
-    ).lower() in _TRUTHY
-    metrics_namespace: str = (
-        os.getenv("AGENTA_LOGGING_METRICS_NAMESPACE") or "Agenta/Workers"
-    )
-
     model_config = ConfigDict(extra="ignore")
 
 
@@ -1091,7 +1082,7 @@ class StoreConfig(BaseModel):
     )
     access_key: str | None = os.getenv("AGENTA_STORE_ACCESS_KEY")
     secret_key: str | None = os.getenv("AGENTA_STORE_SECRET_KEY")
-    region: str = os.getenv("AGENTA_STORE_REGION", "us-east-1")
+    region: str = os.getenv("AGENTA_STORE_REGION") or "us-east-1"
     bucket: str | None = os.getenv("AGENTA_STORE_BUCKET") or "agenta-store"
     namespace: str | None = os.getenv("AGENTA_STORE_NAMESPACE") or None
 

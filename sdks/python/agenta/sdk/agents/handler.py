@@ -18,6 +18,7 @@ from agenta.sdk.agents.interfaces import Backend, Environment
 from agenta.sdk.agents.capabilities import (
     harness_allows_deployment,
     harness_allows_mode,
+    harness_allows_pair,
     harness_allows_provider,
 )
 from agenta.sdk.agents.connections import (
@@ -114,10 +115,19 @@ def _check_harness_pre_resolve(model_ref: ModelRef, harness: Optional[str]) -> N
     """
     if not harness:
         return
+    connection = model_ref.connection
+    is_named = connection.mode == "agenta" and bool(
+        connection.slug and connection.slug.strip()
+    )
     provider = model_ref.provider
-    if provider and not harness_allows_provider(harness, provider):
+    # A named Agenta connection defers provider acceptance to the post-resolve pair check: the
+    # vault record is authoritative for the family (a provider-less OpenAI-compatible custom
+    # normalizes to ``openai``, and the model may even carry the connection slug as a placeholder
+    # provider that no harness lists). Rejecting that untrusted pre-resolve string would block a
+    # valid custom connection, so a named connection validates only its mode here.
+    if provider and not is_named and not harness_allows_provider(harness, provider):
         raise UnsupportedProviderError(provider=provider, harness=harness)
-    mode = model_ref.connection.mode
+    mode = connection.mode
     if not harness_allows_mode(harness, mode):
         raise UnsupportedConnectionModeError(mode=mode, harness=harness)
 
@@ -125,17 +135,23 @@ def _check_harness_pre_resolve(model_ref: ModelRef, harness: Optional[str]) -> N
 def _check_harness_post_resolve(
     resolved: ResolvedConnection, harness: Optional[str]
 ) -> None:
-    """The POST-resolve half of the capability check: reject an unconsumable deployment.
+    """The POST-resolve half of the capability check: reject an unconsumable resolved pair.
 
-    A slug-less ``agenta`` connection only reveals its deployment once the vault selects the
-    secret, so the deployment reject runs after the resolve returns.
+    The resolved provider family and deployment surface are only known once the vault selects
+    the secret (a slug-less ``agenta`` connection reveals its deployment there; a named custom
+    connection normalizes its provider there), so the authoritative pair check runs after the
+    resolve returns. ``harness_allows_pair`` gates the cross-product (design Decision 3): Pi
+    consumes ``custom`` only with ``openai``, Claude only with ``anthropic``. Decompose the
+    reject into the most specific error.
     """
     if not harness:
         return
-    if not harness_allows_deployment(harness, resolved.deployment):
-        raise UnsupportedDeploymentError(
-            deployment=resolved.deployment, harness=harness
-        )
+    if not harness_allows_pair(harness, resolved.provider, resolved.deployment):
+        if not harness_allows_deployment(harness, resolved.deployment):
+            raise UnsupportedDeploymentError(
+                deployment=resolved.deployment, harness=harness
+            )
+        raise UnsupportedProviderError(provider=resolved.provider, harness=harness)
 
 
 async def _default_resolve_session_connection(

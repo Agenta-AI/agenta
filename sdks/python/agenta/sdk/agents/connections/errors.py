@@ -25,6 +25,18 @@ class ConnectionResolutionError(AgentConnectionError):
     """Raised when a connection cannot be resolved into a credential plan."""
 
 
+class EndpointResolutionError(ConnectionResolutionError):
+    """Raised when a chosen custom connection cannot resolve to a usable base URL.
+
+    A named custom (OpenAI-compatible or gateway) connection routes through an explicit
+    endpoint. A missing or egress-blocked base URL is a config problem, not a server fault, so
+    it fails loud with a client-error status rather than degrading to a provider default.
+    """
+
+    # The invoke remap reads `status_code` off the exception; without it this fell through to 500.
+    status_code = 422
+
+
 class ConnectionNotFoundError(ConnectionResolutionError):
     """Raised when a named connection (``mode == agenta`` + ``slug``) does not exist."""
 
@@ -90,6 +102,9 @@ class ProviderMismatchError(ConnectionResolutionError):
 
 class UnsupportedProviderError(ConnectionResolutionError):
     """Raised when the requested provider cannot be reached by the selected harness."""
+
+    # The invoke remap reads `status_code` off the exception; without it this fell through to 500.
+    status_code = 422
 
     def __init__(self, *, provider: str, harness: Optional[str] = None) -> None:
         suffix = f" by harness '{harness}'" if harness else ""

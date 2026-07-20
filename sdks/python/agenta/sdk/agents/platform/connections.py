@@ -28,6 +28,7 @@ from ..connections import (
     AmbiguousConnectionError,
     ConnectionNotFoundError,
     ConnectionResolutionError,
+    EndpointResolutionError,
     Endpoint,
     MissingProviderError,
     ModelRef,
@@ -230,6 +231,9 @@ class _ConnectionCandidate:
     api_key: Optional[str] = None
     env: Dict[str, str] = field(default_factory=dict)
     endpoint: Optional[Endpoint] = None
+    # True when a base URL was supplied but the egress policy rejected it (so the endpoint was
+    # dropped). Distinguishes "blocked" from "absent" for the fail-loud endpoint error below.
+    endpoint_blocked: bool = False
     model_slugs: Set[str] = field(default_factory=set)
     model_keys: Set[str] = field(default_factory=set)
 
@@ -256,7 +260,44 @@ class _ConnectionCandidate:
         return model.model
 
     def resolved_provider(self, model: ModelRef) -> str:
-        return model.provider or self.provider or self.slug
+        if model.provider:
+            return model.provider
+        if self.provider:
+            return self.provider
+        # A provider-less named custom (OpenAI-compatible) connection normalizes to the
+        # ``openai`` provider family: its key then rides ``OPENAI_API_KEY`` (via ``resolved_env``)
+        # and the harness pair check reads ``openai``. An explicit provider (e.g. an Anthropic
+        # gateway) always wins above; the connection slug stays runtime identity
+        # (``request.connection.slug``) and must never become the semantic provider family.
+        if self.deployment == "custom":
+            return "openai"
+        return self.slug
+
+    def requires_endpoint(self) -> bool:
+        """Whether this candidate must resolve to a usable base URL.
+
+        A named custom (OpenAI-compatible or gateway) connection routes through an explicit
+        endpoint. Continuing with no base URL would let the harness fall back to a provider
+        default, silently violating the user's routing choice, so resolution fails loud instead
+        (design Decision 4). Known-family custom records resolve to ``direct`` and keep the
+        provider's own default endpoint, so they are exempt.
+        """
+        return self.deployment == "custom"
+
+    def endpoint_resolution_error(self) -> EndpointResolutionError:
+        """The typed, key-free failure for a custom connection missing a usable base URL."""
+        if self.endpoint_blocked:
+            detail = (
+                "its endpoint URL is blocked by the outbound egress policy (non-HTTPS or a "
+                "private, loopback, link-local, or reserved address); trusted self-hosted "
+                "deployments can allow it with AGENTA_INSECURE_EGRESS_ALLOWED"
+            )
+        else:
+            detail = "it has no base URL configured"
+        # Names the connection slug for the operator; never includes the API key.
+        return EndpointResolutionError(
+            f"custom connection '{self.slug}' cannot be resolved: {detail}"
+        )
 
     def resolved_env(self, provider: str) -> Dict[str, str]:
         env = dict(self.env)
@@ -313,12 +354,17 @@ def _custom_provider_candidate(
     env = _normalized_extra_env(extras)
     region = env.get("AWS_REGION") or env.get("AWS_DEFAULT_REGION")
     raw_url = _stripped(settings.get("url"))
+    endpoint_blocked = False
     if raw_url:
         try:
             assert_endpoint_url_allowed(raw_url)
         except ValueError:
-            log.warning("agent: custom_provider url blocked by SSRF guard, dropping")
+            # Drop the blocked URL here (the candidate may not be the chosen one). A named
+            # custom connection that IS chosen fails loud in `_resolve_from_secrets` instead of
+            # continuing endpoint-less (design Decision 4); `endpoint_blocked` shapes that error.
+            log.warning("agent: custom_provider url blocked by egress policy, dropping")
             raw_url = None
+            endpoint_blocked = True
     endpoint = Endpoint(
         base_url=raw_url,
         api_version=_stripped(settings.get("version")),
@@ -343,6 +389,7 @@ def _custom_provider_candidate(
         api_key=api_key,
         env=env,
         endpoint=endpoint,
+        endpoint_blocked=endpoint_blocked,
         model_slugs=_model_slugs(data),
         # Stored model keys remain namespaced by the vault provider kind. Runtime
         # deployment normalization must not change how a committed model selector matches.
@@ -468,6 +515,14 @@ def _resolve_from_secrets(
         else _choose_default(candidates, model, harness)
     )
     provider = chosen.resolved_provider(model)
+    # A chosen custom connection must carry a usable base URL. Failing here (rather than
+    # returning endpoint=None) keeps the harness from falling back to a provider default and
+    # silently ignoring the user's routing choice (design Decision 4). The error names the slug
+    # and never carries the API key.
+    if chosen.requires_endpoint() and not (
+        chosen.endpoint and chosen.endpoint.base_url
+    ):
+        raise chosen.endpoint_resolution_error()
     env = chosen.resolved_env(provider)
     return ResolvedConnection(
         provider=provider,

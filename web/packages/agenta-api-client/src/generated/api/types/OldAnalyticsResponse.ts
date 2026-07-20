@@ -8,6 +8,6 @@ import type * as AgentaApi from "../index.js";
 export interface OldAnalyticsResponse {
     /** Number of time buckets returned. */
     count?: number | undefined;
-    /** Time-bucketed aggregates with fixed fields (`total`, `errors`) holding `count`, `duration`, `costs`, and `tokens`. */
+    /** Time-bucketed aggregates with fixed fields (`total`, `errors`) holding `count`, `duration`, `costs`, and `tokens`, ordered oldest to newest. */
     buckets?: AgentaApi.Bucket[] | undefined;
 }
