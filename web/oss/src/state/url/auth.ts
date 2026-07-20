@@ -13,6 +13,8 @@ import {profileQueryAtom, userAtom} from "@/oss/state/profile/selectors/user"
 import {sessionExistsAtom, sessionLoadingAtom} from "@/oss/state/session"
 import {urlAtom} from "@/oss/state/url"
 
+import {captureTemplateFromUrl} from "./template"
+
 const isBrowser = typeof window !== "undefined"
 
 export interface InvitePayload {
@@ -223,6 +225,11 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
             }
         }
         store.set(activeInviteAtom, invite ?? null)
+
+        // Capture a website template deep-link alongside the invite, from the same URL read. Runs
+        // again on a regional host after a region redirect, since the query string survives the
+        // switch but the stored key does not.
+        captureTemplateFromUrl(url)
 
         if (sessionLoading) {
             store.set(protectedRouteReadyAtom, false)
