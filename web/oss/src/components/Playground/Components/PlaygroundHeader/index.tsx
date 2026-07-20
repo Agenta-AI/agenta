@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useState} from "react"
 
 import type {PlaygroundNode} from "@agenta/entities/runnable"
+import {isLocalDraftId} from "@agenta/entities/shared"
 import {
     activateEvaluatorEnrichmentAtom,
     deriveWorkflowTypeFromRevision,
@@ -243,6 +244,20 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     const rootEntityQuery = useAtomValue(
         useMemo(() => workflowMolecule.selectors.query(rootEntityId ?? ""), [rootEntityId]),
     )
+    // In onboarding the URL is the project playground (no app_id), so `currentWorkflowAtom` is null
+    // and the agent name would fall back to a static, non-editable "Agent". Resolve the workflow off
+    // the root node instead so the name both renders and stays editable there — but only for a real
+    // (persisted) workflow, never a local-draft ephemeral (no backend row to rename).
+    const rootWorkflowId = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.workflowId(rootEntityId ?? ""), [rootEntityId]),
+    )
+    const rootArtifactName = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.artifactName(rootEntityId ?? ""), [rootEntityId]),
+    )
+    const renameWorkflowId =
+        currentWorkflow?.id ??
+        (rootWorkflowId && !isLocalDraftId(rootWorkflowId) ? rootWorkflowId : null)
+    const agentName = displayAgentName || rootArtifactName || ""
     // Early app-id signal resolves agent-ness before the heavy node graph loads, so
     // the layout commits to the right chrome up front instead of defaulting to the
     // non-agent stack and unmounting it on reload.
@@ -711,15 +726,15 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                     <Robot size={15} weight="fill" />
                                 </span>
                             </Tooltip>
-                            {currentWorkflow?.id ? (
+                            {renameWorkflowId ? (
                                 <AgentNameInline
-                                    workflowId={currentWorkflow.id}
-                                    name={displayAgentName}
+                                    workflowId={renameWorkflowId}
+                                    name={agentName}
                                     onRenamed={setDisplayAgentName}
                                 />
                             ) : (
                                 <Typography className="truncate whitespace-nowrap text-[16px] leading-[18px] font-[600]">
-                                    {displayAgentName || "Agent"}
+                                    {agentName || "Agent"}
                                 </Typography>
                             )}
                             {rootEntityId ? (

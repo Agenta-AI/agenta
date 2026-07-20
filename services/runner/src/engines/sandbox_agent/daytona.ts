@@ -1,4 +1,3 @@
-import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { createAcpFetch } from "./acp-fetch.ts";
@@ -7,7 +6,12 @@ import {
   uploadSkillsToSandbox,
   uploadSystemPromptToSandbox,
 } from "./pi-assets.ts";
-import { shouldUploadOwnLogin, type RunPlan } from "./run-plan.ts";
+import {
+  PI_MODELS_JSON_FILENAME,
+  serializePiModelsJson,
+  type PiModelConfigPlan,
+} from "./pi-model-config.ts";
+import { type RunPlan } from "./run-plan.ts";
 
 type Log = (message: string) => void;
 
@@ -141,34 +145,45 @@ export async function ensurePiInSandbox(
 }
 
 /**
- * Upload the local Pi login into a Daytona sandbox so the remote Pi authenticates with
- * the dev's ChatGPT/Codex OAuth. Best-effort: with no local login the remote run falls
- * back to any provider key in the sandbox env.
+ * Upload the exact Pi `models.json` into a Daytona sandbox's Pi agent dir, overwriting any stale
+ * file left by an earlier configuration on a reused sandbox. THROWS on failure so the caller makes
+ * materialization terminal — a managed custom run must never fall through to a default provider
+ * (design Decision 6). The document carries only the `$OPENAI_API_KEY` reference; the key value
+ * itself rides `daytonaEnvVars` into the sandbox env.
  */
-export async function uploadPiAuthToSandbox(
+export async function uploadPiModelsConfigToSandbox(
   sandbox: any,
+  agentDir: string,
+  plan: PiModelConfigPlan,
   log: Log = () => {},
 ): Promise<void> {
-  const localDir =
-    process.env.PI_CODING_AGENT_DIR ||
-    join(process.env.HOME ?? "", ".pi/agent");
-  const authPath = join(localDir, "auth.json");
-  if (!existsSync(authPath)) return;
+  await sandbox.mkdirFs({ path: agentDir });
+  await sandbox.writeFsFile(
+    { path: `${agentDir}/${PI_MODELS_JSON_FILENAME}` },
+    serializePiModelsJson(plan),
+  );
+  log(
+    `pi models.json uploaded provider=${plan.providerId} api=${plan.api} ` +
+      `model=${plan.models.map((m) => m.id).join(",")}`,
+  );
+}
+
+/**
+ * Remove any stale Pi `models.json` from a reused sandbox when the current run has NO model-config
+ * plan, so a reused/parked sandbox never retains a custom provider from an earlier configuration.
+ * Best-effort: an absent file (or a provider without a delete op) is fine.
+ */
+export async function removePiModelsConfigFromSandbox(
+  sandbox: any,
+  agentDir: string,
+  log: Log = () => {},
+): Promise<void> {
   try {
-    await sandbox.mkdirFs({ path: DAYTONA_PI_DIR });
-    await sandbox.writeFsFile(
-      { path: `${DAYTONA_PI_DIR}/auth.json` },
-      readFileSync(authPath, "utf-8"),
-    );
-    const settingsPath = join(localDir, "settings.json");
-    if (existsSync(settingsPath)) {
-      await sandbox.writeFsFile(
-        { path: `${DAYTONA_PI_DIR}/settings.json` },
-        readFileSync(settingsPath, "utf-8"),
-      );
-    }
+    await sandbox.deleteFsEntry?.({
+      path: `${agentDir}/${PI_MODELS_JSON_FILENAME}`,
+    });
   } catch (err) {
-    log(`pi auth upload skipped: ${(err as Error).message}`);
+    log(`pi models.json cleanup skipped: ${(err as Error).message}`);
   }
 }
 
@@ -177,33 +192,56 @@ export interface PrepareDaytonaPiAssetsInput {
   plan: Pick<
     RunPlan,
     | "isPi"
-    | "hasApiKey"
-    | "credentialMode"
     | "skillDirs"
     | "hasSystemPrompt"
     | "systemPrompt"
     | "appendSystemPrompt"
   >;
+  /**
+   * A managed OpenAI-compatible custom run's Pi provider config. When set, its `models.json` is
+   * uploaded before the ACP session starts; when absent, any stale `models.json` on a reused
+   * sandbox is removed so no earlier provider survives.
+   */
+  piModelConfig?: PiModelConfigPlan;
   log?: Log;
 }
 
 /**
  * Push the Pi login fallback, Agenta extension, forced skills, system prompts, and optional
- * Pi CLI install into a Daytona sandbox.
+ * Pi CLI install into a Daytona sandbox. Reports whether the permission extension installed so the
+ * caller can fail the run closed when the policy could gate a Pi built-in tool. A non-Pi run needs
+ * no extension, so it reports `true` (nothing to enforce here).
  */
 export async function prepareDaytonaPiAssets({
   sandbox,
   plan,
+  piModelConfig,
   log = () => {},
-}: PrepareDaytonaPiAssetsInput): Promise<void> {
-  if (!plan.isPi) return;
+}: PrepareDaytonaPiAssetsInput): Promise<boolean> {
+  if (!plan.isPi) return true;
 
-  // Upload Pi's fallback `auth.json` only when the harness owns its login (Security rule 6):
-  // runtime_provided, or an un-migrated caller with no api key. A resolved key (credentialMode
-  // "env") NEVER triggers the fallback. The decision lives in `shouldUploadOwnLogin` so the rule
-  // is in one place and testable.
-  if (shouldUploadOwnLogin(plan)) await uploadPiAuthToSandbox(sandbox, log);
-  await uploadPiExtensionToSandbox(sandbox, DAYTONA_PI_DIR, log);
+  // A Daytona run never receives the runner's own Pi login: subscription (runtime_provided) auth
+  // is rejected for Daytona in buildRunPlan, and a managed run authenticates from the vault keys
+  // in `daytonaEnvVars`. The runner therefore uploads only the inert Agenta extension, forced
+  // skills, and system prompts — never a personal `auth.json` (interface.md section 6).
+  const extensionInstalled = await uploadPiExtensionToSandbox(
+    sandbox,
+    DAYTONA_PI_DIR,
+    log,
+  );
+  // Managed OpenAI-compatible custom provider: upload the exact models.json (overwriting stale)
+  // before the session starts. No plan: remove any stale file so a reused sandbox keeps no earlier
+  // provider. Upload failure THROWS here and is terminal in the engine's acquire try.
+  if (piModelConfig) {
+    await uploadPiModelsConfigToSandbox(
+      sandbox,
+      DAYTONA_PI_DIR,
+      piModelConfig,
+      log,
+    );
+  } else {
+    await removePiModelsConfigFromSandbox(sandbox, DAYTONA_PI_DIR, log);
+  }
   if (plan.skillDirs.length > 0) {
     await uploadSkillsToSandbox(sandbox, DAYTONA_PI_DIR, plan.skillDirs, log);
   }
@@ -221,6 +259,7 @@ export async function prepareDaytonaPiAssets({
   log(
     `[timing] stage=pi_install ms=${Math.round(Date.now() - piInstallStartedAt)} sandbox=${sandbox?.sandboxId ?? "-"} session=-`,
   );
+  return extensionInstalled;
 }
 
 /**

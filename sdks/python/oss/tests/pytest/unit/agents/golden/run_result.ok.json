@@ -7,7 +7,7 @@
   "events": [
     {"type": "message", "text": "Hello!"},
     {"type": "usage", "input": 10, "output": 5, "total": 15, "cost": 0.001},
-    {"type": "done", "stopReason": "end_turn"},
+    {"type": "done", "stopReason": "end_turn", "traceId": "trace-abc"},
     {"text": "an event with no type, dropped on parse"}
   ],
   "usage": {"input": 10, "output": 5, "total": 15, "cost": 0.001},

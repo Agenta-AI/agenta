@@ -60,6 +60,9 @@ class MountFile(BaseModel):
     path: str
     size: int = 0
     is_folder: bool = False
+    # Object-store LastModified as epoch milliseconds; None when the store omits it. Lets the UI
+    # order files by recency regardless of how they were created (bash, Write tool, upload).
+    mtime: Optional[int] = None
 
 
 class MountFileList(BaseModel):

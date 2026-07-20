@@ -18,6 +18,11 @@ import { promisify } from "node:util";
 
 const pExecFile = promisify(execFile);
 
+/** POSIX single-quote escaping for values interpolated into `sh -c` strings. */
+export function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
 /** Signed, scoped, short-lived credentials for one mount (mirror of the API `MountCredentials`). */
 export interface MountCredentials {
   endpoint?: string;
@@ -312,10 +317,14 @@ export async function mountStorage(
 
   // Not alive: a prior stale node may still occupy the mountpoint. Force-detach before
   // remounting, else geesefs fails "mountpoint is not empty" / re-stacks on the dead node.
-  const staleMountDetached = await unmountStorage(cwd, { ...deps.unmountDeps, log });
+  const staleMountDetached = await unmountStorage(cwd, {
+    ...deps.unmountDeps,
+    log,
+  });
   if (!staleMountDetached) {
     throw new Error(
-      "pre-mount detach could not be confirmed for " + cwd +
+      "pre-mount detach could not be confirmed for " +
+        cwd +
         "; refusing to start geesefs",
     );
   }
@@ -579,7 +588,10 @@ async function remoteMountAlive(
     try {
       const res = await sandbox.runProcess({
         command: "sh",
-        args: ["-c", `mountpoint -q ${cwd} && ls ${cwd} >/dev/null 2>&1`],
+        args: [
+          "-c",
+          `mountpoint -q ${shellQuote(cwd)} && ls ${shellQuote(cwd)} >/dev/null 2>&1`,
+        ],
         timeoutMs: 5_000,
       });
       consecutiveThrows = 0;
@@ -610,7 +622,7 @@ async function unmountRemoteDeadMount(
       command: "sh",
       args: [
         "-c",
-        `fusermount -u ${cwd} 2>/dev/null || umount -l ${cwd} 2>/dev/null || true`,
+        `fusermount -u ${shellQuote(cwd)} 2>/dev/null || umount -l ${shellQuote(cwd)} 2>/dev/null || true`,
       ],
       timeoutMs: 10_000,
     });
@@ -640,13 +652,14 @@ export async function mountStorageRemote(
     // Ensure the directory exists before mounting.
     await sandbox.runProcess({
       command: "sh",
-      args: ["-c", `mkdir -p ${cwd}`],
+      args: ["-c", `mkdir -p ${shellQuote(cwd)}`],
       timeoutMs: 30_000,
     });
     // Background geesefs with its logs to a file so the RPC returns immediately.
     const args = geesefsArgs(creds, cwd, deps.endpoint, false);
     const logFile = "/tmp/geesefs-mount.log";
-    const geefsCmd = `geesefs --log-file ${logFile} ${args.join(" ")} >>${logFile} 2>&1 &`;
+    const quotedArgs = args.map(shellQuote).join(" ");
+    const geefsCmd = `geesefs --log-file ${shellQuote(logFile)} ${quotedArgs} >>${shellQuote(logFile)} 2>&1 &`;
     log(`remote geesefs argv: ${args.join(" ")}`);
     const res = await sandbox.runProcess({
       command: "sh",
@@ -676,7 +689,9 @@ export async function mountStorageRemote(
       await unmountRemoteDeadMount(sandbox, cwd, log);
       return false;
     }
-    log(`remote mounted ${creds.bucket}:${creds.prefix} -> ${cwd} (verified alive)`);
+    log(
+      `remote mounted ${creds.bucket}:${creds.prefix} -> ${cwd} (verified alive)`,
+    );
     return true;
   } catch (err) {
     log(
@@ -732,7 +747,11 @@ export async function mountHarnessSessionDirs(
       dir.name,
     );
     if (!creds) {
-      log(`harness session mount '${dir.name}' not signed — skipping ${dir.path}`);
+      // A resumable harness session expects its transcript dir mounted. Same structured degrade
+      // signal as the session/agent mounts (behavior unchanged; the run proceeds without it).
+      log(
+        `mount degraded kind=harness_transcript cause=sign_returned_no_mount session=${sessionId} dir=${dir.name}`,
+      );
       continue;
     }
     await mountRemote(sandbox, dir.path, creds, {

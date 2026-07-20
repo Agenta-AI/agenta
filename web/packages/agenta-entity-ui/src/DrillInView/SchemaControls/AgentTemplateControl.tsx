@@ -48,7 +48,6 @@ import {
     Cpu,
     FileText,
     GraduationCap,
-    Lightning,
     Plugs,
     Plus,
     SlidersHorizontal,
@@ -79,11 +78,7 @@ import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
 import {parseGatewayTool, type ParsedGatewayTool, type ToolObj} from "./toolUtils"
-import {
-    AddTriggerDropdown,
-    TriggerManagementSection,
-    useAgentTriggers,
-} from "./TriggerManagementSection"
+import {useAgentTriggers} from "./TriggerManagementSection"
 import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
 
 // Tooltip copy for the config-panel draft/validation indicators.
@@ -293,6 +288,10 @@ export function AgentTemplateControl({
     const revisionId = drillIn?.entityId ?? null
     revisionIdRef.current = revisionId
 
+    // Trigger count for the section auto-expand/summary state (the Triggers UI itself now lives in
+    // the sibling AgentOperationsSections; this shares the same deduped query).
+    const {count: triggerCount} = useAgentTriggers(revisionId)
+
     // ── Agent self-commit: surface WHAT the agent just changed ──────────────────────────
     // The chat raises the signal (with the outgoing revision's parameters) when the agent
     // commits itself and the playground switches in place. Once this control renders the
@@ -338,10 +337,6 @@ export function AgentTemplateControl({
         },
         [agentChangedKeys, commitSignal?.version],
     )
-    // Triggers bound to this agent (for the section count badge). The section body and the header
-    // add-dropdown derive scoping from the same hook.
-    const {count: triggerCount} = useAgentTriggers(revisionId)
-
     // Model & harness + Advanced own a lot of coupled, stateful logic (the model/connection state
     // feeds both sections), so they live in their own hook that returns the summaries + bodies.
     //
@@ -849,15 +844,6 @@ export function AgentTemplateControl({
                 />
             ),
         },
-        {
-            key: "triggers",
-            icon: <Lightning size={16} />,
-            title: "Triggers",
-            summary: countSummary(triggerCount, "trigger"),
-            extra: !disabled ? <AddTriggerDropdown entityId={revisionId} /> : undefined,
-            defaultOpen: triggerCount > 0,
-            content: <TriggerManagementSection entityId={revisionId} disabled={disabled} />,
-        },
         mh.hasAdvanced && {
             key: "advanced",
             icon: <SlidersHorizontal size={16} />,
@@ -952,7 +938,7 @@ export function AgentTemplateControl({
                 />
             ) : layout === "cards" ? (
                 <div className="flex flex-col gap-3 pt-1">
-                    {sections.map((s, index) => (
+                    {sections.map((s) => (
                         <ConfigAccordionSection
                             key={s.key}
                             icon={s.icon}

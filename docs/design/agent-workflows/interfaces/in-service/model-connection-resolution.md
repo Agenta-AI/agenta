@@ -36,10 +36,13 @@ The run receives only that candidate's `env` and `endpoint`. It never receives t
 vault.
 
 **Capability gating** runs in two halves around resolution. Provider and connection mode are
-checked before; deployment is checked after (the resolved connection is what carries it).
-Each harness publishes what it can reach: Pi reaches eight direct providers; Claude reaches
-Anthropic across direct, custom, bedrock, and vertex. Unnamed default connections degrade
-tolerantly to an empty `env` rather than failing the run.
+checked before; deployment is checked after (the resolved connection is what carries it). A
+resolved-pair table (`harness_allows_pair`) is authoritative: Pi reaches its direct providers
+plus the OpenAI-compatible `custom` deployment (a provider-less `custom` connection resolves to
+provider `openai`, deployment `custom`); Claude reaches Anthropic across direct, custom, bedrock,
+and vertex. Unnamed default connections degrade tolerantly to an empty `env` rather than failing
+the run. A `custom` connection with an unusable base URL is the exception: it never resolves to a
+default endpoint. It raises `EndpointResolutionError`, which returns HTTP 422.
 
 ## Owned by
 

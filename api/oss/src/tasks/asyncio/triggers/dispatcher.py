@@ -181,10 +181,28 @@ class TriggersDispatcher:
         event_id: str,
         event: Dict[str, Any],
     ) -> None:
-        """Dispatch a cron tick for one schedule (no provider/dedup/validity gates)."""
+        """Dispatch a cron tick for one schedule (no provider/validity gates).
+
+        Dedups on the (schedule, tick) event_id like ``dispatch_subscription``: the task
+        is retried on error, so without this a failure after the workflow's side effects
+        landed would re-invoke it.
+        """
         if not schedule.flags.is_active:
             log.info(
                 "[TRIGGERS DISPATCHER] Schedule %s inactive — skipping",
+                schedule.id,
+            )
+            return
+
+        already_seen = await self.triggers_dao.dedup_seen_schedule(
+            project_id=project_id,
+            schedule_id=schedule.id,
+            event_id=event_id,
+        )
+        if already_seen:
+            log.info(
+                "[TRIGGERS DISPATCHER] Duplicate event %s for schedule %s — skipping",
+                event_id,
                 schedule.id,
             )
             return
@@ -204,11 +222,47 @@ class TriggersDispatcher:
         event_id: str,
         event: Dict[str, Any],
     ) -> None:
-        """Shared path once a subscription/schedule is cleared to fire: resolve
-        inputs + references, invoke the bound workflow, and record the delivery."""
+        """Shared path once a subscription/schedule is cleared to fire: claim the
+        delivery row, resolve inputs + references, invoke the bound workflow, and
+        complete the delivery.
+
+        The claim is the ONLY thing that authorizes an invoke: it is an atomic
+        ``INSERT ... ON CONFLICT DO NOTHING ... RETURNING`` on the same unique key
+        (project_id, subscription_id|schedule_id, event_id) the caller's earlier
+        dedup pre-check reads. Two concurrent ticks/deliveries for the same event
+        both reach `_run`, but only the one whose INSERT lands may invoke — the
+        other's claim returns None and it returns immediately. Every subsequent
+        write in this method UPDATEs that same claimed row by id (never inserts),
+        so a delivery-write failure after a successful invoke cannot look like "no
+        row exists" to a retry and cause a re-invoke.
+        """
         is_subscription = isinstance(entity, TriggerSubscription)
         subscription_id = entity.id if is_subscription else None
         schedule_id = None if is_subscription else entity.id
+
+        delivery_id = uuid_compat.uuid7()
+        user_id = entity.created_by_id
+
+        claimed = await self.triggers_dao.claim_delivery(
+            project_id=project_id,
+            user_id=user_id,
+            delivery=TriggerDeliveryCreate(
+                id=delivery_id,
+                subscription_id=subscription_id,
+                schedule_id=schedule_id,
+                event_id=event_id,
+                status=Status(code="102", message="claimed"),
+            ),
+        )
+        if claimed is None:
+            log.info(
+                "[TRIGGERS DISPATCHER] claim lost for entity=%s event=%s — already "
+                "claimed/delivered, skipping invoke",
+                entity.id,
+                event_id,
+            )
+            return
+        delivery_id = claimed.id
 
         context = self._build_context(
             event=event,
@@ -235,9 +289,6 @@ class TriggersDispatcher:
             else None
         )
 
-        delivery_id = uuid_compat.uuid7()
-        user_id = entity.created_by_id
-
         delivery_data = TriggerDeliveryData(
             event_key=entity.data.event_key,
             references=entity.data.references,
@@ -245,13 +296,9 @@ class TriggersDispatcher:
         )
 
         if not references:
-            await self._write_delivery(
+            await self._complete_delivery(
                 project_id=project_id,
-                user_id=user_id,
                 delivery_id=delivery_id,
-                subscription_id=subscription_id,
-                schedule_id=schedule_id,
-                event_id=event_id,
                 status=Status(code="400", message="failed"),
                 data=delivery_data.model_copy(
                     update={"error": "Entity has no bound workflow reference"}
@@ -268,19 +315,15 @@ class TriggersDispatcher:
         )
 
         if self._dispatch_fn is not None:
-            # Detached path: hand off to the runner, write dispatched delivery.
+            # Detached path: hand off to the runner, complete the claimed delivery.
             run_id = await self._dispatch_fn(
                 project_id=project_id,
                 user_id=user_id,
                 request=request,
             )
-            await self._write_delivery(
+            await self._complete_delivery(
                 project_id=project_id,
-                user_id=user_id,
                 delivery_id=delivery_id,
-                subscription_id=subscription_id,
-                schedule_id=schedule_id,
-                event_id=event_id,
                 status=Status(code="202", message="dispatched"),
                 data=delivery_data.model_copy(update={"result": {"run_id": run_id}}),
             )
@@ -300,13 +343,9 @@ class TriggersDispatcher:
             )
         except Exception as e:
             log.error("[TRIGGERS DISPATCHER] invoke failed: %s", e, exc_info=True)
-            await self._write_delivery(
+            await self._complete_delivery(
                 project_id=project_id,
-                user_id=user_id,
                 delivery_id=delivery_id,
-                subscription_id=subscription_id,
-                schedule_id=schedule_id,
-                event_id=event_id,
                 status=Status(code="500", message="failed"),
                 data=delivery_data.model_copy(update={"error": str(e)}),
             )
@@ -319,13 +358,9 @@ class TriggersDispatcher:
         )
 
         if status_code not in (None, 200):
-            await self._write_delivery(
+            await self._complete_delivery(
                 project_id=project_id,
-                user_id=user_id,
                 delivery_id=delivery_id,
-                subscription_id=subscription_id,
-                schedule_id=schedule_id,
-                event_id=event_id,
                 status=Status(code=str(status_code), message="failed"),
                 data=delivery_data.model_copy(
                     update={
@@ -340,13 +375,9 @@ class TriggersDispatcher:
             )
             return
 
-        await self._write_delivery(
+        await self._complete_delivery(
             project_id=project_id,
-            user_id=user_id,
             delivery_id=delivery_id,
-            subscription_id=subscription_id,
-            schedule_id=schedule_id,
-            event_id=event_id,
             status=Status(code="200", message="success"),
             data=delivery_data.model_copy(
                 update={
@@ -387,4 +418,22 @@ class TriggersDispatcher:
                 status=status,
                 data=data,
             ),
+        )
+
+    async def _complete_delivery(
+        self,
+        *,
+        project_id: UUID,
+        delivery_id: UUID,
+        status: Status,
+        data: TriggerDeliveryData,
+    ) -> None:
+        """Complete a row `_run` already claimed — an UPDATE by id, never a fresh
+        INSERT, so a write failure here cannot look like "no delivery yet" to a
+        retry (see `_run`'s claim-then-update contract)."""
+        await self.triggers_dao.update_delivery(
+            project_id=project_id,
+            delivery_id=delivery_id,
+            status=status,
+            data=data,
         )

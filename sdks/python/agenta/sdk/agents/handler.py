@@ -18,6 +18,7 @@ from agenta.sdk.agents.interfaces import Backend, Environment
 from agenta.sdk.agents.capabilities import (
     harness_allows_deployment,
     harness_allows_mode,
+    harness_allows_pair,
     harness_allows_provider,
 )
 from agenta.sdk.agents.connections import (
@@ -114,10 +115,19 @@ def _check_harness_pre_resolve(model_ref: ModelRef, harness: Optional[str]) -> N
     """
     if not harness:
         return
+    connection = model_ref.connection
+    is_named = connection.mode == "agenta" and bool(
+        connection.slug and connection.slug.strip()
+    )
     provider = model_ref.provider
-    if provider and not harness_allows_provider(harness, provider):
+    # A named Agenta connection defers provider acceptance to the post-resolve pair check: the
+    # vault record is authoritative for the family (a provider-less OpenAI-compatible custom
+    # normalizes to ``openai``, and the model may even carry the connection slug as a placeholder
+    # provider that no harness lists). Rejecting that untrusted pre-resolve string would block a
+    # valid custom connection, so a named connection validates only its mode here.
+    if provider and not is_named and not harness_allows_provider(harness, provider):
         raise UnsupportedProviderError(provider=provider, harness=harness)
-    mode = model_ref.connection.mode
+    mode = connection.mode
     if not harness_allows_mode(harness, mode):
         raise UnsupportedConnectionModeError(mode=mode, harness=harness)
 
@@ -125,17 +135,23 @@ def _check_harness_pre_resolve(model_ref: ModelRef, harness: Optional[str]) -> N
 def _check_harness_post_resolve(
     resolved: ResolvedConnection, harness: Optional[str]
 ) -> None:
-    """The POST-resolve half of the capability check: reject an unconsumable deployment.
+    """The POST-resolve half of the capability check: reject an unconsumable resolved pair.
 
-    A slug-less ``agenta`` connection only reveals its deployment once the vault selects the
-    secret, so the deployment reject runs after the resolve returns.
+    The resolved provider family and deployment surface are only known once the vault selects
+    the secret (a slug-less ``agenta`` connection reveals its deployment there; a named custom
+    connection normalizes its provider there), so the authoritative pair check runs after the
+    resolve returns. ``harness_allows_pair`` gates the cross-product (design Decision 3): Pi
+    consumes ``custom`` only with ``openai``, Claude only with ``anthropic``. Decompose the
+    reject into the most specific error.
     """
     if not harness:
         return
-    if not harness_allows_deployment(harness, resolved.deployment):
-        raise UnsupportedDeploymentError(
-            deployment=resolved.deployment, harness=harness
-        )
+    if not harness_allows_pair(harness, resolved.provider, resolved.deployment):
+        if not harness_allows_deployment(harness, resolved.deployment):
+            raise UnsupportedDeploymentError(
+                deployment=resolved.deployment, harness=harness
+            )
+        raise UnsupportedProviderError(provider=resolved.provider, harness=harness)
 
 
 async def _default_resolve_session_connection(
@@ -202,9 +218,9 @@ class AgentComposition:
     ``None``/no-op when a run has no such state, so a bare ``agent_v0`` behaves correctly in
     any process without composition.
 
-    ``resolve_session_connection`` / ``resolve_mcp_servers`` default to the SAFE behavior
-    (capability-gated + degrading connection resolve; MCP-gated server resolve) rather than
-    a bare fallback, so a composition-free ``agent_v0`` is not the permissive copy."""
+    ``resolve_session_connection`` defaults to the SAFE behavior (capability-gated + degrading
+    connection resolve) rather than a bare fallback, so a composition-free ``agent_v0`` is not
+    the permissive copy."""
 
     default_template: DefaultTemplateFn = field(default=_default_template)
     resolve_tools: ResolveToolsFn = field(default=_default_resolve_tools)
@@ -250,6 +266,13 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             params, defaults=comp.default_template()
         )
 
+        # SVC-1: select the backend BEFORE resolving. select_backend carries the sandbox gate
+        # (a `local` run on a shared deployment is refused), and it reads only agent_template,
+        # so a doomed request must not first pay for the tool/MCP/vault resolution below.
+        harness = make_harness(
+            agent_template.harness, Environment(comp.select_backend(agent_template))
+        )
+
         msgs = to_messages(messages or (inputs or {}).get("messages") or [])
         resolved_tools = await comp.resolve_tools(agent_template.tools)
         resolved_mcp = await comp.resolve_mcp_servers(agent_template.mcp_servers)
@@ -292,10 +315,6 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             tool_specs=resolved_tools.tool_specs,
             tool_callback=resolved_tools.tool_callback,
             mcp_servers=resolved_mcp,
-        )
-
-        harness = make_harness(
-            agent_template.harness, Environment(comp.select_backend(agent_template))
         )
 
         if stream:

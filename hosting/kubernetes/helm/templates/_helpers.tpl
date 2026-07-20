@@ -322,11 +322,26 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 
 {{- define "agenta.agentRunner.servicesEnv" -}}
 {{- $runner := default dict .Values.agentRunner -}}
+{{- $auth := default dict $runner.auth -}}
 {{- $url := include "agenta.agentRunner.url" . -}}
 {{- if $url }}
 - name: AGENTA_RUNNER_INTERNAL_URL
   value: {{ $url | quote }}
 {{- end }}
+{{- /* Services sends the shared runner protocol credential the runner verifies (interface.md
+       section 2). REQUIRED and always rendered — the runner rejects an un-tokened request with 401
+       and refuses to boot without the secret, so a Services pod without it could never call it.
+       Mirrors runner-deployment.yaml: an explicit auth.tokenSecretRef wins, else the platform Secret. */}}
+- name: AGENTA_RUNNER_TOKEN
+  valueFrom:
+    secretKeyRef:
+      {{- if $auth.tokenSecretRef }}
+      name: {{ $auth.tokenSecretRef.name | quote }}
+      key: {{ $auth.tokenSecretRef.key | quote }}
+      {{- else }}
+      name: {{ include "agenta.fullname" . | quote }}
+      key: AGENTA_RUNNER_TOKEN
+      {{- end }}
 {{- end }}
 
 {{/* ================================================================

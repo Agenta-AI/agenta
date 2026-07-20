@@ -225,6 +225,82 @@ async def test_default_composition_rejects_unconsumable_deployment_post_resolve(
         )
 
 
+async def test_named_connection_defers_provider_reject_to_post_resolve():
+    """A named Agenta connection must NOT be rejected pre-resolve on an unknown-family provider
+    placeholder (the UI can store the connection slug as the provider). The vault normalizes it,
+    and Pi + openai + custom is an allowed pair, so the run proceeds."""
+    backend = _FakeBackend(output="ok")
+
+    async def _resolve(*, model, context):
+        # The vault record normalized the provider-less custom to openai + custom deployment.
+        return ResolvedConnection(
+            provider="openai",
+            model="qwen2.5-coder:7b",
+            deployment="custom",
+            credential_mode="env",
+            env={"OPENAI_API_KEY": "sk-oai"},
+            endpoint={"base_url": "https://93.184.216.34/v1"},
+        )
+
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_resolve,
+    )
+    handler = make_agent_handler(comp)
+
+    result = await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        # provider is the connection slug (no harness lists it); pre-resolve must defer it.
+        parameters=_params(
+            "pi_core",
+            model={
+                "provider": "my-ollama",
+                "model": "qwen2.5-coder:7b",
+                "connection": {"mode": "agenta", "slug": "my-ollama"},
+            },
+        ),
+    )
+    assert result == {"messages": [{"role": "assistant", "content": "ok"}]}
+
+
+async def test_pi_custom_with_non_openai_family_rejected_post_resolve():
+    """Pi + a non-openai family + custom is not an allowed pair (Pi's custom surface is
+    openai-only), so it must fail loud post-resolve even though anthropic is otherwise reachable
+    by Pi directly."""
+    backend = _FakeBackend()
+
+    async def _resolve(*, model, context):
+        return ResolvedConnection(
+            provider="anthropic",
+            model="some-model",
+            deployment="custom",
+            credential_mode="env",
+            env={"ANTHROPIC_API_KEY": "sk-ant"},
+            endpoint={"base_url": "https://93.184.216.34/v1"},
+        )
+
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_resolve,
+    )
+    handler = make_agent_handler(comp)
+
+    with pytest.raises(UnsupportedProviderError):
+        await handler(
+            request=_request(),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters=_params(
+                "pi_core",
+                model={
+                    "provider": "my-gateway",
+                    "model": "some-model",
+                    "connection": {"mode": "agenta", "slug": "my-gateway"},
+                },
+            ),
+        )
+
+
 async def test_default_composition_degrades_default_connection_failure():
     """An unconfigured default-mode connection degrades to runtime_provided, no raise --
     even with NO composition override (the SDK default now has the degradation policy
@@ -403,6 +479,50 @@ async def test_default_select_backend_allows_daytona_sandbox_with_custom_backend
         },
     )
     assert isinstance(result, dict)
+
+
+# --------------------------------------------------------------------------- #
+# SVC-1: the backend gate must fire BEFORE the expensive resolves
+# --------------------------------------------------------------------------- #
+async def test_backend_gate_fires_before_tool_mcp_and_vault_resolution():
+    """A rejected run must not first pay for tools, MCP servers, and the vault round trip.
+
+    `select_backend` carries the local-sandbox gate. It used to run AFTER resolve_tools /
+    resolve_mcp_servers / resolve_connection, so a doomed request did all that work first.
+    """
+    ran: List[str] = []
+
+    async def _spy_tools(tools, **kwargs):
+        ran.append("tools")
+        raise AssertionError("resolve_tools ran despite a rejected backend")
+
+    async def _spy_mcp(servers, **kwargs):
+        ran.append("mcp")
+        raise AssertionError("resolve_mcp_servers ran despite a rejected backend")
+
+    async def _spy_connection(*, model, context):
+        ran.append("connection")
+        raise AssertionError("resolve_connection ran despite a rejected backend")
+
+    def _rejecting_backend(template):
+        raise RuntimeError("sandbox 'local' is not allowed")
+
+    comp = AgentComposition(
+        select_backend=_rejecting_backend,
+        resolve_tools=_spy_tools,
+        resolve_mcp_servers=_spy_mcp,
+        resolve_connection=_spy_connection,
+    )
+    handler = make_agent_handler(comp)
+
+    with pytest.raises(RuntimeError, match="not allowed"):
+        await handler(
+            request=_request(),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters=_params(model="openai/gpt-5.5"),
+        )
+
+    assert ran == []
 
 
 if __name__ == "__main__":
