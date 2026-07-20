@@ -1,0 +1,52 @@
+---
+title: "App tools and triggers"
+sidebar_label: "App tools and triggers"
+description: "What an agent can connect to on a self-hosted deployment: which tools and triggers work out of the box, which need Composio, and why code tools are disabled."
+slug: /self-host/app-tools-and-triggers
+sidebar_position: 5
+---
+
+An agent on a self-hosted deployment can use several kinds of capability. Some work with no extra
+setup. Connecting to third-party apps needs a gateway. This page explains which is which.
+
+## Works without extra setup
+
+- **Built-in Agenta tools.** Available on every deployment.
+- **Schedule triggers.** Run an agent on a time schedule (for example, every morning). These read
+  from your own database and need no third-party service.
+
+## App tools and event triggers need Composio
+
+Connecting an agent to a third-party app goes through **Composio**, a tool gateway. This covers two
+things:
+
+- **App tools.** Letting an agent act in an outside app, such as opening a GitHub issue or sending a
+  Slack message.
+- **Event triggers.** Letting an outside app start a run, such as a new GitHub issue firing your
+  agent. This is different from a schedule trigger, which is time-based and needs no gateway.
+
+Without a Composio API key, these are unavailable. Tool and trigger discovery
+(`discover_tools`, `discover_triggers`) returns `404`, because the gateway they route through is not
+configured.
+
+To enable them, set a Composio API key. Composio has a free tier; create an account, get a key, then
+add it to your env file:
+
+```bash
+COMPOSIO_API_KEY=your-composio-api-key
+```
+
+Recreate the stack so the API picks it up:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml \
+  --env-file hosting/docker-compose/oss/.env.oss.gh up -d
+```
+
+See [Configuration](/self-host/configuration#composio) for the full list of Composio variables.
+
+## Code tools are disabled
+
+The runner does not run custom code tools (an agent shelling out to `gh` or `curl`, for example).
+This is a security decision, not a configuration you can turn on. To let an agent act in an outside
+service, use an app tool through Composio instead.
