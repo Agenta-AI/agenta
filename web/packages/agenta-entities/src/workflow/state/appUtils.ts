@@ -12,6 +12,7 @@
  * @packageDocumentation
  */
 
+import {getEnabledSandboxProviders} from "@agenta/shared/api"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {atom, getDefaultStore} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -23,7 +24,11 @@ import {fetchWorkflowCatalogTemplates, inspectWorkflow} from "../api"
 import type {Workflow} from "../core"
 import {buildWorkflowUri, parseWorkflowKeyFromUri} from "../core"
 
-import {applyAgentCreationPrefs, agentCreationPrefsAtom} from "./agentCreationPrefs"
+import {
+    applyAgentCreationPrefs,
+    agentCreationPrefsAtom,
+    ensureEnabledSandbox,
+} from "./agentCreationPrefs"
 import {buildServiceUrlFromUri} from "./helpers"
 import {workflowLocalServerDataAtomFamily} from "./store"
 
@@ -193,7 +198,13 @@ export async function createEphemeralAppFromTemplate({
             !Array.isArray(parameters.agent)
                 ? (parameters.agent as Record<string, unknown>)
                 : {}
-        parameters = {...parameters, agent: applyAgentCreationPrefs(agentConfig, agentPrefs)}
+        // Seed a deployment-valid sandbox before commit so a daytona-only deployment doesn't
+        // commit an unrunnable `local` default and then show a phantom Advanced draft on open.
+        const withPrefs = applyAgentCreationPrefs(agentConfig, agentPrefs)
+        parameters = {
+            ...parameters,
+            agent: ensureEnabledSandbox(withPrefs, getEnabledSandboxProviders()),
+        }
     }
 
     // Build the seedable workflow for a given schema set. Flags are synchronous (no network), so
