@@ -882,3 +882,17 @@ body {
 .agenta-dynamic-code-block span {
     background-color: transparent !important;
 }
+
+/* antd Segmented, icon-only options: the default `.ant-segmented-item-label` centres its content
+   with `line-height`, which drops an inline <svg> to the text baseline (it reads a few px low, and
+   utility classes on the icon can't fix it — the label box, not the icon, owns the height). Force
+   the label box itself to flex-centre so an icon sits dead-centre regardless of its baseline. The
+   doubled `.ant-segmented` keeps this above antd's own runtime-injected rule. */
+.ag-icon-segmented.ant-segmented .ant-segmented-item-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.ag-icon-segmented .ant-segmented-item-label svg {
+    display: block;
+}

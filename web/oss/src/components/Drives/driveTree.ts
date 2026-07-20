@@ -13,6 +13,10 @@ export interface DriveTreeNode {
     path: string
     isFolder: boolean
     size?: number
+    /** Backend-reported immediate-child count for a folder (lazy loading: known before the folder's
+     * own level is fetched, so tiles/rows show "N items" without loading the children). Falls back to
+     * `children.length` once loaded. */
+    itemCount?: number
     children: DriveTreeNode[]
 }
 
@@ -51,30 +55,61 @@ export const isHiddenPath = (path: string): boolean =>
         .some((seg) => seg.startsWith("."))
 
 /**
- * Is this listing entry a FOLDER rather than a file? True when the backend flags it (`is_folder`),
- * when another entry nests under it (`<path>/…`), or when it's a zero-byte, extension-less entry —
- * the shape an agent's convention directory (e.g. `agent-files`) takes when the object store lists
- * it as a bare 0-byte key with no trailing-slash folder marker (so the backend can't flag it). We
- * infer it here so folders never leak into the flat file/recents lists (which show files, descending
- * INTO folders) and render as folders in the tree instead of a spurious 0 B "file".
+ * The set of every path that is a strict ancestor DIRECTORY of some listing entry — i.e. every
+ * `p` such that another entry's path is `p/…`. Precomputed ONCE per listing so folder inference is
+ * an O(1) set lookup instead of an O(n) `all.some(startsWith)` rescan per entry (which made the
+ * whole drive O(n²) and froze the main thread on large agent-written trees).
  */
-export const isFolderEntry = (file: MountFile, all: MountFile[]): boolean => {
+export const buildFolderIndex = (files: MountFile[] | null | undefined): Set<string> => {
+    const dirs = new Set<string>()
+    for (const f of files ?? []) {
+        const p = cleanPath(f.path)
+        // Add each strict prefix directory of `p` (everything up to, not including, `p` itself).
+        for (let slash = p.indexOf("/"); slash !== -1; slash = p.indexOf("/", slash + 1)) {
+            dirs.add(p.slice(0, slash))
+        }
+    }
+    return dirs
+}
+
+/**
+ * Is this listing entry a FOLDER rather than a file? True when the backend flags it (`is_folder`),
+ * when another entry nests under it (`folderIndex` holds its path), or when it's a zero-byte,
+ * extension-less entry — the shape an agent's convention directory (e.g. `agent-files`) takes when
+ * the object store lists it as a bare 0-byte key with no trailing-slash folder marker (so the
+ * backend can't flag it). We infer it here so folders never leak into the flat file/recents lists
+ * (which show files, descending INTO folders) and render as folders in the tree instead of a
+ * spurious 0 B "file". Pass a {@link buildFolderIndex} set built once from the same listing.
+ */
+export const isFolderEntry = (file: MountFile, folderIndex: Set<string>): boolean => {
     if (file.is_folder) return true
     const self = cleanPath(file.path)
     if (!self) return false
-    if (all.some((o) => o !== file && cleanPath(o.path).startsWith(`${self}/`))) return true
+    if (folderIndex.has(self)) return true
     return (file.size ?? 0) === 0 && !hasExtension(self.split("/").pop() ?? self)
 }
 
-/** Non-folder entries only — the "n files" everywhere counts these. Folders (flagged or inferred)
- * and runner-internal runtime artifacts are excluded so the flat lists show only real user files. */
-export const driveFiles = (files: MountFile[] | null | undefined): MountFile[] => {
-    const list = files ?? []
-    return list.filter((f) => !isFolderEntry(f, list) && !isInternalDrivePath(f.path))
+export interface DriveFileStats {
+    /** Non-folder, non-internal entries — the real user files. */
+    files: MountFile[]
+    /** Sum of `files` sizes. */
+    totalSize: number
 }
 
-export const driveTotalSize = (files: MountFile[] | null | undefined): number =>
-    driveFiles(files).reduce((sum, f) => sum + (f.size ?? 0), 0)
+/** Filter a listing to real user files AND sum their sizes in a SINGLE O(n) pass sharing one folder
+ * index — the real files (non-folder, non-internal) plus their total size, for the drive summaries. */
+export const driveFileStats = (files: MountFile[] | null | undefined): DriveFileStats => {
+    const list = files ?? []
+    const folderIndex = buildFolderIndex(list)
+    const out: MountFile[] = []
+    let totalSize = 0
+    for (const f of list) {
+        if (isFolderEntry(f, folderIndex) || isInternalDrivePath(f.path)) continue
+        out.push(f)
+        totalSize += f.size ?? 0
+    }
+    return {files: out, totalSize}
+}
 
 export const humanSize = (bytes?: number | null): string => {
     if (bytes == null) return ""
@@ -94,7 +129,7 @@ export const relativeTime = (at?: number | null): string => {
     return `${Math.round(h / 24)}d ago`
 }
 
-export const isMarkdownPath = (path: string): boolean => /\.(md|markdown)$/i.test(path)
+export const isMarkdownPath = (path: string): boolean => /\.(md|markdown|mdx)$/i.test(path)
 
 /**
  * Build the expandable tree from the flat listing: intermediate folders are materialized from
@@ -121,11 +156,13 @@ export function buildDriveTree(files: MountFile[] | null | undefined): DriveTree
     }
 
     const list = files ?? []
+    const folderIndex = buildFolderIndex(list)
     for (const file of list) {
         const path = cleanPath(file.path)
         if (!path || isInternalDrivePath(path)) continue
-        if (isFolderEntry(file, list)) {
-            ensureFolder(path)
+        if (isFolderEntry(file, folderIndex)) {
+            const node = ensureFolder(path)
+            if (typeof file.item_count === "number") node.itemCount = file.item_count
             continue
         }
         const idx = path.lastIndexOf("/")
@@ -146,6 +183,19 @@ export function buildDriveTree(files: MountFile[] | null | undefined): DriveTree
         for (const n of nodes) if (n.children.length) sortLevel(n.children)
     }
     sortLevel(root.children)
+
+    // Once a folder's own level is loaded, its LOADED child count is authoritative — override any
+    // backend `item_count`. This fixes the `agent-files` fold point: the cwd mount reports 0 for that
+    // mount-point folder, but its real children live in the folded agent mount, so 0 was wrong.
+    const applyLoadedCounts = (nodes: DriveTreeNode[]) => {
+        for (const n of nodes) {
+            if (n.isFolder && n.children.length > 0) {
+                n.itemCount = n.children.length
+                applyLoadedCounts(n.children)
+            }
+        }
+    }
+    applyLoadedCounts(root.children)
     return root.children
 }
 
