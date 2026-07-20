@@ -83,16 +83,6 @@ class MountFileListResponse(BaseModel):
     files: List[MountFile] = Field(default_factory=list)
 
 
-class MountFilePageResponse(BaseModel):
-    """One cursor PAGE of a mount's flat (recursive, path-sorted) file listing — the basis for the
-    Files drawer's infinite-scroll flat view. `next_cursor` is an opaque token for the following page;
-    None means the listing is exhausted."""
-
-    count: int = 0
-    files: List[MountFile] = Field(default_factory=list)
-    next_cursor: Optional[str] = None
-
-
 class MountFileContentResponse(BaseModel):
     path: str
     content: str

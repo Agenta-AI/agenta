@@ -2,11 +2,11 @@
  * StorageFilesHeader — the right-side content of the config panel's "Files" header bar.
  *
  * Mirrors the sibling Triggers header's count, and doubles as the "browse all" entry: clicking it
- * opens the DriveDrawer at the tree root (the body's rows open the same drawer preselected on a
+ * opens the Files drawer at the tree root (the body's rows open the same drawer preselected on a
  * file). Slotted into the entity-ui `AgentOperationsSections` header by the app layer, which owns
  * the chat session state that package can't reach.
  */
-import {ArrowSquareOut, CircleNotch} from "@phosphor-icons/react"
+import {CircleNotch, FolderOpen} from "@phosphor-icons/react"
 import {Skeleton} from "antd"
 import {useSetAtom} from "jotai"
 
@@ -52,7 +52,9 @@ export default function StorageFilesHeader({revisionId}: {revisionId?: string | 
                 <CircleNotch size={11} className="animate-spin" aria-label="Refreshing" />
             ) : null}
             {label}
-            <ArrowSquareOut size={12} weight="bold" />
+            {/* Opens the Files drawer (a side panel), NOT a new tab — a folder-open glyph, not the
+                external-link arrow that read as "leaves the page". */}
+            <FolderOpen size={13} />
         </button>
     )
 }

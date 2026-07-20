@@ -5,7 +5,7 @@
  * fetch). Uses the same elevated dark surface as the build-mode Inspector so the right dock reads
  * as one panel across modes. A file row opens Quick Look; "View all files" opens the Files drawer.
  */
-import {ArrowSquareOut, CircleNotch, FolderSimple, Sidebar} from "@phosphor-icons/react"
+import {CircleNotch, FolderOpen, FolderSimple, Sidebar} from "@phosphor-icons/react"
 import {Button, Tag, Tooltip, Typography} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
@@ -162,7 +162,7 @@ const ExpandedRail = ({
                     <Tooltip title="Open the Files drawer" placement="bottom">
                         <Button
                             type="text"
-                            icon={<ArrowSquareOut size={13} />}
+                            icon={<FolderOpen size={13} />}
                             onClick={onOpenFiles}
                             aria-label="Open the files drawer"
                         />

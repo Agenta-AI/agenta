@@ -296,7 +296,6 @@ export * from "./MountData.js";
 export * from "./MountEdit.js";
 export * from "./MountFile.js";
 export * from "./MountFileDeletedResponse.js";
-export * from "./MountFilePageResponse.js";
 export * from "./MountFileWrittenResponse.js";
 export * from "./MountFlags.js";
 export * from "./MountFolderCreatedResponse.js";

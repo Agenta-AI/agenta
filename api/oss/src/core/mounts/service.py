@@ -211,21 +211,6 @@ def _path_gitignored(
     return False
 
 
-def _first_ignored_ancestor_dir(
-    rel_path: str,
-    specs: List[Tuple[str, "pathspec.PathSpec"]],
-) -> Optional[str]:
-    """The TOPMOST ancestor DIRECTORY of `rel_path` that is gitignored — so a cursor listing can jump
-    past the whole subtree in one hop (never paging a `node_modules` dump) — or None. Only ancestors
-    are considered, not the file itself (an ignored file is skipped individually by the caller)."""
-    segments = rel_path.split("/")
-    for i in range(1, len(segments)):  # ancestor dirs only (exclude the leaf file)
-        prefix = "/".join(segments[:i])
-        if _path_gitignored(prefix, True, specs):
-            return prefix
-    return None
-
-
 def _rollup_recent_entries(
     files: List[MountFile],
     limit: Optional[int],
@@ -1059,113 +1044,6 @@ class MountsService:
                 browse_files.append(MountFile(path=folder_rel, size=0, is_folder=True))
 
         return MountFileList(files=browse_files, total=len(browse_files))
-
-    async def list_files_page(
-        self,
-        *,
-        project_id: UUID,
-        mount_id: UUID,
-        path: Optional[str] = None,
-        cursor: Optional[str] = None,
-        limit: int = 100,
-        git_aware: bool = False,
-        include_gitignored: bool = False,
-    ) -> Tuple[List[MountFile], Optional[str]]:
-        """A path-sorted PAGE of leaf files under `path` (recursive), resuming after `cursor` (an
-        opaque, mount-relative store key). The basis for FE INFINITE SCROLL: it loops the store's
-        cursor pages, keeping `limit` real files, and NEVER enumerates the whole subtree — so first
-        paint is fast no matter how big the mount is. Returns `(files, next_cursor)`; `next_cursor`
-        is None once the listing is exhausted.
-
-        Pruning (`git_aware`): `.git` plumbing and runner internals are always dropped; gitignored
-        paths are dropped unless `include_gitignored`, and an ignored DIRECTORY is skipped WHOLE by
-        jumping the cursor past it (so a huge `node_modules` is never paged through). Only the
-        ancestor-chain `.gitignore`s (mount root → `path`) are loaded — enough for the common
-        root-level `node_modules/` ignore (which matches at any depth); deeper nested `.gitignore`s
-        aren't (that would need a full scan, defeating pagination).
-        """
-        mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
-        base = self._storage_key(project_id=project_id, mount=mount).rstrip("/")
-        prefix = base
-        if path:
-            validate_file_path(path)
-            prefix = self._storage_key(
-                project_id=project_id, mount=mount, path=path
-            ).rstrip("/")
-        list_prefix = prefix + "/"
-        mount_base = base + "/"
-        bucket = self._bucket()
-
-        specs: List[Tuple[str, "pathspec.PathSpec"]] = []
-        if git_aware and not include_gitignored:
-            path_rel = list_prefix[len(mount_base) :].rstrip("/")
-            gi_dirs = [""]
-            if path_rel:
-                segs = path_rel.split("/")
-                gi_dirs += ["/".join(segs[: i + 1]) for i in range(len(segs))]
-            specs = await self._read_gitignore_specs(
-                [(d, f"{mount_base}{d + '/' if d else ''}.gitignore") for d in gi_dirs],
-                [],
-            )
-
-        def _rel_cursor(full_key: Optional[str]) -> Optional[str]:
-            if not full_key:
-                return None
-            return (
-                full_key[len(mount_base) :]
-                if full_key.startswith(mount_base)
-                else full_key
-            )
-
-        kept: List[MountFile] = []
-        # The FE cursor is mount-relative; re-prepend the base for the store's `start_after`.
-        start_after = f"{mount_base}{cursor}" if cursor else None
-        store_page = max(limit * 4, 200)
-        next_cursor: Optional[str] = None
-
-        while len(kept) < limit:
-            objs, has_more = await self.mounts_store.list_objects_page(
-                bucket=bucket,
-                prefix=list_prefix,
-                start_after=start_after,
-                max_keys=store_page,
-            )
-            if not objs:
-                break
-            jumped = False
-            for obj in objs:
-                key = obj.key
-                start_after = key
-                if key.endswith("/"):
-                    continue
-                rel = key[len(mount_base) :] if key.startswith(mount_base) else key
-                if not rel:
-                    continue
-                if git_aware:
-                    if _is_git_plumbing(rel) or _is_internal_mount_path(rel):
-                        continue
-                    if specs and not include_gitignored:
-                        ignored_dir = _first_ignored_ancestor_dir(rel, specs)
-                        if ignored_dir is not None:
-                            # Skip the whole ignored subtree in one hop: U+FFFF sorts after every
-                            # real key under `dir/`, so the next page resumes just past it.
-                            start_after = f"{mount_base}{ignored_dir}/" + "\uffff"
-                            jumped = True
-                            break
-                        if _path_gitignored(rel, False, specs):
-                            continue
-                kept.append(MountFile(path=rel, size=obj.size or 0, mtime=obj.mtime))
-                if len(kept) >= limit:
-                    break
-            if len(kept) >= limit:
-                next_cursor = _rel_cursor(start_after)
-                break
-            if jumped:
-                continue
-            if not has_more:
-                break
-
-        return kept, next_cursor
 
     async def read_file_bytes(
         self,

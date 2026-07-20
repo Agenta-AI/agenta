@@ -9,12 +9,20 @@
  * The heavy body is `next/dynamic`-imported so the tree/renderer/pdfjs graph loads only when the
  * drawer opens (`destroyOnClose` unmounts it again).
  */
+import {useEffect, useState} from "react"
+
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import dynamic from "next/dynamic"
 
-import {type DriveId, type DriveScope, type DriveView} from "./DriveExplorer"
+import {type DriveId, type DriveScope} from "./DriveExplorer"
 import {DriveExplorerSkeleton} from "./DriveExplorerSkeleton"
 import {type SessionDriveData} from "./useSessionDrive"
+
+// Normal vs. expanded drawer width — the header's expand toggle flips between them, mirroring the
+// full-width pattern the app's other drawers use. Expanded clamps to most of the viewport (with a
+// floor/ceiling) so the file browser gets real room without ever exceeding the screen.
+const NORMAL_WIDTH = 960
+const EXPANDED_WIDTH = "clamp(960px, 92vw, 1800px)"
 
 // Heavy body — loaded lazily on first open, not with the always-mounted config panel/chat pane.
 const DriveExplorer = dynamic(() => import("./DriveExplorer").then((m) => m.DriveExplorer), {
@@ -31,8 +39,6 @@ export interface FilesDrawerProps {
     /** Raw ids for the header's overflow menu (drive id + session/agent id). */
     driveIds?: DriveId[]
     scope?: DriveScope
-    /** Which view to open on: `list` (tree, config) or `grid`/`flat` (chat). */
-    defaultView?: DriveView
     /** Preselect this path on open — and, while open, re-select when it changes (a chat link/tile). */
     initialPath?: string | null
 }
@@ -43,17 +49,23 @@ export function FilesDrawer({
     drive,
     driveIds,
     scope = "session",
-    defaultView,
     initialPath,
 }: FilesDrawerProps) {
+    // Expanded (near-full) width, toggled from the drawer header. Reset on close so every open starts
+    // at the normal width.
+    const [expanded, setExpanded] = useState(false)
+    useEffect(() => {
+        if (!open) setExpanded(false)
+    }, [open])
+
     return (
         <EnhancedDrawer
             rootClassName="ag-drawer-elevated"
             open={open}
             onClose={onClose}
             placement="right"
-            // Two-pane (tree + preview) needs the room.
-            width={960}
+            // Two-pane (tree + preview) needs the room; expand for near-full width.
+            width={expanded ? EXPANDED_WIDTH : NORMAL_WIDTH}
             destroyOnClose
             closeOnLayoutClick={false}
             // Headerless: DriveExplorer renders the one header (with its own close button).
@@ -66,10 +78,11 @@ export function FilesDrawer({
             <DriveExplorer
                 drive={drive}
                 scope={scope}
-                defaultView={defaultView}
                 initialPath={initialPath}
                 onClose={onClose}
                 driveIds={driveIds}
+                expanded={expanded}
+                onToggleExpand={() => setExpanded((v) => !v)}
             />
         </EnhancedDrawer>
     )

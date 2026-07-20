@@ -65,7 +65,6 @@ export function SessionFilesDrawer({sessionId}: {sessionId: string}) {
             drive={drive}
             driveIds={driveIds}
             scope="session"
-            defaultView="grid"
             initialPath={initialPath}
         />
     )

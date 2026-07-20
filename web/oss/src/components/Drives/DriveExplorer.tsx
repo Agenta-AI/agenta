@@ -22,8 +22,9 @@ import {
 import {type Mount} from "@agenta/entities/session"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {
+    ArrowsIn,
+    ArrowsOut,
     CaretDown,
-    CaretLeft,
     CaretRight,
     CircleNotch,
     DotsThree,
@@ -36,10 +37,8 @@ import {
     House,
     Info,
     MagnifyingGlass,
-    Rows,
-    SquaresFour,
+    SidebarSimple,
     Tray,
-    TreeStructure,
     X,
 } from "@phosphor-icons/react"
 import {useVirtualizer} from "@tanstack/react-virtual"
@@ -64,7 +63,6 @@ import {projectIdAtom} from "@/oss/state/project"
 
 import {DriveExplorerSkeleton, TileGridSkeleton} from "./DriveExplorerSkeleton"
 import {DriveFileRow, FOCUS_RING} from "./DriveFileRow"
-import {useFlatFilesInfinite, type FlatFilesInfinite} from "./driveFlatFiles"
 import {driveFileIcon} from "./driveIcons"
 import {
     DriveItemContextMenu,
@@ -102,11 +100,6 @@ const {Text} = Typography
 
 /** The drive being inspected: the conversation drive (session) or the app/agent drive (app). */
 export type DriveScope = "session" | "app"
-
-/** How the drawer presents the drive: `list` = two-pane tree navigator + content; `grid` = the
- * current folder's children as tiles (single-pane, drill in via the breadcrumb); `flat` = EVERY file
- * in the drive pulled out of its folders — one drive-wide file list, no folder rows. */
-export type DriveView = "list" | "grid" | "flat"
 
 /** A raw id surfaced behind the header's overflow menu (a copy affordance, not a label) — the
  * drive/mount id the drawer is about, plus the session/agent it belongs to. */
@@ -402,16 +395,6 @@ const TreeLoadingRow = ({depth, width = "58%"}: {depth: number; width?: string})
 const parentOf = (path: string): string => {
     const i = path.lastIndexOf("/")
     return i < 0 ? "" : path.slice(0, i)
-}
-
-/** The FOLDER a flat listing scopes to for a given selection: a file's parent, a folder itself, or
- * root ("") — so the flat view lists files UNDER the folder you're in. Extension-based file test
- * (the lazy tree may not have the node), matching the drawer's other file/folder heuristics. */
-const folderScopeOf = (path: string | null | undefined): string => {
-    const p = path ?? ""
-    const leaf = p.split("/").pop() ?? ""
-    const isFile = /\.[a-z0-9]{1,8}$/i.test(leaf) && !leaf.startsWith(".")
-    return isFile ? parentOf(p) : p
 }
 
 /** The content viewer — the renderer registry (build-spec 3): kind-matched body, size caps,
@@ -940,163 +923,6 @@ const FolderView = ({
 }
 
 /**
- * FlatFileList — the "flat" view: EVERY file under the current path pulled out of its folders (no
- * folder rows, no nesting), scoped to the folder you're in (respects tree navigation). Presentational
- * only — the CURSOR PAGINATION lives in {@link useFlatFilesInfinite}, lifted to DriveExplorer so the
- * header can show the flat count and the list survives opening a file (instant "Back"). Rows reuse
- * DriveFileRow; VirtualTileGrid (columns=1) gives arrow-key roving + Cmd+↓ to open.
- */
-const FlatFileList = ({
-    drive,
-    showOrigin,
-    onSelect,
-    files,
-    loading,
-    loadingMore,
-    errored,
-    loadMore,
-}: {
-    drive: SessionDriveData
-    showOrigin: boolean
-    onSelect: (path: string) => void
-} & FlatFilesInfinite) => {
-    const now = useRecentChangeClock(drive.lastTouchedAt)
-    const copyPath = useCopyDrivePath()
-    const download = useDriveItemDownload(drive)
-    const recentsByPath = useMemo(
-        () => new Map(drive.recents.map((f) => [f.path, f])),
-        [drive.recents],
-    )
-
-    // One-shot stagger on the FIRST page: reveal is true only on the render files go 0→N (the ref is
-    // advanced in an effect, so it survives StrictMode's double-render). Appended pages don't replay.
-    const hasFiles = files.length > 0
-    const revealedRef = useRef(false)
-    const revealNow = !revealedRef.current && hasFiles
-    useEffect(() => {
-        revealedRef.current = hasFiles
-    }, [hasFiles])
-
-    // Crossfade the states (absolute + overlapping) so first-page skeleton → list never hard-cuts:
-    // the skeleton fades out while the list's rows stagger in (list container itself doesn't fade —
-    // its rows carry the entrance, so opacity never double-stacks). Mirrors FolderView's content region.
-    const showSkeleton = loading && files.length === 0
-    return (
-        <div className="relative flex min-h-0 w-full flex-1 flex-col">
-            <AnimatePresence initial={false}>
-                {showSkeleton ? (
-                    <motion.div
-                        key="skel"
-                        className="absolute inset-0 flex min-h-0 flex-col gap-0.5 overflow-hidden px-2 py-1"
-                        {...PANE_FADE}
-                    >
-                        {FLAT_SKELETON_WIDTHS.map((w, i) => (
-                            <div
-                                key={i}
-                                className="flex h-[30px] shrink-0 items-center gap-2 px-1.5"
-                            >
-                                <div className="h-3.5 w-3.5 shrink-0 animate-pulse rounded bg-colorFillSecondary" />
-                                <div
-                                    className="h-3 animate-pulse rounded bg-colorFillSecondary"
-                                    style={{width: w}}
-                                />
-                                <div className="ml-auto h-2.5 w-10 shrink-0 animate-pulse rounded bg-colorFillSecondary" />
-                            </div>
-                        ))}
-                    </motion.div>
-                ) : files.length === 0 ? (
-                    <motion.div
-                        key="empty"
-                        className="absolute inset-0 flex flex-col items-center justify-center gap-1 p-8 text-center"
-                        {...PANE_FADE}
-                    >
-                        <Tray size={26} className="text-colorTextQuaternary" />
-                        <div className="text-xs font-medium">
-                            {errored ? "Couldn't load files" : "No files"}
-                        </div>
-                    </motion.div>
-                ) : (
-                    <motion.div
-                        key="list"
-                        className="absolute inset-0 flex min-h-0 flex-col"
-                        initial={false}
-                        animate={{opacity: 1}}
-                        exit={{opacity: 0}}
-                        transition={PANE_FADE.transition}
-                    >
-                        <VirtualTileGrid
-                            items={files}
-                            columns={1}
-                            autoFocus
-                            autoFocusKey="flat"
-                            estimateRowHeight={30}
-                            gap={2}
-                            className="px-2 py-1"
-                            getKey={(f) => f.path}
-                            onMetaActivate={(f) => onSelect(f.path)}
-                            onEndReached={loadMore}
-                            footer={
-                                loadingMore ? (
-                                    <div className="flex items-center justify-center gap-2 py-3 text-[11px] text-colorTextTertiary">
-                                        <CircleNotch size={13} className="animate-spin" />
-                                        Loading more…
-                                    </div>
-                                ) : errored ? (
-                                    <button
-                                        type="button"
-                                        onClick={loadMore}
-                                        className="w-full cursor-pointer border-0 bg-transparent py-3 text-center text-[11px] text-colorTextTertiary transition-colors hover:text-colorText"
-                                    >
-                                        Couldn't load more files — retry
-                                    </button>
-                                ) : null
-                            }
-                            renderTile={(f) => {
-                                const rec = recentsByPath.get(f.path)
-                                const resolved = drive.resolveMount(f.path)
-                                return (
-                                    <motion.div {...revealFade(revealNow)}>
-                                        <DriveItemContextMenu
-                                            path={f.path}
-                                            isFolder={false}
-                                            onOpen={() => onSelect(f.path)}
-                                            onCopyPath={copyPath}
-                                            onDownload={download}
-                                        >
-                                            <DriveFileRow
-                                                variant="row"
-                                                path={f.path}
-                                                file={
-                                                    resolved && rec
-                                                        ? {...rec, path: resolved.path}
-                                                        : rec
-                                                }
-                                                mount={resolved?.mount ?? drive.mount}
-                                                showOrigin={showOrigin}
-                                                trailing={humanSize(f.size)}
-                                                recent={
-                                                    rec
-                                                        ? isRecentlyChanged(rec.touchedAt, now)
-                                                        : false
-                                                }
-                                                onOpen={() => onSelect(f.path)}
-                                            />
-                                        </DriveItemContextMenu>
-                                    </motion.div>
-                                )
-                            }}
-                        />
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
-    )
-}
-
-// Skeleton row widths for the flat view's first-page load — varied so it reads as a real list.
-const FLAT_SKELETON_WIDTHS = ["58%", "40%", "66%", "48%", "36%", "60%", "44%", "52%", "38%", "62%"]
-
-/**
  * DriveHeader — the drawer's ONE header. The breadcrumb IS the header (its last crumb the current
  * node), a count/size chip beside it; contextual actions on the right (copy path, a details toggle,
  * download the file), with drive-level bits (raw ids, Download all) folded into the overflow menu.
@@ -1123,8 +949,8 @@ const DriveHeader = ({
     projectId,
     onDownloadAll,
     downloadingAll,
-    flatCount,
-    flatMore,
+    expanded,
+    onToggleExpand,
 }: {
     selectedPath: string | null
     isFolder: boolean
@@ -1135,10 +961,6 @@ const DriveHeader = ({
     totalCount: number
     totalCapped?: boolean
     fileSize?: number
-    /** Flat view: files loaded so far under the scope — overrides the count chip (folders are stripped,
-     * so the immediate item-count would be wrong/confusing). `flatMore` → append "+" (more paging). */
-    flatCount?: number | null
-    flatMore?: boolean
     showOrigin: boolean
     /** This folder is a git repo → the details toggle reveals repo facts (else file details). */
     isRepo: boolean
@@ -1154,6 +976,10 @@ const DriveHeader = ({
     /** Download the whole drive as a zip (the overflow "Download all"); omitted → item disabled. */
     onDownloadAll?: () => void
     downloadingAll?: boolean
+    /** Drawer at expanded (near-full) width — the header's expand toggle reflects/flips this. Omit to
+     * hide the toggle (embedded/non-drawer hosts that don't own the drawer width). */
+    expanded?: boolean
+    onToggleExpand?: () => void
 }) => {
     const atRoot = !selectedPath
     // A file always has details (size/modified); a folder only when it's a repo. Nothing selected
@@ -1188,6 +1014,18 @@ const DriveHeader = ({
                     className="!h-7 !w-7 !p-0 !text-colorTextSecondary hover:!text-colorText"
                 />
             </Tooltip>
+            {onToggleExpand ? (
+                <Tooltip title={expanded ? "Collapse" : "Expand"}>
+                    <Button
+                        type="text"
+                        aria-label={expanded ? "Collapse drawer" : "Expand drawer"}
+                        aria-pressed={expanded}
+                        icon={expanded ? <ArrowsIn size={16} /> : <ArrowsOut size={16} />}
+                        onClick={onToggleExpand}
+                        className="!h-7 !w-7 !p-0 !text-colorTextSecondary hover:!text-colorText"
+                    />
+                </Tooltip>
+            ) : null}
             {/* Breadcrumb takes the slack and scrolls when the path is long; the chip stays pinned. */}
             <div className="flex min-w-0 flex-1 items-center gap-2">
                 <DriveBreadcrumb
@@ -1196,17 +1034,15 @@ const DriveHeader = ({
                     onNavigate={onNavigate}
                 />
                 <span className="shrink-0 text-[11px] text-colorTextTertiary">
-                    {flatCount != null
-                        ? `${flatCount}${flatMore ? "+" : ""} file${flatCount === 1 ? "" : "s"}`
-                        : atRoot
-                          ? `${totalCount}${totalCapped ? "+" : ""} file${totalCount === 1 ? "" : "s"}`
-                          : isFolder
-                            ? itemCount != null
-                                ? `${itemCount} item${itemCount === 1 ? "" : "s"}`
-                                : null
-                            : fileSize != null
-                              ? humanSize(fileSize)
-                              : null}
+                    {atRoot
+                        ? `${totalCount}${totalCapped ? "+" : ""} file${totalCount === 1 ? "" : "s"}`
+                        : isFolder
+                          ? itemCount != null
+                              ? `${itemCount} item${itemCount === 1 ? "" : "s"}`
+                              : null
+                          : fileSize != null
+                            ? humanSize(fileSize)
+                            : null}
                 </span>
                 {!isFolder && showOrigin && selectedPath ? (
                     <Tag className="m-0 shrink-0 text-[10px] font-normal">
@@ -1298,18 +1134,20 @@ export function DriveExplorer({
     initialPath,
     onClose,
     driveIds,
-    defaultView = "list",
+    expanded: drawerExpanded = false,
+    onToggleExpand,
 }: {
     drive: SessionDriveData
     scope?: DriveScope
     initialPath?: string | null
-    /** Which view to open on: `list` (tree, the config default) or `grid`/`flat` (the chat default). */
-    defaultView?: DriveView
     /** When provided, the explorer renders its OWN single header (breadcrumb + node + actions + this
-     * close button) + the shared search/filters/view toolbar. Always provided by {@link FilesDrawer}. */
+     * close button) + the shared search/filters toolbar. Always provided by {@link FilesDrawer}. */
     onClose?: () => void
     /** Raw ids for the header's overflow menu (drive id + session/agent id). */
     driveIds?: DriveId[]
+    /** The host drawer is at expanded (near-full) width — reflected by the header's expand toggle. */
+    expanded?: boolean
+    onToggleExpand?: () => void
 }) {
     const rootLabel = driveRootLabel(drive.mount)
     // Restore the last-viewed file on (re)mount: explicit initialPath wins, else the persisted
@@ -1341,15 +1179,28 @@ export function DriveExplorer({
     const chrome = onClose != null
     // Details toggle, lifted so the ONE header owns it (file meta OR repo facts, per selection).
     const [detailsOpen, setDetailsOpen] = useState(false)
-    // Presentation of the current folder: list (tree) / grid (tiles) / flat (rows).
-    const [view, setView] = useState<DriveView>(defaultView)
-    // The folder the FLAT list is scoped to (root = ""). Tracked separately from `selectedPath` so
-    // opening a deeply-nested file from the flat list (which moves `selectedPath` to that file) can
-    // still return to the list you were browsing (the "Back to files" affordance). Initialized from the
-    // initial selection's FOLDER so the very first flat render already has the right scope — no
-    // stale-root first pass that would double-load (a wrong-scope fetch then a re-scope fetch).
-    const [flatScope, setFlatScope] = useState(() =>
-        folderScopeOf(initialPath ?? persistedSelection),
+    // The one presentation is the tree navigator + content pane; the file TREE pane can be hidden to
+    // give the content pane the full width. Searching always forces the tree (its filtered rows ARE
+    // the results), so the effective visibility is `showTree || searchActive` (see `treeVisible`).
+    const [showTree, setShowTree] = useState(true)
+    // Tree-pane width (px), persisted across drags so re-showing restores the last width; the pane
+    // collapses to 0 when hidden. `treeAnimating` gates the collapse/expand transition (see toggleTree).
+    const [treeSize, setTreeSize] = useState(260)
+    const [treeAnimating, setTreeAnimating] = useState(false)
+    const treeAnimTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    // Toggle the tree pane. Turn the transition class ON in the SAME commit as the size flip (a late
+    // paint would snap), then clear it after the flip so per-frame DRAG stays 1:1 (no transition lag).
+    const toggleTree = useCallback(() => {
+        setTreeAnimating(true)
+        setShowTree((v) => !v)
+        if (treeAnimTimer.current) clearTimeout(treeAnimTimer.current)
+        treeAnimTimer.current = setTimeout(() => setTreeAnimating(false), 260)
+    }, [])
+    useEffect(
+        () => () => {
+            if (treeAnimTimer.current) clearTimeout(treeAnimTimer.current)
+        },
+        [],
     )
 
     // "Download all" — ONE streaming zip spanning every mount the drive folds in (cwd at the root,
@@ -1390,31 +1241,6 @@ export function DriveExplorer({
         [setPersistedSelection],
     )
 
-    // Breadcrumb navigation. In FLAT view a crumb is a folder, so it also RE-SCOPES the list (keeping
-    // `selectedPath === flatScope` → the list, not a preview); elsewhere it's a plain select.
-    const navigate = useCallback(
-        (nextPath: string | null) => {
-            if (view === "flat") setFlatScope(nextPath ?? "")
-            select(nextPath)
-        },
-        [view, select],
-    )
-
-    // Switch the view. Entering FLAT scopes the list to the folder you're in SYNCHRONOUSLY (same batch
-    // as setView) — so the first flat render already targets the right folder (one query, one load),
-    // never a stale-root first pass. Dropping a file preview shows the list at that folder.
-    const changeView = useCallback(
-        (next: DriveView) => {
-            if (next === "flat") {
-                const folder = folderScopeOf(selectedPath)
-                setFlatScope(folder)
-                if (selectedPath !== folder) select(folder)
-            }
-            setView(next)
-        },
-        [selectedPath, select],
-    )
-
     // React to a CHANGED initialPath while already open — the chat host opens the drawer once and
     // then routes a chat link / tile by pushing a new initialPath (its quick-look), so the drawer
     // must re-select it in place. Fires only when the prop value changes, not on every render, so it
@@ -1424,7 +1250,7 @@ export function DriveExplorer({
     }, [initialPath])
 
     // Nothing was pre-selected — the drawer was opened via the Files COUNT ("browse"), not a file
-    // row. Land on the ROOT GRID, not a file preview. `selectedPath != null` (not truthy) so the
+    // row. Land on the ROOT folder view, not a file preview. `selectedPath != null` (not truthy) so the
     // empty-string root selection doesn't re-trigger.
     useEffect(() => {
         if (selectedPath != null) return
@@ -1435,10 +1261,9 @@ export function DriveExplorer({
     // trails a frame (React interrupts it if you keep typing).
     const deferredSearch = useDeferredValue(search)
     const searchActive = deferredSearch.trim() !== ""
-    // Flat view's cursor-paginated data — lifted here (not inside FlatFileList) so the header can show
-    // its count AND the list survives opening a file (no refetch on "Back"). Parked unless flat is
-    // actually showing. Scoped to `flatScope` → ONE query when inside a folder (both mounts only at root).
-    const flat = useFlatFilesInfinite(drive, flatScope, view === "flat" && !searchActive)
+    // The tree pane shows whenever the user hasn't hidden it OR a search is active (the filtered tree
+    // rows ARE the search results, so search always needs it).
+    const treeVisible = showTree || searchActive
     // Directories to keep loaded: the root, every expanded folder, and the open folder. A selection
     // that LOOKS like a file (has an extension) is skipped — its preview reads by path, no dir needed.
     const activePaths = useMemo(() => {
@@ -1789,18 +1614,18 @@ export function DriveExplorer({
                 />
             </div>
         )
-    } else if (
-        drive.isLoading ||
-        // Flat paginates on its OWN (FlatFileList shows its skeleton) — it doesn't use the lazy tree,
-        // so don't make it wait on the root DIR load (that caused a second, shape-mismatched skeleton).
-        (view !== "flat" && drive.mount && lazyTree.rootLoading)
-    ) {
+    } else if (drive.isLoading || (drive.mount && lazyTree.rootLoading)) {
         // The right pane will be a FILE preview if we're opening onto a file, else the browse GRID.
         // A real extension marks a file; a dot-DIR (`.claude`) or extensionless path is a folder.
         const target = initialPath ?? persistedSelection
         const leaf = target ? (target.split("/").pop() ?? "") : ""
         const isFilePreview = /\.[a-z0-9]{1,8}$/i.test(leaf) && !leaf.startsWith(".")
-        body = <DriveExplorerSkeleton mode={isFilePreview ? "preview" : "grid"} view={view} />
+        body = (
+            <DriveExplorerSkeleton
+                mode={isFilePreview ? "preview" : "grid"}
+                showTree={treeVisible}
+            />
+        )
     } else if (drive.fileCount === 0) {
         body = (
             <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-1 p-8 text-center">
@@ -1814,8 +1639,8 @@ export function DriveExplorer({
             </div>
         )
     } else {
-        // What shows for the current selection: the folder's children (grid or flat) or a file's
-        // preview. Shared by the list view's right pane and the single-pane grid/flat views.
+        // What shows for the current selection: the folder's children (as a tile grid) or a file's
+        // preview. The right pane of the tree navigator (and the whole body when the tree is hidden).
         const contentPane =
             selectedPath == null ? (
                 <div className="flex h-full flex-1 items-center justify-center text-xs text-colorTextTertiary">
@@ -1834,13 +1659,12 @@ export function DriveExplorer({
                         !lazyTree.loadedDirs.has(selectedPath)
                     }
                     // Chrome mode: the single header owns the breadcrumb/name/repo toggle, so the pane
-                    // drops its header and just shows the meta (when open) + grid. (Flat view is its
-                    // own drive-wide file list, not a FolderView mode — see the body below.)
+                    // drops its header and just shows the meta (when open) + grid.
                     hideHeader={chrome}
                     detailsOpen={detailsOpen}
-                    // Grid view is single-pane → the grid is the primary nav, so focus its first tile on
-                    // open (in LIST view the tree owns focus, so don't).
-                    autoFocus={view === "grid"}
+                    // With the tree hidden, the folder grid is the only nav surface → focus its first
+                    // tile on open. With the tree shown, the tree owns focus, so don't.
+                    autoFocus={!treeVisible}
                     onSelect={select}
                 />
             ) : (
@@ -1859,160 +1683,139 @@ export function DriveExplorer({
                     onSelect={select}
                 />
             )
-        // Search forces the tree (its filtered rows ARE the results, and it needs the whole tree —
-        // which flat's cursor pagination doesn't load); else honour the view toggle.
-        // The tree pane is draggable; widen it to read truncated long names.
-        body =
-            !searchActive && view === "flat" ? (
-                // Flat view: every file UNDER `flatScope` (folders stripped), cursor-paginated. Opening
-                // a file moves `selectedPath` off the scope → its preview, with a Back that returns to
-                // the list AT the scope you were browsing (not the file's deep parent) — #3.
-                selectedPath != null && selectedPath !== flatScope ? (
-                    <div className="flex min-h-0 w-full flex-1 flex-col">
-                        <button
-                            type="button"
-                            onClick={() => select(flatScope)}
-                            className={`flex shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-4 py-2 text-left text-[11px] text-colorTextTertiary transition-colors hover:text-colorText ${FOCUS_RING}`}
+        // The one presentation: the file TREE pane (unless hidden) + the content pane. The tree pane is
+        // draggable (widen it to read truncated long names) and COLLAPSES to width 0 when hidden — the
+        // Splitter stays mounted (both panes) so the toggle animates, via a controlled `size` + the
+        // `ag-drive-tree-splitter--animating` transition class (gated to the flip so drag stays 1:1).
+        body = (
+            <Splitter
+                className={`ag-drive-tree-splitter min-h-0 w-full flex-1${treeAnimating ? " ag-drive-tree-splitter--animating" : ""}`}
+                onResize={(sizes) => {
+                    const s = sizes[0]
+                    if (treeVisible && typeof s === "number") setTreeSize(s)
+                }}
+            >
+                <Splitter.Panel
+                    size={treeVisible ? treeSize : 0}
+                    min={treeVisible ? 180 : 0}
+                    max="65%"
+                    resizable={treeVisible}
+                >
+                    {/* No own search box when controlled → drop the top padding so the tree isn't pushed
+                    down by empty space (the embedding toolbar already spaces it). `box-border`: preflight
+                    is off, so without it `h-full` + padding overflows the (overflow:auto) Splitter panel,
+                    giving a SECOND scrollbar nested inside the tree's own — QA's "nested scrollbars".
+                    `overflow-hidden` clips the tree cleanly as the pane collapses to 0. */}
+                    <div className="box-border flex h-full min-h-0 flex-col overflow-hidden px-3 pb-3 pt-2">
+                        <div
+                            ref={treeScrollRef}
+                            // Vertical scroll is native; horizontal is intercepted (treeScrollRef)
+                            // and routed to the hovered row's FOLDER GROUP (transform), so siblings
+                            // scroll together. `overscroll-contain` stops rubber-band chaining.
+                            className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
+                            onKeyDown={onTreeKeyDown}
                         >
-                            <CaretLeft size={12} />
-                            Back to files
-                        </button>
-                        {contentPane}
-                    </div>
-                ) : (
-                    <FlatFileList
-                        drive={drive}
-                        showOrigin={showOrigin}
-                        onSelect={select}
-                        {...flat}
-                    />
-                )
-            ) : searchActive || view === "list" ? (
-                <Splitter className="min-h-0 w-full flex-1">
-                    <Splitter.Panel defaultSize={260} min={180} max="65%">
-                        {/* No own search box when controlled → drop the top padding so the tree isn't pushed
-                    down by empty space (the embedding toolbar already spaces it). */}
-                        <div className="flex h-full min-h-0 flex-col px-3 pb-3 pt-2">
-                            <div
-                                ref={treeScrollRef}
-                                // Vertical scroll is native; horizontal is intercepted (treeScrollRef)
-                                // and routed to the hovered row's FOLDER GROUP (transform), so siblings
-                                // scroll together. `overscroll-contain` stops rubber-band chaining.
-                                className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
-                                onKeyDown={onTreeKeyDown}
-                            >
-                                {flatRows.length === 0 ? (
-                                    <Text type="secondary" className="px-1 !text-[11px]">
-                                        {lazyTree.searchLoading
-                                            ? "Searching all files…"
-                                            : "No files match."}
-                                    </Text>
-                                ) : (
-                                    // Only the visible rows mount. Full pane width; each row handles its
-                                    // own horizontal overflow, so there's no tree-wide horizontal axis.
-                                    <div
-                                        style={{
-                                            height: treeVirtualizer.getTotalSize(),
-                                            position: "relative",
-                                            width: "100%",
-                                        }}
-                                    >
-                                        {treeVirtualizer.getVirtualItems().map((vRow) => {
-                                            const row = flatRows[vRow.index]
-                                            const {node, depth} = row
-                                            const parent = parentOf(node.path)
-                                            // One-shot entrance: only the rows of a level that resolved
-                                            // THIS render animate in (staggered by sibling order), so the
-                                            // skeleton→content swap settles gracefully. Empty on every
-                                            // other render → the virtualizer's scroll remounts don't replay.
-                                            const reveal =
-                                                !row.loading && justLoadedDirs.has(parent)
-                                            return (
-                                                <div
-                                                    key={vRow.key}
-                                                    data-index={vRow.index}
-                                                    ref={measureRow}
-                                                    style={{
-                                                        position: "absolute",
-                                                        top: 0,
-                                                        left: 0,
-                                                        width: "100%",
-                                                        transform: `translateY(${vRow.start}px)`,
-                                                    }}
-                                                >
-                                                    <motion.div {...revealFade(reveal)}>
-                                                        {row.loading ? (
-                                                            <TreeLoadingRow
+                            {flatRows.length === 0 ? (
+                                <Text type="secondary" className="px-1 !text-[11px]">
+                                    {lazyTree.searchLoading
+                                        ? "Searching all files…"
+                                        : "No files match."}
+                                </Text>
+                            ) : (
+                                // Only the visible rows mount. Full pane width; each row handles its
+                                // own horizontal overflow, so there's no tree-wide horizontal axis.
+                                <div
+                                    style={{
+                                        height: treeVirtualizer.getTotalSize(),
+                                        position: "relative",
+                                        width: "100%",
+                                    }}
+                                >
+                                    {treeVirtualizer.getVirtualItems().map((vRow) => {
+                                        const row = flatRows[vRow.index]
+                                        const {node, depth} = row
+                                        const parent = parentOf(node.path)
+                                        // One-shot entrance: only the rows of a level that resolved
+                                        // THIS render animate in (staggered by sibling order), so the
+                                        // skeleton→content swap settles gracefully. Empty on every
+                                        // other render → the virtualizer's scroll remounts don't replay.
+                                        const reveal = !row.loading && justLoadedDirs.has(parent)
+                                        return (
+                                            <div
+                                                key={vRow.key}
+                                                data-index={vRow.index}
+                                                ref={measureRow}
+                                                style={{
+                                                    position: "absolute",
+                                                    top: 0,
+                                                    left: 0,
+                                                    width: "100%",
+                                                    transform: `translateY(${vRow.start}px)`,
+                                                }}
+                                            >
+                                                <motion.div {...revealFade(reveal)}>
+                                                    {row.loading ? (
+                                                        <TreeLoadingRow
+                                                            depth={depth}
+                                                            width={row.loadingWidth}
+                                                        />
+                                                    ) : (
+                                                        <DriveItemContextMenu
+                                                            path={node.path}
+                                                            isFolder={node.isFolder}
+                                                            onOpen={() => select(node.path)}
+                                                            onCopyPath={copyPath}
+                                                            onDownload={download}
+                                                            className="w-full"
+                                                        >
+                                                            <TreeRow
+                                                                node={node}
                                                                 depth={depth}
-                                                                width={row.loadingWidth}
+                                                                isOpen={shownExpanded.has(
+                                                                    node.path,
+                                                                )}
+                                                                selected={
+                                                                    node.path === selectedPath
+                                                                }
+                                                                loading={
+                                                                    node.isFolder &&
+                                                                    shownExpanded.has(node.path) &&
+                                                                    node.children.length === 0 &&
+                                                                    isDirLoading(node.path)
+                                                                }
+                                                                showOrigin={showOrigin}
+                                                                parent={parent}
+                                                                scrollX={
+                                                                    groupScrollRef.current.get(
+                                                                        parent,
+                                                                    ) ?? 0
+                                                                }
+                                                                onMeasureContent={onMeasureContent}
+                                                                onToggle={(path) =>
+                                                                    setExpanded((prev) => {
+                                                                        const next = new Set(prev)
+                                                                        if (next.has(path))
+                                                                            next.delete(path)
+                                                                        else next.add(path)
+                                                                        return next
+                                                                    })
+                                                                }
+                                                                onSelect={select}
                                                             />
-                                                        ) : (
-                                                            <DriveItemContextMenu
-                                                                path={node.path}
-                                                                isFolder={node.isFolder}
-                                                                onOpen={() => select(node.path)}
-                                                                onCopyPath={copyPath}
-                                                                onDownload={download}
-                                                                className="w-full"
-                                                            >
-                                                                <TreeRow
-                                                                    node={node}
-                                                                    depth={depth}
-                                                                    isOpen={shownExpanded.has(
-                                                                        node.path,
-                                                                    )}
-                                                                    selected={
-                                                                        node.path === selectedPath
-                                                                    }
-                                                                    loading={
-                                                                        node.isFolder &&
-                                                                        shownExpanded.has(
-                                                                            node.path,
-                                                                        ) &&
-                                                                        node.children.length ===
-                                                                            0 &&
-                                                                        isDirLoading(node.path)
-                                                                    }
-                                                                    showOrigin={showOrigin}
-                                                                    parent={parent}
-                                                                    scrollX={
-                                                                        groupScrollRef.current.get(
-                                                                            parent,
-                                                                        ) ?? 0
-                                                                    }
-                                                                    onMeasureContent={
-                                                                        onMeasureContent
-                                                                    }
-                                                                    onToggle={(path) =>
-                                                                        setExpanded((prev) => {
-                                                                            const next = new Set(
-                                                                                prev,
-                                                                            )
-                                                                            if (next.has(path))
-                                                                                next.delete(path)
-                                                                            else next.add(path)
-                                                                            return next
-                                                                        })
-                                                                    }
-                                                                    onSelect={select}
-                                                                />
-                                                            </DriveItemContextMenu>
-                                                        )}
-                                                    </motion.div>
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                )}
-                            </div>
+                                                        </DriveItemContextMenu>
+                                                    )}
+                                                </motion.div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
                         </div>
-                    </Splitter.Panel>
-                    <Splitter.Panel>{contentPane}</Splitter.Panel>
-                </Splitter>
-            ) : (
-                // grid / flat — single pane (no tree); navigate via the header breadcrumb + drilling in.
-                <div className="flex min-h-0 w-full flex-1 flex-col">{contentPane}</div>
-            )
+                    </div>
+                </Splitter.Panel>
+                <Splitter.Panel>{contentPane}</Splitter.Panel>
+            </Splitter>
+        )
     }
     // The lazy per-directory subscribers render alongside EVERY branch (skeleton/empty/tree) so the
     // root query fires even while the skeleton shows — otherwise the drawer would never leave loading.
@@ -2033,7 +1836,7 @@ export function DriveExplorer({
                         isRepo={headerRepo.isRepo}
                         detailsOpen={detailsOpen}
                         onToggleDetails={() => setDetailsOpen((v) => !v)}
-                        onNavigate={navigate}
+                        onNavigate={select}
                         onClose={onClose}
                         copyText={copyText}
                         ids={driveIds ?? []}
@@ -2048,16 +1851,40 @@ export function DriveExplorer({
                         projectId={projectId}
                         onDownloadAll={archiveMounts.length ? handleDownloadAll : undefined}
                         downloadingAll={downloadingAll}
-                        // Flat browsing → show the (recursive) flat file count, not the folder's
-                        // immediate item count. Only while browsing the list (not previewing a file).
-                        flatCount={
-                            view === "flat" && selectedPath === flatScope ? flat.files.length : null
-                        }
-                        flatMore={flat.hasMore}
+                        expanded={drawerExpanded}
+                        onToggleExpand={onToggleExpand}
                     />
-                    {/* Shared toolbar — search + filters + the list/grid/flat view toggle. Drives all
-                        views; search forces the tree of matches (see body). */}
+                    {/* Shared toolbar — the show/hide tree toggle sits FIRST (left), directly above the
+                        tree pane it controls; then search + filters. Search forces the tree of matches
+                        (see body), so the toggle is disabled while searching. */}
                     <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3 py-2">
+                        <Tooltip
+                            title={
+                                searchActive
+                                    ? "Tree shown while searching"
+                                    : showTree
+                                      ? "Hide file tree"
+                                      : "Show file tree"
+                            }
+                        >
+                            <Button
+                                type="text"
+                                aria-label={showTree ? "Hide file tree" : "Show file tree"}
+                                aria-pressed={treeVisible}
+                                disabled={searchActive}
+                                icon={
+                                    <SidebarSimple
+                                        size={16}
+                                        weight={treeVisible ? "fill" : "regular"}
+                                        className="block"
+                                    />
+                                }
+                                onClick={toggleTree}
+                                className={
+                                    treeVisible ? "!text-colorPrimary" : "!text-colorTextTertiary"
+                                }
+                            />
+                        </Tooltip>
                         <Input
                             allowClear
                             value={search}
@@ -2138,38 +1965,6 @@ export function DriveExplorer({
                                 />
                             </Tooltip>
                         ) : null}
-                        {/* `.ag-icon-segmented` flex-centres icon-only labels (see globals.css). */}
-                        <Segmented
-                            className="ag-icon-segmented ml-auto"
-                            value={view}
-                            onChange={(v) => changeView(v as DriveView)}
-                            options={[
-                                {
-                                    value: "list",
-                                    label: (
-                                        <Tooltip title="List">
-                                            <TreeStructure size={16} />
-                                        </Tooltip>
-                                    ),
-                                },
-                                {
-                                    value: "grid",
-                                    label: (
-                                        <Tooltip title="Grid">
-                                            <SquaresFour size={16} />
-                                        </Tooltip>
-                                    ),
-                                },
-                                {
-                                    value: "flat",
-                                    label: (
-                                        <Tooltip title="Flat">
-                                            <Rows size={16} />
-                                        </Tooltip>
-                                    ),
-                                },
-                            ]}
-                        />
                     </div>
                     <div className="flex min-h-0 flex-1 flex-col">{body}</div>
                 </div>

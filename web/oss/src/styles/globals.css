@@ -425,6 +425,19 @@ body {
             flex-basis 240ms cubic-bezier(0.4, 0, 0.2, 1),
             width 240ms cubic-bezier(0.4, 0, 0.2, 1);
     }
+
+    /* Files drawer — the tree pane (first / driven) collapses/expands its basis; the content pane
+       (last / fill) auto-flexes to track it per frame. Same driven-pane rule as the playground
+       splitters. Gated to the toggle window via `--animating` (added the SAME commit as the size
+       flip) so per-frame DRAG stays 1:1 — no transition lag. */
+    .ag-drive-tree-splitter--animating > .ant-splitter-panel:first-child {
+        transition: flex-basis 240ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .ag-drive-tree-splitter--animating > .ant-splitter-panel:last-child {
+        flex: 1 1 auto !important;
+        transition: none !important;
+    }
 }
 
 /* Collapsed pane's split bar: hidden AND width 0 — opacity alone leaves an invisible 12px strip of

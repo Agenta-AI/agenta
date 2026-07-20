@@ -34,7 +34,6 @@ from oss.src.apis.fastapi.mounts.models import (
     MountFileContentResponse,
     MountFileDeletedResponse,
     MountFileListResponse,
-    MountFilePageResponse,
     MountFileWrittenResponse,
     MountFolderCreatedResponse,
     MountQueryRequest,
@@ -247,16 +246,6 @@ class MountsRouter:
             methods=["GET"],
             operation_id="download_mount_file",
             response_model=None,
-            status_code=status.HTTP_200_OK,
-        )
-        # Registered before "/{mount_id}/files" so `/files/page` isn't swallowed by the browse route.
-        self.router.add_api_route(
-            "/{mount_id}/files/page",
-            self.get_mount_files_page,
-            methods=["GET"],
-            operation_id="get_mount_files_page",
-            response_model=MountFilePageResponse,
-            response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
@@ -546,39 +535,6 @@ class MountsRouter:
             total=listing.total,
             total_capped=listing.total_capped,
             files=listing.files,
-        )
-
-    @intercept_exceptions()
-    @handle_mount_exceptions()
-    async def get_mount_files_page(
-        self,
-        request: Request,
-        mount_id: UUID,
-        *,
-        path: Optional[str] = Query(default=None),
-        cursor: Optional[str] = Query(default=None),
-        limit: int = Query(default=100, ge=1, le=1000),
-        git_aware: bool = Query(default=False),
-        include_gitignored: bool = Query(default=False),
-    ) -> MountFilePageResponse:
-        """One cursor page of the flat (recursive, path-sorted) file listing under `path` — the Files
-        drawer's infinite-scroll flat view. Never enumerates the whole subtree, so it's fast on any
-        mount size; carry `next_cursor` back to fetch the next page."""
-        await self._check(request, Permission.VIEW_MOUNTS)
-
-        files, next_cursor = await self.mounts_service.list_files_page(
-            project_id=UUID(request.state.project_id),
-            mount_id=mount_id,
-            path=path,
-            cursor=cursor,
-            limit=limit,
-            git_aware=git_aware,
-            include_gitignored=include_gitignored,
-        )
-        return MountFilePageResponse(
-            count=len(files),
-            files=files,
-            next_cursor=next_cursor,
         )
 
     @intercept_exceptions()

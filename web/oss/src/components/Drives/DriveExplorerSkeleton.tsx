@@ -2,19 +2,16 @@
  * Loading placeholders for the drive surfaces, shaped like the real content — never generic
  * full-width paragraph bars. Its OWN light module (no explorer/renderer graph) so the drawer's
  * `next/dynamic` fallback can render it before the heavy body loads, and DriveExplorer reuses it
- * for its own root-loading state — so they never diverge. (`DriveView` is a TYPE-only import, erased
- * at build, so it adds no runtime edge back to the heavy module.)
+ * for its own root-loading state — so they never diverge.
  *
- *  - {@link TileGridSkeleton}      — the folder/flat GRID (tile: 4:3 thumb + name + meta).
- *  - {@link DriveExplorerSkeleton} — the drawer body for the CURRENT view: a left file TREE only in
- *    `list` view (search-style two-pane), else a single headerless content pane — the tile GRID
- *    (`grid`), the compact ROW list (`flat`), or a neutral file PREVIEW box (opening onto a file).
- *    The content panes carry NO header band: the drawer's one header already owns the
- *    breadcrumb/name/count, so the panes below it start straight at the content (matches
+ *  - {@link TileGridSkeleton}      — the folder GRID (tile: 4:3 thumb + name + meta).
+ *  - {@link DriveExplorerSkeleton} — the drawer body: a left file TREE pane (unless it's hidden) plus a
+ *    headerless content pane — the tile GRID, or a neutral file PREVIEW box (opening onto a file).
+ *    The content pane carries NO header band: the drawer's one header already owns the
+ *    breadcrumb/name/count, so the pane below it starts straight at the content (matches
  *    FolderView/DriveFilePreview in `hideHeader` chrome mode).
  */
 
-import type {DriveView} from "./DriveExplorer"
 import {VirtualTileGrid} from "./VirtualTileGrid"
 
 const bar = "animate-pulse rounded bg-colorFillSecondary"
@@ -54,37 +51,6 @@ export const TileGridSkeleton = ({className = "p-4"}: {className?: string}) => (
         getKey={(i) => String(i)}
         renderTile={() => <SkeletonTile />}
     />
-)
-
-// Flat-view rows: a varied set of name widths so the list reads as real files, not a barcode.
-const FLAT_ROWS = [
-    "58%",
-    "40%",
-    "66%",
-    "48%",
-    "36%",
-    "60%",
-    "44%",
-    "52%",
-    "38%",
-    "62%",
-    "46%",
-    "34%",
-]
-
-/** Flat-view placeholder: compact one-column ROWS matching DriveFileRow variant="row" (~30px tall,
- * 2px gap, `px-2 py-1` pane) — icon glyph + name. Plain rows (not the virtualizer): a fixed dozen is
- * cheaper than spinning up windowing for a placeholder, and the rhythm still matches the real list. */
-const FlatListSkeleton = () => (
-    <div className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden px-2 py-1">
-        {FLAT_ROWS.map((w, i) => (
-            <div key={i} className="flex h-[30px] shrink-0 items-center gap-2 px-1.5">
-                <div className={`h-3.5 w-3.5 shrink-0 ${bar}`} />
-                <div className={`h-3 ${bar}`} style={{width: w}} />
-                <div className={`ml-auto h-2.5 w-10 shrink-0 ${bar}`} />
-            </div>
-        ))}
-    </div>
 )
 
 // Tree rows: {indent depth, name width} — varied so the left pane reads as a real file tree.
@@ -127,31 +93,29 @@ const PreviewPaneSkeleton = () => (
     </div>
 )
 
-/** The current view's content pane — no header band (the drawer's header owns breadcrumb/name/count). */
-const ContentPaneSkeleton = ({mode, view}: {mode: "grid" | "preview"; view: DriveView}) => {
-    if (mode === "preview") return <PreviewPaneSkeleton />
-    if (view === "flat") return <FlatListSkeleton />
-    return (
+/** The content pane — no header band (the drawer's header owns breadcrumb/name/count). */
+const ContentPaneSkeleton = ({mode}: {mode: "grid" | "preview"}) =>
+    mode === "preview" ? (
+        <PreviewPaneSkeleton />
+    ) : (
         <div className="flex min-w-0 flex-1 flex-col">
             <TileGridSkeleton />
         </div>
     )
-}
 
 /**
- * Drawer-body placeholder for the CURRENT view. `list` view is the two-pane tree + content (like
- * search); `grid`/`flat` are single content panes with no tree — mirroring the real body so the
- * skeleton→content swap never shifts the layout.
+ * Drawer-body placeholder: the tree pane (unless hidden) + the content pane — mirroring the real body
+ * so the skeleton→content swap never shifts the layout.
  */
 export const DriveExplorerSkeleton = ({
     mode = "grid",
-    view = "list",
+    showTree = true,
 }: {
     mode?: "grid" | "preview"
-    view?: DriveView
+    showTree?: boolean
 }) => (
     <div className="flex min-h-0 w-full flex-1" aria-hidden>
-        {view === "list" ? <TreePaneSkeleton /> : null}
-        <ContentPaneSkeleton mode={mode} view={view} />
+        {showTree ? <TreePaneSkeleton /> : null}
+        <ContentPaneSkeleton mode={mode} />
     </div>
 )
