@@ -1,13 +1,15 @@
 /**
- * VirtualTileGrid — a windowed fixed-column tile grid for the drive surfaces. The drives list the
- * WHOLE flat tree (11k+ entries for a repo the agent cloned into its cwd), so the chat Files grid and
- * the explorer folder view MUST NOT render one DOM node per file — that alone froze the main thread
- * (issue #5367), before any per-tile thumbnail work.
+ * VirtualTileGrid — a windowed fixed-column tile grid for the drive surfaces. The drives list whole
+ * folders (thousands of immediate children for a repo the agent cloned into its cwd), so the folder
+ * view MUST NOT render one DOM node per file — that alone froze the main thread (issue #5367), before
+ * any per-tile thumbnail work.
  *
  * Only the visible rows (+ overscan) mount. Rows are chunked into `columns` cells and virtualized on
  * the vertical axis via `@tanstack/react-virtual`, measuring real heights (tiles are `aspect-[4/3]`,
  * so their height tracks the responsive column width). Scrolling binds to this component's own
- * `overflow-auto` element — drop it into a `min-h-0 flex-1` parent and it fills the space.
+ * `overflow-auto` element — drop it into a `min-h-0 flex-1` parent and it fills the space. Tile size
+ * tracks the container width purely via CSS grid `1fr`, so a pane resize (the tree pane collapsing)
+ * resizes the tiles smoothly; the column COUNT changes discretely at each threshold.
  *
  * KEYBOARD: 2D roving focus over the cells (↑/↓/←/→, Home/End) — virtualization-aware, so moving past
  * the visible window SCROLLS the target cell in and focuses it (a plain offsetTop scan can't, and

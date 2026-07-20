@@ -50,7 +50,6 @@ import {
     Input,
     type MenuProps,
     Segmented,
-    Splitter,
     Tag,
     Tooltip,
     Typography,
@@ -198,6 +197,15 @@ const SKELETON_ROW_CAP = 24
 
 // Shared empty set — the "no dir just loaded" sentinel, so a render that reveals nothing allocates none.
 const EMPTY_STR_SET: ReadonlySet<string> = new Set<string>()
+
+// The file-tree pane's default/min/max width, and the collapse/expand tween. The pane is a plain
+// motion.div (NOT an antd Splitter): motion animates its width 0↔width in ONE continuous pass, and the
+// content pane (flex-fill) tracks it exactly — no antd ResizeObserver re-deriving flex-basis after the
+// tween and snapping the width a second time. A custom pointer handle drags the width in [MIN, MAX].
+const TREE_WIDTH = 260
+const TREE_MIN = 180
+const TREE_MAX = 480
+const TREE_TRANSITION = {duration: 0.24, ease: [0.4, 0, 0.2, 1] as [number, number, number, number]}
 
 /** Flatten the tree to only the rows currently VISIBLE (a folder's children appear only when it's
  * expanded), pre-tagged with depth. This is what the virtualizer windows — so the DOM never holds
@@ -494,9 +502,9 @@ const DriveFilePreview = ({
     const metaOpen = hideHeader ? Boolean(detailsOpen) : metaExpanded
 
     return (
-        // h-full (NOT flex-1): the Splitter.Panel isn't a flex parent, so flex-1 gives no bounded
-        // height — the pane would grow to content and scroll the header away. h-full pins it to the
-        // panel so the header stays and only the content viewer scrolls (mirrors the tree pane).
+        // h-full pins the preview to the content pane's height so the header stays put and only the
+        // content viewer scrolls (mirrors the tree pane); flex-1 here would let it grow to content and
+        // scroll the header away.
         <div className="flex h-full min-h-0 w-full flex-col">
             {hideHeader ? (
                 // Chrome mode: no header band — just the meta grid when the header's toggle is on.
@@ -1183,25 +1191,31 @@ export function DriveExplorer({
     // give the content pane the full width. Searching always forces the tree (its filtered rows ARE
     // the results), so the effective visibility is `showTree || searchActive` (see `treeVisible`).
     const [showTree, setShowTree] = useState(true)
-    // Tree-pane width (px), persisted across drags so re-showing restores the last width; the pane
-    // collapses to 0 when hidden. `treeAnimating` gates the collapse/expand transition (see toggleTree).
-    const [treeSize, setTreeSize] = useState(260)
-    const [treeAnimating, setTreeAnimating] = useState(false)
-    const treeAnimTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-    // Toggle the tree pane. Turn the transition class ON in the SAME commit as the size flip (a late
-    // paint would snap), then clear it after the flip so per-frame DRAG stays 1:1 (no transition lag).
-    const toggleTree = useCallback(() => {
-        setTreeAnimating(true)
-        setShowTree((v) => !v)
-        if (treeAnimTimer.current) clearTimeout(treeAnimTimer.current)
-        treeAnimTimer.current = setTimeout(() => setTreeAnimating(false), 260)
-    }, [])
-    useEffect(
-        () => () => {
-            if (treeAnimTimer.current) clearTimeout(treeAnimTimer.current)
+    const toggleTree = useCallback(() => setShowTree((v) => !v), [])
+    // Draggable tree-pane width (persisted across a hide/show, so re-showing restores it). While
+    // dragging, the width follows the pointer 1:1 (transition off); the show/hide toggle animates it.
+    const [treeWidth, setTreeWidth] = useState(TREE_WIDTH)
+    const [treeDragging, setTreeDragging] = useState(false)
+    const treeDrag = useRef<{startX: number; startW: number} | null>(null)
+    const onTreeHandleDown = useCallback(
+        (e: React.PointerEvent<HTMLDivElement>) => {
+            e.preventDefault()
+            e.currentTarget.setPointerCapture(e.pointerId)
+            treeDrag.current = {startX: e.clientX, startW: treeWidth}
+            setTreeDragging(true)
         },
-        [],
+        [treeWidth],
     )
+    const onTreeHandleMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        const st = treeDrag.current
+        if (!st) return
+        setTreeWidth(Math.min(TREE_MAX, Math.max(TREE_MIN, st.startW + (e.clientX - st.startX))))
+    }, [])
+    const onTreeHandleUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        treeDrag.current = null
+        setTreeDragging(false)
+        e.currentTarget.releasePointerCapture?.(e.pointerId)
+    }, [])
 
     // "Download all" — ONE streaming zip spanning every mount the drive folds in (cwd at the root,
     // the agent's durable folder under `agent-files/`). The toast rides App.useApp (dark-mode safe).
@@ -1683,30 +1697,27 @@ export function DriveExplorer({
                     onSelect={select}
                 />
             )
-        // The one presentation: the file TREE pane (unless hidden) + the content pane. The tree pane is
-        // draggable (widen it to read truncated long names) and COLLAPSES to width 0 when hidden — the
-        // Splitter stays mounted (both panes) so the toggle animates, via a controlled `size` + the
-        // `ag-drive-tree-splitter--animating` transition class (gated to the flip so drag stays 1:1).
+        // The one presentation: the file TREE pane (unless hidden) + the content pane. The tree pane is a
+        // motion.div whose WIDTH animates 0↔TREE_WIDTH; the content pane (flex-fill) tracks it in one
+        // continuous pass. The tree's INNER content is a FIXED TREE_WIDTH box clipped by the outer
+        // `overflow-hidden`, so it slides out cleanly (its rows never reflow as the pane narrows).
         body = (
-            <Splitter
-                className={`ag-drive-tree-splitter min-h-0 w-full flex-1${treeAnimating ? " ag-drive-tree-splitter--animating" : ""}`}
-                onResize={(sizes) => {
-                    const s = sizes[0]
-                    if (treeVisible && typeof s === "number") setTreeSize(s)
-                }}
-            >
-                <Splitter.Panel
-                    size={treeVisible ? treeSize : 0}
-                    min={treeVisible ? 180 : 0}
-                    max="65%"
-                    resizable={treeVisible}
+            <div className="flex min-h-0 w-full flex-1">
+                <motion.div
+                    className="min-h-0 shrink-0 overflow-hidden border-0 border-r border-solid border-colorBorderSecondary"
+                    initial={false}
+                    animate={{width: treeVisible ? treeWidth : 0}}
+                    // Drag → follow the pointer 1:1 (no tween); toggle → animate the collapse/expand.
+                    transition={treeDragging ? {duration: 0} : TREE_TRANSITION}
                 >
-                    {/* No own search box when controlled → drop the top padding so the tree isn't pushed
-                    down by empty space (the embedding toolbar already spaces it). `box-border`: preflight
-                    is off, so without it `h-full` + padding overflows the (overflow:auto) Splitter panel,
-                    giving a SECOND scrollbar nested inside the tree's own — QA's "nested scrollbars".
-                    `overflow-hidden` clips the tree cleanly as the pane collapses to 0. */}
-                    <div className="box-border flex h-full min-h-0 flex-col overflow-hidden px-3 pb-3 pt-2">
+                    {/* Inner pinned to the current `treeWidth` so the tree doesn't reflow while the pane
+                    COLLAPSES (it clips instead); a drag changes `treeWidth`, so the tree does reflow to
+                    the new width then. `box-border` keeps `h-full`+padding inside the box (preflight is
+                    off → content-box by default). */}
+                    <div
+                        className="box-border flex h-full min-h-0 flex-col overflow-hidden px-3 pb-3 pt-2"
+                        style={{width: treeWidth}}
+                    >
                         <div
                             ref={treeScrollRef}
                             // Vertical scroll is native; horizontal is intercepted (treeScrollRef)
@@ -1812,9 +1823,27 @@ export function DriveExplorer({
                             )}
                         </div>
                     </div>
-                </Splitter.Panel>
-                <Splitter.Panel>{contentPane}</Splitter.Panel>
-            </Splitter>
+                </motion.div>
+                {/* Resize handle — a WIDE invisible hit target straddling the tree's right edge, with a
+                    thin 1px line that only lights up on hover/drag (the tree's own border is the resting
+                    divider). Only while the tree is shown (nothing to resize when collapsed). */}
+                {treeVisible ? (
+                    <div
+                        role="separator"
+                        aria-orientation="vertical"
+                        aria-label="Resize file tree"
+                        onPointerDown={onTreeHandleDown}
+                        onPointerMove={onTreeHandleMove}
+                        onPointerUp={onTreeHandleUp}
+                        className="group relative z-10 -mx-1 w-2 shrink-0 cursor-col-resize touch-none"
+                    >
+                        <div
+                            className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${treeDragging ? "bg-colorPrimary" : "bg-transparent group-hover:bg-colorPrimary"}`}
+                        />
+                    </div>
+                ) : null}
+                <div className="flex min-w-0 flex-1 flex-col">{contentPane}</div>
+            </div>
         )
     }
     // The lazy per-directory subscribers render alongside EVERY branch (skeleton/empty/tree) so the
