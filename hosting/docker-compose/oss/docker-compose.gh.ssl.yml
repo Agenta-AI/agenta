@@ -258,7 +258,7 @@ services:
             - AGENTA_STORE_ENDPOINT_URL=${AGENTA_STORE_ENDPOINT_URL:-}
             - AGENTA_STORE_ACCESS_KEY=${AGENTA_STORE_ACCESS_KEY:-}
             - AGENTA_STORE_SECRET_KEY=${AGENTA_STORE_SECRET_KEY:-}
-            - AGENTA_STORE_REGION=${AGENTA_STORE_REGION:-}
+            - AGENTA_STORE_REGION=${AGENTA_STORE_REGION:-us-east-1}
             - AGENTA_STORE_BUCKET=${AGENTA_STORE_BUCKET:-}
             - AGENTA_STORE_SIGNING_KEY=${AGENTA_STORE_SIGNING_KEY:-}
         # === NETWORK ============================================== #
@@ -293,6 +293,10 @@ services:
         environment:
             AGENTA_RUNNER_PORT: "8765"
             AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
+            # Stable id so a runner restart keeps ownership of its local-sandbox sessions;
+            # a random id would orphan them for the owner TTL. A fixed default is safe because
+            # compose runs a single runner. Override only if you scale to multiple runners.
+            AGENTA_RUNNER_REPLICA_ID: ${AGENTA_RUNNER_REPLICA_ID:-local-runner-1}
             # API as reached FROM this container: the compose service name over the network
             # (http://api:8000, as the workers use), NOT the public http://localhost/api
             # which does not resolve inside a container. Used by the OTLP tracing-export
