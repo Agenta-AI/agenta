@@ -5,7 +5,7 @@
  * fetch). Uses the same elevated dark surface as the build-mode Inspector so the right dock reads
  * as one panel across modes. A file row opens Quick Look; "View all files" opens the Files drawer.
  */
-import {ArrowSquareOut, FolderSimple, Sidebar} from "@phosphor-icons/react"
+import {ArrowSquareOut, CircleNotch, FolderSimple, Sidebar} from "@phosphor-icons/react"
 import {Button, Tag, Tooltip, Typography} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
@@ -14,6 +14,7 @@ import {AnimatePresence, MotionConfig, motion} from "motion/react"
 import {isSessionFresh} from "@/oss/components/AgentChatSlice/state/sessionEphemera"
 
 import {DriveFileRow, FOCUS_RING} from "./DriveFileRow"
+import {DriveItemContextMenu, useCopyDrivePath, useDriveItemDownload} from "./DriveItemContextMenu"
 import {listArrowKeyDown} from "./driveKeyboard"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "./driveMotion"
 import {useDriveArtifactId} from "./driveSessionContext"
@@ -96,13 +97,14 @@ export function ContextRail({
                     </Tooltip>
                     {drive.fileCount > 0 ? (
                         <Tooltip
-                            title={`${drive.fileCount} file${drive.fileCount === 1 ? "" : "s"} in this conversation`}
+                            title={`${drive.fileCount}${drive.fileCountCapped ? "+" : ""} file${drive.fileCount === 1 && !drive.fileCountCapped ? "" : "s"} in this conversation`}
                             placement="left"
                         >
                             <span className="relative flex h-7 w-7 items-center justify-center text-colorTextSecondary">
                                 <FolderSimple size={15} />
                                 <span className="absolute right-0 top-0 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-[var(--ag-colorPrimary)] px-1 text-[9px] font-semibold leading-none text-[var(--ag-colorBgContainer)]">
                                     {drive.fileCount}
+                                    {drive.fileCountCapped ? "+" : ""}
                                 </span>
                             </span>
                         </Tooltip>
@@ -141,6 +143,8 @@ const ExpandedRail = ({
 }) => {
     const now = useRecentChangeClock(drive.lastTouchedAt)
     const showOrigin = driveHasMixedOrigins(drive.recents)
+    const copyPath = useCopyDrivePath()
+    const download = useDriveItemDownload(drive)
     return (
         <aside
             className="flex h-full flex-col overflow-y-auto border-0 border-l border-solid"
@@ -151,6 +155,7 @@ const ExpandedRail = ({
                 {drive.fileCount > 0 ? (
                     <Tag bordered className="m-0 !px-1.5 !text-[10px] font-normal leading-[16px]">
                         {drive.fileCount}
+                        {drive.fileCountCapped ? "+" : ""}
                     </Tag>
                 ) : null}
                 <div className="ml-auto flex items-center">
@@ -177,6 +182,11 @@ const ExpandedRail = ({
                     <Text type="secondary" className="px-1 pb-1 !text-[11px]">
                         {drive.isLoading ? "Loading…" : "No files yet."}
                     </Text>
+                ) : drive.recents.length === 0 ? (
+                    // Files exist but none changed in THIS conversation (recents = its record log).
+                    <Text type="secondary" className="px-1 pb-1 !text-[11px]">
+                        No changes yet — open “View all files” to browse.
+                    </Text>
                 ) : (
                     <>
                         {/* The recent files as friendly thumbnail cards (a preview a user recognises
@@ -188,6 +198,9 @@ const ExpandedRail = ({
                                     // Route the thumbnail read to the file's own mount (cwd or
                                     // agent-files); the card still displays the presented path.
                                     const resolved = drive.resolveMount(file.path)
+                                    const relTime = file.touchedAt
+                                        ? relativeTime(file.touchedAt).replace(" ago", "")
+                                        : undefined
                                     return (
                                         <motion.div
                                             key={file.path}
@@ -198,30 +211,65 @@ const ExpandedRail = ({
                                             exit="exit"
                                             transition={FILE_SPRING}
                                         >
-                                            <DriveFileRow
-                                                variant="card"
+                                            <DriveItemContextMenu
                                                 path={file.path}
-                                                file={
-                                                    resolved ? {...file, path: resolved.path} : file
+                                                isFolder={!!file.is_folder}
+                                                onOpen={() =>
+                                                    file.is_folder
+                                                        ? onOpenFiles()
+                                                        : onQuickLook(file.path)
                                                 }
-                                                mount={resolved?.mount ?? drive.mount}
-                                                showOrigin={showOrigin}
-                                                recent={isRecentlyChanged(file.touchedAt, now)}
-                                                trailing={
-                                                    file.touchedAt
-                                                        ? relativeTime(file.touchedAt).replace(
-                                                              " ago",
-                                                              "",
-                                                          )
-                                                        : undefined
-                                                }
-                                                onOpen={() => onQuickLook(file.path)}
-                                            />
+                                                onCopyPath={copyPath}
+                                                onDownload={download}
+                                                className="w-full"
+                                            >
+                                                <DriveFileRow
+                                                    variant="card"
+                                                    path={file.path}
+                                                    isFolder={!!file.is_folder}
+                                                    // Summary rail: icon thumbnails only — never read
+                                                    // each recent file's bytes just to preview it.
+                                                    staticThumb
+                                                    file={
+                                                        resolved
+                                                            ? {...file, path: resolved.path}
+                                                            : file
+                                                    }
+                                                    mount={resolved?.mount ?? drive.mount}
+                                                    showOrigin={showOrigin}
+                                                    recent={isRecentlyChanged(file.touchedAt, now)}
+                                                    trailing={
+                                                        file.is_folder
+                                                            ? // Count only when known (rollup folders
+                                                              // have it; the top-level fallback not).
+                                                              [
+                                                                  file.item_count != null
+                                                                      ? `${file.item_count} item${file.item_count === 1 ? "" : "s"}`
+                                                                      : null,
+                                                                  relTime,
+                                                              ]
+                                                                  .filter(Boolean)
+                                                                  .join(" · ") || undefined
+                                                            : relTime
+                                                    }
+                                                    onOpen={() =>
+                                                        file.is_folder
+                                                            ? onOpenFiles()
+                                                            : onQuickLook(file.path)
+                                                    }
+                                                />
+                                            </DriveItemContextMenu>
                                         </motion.div>
                                     )
                                 })}
                             </AnimatePresence>
                         </MotionConfig>
+                        {drive.isFetching ? (
+                            <div className="flex items-center gap-1.5 px-1 pt-0.5 text-[11px] text-colorTextTertiary">
+                                <CircleNotch size={11} className="animate-spin" />
+                                <span>Loading more…</span>
+                            </div>
+                        ) : null}
                         {drive.fileCount > 5 ? (
                             <button
                                 type="button"

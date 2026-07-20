@@ -3,6 +3,7 @@ import {useMemo} from "react"
 import {
     latestMountFilesQueryFamily,
     mountFilesQueryFamily,
+    mountRootQueryFamily,
     sessionFileActivityAtomFamily,
     sessionMountsQueryFamily,
     sessionRecordFileRecencyAtomFamily,
@@ -67,13 +68,20 @@ export interface SessionDriveData {
     mount: Mount | null
     files: MountFile[]
     fileCount: number
+    /** `fileCount` is a floor (the count scan hit its cap on a very large tree) — show "N+". */
+    fileCountCapped?: boolean
     totalSize: number
     /** Files ordered most-recently-touched first (signal-stamped first, then alpha). */
     recents: DriveRecentFile[]
     /** The most recent touch across the drive, for the `Updated {rel} · {n} files` summary. */
     lastTouchedAt: number | null
     summary: string
+    /** No data to show YET — a blocking skeleton is appropriate. Goes false as soon as ANY mount's
+     * data arrives (the other may still be loading — see {@link isFetching}). */
     isLoading: boolean
+    /** A listing is still in flight even though some data may already be shown — for a subtle
+     * "loading more" hint rather than a blocking skeleton. Optional (the full drive omits it). */
+    isFetching?: boolean
     /** Listing (or mount discovery) failed — e.g. object store not configured. */
     errored: boolean
     /** Map a presented path (as it appears in `files`/`recents`) to the mount + mount-relative path
@@ -87,18 +95,28 @@ export interface SessionDriveData {
  * (queried by `artifactId` — the agent mount is keyed by artifact, shared across the agent's
  * sessions). Enriched with recency from the per-session file-activity signals.
  */
-export function useSessionDrive(sessionId: string, artifactId?: string): SessionDriveData {
+export function useSessionDrive(
+    sessionId: string,
+    artifactId?: string,
+    /** Surface `.gitignore`d files too (the "show git-ignored files" toggle). Default false = the
+     * curated view. Fetches the WHOLE ignored tree (node_modules, …) when on, so it's opt-in. */
+    includeGitignored = false,
+): SessionDriveData {
     const mountsQuery = useAtomValue(sessionMountsQueryFamily(sessionId))
     const mounts = mountsQuery.data ?? []
     const mount = mounts.find((m) => m.slug === "cwd") ?? mounts[0] ?? null
 
-    const filesQuery = useAtomValue(mountFilesQueryFamily(mount?.id ?? ""))
+    const filesQuery = useAtomValue(
+        mountFilesQueryFamily({mountId: mount?.id ?? "", includeGitignored}),
+    )
 
     // Agent (durable) mount — keyed by artifact, not session. Its files are surfaced under
     // `agent-files/`. Queries stay disabled (empty key) when there's no artifact.
     const agentMountQuery = useAtomValue(agentMountQueryFamily(artifactId ?? ""))
     const agentMount = artifactId ? (agentMountQuery.data ?? null) : null
-    const agentFilesQuery = useAtomValue(mountFilesQueryFamily(agentMount?.id ?? ""))
+    const agentFilesQuery = useAtomValue(
+        mountFilesQueryFamily({mountId: agentMount?.id ?? "", includeGitignored}),
+    )
 
     const activity = useAtomValue(sessionFileActivityAtomFamily(sessionId))
     // Durable, cross-device recency from the record log — the base layer under the live browser
@@ -266,22 +284,21 @@ export function useSessionDrive(sessionId: string, artifactId?: string): Session
     }, [structural, recents, lastTouchedAt])
 }
 
-/** The summary surfaces (chat rail, config Files section) render the latest 5 — so that's all the
- * query fetches. */
+/** The summary surfaces show the latest 5 recent files. */
 const SUMMARY_LATEST_LIMIT = 5
 
 /**
  * Lightweight drive summary for the ALWAYS-MOUNTED chrome (chat rail, config Files section, runtime
- * lens). It is backed by TWO purpose-built, deduped queries — a `limit=0` COUNT and a latest-N files
- * slice — so it NEVER pulls the whole tree into the client and scales to tens of thousands of files
- * where {@link useSessionDrive} (full tree) would choke. Returns the same {@link SessionDriveData}
- * shape so consumers are unchanged; `files`/`totalSize` carry only the latest slice (0 size), never
- * the full listing.
+ * lens). Its cost is CONSTANT — independent of how many files the mount holds:
  *
- * ONE query per mount serves BOTH the count (its `total`) and the recents (its `files`): the backend
- * must scan the whole listing to produce either (an object store can't sort-by-mtime or count without
- * a full LIST), so a separate count query would just double that scan. Loading/error therefore hang
- * off this single query — the recents are never blocked behind a slower, separate count.
+ *  - RECENTS come from the session RECORD LOG (`sessionRecordFileRecencyAtomFamily`) — the files the
+ *    agent wrote/edited, already loaded for the transcript — so there is NO object-store scan to
+ *    surface "what did I just work on". (A file the agent only READ, or a bulk `git clone` created
+ *    via bash, won't appear here — those aren't in the records; the full browser still lists them.)
+ *  - The COUNT is a BOUNDED `limit=0` scan per mount (`total`/`total_capped`): the backend stops
+ *    after a cap and reports "N+", so the "N files" badge never blocks on enumerating a huge tree.
+ *
+ * Returns the same {@link SessionDriveData} shape so consumers are unchanged.
  */
 export function useSessionDriveSummary(sessionId: string, artifactId?: string): SessionDriveData {
     const mountsQuery = useAtomValue(sessionMountsQueryFamily(sessionId))
@@ -291,46 +308,63 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
     const agentMountQuery = useAtomValue(agentMountQueryFamily(artifactId ?? ""))
     const agentMount = artifactId ? (agentMountQuery.data ?? null) : null
 
-    const cwdLatest = useAtomValue(
-        latestMountFilesQueryFamily({
-            mountId: mount?.id ?? "",
-            limit: SUMMARY_LATEST_LIMIT,
-            order: "recent",
-        }),
+    // Recents: the agent's own write/edit events from the durable record log (0 object-store scan).
+    const recordRecency = useAtomValue(sessionRecordFileRecencyAtomFamily(sessionId))
+
+    // Does the record log hold ANY visible (non-internal) change? When it doesn't, the "recent
+    // changes" list would be empty even though the drive has files — so fall back to the top-level
+    // listing below. Computed here (cheap — records are few) to GATE that query off when records
+    // already carry the list, so an active conversation pays nothing extra.
+    const hasVisibleRecords = useMemo(
+        () =>
+            [...recordRecency.keys()].some((toolPath) => {
+                const p = cleanPath(toolPath)
+                return Boolean(p) && !isInternalDrivePath(p)
+            }),
+        [recordRecency],
     )
-    const agentLatest = useAtomValue(
-        latestMountFilesQueryFamily({
-            mountId: agentMount?.id ?? "",
-            limit: SUMMARY_LATEST_LIMIT,
-            order: "recent",
-        }),
+
+    // Count only (limit=0): a bounded scan → `total` (+ `total_capped` when it hit the cap).
+    const cwdCount = useAtomValue(latestMountFilesQueryFamily({mountId: mount?.id ?? "", limit: 0}))
+    const agentCount = useAtomValue(
+        latestMountFilesQueryFamily({mountId: agentMount?.id ?? "", limit: 0}),
     )
+    // Fallback list (depth=1, one delimiter call): the drive's TOP-LEVEL entries, so a conversation
+    // that changed nothing still shows what's in the drive instead of an empty list. Disabled (empty
+    // id) whenever the record log already has visible changes — no wasted request in the common case.
+    const rootQuery = useAtomValue(mountRootQueryFamily(hasVisibleRecords ? "" : (mount?.id ?? "")))
 
     return useMemo(() => {
-        // Backend already sorted by mtime (recency) and dropped runner-internal artifacts; expose
-        // mtime as `touchedAt` for the shared row UI. The `isInternalDrivePath` filter is defensive.
-        const cwdFiles: DriveRecentFile[] = (cwdLatest.data?.files ?? [])
-            .filter((f) => cleanPath(f.path) !== AGENT_FILES_DIR && !isInternalDrivePath(f.path))
-            .map((f) => ({...f, touchedAt: f.mtime ?? undefined}))
-        const agentFiles: DriveRecentFile[] = agentMount
-            ? (agentLatest.data?.files ?? [])
-                  .filter((f) => !isInternalDrivePath(f.path))
-                  .map((f) => ({
-                      ...f,
-                      path: `${AGENT_FILES_DIR}/${cleanPath(f.path)}`,
-                      touchedAt: f.mtime ?? undefined,
-                  }))
-            : []
-
-        // Each slice is per-mount sorted; merge + re-sort for the global latest across both mounts.
-        const recents = [...cwdFiles, ...agentFiles].sort((a, b) =>
-            (b.touchedAt ?? 0) !== (a.touchedAt ?? 0)
-                ? (b.touchedAt ?? 0) - (a.touchedAt ?? 0)
-                : a.path.localeCompare(b.path),
-        )
+        // Newest write/edit per path (the map already dedups by path, keeping the latest timestamp).
+        const recordRecents: DriveRecentFile[] = [...recordRecency.entries()]
+            .map(([toolPath, at]) => ({path: cleanPath(toolPath), touchedAt: at}))
+            .filter((f) => f.path && !isInternalDrivePath(f.path))
+            .sort((a, b) =>
+                b.touchedAt !== a.touchedAt
+                    ? b.touchedAt - a.touchedAt
+                    : a.path.localeCompare(b.path),
+            )
+            .slice(0, SUMMARY_LATEST_LIMIT)
+        // No in-conversation changes → present the top-level entries (files carry the store mtime;
+        // folders sort after, alphabetically) so the surface reflects the drive's real contents.
+        const rootRecents: DriveRecentFile[] = (rootQuery.data ?? [])
+            .filter((f) => !isInternalDrivePath(f.path))
+            .map((f) => ({...f, touchedAt: typeof f.mtime === "number" ? f.mtime : undefined}))
+            .sort((a, b) =>
+                (b.touchedAt ?? 0) !== (a.touchedAt ?? 0)
+                    ? (b.touchedAt ?? 0) - (a.touchedAt ?? 0)
+                    : a.path.localeCompare(b.path),
+            )
+            .slice(0, SUMMARY_LATEST_LIMIT)
+        const recents = recordRecents.length ? recordRecents : rootRecents
         const lastTouchedAt = recents.length ? (recents[0].touchedAt ?? null) : null
+
         const fileCount =
-            (cwdLatest.data?.total ?? 0) + (agentMount ? (agentLatest.data?.total ?? 0) : 0)
+            (cwdCount.data?.total ?? 0) + (agentMount ? (agentCount.data?.total ?? 0) : 0)
+        const fileCountCapped =
+            Boolean(cwdCount.data?.totalCapped) ||
+            (Boolean(agentMount) && Boolean(agentCount.data?.totalCapped))
+        const countLabel = `${fileCount}${fileCountCapped ? "+" : ""}`
 
         const resolveMount = (path: string): ResolvedMountPath | null => {
             const rel = cleanPath(path)
@@ -340,47 +374,55 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
             return mount ? {mount, path: rel} : null
         }
 
-        const agentPending =
-            Boolean(artifactId) &&
-            (agentMountQuery.isPending || Boolean(agentMount && agentLatest.isPending))
-        const isLoading =
-            (Boolean(sessionId) &&
-                (mountsQuery.isPending || Boolean(mount && cwdLatest.isPending))) ||
-            agentPending
+        // "A request is in flight" — keyed on fetchStatus (`.isFetching`), NOT `.isPending`. A session
+        // switch revalidates the swapped mount's CACHED count (data present, so `isPending` is false)
+        // yet is actively refetching; without fetchStatus the summary surfaces would show no indicator
+        // during that. Disabled queries (empty id) are idle, so they never count.
+        const isFetching =
+            mountsQuery.isFetching ||
+            cwdCount.isFetching ||
+            (Boolean(artifactId) && (agentMountQuery.isFetching || agentCount.isFetching)) ||
+            rootQuery.isFetching
+        // Block with a skeleton ONLY while there's nothing to show yet (the first load) — once any data
+        // is in, a refetch shows the subtle "fetching" hint instead of a blocking skeleton.
+        const isLoading = isFetching && recents.length === 0 && fileCount === 0
         const sessionErrored =
             Boolean(sessionId) &&
             ((!mountsQuery.isPending && (mountsQuery.data === null || mountsQuery.isError)) ||
                 (Boolean(mount) &&
-                    !cwdLatest.isPending &&
-                    (cwdLatest.data === null || cwdLatest.isError)))
+                    !cwdCount.isPending &&
+                    (cwdCount.data === null || cwdCount.isError)))
         const agentErrored =
             Boolean(artifactId) &&
             ((!agentMountQuery.isPending &&
                 (agentMountQuery.data === null || agentMountQuery.isError)) ||
                 (Boolean(agentMount) &&
-                    !agentLatest.isPending &&
-                    (agentLatest.data === null || agentLatest.isError)))
-        const errored = sessionErrored || agentErrored
+                    !agentCount.isPending &&
+                    (agentCount.data === null || agentCount.isError)))
+        // Only a TOTAL failure reads as errored — a partial one still has recents/count to show.
+        const errored = (sessionErrored || agentErrored) && fileCount === 0 && recents.length === 0
 
         const summary = isLoading
             ? "…"
             : errored
               ? "Unavailable"
-              : fileCount === 0
+              : fileCount === 0 && recents.length === 0
                 ? "No files yet"
                 : lastTouchedAt
-                  ? `Updated ${relativeTime(lastTouchedAt)} · ${fileCount} file${fileCount === 1 ? "" : "s"}`
-                  : `${fileCount} file${fileCount === 1 ? "" : "s"}`
+                  ? `Updated ${relativeTime(lastTouchedAt)} · ${countLabel} file${fileCount === 1 && !fileCountCapped ? "" : "s"}`
+                  : `${countLabel} file${fileCount === 1 && !fileCountCapped ? "" : "s"}`
 
         return {
             mount,
             files: recents,
             fileCount,
+            fileCountCapped,
             totalSize: 0,
             recents,
             lastTouchedAt,
             summary,
             isLoading,
+            isFetching,
             errored,
             resolveMount,
         }
@@ -389,17 +431,26 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
         artifactId,
         mount,
         agentMount,
-        cwdLatest.data,
-        cwdLatest.isPending,
-        cwdLatest.isError,
-        agentLatest.data,
-        agentLatest.isPending,
-        agentLatest.isError,
+        recordRecency,
+        hasVisibleRecords,
+        rootQuery.data,
+        rootQuery.isPending,
+        rootQuery.isFetching,
+        cwdCount.data,
+        cwdCount.isPending,
+        cwdCount.isFetching,
+        cwdCount.isError,
+        agentCount.data,
+        agentCount.isPending,
+        agentCount.isFetching,
+        agentCount.isError,
         agentMountQuery.data,
         agentMountQuery.isPending,
+        agentMountQuery.isFetching,
         agentMountQuery.isError,
         mountsQuery.data,
         mountsQuery.isPending,
+        mountsQuery.isFetching,
         mountsQuery.isError,
     ])
 }
