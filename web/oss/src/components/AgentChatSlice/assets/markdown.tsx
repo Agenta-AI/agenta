@@ -68,6 +68,12 @@ export const MD_CLASS =
 /** Math support ($…$ / $$…$$) via KaTeX — registered once as a marked extension. */
 const LATEX_CONFIG = {extensions: Latex()}
 
+/** Chat content must never restyle the app document, so forbid document-affecting tags.
+ * A pasted HTML doc's <style>/<link> would otherwise mount into the live document and
+ * repaint the whole app. Inline `style` attributes on elements stay allowed (expected in
+ * LLM output). FORBID beats XMarkdown's own ADD_TAGS in DOMPurify, so this wins. */
+const DOMPURIFY_CONFIG = {FORBID_TAGS: ["style", "link", "meta", "base", "title"]}
+
 /** Flatten a code element's children (string / text nodes) to the raw source. */
 const childrenToText = (children: ReactNode): string => {
     if (typeof children === "string") return children
@@ -184,6 +190,7 @@ const Markdown = ({content, className}: {content: string; className?: string}) =
         className={className ? `${MD_CLASS} ${className}` : MD_CLASS}
         content={content}
         config={LATEX_CONFIG}
+        dompurifyConfig={DOMPURIFY_CONFIG}
         components={{...MD_COMPONENTS, a: Anchor}}
     />
 )
