@@ -2,23 +2,14 @@ import { rmSync } from "node:fs";
 
 import { apiBase } from "../../apiBase.ts";
 
-import {
-  resolveRunSessionId,
-  type AgentRunRequest,
-} from "../../protocol.ts";
+import { resolveRunSessionId, type AgentRunRequest } from "../../protocol.ts";
 import { type ClientToolOutcome } from "../../responder.ts";
 import type { ClientToolRelay } from "../../tools/client-tool-relay.ts";
-import {
-  agentMountPath,
-  signAgentMountCredentials,
-} from "./agent-mount.ts";
+import { agentMountPath, signAgentMountCredentials } from "./agent-mount.ts";
 import { createToolCallCorrelationIndex } from "./client-tools.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./daemon.ts";
 import { conciseError } from "./errors.ts";
-import {
-  signSessionMountCredentials,
-  type MountCredentials,
-} from "./mount.ts";
+import { signSessionMountCredentials, type MountCredentials } from "./mount.ts";
 import {
   buildPiExtensionEnv,
   configurePiSessionWorkspace,
