@@ -1,0 +1,32 @@
+---
+import Base from "../layouts/Base.astro";
+import SiteNav from "../components/SiteNav.astro";
+import Hero from "../components/Hero.astro";
+import TemplateSection from "../components/TemplateSection.astro";
+import HarnessModels from "../components/HarnessModels.astro";
+import Environments from "../components/Environments.astro";
+import Collaborate from "../components/Collaborate.astro";
+import Integrations from "../components/Integrations.astro";
+import Monitor from "../components/Monitor.astro";
+import CtaBand from "../components/CtaBand.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+---
+
+<Base>
+  <!-- The page bg shows as a 12px frame around the 1440-wide section stack. -->
+  <div
+    class="ag-wrap"
+    style="width:100%;max-width:1440px;margin:0 auto;background:#0A0A0B;padding:0 12px;box-sizing:border-box;font-family:var(--font-sans);"
+  >
+    <SiteNav />
+    <Hero />
+    <TemplateSection />
+    <HarnessModels />
+    <Environments />
+    <Collaborate />
+    <Integrations />
+    <Monitor />
+    <CtaBand />
+    <SiteFooter />
+  </div>
+</Base>

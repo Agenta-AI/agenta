@@ -1,0 +1,60 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "Agenta — Build agents and AI automations that work",
+  description = "Build agents using skills and tools, run on any harness, in any environment. The open platform for agents and AI automation.",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="/logos/Agenta-symbol-dark-accent.svg" />
+    <meta name="generator" content={Astro.generator} />
+
+    <title>{title}</title>
+    <meta name="description" content={description} />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta name="theme-color" content="#0A0A0B" />
+
+    <!-- Web fonts: Inter (body) + Geist / Geist Mono (used in the explorer code blocks).
+         GT Alpina + PP Mondwest are self-hosted (see src/styles/tokens.css). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap"
+    />
+
+    <!-- Preload the two critical self-hosted faces (hero + highlighted word). -->
+    <link
+      rel="preload"
+      href="/fonts/GT-Alpina-Light.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/PPMondwest-Regular.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

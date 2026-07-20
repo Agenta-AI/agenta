@@ -1,0 +1,124 @@
+---
+import Site from "../layouts/Site.astro";
+
+// Verbatim legal content captured from https://agenta.ai/imprint on 2026-06-26.
+// NOTE: The live scraper could not confirm whether managing director name(s),
+// commercial register number (Amtsgericht), or VAT ID (USt-IdNr.) are published
+// on the live page — those fields are required by § 5 TMG and by § 2 DL-InfoV.
+// Before launch, verify the live Impressum and add any missing fields verbatim.
+---
+
+<Site
+  title="Imprint — Agenta"
+  description="Legal imprint for Agentatech UG (haftungsbeschränkt), Berlin. Required by § 5 TMG."
+  showCta={false}
+>
+  <!-- ══ HERO ══════════════════════════════════════════════════════════ -->
+  <section
+    style="background:#0E0D0F;border-bottom:1px solid rgba(255,255,255,0.07);"
+  >
+    <div
+      style="max-width:860px;margin:0 auto;padding:96px 32px 80px;"
+    >
+      <span
+        style="display:inline-flex;align-items:center;height:24px;padding:0 13px;border-radius:999px;background:rgba(255,255,255,0.06);box-shadow:0 0 0 1px rgba(255,255,255,0.14);font:var(--text-caption);letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.7);margin-bottom:24px;"
+        >Legal</span
+      >
+      <h1
+        style="margin:0 0 16px;font:var(--text-display-lg);color:#F7F6F4;text-wrap:pretty;"
+      >
+        Imprint
+      </h1>
+      <p
+        style="margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.6);max-width:540px;text-wrap:pretty;"
+      >
+        Information in accordance with Section 5 TMG.
+        This page also serves as the contact page for Agenta.
+      </p>
+    </div>
+  </section>
+
+  <!-- ══ CONTENT ═══════════════════════════════════════════════════════ -->
+  <section style="background:#0A0A0B;padding:64px 32px 96px;">
+    <div
+      style="max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:32px;"
+    >
+
+      <!-- Legal notice panel -->
+      <div
+        style="border:1px solid rgba(255,255,255,0.07);padding:40px 40px 36px;background:#100F11;"
+      >
+        <h2
+          style="margin:0 0 24px;font:300 28px/1.15 var(--font-display,'GT Alpina',serif);color:#F7F6F4;"
+        >
+          Legal notice
+        </h2>
+
+        <dl
+          style="display:grid;grid-template-columns:160px 1fr;gap:12px 24px;font:var(--text-body-md);color:rgba(255,255,255,0.6);margin:0;"
+        >
+          <dt style="color:rgba(255,255,255,0.38);font:var(--text-label);">Company</dt>
+          <dd style="margin:0;overflow-wrap:anywhere;">Agentatech UG (haftungsbeschränkt)</dd>
+
+          <dt style="color:rgba(255,255,255,0.38);font:var(--text-label);">Address</dt>
+          <dd style="margin:0;overflow-wrap:anywhere;">
+            c/o betahaus<br />
+            Rudi-Dutschke-Straße 23<br />
+            10969 Berlin<br />
+            Germany
+          </dd>
+
+          <!-- VERIFY BEFORE LAUNCH: managing director, Handelsregister, USt-IdNr.
+               The scraper did not capture these fields. Add verbatim if present
+               on the live page — required by § 5 TMG / § 2 DL-InfoV. -->
+        </dl>
+      </div>
+
+      <!-- Contact panel -->
+      <div
+        style="border:1px solid rgba(255,255,255,0.07);padding:40px 40px 36px;background:#100F11;"
+      >
+        <h2
+          style="margin:0 0 24px;font:300 28px/1.15 var(--font-display,'GT Alpina',serif);color:#F7F6F4;"
+        >
+          Contact
+        </h2>
+
+        <dl
+          style="display:grid;grid-template-columns:160px 1fr;gap:12px 24px;font:var(--text-body-md);color:rgba(255,255,255,0.6);margin:0;"
+        >
+          <dt style="color:rgba(255,255,255,0.38);font:var(--text-label);">Phone</dt>
+          <dd style="margin:0;overflow-wrap:anywhere;">
+            <a
+              href="tel:+4915231036519"
+              style="color:rgba(255,255,255,0.6);text-decoration:none;"
+            >
+              +49-(0)-152-31036519
+            </a>
+          </dd>
+
+          <dt style="color:rgba(255,255,255,0.38);font:var(--text-label);">Email</dt>
+          <dd style="margin:0;overflow-wrap:anywhere;">
+            <a
+              href="mailto:team@agenta.ai"
+              style="color:rgba(255,255,255,0.6);text-decoration:none;"
+            >
+              team@agenta.ai
+            </a>
+          </dd>
+
+          <dt style="color:rgba(255,255,255,0.38);font:var(--text-label);">Website</dt>
+          <dd style="margin:0;overflow-wrap:anywhere;">
+            <a
+              href="https://agenta.ai"
+              style="color:rgba(255,255,255,0.6);text-decoration:none;"
+            >
+              agenta.ai
+            </a>
+          </dd>
+        </dl>
+      </div>
+
+    </div>
+  </section>
+</Site>

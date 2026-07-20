@@ -1,0 +1,57 @@
+---
+slug: "product-update-november-2024"
+title: "Product Updates November 2024 - LLM Observability and Prompt management"
+description: "In this product update we introduce LLM observability, prompt management, and a new interface to configure LLM-as-a-judge evaluators."
+category: Article
+date: 2024-11-26
+readingTime: "5 min read"
+heroImage: /blog/product-update-november-2024/hero.webp
+ogImage: /blog/product-update-november-2024/hero.webp
+author: mahmoud-mabrouk
+featured: false
+tags: ["Product Updates"]
+---
+
+It's been a while since our last product update. We've made big changes to Agenta, and we're thrilled to share them with you. In the last months, we've revamped our platform with prompt management, powerful observability tools, new docs and a new look.
+
+Now, without more a due, let's “delve” into the new updates to Agenta.
+
+## Prompt management:
+
+<InlineCTA />
+
+![Prompt management:](/blog/product-update-november-2024/img-1.webp)
+
+Managing LLM applications, especially with a team, can be challenging. We’ve built a comprehensive prompt and configuration management system to make it easier.Our new SDK offers all the tools you need for managing prompts—whether you want to create drafts, deploy to staging or production, or roll back to a previous version. Alongside the SDK, our new **web UI empowers everyone on the team—from developers to subject matter experts—to**:
+
+- Deploy prompts quickly
+- Roll back to previous versions
+- Compare versions side by side
+
+Get started with prompt management in the docs.
+
+## OpenTelemetry LLM Observability
+
+![OpenTelemetry LLM Observability](/blog/product-update-november-2024/img-2.webp)
+
+Now, with just a few lines of code, you can start capturing all the inputs, outputs, and metadata for your LLM applications—whether they're built with OpenAI, LangChain, or custom workflows.
+
+LLM observability helps AI engineers debug applications, pinpoint root causes, and make informed decisions to improve prompts and architectures. Plus, you can track critical metrics like latency, costs, and performance over time—ensuring you're optimizing resource usage and staying ahead of model drifts.
+
+We built our observability to be OpenTelemetry compliant. **That means a robust, non-proprietary SDK with zero vendor lock-in and a ton of integrations out of the box**.
+
+Try this notebook to instrument a LangChain RAG app
+
+## Evaluator Playground for LLM-as-a-judge:
+
+![Evaluator Playground for LLM-as-a-judge:](/blog/product-update-november-2024/img-3.webp)
+
+Configuring the evaluators and tests for application can be a bit tricky especially for complex evaluators such as LLM-as-a-judge. We've added an evaluator configuration playground, where you can test the configuration of the evaluator with real data to fine tune it before starting evaluations.
+
+Check how to set-up your LLM-as-a-judge evals quickly
+
+## Web-UI redesign
+
+A minor yet not minor update. We have refreshed (and continue refreshing) our whole UI and UX to make it more user friendly and much clearer.
+
+That's it for this update. See you next time!

@@ -1,0 +1,111 @@
+---
+import Site from "../../layouts/Site.astro";
+import PostCard from "../../components/PostCard.astro";
+import CategoryFilter from "../../components/CategoryFilter.tsx";
+import { getCollection } from "astro:content";
+import { byDateDesc } from "../../lib/blog";
+
+const all = (await getCollection("posts")).sort(byDateDesc);
+
+// Featured: 1 primary (rank 1) + 2 secondary (ranks 2-3), per CONTENT_MODEL.md.
+const featured = all.filter((p) => p.data.featured);
+const primary = featured.find((p) => p.data.featuredRank === 1);
+const secondary = featured
+  .filter((p) => p.data.featuredRank === 2 || p.data.featuredRank === 3)
+  .sort((a, b) => (a.data.featuredRank ?? 99) - (b.data.featuredRank ?? 99));
+
+// Filter pills = "All" + the distinct categories present, stable order.
+const categories = [
+  "All",
+  ...["Engineering", "Article"].filter((c) =>
+    all.some((p) => p.data.category === c),
+  ),
+];
+
+const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;";
+---
+
+<Site
+  title="Blog — Agenta"
+  description="The latest updates and insights from Agenta — prompt management, evaluation, and observability for LLM apps."
+>
+  <!-- Blog header -->
+  <section
+    class="ag-headpad ag-pad"
+    style={`background:#0E0D0F;${sectionBorder}padding:72px 0 56px;text-align:center;`}
+  >
+    <div style="display:flex;flex-direction:column;align-items:center;gap:18px;">
+      <span
+        style="font:var(--text-caption);letter-spacing:0.14em;text-transform:uppercase;color:var(--yellow-400);"
+        >Our blog</span
+      >
+      <h1
+        class="ag-h1"
+        style="margin:0;font:var(--text-display-xl);color:#F7F6F4;max-width:760px;text-wrap:pretty;"
+      >
+        Stories and insights
+      </h1>
+      <p
+        style="margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.6);max-width:560px;text-wrap:pretty;"
+      >
+        The latest updates and insights from Agenta — prompt management,
+        evaluation, and observability for LLM apps.
+      </p>
+    </div>
+  </section>
+
+  <!-- Featured -->
+  {
+    primary && (
+      <section
+        class="ag-pad"
+        style={`background:#0A0A0B;${sectionBorder}padding:64px 64px 24px;`}
+      >
+        <span style="display:block;font:var(--text-caption);letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:24px;">
+          Featured blog post
+        </span>
+        <div class="ag-featrow" style="display:flex;gap:28px;">
+          <div style="flex:1;min-width:0;display:flex;">
+            <PostCard post={primary} variant="featured" />
+          </div>
+          {secondary.length > 0 && (
+            <div
+              class="ag-sec"
+              style="flex:0 0 388px;display:flex;flex-direction:column;gap:20px;"
+            >
+              {secondary.map((post) => (
+                <PostCard post={post} variant="secondary" />
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+    )
+  }
+
+  <!-- All blogs -->
+  <section
+    class="ag-pad"
+    style={`background:#0A0A0B;${sectionBorder}padding:32px 64px 88px;`}
+  >
+    <div
+      style="display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:32px;flex-wrap:wrap;"
+    >
+      <h2 class="ag-dlg" style="margin:0;font:var(--text-display-lg);color:#F7F6F4;">
+        All blogs
+      </h2>
+      <div class="ag-filter">
+        <CategoryFilter categories={categories} client:visible />
+      </div>
+    </div>
+
+    <div
+      id="blog-grid"
+      data-filter="All"
+      class="ag-grid"
+      style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;"
+    >
+      {all.map((post) => <PostCard post={post} variant="grid" />)}
+    </div>
+  </section>
+</Site>

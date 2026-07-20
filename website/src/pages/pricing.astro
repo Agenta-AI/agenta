@@ -1,0 +1,478 @@
+---
+import Site from "../layouts/Site.astro";
+import SectionTitle from "../components/SectionTitle.astro";
+import BillingToggle from "../components/BillingToggle.tsx";
+
+// Source of truth: the design's pricing data + schema.
+// `Agenta landing page pivot/content/pricing.json` (the shape is the contract;
+// the numbers are design placeholders — see the note above the plan grid).
+import pricing from "../../../Agenta landing page pivot/content/pricing.json";
+
+const { plans, comparison, faqs, billing } = pricing;
+type Plan = (typeof plans)[number];
+
+// CTA destinations (match the live site / task brief, NOT the placeholder hrefs
+// in pricing.json): every paid/free plan → cloud; Enterprise → the demo call.
+const CLOUD = "https://cloud.agenta.ai/";
+const DEMO = "https://cal.com/mahmoud-mabrouk-ogzgey/demo";
+const ctaHref = (plan: Plan) => (plan.id === "enterprise" ? DEMO : CLOUD);
+
+const priceFor = (plan: Plan, annual: boolean) =>
+  plan.customPrice ?? "$" + (annual ? plan.priceAnnual : plan.priceMonthly);
+const unitFor = (plan: Plan, annual: boolean) =>
+  annual ? plan.unitAnnual : plan.unitMonthly;
+
+// ── card chrome (ported from the design's inline styles) ──
+const cardBase =
+  "position:relative;display:flex;flex-direction:column;gap:16px;padding:28px 26px;border-radius:14px;box-sizing:border-box;";
+const cardPlain =
+  cardBase +
+  "background:rgba(255,255,255,0.025);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);";
+const cardPop =
+  cardBase +
+  "background:rgba(242,242,92,0.05);box-shadow:inset 0 0 0 1px rgba(242,242,92,0.3),0 0 60px rgba(242,242,92,0.08);";
+
+const ctaBase =
+  "display:inline-flex;align-items:center;justify-content:center;width:100%;height:40px;border-radius:8px;font:var(--text-label);cursor:pointer;text-decoration:none;box-sizing:border-box;";
+const ctaYellow =
+  ctaBase +
+  "background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);";
+const ctaOutline =
+  ctaBase +
+  "background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.16);color:#fff;";
+
+const COLS = "grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;";
+---
+
+<Site
+  title="Pricing — Agenta"
+  description="Simple pricing that scales with your team. Start free and self-host forever, or scale on the cloud with prompt management, evaluation, and observability built in."
+  cta={{
+    title: "Start free, scale when you're ready",
+    body: "Open-source and self-hostable forever. Sign up in seconds, no credit card required.",
+    primaryLabel: "Get started",
+    primaryHref: CLOUD,
+    secondaryLabel: "Book a demo",
+    secondaryHref: DEMO,
+  }}
+>
+  <!-- #pricing-root carries data-billing; the BillingToggle island flips it and
+       the CSS below swaps the .bill-monthly / .bill-annual prices. Default is
+       monthly so the page is correct before hydration / without JS. -->
+  <div id="pricing-root" data-billing={billing.defaultCycle}>
+    <!-- ============ HERO + BILLING TOGGLE ============ -->
+    <section class="pricing-hero" data-screen-label="Pricing hero">
+      <div
+        style="display:flex;flex-direction:column;align-items:center;gap:28px;"
+      >
+        <div
+          style="display:flex;flex-direction:column;align-items:center;gap:22px;"
+        >
+          <span
+            style="display:inline-flex;align-items:center;height:24px;padding:0 13px;border-radius:999px;background:rgba(255,255,255,0.06);box-shadow:0 0 0 1px rgba(255,255,255,0.14);font:var(--text-caption);letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.7);"
+            >Pricing</span
+          >
+          <h1
+            style="margin:0;font:var(--text-display-lg);color:#F7F6F4;max-width:760px;text-wrap:pretty;"
+          >
+            Simple pricing that scales with your <span
+              style="display:inline-block;padding:0.02em 0.18em 0.08em;border-radius:10px;background:rgba(255,255,255,0.07);box-shadow:inset 0 1px 0.4px rgba(255,255,255,0.25),0 0 0 1px rgba(255,255,255,0.06);font-family:var(--font-bitmap,'PP Mondwest',monospace);font-weight:400;line-height:1.06;color:var(--yellow-400);"
+              >team</span
+            >
+          </h1>
+          <p
+            style="margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.6);max-width:560px;text-wrap:pretty;"
+          >
+            Start free and self-host forever, or scale on the cloud with prompt
+            management, evaluation, and observability built in.
+          </p>
+        </div>
+
+        <BillingToggle
+          client:visible
+          targetId="pricing-root"
+          defaultCycle={billing.defaultCycle as "monthly" | "annual"}
+          annualDiscountLabel={billing.annualDiscountLabel}
+        />
+      </div>
+    </section>
+
+    <!-- ============ PLAN CARDS ============ -->
+    <!-- DESIGN PLACEHOLDER PRICES: Pro $49 ($39 annual) and Business $399 ($319
+         annual) come from pricing.json and are NOT real Agenta plan pricing.
+         Replace with real plan data before launch. The data shape is the contract. -->
+    <section class="cards-section" data-screen-label="Plan cards">
+      <div class="plan-grid">
+        {
+          plans.map((plan) => (
+            <div style={plan.popular ? cardPop : cardPlain}>
+              {plan.popular && (
+                <span style="position:absolute;top:18px;right:18px;display:inline-flex;align-items:center;height:22px;padding:0 11px;border-radius:999px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);font:var(--text-caption);letter-spacing:0.03em;color:var(--ink-900);">
+                  Most popular
+                </span>
+              )}
+
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <span style="font:300 22px/1.1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">
+                  {plan.name}
+                </span>
+                <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.55);min-height:38px;text-wrap:pretty;">
+                  {plan.tagline}
+                </span>
+              </div>
+
+              {/* both prices render; CSS shows the one for the active cycle */}
+              <div
+                class="bill bill-monthly"
+                style="align-items:baseline;gap:7px;min-height:52px;"
+              >
+                <span style="font:300 44px/1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">
+                  {priceFor(plan, false)}
+                </span>
+                <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.5);">
+                  {unitFor(plan, false)}
+                </span>
+              </div>
+              <div
+                class="bill bill-annual"
+                style="align-items:baseline;gap:7px;min-height:52px;"
+              >
+                <span style="font:300 44px/1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">
+                  {priceFor(plan, true)}
+                </span>
+                <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.5);">
+                  {unitFor(plan, true)}
+                </span>
+              </div>
+
+              <a
+                href={ctaHref(plan)}
+                target="_blank"
+                rel="noopener"
+                style={plan.cta.style === "primary" ? ctaYellow : ctaOutline}
+              >
+                {plan.cta.label}
+              </a>
+
+              <div style="height:1px;background:rgba(255,255,255,0.08);margin:4px 0;" />
+              <span style="font:var(--text-caption);letter-spacing:0.04em;color:rgba(255,255,255,0.45);">
+                {plan.includesLabel}
+              </span>
+              <div style="display:flex;flex-direction:column;gap:11px;">
+                {plan.features.map((f) => (
+                  <div style="display:flex;align-items:flex-start;gap:10px;">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 18 18"
+                      fill="none"
+                      style="margin-top:1px;flex:0 0 auto;"
+                    >
+                      <circle cx="9" cy="9" r="9" fill="var(--yellow-400)" />
+                      <path
+                        d="M5 9.2 7.6 11.8 13 6.4"
+                        stroke="var(--ink-900)"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                    <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.72);">
+                      {f}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </section>
+
+    <!-- ============ COMPARISON TABLE ============ -->
+    <section class="cmp-section" data-screen-label="Comparison">
+      <div class="cmp-wrap">
+        <SectionTitle
+          dark
+          badge="Compare"
+          title="Compare every plan"
+          subtitle="All the limits and capabilities, side by side. Self-host the open-source core for free, forever."
+        />
+
+        <div class="cmp-scroll" data-scroll="dark">
+          <div class="cmp-table">
+            <!-- header row -->
+            <div
+              style={`display:grid;${COLS}align-items:end;padding:0 24px 18px;border-bottom:1px solid rgba(255,255,255,0.12);`}
+            >
+              <span style="font:var(--text-label);color:rgba(255,255,255,0.5);"
+                >Features</span
+              >
+              {
+                comparison.columns.map((c) => (
+                  <div style="display:flex;flex-direction:column;gap:3px;">
+                    <span style="font:300 19px/1.1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">
+                      {c.name}
+                    </span>
+                    <span
+                      class="bill bill-monthly"
+                      style="font:var(--text-caption);color:rgba(255,255,255,0.5);"
+                    >
+                      {c.priceMonthly}
+                    </span>
+                    <span
+                      class="bill bill-annual"
+                      style="font:var(--text-caption);color:rgba(255,255,255,0.5);"
+                    >
+                      {c.priceAnnual}
+                    </span>
+                  </div>
+                ))
+              }
+            </div>
+
+            {
+              comparison.groups.map((g) => (
+                <Fragment>
+                  <div style="padding:22px 24px 10px;">
+                    <span style="font:var(--text-caption);letter-spacing:0.08em;text-transform:uppercase;color:var(--yellow-400);">
+                      {g.title}
+                    </span>
+                  </div>
+                  {g.rows.map((r) => (
+                    <div
+                      style={`display:grid;${COLS}align-items:center;padding:14px 24px;border-top:1px solid rgba(255,255,255,0.07);`}
+                    >
+                      <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.78);">
+                        {r.label}
+                      </span>
+                      {r.cells.map((cell) => (
+                        <span style="display:flex;align-items:center;">
+                          {cell === true ? (
+                            <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
+                              <circle cx="9" cy="9" r="9" fill="var(--yellow-400)" />
+                              <path
+                                d="M5 9.2 7.6 11.8 13 6.4"
+                                stroke="var(--ink-900)"
+                                stroke-width="1.7"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                              />
+                            </svg>
+                          ) : cell === false ? (
+                            <span style="width:14px;height:1.5px;background:rgba(255,255,255,0.2);border-radius:2px;" />
+                          ) : (
+                            <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.78);">
+                              {cell}
+                            </span>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                  ))}
+                </Fragment>
+              ))
+            }
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FAQ ============ -->
+    <section class="faq-section" data-screen-label="FAQ">
+      <div class="faq-wrap">
+        <SectionTitle
+          dark
+          badge="FAQ"
+          title="Frequently asked questions"
+          subtitle="Everything about plans, limits, and self-hosting. Still curious? Talk to the team."
+        />
+        <div class="faq-col">
+          {
+            faqs.map((f, i) => (
+              <details class="faq-item" open={i === 0}>
+                <summary>
+                  <span class="faq-q">{f.question}</span>
+                  <svg
+                    class="faq-icon"
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                  >
+                    <path
+                      d="M12 5v14M5 12h14"
+                      stroke="rgba(255,255,255,0.55)"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </summary>
+                <p class="faq-a">{f.answer}</p>
+              </details>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+  </div>
+</Site>
+
+<style>
+  /* ── section shells (backgrounds + responsive padding) ── */
+  .pricing-hero {
+    background: #0e0d0f;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    margin-top: -1px;
+    text-align: center;
+    padding: 80px 24px 56px;
+  }
+  .cards-section {
+    background: #0a090a;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    margin-top: -1px;
+    padding: 56px 0 96px;
+  }
+  .cmp-section {
+    background: #0e0d0f;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    margin-top: -1px;
+    padding: 112px 0;
+  }
+  .faq-section {
+    background: #161518;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    margin-top: -1px;
+    padding: 112px 0;
+  }
+
+  /* ── plan cards grid ── */
+  .plan-grid {
+    display: grid;
+    gap: 16px;
+    margin: 0 auto;
+    align-items: stretch;
+    grid-template-columns: repeat(4, 1fr);
+    width: 100%;
+    max-width: 1336px;
+    padding: 0 24px;
+    box-sizing: border-box;
+  }
+
+  /* ── monthly / annual price swap (driven by #pricing-root[data-billing]) ── */
+  .bill {
+    display: flex;
+  }
+  [data-billing="monthly"] .bill-annual {
+    display: none;
+  }
+  [data-billing="annual"] .bill-monthly {
+    display: none;
+  }
+
+  /* ── comparison table ── */
+  .cmp-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 56px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .cmp-scroll {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 24px;
+    box-sizing: border-box;
+  }
+  /* The table never collapses: it keeps full-size columns and scrolls sideways
+     when the viewport is narrower than its min-width (see RESPONSIVE.md). */
+  .cmp-table {
+    min-width: 780px;
+    max-width: 1336px;
+    margin: 0 auto;
+  }
+
+  /* ── FAQ accordion (native <details>) ── */
+  .faq-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 48px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .faq-col {
+    width: 100%;
+    max-width: 768px;
+    padding: 0 24px;
+    box-sizing: border-box;
+  }
+  .faq-item {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 24px 0;
+  }
+  .faq-item summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+  }
+  .faq-item summary::-webkit-details-marker {
+    display: none;
+  }
+  .faq-q {
+    font: 300 20px/1.3 var(--font-display, "GT Alpina", serif);
+    color: #f7f6f4;
+  }
+  .faq-icon {
+    flex: 0 0 auto;
+    margin-top: 2px;
+    transition: transform 0.16s ease;
+  }
+  .faq-item[open] .faq-icon {
+    transform: rotate(45deg);
+  }
+  .faq-a {
+    margin: 12px 0 0;
+    max-width: 680px;
+    font: var(--text-body-md);
+    color: rgba(255, 255, 255, 0.6);
+  }
+  .faq-item[open] .faq-a {
+    animation: accordion-in 0.2s ease both;
+  }
+
+  /* ── responsive (CSS media queries per handoff/RESPONSIVE.md) ── */
+  @media (max-width: 1000px) {
+    .plan-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (max-width: 760px) {
+    .pricing-hero {
+      padding: 52px 20px 40px;
+    }
+    .cards-section {
+      padding: 40px 0 64px;
+    }
+    .cmp-section,
+    .faq-section {
+      padding: 72px 0;
+    }
+    .plan-grid,
+    .cmp-scroll,
+    .faq-col {
+      padding-left: 16px;
+      padding-right: 16px;
+    }
+  }
+  @media (max-width: 680px) {
+    .plan-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

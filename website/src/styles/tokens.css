@@ -1,0 +1,210 @@
+/* Agenta design tokens — ported VERBATIM from the design source:
+   Agenta landing page pivot/_ds/agenta-brand-<id>/tokens/{colors,typography,spacing,effects}.css
+   Do not invent values; if a value is missing, it lives in those files. */
+
+/* ============================================================================
+   FONTS — self-hosted brand faces (GT Alpina, PP Mondwest).
+
+   !!! TODO (LICENSING) — THESE ARE TRIAL / DEMO BINARIES. !!!
+   The woff2 files under /public/fonts were converted from the trial GT Alpina
+   and PP Mondwest binaries that shipped in the design folder. We OWN the rights
+   to these fonts (see docs/design/marketing-website/AGENTS.md), but the licensed
+   production binaries must REPLACE these before any public launch. Swap the six
+   files in /public/fonts with the licensed ones (same filenames) — no CSS change
+   needed.
+
+   Inter, Geist, and Geist Mono load from Google Fonts (see the <link> in the
+   Base layout head). Those are open / freely hostable.
+============================================================================ */
+
+@font-face {
+  font-family: "GT Alpina";
+  src: url("/fonts/GT-Alpina-Light.woff2") format("woff2");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "GT Alpina";
+  src: url("/fonts/GT-Alpina-Light-Italic.woff2") format("woff2");
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "GT Alpina";
+  src: url("/fonts/GT-Alpina-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "GT Alpina";
+  src: url("/fonts/GT-Alpina-Regular-Italic.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "GT Alpina";
+  src: url("/fonts/GT-Alpina-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "PP Mondwest";
+  src: url("/fonts/PPMondwest-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* ── colors.css ───────────────────────────────────────────── */
+  /* ink (warm black scale) */
+  --ink-900: #242424;
+  --ink-700: #343434;
+  --ink-600: #676770;
+  --ink-500: #848b8c;
+  --ink-450: #595f61;
+  --ink-300: #a3a19f;
+
+  /* paper (warm white scale) */
+  --paper-0: #ffffff;
+  --paper-50: #fcfbfa;
+  --paper-100: #f6f5f3;
+  --paper-150: #f0efed;
+  --paper-200: #e5e5e3;
+
+  /* brand accents */
+  --yellow-400: #f2f25c;
+  --yellow-500: #e7e712;
+  --terracotta-500: #d97757;
+
+  /* dark section surfaces */
+  --carbon-900: #1e1c1d;
+  --carbon-800: #242220;
+  --carbon-700: #3c3a38;
+
+  /* semantic text */
+  --text-heading: var(--ink-900);
+  --text-body: var(--ink-600);
+  --text-muted: rgba(2, 1, 17, 0.6);
+  --text-faint: var(--ink-300);
+  --text-on-dark: #ffffff;
+  --text-on-dark-muted: rgba(255, 255, 255, 0.64);
+  --text-on-yellow: var(--ink-900);
+
+  /* app (Geist UI) text */
+  --app-text-heading: #060402;
+  --app-text-body: #2a2c2d;
+  --app-text-secondary: #595f61;
+  --app-text-placeholder: #848b8c;
+
+  /* semantic surfaces */
+  --surface-page: var(--paper-100);
+  --surface-section: var(--paper-0);
+  --surface-app: var(--paper-50);
+  --surface-card: var(--paper-0);
+  --surface-dark: var(--carbon-900);
+  --surface-cta: var(--yellow-400);
+  --surface-selected: #f0f0f0;
+
+  /* semantic borders */
+  --border-default: var(--paper-200);
+  --border-soft: var(--paper-150);
+  --border-on-dark: rgba(229, 229, 227, 0.1);
+  --divider-app: #efefef;
+
+  /* interactive */
+  --accent-primary: var(--yellow-400);
+  --grad-btn-primary: linear-gradient(180deg, #f2f25c 0%, #e7e712 100%);
+  --grad-btn-dark: linear-gradient(180deg, #4d4d4d 0%, #222222 100%);
+  --grad-btn-outline: linear-gradient(
+    180deg,
+    rgba(246, 245, 243, 0.4) 0%,
+    rgba(229, 229, 227, 0.4) 100%
+  );
+  --grad-chip: linear-gradient(180deg, #f4f2f0 0%, #e9e5e2 100%);
+
+  /* ── dark-theme marketing palette (formalized from TOKENS.md) ─ */
+  /* These near-blacks are layered to separate sections on the dark site. */
+  --dark-bg-0: #0a0a0b; /* page base / deepest */
+  --dark-bg-1: #0e0d0f; /* hero, article body */
+  --dark-bg-2: #0a090a; /* cards bg */
+  --dark-chrome: #100f11; /* nav / footer chrome */
+  --dark-faq: #161518; /* faq / feature section */
+  --dark-hairline: rgba(255, 255, 255, 0.07);
+  --text-on-dark-heading: #f7f6f4;
+  --text-on-dark-body: rgba(255, 255, 255, 0.6);
+  --text-on-dark-faint: rgba(255, 255, 255, 0.45);
+
+  /* ── typography.css ───────────────────────────────────────── */
+  --font-display: "GT Alpina", Georgia, "Times New Roman", serif;
+  --font-bitmap: "PP Mondwest", "Courier New", monospace;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-ui: "Geist", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* web type scale */
+  --text-display-xl: 300 68px/72px var(--font-display);
+  --text-display-lg: 300 48px/52px var(--font-display);
+  --text-display-md: 300 32px/38px var(--font-display);
+  --text-title: 400 20px/24px var(--font-display);
+  --text-body-md: 400 16px/24px var(--font-sans);
+  --text-body-sm: 400 14px/20px var(--font-sans);
+  --text-label: 500 14px/20px var(--font-sans);
+  --text-caption: 500 12px/18px var(--font-sans);
+  --tracking-caption: 0.03em;
+
+  /* app type scale */
+  --app-text-title: 500 16px/24px var(--font-ui);
+  --app-text-label: 500 14px/20px var(--font-ui);
+  --app-text-small: 500 12px/16px var(--font-ui);
+  --app-text-mono: 500 12px/16px var(--font-mono);
+
+  /* ── spacing.css ──────────────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+  --space-10: 128px;
+
+  --site-gutter: 12px;
+  --site-width: 1416px;
+  --content-width: 1072px;
+  --prose-width: 677px;
+  --nav-height: 68px;
+  --section-pad-y: 112px;
+  --section-pad-y-dark: 128px;
+
+  --app-sidebar-width: 220px;
+  --app-item-height: 32px;
+
+  /* ── effects.css ──────────────────────────────────────────── */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 999px;
+
+  --shadow-ring: 0px 0px 0px 1px rgba(63, 70, 75, 0.1),
+    0px 1px 3px 0px rgba(63, 70, 75, 0.1);
+  --shadow-ring-soft: 0px 0px 0px 1px rgba(72, 70, 68, 0.08),
+    0px 1px 3px 0px rgba(72, 70, 68, 0.08);
+  --shadow-btn-primary: inset 0px 2px 6.4px 0px rgba(255, 255, 255, 0.8);
+  --shadow-btn-dark: inset 0px 2px 6.4px 0px rgba(255, 255, 255, 0.3);
+  --shadow-btn-outline: 0 0 0 1px var(--paper-150),
+    inset 0px 2px 6px 0px #ffffff;
+  --shadow-badge: 0 0 0 1px var(--paper-150), inset 0px 2px 0.4px 0px #ffffff;
+  --shadow-frame: 0px 0px 0px 1px rgba(72, 70, 68, 0.08),
+    0px 1px 3px 0px rgba(72, 70, 68, 0.02), 0px 0px 0px 6px #f6f4f2,
+    0px 0px 0px 7px #e7e5e3;
+}

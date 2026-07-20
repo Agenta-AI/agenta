@@ -1,0 +1,43 @@
+---
+import Button from "./Button.astro";
+
+// Default design variant = "Yellow": full-bleed yellow band (the single yellow
+// moment for this viewport). The primary action is a dark keycap button; the
+// secondary is outline. CTA destinations match the live site.
+const GET_STARTED = "https://cloud.agenta.ai/";
+const BOOK_DEMO = "https://cal.com/mahmoud-mabrouk-ogzgey/demo?duration=30";
+---
+
+<section
+  data-screen-label="CTA"
+  style="background:var(--surface-cta);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:96px 24px;"
+>
+  <div
+    class="ag-cta-row"
+    style="display:flex;align-items:center;justify-content:space-between;width:min(1072px,100%);margin:0 auto;gap:48px;"
+  >
+    <div style="display:flex;flex-direction:column;gap:24px;max-width:520px;">
+      <h2
+        style="margin:0;font:var(--text-display-lg);color:var(--text-on-yellow);text-wrap:pretty;"
+      >
+        Ship agents that actually work
+      </h2>
+      <p
+        style="margin:0;font:var(--text-body-md);color:rgba(36,36,36,0.72);"
+      >
+        Build with skills and tools, run on any harness in any environment, and
+        improve with real feedback — all open source.
+      </p>
+      <div style="display:flex;gap:12px;">
+        <Button variant="dark" size="lg" href={GET_STARTED}>Start building</Button>
+        <Button variant="outline" size="lg" href={BOOK_DEMO}>Book a demo</Button>
+      </div>
+    </div>
+    <img
+      class="ag-cta-img"
+      src="/logos/Agenta-symbol-light.svg"
+      alt=""
+      style="width:150px;opacity:0.16;"
+    />
+  </div>
+</section>
