@@ -703,6 +703,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     }
 
     // Compact "+" for a section header's `extra` slot (stops propagation, so it never toggles open).
+    // The header keeps a uniform height regardless of this button — ConfigAccordionSection collapses
+    // the extra slot's vertical footprint (see its `-my-2`), so no per-button sizing is needed here.
     const headerAddButton = (label: string, onClick: () => void) => (
         <Tooltip title={label}>
             <Button type="text" icon={<Plus size={16} />} onClick={onClick} aria-label={label} />

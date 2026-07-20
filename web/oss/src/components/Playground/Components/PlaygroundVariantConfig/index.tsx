@@ -274,7 +274,13 @@ const PlaygroundVariantConfig: React.FC<
                 />
                 {hasPendingHydration ? (
                     isAgentHeaderMode ? (
-                        <AgentConfigSkeleton />
+                        // Same px-4 pb-3 pt-1 inset the schema-loading gate and the real
+                        // agent_config field wrapper use — without it the skeleton renders flush
+                        // (432px wide, no inset) and its rows jump when the next gate / real content
+                        // lands.
+                        <div className="px-4 pb-3 pt-1">
+                            <AgentConfigSkeleton />
+                        </div>
                     ) : (
                         <div className="p-4 flex flex-col gap-3">
                             <div className="h-9 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
