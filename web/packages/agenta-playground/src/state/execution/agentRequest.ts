@@ -34,7 +34,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 
 import {withBuildKitOverlay} from "./buildKitOverlay"
-import {agentChannelModeAtom} from "./channelMode"
+import {agentChannelModeAtomFamily} from "./channelMode"
 import {executionHeadersAtom} from "./webWorkerIntegration"
 
 // Re-exported so existing consumers keep importing it from the request builder; the merge
@@ -380,7 +380,7 @@ export async function buildAgentRequest(
     // send an explicit Accept.)
     // Negotiation 2 (format): `x-ag-messages-format: vercel` selects the vercel adapter for
     // the UIMessage request body (`data.inputs.messages`) and the response projection.
-    const channelMode = store.get(agentChannelModeAtom)
+    const channelMode = store.get(agentChannelModeAtomFamily(opts.sessionId))
     const headers: Record<string, string> = {
         Accept: channelMode === "batch" ? "application/json" : "text/event-stream",
         "x-ag-messages-format": "vercel",

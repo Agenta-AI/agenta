@@ -689,10 +689,6 @@ export function useModelHarness({
         <div className="flex h-full flex-col gap-3 overflow-y-auto">{modelHarnessControls}</div>
     )
 
-    // Trimmed body for the tabs layout: the same controls in one column, without the drawer's
-    // two-panel split or side panel (which read as out-of-place chrome inside a tab).
-    const modelHarnessInline = <div className="flex flex-col gap-4">{modelHarnessControls}</div>
-
     // Advanced header summary: sandbox only now — mode UI moved to the Provider credentials section.
     const advancedSummary = sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined
 
@@ -832,11 +828,6 @@ export function useModelHarness({
         </div>
     )
 
-    // Trimmed body for the tabs layout: the grouped controls in one column, no side panel.
-    const advancedInline = (
-        <div className="flex flex-col [&>*:last-child]:!border-b-0">{advancedControls}</div>
-    )
-
     return {
         hasModelOrHarness,
         mcpSupported,
@@ -848,12 +839,10 @@ export function useModelHarness({
         modelUnsupported: !!modelId && !selectedKeepsModel,
         modelSummary,
         modelHarnessDrawerBody,
-        modelHarnessInline,
         // The capability-aware (two-panel) drawer is wider than the plain one.
         modelHarnessDrawerWidth: capabilities ? 880 : 560,
         hasAdvanced,
         advancedSummary,
         advancedDrawerBody,
-        advancedInline,
     }
 }
