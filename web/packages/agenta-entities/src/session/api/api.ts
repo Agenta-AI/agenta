@@ -12,6 +12,7 @@ import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {
     mountFileContentResponseSchema,
     mountFileListResponseSchema,
+    mountFilePageResponseSchema,
     sessionInteractionResponseSchema,
     sessionInteractionsResponseSchema,
     sessionRecordsQueryResponseSchema,
@@ -434,6 +435,67 @@ export async function queryMountFiles({
 
     const validated = safeParseWithLogging(mountFileListResponseSchema, data, "[queryMountFiles]")
     return validated?.files ?? null
+}
+
+/** One cursor page of a mount's flat listing: the files plus the opaque `nextCursor` (null at the
+ * end of the listing). Powers the Files drawer's infinite-scroll flat view. */
+export interface MountFilePage {
+    files: MountFile[]
+    nextCursor: string | null
+}
+
+export interface MountFilePageParams extends MountFilesParams {
+    /** Opaque token from the previous page; omit for the first page. */
+    cursor?: string | null
+    /** Files per page. */
+    limit?: number
+    includeGitignored?: boolean
+}
+
+/**
+ * Fetch ONE cursor page of a mount's flat (recursive, path-sorted) file listing. Unlike
+ * {@link queryMountFiles} (which enumerates the whole tree), this pages the store so first paint is
+ * fast on a multi-GB mount — the backend prunes `.git`/gitignored/internal and jumps past ignored
+ * directories. Returns `null` on failure/missing scope.
+ */
+export async function queryMountFilePage({
+    mountId,
+    projectId,
+    appId,
+    abortSignal,
+    path,
+    cursor,
+    limit,
+    includeGitignored,
+    lowPriority,
+}: MountFilePageParams): Promise<MountFilePage | null> {
+    if (!projectId || !mountId) return null
+
+    const client = lowPriority ? getLowPriorityMountsClient() : getMountsClient()
+    // maxRetries 1: a single bounded page (not the whole-tree LIST), so one transient-blip retry is
+    // cheap and worth it — but never a long retry pit against the object store.
+    const data = await callFern("[queryMountFilePage]", () =>
+        client.getMountFilesPage(
+            {
+                mount_id: mountId,
+                path,
+                cursor,
+                limit,
+                git_aware: true,
+                include_gitignored: includeGitignored,
+            },
+            projectScopedRequest(projectId, appId, abortSignal, 1),
+        ),
+    )
+    if (!data) return null
+
+    const validated = safeParseWithLogging(
+        mountFilePageResponseSchema,
+        data,
+        "[queryMountFilePage]",
+    )
+    if (!validated) return null
+    return {files: validated.files ?? [], nextCursor: validated.next_cursor ?? null}
 }
 
 /** A bounded, sorted slice of a mount's files plus the true total count. */

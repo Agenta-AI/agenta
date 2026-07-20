@@ -165,6 +165,15 @@ export const mountFileListResponseSchema = z.object({
     files: z.array(mountFileSchema).nullish(),
 })
 
+/** One cursor PAGE of a mount's flat (recursive, path-sorted) listing — the Files drawer's
+ * infinite-scroll flat view. `next_cursor` is the opaque token for the following page; `null`/absent
+ * means the listing is exhausted. */
+export const mountFilePageResponseSchema = z.object({
+    count: z.number().nullish(),
+    files: z.array(mountFileSchema).nullish(),
+    next_cursor: z.string().nullish(),
+})
+
 export const mountFileContentResponseSchema = z.object({
     path: z.string().nullish(),
     content: z.string().nullish(),

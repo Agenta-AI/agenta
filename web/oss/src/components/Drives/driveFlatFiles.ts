@@ -8,16 +8,16 @@
  * `node_modules` dump). This hook drives it across the drive's FOLDED mounts (cwd at the root, the
  * agent's durable mount under `agent-files/`), presenting one accumulating, path-scoped file list.
  *
- * Axios (not the Fern client): this endpoint isn't in the generated client, and the drive module
- * already reaches the mounts API directly for its own routes (see `driveMedia.ts`).
+ * Transport: the Fern client via `@agenta/entities/session`'s `queryMountFilePage`, paginated with
+ * TanStack Query's `useInfiniteQuery` (shared QueryClient) — no raw axios, no hand-rolled fetch loop.
+ * The two folded mounts are threaded through ONE cursor chain via a `{srcIdx, cursor}` page param.
  */
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useMemo} from "react"
 
-import {type MountFile} from "@agenta/entities/session"
+import {queryMountFilePage, type MountFile} from "@agenta/entities/session"
+import {useInfiniteQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 
-import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {cleanPath} from "./driveTree"
@@ -33,6 +33,14 @@ interface FlatSource {
     mountId: string
     path: string
     fold: string
+}
+
+/** Infinite-query page cursor: WHICH folded source (`srcIdx`) and its opaque store `cursor`. Threads
+ * the two mounts through a single page chain — `getNextPageParam` advances `srcIdx` when a source's
+ * cursor runs out. */
+interface FlatPageParam {
+    srcIdx: number
+    cursor: string | null
 }
 
 /** The folded mounts covering a presented `path`: at the root, the cwd mount + the agent mount
@@ -57,30 +65,6 @@ export function flatSources(drive: SessionDriveData, presentedPath: string): Fla
     return [{mountId: resolved.mount.id, path: resolved.path, fold}]
 }
 
-async function fetchMountFilePage({
-    mountId,
-    projectId,
-    path,
-    cursor,
-}: {
-    mountId: string
-    projectId: string
-    path: string
-    cursor: string | null
-}): Promise<{files: MountFile[]; nextCursor: string | null}> {
-    const response = await axios.get(`${getAgentaApiUrl()}/mounts/${mountId}/files/page`, {
-        params: {
-            project_id: projectId,
-            path: path || undefined,
-            cursor: cursor || undefined,
-            limit: PAGE_LIMIT,
-            git_aware: true,
-        },
-    })
-    const data = response.data as {files?: MountFile[]; next_cursor?: string | null}
-    return {files: data?.files ?? [], nextCursor: data?.next_cursor ?? null}
-}
-
 export interface FlatFilesInfinite {
     /** Files loaded so far (presented paths), in path order per source, sources concatenated. */
     files: MountFile[]
@@ -97,9 +81,11 @@ export interface FlatFilesInfinite {
 
 /**
  * Cursor-paginated flat listing of every file under `presentedPath`, across the drive's folded
- * mounts. Resets and reloads when the path (or drive) changes. `loadMore` is safe to call on every
- * scroll tick — it self-guards re-entrancy and end-of-list. `enabled=false` parks it (no sources, no
- * fetch) so it can be lifted to a parent and only fire when the flat view is actually showing.
+ * mounts. Backed by `useInfiniteQuery`: the query KEY encodes the source identity, so navigating to a
+ * new folder starts a fresh listing while reopening the SAME scope repaints from cache (instant
+ * "Back"); TanStack Query owns in-flight de-dup, retry, and the loading flags. `loadMore` is safe to
+ * call on every scroll tick (it self-guards on `hasNextPage`/in-flight). `enabled=false` parks it (no
+ * sources → the query is disabled) so it can be lifted to a parent and only fire when flat is showing.
  */
 export function useFlatFilesInfinite(
     drive: SessionDriveData,
@@ -111,93 +97,67 @@ export function useFlatFilesInfinite(
         () => (enabled ? flatSources(drive, presentedPath) : []),
         [enabled, drive, presentedPath],
     )
-    // A stable identity for "which listing this is" — changing it resets the accumulation.
+    // A stable identity for "which listing this is" — part of the query key, so it changes iff the
+    // source CONTENT changes (NOT on `drive` identity churn when recents update after a turn).
     const key = useMemo(
         () => sources.map((s) => `${s.mountId}|${s.path}|${s.fold}`).join("__"),
         [sources],
     )
 
-    const [files, setFiles] = useState<MountFile[]>([])
-    const [hasMore, setHasMore] = useState(true)
-    const [loading, setLoading] = useState(true)
-    const [loadingMore, setLoadingMore] = useState(false)
-    const [errored, setErrored] = useState(false)
+    const query = useInfiniteQuery({
+        queryKey: ["mounts", "flat-page", projectId, key],
+        enabled: Boolean(projectId) && sources.length > 0,
+        initialPageParam: {srcIdx: 0, cursor: null} as FlatPageParam,
+        queryFn: async ({pageParam, signal}) => {
+            const src = sources[pageParam.srcIdx]
+            const page = await queryMountFilePage({
+                mountId: src.mountId,
+                projectId,
+                path: src.path || undefined,
+                cursor: pageParam.cursor,
+                limit: PAGE_LIMIT,
+                abortSignal: signal,
+            })
+            // `queryMountFilePage` returns null on a real (non-abort) failure — throw so the query
+            // enters its error state (and the footer's retry can re-run this exact page).
+            if (!page) throw new Error("Failed to load mount file page")
+            // Present each mount-relative path under its fold prefix ("agent-files/…" for the folded
+            // agent mount; bare for cwd), so both sources read as one path-scoped list.
+            const files = page.files.map((f) => ({
+                ...f,
+                path: src.fold ? `${src.fold}/${cleanPath(f.path)}` : cleanPath(f.path),
+            }))
+            return {files, nextCursor: page.nextCursor, srcIdx: pageParam.srcIdx}
+        },
+        // Chain within a source until its cursor runs out, then step to the next folded source.
+        getNextPageParam: (lastPage): FlatPageParam | undefined => {
+            if (lastPage.nextCursor) return {srcIdx: lastPage.srcIdx, cursor: lastPage.nextCursor}
+            const next = lastPage.srcIdx + 1
+            return next < sources.length ? {srcIdx: next, cursor: null} : undefined
+        },
+        // One page is a bounded slice (not the whole-tree LIST) and the entity already retries once at
+        // the Fern layer, so keep the query-level retry to a single extra attempt.
+        retry: 1,
+        // Reopening the same scope should paint instantly from cache (the "instant Back" the lifted
+        // hook exists for); a genuine reset rides the query key (folder navigation), not a refetch.
+        staleTime: 30_000,
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+    })
 
-    // All pagination PROGRESS lives in a ref (not deps) so `loadMore` has a stable identity and never
-    // races React state. Replaced wholesale on reset — a fetch that resolves after a reset sees a new
-    // object (`prog.current !== st`) and drops its result.
-    const prog = useRef<{
-        key: string
-        srcIdx: number
-        cursor: string | null
-        inflight: boolean
-        any: boolean
-    }>({key, srcIdx: 0, cursor: null, inflight: false, any: false})
+    const files = useMemo(() => query.data?.pages.flatMap((p) => p.files) ?? [], [query.data])
 
+    const {hasNextPage, isFetchingNextPage, fetchNextPage} = query
     const loadMore = useCallback(() => {
-        const st = prog.current
-        if (st.inflight || !projectId) return
-        if (st.srcIdx >= sources.length) {
-            setHasMore(false)
-            setLoading(false)
-            return
-        }
-        st.inflight = true
-        if (st.any) setLoadingMore(true)
-        else setLoading(true)
-        const src = sources[st.srcIdx]
-        fetchMountFilePage({mountId: src.mountId, projectId, path: src.path, cursor: st.cursor})
-            .then(({files: page, nextCursor}) => {
-                if (prog.current !== st) return // reset happened mid-flight → discard
-                if (page.length) {
-                    st.any = true
-                    const presented = page.map((f) => ({
-                        ...f,
-                        path: src.fold ? `${src.fold}/${cleanPath(f.path)}` : cleanPath(f.path),
-                    }))
-                    setFiles((prev) => [...prev, ...presented])
-                }
-                if (nextCursor) st.cursor = nextCursor
-                else {
-                    st.srcIdx += 1
-                    st.cursor = null
-                }
-                setHasMore(st.srcIdx < sources.length || Boolean(nextCursor))
-                setErrored(false)
-            })
-            .catch(() => {
-                if (prog.current !== st) return
-                // Surface the failure but DON'T declare the list exhausted: the cursor (`st.cursor`)
-                // is only advanced on success, so leaving `hasMore` true lets the footer render the
-                // error and a later scroll retry the SAME page from the same cursor. Forcing
-                // `hasMore=false` here hid the error (the footer gates on `errored && hasMore`) and
-                // permanently stalled pagination on a transient blip.
-                setErrored(true)
-            })
-            .finally(() => {
-                if (prog.current !== st) return
-                st.inflight = false
-                setLoading(false)
-                setLoadingMore(false)
-            })
-    }, [projectId, sources])
+        if (hasNextPage && !isFetchingNextPage) void fetchNextPage()
+    }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
-    // Reset + kick the first page ONLY when the listing identity (`key`) or project changes — NOT on
-    // every `drive`/`sources`/`loadMore` identity churn (the drive object changes when recents update
-    // after a turn; resetting then would blow away the scrolled-in list). `key` changes iff the source
-    // CONTENT changes, so the closure's `sources` always matches it; the latest `loadMore` is called
-    // via a ref so it isn't a stale-closure dep.
-    const loadMoreRef = useRef(loadMore)
-    loadMoreRef.current = loadMore
-    useEffect(() => {
-        prog.current = {key, srcIdx: 0, cursor: null, inflight: false, any: false}
-        setFiles([])
-        setErrored(false)
-        setHasMore(sources.length > 0)
-        setLoading(sources.length > 0)
-        setLoadingMore(false)
-        if (sources.length && projectId) loadMoreRef.current()
-    }, [key, projectId])
-
-    return {files, loading, loadingMore, hasMore, errored, loadMore}
+    return {
+        files,
+        loading: query.isLoading,
+        loadingMore: isFetchingNextPage,
+        hasMore: Boolean(hasNextPage),
+        errored: query.isError,
+        loadMore,
+    }
 }
