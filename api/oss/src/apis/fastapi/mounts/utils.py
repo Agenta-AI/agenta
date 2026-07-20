@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from mimetypes import guess_type
 from posixpath import basename
 from stat import S_IFREG
-from typing import List, Optional, Tuple
+from typing import List, Optional
 from urllib.parse import quote
 from uuid import UUID
 
@@ -10,7 +10,12 @@ from fastapi import Response, UploadFile
 from fastapi.responses import StreamingResponse
 from stream_zip import ZIP_AUTO, async_stream_zip
 
-from oss.src.core.mounts.dtos import MountCredentials, MountFileWritten, MountQuery
+from oss.src.core.mounts.dtos import (
+    MountArchiveSource,
+    MountCredentials,
+    MountFileWritten,
+    MountQuery,
+)
 from oss.src.core.mounts.service import MountsService
 
 # Regular-file mode for archive members (owner rw, group/other r).
@@ -94,7 +99,7 @@ async def stream_mounts_archive(
     *,
     mounts_service: MountsService,
     project_id: UUID,
-    mounts: List[Tuple[UUID, str, str]],
+    mounts: List[MountArchiveSource],
     filename: str = "files.zip",
 ) -> StreamingResponse:
     """STREAM a zip of EVERY file across the given mounts as a binary download ("download all").

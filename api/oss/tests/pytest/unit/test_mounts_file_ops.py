@@ -19,7 +19,7 @@ import pytest
 
 from oss.src.apis.fastapi.mounts.utils import _content_disposition_attachment
 from oss.src.core.mounts import service as mounts_service_module
-from oss.src.core.mounts.dtos import Mount, MountFile
+from oss.src.core.mounts.dtos import Mount, MountArchiveSource, MountFile
 from oss.src.core.mounts.service import (
     MountsService,
     _rollup_recent_entries,
@@ -316,7 +316,7 @@ class TestArchiveWorkList:
         with pytest.raises(MountNotFound):
             await service.build_archive_work_list(
                 project_id=pid,
-                mounts=[(uuid4(), "", "")],
+                mounts=[MountArchiveSource(mount_id=uuid4())],
             )
 
     async def test_zip_paths_include_mount_prefix(self):
@@ -332,7 +332,7 @@ class TestArchiveWorkList:
 
         work = await service.build_archive_work_list(
             project_id=pid,
-            mounts=[(mid, "prefix", "")],
+            mounts=[MountArchiveSource(mount_id=mid, archive_prefix="prefix")],
         )
 
         assert {zip_path for zip_path, _key, _size, _mtime in work} == {
@@ -357,7 +357,7 @@ class TestArchiveZipSlip:
             bucket_store[f"{mount_base}{key}"] = b"x"
         return await service.build_archive_work_list(
             project_id=mount.project_id,
-            mounts=[(mount.id, "", "")],
+            mounts=[MountArchiveSource(mount_id=mount.id)],
         )
 
     async def test_traversal_keys_are_skipped_not_rewritten(self):

@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from oss.src.core.workflows.service import WorkflowsService
 
 from oss.src.core.mounts.dtos import (
+    MountArchiveSource,
     Mount,
     MountCreate,
     MountCredentials,
@@ -1108,7 +1109,7 @@ class MountsService:
         self,
         *,
         project_id: UUID,
-        mounts: List[Tuple[UUID, str, str]],
+        mounts: List[MountArchiveSource],
     ) -> List[Tuple[str, str, int, Optional[int]]]:
         """Build the ordered archive work list for the given mounts.
 
@@ -1121,15 +1122,17 @@ class MountsService:
         bucket = self._bucket()
 
         work: List[Tuple[str, str, int, Optional[int]]] = []
-        for mount_id, prefix, source_path in mounts:
-            if prefix:
-                validate_file_path(prefix)
-            if source_path:
-                validate_file_path(source_path)
-            mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
+        for source in mounts:
+            if source.archive_prefix:
+                validate_file_path(source.archive_prefix)
+            if source.source_path:
+                validate_file_path(source.source_path)
+            mount = await self._resolve_mount(
+                project_id=project_id, mount_id=source.mount_id
+            )
             mount_base = self._storage_key(project_id=project_id, mount=mount)
-            pfx_segments = _safe_zip_segments(prefix)
-            src = source_path.strip("/")
+            pfx_segments = _safe_zip_segments(source.archive_prefix)
+            src = source.source_path.strip("/")
             # Scope the listing to a folder when `source_path` is set (folder download); the
             # rel path still keeps the folder, so the zip has "<folder>/…" entries.
             list_prefix = f"{mount_base}{src}/" if src else mount_base

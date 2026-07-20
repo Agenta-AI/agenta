@@ -79,6 +79,16 @@ class MountFileList(BaseModel):
     total_capped: bool = False
 
 
+class MountArchiveSource(BaseModel):
+    """One mount to include in a download-all archive: which mount, which folder within it
+    (`source_path`; "" = the whole mount), and the prefix its files sit under in the zip (the folded
+    drive layout)."""
+
+    mount_id: UUID
+    source_path: str = ""
+    archive_prefix: str = ""
+
+
 class MountFileContent(BaseModel):
     path: str
     content: str
