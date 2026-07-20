@@ -946,6 +946,33 @@ class MountsService:
                 store_files, specs, truncated = await self._list_pruned_files(
                     base_prefix=list_prefix, mount_base=mount_base, cap=cap
                 )
+            elif cap is not None:
+                # RAW count-only: page until MORE than `cap` real files are known to exist (the UI
+                # then shows "N+") or the tree is exhausted, so a huge tree can't run away (matches
+                # the git-aware branch's bounded-count contract). `has_more` counts OBJECTS, not
+                # files, so truncation is decided on the file count alone — folder markers never
+                # inflate `total` into a false "N+" (they are assumed sparse; a marker-only tree is
+                # the one case still paged to exhaustion).
+                store_files = []
+                specs: List[Tuple[str, "pathspec.PathSpec"]] = []
+                truncated = False
+                start_after: Optional[str] = None
+                while len(store_files) <= cap:
+                    objs, has_more = await self.mounts_store.list_objects_page(
+                        bucket=self._bucket(),
+                        prefix=list_prefix,
+                        start_after=start_after,
+                        max_keys=max(cap, 200),
+                    )
+                    if not objs:
+                        break
+                    start_after = objs[-1].key
+                    store_files.extend(o for o in objs if not o.key.endswith("/"))
+                    if not has_more:
+                        break
+                if len(store_files) > cap:
+                    truncated = True
+                    store_files = store_files[:cap]
             else:
                 # RAW: every object under the prefix, no pruning (matches the plain-endpoint contract).
                 objects = await self.mounts_store.list_objects_v2(

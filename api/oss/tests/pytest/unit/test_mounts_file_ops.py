@@ -17,6 +17,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from oss.src.core.mounts import service as mounts_service_module
 from oss.src.core.mounts.dtos import Mount
 from oss.src.core.mounts.service import MountsService, validate_file_path
 from oss.src.core.store.dtos import StoreObject
@@ -80,6 +81,21 @@ class FakeMountStorage:
             for k, v in b.items()
             if k.startswith(prefix)
         ]
+
+    async def list_objects_page(
+        self, *, bucket: str, prefix: str, start_after=None, max_keys: int = 500
+    ) -> Tuple[List[StoreObject], bool]:
+        # One bounded page in the store's UTF-8 byte order, resuming strictly after `start_after`.
+        b = self._store.get(bucket, {})
+        keys = sorted(
+            (k for k in b if k.startswith(prefix)), key=lambda k: k.encode("utf-8")
+        )
+        if start_after is not None:
+            sa = start_after.encode("utf-8")
+            keys = [k for k in keys if k.encode("utf-8") > sa]
+        page = keys[:max_keys]
+        has_more = len(keys) > max_keys
+        return [StoreObject(key=k, size=len(b[k])) for k in page], has_more
 
     async def list_objects_shallow(self, *, bucket: str, prefix: str):
         # One level under `prefix` (delimiter "/"): immediate files + immediate subdir prefixes.
@@ -320,6 +336,70 @@ class TestMountFileOpsRoundtrip:
             project_id=pid, mount_id=mid, limit=0, git_aware=True
         )
         assert listing.total == 4
+        assert listing.total_capped is False
+        assert listing.files == []
+
+    async def test_raw_count_only_caps_total(self, monkeypatch):
+        monkeypatch.setattr(mounts_service_module, "_COUNT_CAP", 3)
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in ["a.txt", "b.txt", "c.txt", "d.txt", "e.txt"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=False
+        )
+
+        assert listing.total == 3
+        assert listing.total_capped is True
+        assert listing.files == []
+
+    async def test_raw_count_only_reports_uncapped_total_below_cap(self, monkeypatch):
+        monkeypatch.setattr(mounts_service_module, "_COUNT_CAP", 3)
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in ["a.txt", "b.txt"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=False
+        )
+
+        assert listing.total == 2
+        assert listing.total_capped is False
+        assert listing.files == []
+
+    async def test_raw_count_only_ignores_trailing_folder_markers(self, monkeypatch):
+        # Exactly `_COUNT_CAP` real files followed only by folder markers is an EXACT count, not a
+        # floor: the object-level `has_more` (markers still to page) must not report a false "N+".
+        monkeypatch.setattr(mounts_service_module, "_COUNT_CAP", 3)
+        mount = _make_mount()
+        storage = FakeMountStorage()
+        service = MountsService(
+            mounts_dao=_StubDAO(mount),
+            mounts_store=storage,
+            bucket=_BUCKET,
+        )
+        pid, mid = mount.project_id, mount.id
+        for path in ["a.txt", "b.txt", "c.txt"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+        # More markers than one store page (max(cap, 200)) so the first page reports has_more=True.
+        mount_base = service._storage_key(project_id=pid, mount=mount)
+        bucket_store = storage._store.setdefault(_BUCKET, {})
+        for i in range(250):
+            bucket_store[f"{mount_base}zzz{i:04}/"] = b""
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=False
+        )
+
+        assert listing.total == 3
         assert listing.total_capped is False
         assert listing.files == []
 
