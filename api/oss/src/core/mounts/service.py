@@ -889,9 +889,11 @@ class MountsService:
                 seen.add(rel)
                 shallow.append(MountFile(path=rel, size=obj.size, mtime=obj.mtime))
             subdir_rels: List[str] = []
-            for sub in level_subdirs:
+            for sub_key in level_subdirs:
                 rel = (
-                    sub[len(mount_base) :] if sub.startswith(mount_base) else sub
+                    sub_key[len(mount_base) :]
+                    if sub_key.startswith(mount_base)
+                    else sub_key
                 ).rstrip("/")
                 # The store surfaces the prefix's OWN empty-folder marker as a subdir — that strips to
                 # "" and is dropped, so the listing never contains the folder it's listing.

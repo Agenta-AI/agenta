@@ -30,10 +30,13 @@ import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
 import {cleanPath} from "./driveTree"
 import {AGENT_FILES_DIR} from "./useSessionDrive"
 
-/** A span with a dot or slash COULD name a file; strip a leading `./` and require path-ish text. */
+/** A span that could NAME a file; strip a leading `./` and require a path-ish shape: a slash, or a
+ * letter-led trailing extension (`.ts`, `.tar.gz`). A bare `/[./]/` matched any dotted token —
+ * decimals (`3.14`), abbreviations (`e.g.`), and dotted identifiers (`user.name`) — each firing a
+ * guaranteed-404 on-demand read once scrolled into view; the shape test drops those. */
 const fileCandidate = (text: string): string | null => {
     const t = text.trim().replace(/^\.?\/+/, "")
-    return t && /[./]/.test(t) ? t : null
+    return t && /\/|\.[A-Za-z][A-Za-z0-9]{0,7}$/.test(t) ? t : null
 }
 
 /** Basenames of every file the agent wrote/edited (from records) → the tool paths sharing them, for

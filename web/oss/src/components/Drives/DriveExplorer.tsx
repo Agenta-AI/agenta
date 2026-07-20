@@ -953,7 +953,6 @@ const FlatFileList = ({
     files,
     loading,
     loadingMore,
-    hasMore,
     errored,
     loadMore,
 }: {
@@ -1042,10 +1041,14 @@ const FlatFileList = ({
                                         <CircleNotch size={13} className="animate-spin" />
                                         Loading more…
                                     </div>
-                                ) : errored && hasMore ? (
-                                    <div className="py-3 text-center text-[11px] text-colorTextTertiary">
-                                        Couldn't load more files
-                                    </div>
+                                ) : errored ? (
+                                    <button
+                                        type="button"
+                                        onClick={loadMore}
+                                        className="w-full cursor-pointer border-0 bg-transparent py-3 text-center text-[11px] text-colorTextTertiary transition-colors hover:text-colorText"
+                                    >
+                                        Couldn't load more files — retry
+                                    </button>
                                 ) : null
                             }
                             renderTile={(f) => {

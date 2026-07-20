@@ -672,9 +672,7 @@ class MountsRouter:
         return await stream_mounts_archive(
             mounts_service=self.mounts_service,
             project_id=UUID(request.state.project_id),
-            mounts=[
-                (UUID(m.mount_id), m.prefix, m.path) for m in archive_request.mounts
-            ],
+            mounts=[(m.mount_id, m.prefix, m.path) for m in archive_request.mounts],
             filename=archive_request.filename,
         )
 

@@ -3,6 +3,7 @@ from mimetypes import guess_type
 from posixpath import basename
 from stat import S_IFREG
 from typing import List, Optional, Tuple
+from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import Response, UploadFile
@@ -14,6 +15,20 @@ from oss.src.core.mounts.service import MountsService
 
 # Regular-file mode for archive members (owner rw, group/other r).
 _ARCHIVE_FILE_MODE = S_IFREG | 0o644
+
+
+def _content_disposition_attachment(filename: str) -> str:
+    """Build a safe `Content-Disposition: attachment` header value (RFC 6266).
+
+    `filename` is client-supplied (a download path's basename or the archive name), so it must never
+    be interpolated raw: a `"` or control char would break out of the quoted parameter and inject
+    further header directives. The quoted `filename` is stripped to a printable, quote-free ASCII-ish
+    fallback; `filename*` carries the exact (percent-encoded) value for clients that honour it.
+    """
+    safe = (
+        "".join(c for c in filename if c.isprintable() and c not in '"\\') or "download"
+    )
+    return f"attachment; filename=\"{safe}\"; filename*=UTF-8''{quote(filename)}"
 
 
 async def upload_mount_file(
@@ -65,7 +80,7 @@ async def download_mount_file(
     return Response(
         content=body,
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+        headers={"Content-Disposition": _content_disposition_attachment(name)},
     )
 
 
@@ -119,7 +134,7 @@ async def stream_mounts_archive(
     return StreamingResponse(
         async_stream_zip(members()),
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": _content_disposition_attachment(filename)},
     )
 
 

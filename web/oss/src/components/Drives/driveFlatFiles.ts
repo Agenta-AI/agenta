@@ -167,8 +167,12 @@ export function useFlatFilesInfinite(
             })
             .catch(() => {
                 if (prog.current !== st) return
+                // Surface the failure but DON'T declare the list exhausted: the cursor (`st.cursor`)
+                // is only advanced on success, so leaving `hasMore` true lets the footer render the
+                // error and a later scroll retry the SAME page from the same cursor. Forcing
+                // `hasMore=false` here hid the error (the footer gates on `errored && hasMore`) and
+                // permanently stalled pagination on a transient blip.
                 setErrored(true)
-                setHasMore(false)
             })
             .finally(() => {
                 if (prog.current !== st) return

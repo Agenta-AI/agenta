@@ -1,4 +1,5 @@
 from typing import List, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -40,7 +41,7 @@ class ArchiveMount(BaseModel):
     """One mount to include in an archive. `path` scopes it to a folder within the mount ("" = the
     whole mount); `prefix` places its files under `prefix/` in the zip (the folded drive layout)."""
 
-    mount_id: str
+    mount_id: UUID
     prefix: str = ""
     path: str = ""
 
