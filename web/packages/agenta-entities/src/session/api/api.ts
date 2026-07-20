@@ -373,10 +373,11 @@ export async function querySessionMounts({
     if (!projectId || !sessionId) return null
 
     const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
+    // maxRetries 1: a small query; recover a transient blip once, but never a long retry pit.
     const data = await callFern("[querySessionMounts]", () =>
         client.querySessionMounts(
             {session_id: sessionId},
-            projectScopedRequest(projectId, appId, abortSignal),
+            projectScopedRequest(projectId, appId, abortSignal, 1),
         ),
     )
     if (!data) return null
@@ -410,15 +411,23 @@ export async function queryMountFiles({
     appId,
     abortSignal,
     path,
+    includeGitignored,
     lowPriority,
-}: MountFilesParams): Promise<MountFile[] | null> {
+}: MountFilesParams & {includeGitignored?: boolean}): Promise<MountFile[] | null> {
     if (!projectId || !mountId) return null
 
     const client = lowPriority ? getLowPriorityMountsClient() : getMountsClient()
+    // git_aware: the curated developer view (prune `.git` + `.gitignore`d output). It's OFF by
+    // default on the endpoint so a raw `list_files` keeps its "list everything" contract for other
+    // consumers — the playground explicitly opts in on every one of its listing queries.
+    // `includeGitignored` (the drawer's search under a "show git-ignored" toggle) surfaces ignored
+    // files again — but then the WHOLE ignored tree (node_modules, …) is enumerated, hence opt-in.
+    // maxRetries 0: this is the WHOLE-tree object-store LIST; if it times out, a retry just
+    // re-times-out and hammers the store. Fail once, degrade to null (the UI shows unavailable).
     const data = await callFern("[queryMountFiles]", () =>
         client.getMountFiles(
-            {mount_id: mountId, path},
-            projectScopedRequest(projectId, appId, abortSignal),
+            {mount_id: mountId, path, git_aware: true, include_gitignored: includeGitignored},
+            projectScopedRequest(projectId, appId, abortSignal, 0),
         ),
     )
     if (!data) return null
@@ -432,6 +441,8 @@ export interface MountFilesPage {
     files: MountFile[]
     /** Full file count before the limit — the UI badge shows this, not `files.length`. */
     total: number
+    /** `total` is a floor (the count-only scan hit its cap) — show "N+". */
+    totalCapped: boolean
 }
 
 export interface LatestMountFilesParams extends MountFilesParams {
@@ -457,13 +468,15 @@ export async function queryLatestMountFiles({
     if (!projectId || !mountId) return null
 
     const client = lowPriority ? getLowPriorityMountsClient() : getMountsClient()
-    const base = projectScopedRequest(projectId, appId, abortSignal)
-    const queryParams: Record<string, string> = {...base.queryParams}
-    if (order) queryParams.order = order
-    if (limit != null) queryParams.limit = String(limit)
-
+    // git_aware: opt into the curated view (see queryMountFiles) — the endpoint defaults to a raw
+    // listing so the pruning never surprises other API consumers.
+    // maxRetries 0: the backend must scan the whole listing to produce this slice; a timeout won't
+    // recover on retry. Fail once and let the summary settle to unavailable/empty.
     const data = await callFern("[queryLatestMountFiles]", () =>
-        client.getMountFiles({mount_id: mountId}, {...base, queryParams}),
+        client.getMountFiles(
+            {mount_id: mountId, order, limit, git_aware: true},
+            projectScopedRequest(projectId, appId, abortSignal, 0),
+        ),
     )
     if (!data) return null
 
@@ -474,7 +487,61 @@ export async function queryLatestMountFiles({
     )
     if (!validated) return null
     const files = validated.files ?? []
-    return {files, total: validated.total ?? files.length}
+    return {
+        files,
+        total: validated.total ?? files.length,
+        totalCapped: validated.total_capped ?? false,
+    }
+}
+
+export interface MountDirParams extends MountFilesParams {
+    /** Attach `item_count` (immediate-child count) to each folder — the lazy drawer wants it on the
+     * tiles; the summary root doesn't and skips the extra per-subdir counting. */
+    withCounts?: boolean
+    /** Surface `.gitignore`-matched files too (still hides `.git`/internal) — the drawer's "show
+     * git-ignored files" toggle. Default (omitted) keeps them pruned. */
+    includeGitignored?: boolean
+}
+
+/**
+ * ONE directory level (`?depth=1`): the immediate files + folders under `path` (root when omitted),
+ * via a single server-side delimiter listing — never the subtree. This is the unit the lazy drawer
+ * loads as you navigate, and the summary's "what's in this drive" fallback, so opening a huge mount
+ * never blocks on enumerating it. `git_aware` prunes `.git`/gitignored/internal; `withCounts` adds
+ * each folder's immediate-child count. Returns `null` on failure/missing scope.
+ */
+export async function queryMountDir({
+    mountId,
+    projectId,
+    appId,
+    abortSignal,
+    path,
+    withCounts,
+    includeGitignored,
+    lowPriority,
+}: MountDirParams): Promise<MountFile[] | null> {
+    if (!projectId || !mountId) return null
+
+    const client = lowPriority ? getLowPriorityMountsClient() : getMountsClient()
+    // maxRetries 0: an object-store listing that times out won't recover on retry — fail once and let
+    // the caller settle (the summary keeps its record-log recents / count; the drawer shows empty).
+    const data = await callFern("[queryMountDir]", () =>
+        client.getMountFiles(
+            {
+                mount_id: mountId,
+                path,
+                depth: 1,
+                with_counts: withCounts,
+                git_aware: true,
+                include_gitignored: includeGitignored,
+            },
+            projectScopedRequest(projectId, appId, abortSignal, 0),
+        ),
+    )
+    if (!data) return null
+
+    const validated = safeParseWithLogging(mountFileListResponseSchema, data, "[queryMountDir]")
+    return validated?.files ?? null
 }
 
 /** Read one mount file's text content (`?read=<path>`). Returns `null` on failure/missing scope. */
@@ -487,10 +554,12 @@ export async function readMountFile({
 }: Omit<MountFilesParams, "path" | "lowPriority"> & {path: string}): Promise<string | null> {
     if (!projectId || !mountId || !path) return null
 
+    // maxRetries 1: a single small file read; one transient-recovery, no pit. Also keeps the git
+    // repo probe (`.git/HEAD` on a non-repo folder → 404) from retrying — 404 isn't retryable anyway.
     const data = await callFern("[readMountFile]", () =>
         getMountsClient().getMountFiles(
             {mount_id: mountId, read: path},
-            projectScopedRequest(projectId, appId, abortSignal),
+            projectScopedRequest(projectId, appId, abortSignal, 1),
         ),
     )
     if (!data) return null
