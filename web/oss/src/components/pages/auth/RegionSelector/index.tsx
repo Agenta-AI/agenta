@@ -47,7 +47,7 @@ const RegionButton = ({id, label, isSelected, disabled, onSwitch}: RegionButtonP
         aria-checked={isSelected}
         aria-label={`${label} region`}
     >
-        <GlobalOutlined style={{fontSize: 14}} />
+        <GlobalOutlined className="text-sm" />
         {label}
     </button>
 )

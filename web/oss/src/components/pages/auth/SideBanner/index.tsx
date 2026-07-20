@@ -19,7 +19,7 @@ const SideBanner = () => {
                     rel="noopener noreferrer"
                     className="auth-chip self-start"
                 >
-                    <GithubOutlined style={{fontSize: 13}} />
+                    <GithubOutlined className="text-[13px]" />
                     <span>Open source · GitHub</span>
                     <ArrowUpRight size={13} weight="bold" />
                 </a>

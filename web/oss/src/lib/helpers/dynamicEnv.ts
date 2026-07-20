@@ -106,8 +106,7 @@ export const getEnabledSandboxProviders = (): string[] => {
     return providers.length > 0 ? providers : ["local"]
 }
 
-// Optional deploy-time URL for a woff2 display font used on the auth headlines.
-// Unset (the default everywhere) means headlines render in Inter.
+// Optional deploy-time woff2 display font for the auth headlines; unset renders them in Inter.
 export const getDisplayFontUrl = (): string => getEnv("NEXT_PUBLIC_AGENTA_DISPLAY_FONT_URL").trim()
 
 export const getEffectiveAuthConfig = () => {

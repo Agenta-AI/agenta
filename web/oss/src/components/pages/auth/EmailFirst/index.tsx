@@ -44,31 +44,30 @@ const EmailFirst = ({
             onFinish={handleSubmit}
             initialValues={{email}}
         >
-            <Form.Item
-                name="email"
-                className="[&_.ant-form-item-required]:before:!hidden w-full mb-0 flex flex-col gap-1"
-                rules={[
-                    {required: true, message: "Please add your email!"},
-                    {type: "email", message: "Please enter a valid email address!"},
-                ]}
-            >
-                <div className="relative">
+            <div className="relative">
+                <Form.Item
+                    name="email"
+                    className="[&_.ant-form-item-required]:before:!hidden w-full mb-0 flex flex-col gap-1"
+                    rules={[
+                        {required: true, message: "Please add your email!"},
+                        {type: "email", message: "Please enter a valid email address!"},
+                    ]}
+                >
                     <Input
                         type="email"
-                        value={email}
                         placeholder="Enter your email address"
                         status={message.type === "error" ? "error" : ""}
                         onChange={(e) => setEmail(e.target.value)}
                         disabled={disabled}
                         className={clsx("auth-input", promoted && "auth-input-promoted")}
                     />
-                    {promoted && (
-                        <span className="auth-last-used-tag absolute right-3 top-1/2 -translate-y-1/2">
-                            Last used
-                        </span>
-                    )}
-                </div>
-            </Form.Item>
+                </Form.Item>
+                {promoted && (
+                    <span className="auth-last-used-tag absolute right-3 top-1/2 -translate-y-1/2">
+                        Last used
+                    </span>
+                )}
+            </div>
 
             <button
                 type="submit"

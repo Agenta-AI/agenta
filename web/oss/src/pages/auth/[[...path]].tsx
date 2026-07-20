@@ -390,9 +390,6 @@ const Auth = () => {
         ? availableMethods.sso.providers
         : []
     const ssoAvailable = ssoProviders.length > 0
-    const ssoProvidersToShow = ssoProviders.map((provider) => ({
-        ...provider,
-    }))
 
     // After discovery, check what's actually available
     const emailPasswordAvailable = discoveryComplete && authEmailEnabled && authnEmail !== "otp"
@@ -426,9 +423,7 @@ const Auth = () => {
     const heading = isReturning ? "Welcome back" : "Welcome to Agenta"
     // Optional deploy-time display font for the headlines; Inter when unset.
     const displayFontUrl = getDisplayFontUrl()
-    // The pre-discovery entry screen where residency + methods are first shown.
-    // Gated on the normal flow (not the email flow) so the auth-upgrade state still
-    // renders social buttons; email-only pieces are gated on shouldShowEmailFlow below.
+    // Pre-discovery entry screen; gated on the normal flow so auth-upgrade still shows social buttons.
     const showEntryScreen = shouldShowNormalAuthFlow && !emailSubmitted && !isLoginCodeVisible
 
     return (
@@ -437,11 +432,7 @@ const Auth = () => {
             data-display-font={displayFontUrl ? "serif" : undefined}
         >
             {displayFontUrl && (
-                <style
-                    dangerouslySetInnerHTML={{
-                        __html: `@font-face{font-family:"Agenta Display";src:url("${displayFontUrl}");font-weight:300;font-display:swap;}`,
-                    }}
-                />
+                <style>{`@font-face{font-family:"Agenta Display";src:url("${displayFontUrl}");font-weight:300;font-display:swap;}`}</style>
             )}
             <section className="relative flex w-full flex-col overflow-y-auto lg:w-[560px] lg:shrink-0">
                 <div className="px-9 pt-7 pb-10">
@@ -524,7 +515,10 @@ const Auth = () => {
                                                 yellow
                                                 lastUsed
                                             />
-                                            <div className="auth-divider">or</div>
+                                            {(otherProviders.length > 0 ||
+                                                (showEmailEntry && shouldShowEmailFlow)) && (
+                                                <div className="auth-divider">or</div>
+                                            )}
                                         </>
                                     )}
 
@@ -624,10 +618,9 @@ const Auth = () => {
 
                                     {ssoAvailable && (
                                         <div className="flex flex-col gap-2">
-                                            {ssoProvidersToShow.map((provider) => (
+                                            {ssoProviders.map((provider) => (
                                                 <Button
                                                     key={provider.id}
-                                                    icon={provider.icon}
                                                     size="large"
                                                     className="w-full"
                                                     onClick={() => redirectToSsoProvider(provider)}
