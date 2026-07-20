@@ -75,8 +75,9 @@ class MountsResponse(BaseModel):
 
 class MountFileListResponse(BaseModel):
     count: int = 0
-    # Full file count matching the request before any limit — lets a limited "latest N" listing
-    # still report the true total (the UI badge). Equals `count` for an unlimited listing.
+    # Entries this view would return BEFORE any limit — so a limited "latest N" listing still reports
+    # the true total (the UI badge). Its unit follows the view: leaf files only in the recency listing
+    # (order/limit set), files-plus-folders in the shallow (depth=1) and browse modes.
     total: int = 0
     # `total` is a FLOOR (the count-only scan hit its cap) — the UI shows "N+". False when exact.
     total_capped: bool = False

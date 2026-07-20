@@ -106,8 +106,8 @@ async def stream_mounts_archive(
 
     The drive folds cwd + agent-files into one tree, so each ``(mount_id, prefix)`` is placed under
     ``prefix/`` in the zip. The archive is streamed member-by-member (never buffered whole), and the
-    service prefetches file bodies with bounded concurrency. ``ZIP_AUTO`` picks zip32/zip64 per file
-    by size, so large drives and >4 GB archives are handled.
+    service prefetches file bodies with bounded concurrency. ``ZIP_AUTO`` picks zip32/zip64 per entry
+    by size; very large individual files are out of product scope for "download all".
     """
     work = await mounts_service.build_archive_work_list(
         project_id=project_id,

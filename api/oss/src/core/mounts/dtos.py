@@ -71,8 +71,10 @@ class MountFile(BaseModel):
 
 class MountFileList(BaseModel):
     files: List[MountFile] = Field(default_factory=list)
-    # Total real files matching the request BEFORE any limit — so a limited "latest N" listing can
-    # still report the true file count (the UI badge) without shipping the whole tree.
+    # Entries this view would return BEFORE any limit — so a limited "latest N" listing still reports
+    # the true total (the UI badge) without shipping the whole tree. Its unit follows the view: leaf
+    # files only in the recency listing (order/limit set), files-plus-folders in the shallow (depth=1)
+    # and browse modes.
     total: int = 0
     # `total` is a FLOOR, not exact — the count-only scan hit its cap on a very large tree, so the UI
     # shows "N+". False for an exhaustive count.
