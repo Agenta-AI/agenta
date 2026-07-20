@@ -11,13 +11,23 @@ import {
 import {ConnectionStatusBadge} from "@agenta/entity-ui/gatewayTool"
 import {TriggerCatalogDrawer, TriggerEventsDrawer} from "@agenta/entity-ui/gatewayTrigger"
 import {MoreOutlined} from "@ant-design/icons"
-import {ArrowClockwise, GearSix, Lightning, Plus, Trash, XCircle} from "@phosphor-icons/react"
+import {
+    ArrowClockwise,
+    GearSix,
+    Lightning,
+    PlugsConnected,
+    Plus,
+    Trash,
+    XCircle,
+} from "@phosphor-icons/react"
 import {Button, Dropdown, Table, Tag, Tooltip, Typography, message} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useSetAtom} from "jotai"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
+
+import {TriggerEmptyState, TriggerSectionHeader} from "./TriggerSection"
 
 const DEFAULT_PROVIDER = "composio"
 
@@ -224,27 +234,34 @@ export default function GatewayTriggersSection() {
 
     return (
         <>
-            <section className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                    <Button
-                        icon={<Plus size={14} />}
-                        type="primary"
-                        size="small"
-                        onClick={() => setCatalogOpen(true)}
-                    >
-                        Connect
-                    </Button>
-                    <Tooltip title="Reload all connections">
-                        <Button
-                            icon={<ArrowClockwise size={14} />}
-                            type="text"
-                            size="small"
-                            aria-label="Reload all connections"
-                            loading={reloading}
-                            onClick={reloadAll}
-                        />
-                    </Tooltip>
-                </div>
+            <section className="flex flex-col gap-3">
+                <TriggerSectionHeader
+                    icon={<PlugsConnected size={16} />}
+                    title="Connections"
+                    description="Link an app like GitHub or Slack so its events can trigger your workflows."
+                    actions={
+                        <>
+                            <Tooltip title="Reload all connections">
+                                <Button
+                                    icon={<ArrowClockwise size={14} />}
+                                    type="text"
+                                    size="small"
+                                    aria-label="Reload all connections"
+                                    loading={reloading}
+                                    onClick={reloadAll}
+                                />
+                            </Tooltip>
+                            <Button
+                                icon={<Plus size={14} />}
+                                type="primary"
+                                size="small"
+                                onClick={() => setCatalogOpen(true)}
+                            >
+                                Connect
+                            </Button>
+                        </>
+                    }
+                />
 
                 <Table<TriggerConnection>
                     className="ph-no-capture"
@@ -254,6 +271,17 @@ export default function GatewayTriggersSection() {
                     bordered
                     pagination={false}
                     loading={isLoading}
+                    locale={{
+                        emptyText: isLoading ? (
+                            <span />
+                        ) : (
+                            <TriggerEmptyState
+                                icon={<PlugsConnected size={32} />}
+                                title="No connections yet"
+                                description="Connect an app to start receiving its events. You can then subscribe workflows to those events."
+                            />
+                        ),
+                    }}
                     onRow={(record) => ({
                         onClick: () => openEvents(record),
                         className: "cursor-pointer",

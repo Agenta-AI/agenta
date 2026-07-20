@@ -67,6 +67,8 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
     // The agent-templates gallery has its own fixed header + rail with an
     // internally-scrolling card grid, so it needs the bounded full-height frame.
     const isAgentTemplates = pathname.includes("/agent-templates")
+    // Covers /agents and /agents/archived, both full-height InfiniteVirtualTable pages.
+    const isAgents = pathname.includes("/agents")
 
     return {
         isAuthRoute:
@@ -85,7 +87,8 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
             isRegistry ||
             isObservability ||
             isAuditLog ||
-            isAgentTemplates,
+            isAgentTemplates ||
+            isAgents,
     }
 })
 
