@@ -47,38 +47,25 @@ ls ~/.claude/.credentials.json
 
 ## 2. Check that the runner can read it
 
-The runner container runs as the user `node`, uid 1000. A harness login file is mode `0600` and
-owned by you, so the container can read it through a bind mount only when your own uid is 1000.
+The runner container runs as uid 1000. A harness login file is mode `0600` and owned by you, so the
+container can read it through a bind mount only when your own uid is 1000.
 
 ```bash
 id -u
 ```
 
-If that prints `1000`, mount your login directly and continue with step 3.
+If that prints `1000`, mount your login directly in step 3.
 
-If it prints anything else, the container gets `Permission denied` on the file and the run fails as
-though you had never logged in. Copy the login into a directory owned by uid 1000 and mount the
-copy instead:
-
-```bash
-# Claude Code
-sudo mkdir -p /srv/agenta/harness
-sudo cp -r ~/.claude /srv/agenta/harness/claude
-sudo chown -R 1000:1000 /srv/agenta/harness/claude
-
-# Pi and ChatGPT/Codex
-sudo cp -r ~/.pi/agent /srv/agenta/harness/pi
-sudo chown -R 1000:1000 /srv/agenta/harness/pi
-```
-
-The harness refreshes its OAuth token inside the mount, so with a copy the refreshed token lands in
-the copy and not in your own login.
+If it prints anything else, the container cannot read the `0600` file, and the run fails as though
+you had never logged in. In step 3 you run the container as your own user by adding two lines. This
+mounts your real login directly, so a refreshed token stays in sync between the container and your
+own machine.
 
 ## 3. Mount the login into the runner
 
 Edit the `runner` service in your Compose file
 (`hosting/docker-compose/oss/docker-compose.gh.yml`). Add a read-write volume for your login and
-point the harness at it. Use your own login directory, or the copy from step 2 if you made one.
+point the harness at it.
 
 For **Pi** or **ChatGPT/Codex**:
 
@@ -99,6 +86,22 @@ runner:
   environment:
     CLAUDE_CONFIG_DIR: /agenta/harness/claude
 ```
+
+If your uid is not 1000 (step 2), also run the container as your own user so it can read the mounted
+login. Add `user:` with your `id -u`:`id -g`, and set `HOME` to a writable path. For Claude Code:
+
+```yaml
+runner:
+  user: "1001:1001" # your id -u:id -g
+  volumes:
+    - ~/.claude:/agenta/harness/claude:rw
+  environment:
+    HOME: /tmp
+    CLAUDE_CONFIG_DIR: /agenta/harness/claude
+```
+
+`HOME: /tmp` is required here. Running as a non-default user sets the container's home directory to a
+path the harness cannot write, and the harness writes working files under it.
 
 :::warning Do not set a provider API key on the runner
 A self-managed run inherits the provider keys present in the runner's environment (for example

@@ -7,7 +7,7 @@
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
-export type InspectorLens = "timeline" | "context" | "runtime"
+export type InspectorLens = "timeline" | "context" | "runtime" | "response"
 export type TimelineFilter = "all" | "tools" | "interactions"
 
 /** The open target. `null` = collapsed. `focusedTurn` (1-based) narrows the lenses to one turn;
@@ -39,6 +39,14 @@ export const INSPECTOR_CHAT_FLOOR = 460
 export const openInspectorSessionAtom = atom(null, (_get, set, sessionId: string) => {
     if (!sessionId) return
     set(inspectorTargetAtom, {sessionId, focusedTurn: null})
+})
+
+/** Toggle the "Inspect session" trigger: close when already open on this session, else open it at
+ * session scope (a focused turn on the same session still counts as open, so it collapses). */
+export const toggleInspectorSessionAtom = atom(null, (get, set, sessionId: string) => {
+    if (!sessionId) return
+    const open = get(inspectorTargetAtom)?.sessionId === sessionId
+    set(inspectorTargetAtom, open ? null : {sessionId, focusedTurn: null})
 })
 
 /** Open focused on a specific turn (the "Inspect turn" trigger) — scrolls/highlights it. */
