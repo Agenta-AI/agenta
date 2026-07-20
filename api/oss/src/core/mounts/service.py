@@ -2,7 +2,7 @@ import asyncio
 from bisect import bisect_left, bisect_right
 from collections import deque
 from posixpath import basename
-from re import fullmatch, sub
+from re import sub
 from typing import AsyncIterator, TYPE_CHECKING, List, Optional, Tuple
 from uuid import UUID, uuid5, NAMESPACE_DNS
 
@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from oss.src.core.workflows.service import WorkflowsService
 
 from oss.src.core.mounts.dtos import (
+    MountArchiveSource,
     Mount,
     MountCreate,
     MountCredentials,
@@ -38,9 +39,9 @@ from oss.src.core.mounts.types import (
     MountStorageUnavailable,
 )
 from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.utils.logging import get_module_logger
 
-# Folder/file path segments: word chars, dots, spaces, hyphens — no path traversal.
-_SEGMENT_RE = r"[\w. -]+"
+log = get_module_logger(__name__)
 
 # Reserved slug prefix for service-minted (session) slugs; a caller may not author one.
 _RESERVED_SLUG_PREFIX = "__ag__"
@@ -107,21 +108,39 @@ def reject_reserved_slug(slug: str) -> None:
 
 
 def validate_file_path(path: str) -> None:
-    """Per-segment guard on a caller-supplied file/folder path.
+    """Guard a caller-supplied file/folder path against escaping the mount or corrupting a store key.
 
-    Rejects absolute paths, `..` traversal, and any segment that could escape
-    the mount prefix. Dots are allowed within a segment (filenames) but a bare
-    `..` segment is not.
+    Denylist, not allowlist: reject absolute paths, empty / `.` / `..` segments, and NUL or control
+    characters. Every other character real filenames contain — parentheses, brackets, `@ + , # ~ '`,
+    non-ASCII — is accepted, because the lazy-browse flow round-trips these paths on every expansion.
     """
     if path.startswith("/"):
         raise MountPathInvalid("File path must not be absolute.")
     if not path.strip("/"):
         raise MountPathInvalid("File path must not be empty.")
-    for segment in path.split("/"):
-        if not segment:
-            continue
-        if segment == ".." or not fullmatch(_SEGMENT_RE, segment):
+    if any(ord(c) < 0x20 or c == "\x7f" for c in path):
+        raise MountPathInvalid("File path must not contain control characters.")
+    for segment in path.strip("/").split("/"):
+        if segment in ("", ".", ".."):
             raise MountPathInvalid()
+
+
+def _zip_segments(path: str) -> List[str]:
+    """Split a zip entry path on BOTH separators — a backslash is a separator to Windows extractors,
+    so `..\\x` traverses just like `../x`."""
+    return path.replace("\\", "/").split("/")
+
+
+def _has_unsafe_zip_segment(segments: List[str]) -> bool:
+    """True if any segment is empty / `.` / `..` — i.e. the path could traverse out of the zip root
+    (zip-slip for whoever extracts)."""
+    return any(s in ("", ".", "..") for s in segments)
+
+
+def _safe_zip_segments(path: str) -> List[str]:
+    """Segments safe to place in a zip entry name: drop empty / `.` / `..` (both separators) so a
+    prefix can't mint a `../x` or `..\\x` entry."""
+    return [s for s in _zip_segments(path) if s not in ("", ".", "..")]
 
 
 def _is_internal_mount_path(path: str) -> bool:
@@ -946,6 +965,33 @@ class MountsService:
                 store_files, specs, truncated = await self._list_pruned_files(
                     base_prefix=list_prefix, mount_base=mount_base, cap=cap
                 )
+            elif cap is not None:
+                # RAW count-only: page until MORE than `cap` real files are known to exist (the UI
+                # then shows "N+") or the tree is exhausted, so a huge tree can't run away (matches
+                # the git-aware branch's bounded-count contract). `has_more` counts OBJECTS, not
+                # files, so truncation is decided on the file count alone — folder markers never
+                # inflate `total` into a false "N+" (they are assumed sparse; a marker-only tree is
+                # the one case still paged to exhaustion).
+                store_files = []
+                specs: List[Tuple[str, "pathspec.PathSpec"]] = []
+                truncated = False
+                start_after: Optional[str] = None
+                while len(store_files) <= cap:
+                    objs, has_more = await self.mounts_store.list_objects_page(
+                        bucket=self._bucket(),
+                        prefix=list_prefix,
+                        start_after=start_after,
+                        max_keys=max(cap, 200),
+                    )
+                    if not objs:
+                        break
+                    start_after = objs[-1].key
+                    store_files.extend(o for o in objs if not o.key.endswith("/"))
+                    if not has_more:
+                        break
+                if len(store_files) > cap:
+                    truncated = True
+                    store_files = store_files[:cap]
             else:
                 # RAW: every object under the prefix, no pruning (matches the plain-endpoint contract).
                 objects = await self.mounts_store.list_objects_v2(
@@ -1059,29 +1105,34 @@ class MountsService:
         key = self._storage_key(project_id=project_id, mount=mount, path=path)
         return await self.mounts_store.get_object(bucket=self._bucket(), key=key)
 
-    async def iter_archive_members(
+    async def build_archive_work_list(
         self,
         *,
         project_id: UUID,
-        mounts: List[Tuple[UUID, str, str]],
-        concurrency: int = _ARCHIVE_READ_CONCURRENCY,
-    ) -> AsyncIterator[Tuple[str, int, Optional[int], bytes]]:
-        """Yield ``(zip_path, size, mtime, raw_bytes)`` for the files in the given mounts, in order —
-        the basis for a STREAMING archive. Each mount is a ``(mount_id, zip_prefix, source_path)``:
+        mounts: List[MountArchiveSource],
+    ) -> List[Tuple[str, str, int, Optional[int]]]:
+        """Build the ordered archive work list for the given mounts.
+
+        Each mount is a ``(mount_id, zip_prefix, source_path)``:
         ``source_path`` scopes it to a FOLDER within the mount ("" = the whole mount, for "download
         all"); ``zip_prefix`` places its files under ``prefix/`` in the zip (e.g. "agent-files" for
-        the folded agent mount). Folder markers are skipped. Reads up to ``concurrency`` files AHEAD
-        (bounded ordered prefetch) — never buffering the zip whole nor hammering the store.
+        the folded agent mount). Folder markers are skipped. Each work item is a
+        ``(zip_path, storage_key, size, mtime)`` tuple.
         """
         bucket = self._bucket()
 
-        # Full ordered work list across mounts: (zip_path, storage_key, size, mtime).
         work: List[Tuple[str, str, int, Optional[int]]] = []
-        for mount_id, prefix, source_path in mounts:
-            mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
+        for source in mounts:
+            if source.archive_prefix:
+                validate_file_path(source.archive_prefix)
+            if source.source_path:
+                validate_file_path(source.source_path)
+            mount = await self._resolve_mount(
+                project_id=project_id, mount_id=source.mount_id
+            )
             mount_base = self._storage_key(project_id=project_id, mount=mount)
-            pfx = prefix.strip("/")
-            src = source_path.strip("/")
+            pfx_segments = _safe_zip_segments(source.archive_prefix)
+            src = source.source_path.strip("/")
             # Scope the listing to a folder when `source_path` is set (folder download); the
             # rel path still keeps the folder, so the zip has "<folder>/…" entries.
             list_prefix = f"{mount_base}{src}/" if src else mount_base
@@ -1096,10 +1147,29 @@ class MountsService:
                     if obj.key.startswith(mount_base)
                     else obj.key
                 )
-                if not rel:
+                rel_segments = _zip_segments(rel)
+                # Store keys come from signed-credential writers, so `rel` can carry `..` or a
+                # backslash. Don't REWRITE such a key — `a/../report.txt` would collapse onto a real
+                # `a/report.txt` and overwrite it on extraction — skip the member instead.
+                if _has_unsafe_zip_segment(rel_segments):
+                    log.warning(
+                        "mounts.archive: skipping member with unsafe store key",
+                        key=obj.key,
+                    )
                     continue
-                zip_path = f"{pfx}/{rel}" if pfx else rel
+                zip_path = "/".join([*pfx_segments, *rel_segments])
                 work.append((zip_path, obj.key, obj.size or 0, obj.mtime))
+
+        return work
+
+    async def iter_archive_members(
+        self,
+        *,
+        work: List[Tuple[str, str, int, Optional[int]]],
+        concurrency: int = _ARCHIVE_READ_CONCURRENCY,
+    ) -> AsyncIterator[Tuple[str, int, Optional[int], bytes]]:
+        """Yield ``(zip_path, size, mtime, raw_bytes)`` with bounded ordered prefetch."""
+        bucket = self._bucket()
 
         # Ordered bounded-concurrency prefetch: keep ~`concurrency` reads in flight, yield in order.
         inflight: deque = deque()

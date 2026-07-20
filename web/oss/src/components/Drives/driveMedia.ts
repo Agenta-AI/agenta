@@ -229,7 +229,7 @@ export async function downloadMountArchive({
             const writable = await handle.createWritable()
             try {
                 const jwt = await getJWT()
-                const url = `${getAgentaApiUrl()}/mounts/files/archive?project_id=${encodeURIComponent(projectId)}`
+                const url = `${getAgentaApiUrl()}/mounts/files/export?project_id=${encodeURIComponent(projectId)}`
                 const response = await fetch(url, {
                     method: "POST",
                     headers: {
@@ -257,7 +257,7 @@ export async function downloadMountArchive({
 
     // ─── Buffered fallback (Safari / Firefox / no picker) ─────────────────────────────────────────
     try {
-        const response = await axios.post(`${getAgentaApiUrl()}/mounts/files/archive`, payload, {
+        const response = await axios.post(`${getAgentaApiUrl()}/mounts/files/export`, payload, {
             params: {project_id: projectId},
             responseType: "blob",
         })

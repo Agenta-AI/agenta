@@ -1,5 +1,5 @@
 from functools import wraps
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, UploadFile, status
@@ -10,6 +10,7 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
+from oss.src.core.mounts.dtos import MountArchiveSource
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.mounts.types import (
     MountArtifactIdInvalid,
@@ -191,13 +192,13 @@ class MountsRouter:
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
         )
-        # Registered BEFORE "/{mount_id}/archive" so `POST /files/archive` (download-all zip) isn't
-        # captured as archiving a mount literally named "files".
+        # Registered before the "/{mount_id}/..." routes so this literal path isn't captured as an
+        # operation on a mount named "files".
         self.router.add_api_route(
-            "/files/archive",
-            self.archive_mount_files,
+            "/files/export",
+            self.export_mount_files,
             methods=["POST"],
-            operation_id="archive_mount_files",
+            operation_id="export_mount_files",
             response_model=None,
             status_code=status.HTTP_200_OK,
         )
@@ -499,9 +500,11 @@ class MountsRouter:
         *,
         path: Optional[str] = Query(default=None),
         read: Optional[str] = Query(default=None),
-        order: Optional[str] = Query(default=None),
+        order: Optional[Literal["recent", "name", "path"]] = Query(default=None),
         limit: Optional[int] = Query(default=None, ge=0),
-        depth: Optional[int] = Query(default=None, ge=1),
+        # Only depth==1 is implemented (the shallow one-level summary); reject other values loudly
+        # instead of silently falling through to the most expensive full-tree branch.
+        depth: Optional[int] = Query(default=None, ge=1, le=1),
         with_counts: bool = Query(default=False),
         git_aware: bool = Query(default=False),
         include_gitignored: bool = Query(default=False),
@@ -617,7 +620,7 @@ class MountsRouter:
 
     @intercept_exceptions()
     @handle_mount_exceptions()
-    async def archive_mount_files(
+    async def export_mount_files(
         self,
         request: Request,
         *,
@@ -628,7 +631,14 @@ class MountsRouter:
         return await stream_mounts_archive(
             mounts_service=self.mounts_service,
             project_id=UUID(request.state.project_id),
-            mounts=[(m.mount_id, m.prefix, m.path) for m in archive_request.mounts],
+            mounts=[
+                MountArchiveSource(
+                    mount_id=m.mount_id,
+                    archive_prefix=m.prefix,
+                    source_path=m.path,
+                )
+                for m in archive_request.mounts
+            ],
             filename=archive_request.filename,
         )
 

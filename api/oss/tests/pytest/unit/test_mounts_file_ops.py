@@ -17,11 +17,18 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from oss.src.core.mounts.dtos import Mount
-from oss.src.core.mounts.service import MountsService, validate_file_path
+from oss.src.apis.fastapi.mounts.utils import _content_disposition_attachment
+from oss.src.core.mounts import service as mounts_service_module
+from oss.src.core.mounts.dtos import Mount, MountArchiveSource, MountFile
+from oss.src.core.mounts.service import (
+    MountsService,
+    _rollup_recent_entries,
+    validate_file_path,
+)
 from oss.src.core.store.dtos import StoreObject
 from oss.src.core.mounts.types import (
     MountFileNotFound,
+    MountNotFound,
     MountPathInvalid,
 )
 
@@ -57,9 +64,126 @@ class TestFilePathValidation:
         with pytest.raises(MountPathInvalid):
             validate_file_path("")
 
-    def test_rejects_special_chars(self):
+    def test_accepts_parentheses_and_brackets(self):
+        validate_file_path("app/(auth)/[slug]/page.tsx")
+
+    def test_accepts_at_sign(self):
+        validate_file_path("@scope/pkg/index.js")
+
+    def test_accepts_plus_signs(self):
+        validate_file_path("c++.md")
+
+    def test_accepts_comma(self):
+        validate_file_path("a,b.txt")
+
+    def test_accepts_hash(self):
+        validate_file_path("notes#1.txt")
+
+    def test_accepts_tilde(self):
+        validate_file_path("~backup")
+
+    def test_accepts_astral_plane_name(self):
+        validate_file_path("\U00020000dir/file.txt")
+
+    def test_rejects_empty_interior_segment(self):
         with pytest.raises(MountPathInvalid):
-            validate_file_path("file;rm -rf")
+            validate_file_path("a//b")
+
+    def test_rejects_dot_segment(self):
+        with pytest.raises(MountPathInvalid):
+            validate_file_path("a/./b")
+
+    def test_rejects_embedded_nul(self):
+        with pytest.raises(MountPathInvalid):
+            validate_file_path("a/b\x00c")
+
+    def test_rejects_control_character(self):
+        with pytest.raises(MountPathInvalid):
+            validate_file_path("a/b\x01c")
+
+
+class TestContentDispositionHeader:
+    @pytest.mark.parametrize(
+        "filename",
+        [
+            "中文报告.zip",
+            "photo\U0001f600.zip",
+            'a"; DROP TABLE.zip',
+            "a\nb.zip",
+        ],
+    )
+    def test_header_is_latin_1_safe_with_utf_8_filename(self, filename):
+        header = _content_disposition_attachment(filename)
+
+        header.encode("latin-1")
+        assert "filename*=UTF-8''" in header
+
+
+class TestRollupRecentEntries:
+    def test_clone_then_edit_collapses_to_top_directory(self):
+        files = [
+            MountFile(path="repo/a.txt", mtime=1000, size=1),
+            MountFile(path="repo/web/b.txt", mtime=1001, size=1),
+            MountFile(path="repo/web/c.txt", mtime=1002, size=1),
+            MountFile(path="note.txt", mtime=5000, size=1),
+        ]
+
+        by_path = {entry.path: entry for entry in _rollup_recent_entries(files, None)}
+
+        assert by_path["repo"].is_folder is True
+        assert "note.txt" in by_path
+        assert not by_path["note.txt"].is_folder
+        assert not any(path.startswith("repo/") for path in by_path)
+
+    def test_old_plus_fresh_directory_does_not_collapse(self):
+        files = [
+            MountFile(path="dir/old.txt", mtime=100, size=1),
+            MountFile(path="dir/new.txt", mtime=5000, size=1),
+            MountFile(path="recent.txt", mtime=5001, size=1),
+        ]
+
+        by_path = {entry.path: entry for entry in _rollup_recent_entries(files, None)}
+
+        assert "dir" not in by_path
+        assert "dir/old.txt" in by_path
+        assert "dir/new.txt" in by_path
+
+    def test_untimed_leaf_blocks_collapse(self):
+        files = [
+            MountFile(path="batch/a.txt", mtime=1000, size=1),
+            MountFile(path="batch/b.txt", mtime=None, size=1),
+            MountFile(path="later.txt", mtime=5000, size=1),
+        ]
+
+        by_path = {entry.path: entry for entry in _rollup_recent_entries(files, None)}
+
+        assert "batch" not in by_path
+        assert "batch/a.txt" in by_path
+        assert "batch/b.txt" in by_path
+
+    def test_single_batch_history_produces_no_rollup(self):
+        files = [
+            MountFile(path="repo/a.txt", mtime=1000, size=1),
+            MountFile(path="repo/b.txt", mtime=1001, size=1),
+        ]
+
+        result = _rollup_recent_entries(files, None)
+
+        assert all(not entry.is_folder for entry in result)
+        assert {entry.path for entry in result} == {"repo/a.txt", "repo/b.txt"}
+
+    def test_shallow_to_deep_resolution_picks_repo_over_repo_web(self):
+        files = [
+            MountFile(path="repo/a.txt", mtime=1000, size=1),
+            MountFile(path="repo/web/b.txt", mtime=1001, size=1),
+            MountFile(path="repo/web/c.txt", mtime=1002, size=1),
+            MountFile(path="outside.txt", mtime=9000, size=1),
+        ]
+
+        result = _rollup_recent_entries(files, None)
+        folder_paths = {entry.path for entry in result if entry.is_folder}
+
+        assert folder_paths == {"repo"}
 
 
 # ---------------------------------------------------------------------------
@@ -79,6 +203,21 @@ class FakeMountStorage:
             for k, v in b.items()
             if k.startswith(prefix)
         ]
+
+    async def list_objects_page(
+        self, *, bucket: str, prefix: str, start_after=None, max_keys: int = 500
+    ) -> Tuple[List[StoreObject], bool]:
+        # One bounded page in the store's UTF-8 byte order, resuming strictly after `start_after`.
+        b = self._store.get(bucket, {})
+        keys = sorted(
+            (k for k in b if k.startswith(prefix)), key=lambda k: k.encode("utf-8")
+        )
+        if start_after is not None:
+            sa = start_after.encode("utf-8")
+            keys = [k for k in keys if k.encode("utf-8") > sa]
+        page = keys[:max_keys]
+        has_more = len(keys) > max_keys
+        return [StoreObject(key=k, size=len(b[k])) for k in page], has_more
 
     async def list_objects_shallow(self, *, bucket: str, prefix: str):
         # One level under `prefix` (delimiter "/"): immediate files + immediate subdir prefixes.
@@ -137,6 +276,11 @@ class _StubDAO:
         return self._mount
 
 
+class _MissingMountDAO:
+    async def fetch_mount(self, *, project_id, mount_id):
+        return None
+
+
 def _make_mount() -> Mount:
     return Mount(
         id=uuid4(),
@@ -152,6 +296,85 @@ def _make_service(mount: Mount) -> Tuple[MountsService, UUID, UUID]:
         bucket=_BUCKET,
     )
     return service, mount.project_id, mount.id
+
+
+# ---------------------------------------------------------------------------
+# Archive work list
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+class TestArchiveWorkList:
+    async def test_missing_mount_raises_during_work_list_build(self):
+        pid = uuid4()
+        service = MountsService(
+            mounts_dao=_MissingMountDAO(),
+            mounts_store=FakeMountStorage(),
+            bucket=_BUCKET,
+        )
+
+        with pytest.raises(MountNotFound):
+            await service.build_archive_work_list(
+                project_id=pid,
+                mounts=[MountArchiveSource(mount_id=uuid4())],
+            )
+
+    async def test_zip_paths_include_mount_prefix(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in ["one.txt", "nested/two.txt"]:
+            await service.write_file(
+                project_id=pid,
+                mount_id=mid,
+                path=path,
+                content=b"x",
+            )
+
+        work = await service.build_archive_work_list(
+            project_id=pid,
+            mounts=[MountArchiveSource(mount_id=mid, archive_prefix="prefix")],
+        )
+
+        assert {zip_path for zip_path, _key, _size, _mtime in work} == {
+            "prefix/one.txt",
+            "prefix/nested/two.txt",
+        }
+
+
+@pytest.mark.asyncio
+class TestArchiveZipSlip:
+    async def _work_for_keys(self, keys):
+        mount = _make_mount()
+        storage = FakeMountStorage()
+        service = MountsService(
+            mounts_dao=_StubDAO(mount),
+            mounts_store=storage,
+            bucket=_BUCKET,
+        )
+        mount_base = service._storage_key(project_id=mount.project_id, mount=mount)
+        bucket_store = storage._store.setdefault(_BUCKET, {})
+        for key in keys:
+            bucket_store[f"{mount_base}{key}"] = b"x"
+        return await service.build_archive_work_list(
+            project_id=mount.project_id,
+            mounts=[MountArchiveSource(mount_id=mount.id)],
+        )
+
+    async def test_traversal_keys_are_skipped_not_rewritten(self):
+        # `../evil.txt` and `..\evil.txt` (backslash is a separator to Windows extractors) must not
+        # produce an entry that escapes the archive root; the safe sibling still ships.
+        work = await self._work_for_keys(["good.txt", "../evil.txt", "..\\evil.txt"])
+
+        zip_paths = {zip_path for zip_path, *_rest in work}
+        assert zip_paths == {"good.txt"}
+
+    async def test_traversal_key_does_not_alias_a_real_entry(self):
+        # `a/../report.txt` must NOT be rewritten to `a/report.txt` — that would overwrite the real
+        # `a/report.txt` on extraction. Skipping it leaves the genuine file intact and un-duplicated.
+        work = await self._work_for_keys(["a/report.txt", "a/../report.txt"])
+
+        zip_paths = [zip_path for zip_path, *_rest in work]
+        assert zip_paths == ["a/report.txt"]
 
 
 # ---------------------------------------------------------------------------
@@ -271,6 +494,70 @@ class TestMountFileOpsRoundtrip:
             project_id=pid, mount_id=mid, limit=0, git_aware=True
         )
         assert listing.total == 4
+        assert listing.total_capped is False
+        assert listing.files == []
+
+    async def test_raw_count_only_caps_total(self, monkeypatch):
+        monkeypatch.setattr(mounts_service_module, "_COUNT_CAP", 3)
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in ["a.txt", "b.txt", "c.txt", "d.txt", "e.txt"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=False
+        )
+
+        assert listing.total == 3
+        assert listing.total_capped is True
+        assert listing.files == []
+
+    async def test_raw_count_only_reports_uncapped_total_below_cap(self, monkeypatch):
+        monkeypatch.setattr(mounts_service_module, "_COUNT_CAP", 3)
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in ["a.txt", "b.txt"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=False
+        )
+
+        assert listing.total == 2
+        assert listing.total_capped is False
+        assert listing.files == []
+
+    async def test_raw_count_only_ignores_trailing_folder_markers(self, monkeypatch):
+        # Exactly `_COUNT_CAP` real files followed only by folder markers is an EXACT count, not a
+        # floor: the object-level `has_more` (markers still to page) must not report a false "N+".
+        monkeypatch.setattr(mounts_service_module, "_COUNT_CAP", 3)
+        mount = _make_mount()
+        storage = FakeMountStorage()
+        service = MountsService(
+            mounts_dao=_StubDAO(mount),
+            mounts_store=storage,
+            bucket=_BUCKET,
+        )
+        pid, mid = mount.project_id, mount.id
+        for path in ["a.txt", "b.txt", "c.txt"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+        # More markers than one store page (max(cap, 200)) so the first page reports has_more=True.
+        mount_base = service._storage_key(project_id=pid, mount=mount)
+        bucket_store = storage._store.setdefault(_BUCKET, {})
+        for i in range(250):
+            bucket_store[f"{mount_base}zzz{i:04}/"] = b""
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=False
+        )
+
+        assert listing.total == 3
         assert listing.total_capped is False
         assert listing.files == []
 
