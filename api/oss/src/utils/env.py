@@ -1082,7 +1082,7 @@ class StoreConfig(BaseModel):
     )
     access_key: str | None = os.getenv("AGENTA_STORE_ACCESS_KEY")
     secret_key: str | None = os.getenv("AGENTA_STORE_SECRET_KEY")
-    region: str = os.getenv("AGENTA_STORE_REGION", "us-east-1")
+    region: str = os.getenv("AGENTA_STORE_REGION") or "us-east-1"
     bucket: str | None = os.getenv("AGENTA_STORE_BUCKET") or "agenta-store"
     namespace: str | None = os.getenv("AGENTA_STORE_NAMESPACE") or None
 
