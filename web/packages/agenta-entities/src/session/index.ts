@@ -75,6 +75,8 @@ export {
     sessionMountsQueryFamily,
     mountFilesQueryFamily,
     latestMountFilesQueryFamily,
+    mountRootQueryFamily,
+    mountDirQueryFamily,
     mountFileContentQueryFamily,
     revalidateSessionMountsAtom,
     sessionMountsQueryKey,

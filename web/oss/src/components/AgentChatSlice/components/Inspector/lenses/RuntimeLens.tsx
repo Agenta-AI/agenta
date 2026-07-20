@@ -7,7 +7,7 @@
  * live facts.
  */
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
-import {Broadcast, CaretRight, Database, FolderSimple} from "@phosphor-icons/react"
+import {Broadcast, CaretRight, CircleNotch, Database, FolderSimple} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
@@ -15,7 +15,7 @@ import {DriveFileRow} from "@/oss/components/Drives/DriveFileRow"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "@/oss/components/Drives/driveMotion"
 import {useDriveArtifactId} from "@/oss/components/Drives/driveSessionContext"
 import {humanSize} from "@/oss/components/Drives/driveTree"
-import {filesDrawerOpenAtomFamily} from "@/oss/components/Drives/FilesDrawer"
+import {filesDrawerOpenAtomFamily} from "@/oss/components/Drives/SessionFilesDrawer"
 import {driveQuickLookAtomFamily} from "@/oss/components/Drives/quickLook"
 import {driveHasMixedOrigins, useSessionDriveSummary} from "@/oss/components/Drives/useSessionDrive"
 import StatesTab from "@/oss/components/SessionInspector/tabs/StatesTab"
@@ -42,6 +42,19 @@ const DriveFilesCard = ({sessionId}: {sessionId: string}) => {
                 No files yet — this conversation gets its drive on first run.
             </span>
         )
+    // Files exist but none were written/edited in THIS conversation (recents come from its record
+    // log) — say so instead of an empty list.
+    if (drive.recents.length === 0)
+        return (
+            <button
+                type="button"
+                onClick={() => openFiles(true)}
+                className="w-fit cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-xs text-colorTextTertiary hover:text-colorText"
+            >
+                No changes yet — browse all {drive.fileCount}
+                {drive.fileCountCapped ? "+" : ""} files
+            </button>
+        )
     return (
         <div className="flex flex-col">
             <MotionConfig reducedMotion="user">
@@ -58,14 +71,30 @@ const DriveFilesCard = ({sessionId}: {sessionId: string}) => {
                         >
                             <DriveFileRow
                                 path={f.path}
-                                trailing={humanSize(f.size)}
+                                isFolder={!!f.is_folder}
+                                trailing={
+                                    f.is_folder
+                                        ? // Count only when known (the top-level fallback omits it).
+                                          f.item_count != null
+                                            ? `${f.item_count} item${f.item_count === 1 ? "" : "s"}`
+                                            : undefined
+                                        : humanSize(f.size)
+                                }
                                 showOrigin={driveHasMixedOrigins(drive.recents)}
-                                onOpen={() => openQuickLook({path: f.path})}
+                                onOpen={() =>
+                                    f.is_folder ? openFiles(true) : openQuickLook({path: f.path})
+                                }
                             />
                         </motion.div>
                     ))}
                 </AnimatePresence>
             </MotionConfig>
+            {drive.isFetching ? (
+                <div className="mt-1 flex items-center gap-1.5 px-1.5 text-[11px] text-colorTextTertiary">
+                    <CircleNotch size={11} className="animate-spin" />
+                    <span>Loading more…</span>
+                </div>
+            ) : null}
             {drive.fileCount > 5 ? (
                 <button
                     type="button"

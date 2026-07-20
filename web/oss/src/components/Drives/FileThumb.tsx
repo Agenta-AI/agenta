@@ -52,11 +52,23 @@ function useTextSnippet(mount: Mount | null, path: string, enabled: boolean) {
     return query.data.split("\n").slice(0, 10).join("\n")
 }
 
-function FileThumbImpl({file, mount}: {file: DriveRecentFile; mount: Mount | null}) {
+function FileThumbImpl({
+    file,
+    mount,
+    staticThumb,
+}: {
+    file: DriveRecentFile
+    mount: Mount | null
+    /** Kind icon only — never fetch a content thumbnail. For the always-mounted summary surfaces
+     * (chat rail) so opening a conversation doesn't read every recent file just to draw a preview;
+     * the on-demand browser (grid/tiles) still renders real thumbnails. */
+    staticThumb?: boolean
+}) {
     const projectId = useAtomValue(projectIdAtom)
     const [failed, setFailed] = useState(false)
     const kind = resolveDriveFileKind(file.path)
     const size = file.size ?? 0
+    const wantThumb = !staticThumb
 
     const isImage = kind === "image" && size <= IMG_CAP
     const isVideo = kind === "video"
@@ -64,9 +76,9 @@ function FileThumbImpl({file, mount}: {file: DriveRecentFile; mount: Mount | nul
     const isText = TEXT_KINDS.has(kind) && size > 0 && size <= TEXT_CAP
 
     const directUrl = mountFileDownloadUrl(mount, file.path, projectId)
-    const imgUrl = useThumbnail(mount, file.path, "image", isImage && !failed)
-    const pdfUrl = useThumbnail(mount, file.path, "pdf", isPdf && !failed)
-    const snippet = useTextSnippet(mount, file.path, isText)
+    const imgUrl = useThumbnail(mount, file.path, "image", isImage && !failed && wantThumb)
+    const pdfUrl = useThumbnail(mount, file.path, "pdf", isPdf && !failed && wantThumb)
+    const snippet = useTextSnippet(mount, file.path, isText && wantThumb)
 
     // A consistent 4:3 preview so tiles line up and nothing letterboxes oddly; visual kinds fill
     // it (object-cover), text/icon center within it. Fixed aspect → the tile height never depends
@@ -91,7 +103,7 @@ function FileThumbImpl({file, mount}: {file: DriveRecentFile; mount: Mount | nul
     }
 
     // Video — first frame via a metadata-only element seeked just past 0.
-    if (isVideo && directUrl && !failed) {
+    if (isVideo && directUrl && !failed && wantThumb) {
         return (
             <div className={box}>
                 {/* muted + playsInline so browsers render the poster frame without autoplay policy noise */}
@@ -139,7 +151,9 @@ function FileThumbImpl({file, mount}: {file: DriveRecentFile; mount: Mount | nul
     // which would flash-swap to the thumbnail a frame later). Non-thumbnailable files show the icon
     // as their final state.
     const loadingThumb =
-        !failed && ((isImage && !imgUrl) || (isPdf && !pdfUrl) || (isText && snippet === null))
+        !failed &&
+        wantThumb &&
+        ((isImage && !imgUrl) || (isPdf && !pdfUrl) || (isText && snippet === null))
     return (
         <div className={box}>
             {loadingThumb ? (
@@ -158,5 +172,6 @@ export const FileThumb = memo(
     (a, b) =>
         a.file.path === b.file.path &&
         a.mount?.id === b.mount?.id &&
-        (a.file.size ?? 0) === (b.file.size ?? 0),
+        (a.file.size ?? 0) === (b.file.size ?? 0) &&
+        a.staticThumb === b.staticThumb,
 )

@@ -15,6 +15,7 @@
 import {type CSSProperties, type ReactNode} from "react"
 
 import {type Mount} from "@agenta/entities/session"
+import {FolderSimple} from "@phosphor-icons/react"
 
 import {driveFileIcon} from "./driveIcons"
 import {isHiddenPath} from "./driveTree"
@@ -44,6 +45,8 @@ export const DriveFileRow = ({
     mount,
     showOrigin,
     hideFolder,
+    isFolder,
+    staticThumb,
 }: {
     path: string
     /** Right-aligned (row) or secondary-line (card/tile) meta — size / relative time. */
@@ -61,6 +64,12 @@ export const DriveFileRow = ({
     /** Drop the folder from the card/tile meta — for the folder view, where every file shares the
      * (already-shown) current folder. */
     hideFolder?: boolean
+    /** Render as a folder (folder glyph, no thumbnail preview) — the recency view rolls a whole
+     * freshly-written directory into one such row. */
+    isFolder?: boolean
+    /** card/tile: draw the kind icon instead of fetching a content thumbnail — for the always-mounted
+     * summary surfaces, so they don't read every recent file just to preview it. */
+    staticThumb?: boolean
 }) => {
     // Always the basename — folders never bloat the visible name (a nested/long path would
     // truncate the important tail). The full relative path is on the `title` tooltip instead.
@@ -68,6 +77,13 @@ export const DriveFileRow = ({
     const origin = fileOrigin(path)
     // Dot-prefixed (hidden) files/folders are surfaced but dimmed, like a file browser greys .git.
     const hidden = isHiddenPath(path)
+    const isFolderEntry = isFolder ?? file?.is_folder ?? false
+    const kindIcon = (size: number) =>
+        isFolderEntry ? (
+            <FolderSimple size={size} weight="fill" className="text-colorWarning" />
+        ) : (
+            driveFileIcon(path, size)
+        )
 
     if (variant === "row") {
         return (
@@ -77,7 +93,7 @@ export const DriveFileRow = ({
                 className={`flex w-full cursor-pointer items-center gap-2 border-y-0 border-r-0 border-l-2 border-solid border-transparent bg-transparent px-1.5 py-1 text-left transition-colors hover:bg-colorFillTertiary ${FOCUS_RING} ${recent ? "rounded-none" : "rounded"} ${hidden ? "opacity-60" : ""}`}
                 style={recent ? {borderLeftColor: RECENT_BORDER} : undefined}
             >
-                <span className="shrink-0">{driveFileIcon(path)}</span>
+                <span className="shrink-0">{kindIcon(14)}</span>
                 {/* Name + tag are one left-aligned group so the tag hugs the filename and the size
                     stays in its own right-aligned column (tagged and untagged rows line up). */}
                 <span className="flex min-w-0 flex-1 items-center gap-1.5">
@@ -107,13 +123,14 @@ export const DriveFileRow = ({
               ? null
               : (rawFolder?.slice(AGENT_FILES_DIR.length + 1) ?? null)
           : rawFolder
-    const thumb = file ? (
-        <FileThumb file={file} mount={mount ?? null} />
-    ) : (
-        <div className="flex aspect-[4/3] w-full items-center justify-center rounded bg-colorFillTertiary">
-            {driveFileIcon(path, 22)}
-        </div>
-    )
+    const thumb =
+        file && !isFolderEntry ? (
+            <FileThumb file={file} mount={mount ?? null} staticThumb={staticThumb} />
+        ) : (
+            <div className="flex aspect-[4/3] w-full items-center justify-center rounded bg-colorFillTertiary">
+                {kindIcon(22)}
+            </div>
+        )
     // Just-changed on a card/tile: an accent on the LEFT edge only (matching the list rows); the
     // card keeps its rounded corners and its other borders stay the neutral secondary.
     const recentStyle: CSSProperties | undefined = recent

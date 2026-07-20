@@ -63,6 +63,10 @@ class MountFile(BaseModel):
     # Object-store LastModified as epoch milliseconds; None when the store omits it. Lets the UI
     # order files by recency regardless of how they were created (bash, Write tool, upload).
     mtime: Optional[int] = None
+    # Direct-child count for a folder entry — only set when the recency view rolls a whole
+    # freshly-written directory (e.g. a `git clone`) up into ONE folder row instead of flooding the
+    # "recent files" list with its leaves. None for real files.
+    item_count: Optional[int] = None
 
 
 class MountFileList(BaseModel):
@@ -70,6 +74,9 @@ class MountFileList(BaseModel):
     # Total real files matching the request BEFORE any limit — so a limited "latest N" listing can
     # still report the true file count (the UI badge) without shipping the whole tree.
     total: int = 0
+    # `total` is a FLOOR, not exact — the count-only scan hit its cap on a very large tree, so the UI
+    # shows "N+". False for an exhaustive count.
+    total_capped: bool = False
 
 
 class MountFileContent(BaseModel):
