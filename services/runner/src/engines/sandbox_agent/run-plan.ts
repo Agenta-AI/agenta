@@ -11,9 +11,7 @@ import {
 } from "../../protocol.ts";
 import { executableToolSpecs } from "../../tools/public-spec.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "../../tools/code.ts";
-import {
-  PI_USER_MCP_UNSUPPORTED_MESSAGE,
-} from "../../tools/mcp-bridge.ts";
+import { PI_USER_MCP_UNSUPPORTED_MESSAGE } from "../../tools/mcp-bridge.ts";
 import {
   INTERNAL_TOOL_MCP_SERVER_NAME,
   RESERVED_MCP_SERVER_NAME_MESSAGE,
@@ -29,6 +27,7 @@ import {
   resolveSkillDirs as defaultResolveSkillDirs,
 } from "../skills.ts";
 import { assert } from "./capabilities.ts";
+import type { ClientToolPauseDisposition } from "./client-tools.ts";
 import { buildTurnText } from "./transcript.ts";
 import {
   KNOWN_SANDBOX_PROVIDER_IDS,
@@ -72,6 +71,26 @@ export const REMOTE_TOOLS_UNSUPPORTED_MESSAGE =
   "sandbox, use the Pi harness, or remove the tools. Tracked in " +
   "docs/design/agent-workflows/projects/in-sandbox-tool-mcp/.";
 
+/**
+ * `runtime_provided` (subscription) auth means the harness authenticates from explicitly prepared
+ * local runtime state (a mounted Pi/Claude login). That state lives only in the runner container
+ * and is never shipped to a third-party sandbox (interface.md sections 5-6), so the combination is
+ * unsupported on Daytona in version 1 rather than silently falling back to an unauthenticated run.
+ */
+export const DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE =
+  "Daytona sandboxes do not support runtime-provided (subscription) authentication. " +
+  "Use a managed API key (credentialMode 'env'), or run this harness on the local sandbox.";
+
+/**
+ * A local `runtime_provided` run reads the operator's subscription state from a read-write mount
+ * named by the harness config var. With no mount configured there is nothing to authenticate
+ * with, so the run fails up front (interface.md section 6) instead of silently proceeding and
+ * having the harness discover the runner's own home directory.
+ */
+export const LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE =
+  "runtime_provided local run requires a mounted subscription: set PI_CODING_AGENT_DIR " +
+  "(Pi) or CLAUDE_CONFIG_DIR (Claude) to a read-write mount of your harness login.";
+
 export interface RunPlan {
   harness: string;
   acpAgent: string;
@@ -83,18 +102,18 @@ export interface RunPlan {
   agentsMd?: string;
   secrets: Record<string, string>;
   /**
-   * Back-compat inputs to the OAuth-upload decision (see `shouldUploadOwnLogin`). `legacyHarnessApiKeyVar`
-   * does not choose the provider; it only feeds the fallback `hasApiKey` heuristic for an un-migrated caller that sends no
-   * `credentialMode`.
+   * The provider api-key env var name the harness would read by default (`ANTHROPIC_API_KEY` for
+   * Claude, `OPENAI_API_KEY` otherwise). It does not choose the provider; it only names the key
+   * whose presence sets `hasApiKey`.
    */
   legacyHarnessApiKeyVar: string;
+  /** Whether the resolved `secrets` already carry `legacyHarnessApiKeyVar`. */
   hasApiKey: boolean;
   /**
    * How the credential is delivered: "env" (managed, resolved key) | "runtime_provided" (the
    * harness owns its login) | "none". From the resolved connection (provider-model-auth design,
-   * Concern 3). `undefined` when an un-migrated caller sends no credentialMode; the run then
-   * falls back to the `hasApiKey` heuristic. Drives clear-then-apply env (Security rule 5) and
-   * the OAuth-upload gate (rule 6).
+   * Concern 3). `undefined` when an un-migrated caller sends no credentialMode. Drives
+   * clear-then-apply env (Security rule 5).
    */
   credentialMode?: string;
   cwd: string;
@@ -116,6 +135,13 @@ export interface RunPlan {
   /** True when Pi builtin grants or permissions need extension enforcement. */
   builtinGatingActive: boolean;
   useToolRelay: boolean;
+  /**
+   * How a parked client tool disposes of the turn and the in-sandbox shim's blocking call (closed
+   * set: `ClientToolPauseDisposition`). Kept on the plan so a future harness, or the reserved warm
+   * hold, is a local change rather than an `!isPi` test scattered across call sites. Today: Pi →
+   * "pi-native", the non-Pi shim (Claude on Daytona) → "cold-acknowledge".
+   */
+  clientToolPauseDisposition: ClientToolPauseDisposition;
   systemPrompt?: string;
   appendSystemPrompt?: string;
   hasSystemPrompt: boolean;
@@ -300,6 +326,26 @@ export function buildRunPlan(
   // ships one, and "unknown" must not silently behave like "reachable loopback".
   const isRemoteSandbox = sandboxId !== "local";
 
+  // Subscription (runtime_provided) auth is a LOCAL-only capability: the harness reads and refreshes
+  // its login on a read-write mount that lives in the runner container and is never shipped to a
+  // third-party sandbox. Reject Daytona + runtime_provided here, before any sandbox is created,
+  // rather than silently falling back to an unauthenticated remote run (interface.md sections 5-6).
+  if (isDaytona && request.credentialMode === "runtime_provided") {
+    return { ok: false, error: DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE };
+  }
+
+  // A local runtime_provided run authenticates from an explicitly mounted subscription. If the
+  // harness config var is unset there is no mount to read, so fail up front with an actionable
+  // message rather than letting the harness fall back to discovering the runner's own home dir
+  // (interface.md section 6). Managed ("env") / "none" runs are unaffected.
+  if (!isDaytona && request.credentialMode === "runtime_provided") {
+    const subscriptionEnvVar =
+      acpAgent === "claude" ? "CLAUDE_CONFIG_DIR" : "PI_CODING_AGENT_DIR";
+    if (!process.env[subscriptionEnvVar]) {
+      return { ok: false, error: LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE };
+    }
+  }
+
   const secrets = request.secrets ?? {};
   const legacyHarnessApiKeyVar =
     acpAgent === "claude" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
@@ -365,17 +411,11 @@ export function buildRunPlan(
     return { ok: false, error: RESERVED_MCP_SERVER_NAME_MESSAGE };
   }
 
-  // Non-Pi + remote + tools: executable (gateway/callback) tools are DELIVERABLE on Daytona
-  // via the in-sandbox stdio MCP shim (uploaded per run, advertised as the internal typeless
-  // stdio entry, calls relayed to the runner through the file relay). A remote provider that is
-  // not Daytona fails CLOSED because the shim's upload + spawn path is proven for Daytona only.
-  // Client tools are intentionally omitted from the Daytona shim's uploaded public specs: its
-  // blocking relay call cannot pause for a browser round-trip yet. Local Claude and Pi retain
-  // their existing client-tool delivery paths.
-  if (!isPi && isRemoteSandbox && toolSpecs.length > 0) {
-    if (!isDaytona) {
-      return { ok: false, error: REMOTE_TOOLS_UNSUPPORTED_MESSAGE };
-    }
+  // Non-Pi + remote + tools: executable and client tools are both deliverable on Daytona via the
+  // in-sandbox stdio MCP shim. A non-Daytona remote provider fails CLOSED because the shim's
+  // upload + spawn path is proven for Daytona only.
+  if (!isPi && isRemoteSandbox && !isDaytona && toolSpecs.length > 0) {
+    return { ok: false, error: REMOTE_TOOLS_UNSUPPORTED_MESSAGE };
   }
 
   // Layer 2: even on Daytona, code/gateway tools run on the RUNNER HOST via the relay, not
@@ -485,6 +525,9 @@ export function buildRunPlan(
       // The relay carries tool EXECUTION only (permission gates ride the extension's
       // `ctx.ui.confirm` dialog onto the ACP plane), so a builtin-gating-only run needs no relay.
       useToolRelay: toolSpecs.length > 0,
+      // Pi parks through its own extension (no answer file); the non-Pi shim blocks on an answer
+      // file, so a parked client tool is acknowledged with a benign paused answer.
+      clientToolPauseDisposition: isPi ? "pi-native" : "cold-acknowledge",
       systemPrompt,
       appendSystemPrompt,
       hasSystemPrompt: !!(systemPrompt || appendSystemPrompt),
@@ -498,24 +541,4 @@ export function buildRunPlan(
       harnessFiles: request.harnessFiles,
     },
   };
-}
-
-/**
- * Whether to upload Pi's fallback `auth.json` (the harness's own OAuth login) into the run.
- *
- * The provider-model-auth design (Security rule 6) gates this on the harness owning its login,
- * NOT on a provider guessed from the harness name:
- *  - `credentialMode === "env"` (a resolved key): NEVER upload the fallback (the resolved key is
- *    the credential).
- *  - `credentialMode === "runtime_provided"`: upload (the harness authenticates with its login).
- *  - `credentialMode === "none"`: do not upload (no credential asserted).
- *  - no `credentialMode` on the wire (un-migrated caller): fall back to today's heuristic —
- *    upload only when no api key was supplied (`!hasApiKey`).
- */
-export function shouldUploadOwnLogin(
-  plan: Pick<RunPlan, "credentialMode" | "hasApiKey">,
-): boolean {
-  if (plan.credentialMode === "runtime_provided") return true;
-  if (plan.credentialMode) return false; // "env" / "none": a resolved decision, never upload
-  return !plan.hasApiKey; // back-compat: un-migrated caller, no credentialMode
 }

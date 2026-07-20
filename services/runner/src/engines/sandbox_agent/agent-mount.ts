@@ -6,10 +6,11 @@
 import { lstat, readlink, symlink, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import type {
-  MountCredentials,
-  SandboxExec,
-  SignMountDeps,
+import {
+  shellQuote,
+  type MountCredentials,
+  type SandboxExec,
+  type SignMountDeps,
 } from "./mount.ts";
 
 export const AGENT_MOUNT_ENV_VAR = "AGENTA_AGENT_MOUNT_DIR";
@@ -122,10 +123,6 @@ export async function seedAgentReadme(
       );
     }
   }
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
 
 export async function seedAgentReadmeRemote(

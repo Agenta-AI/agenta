@@ -11,7 +11,7 @@ import {
 } from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
-import {isSandboxLocalEnabled} from "@agenta/shared/api"
+import {getEnabledSandboxProviders} from "@agenta/shared/api"
 import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -59,6 +59,8 @@ const PERMISSION_POLICY_VALUES = new Set<string>(
     PERMISSION_POLICY_OPTIONS.map((option) => option.value),
 )
 
+const HIDDEN_HARNESSES = new Set(["pi_agenta"])
+
 function isPermissionPolicy(value: unknown): value is PermissionPolicy {
     return typeof value === "string" && PERMISSION_POLICY_VALUES.has(value)
 }
@@ -98,8 +100,8 @@ export function useModelHarness({
     const runnerProps = subProps("runner")
     const sandboxProps = subProps("sandbox")
     const sandboxOptions = useMemo(() => {
-        const options = getEnumOptions(sandboxProps.kind)
-        return isSandboxLocalEnabled() ? options : options.filter((o) => o.value !== "local")
+        const enabled = new Set(getEnabledSandboxProviders())
+        return getEnumOptions(sandboxProps.kind).filter((o) => enabled.has(o.value))
     }, [sandboxProps.kind])
 
     const asObject = useCallback(
@@ -143,6 +145,16 @@ export function useModelHarness({
         },
         [config, onChange],
     )
+
+    const sandboxValue = typeof sandbox.kind === "string" ? sandbox.kind : null
+    useEffect(() => {
+        const availableValue = sandboxOptions.some((option) => option.value === sandboxValue)
+            ? sandboxValue
+            : (sandboxOptions[0]?.value ?? null)
+        if (availableValue && availableValue !== sandboxValue) {
+            setSection("sandbox", {...sandbox, kind: availableValue})
+        }
+    }, [sandbox, sandboxOptions, sandboxValue, setSection])
 
     // Model + credential connection (`llm`). It is ALWAYS a structured object (the harness-filtered
     // picker only ever produces one); a legacy bare string is read for display. composeModelValue
@@ -491,7 +503,12 @@ export function useModelHarness({
     // Harness list, from the inspect capabilities map. Model compatibility is shown per-card (below).
     // GAP (tracked): harness_capabilities covers model/provider/mode/hosting only — NOT tools/skills/
     // MCP — so switching harness can silently leave unsupported tools unwarned. See design.md.
-    const harnessList = capabilities ? Object.keys(capabilities) : []
+    const schemaHarnesses = Array.isArray(harnessProps.kind?.enum)
+        ? (harnessProps.kind.enum as unknown[]).map(String)
+        : []
+    const harnessList = (capabilities ? Object.keys(capabilities) : schemaHarnesses).filter(
+        (harnessId) => !HIDDEN_HARNESSES.has(harnessId),
+    )
 
     // Harness as a `[rail │ detail]` (experiment): the harness list on the rail with a model-compat dot,
     // the selected harness's providers / hosting / models + compatibility badge in the content panel.
@@ -648,6 +665,7 @@ export function useModelHarness({
                 <RailField label="Harness" align="center">
                     <HarnessSelectControl
                         schema={harnessProps.kind}
+                        visibleValues={harnessList}
                         value={(harness.kind as string | null) ?? null}
                         onChange={(v) => setSection("harness", {...harness, kind: v})}
                         withTooltip={withTooltip}
@@ -715,7 +733,7 @@ export function useModelHarness({
                             />
                         </RailField>
                     ) : null}
-                    {sandboxProps.permissions ? (
+                    {sandboxProps.permissions && sandbox.kind !== "local" ? (
                         <>
                             {permissionOverrideHint}
                             {/* Renders its knobs as peer RailField rows (Network egress / Filesystem

@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import {
   ADAPTER_BIN_DIR,
   buildDaemonEnv,
+  inheritableProviderEnvVars,
   KNOWN_SANDBOX_ENV_VARS,
   KNOWN_PROVIDER_ENV_VARS,
 } from "../../src/engines/sandbox_agent/daemon.ts";
@@ -22,6 +23,7 @@ const touched = [
   "CLAUDE_CONFIG_DIR",
   "COMPOSIO_API_KEY",
   "DAYTONA_API_KEY",
+  "AGENTA_RUNNER_INHERIT_ALL_PROVIDER_KEYS",
   "AGENTA_RUNNER_DAYTONA_API_KEY",
   // Every var the clear-inventory test touches is the full known provider inventory plus the
   // cloud groups, so the afterEach restores them all.
@@ -35,6 +37,48 @@ afterEach(() => {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
   }
+});
+
+describe("inheritableProviderEnvVars", () => {
+  it("maps a provider family to just its own keys", () => {
+    assert.deepEqual(inheritableProviderEnvVars("openai"), ["OPENAI_API_KEY"]);
+    assert.deepEqual(inheritableProviderEnvVars("groq"), ["GROQ_API_KEY"]);
+    // Pi reads TOGETHER_API_KEY; litellm reads TOGETHERAI_API_KEY. Both belong to the family.
+    assert.deepEqual(inheritableProviderEnvVars("together_ai"), [
+      "TOGETHER_API_KEY",
+      "TOGETHERAI_API_KEY",
+    ]);
+  });
+
+  it("is case-insensitive on the provider family", () => {
+    assert.deepEqual(inheritableProviderEnvVars("OpenAI"), ["OPENAI_API_KEY"]);
+  });
+
+  it("openai-codex authenticates via its own OAuth file, so it inherits no key", () => {
+    assert.deepEqual(inheritableProviderEnvVars("openai-codex"), []);
+  });
+
+  it("an unknown or absent provider falls back to the full inventory (never narrower)", () => {
+    assert.deepEqual(
+      inheritableProviderEnvVars(undefined),
+      KNOWN_PROVIDER_ENV_VARS,
+    );
+    assert.deepEqual(
+      inheritableProviderEnvVars("some-custom-slug"),
+      KNOWN_PROVIDER_ENV_VARS,
+    );
+  });
+
+  it("a deployment adds its cloud group on top of the provider group", () => {
+    const vertex = inheritableProviderEnvVars("anthropic", "vertex_ai");
+    assert.ok(vertex.includes("ANTHROPIC_API_KEY"));
+    assert.ok(vertex.includes("GOOGLE_APPLICATION_CREDENTIALS"));
+    assert.ok(vertex.includes("CLAUDE_CODE_USE_VERTEX"));
+    assert.ok(!vertex.includes("AWS_ACCESS_KEY_ID"));
+
+    const azure = inheritableProviderEnvVars("openai", "azure");
+    assert.deepEqual(azure, ["OPENAI_API_KEY", "AZURE_OPENAI_API_KEY"]);
+  });
 });
 
 describe("buildDaemonEnv", () => {
@@ -110,6 +154,82 @@ describe("buildDaemonEnv", () => {
     // Non-credential launch vars are still present.
     assert.equal(env.HOME, "/home/runner");
     assert.ok(env.PATH);
+  });
+
+  it("narrows the inherited keys to the run's DECLARED provider (RUN-SEC-1)", () => {
+    // The sidecar has keys for several providers configured, as a zero-config self-host does.
+    process.env.OPENAI_API_KEY = "sidecar-openai";
+    process.env.ANTHROPIC_API_KEY = "sidecar-anthropic";
+    process.env.GEMINI_API_KEY = "sidecar-gemini";
+    process.env.GROQ_API_KEY = "sidecar-groq";
+
+    // A non-managed run that DECLARED openai gets the OpenAI key and nothing else: passing the
+    // Anthropic key to an OpenAI run does not make it work, it just widens the blast radius.
+    const env = buildDaemonEnv("pi", { provider: "openai" });
+
+    assert.equal(env.OPENAI_API_KEY, "sidecar-openai");
+    assert.equal(env.ANTHROPIC_API_KEY, undefined);
+    assert.equal(env.GEMINI_API_KEY, undefined);
+    assert.equal(env.GROQ_API_KEY, undefined);
+  });
+
+  it("keeps the Claude harness's own auth-token/OAuth vars for an anthropic run", () => {
+    process.env.ANTHROPIC_API_KEY = "sidecar-anthropic";
+    process.env.CLAUDE_CODE_OAUTH_TOKEN = "sidecar-oauth";
+    process.env.ANTHROPIC_BASE_URL = "https://gateway.example";
+    process.env.OPENAI_API_KEY = "sidecar-openai";
+
+    const env = buildDaemonEnv("claude", { provider: "anthropic" });
+
+    assert.equal(env.ANTHROPIC_API_KEY, "sidecar-anthropic");
+    assert.equal(env.CLAUDE_CODE_OAUTH_TOKEN, "sidecar-oauth");
+    assert.equal(env.ANTHROPIC_BASE_URL, "https://gateway.example");
+    assert.equal(env.OPENAI_API_KEY, undefined, "openai is a different family");
+  });
+
+  it("adds the deployment's cloud credential group (anthropic on bedrock)", () => {
+    process.env.ANTHROPIC_API_KEY = "sidecar-anthropic";
+    process.env.AWS_BEARER_TOKEN_BEDROCK = "sidecar-bedrock";
+    process.env.AWS_ACCESS_KEY_ID = "sidecar-aws-key";
+    process.env.AWS_REGION = "us-east-1";
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = "/sidecar/adc.json";
+
+    const env = buildDaemonEnv("claude", {
+      provider: "anthropic",
+      deployment: "bedrock",
+    });
+
+    assert.equal(env.AWS_BEARER_TOKEN_BEDROCK, "sidecar-bedrock");
+    assert.equal(env.AWS_ACCESS_KEY_ID, "sidecar-aws-key");
+    assert.equal(env.AWS_REGION, "us-east-1");
+    // Vertex is a different deployment surface: its ADC must not ride along.
+    assert.equal(env.GOOGLE_APPLICATION_CREDENTIALS, undefined);
+  });
+
+  it("an un-migrated run that declares no provider keeps today's full inheritance", () => {
+    process.env.OPENAI_API_KEY = "sidecar-openai";
+    process.env.ANTHROPIC_API_KEY = "sidecar-anthropic";
+
+    // No provider on the wire: narrowing it would break the run, so the full set is kept.
+    const env = buildDaemonEnv("pi");
+
+    assert.equal(env.OPENAI_API_KEY, "sidecar-openai");
+    assert.equal(env.ANTHROPIC_API_KEY, "sidecar-anthropic");
+  });
+
+  it("AGENTA_RUNNER_INHERIT_ALL_PROVIDER_KEYS is the explicit opt-out from narrowing", () => {
+    process.env.OPENAI_API_KEY = "sidecar-openai";
+    process.env.ANTHROPIC_API_KEY = "sidecar-anthropic";
+
+    const narrowed = buildDaemonEnv("pi", { provider: "openai" });
+    assert.equal(narrowed.ANTHROPIC_API_KEY, undefined);
+
+    const widened = buildDaemonEnv("pi", {
+      provider: "openai",
+      inheritAllProviderEnv: true,
+    });
+    assert.equal(widened.ANTHROPIC_API_KEY, "sidecar-anthropic");
+    assert.equal(widened.OPENAI_API_KEY, "sidecar-openai");
   });
 
   it("force-blanks infra creds (DAYTONA_API_KEY + AGENTA_RUNNER_DAYTONA_API_KEY) on every run, managed or not (F-INFRA-ENV)", () => {

@@ -128,6 +128,14 @@ async def _agent_run_to_vercel_parts_impl(
     usage: Optional[Dict[str, Any]] = None
     stop_reason: Optional[str] = None
     content_parts_emitted = 0
+    # Whether a real `error` frame already went out this turn (a live-streamed provider/runner
+    # error, or one raised out of the run and caught below). The zero-content-parts backstop
+    # below must not pile a generic "produced no output" frame on top of a real error the user
+    # already saw -- that would bury the actionable message under a useless one (the runner's
+    # swallowed-provider-error recovery streams the real error live AND fails the terminal
+    # result, so both an `etype == "error"` event and the `except` branch can fire for the SAME
+    # underlying failure; either one must suppress the backstop).
+    error_emitted = False
     # Tool-call ids already surfaced as a tool part. An approval request attaches
     # to its tool part by id, so we synthesize one only when none preceded it.
     seen_tool_calls: set = set()
@@ -193,14 +201,16 @@ async def _agent_run_to_vercel_parts_impl(
                 if first_seen:
                     tool_names_by_id[tool_call_id] = tool_name
                 tool_name = tool_names_by_id.get(tool_call_id) or tool_name
-                content_parts_emitted += 1
                 if first_seen:
-                    yield {
+                    start_part = {
                         "type": "tool-input-start",
                         "toolCallId": tool_call_id,
                         "toolName": tool_name,
                     }
-                yield {
+                    if _conform(start_part) is not None:
+                        content_parts_emitted += 1
+                    yield start_part
+                input_part = {
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
                     "toolName": tool_name,
@@ -214,31 +224,53 @@ async def _agent_run_to_vercel_parts_impl(
                         else data.get("input")
                     ),
                 }
+                if _conform(input_part) is not None:
+                    content_parts_emitted += 1
+                yield input_part
                 if data.get("render") is not None:
                     yield _render_part(tool_call_id, data["render"])
             elif etype == "tool_result":
                 tool_call_id = data.get("id")
-                content_parts_emitted += 1
                 # A tool part (-error/-available) only ever emits for a tool call this
                 # stream actually surfaced; an orphaned one has no tool part to attach to
                 # and the client throws. The commit-revision side-channel below is a plain
                 # data event, not a tool-result envelope, so it fires regardless.
                 has_tool_part = tool_call_id in seen_tool_calls
-                if has_tool_part and data.get("isError"):
-                    yield {
+                if has_tool_part and data.get("denied"):
+                    # A user/policy DENIAL of a gated call. The runner stamps `denied` on the
+                    # closing result (which still rides `isError`, since the harness closes a
+                    # denied call as a failed tool call), so project the AI SDK's dedicated
+                    # `tool-output-denied` chunk — a decline the FE renders differently from a
+                    # breakage. That chunk is a strict object of ONLY `type` + `toolCallId`
+                    # (ai@6 uiMessageChunkSchema), so it carries no errorText/output.
+                    denied_part = {
+                        "type": "tool-output-denied",
+                        "toolCallId": tool_call_id,
+                    }
+                    if _conform(denied_part) is not None:
+                        content_parts_emitted += 1
+                    yield denied_part
+                elif has_tool_part and data.get("isError"):
+                    error_part = {
                         "type": "tool-output-error",
                         "toolCallId": tool_call_id,
                         "errorText": _as_text(data.get("output")),
                     }
+                    if _conform(error_part) is not None:
+                        content_parts_emitted += 1
+                    yield error_part
                 elif not data.get("isError"):
                     structured = data.get("data")
                     out = structured if structured is not None else data.get("output")
                     if has_tool_part:
-                        yield {
+                        output_part = {
                             "type": "tool-output-available",
                             "toolCallId": tool_call_id,
                             "output": out,
                         }
+                        if _conform(output_part) is not None:
+                            content_parts_emitted += 1
+                        yield output_part
                     committed = _committed_revision_data(
                         tool_names_by_id.get(tool_call_id), out
                     )
@@ -251,7 +283,8 @@ async def _agent_run_to_vercel_parts_impl(
                         yield _render_part(tool_call_id, data["render"])
             elif etype == "interaction_request":
                 for part in _interaction_parts(data, seen_tool_calls, tool_names_by_id):
-                    content_parts_emitted += 1
+                    if _conform(part) is not None:
+                        content_parts_emitted += 1
                     yield part
             elif etype == "data":
                 part: Dict[str, Any] = {
@@ -263,15 +296,18 @@ async def _agent_run_to_vercel_parts_impl(
                 content_parts_emitted += 1
                 yield part
             elif etype == "file":
-                content_parts_emitted += 1
-                yield {
+                file_part = {
                     "type": "file",
                     "url": data.get("url"),
                     "mediaType": data.get("mediaType"),
                 }
+                if _conform(file_part) is not None:
+                    content_parts_emitted += 1
+                yield file_part
             elif etype == "usage":
                 usage = _usage_metadata(data)
             elif etype == "error":
+                error_emitted = True
                 yield {"type": "error", "errorText": data.get("message", "")}
             elif etype == "done":
                 # Last non-null stop reason wins; see the routing-layer twin's `done` note.
@@ -279,42 +315,53 @@ async def _agent_run_to_vercel_parts_impl(
                 if reason is not None:
                     stop_reason = reason
     except Exception as exc:
-        # A graceful terminal failure (the run's own AgentResult says ok=false) surfaces here
-        # as a plain exception from AgentStream iteration; that case intentionally ends the
-        # stream on the error part with no finish frame, so this path stays as-is. Sanitize
-        # either way — an unexpected exception's raw str() can carry a stack/path dump.
+        # Sanitize — an unexpected exception's raw str() can carry a stack/path dump.
         log.error("agent_run_to_vercel_parts: error mid-stream", exc_info=True)
-        yield {"type": "error", "errorText": sanitize_runner_error(exc)}
-        return
+        if not error_emitted:
+            # Only surface this as a NEW user-facing frame when no error already went out this
+            # turn. A swallowed-provider-error recovery streams the real error live (the
+            # `etype == "error"` branch above) and THEN fails the terminal result, so this
+            # exception is very often just that same failure resurfacing as a raised
+            # `RuntimeError` (`result_from_wire`) -- yielding it too would duplicate the message
+            # the user already saw under a second, "Agent run failed: ..."-prefixed frame.
+            yield {"type": "error", "errorText": sanitize_runner_error(exc)}
+        error_emitted = True
+    finally:
+        # Every exit path — including the raw exception above — must still drain to a
+        # finish frame, or a consumer waiting on it hangs. Mirrors the routing-layer twin.
+        # The terminal AgentResult is authoritative. Its stop_reason wins over the `done`
+        # event's, which the live runner leaves empty on a HITL pause (mirrors fold's
+        # terminal-wins precedence); usage/trace_id fall back to it only when the stream
+        # carried neither.
+        result = _safe_result(run)
+        if result is not None:
+            if result.stop_reason is not None:
+                stop_reason = result.stop_reason
+            if usage is None:
+                usage = _usage_metadata(result.usage or {})
+            if trace_id is None:
+                trace_id = result.trace_id
 
-    # The terminal AgentResult is authoritative. Its stop_reason wins over the `done` event's,
-    # which the live runner leaves empty on a HITL pause (mirrors fold's terminal-wins
-    # precedence); usage/trace_id fall back to it only when the stream carried neither.
-    result = _safe_result(run)
-    if result is not None:
-        if result.stop_reason is not None:
-            stop_reason = result.stop_reason
-        if usage is None:
-            usage = _usage_metadata(result.usage or {})
-        if trace_id is None:
-            trace_id = result.trace_id
-
-    yield {"type": "finish-step"}
-    if content_parts_emitted == 0:
-        # An ok:true run with zero content parts would otherwise render as a blank bubble.
-        yield {"type": "error", "errorText": "The agent produced no output."}
-    finish: Dict[str, Any] = {"type": "finish"}
-    finish_reason = _map_finish_reason(stop_reason)
-    if finish_reason is not None:
-        finish["finishReason"] = finish_reason
-    metadata: Dict[str, Any] = {}
-    if usage:
-        metadata["usage"] = usage
-    if trace_id is not None:
-        metadata["traceId"] = trace_id
-    if metadata:
-        finish["messageMetadata"] = metadata
-    yield finish
+        yield {"type": "finish-step"}
+        if content_parts_emitted == 0 and not error_emitted:
+            # An ok:true run with zero content parts would otherwise render as a blank bubble.
+            # Skip this when a real error already went out above -- appending a second, useless
+            # "no output" frame on top of it would bury the actionable message (the swallowed-
+            # provider-error path both streams a live error event AND fails the terminal result,
+            # so this backstop must not double up on it).
+            yield {"type": "error", "errorText": "The agent produced no output."}
+        finish: Dict[str, Any] = {"type": "finish"}
+        finish_reason = _map_finish_reason(stop_reason)
+        if finish_reason is not None:
+            finish["finishReason"] = finish_reason
+        metadata: Dict[str, Any] = {}
+        if usage:
+            metadata["usage"] = usage
+        if trace_id is not None:
+            metadata["traceId"] = trace_id
+        if metadata:
+            finish["messageMetadata"] = metadata
+        yield finish
 
 
 async def agent_stream_to_vercel_stream(
@@ -368,6 +415,9 @@ async def _agent_stream_to_vercel_stream_impl(
     usage: Optional[Dict[str, Any]] = None
     stop_reason: Optional[str] = None
     content_parts_emitted = 0
+    # See the dev-twin's `error_emitted` note above: suppresses the zero-content backstop when
+    # a real error already went out this turn, live or raised.
+    error_emitted = False
     seen_tool_calls: set = set()
     tool_names_by_id: Dict[Any, Any] = {}
 
@@ -431,14 +481,16 @@ async def _agent_stream_to_vercel_stream_impl(
                 if first_seen:
                     tool_names_by_id[tool_call_id] = tool_name
                 tool_name = tool_names_by_id.get(tool_call_id) or tool_name
-                content_parts_emitted += 1
                 if first_seen:
-                    yield {
+                    start_part = {
                         "type": "tool-input-start",
                         "toolCallId": tool_call_id,
                         "toolName": tool_name,
                     }
-                yield {
+                    if _conform(start_part) is not None:
+                        content_parts_emitted += 1
+                    yield start_part
+                input_part = {
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
                     "toolName": tool_name,
@@ -452,31 +504,53 @@ async def _agent_stream_to_vercel_stream_impl(
                         else data.get("input")
                     ),
                 }
+                if _conform(input_part) is not None:
+                    content_parts_emitted += 1
+                yield input_part
                 if data.get("render") is not None:
                     yield _render_part(tool_call_id, data["render"])
             elif etype == "tool_result":
                 tool_call_id = data.get("id")
-                content_parts_emitted += 1
                 # A tool part (-error/-available) only ever emits for a tool call this
                 # stream actually surfaced; an orphaned one has no tool part to attach to
                 # and the client throws. The commit-revision side-channel below is a plain
                 # data event, not a tool-result envelope, so it fires regardless.
                 has_tool_part = tool_call_id in seen_tool_calls
-                if has_tool_part and data.get("isError"):
-                    yield {
+                if has_tool_part and data.get("denied"):
+                    # A user/policy DENIAL of a gated call. The runner stamps `denied` on the
+                    # closing result (which still rides `isError`, since the harness closes a
+                    # denied call as a failed tool call), so project the AI SDK's dedicated
+                    # `tool-output-denied` chunk — a decline the FE renders differently from a
+                    # breakage. That chunk is a strict object of ONLY `type` + `toolCallId`
+                    # (ai@6 uiMessageChunkSchema), so it carries no errorText/output.
+                    denied_part = {
+                        "type": "tool-output-denied",
+                        "toolCallId": tool_call_id,
+                    }
+                    if _conform(denied_part) is not None:
+                        content_parts_emitted += 1
+                    yield denied_part
+                elif has_tool_part and data.get("isError"):
+                    error_part = {
                         "type": "tool-output-error",
                         "toolCallId": tool_call_id,
                         "errorText": _as_text(data.get("output")),
                     }
+                    if _conform(error_part) is not None:
+                        content_parts_emitted += 1
+                    yield error_part
                 elif not data.get("isError"):
                     structured = data.get("data")
                     out = structured if structured is not None else data.get("output")
                     if has_tool_part:
-                        yield {
+                        output_part = {
                             "type": "tool-output-available",
                             "toolCallId": tool_call_id,
                             "output": out,
                         }
+                        if _conform(output_part) is not None:
+                            content_parts_emitted += 1
+                        yield output_part
                     committed = _committed_revision_data(
                         tool_names_by_id.get(tool_call_id), out
                     )
@@ -489,7 +563,8 @@ async def _agent_stream_to_vercel_stream_impl(
                         yield _render_part(tool_call_id, data["render"])
             elif etype == "interaction_request":
                 for part in _interaction_parts(data, seen_tool_calls, tool_names_by_id):
-                    content_parts_emitted += 1
+                    if _conform(part) is not None:
+                        content_parts_emitted += 1
                     yield part
             elif etype == "data":
                 part: Dict[str, Any] = {
@@ -501,15 +576,18 @@ async def _agent_stream_to_vercel_stream_impl(
                 content_parts_emitted += 1
                 yield part
             elif etype == "file":
-                content_parts_emitted += 1
-                yield {
+                file_part = {
                     "type": "file",
                     "url": data.get("url"),
                     "mediaType": data.get("mediaType"),
                 }
+                if _conform(file_part) is not None:
+                    content_parts_emitted += 1
+                yield file_part
             elif etype == "usage":
                 usage = _usage_metadata(data)
             elif etype == "error":
+                error_emitted = True
                 yield {"type": "error", "errorText": data.get("message", "")}
             elif etype == "done":
                 # Prefer the LAST non-null stop reason. The handler appends a corrective
@@ -522,13 +600,23 @@ async def _agent_stream_to_vercel_stream_impl(
                     stop_reason = reason
     except Exception as exc:
         log.error("agent_stream_to_vercel_stream: error mid-stream", exc_info=True)
-        yield {"type": "error", "errorText": sanitize_runner_error(exc)}
+        if not error_emitted:
+            # See the dev-twin's matching note: suppress this when a real error already went
+            # out live this turn, so a swallowed-provider-error recovery (live error event, then
+            # a failed terminal result raised as this same exception) doesn't duplicate the
+            # user-facing message under a second, differently-worded frame.
+            yield {"type": "error", "errorText": sanitize_runner_error(exc)}
+        error_emitted = True
     finally:
         # Every exit path — including the raw exception above — must still drain to a
         # finish frame, or a consumer waiting on it hangs.
         yield {"type": "finish-step"}
-        if content_parts_emitted == 0:
+        if content_parts_emitted == 0 and not error_emitted:
             # An ok:true run with zero content parts would otherwise render as a blank bubble.
+            # Skip this when a real error already went out above (see the dev-twin's matching
+            # note) -- a swallowed-provider-error turn both streams a live error event and fails
+            # the terminal result, so this backstop must not double up on it and bury the real
+            # message under "The agent produced no output."
             yield {"type": "error", "errorText": "The agent produced no output."}
         finish: Dict[str, Any] = {"type": "finish"}
         finish_reason = _map_finish_reason(stop_reason)

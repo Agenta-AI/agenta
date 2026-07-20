@@ -987,14 +987,41 @@ class ToolsRouter:
             )
 
         # Fetch integration metadata for the success card (best-effort decoration).
+        # Shares the catalog cache keyed identically to get_integration() below so a
+        # burst of OAuth callbacks doesn't re-fetch Composio live on every redirect.
         integration_label = conn.integration_key.replace("_", " ").title()
         integration_logo = None
         integration_url = None
         try:
-            integration = await self.tools_service.get_integration(
-                provider_key=conn.provider_key.value,
-                integration_key=conn.integration_key,
+            integration_cache_key = {
+                "provider_key": conn.provider_key.value,
+                "integration_key": conn.integration_key,
+                "full_details": True,
+            }
+            cached_integration = await get_cache(
+                project_id=None,  # catalog is global; not per-project
+                namespace="tools:catalog:integration",
+                key=integration_cache_key,
+                model=ToolCatalogIntegrationResponse,
             )
+            if cached_integration:
+                integration = cached_integration.integration
+            else:
+                integration = await self.tools_service.get_integration(
+                    provider_key=conn.provider_key.value,
+                    integration_key=conn.integration_key,
+                )
+                if integration:
+                    await set_cache(
+                        project_id=None,  # catalog is global; not per-project
+                        namespace="tools:catalog:integration",
+                        key=integration_cache_key,
+                        value=ToolCatalogIntegrationResponse(
+                            count=1,
+                            integration=integration,
+                        ),
+                        ttl=5 * 60,  # 5 minutes
+                    )
             if integration:
                 integration_logo = integration.logo
                 integration_url = integration.url

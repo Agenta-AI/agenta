@@ -49,7 +49,7 @@ import { fileURLToPath } from "node:url";
 import type { AdvertisedToolSpec } from "./public-spec.ts";
 // The file-relay CLIENT only (never dispatch.ts): the bundle carries file-relay code alone —
 // no direct callback (`/tools/call` POST) or code executor belongs in a sandbox child.
-import { relayToolCall } from "./relay-client.ts";
+import { relayToolCall, RELAY_PAUSED } from "./relay-client.ts";
 // The two required env names — the whole input contract of the shim. They live in the
 // dependency-free `tool-mcp-env.ts` so server code (`engines/sandbox_agent/mcp.ts`) shares
 // them without importing this bundle entrypoint; re-exported here for the shim's consumers.
@@ -230,6 +230,27 @@ export async function handleToolMcpMessage(
         params?.arguments,
         spec.timeoutMs,
       );
+      if (text === RELAY_PAUSED) {
+        // A client tool parked; the runner has already ended the turn. Return a benign, NON-error
+        // result so the harness's turn ends cleanly instead of waiting out the per-tool timeout and
+        // emitting a late error frame. The text tells the model not to retry while the pause
+        // settles. The reserved warm-hold outcome would hold this call open instead (see #5384).
+        return {
+          jsonrpc: "2.0",
+          id,
+          result: {
+            content: [
+              {
+                type: "text",
+                text:
+                  `The user has been asked to complete "${name}" in their browser. ` +
+                  `This is being handled outside this tool call. Do not call "${name}" again ` +
+                  `or retry — the result will be delivered automatically once the user responds.`,
+              },
+            ],
+          },
+        };
+      }
       return {
         jsonrpc: "2.0",
         id,

@@ -14,8 +14,9 @@
         "servicesUrl": { "type": "string", "description": "Public services URL. Emitted as AGENTA_SERVICES_URL." },
         "apiUrl": { "type": "string", "description": "Public API URL. Emitted as AGENTA_API_URL." },
         "apiInternalUrl": { "type": "string", "description": "Internal API URL (in-cluster). Emitted as AGENTA_API_INTERNAL_URL." },
-        "authKey": { "type": "string", "minLength": 1, "description": "Authorization key. Emitted as AGENTA_AUTH_KEY via Secret." },
-        "cryptKey": { "type": "string", "minLength": 1, "description": "Encryption key. Emitted as AGENTA_CRYPT_KEY via Secret." },
+        "authKey": { "type": "string", "minLength": 1, "description": "Authorization key. Required: `helm install` fails while this is unset or still 'replace-me' (see agenta.validateRequiredSecrets), unless secrets.existingSecret is set. Emitted as AGENTA_AUTH_KEY via Secret." },
+        "cryptKey": { "type": "string", "minLength": 1, "description": "Encryption key. Required: `helm install` fails while this is unset or still 'replace-me' (see agenta.validateRequiredSecrets), unless secrets.existingSecret is set. Emitted as AGENTA_CRYPT_KEY via Secret." },
+        "runnerToken": { "type": "string", "minLength": 1, "description": "Shared secret the runner verifies and Services presents. Required: `helm install` fails while this is unset or still 'replace-me' (see agenta.validateRequiredSecrets), unless secrets.existingSecret or agentRunner.auth.tokenSecretRef is set. Emitted as AGENTA_RUNNER_TOKEN via Secret." },
         "insecureEgressAllowed": { "type": ["boolean", "string"], "description": "AGENTA_INSECURE_EGRESS_ALLOWED — default true (permissive, zero-config self-host); set false to harden a shared/multi-tenant deployment." },
         "access": {
           "type": "object",
@@ -340,6 +341,23 @@
                 "sessionIdleTtlMs":  { "type": ["integer", "string"], "description": "AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS." },
                 "sessionMaxWarm":    { "type": ["integer", "string"], "description": "AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM." }
               }
+            }
+          }
+        },
+        "auth": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Runner protocol credential. Rendered as AGENTA_RUNNER_TOKEN on both the runner (verifier) and the Services API (sender).",
+          "properties": {
+            "tokenSecretRef": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Secret holding the shared runner token, injected as AGENTA_RUNNER_TOKEN.",
+              "properties": {
+                "name": { "type": "string" },
+                "key":  { "type": "string" }
+              },
+              "required": ["name", "key"]
             }
           }
         }

@@ -123,7 +123,7 @@ function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
       return sandbox;
     }) as any,
     prepareWorkspace: (async () => ({ cleanup: async () => {} })) as any,
-    prepareDaytonaPiAssets: async () => {},
+    prepareDaytonaPiAssets: async () => true,
     discoverTunnelEndpoint: async () => null,
     probeCapabilities: async () =>
       ({
@@ -351,7 +351,11 @@ describe("remote sandbox reconnect ladder", () => {
 
     await runSandboxAgent(daytonaRequest, undefined, undefined, deps);
 
-    assert.equal(calls.starts.length, 1, "no delete-and-rebuild, a single reconnect");
+    assert.equal(
+      calls.starts.length,
+      1,
+      "no delete-and-rebuild, a single reconnect",
+    );
     assert.equal(calls.starts[0].sandboxId, "sbx-trusted");
     assert.ok(
       !calls.logs.some((message) => message.includes("compatibility teardown")),

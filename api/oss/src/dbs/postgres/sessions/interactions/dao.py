@@ -124,10 +124,13 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
         project_id: UUID,
         session_id: str,
         except_turn_id: Optional[str] = None,
+        except_tokens: Optional[List[str]] = None,
     ) -> int:
         """Cancel still-pending interactions for a session. With `except_turn_id`, spare the
         current turn's own gates (used at turn start to cancel prior turns' unanswered gates;
-        without it, cancel all of them, e.g. on kill). Returns the count cancelled."""
+        without it, cancel all of them, e.g. on kill). `except_tokens` spares prior-turn gates
+        the current turn answers in-band, so the resume can resolve them instead. Returns the
+        count cancelled."""
         async with self.engine.session() as session:
             stmt = (
                 sa_update(SessionInteractionDBE)
@@ -143,6 +146,8 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
             )
             if except_turn_id is not None:
                 stmt = stmt.where(SessionInteractionDBE.turn_id != except_turn_id)
+            if except_tokens:
+                stmt = stmt.where(SessionInteractionDBE.token.notin_(except_tokens))
             result = await session.execute(stmt)
             await session.commit()
             return result.rowcount or 0

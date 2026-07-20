@@ -23,7 +23,7 @@ _DEFAULT_AGENT_DIR = _SERVICES_DIR / "runner"
 # Fallback config used when the editable files are missing or a field is absent.
 # Kept in sync with the catalog template and the `/inspect` schema defaults
 # (schemas.py: _DEFAULT_MODEL / _DEFAULT_AGENTS_MD).
-DEFAULT_MODEL = "gpt-5.5"
+DEFAULT_MODEL = "gpt-5.6-luna"
 DEFAULT_AGENTS_MD = (
     "You are a friendly hello-world agent running on the Agenta agent service.\n\n"
     "- Greet the user warmly.\n"

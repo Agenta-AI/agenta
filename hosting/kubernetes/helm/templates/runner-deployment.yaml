@@ -2,6 +2,7 @@
 {{- $providers := default dict $runner.providers -}}
 {{- $enabledProviders := default (list "local") $providers.enabled -}}
 {{- $daytona := default dict $providers.daytona -}}
+{{- $auth := default dict $runner.auth -}}
 {{- if eq (include "agenta.agentRunner.enabled" .) "true" }}
 apiVersion: apps/v1
 kind: Deployment
@@ -48,12 +49,35 @@ spec:
               containerPort: {{ include "agenta.agentRunner.port" . }}
               protocol: TCP
           env:
+            {{- /* Narrow by design (runner-selfhosting-cleanup): a local harness process shares
+                   this container, so anything here is readable from /proc. Only the runner's own
+                   config and the API URL it needs to reach the platform — never the full
+                   commonEnv (DB/auth/crypt/license/redis/store secrets). See
+                   tests/test_runner_secret_absence.py. */}}
+            - name: AGENTA_API_URL
+              value: {{ include "agenta.apiUrlEffective" . | quote }}
+            {{- $agentaVals := include "agenta.values" . | fromYaml -}}
+            {{- if (default dict $agentaVals.agenta).apiInternalUrl }}
+            - name: AGENTA_API_INTERNAL_URL
+              value: {{ $agentaVals.agenta.apiInternalUrl | quote }}
+            {{- end }}
             - name: AGENTA_RUNNER_PORT
               value: {{ include "agenta.agentRunner.port" . | quote }}
             - name: AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS
               value: {{ join "," $enabledProviders | quote }}
             - name: AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER
               value: {{ default "local" $providers.default | quote }}
+            {{- /* Stable replica id for a single-runner install: a local-sandbox session is
+                   owned by the pod that created it, and a pod restart with a fresh random id
+                   would orphan those sessions for the owner TTL. A fixed value (the service
+                   name) is safe only at one replica; with several pods a shared id would make
+                   every pod claim every session, so we set it only when replicas == 1. Local
+                   multi-replica is unsupported anyway (no sticky routing); scale with Daytona.
+                   A Deployment renames the pod on restart, so a fixed value beats the pod name. */}}
+            {{- if and (eq (include "agenta.agentRunner.replicas" . | int) 1) (not (hasKey (default dict $runner.env) "AGENTA_RUNNER_REPLICA_ID")) }}
+            - name: AGENTA_RUNNER_REPLICA_ID
+              value: {{ include "agenta.agentRunner.serviceName" . | quote }}
+            {{- end }}
             {{- if not (hasKey (default dict $runner.env) "PI_CODING_AGENT_DIR") }}
             - name: PI_CODING_AGENT_DIR
               value: {{ default "/pi-agent" $runner.piAgentDir | quote }}
@@ -102,6 +126,23 @@ spec:
                   key: {{ $daytona.apiKeySecretRef.key | quote }}
                   optional: true
             {{- end }}
+            {{- /* Shared runner protocol credential (interface.md section 2): the runner verifies it
+                   and Services sends the same value (see agentRunner.servicesEnv). REQUIRED — the
+                   runner refuses to boot without it, so this is always rendered and never
+                   `optional`. An explicit `auth.tokenSecretRef` overrides the platform Secret for
+                   operators who keep the runner credential in their own vault. Note this mounts a
+                   SINGLE key, not the whole Secret: the runner's env must stay narrow, because a
+                   local harness shares its container and can read /proc (tests/test_runner_secret_absence.py). */}}
+            - name: AGENTA_RUNNER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  {{- if $auth.tokenSecretRef }}
+                  name: {{ $auth.tokenSecretRef.name | quote }}
+                  key: {{ $auth.tokenSecretRef.key | quote }}
+                  {{- else }}
+                  name: {{ include "agenta.fullname" . | quote }}
+                  key: AGENTA_RUNNER_TOKEN
+                  {{- end }}
             {{- range $key, $val := $runner.env }}
             - name: {{ $key }}
               value: {{ $val | quote }}

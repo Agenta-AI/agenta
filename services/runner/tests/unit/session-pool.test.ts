@@ -20,10 +20,10 @@ import {
   priorConversation,
   readKeepaliveConfig,
   resolvesToLocalProvider,
-  SessionPool,
   tailIsFreshUserMessage,
   type CredentialEpoch,
-} from "../../src/engines/sandbox_agent/session-pool.ts";
+} from "../../src/engines/sandbox_agent/session-identity.ts";
+import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 
 describe("resolvesToLocalProvider (local/remote gate)", () => {
   it("is true when the request explicitly asks for local", () => {
@@ -248,6 +248,42 @@ describe("configFingerprint", () => {
       configFingerprint({ ...base, tools: ["read"] }),
     );
   });
+
+  // Custom OpenAI-compatible warm-session safety (design Decision 7): a change to the connection,
+  // model, or endpoint must cold-start rather than reuse a mismatched live session. No new
+  // fingerprint field is needed — these already ride configFingerprint.
+  it("changes when the connection changes (custom provider identity)", () => {
+    const withConn = {
+      ...base,
+      provider: "openai",
+      deployment: "custom",
+      connection: { mode: "agenta", slug: "ollama-a" },
+      endpoint: { baseUrl: "https://a.test/v1" },
+    };
+    assert.notEqual(
+      configFingerprint(withConn),
+      configFingerprint({
+        ...withConn,
+        connection: { mode: "agenta", slug: "ollama-b" },
+      }),
+    );
+  });
+
+  it("changes when the endpoint base URL changes", () => {
+    const withEndpoint = {
+      ...base,
+      deployment: "custom",
+      connection: { mode: "agenta", slug: "ollama-a" },
+      endpoint: { baseUrl: "https://a.test/v1" },
+    };
+    assert.notEqual(
+      configFingerprint(withEndpoint),
+      configFingerprint({
+        ...withEndpoint,
+        endpoint: { baseUrl: "https://b.test/v1" },
+      }),
+    );
+  });
 });
 
 describe("historyFingerprint (pruned-array contract)", () => {
@@ -391,7 +427,7 @@ describe("tailIsFreshUserMessage", () => {
 });
 
 describe("credential epoch", () => {
-  it("same secrets + tool-callback auth hash equal; a changed secret value differs", () => {
+  it("same secrets hash equal; a changed secret value differs", () => {
     const a = computeCredentialEpoch({
       secrets: { A: "1" },
       toolCallback: { endpoint: "e", authorization: "z" },
@@ -410,6 +446,35 @@ describe("credential epoch", () => {
       c.secretsHash,
       "a rotated same-slug secret changes the hash",
     );
+  });
+
+  it("a rotated OPENAI_API_KEY invalidates the epoch (custom provider key rotation)", () => {
+    // Rotating the custom OpenAI-compatible connection's key for the same slug must cold-start
+    // with the fresh key rather than reuse a warm session baked with the old one (design
+    // Decision 7 — the credential epoch already covers this; no new key is needed).
+    const parked = computeCredentialEpoch({
+      secrets: { OPENAI_API_KEY: "sk-old" },
+    });
+    const rotated = computeCredentialEpoch({
+      secrets: { OPENAI_API_KEY: "sk-new" },
+    });
+    assert.notEqual(parked.secretsHash, rotated.secretsHash);
+    assert.equal(credentialEpochValid(parked, rotated, Date.now()), false);
+  });
+
+  it("a re-minted tool-callback bearer does NOT change the hash (per-turn material)", () => {
+    // The backend re-mints the callback bearer on its auth-cache cadence (~60s); the turn's
+    // relay always uses the incoming bearer, so a warm continue must not evict over it.
+    const parked = computeCredentialEpoch({
+      secrets: { A: "1" },
+      toolCallback: { endpoint: "e", authorization: "bearer-old" },
+    });
+    const incoming = computeCredentialEpoch({
+      secrets: { A: "1" },
+      toolCallback: { endpoint: "e", authorization: "bearer-new" },
+    });
+    assert.equal(parked.secretsHash, incoming.secretsHash);
+    assert.equal(credentialEpochMismatch(parked, incoming), undefined);
   });
 
   it("valid until the mount expiry elapses; invalid once expired", () => {
@@ -522,10 +587,59 @@ describe("poolKeyFor", () => {
       null,
     );
   });
+  it("the same sessionId under different projects produces different keys (kill scoping)", () => {
+    // Backs the /kill contract: a same-session-id-different-project entry must not collide.
+    const a = poolKeyFor(
+      { sessionId: "s1", runContext: { project: { id: "proj-a" } } },
+      undefined,
+    );
+    const b = poolKeyFor(
+      { sessionId: "s1", runContext: { project: { id: "proj-b" } } },
+      undefined,
+    );
+    assert.notEqual(a?.key, b?.key);
+  });
+});
+
+describe("SessionPool destroy scoping (backs the /kill contract)", () => {
+  it("destroying one project's key leaves a same-session-id different-project key parked", async () => {
+    const pool = new SessionPool({ poolMax: 4 }, () => {});
+    const a = parkInput("proj-a:s1");
+    const b = parkInput("proj-b:s1");
+    await pool.park(a.input, 10_000);
+    await pool.park(b.input, 10_000);
+    assert.equal(pool.size(), 2);
+
+    await pool.destroy("proj-a:s1", "kill");
+
+    assert.equal(a.env.state.destroyed, 1, "the scoped key was destroyed");
+    assert.equal(
+      b.env.state.destroyed,
+      0,
+      "a same-session-id different-project key survives",
+    );
+    assert.equal(pool.get("proj-a:s1"), undefined);
+    assert.ok(pool.get("proj-b:s1"));
+  });
 });
 
 describe("SessionPool", () => {
   const cfg = { poolMax: 2 };
+
+  it("awaitingApproval finds an approval-parked session by session id, whatever the project scope", async () => {
+    const pool = new SessionPool(cfg, () => {});
+    const idle = parkInput("proj-a:s-idle");
+    const parked = parkInput("proj-b:s-gated");
+    assert.equal(await pool.park(idle.input, 10_000), true);
+    assert.equal(
+      await pool.park(parked.input, 10_000, "awaiting_approval"),
+      true,
+    );
+    // Only the awaiting_approval entry matches, and only by its own session id.
+    assert.equal(pool.awaitingApproval("s-idle"), undefined);
+    assert.equal(pool.awaitingApproval("s-gated")?.environment, parked.env);
+    assert.equal(pool.awaitingApproval("s-unknown"), undefined);
+  });
 
   it("park then checkoutIdle returns the same session (busy) and clears the timer", async () => {
     const pool = new SessionPool(cfg, () => {});
@@ -587,11 +701,9 @@ describe("SessionPool", () => {
         stoppingEnv.state.reasons.push(reason);
       },
     };
-    const pool = new SessionPool(
-      { poolMax: 1 },
-      () => {},
-      { strictCapacity: true },
-    );
+    const pool = new SessionPool({ poolMax: 1 }, () => {}, {
+      strictCapacity: true,
+    });
     await pool.park(parkInput("a", stoppingEnv).input, 10_000);
 
     const replacement = parkInput("b");
@@ -606,17 +718,19 @@ describe("SessionPool", () => {
 
     releaseTeardown?.();
     assert.equal(await parked, true);
-    assert.equal(teardownCompleted, true, "teardown completes before park resolves");
+    assert.equal(
+      teardownCompleted,
+      true,
+      "teardown completes before park resolves",
+    );
     assert.equal(pool.get("a"), undefined);
     assert.equal(pool.get("b")?.state, "idle");
   });
 
   it("strict capacity returns false at cap when no idle entry exists", async () => {
-    const pool = new SessionPool(
-      { poolMax: 1 },
-      () => {},
-      { strictCapacity: true },
-    );
+    const pool = new SessionPool({ poolMax: 1 }, () => {}, {
+      strictCapacity: true,
+    });
     const busy = parkInput("busy");
     await pool.park(busy.input, 10_000);
     pool.checkoutIdle("busy");
@@ -629,16 +743,10 @@ describe("SessionPool", () => {
   });
 
   it("strict approval checkout stays seated while it is busy", async () => {
-    const pool = new SessionPool(
-      { poolMax: 1 },
-      () => {},
-      { strictCapacity: true },
-    );
-    await pool.park(
-      parkInput("approval").input,
-      10_000,
-      "awaiting_approval",
-    );
+    const pool = new SessionPool({ poolMax: 1 }, () => {}, {
+      strictCapacity: true,
+    });
+    await pool.park(parkInput("approval").input, 10_000, "awaiting_approval");
 
     const live = pool.checkoutApproval("approval");
 
@@ -658,11 +766,9 @@ describe("SessionPool", () => {
           releaseTeardown = resolve;
         }),
     };
-    const pool = new SessionPool(
-      { poolMax: 1 },
-      () => {},
-      { strictCapacity: true },
-    );
+    const pool = new SessionPool({ poolMax: 1 }, () => {}, {
+      strictCapacity: true,
+    });
     await pool.park(parkInput("a", environment).input, 10_000);
     const stopping = pool.get("a")!;
     const replacement = pool.park(parkInput("b").input, 10_000);
@@ -672,14 +778,22 @@ describe("SessionPool", () => {
     assert.equal(pool.checkoutIdle("a"), undefined);
     assert.equal(pool.checkoutApproval("a"), undefined);
     assert.equal(
-      await pool.repark(stopping, {
-        configFingerprint: "new",
-        historyFingerprint: "new",
-        credentialEpoch: epoch,
-      }, 10_000),
+      await pool.repark(
+        stopping,
+        {
+          configFingerprint: "new",
+          historyFingerprint: "new",
+          credentialEpoch: epoch,
+        },
+        10_000,
+      ),
       false,
     );
-    assert.equal(pool.get("a"), stopping, "repark does not clobber the seated stop");
+    assert.equal(
+      pool.get("a"),
+      stopping,
+      "repark does not clobber the seated stop",
+    );
 
     releaseTeardown?.();
     assert.equal(await replacement, true);
@@ -1018,11 +1132,11 @@ describe("SessionPool", () => {
 
   it("destroyAll drains every parked session", async () => {
     const pool = new SessionPool({ poolMax: 8 }, () => {});
-    const envs = ["a", "b", "c"].map((k) => {
-      const p = parkInput(k);
-      pool.park(p.input, 10_000);
-      return p.env;
-    });
+    const inputs = ["a", "b", "c"].map((k) => parkInput(k));
+    for (const p of inputs) {
+      await pool.park(p.input, 10_000);
+    }
+    const envs = inputs.map((p) => p.env);
     assert.equal(pool.size(), 3);
     await pool.destroyAll(5000, "shutdown-idle", "shutdown-in-flight");
     assert.equal(pool.size(), 0);
@@ -1057,5 +1171,23 @@ describe("SessionPool", () => {
     await pool.destroyAll(5000, "kill", "kill");
     assert.deepEqual(idle.env.state.reasons, ["kill"]);
     assert.deepEqual(busy.env.state.reasons, ["kill"]);
+  });
+
+  it("destroy(key, 'kill') tears down only the named tenant's session — a scoped /kill", async () => {
+    // Regression for RUN-SEC-3: a scoped /kill must destroy exactly the caller's own
+    // `<projectId>:<sessionId>` pool entry and leave every other tenant's parked session alone.
+    const pool = new SessionPool({ poolMax: 8 }, () => {});
+    const tenantA = parkInput("proj-a:sess-1");
+    const tenantB = parkInput("proj-b:sess-1");
+    await pool.park(tenantA.input, 10_000);
+    await pool.park(tenantB.input, 10_000);
+    assert.equal(pool.size(), 2);
+
+    await pool.destroy("proj-a:sess-1", "kill");
+
+    assert.equal(pool.size(), 1, "only tenant A's entry was removed");
+    assert.deepEqual(tenantA.env.state.reasons, ["kill"]);
+    assert.equal(tenantB.env.state.destroyed, 0, "tenant B is untouched");
+    assert.equal(pool.get("proj-b:sess-1")?.environment, tenantB.env);
   });
 });

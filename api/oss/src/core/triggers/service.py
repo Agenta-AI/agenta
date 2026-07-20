@@ -929,6 +929,27 @@ class TriggersService:
             connection_id=subscription.connection_id,
         )
 
+        # The provider call below is an upsert, so a duplicate create would silently
+        # rewrite the live trigger's config before the unique index rejects the row.
+        # Conflict on (connection, event) locally first to keep the provider untouched.
+        existing = await self.dao.query_subscriptions(
+            project_id=project_id,
+            subscription=TriggerSubscriptionQuery(
+                connection_id=subscription.connection_id,
+                event_key=subscription.data.event_key,
+            ),
+            windowing=Windowing(limit=1),
+        )
+        if existing:
+            raise EntityCreationConflict(
+                entity="Trigger subscription",
+                message="A subscription for this connection and event already exists.",
+                conflict={
+                    "subscription_id": str(existing[0].id),
+                    "trigger_id": existing[0].trigger_id,
+                },
+            )
+
         adapter = self.adapter_registry.get(connection.provider_key.value)
 
         trigger_id = await adapter.create_subscription(
@@ -1223,17 +1244,12 @@ class TriggersService:
             baseline_id = baseline[0].id if baseline else None
 
         try:
-            deadline = asyncio.get_event_loop().time() + _TEST_TIMEOUT_SECONDS
-            while asyncio.get_event_loop().time() < deadline:
-                deliveries = await self.dao.query_deliveries(
-                    project_id=project_id,
-                    delivery=TriggerDeliveryQuery(subscription_id=created.id),
-                    windowing=Windowing(limit=1),
-                )
-                if deliveries and deliveries[0].id != baseline_id:
-                    return deliveries[0]
-                await asyncio.sleep(1.0)
-            return None
+            return await self.dao.poll_delivery_after(
+                project_id=project_id,
+                subscription_id=created.id,
+                baseline_id=baseline_id,
+                timeout_seconds=_TEST_TIMEOUT_SECONDS,
+            )
         finally:
             if owns_created:
                 await self.delete_subscription(
@@ -1544,7 +1560,6 @@ class TriggersService:
                     timeout=_ENQUEUE_TIMEOUT_SECONDS,
                 )
 
-                log.tick("triggers.enqueued", dims={"queue": "triggers"})
                 log.info(
                     "[SCHEDULE] Dispatched.   ",
                     project_id=project_id,

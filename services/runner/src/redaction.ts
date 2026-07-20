@@ -385,3 +385,35 @@ export function seedFromEnv(options?: {
   ];
   return r.withKnownSecrets(values);
 }
+
+/** The shape `seedForRun` reads off an `AgentRunRequest` (structural, to avoid importing the
+ * wire types into the redaction primitive). */
+export interface RunSeedSource {
+  /** Provider API keys resolved per run and applied into the run env (`daemon.ts`). */
+  secrets?: Record<string, string>;
+  telemetry?: {
+    exporters?: { otlp?: { headers?: Record<string, string> } };
+  };
+}
+
+/**
+ * The runner's per-run deny-set (WP1.1). The run's resolved provider keys ride `secrets` on the
+ * wire and never appear in the sidecar's own process env, so a process-env-only seed would miss
+ * exactly the highest-value secrets — they must be seeded from the REQUEST.
+ */
+export function seedForRun(
+  request: RunSeedSource,
+  extraValues?: Array<string | null | undefined>,
+): Redactor {
+  const headers = request.telemetry?.exporters?.otlp?.headers ?? {};
+  const runCredential = (
+    headers.authorization ??
+    headers.Authorization ??
+    ""
+  ).trim();
+  return seedFromEnv({
+    resolvedSecrets: Object.values(request.secrets ?? {}),
+    runCredential: runCredential || null,
+    extraValues,
+  });
+}

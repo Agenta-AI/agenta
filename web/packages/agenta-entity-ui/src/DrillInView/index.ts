@@ -296,3 +296,9 @@ export type {
 // Agent config layout preference (read by the variant header menu's View selector).
 export {agentTemplateLayoutAtom, AGENT_TEMPLATE_LAYOUTS} from "./SchemaControls"
 export type {AgentTemplateLayout} from "./SchemaControls"
+
+// Operational panel regions (Triggers, Mounts) — siblings of the Configuration section.
+export {
+    AgentOperationsSections,
+    AgentOperationsSkeleton,
+} from "./SchemaControls/AgentOperationsSections"
