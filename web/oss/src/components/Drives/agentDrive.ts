@@ -63,7 +63,7 @@ export const agentMountQueryFamily = atomFamily((artifactId: string) =>
 export function useAgentDrive(artifactId: string): SessionDriveData & {exists: boolean} {
     const mountQuery = useAtomValue(agentMountQueryFamily(artifactId))
     const mount = mountQuery.data ?? null
-    const filesQuery = useAtomValue(mountFilesQueryFamily(mount?.id ?? ""))
+    const filesQuery = useAtomValue(mountFilesQueryFamily({mountId: mount?.id ?? ""}))
 
     return useMemo(() => {
         const listing = filesQuery.data ?? null

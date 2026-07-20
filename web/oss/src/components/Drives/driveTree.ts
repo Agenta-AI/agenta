@@ -13,6 +13,10 @@ export interface DriveTreeNode {
     path: string
     isFolder: boolean
     size?: number
+    /** Backend-reported immediate-child count for a folder (lazy loading: known before the folder's
+     * own level is fetched, so tiles/rows show "N items" without loading the children). Falls back to
+     * `children.length` once loaded. */
+    itemCount?: number
     children: DriveTreeNode[]
 }
 
@@ -166,7 +170,8 @@ export function buildDriveTree(files: MountFile[] | null | undefined): DriveTree
         const path = cleanPath(file.path)
         if (!path || isInternalDrivePath(path)) continue
         if (isFolderEntry(file, folderIndex)) {
-            ensureFolder(path)
+            const node = ensureFolder(path)
+            if (typeof file.item_count === "number") node.itemCount = file.item_count
             continue
         }
         const idx = path.lastIndexOf("/")
@@ -187,6 +192,19 @@ export function buildDriveTree(files: MountFile[] | null | undefined): DriveTree
         for (const n of nodes) if (n.children.length) sortLevel(n.children)
     }
     sortLevel(root.children)
+
+    // Once a folder's own level is loaded, its LOADED child count is authoritative — override any
+    // backend `item_count`. This fixes the `agent-files` fold point: the cwd mount reports 0 for that
+    // mount-point folder, but its real children live in the folded agent mount, so 0 was wrong.
+    const applyLoadedCounts = (nodes: DriveTreeNode[]) => {
+        for (const n of nodes) {
+            if (n.isFolder && n.children.length > 0) {
+                n.itemCount = n.children.length
+                applyLoadedCounts(n.children)
+            }
+        }
+    }
+    applyLoadedCounts(root.children)
     return root.children
 }
 

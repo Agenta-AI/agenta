@@ -15,9 +15,32 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {getJWT} from "@/oss/services/api"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {renderPdfFirstPage} from "./pdfThumb"
+
+/** Subset of the File System Access API we use to stream a download straight to disk (Chromium).
+ * Declared locally — the global typings aren't present in every browser even when the runtime is,
+ * and the buffered fallback needs none of it. Mirrors the ETL `exportWriter` feature-detect. We
+ * write chunks with `writable.write()` (NOT `ReadableStream.pipeTo(writable)`, which no-ops into a
+ * FileSystemWritableFileStream and leaves a 0-byte file). */
+interface WritableFileStreamLike {
+    write(chunk: Uint8Array): Promise<void>
+    close(): Promise<void>
+    abort(reason?: unknown): Promise<void>
+}
+type ShowSaveFilePicker = (options?: {
+    suggestedName?: string
+    types?: {description?: string; accept: Record<string, string[]>}[]
+}) => Promise<{createWritable(): Promise<WritableFileStreamLike>}>
+
+const getShowSaveFilePicker = (): ShowSaveFilePicker | undefined => {
+    if (typeof window === "undefined") return undefined
+    const picker = (window as unknown as {showSaveFilePicker?: ShowSaveFilePicker})
+        .showSaveFilePicker
+    return typeof picker === "function" ? picker : undefined
+}
 
 export async function fetchMountFileBlob({
     mountId,
@@ -157,6 +180,99 @@ export async function downloadMountFile({
     anchor.remove()
     URL.revokeObjectURL(url)
     return true
+}
+
+/** Download the WHOLE drive as ONE zip ("download all") — spanning every mount the drive folds in
+ * (cwd at the root, the agent's durable folder under `agent-files/`). The backend STREAMS the zip
+ * (never buffered whole) and reads file bodies with bounded concurrency.
+ *
+ * On Chromium (File System Access API) the server's zip stream is piped STRAIGHT TO DISK — client
+ * memory stays bounded by one chunk, matching the server. Safari/Firefox (no picker) fall back to
+ * buffering the blob + an anchor-click (the whole zip transits the JS heap there). `cancelled` is
+ * returned when the user dismisses the native save dialog, so the caller can skip the error toast. */
+export async function downloadMountArchive({
+    mounts,
+    projectId,
+    filename = "files.zip",
+}: {
+    /** Each mount: `prefix` = where in the zip its files go (folded drive); `path` = a source folder
+     * within the mount to scope to ("" = whole mount, for "download all"). */
+    mounts: {mountId: string; prefix?: string; path?: string}[]
+    projectId: string | null | undefined
+    filename?: string
+}): Promise<{ok: boolean; error?: string; cancelled?: boolean}> {
+    const valid = mounts.filter((m) => m.mountId)
+    if (!valid.length || !projectId) return {ok: false}
+    const payload = {
+        mounts: valid.map((m) => ({
+            mount_id: m.mountId,
+            prefix: m.prefix ?? "",
+            path: m.path ?? "",
+        })),
+        filename,
+    }
+
+    // ─── Streaming-to-disk (Chromium) ────────────────────────────────────────────────────────────
+    const showSaveFilePicker = getShowSaveFilePicker()
+    if (showSaveFilePicker) {
+        let handle: {createWritable(): Promise<WritableFileStreamLike>} | null = null
+        try {
+            handle = await showSaveFilePicker({
+                suggestedName: filename,
+                types: [{description: "Zip archive", accept: {"application/zip": [".zip"]}}],
+            })
+        } catch (error) {
+            // User dismissed the picker → bail without downloading; other failures fall through.
+            if ((error as Error)?.name === "AbortError") return {ok: false, cancelled: true}
+        }
+        if (handle) {
+            const writable = await handle.createWritable()
+            try {
+                const jwt = await getJWT()
+                const url = `${getAgentaApiUrl()}/mounts/files/archive?project_id=${encodeURIComponent(projectId)}`
+                const response = await fetch(url, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(jwt ? {Authorization: `Bearer ${jwt}`} : {}),
+                    },
+                    body: JSON.stringify(payload),
+                })
+                if (!response.ok || !response.body) throw new Error(`archive ${response.status}`)
+                // Manual read → write per chunk (pipeTo into a FileSystemWritableFileStream no-ops).
+                const reader = response.body.getReader()
+                for (;;) {
+                    const {done, value} = await reader.read()
+                    if (done) break
+                    if (value) await writable.write(value)
+                }
+                await writable.close()
+                return {ok: true}
+            } catch {
+                await writable.abort().catch(() => undefined)
+                return {ok: false, error: "Couldn't prepare the download."}
+            }
+        }
+    }
+
+    // ─── Buffered fallback (Safari / Firefox / no picker) ─────────────────────────────────────────
+    try {
+        const response = await axios.post(`${getAgentaApiUrl()}/mounts/files/archive`, payload, {
+            params: {project_id: projectId},
+            responseType: "blob",
+        })
+        const url = URL.createObjectURL(response.data as Blob)
+        const anchor = document.createElement("a")
+        anchor.href = url
+        anchor.download = filename
+        document.body.appendChild(anchor)
+        anchor.click()
+        anchor.remove()
+        URL.revokeObjectURL(url)
+        return {ok: true}
+    } catch {
+        return {ok: false, error: "Couldn't prepare the download."}
+    }
 }
 
 /** The raw-bytes URL for one drive file. Media tags can use it DIRECTLY on same-origin
