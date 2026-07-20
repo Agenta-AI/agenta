@@ -7,7 +7,7 @@
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
-export type InspectorLens = "timeline" | "context" | "runtime"
+export type InspectorLens = "timeline" | "context" | "runtime" | "response"
 export type TimelineFilter = "all" | "tools" | "interactions"
 
 /** The open target. `null` = collapsed. `focusedTurn` (1-based) narrows the lenses to one turn;

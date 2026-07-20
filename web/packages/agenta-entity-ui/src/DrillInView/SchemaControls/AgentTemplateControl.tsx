@@ -39,7 +39,6 @@ import {agentSelfCommitSignalAtom, openAgentConfigSectionAtom} from "@agenta/sha
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {
     ConfigAccordionSection,
-    sectionIndicatorColor,
     type SectionIndicatorTone,
 } from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -53,7 +52,7 @@ import {
     SlidersHorizontal,
     Wrench,
 } from "@phosphor-icons/react"
-import {Button, Tabs, Tooltip, Typography} from "antd"
+import {Button, Tooltip, Typography} from "antd"
 import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useStore} from "jotai"
 
@@ -71,7 +70,6 @@ import {ToolManagementList} from "./agentTemplate/ToolManagementList"
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
-import {agentTemplateLayoutAtom} from "./agentTemplateLayout"
 import {ConfigItemDrawer} from "./ConfigItemDrawer"
 import {connectionFromConfig, modelIdFromConfig} from "./connectionUtils"
 import {InstructionsDrawer} from "./InstructionsDrawer"
@@ -268,9 +266,6 @@ export function AgentTemplateControl({
     // Enable Save only when the draft actually differs from what we opened with (config or build-kit).
     const sectionDirty = isCurrentSectionDirty()
 
-    // Layout (accordion / tabs / cards) is a global persisted preference; the panel only reads it.
-    const layout = useAtomValue(agentTemplateLayoutAtom)
-
     // `config` IS the agent template (`parameters.agent`); `schema` is the `agent-template` type and
     // decides which sections exist. Portable fields (instructions / llm / tools / mcps / skills) are
     // FLAT; execution parts (harness / runner / sandbox) are nested sub-objects (see useModelHarness).
@@ -341,8 +336,8 @@ export function AgentTemplateControl({
     // feeds both sections), so they live in their own hook that returns the summaries + bodies.
     //
     // TWO instances, on purpose:
-    //  - `mh` is bound to the LIVE entity — it drives the accordion header summaries + the inline
-    //    tabs bodies. Keeping it live means a section header NEVER reflects the drawer's unsaved draft
+    //  - `mh` is bound to the LIVE entity — it drives the accordion header summaries. Keeping it live
+    //    means a section header NEVER reflects the drawer's unsaved draft
     //    (the reported bug: editing in the open drawer updated the background summary).
     //  - The DRAFT instance (config + build-kit buffer) that drives the OPEN section drawer's body
     //    now lives inside `ModelHarnessSectionDrawerBody`, mounted only while the drawer is open, so
@@ -714,8 +709,7 @@ export function AgentTemplateControl({
         </Tooltip>
     )
 
-    // Each config section as a descriptor, so it can be rendered in any layout (accordion /
-    // tabs / cards) without duplicating the content. Schema-gated, like before.
+    // Each config section as a descriptor rendered by the accordion. Schema-gated, like before.
     const sections = [
         mh.hasModelOrHarness && {
             key: "model-harness",
@@ -726,7 +720,6 @@ export function AgentTemplateControl({
             defaultOpen: true,
             onOpen: () => openSectionDrawer("model-harness"),
             content: mh.modelHarnessDrawerBody,
-            inlineContent: mh.modelHarnessInline,
         },
         hasInstructions && {
             key: "instructions",
@@ -853,7 +846,6 @@ export function AgentTemplateControl({
             summary: mh.advancedSummary,
             onOpen: () => openSectionDrawer("advanced"),
             content: mh.advancedDrawerBody,
-            inlineContent: mh.advancedInline,
         },
     ].filter(Boolean) as {
         key: string
@@ -865,14 +857,7 @@ export function AgentTemplateControl({
         defaultOpen?: boolean
         onOpen?: () => void
         content: React.ReactNode
-        // Trimmed single-column body for the tabs layout (drawer sections only); falls back to
-        // `content` when a section has no separate inline form.
-        inlineContent?: React.ReactNode
     }[]
-
-    // Each config section is a contained card on the raised Config panel — the surface tokens give
-    // it depth against the panel (see theme-variables.css "Agent Playground surface ladder").
-    const sectionCardClass = "ag-surface-card rounded-[11px] px-4"
 
     // Keep the item + instruction drawers MOUNTED while they animate closed. Their editing state
     // goes null on close; retaining the last value and driving `open` off the live state lets the
@@ -890,72 +875,6 @@ export function AgentTemplateControl({
                 <Typography.Text type="secondary" className="text-xs">
                     No agent configuration fields are available for this schema.
                 </Typography.Text>
-            ) : layout === "tabs" ? (
-                // Tabs renders each section's body inline (no drawer), so edits are live. Drawer
-                // sections supply a trimmed `inlineContent` so the tab shows just their controls.
-                <Tabs
-                    items={sections.map((s) => ({
-                        key: s.key,
-                        label: (
-                            <span className="inline-flex items-center gap-1.5">
-                                <Tooltip title={s.indicator?.tooltip}>
-                                    <span
-                                        className="relative inline-flex items-center"
-                                        style={
-                                            s.indicator
-                                                ? {
-                                                      color: `color-mix(in srgb, ${sectionIndicatorColor(s.indicator.tone)} 45%, var(--ag-colorTextTertiary))`,
-                                                  }
-                                                : undefined
-                                        }
-                                    >
-                                        {s.icon}
-                                        {s.indicator ? (
-                                            <span
-                                                className="absolute -right-1 -top-0.5 h-1.5 w-1.5 rounded-full"
-                                                style={{
-                                                    background: sectionIndicatorColor(
-                                                        s.indicator.tone,
-                                                    ),
-                                                }}
-                                            />
-                                        ) : null}
-                                    </span>
-                                </Tooltip>
-                                <span className="truncate">{s.title}</span>
-                                {sectionBadge(s.key)}
-                            </span>
-                        ),
-                        children: (
-                            // Render `extra` (the add-action) here too, else tab users can't add
-                            // items. Body is the trimmed `inlineContent` or `content`.
-                            <div className="flex flex-col gap-3 pt-1">
-                                {s.extra ? <div className="flex justify-end">{s.extra}</div> : null}
-                                {s.inlineContent ?? s.content}
-                            </div>
-                        ),
-                    }))}
-                />
-            ) : layout === "cards" ? (
-                <div className="flex flex-col gap-3 pt-1">
-                    {sections.map((s) => (
-                        <ConfigAccordionSection
-                            key={s.key}
-                            icon={s.icon}
-                            title={s.title}
-                            titleBadge={sectionBadge(s.key)}
-                            summary={s.summary}
-                            extra={s.extra}
-                            indicator={s.indicator ?? agentChangeIndicator(s.key)}
-                            onOpen={s.onOpen}
-                            collapsible={false}
-                            noDivider
-                            className={sectionCardClass}
-                        >
-                            {s.content}
-                        </ConfigAccordionSection>
-                    ))}
-                </div>
             ) : (
                 sections.map((s, index) => {
                     // Controlled keys drive `open`/`onOpenChange` so the agent can auto-expand them;

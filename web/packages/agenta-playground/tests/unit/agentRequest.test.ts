@@ -54,7 +54,7 @@ import {
     buildAgentRequest,
     buildAgentReferences,
 } from "../../src/state/execution/agentRequest"
-import {agentChannelModeAtom} from "../../src/state/execution/channelMode"
+import {agentChannelModeAtomFamily} from "../../src/state/execution/channelMode"
 import {executionHeadersAtom} from "../../src/state/execution/webWorkerIntegration"
 
 const REAL_APP = "11111111-1111-4111-8111-111111111111"
@@ -506,13 +506,13 @@ describe("buildAgentRequest", () => {
     })
 
     it("requests batch JSON via Accept when the channel toggle is `batch`", async () => {
-        // Negotiation 1 (transport): the channel toggle drives Accept. `batch` asks /invoke
-        // for a single WorkflowBatchResponse, which AgentChatTransport replays as one frame.
-        store.set(agentChannelModeAtom, "batch")
+        // Negotiation 1 (transport): the per-session channel toggle drives Accept. `batch` asks
+        // /invoke for a single WorkflowBatchResponse, which AgentChatTransport replays as one frame.
+        store.set(agentChannelModeAtomFamily("s1"), "batch")
         seed(store, "e", {})
         const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
         expect(req!.headers.Accept).toBe("application/json")
-        store.set(agentChannelModeAtom, "stream")
+        store.set(agentChannelModeAtomFamily("s1"), "stream")
     })
 
     it("declares the Vercel message format via x-ag-messages-format", async () => {

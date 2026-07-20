@@ -10,6 +10,7 @@ const LABEL: Record<InspectorLens, string> = {
     timeline: "Timeline",
     context: "Context",
     runtime: "Runtime",
+    response: "Response",
 }
 
 // One-line "what is this and when do I use it" for each lens — surfaced as a tab tooltip so the
@@ -21,6 +22,8 @@ const DESC: Record<InspectorLens, string> = {
         "What the model saw — the role-tagged messages fed to the model, with an approximate token count. For auditing the context window.",
     runtime:
         "Live sandbox for this session — streams, session state, and mounts. Session-level, not per turn.",
+    response:
+        "How this session receives replies — stream token-by-token or batch in one frame. A per-session transport preference.",
 }
 
 export function LensRail({
@@ -32,7 +35,7 @@ export function LensRail({
 }) {
     return (
         <div className="flex shrink-0 items-center gap-1 border-0 border-b border-solid border-colorSplit px-2 py-1.5">
-            {(["timeline", "context", "runtime"] as InspectorLens[]).map((l) => (
+            {(["timeline", "context", "runtime", "response"] as InspectorLens[]).map((l) => (
                 <Tooltip key={l} title={DESC[l]} placement="bottom" mouseEnterDelay={0.4}>
                     <Button
                         type="text"
@@ -52,7 +55,8 @@ export function LensRail({
     )
 }
 
-/** The three lens bodies, prop-driven — reused by both hosts. */
+/** The lens bodies, prop-driven — reused by both hosts. */
 export {TimelineLens} from "./lenses/TimelineLens"
 export {ContextLens} from "./lenses/ContextLens"
 export {RuntimeLens} from "./lenses/RuntimeLens"
+export {ResponseLens} from "./lenses/ResponseLens"
