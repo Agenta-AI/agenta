@@ -73,6 +73,11 @@ def handle_adapter_exceptions():
         async def wrapper(*args, **kwargs):
             try:
                 return await func(*args, **kwargs)
+            except ProviderNotFoundError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                    detail=f"Provider not configured: {e.message}. Set the required API key (e.g. COMPOSIO_API_KEY) to enable this provider.",
+                ) from e
             except AdapterError as e:
                 cause = e.__cause__
                 if not (
