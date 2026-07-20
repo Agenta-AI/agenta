@@ -191,13 +191,13 @@ class MountsRouter:
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
         )
-        # Registered BEFORE "/{mount_id}/archive" so `POST /files/archive` (download-all zip) isn't
-        # captured as archiving a mount literally named "files".
+        # Registered before the "/{mount_id}/..." routes so this literal path isn't captured as an
+        # operation on a mount named "files".
         self.router.add_api_route(
-            "/files/archive",
-            self.archive_mount_files,
+            "/files/export",
+            self.export_mount_files,
             methods=["POST"],
-            operation_id="archive_mount_files",
+            operation_id="export_mount_files",
             response_model=None,
             status_code=status.HTTP_200_OK,
         )
@@ -617,7 +617,7 @@ class MountsRouter:
 
     @intercept_exceptions()
     @handle_mount_exceptions()
-    async def archive_mount_files(
+    async def export_mount_files(
         self,
         request: Request,
         *,
