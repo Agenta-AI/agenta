@@ -651,10 +651,13 @@ export const workflowRevisionsByWorkflowQueryAtomFamily = atomFamily((workflowId
                 const revisions = response.workflow_revisions ?? []
                 const latestByRecency = pickMostRecentWorkflowRevision(revisions)
                 if (latestByRecency) {
-                    queryClient.setQueryData(
-                        ["workflows", "latestRevision", workflowId, projectId],
-                        latestByRecency,
-                    )
+                    const latestKey = ["workflows", "latestRevision", workflowId, projectId]
+                    queryClient.setQueryData(latestKey, latestByRecency)
+                    // setQueryData bypasses the persister; mirror to IDB so a warm reload paints the
+                    // latest from disk even when this prime keeps the dedicated query disabled.
+                    void catalogPersister
+                        .persistQueryByKey(latestKey, queryClient)
+                        .catch(() => undefined)
                     // Persist agent-ness for the next cold load (playgroundEarlyAgentStateAtom).
                     // This priming DISABLES the dedicated latest-revision query (its only other
                     // writer), so without writing here the map starves and every cold load
@@ -954,6 +957,12 @@ export const workflowLatestRevisionQueryAtomFamily = atomFamily((workflowId: str
             initialData: detailCached ?? undefined,
             enabled: get(sessionAtom) && !!projectId && !!workflowId && !detailCached,
             staleTime: 30_000,
+            // Class B paint-fast: a warm reload resolves the fallback selector + "latest" tag from
+            // disk instead of blocking on the (backend-slow) revisions round-trip; the restored
+            // entry is older than staleTime so exactly one background revalidate fires. Live commits
+            // stay correct via invalidateAgentCommittedRevisionCache (prefix-invalidates this key).
+            // The setQueryData prime paths below bypass the persister, so they mirror to disk too.
+            persister: catalogPersister.persisterFn<Workflow | null, (string | null)[]>,
         }
     }),
 )
@@ -2691,7 +2700,11 @@ export function seedCreatedWorkflowCache(
 
     store.set(workflowLocalServerDataAtomFamily(revision.id), revision)
     queryClient.setQueryData(["workflows", "revision", revision.id, projectId], revision)
-    queryClient.setQueryData(["workflows", "latestRevision", appId, projectId], revision)
+    const latestKey = ["workflows", "latestRevision", appId, projectId]
+    queryClient.setQueryData(latestKey, revision)
+    // Mirror to IDB (setQueryData bypasses the persister) so a warm reload after a commit paints
+    // the just-committed latest from disk.
+    void catalogPersister.persistQueryByKey(latestKey, queryClient).catch(() => undefined)
 
     queryClient.setQueryData<WorkflowRevisionRefsResponse>(
         ["workflows", "revisionsByWorkflow", appId, projectId],
