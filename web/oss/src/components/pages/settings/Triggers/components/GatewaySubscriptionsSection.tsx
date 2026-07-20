@@ -16,6 +16,7 @@ import {
     ArrowClockwise,
     ArrowsClockwise,
     GearSix,
+    Lightning,
     ListChecks,
     PencilSimpleLine,
     Plus,
@@ -27,6 +28,8 @@ import type {ColumnsType} from "antd/es/table"
 import {useSetAtom} from "jotai"
 
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
+
+import {TriggerEmptyState, TriggerSectionHeader} from "./TriggerSection"
 
 export default function GatewaySubscriptionsSection() {
     const {subscriptions, isLoading, refetch} = useTriggerSubscriptions()
@@ -164,7 +167,7 @@ export default function GatewaySubscriptionsSection() {
             {
                 title: <GearSix size={16} />,
                 key: "actions",
-                width: 96,
+                width: 48,
                 fixed: "right" as const,
                 align: "center" as const,
                 render: (_, record) => (
@@ -260,28 +263,41 @@ export default function GatewaySubscriptionsSection() {
 
     return (
         <>
-            <section className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                    <Button
-                        type="primary"
-                        size="small"
-                        icon={<Plus size={14} />}
-                        onClick={handleCreate}
-                        disabled={connections.length === 0}
-                    >
-                        Subscribe
-                    </Button>
-                    <Tooltip title="Reload all subscriptions">
-                        <Button
-                            icon={<ArrowClockwise size={14} />}
-                            type="text"
-                            size="small"
-                            aria-label="Reload all subscriptions"
-                            loading={reloading}
-                            onClick={reloadAll}
-                        />
-                    </Tooltip>
-                </div>
+            <section className="flex flex-col gap-3">
+                <TriggerSectionHeader
+                    icon={<Lightning size={16} />}
+                    title="Event triggers"
+                    description="Run a workflow whenever an event fires in a connected app — like a new GitHub issue."
+                    actions={
+                        <>
+                            <Tooltip title="Reload all event triggers">
+                                <Button
+                                    icon={<ArrowClockwise size={14} />}
+                                    type="text"
+                                    size="small"
+                                    aria-label="Reload all event triggers"
+                                    loading={reloading}
+                                    onClick={reloadAll}
+                                />
+                            </Tooltip>
+                            <Tooltip
+                                title={
+                                    connections.length === 0 ? "Connect an app first" : undefined
+                                }
+                            >
+                                <Button
+                                    type="primary"
+                                    size="small"
+                                    icon={<Plus size={14} />}
+                                    onClick={handleCreate}
+                                    disabled={connections.length === 0}
+                                >
+                                    Subscribe
+                                </Button>
+                            </Tooltip>
+                        </>
+                    }
+                />
 
                 <Table<TriggerSubscription>
                     className="ph-no-capture"
@@ -291,6 +307,22 @@ export default function GatewaySubscriptionsSection() {
                     bordered
                     pagination={false}
                     loading={isLoading || isMutating}
+                    locale={{
+                        emptyText:
+                            isLoading || isMutating ? (
+                                <span />
+                            ) : (
+                                <TriggerEmptyState
+                                    icon={<Lightning size={32} />}
+                                    title="No event triggers yet"
+                                    description={
+                                        connections.length === 0
+                                            ? "Connect an app first, then subscribe a workflow to run when one of its events fires."
+                                            : "Subscribe a workflow to run whenever an event fires in a connected app — like a new GitHub issue."
+                                    }
+                                />
+                            ),
+                    }}
                     onRow={(record) => ({
                         onClick: () => handleEdit(record),
                         className: "cursor-pointer",
