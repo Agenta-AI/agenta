@@ -1,5 +1,5 @@
 from functools import wraps
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, UploadFile, status
@@ -499,9 +499,11 @@ class MountsRouter:
         *,
         path: Optional[str] = Query(default=None),
         read: Optional[str] = Query(default=None),
-        order: Optional[str] = Query(default=None),
+        order: Optional[Literal["recent", "name", "path"]] = Query(default=None),
         limit: Optional[int] = Query(default=None, ge=0),
-        depth: Optional[int] = Query(default=None, ge=1),
+        # Only depth==1 is implemented (the shallow one-level summary); reject other values loudly
+        # instead of silently falling through to the most expensive full-tree branch.
+        depth: Optional[int] = Query(default=None, ge=1, le=1),
         with_counts: bool = Query(default=False),
         git_aware: bool = Query(default=False),
         include_gitignored: bool = Query(default=False),
