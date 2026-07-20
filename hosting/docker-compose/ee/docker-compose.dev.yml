@@ -403,6 +403,12 @@ services:
             AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
             AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
             PI_CODING_AGENT_DIR: /pi-agent
+            # Claude Code harness (subscription / runtime_provided auth). CLAUDE_CONFIG_DIR is the
+            # writable config/state mount the run-plan requires; CLAUDE_CODE_OAUTH_TOKEN is the login
+            # (macOS keeps the Claude login in Keychain, which can't be bind-mounted, so the token is
+            # the local auth path). Both resolve from the loaded env file.
+            CLAUDE_CONFIG_DIR: /claude-config
+            CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
             # The API as reached FROM this container — by its compose service name, over the
             # network (the same `http://api:8000` the workers use), NOT the public
             # `http://localhost/api` (which doesn't resolve inside a container). Used by the
@@ -430,6 +436,10 @@ services:
             # Read-write on purpose: the harness refreshes its own OAuth token here and the new
             # token must persist back to the host login (a copy would discard it).
             - ${HOME}/.pi/agent:/pi-agent:rw
+            # Claude Code config/state (writable). The login comes from CLAUDE_CODE_OAUTH_TOKEN; this
+            # dir holds the settings/session state the harness reads and refreshes. Dedicated dir (not
+            # ~/.claude) so the container never touches the host's real Claude config.
+            - ${HOME}/.agenta-claude-config:/claude-config:rw
         # === NETWORK ============================================== #
         networks:
             - agenta-network
