@@ -10,7 +10,17 @@ ghost pre-ready, prewarmBootQueryGraph() overlapping the config-chunk fetch; the
 Config-accordion hygiene BUILT (620054a6c6 — equality-stable adapter atoms,
 narrowed PlaygroundVariantConfig subscriptions, stable DrillInUIContext value; the
 accordion agent was cut off by a session limit and two type fixes landed at
-integration). Remaining: T1.4 /__env.js inlining; profiler re-run.
+integration). Iteration 3 (1a8b541815): warm-reload list race fixed (bindRevisionsReady mounted the
+list sub before tryApplyDefaults restored the persisted selection); current-workflow
+detail + latest-revision prewarmed in the profile burst (registerBootPrewarmTask);
+org detail un-gated from /profile (jwtReady, mirrors projects); workflow detail
+persisted (nothing invalidates the key — audited). SETTLED: the 532→1061ms network
+dead zone is main-thread PARSE of the warmed chunk graph (T1.1 tradeoff), not a data
+gate; protectedRouteReadyAtom has ZERO network deps on warm workspace routes (pure
+effect timing); sessionStorage ready-latch REJECTED (renders protected content before
+SuperTokens confirms). Remaining ranked: chunk-parse window (Tier-3 split or prod
+minification), ready-flip→mount ~400ms (hygiene), session records pre-mount (needs
+session id before mount). Remaining: T1.4 /__env.js inlining; profiler re-run.
 Profiler-driven extras (25f527a016): seven anonymous forwardRefs named — the profile's
 top line "ForwardRef(Anonymous)" ×594 was their aggregate, dominated by EnhancedButton —
 and EnhancedButton no longer wraps tooltip-less buttons in Tooltip/Trigger (the
