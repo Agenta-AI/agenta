@@ -532,16 +532,16 @@ export class MountsClient {
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.mounts.archiveMountFiles()
+     *     await client.mounts.exportMountFiles()
      */
-    public archiveMountFiles(
+    public exportMountFiles(
         request: AgentaApi.MountArchiveRequest = {},
         requestOptions?: MountsClient.RequestOptions,
     ): core.HttpResponsePromise<unknown> {
-        return core.HttpResponsePromise.fromPromise(this.__archiveMountFiles(request, requestOptions));
+        return core.HttpResponsePromise.fromPromise(this.__exportMountFiles(request, requestOptions));
     }
 
-    private async __archiveMountFiles(
+    private async __exportMountFiles(
         request: AgentaApi.MountArchiveRequest = {},
         requestOptions?: MountsClient.RequestOptions,
     ): Promise<core.WithRawResponse<unknown>> {
@@ -556,7 +556,7 @@ export class MountsClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                "mounts/files/archive",
+                "mounts/files/export",
             ),
             method: "POST",
             headers: _headers,
@@ -591,7 +591,7 @@ export class MountsClient {
             }
         }
 
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/mounts/files/archive");
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/mounts/files/export");
     }
 
     /**

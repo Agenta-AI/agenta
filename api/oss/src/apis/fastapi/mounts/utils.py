@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from mimetypes import guess_type
 from posixpath import basename
 from stat import S_IFREG
-from typing import List, Optional, Tuple
+from typing import List, Optional
 from urllib.parse import quote
 from uuid import UUID
 
@@ -10,7 +10,12 @@ from fastapi import Response, UploadFile
 from fastapi.responses import StreamingResponse
 from stream_zip import ZIP_AUTO, async_stream_zip
 
-from oss.src.core.mounts.dtos import MountCredentials, MountFileWritten, MountQuery
+from oss.src.core.mounts.dtos import (
+    MountArchiveSource,
+    MountCredentials,
+    MountFileWritten,
+    MountQuery,
+)
 from oss.src.core.mounts.service import MountsService
 
 # Regular-file mode for archive members (owner rw, group/other r).
@@ -22,13 +27,19 @@ def _content_disposition_attachment(filename: str) -> str:
 
     `filename` is client-supplied (a download path's basename or the archive name), so it must never
     be interpolated raw: a `"` or control char would break out of the quoted parameter and inject
-    further header directives. The quoted `filename` is stripped to a printable, quote-free ASCII-ish
-    fallback; `filename*` carries the exact (percent-encoded) value for clients that honour it.
+    further header directives. The quoted `filename` is stripped to an ASCII, printable, quote-free
+    fallback (the header is latin-1 encoded); `filename*` carries the exact (percent-encoded) value for
+    clients that honour it.
     """
     safe = (
-        "".join(c for c in filename if c.isprintable() and c not in '"\\') or "download"
+        "".join(
+            c for c in filename if c.isascii() and c.isprintable() and c not in '"\\'
+        )
+        or "download"
     )
-    return f"attachment; filename=\"{safe}\"; filename*=UTF-8''{quote(filename)}"
+    return (
+        f"attachment; filename=\"{safe}\"; filename*=UTF-8''{quote(filename, safe='')}"
+    )
 
 
 async def upload_mount_file(
@@ -88,15 +99,15 @@ async def stream_mounts_archive(
     *,
     mounts_service: MountsService,
     project_id: UUID,
-    mounts: List[Tuple[UUID, str, str]],
+    mounts: List[MountArchiveSource],
     filename: str = "files.zip",
 ) -> StreamingResponse:
     """STREAM a zip of EVERY file across the given mounts as a binary download ("download all").
 
     The drive folds cwd + agent-files into one tree, so each ``(mount_id, prefix)`` is placed under
     ``prefix/`` in the zip. The archive is streamed member-by-member (never buffered whole), and the
-    service prefetches file bodies with bounded concurrency. ``ZIP_AUTO`` picks zip32/zip64 per file
-    by size, so large drives and >4 GB archives are handled.
+    service prefetches file bodies with bounded concurrency. ``ZIP_AUTO`` picks zip32/zip64 per entry
+    by size; very large individual files are out of product scope for "download all".
     """
     work = await mounts_service.build_archive_work_list(
         project_id=project_id,
