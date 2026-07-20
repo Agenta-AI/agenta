@@ -19,6 +19,9 @@ type Tool = {
   actions: string[];
 };
 type Template = {
+  // Key from the app template registry (web/oss/.../agent-home/assets/templates.ts). The app
+  // captures ?template=<key> on arrival and creates the agent from that template.
+  key: string;
   title: string;
   tagline: string;
   mono: string;
@@ -33,6 +36,7 @@ type Template = {
 
 const TEMPLATES: Template[] = [
   {
+    key: "pr-reviewer",
     title: "Code review agent",
     tagline: "Reviews every pull request and leaves inline comments.",
     mono: "</>",
@@ -91,6 +95,7 @@ const TEMPLATES: Template[] = [
     ],
   },
   {
+    key: "weekly-report",
     title: "KPI dashboard agent",
     tagline: "Builds a weekly metrics dashboard and posts it to the team.",
     mono: "▦",
@@ -157,6 +162,7 @@ const TEMPLATES: Template[] = [
     ],
   },
   {
+    key: "error-triage",
     title: "Production bug agent",
     tagline: "Triages Sentry alerts and opens a fix PR with context.",
     mono: "!",
@@ -215,6 +221,7 @@ const TEMPLATES: Template[] = [
     ],
   },
   {
+    key: "support-triage",
     title: "Customer support agent",
     tagline: "Answers tickets from your docs and escalates the rest.",
     mono: "?",
@@ -264,6 +271,7 @@ const TEMPLATES: Template[] = [
     ],
   },
   {
+    key: "changelog-writer",
     title: "Release notes agent",
     tagline: "Turns merged PRs into customer-ready release notes.",
     mono: "¶",
@@ -448,7 +456,9 @@ export default function TemplateExplorer() {
                   justifyContent: "center",
                   font: "600 13px/1 var(--font-sans)",
                   color:
-                    i === selected ? "var(--yellow-400)" : "rgba(255,255,255,0.85)",
+                    i === selected
+                      ? "var(--yellow-400)"
+                      : "rgba(255,255,255,0.85)",
                 }}
               >
                 {t.mono}
@@ -510,7 +520,7 @@ export default function TemplateExplorer() {
             </span>
           </div>
           <a
-            href={GET_STARTED}
+            href={`${GET_STARTED}?template=${current.key}`}
             target="_blank"
             rel="noopener"
             style={{
