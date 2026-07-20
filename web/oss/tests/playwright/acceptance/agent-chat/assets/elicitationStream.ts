@@ -36,6 +36,7 @@ export interface ElicitationPayloadFixture {
         type: "object"
         properties: Record<string, ElicitationFieldFixture>
         required?: string[]
+        "x-ag-stepper"?: boolean
     }
 }
 
@@ -94,6 +95,16 @@ export const RICH_ELICITATION_PAYLOAD: ElicitationPayloadFixture = {
             },
         },
         required: ["release_process"],
+    },
+}
+
+/** Choice-card stepper used to verify that the advertised keyboard shortcuts own focus. */
+export const STEPPER_ELICITATION_PAYLOAD: ElicitationPayloadFixture = {
+    ...RICH_ELICITATION_PAYLOAD,
+    message: "Choose the release setup.",
+    requestedSchema: {
+        ...RICH_ELICITATION_PAYLOAD.requestedSchema,
+        "x-ag-stepper": true,
     },
 }
 

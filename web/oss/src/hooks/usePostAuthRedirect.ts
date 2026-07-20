@@ -5,6 +5,7 @@ import {useRouter} from "next/router"
 import Session, {signOut} from "supertokens-auth-react/recipe/session"
 import {useLocalStorage} from "usehooks-ts"
 
+import {writeLastAuthMethod} from "@/oss/components/pages/auth/assets/lastAuthMethod"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {filterOrgsByAuthMethod} from "@/oss/lib/helpers/authMethodFilter"
 import {isEE} from "@/oss/lib/helpers/isEE"
@@ -38,6 +39,9 @@ interface AuthUserLike {
 
 interface HandleAuthSuccessOptions {
     isInvitedUser?: boolean
+    // Remembered for the returning ("Welcome back") sign-in state: "email" for
+    // email-based flows, otherwise the OIDC provider id.
+    authMethod?: string
 }
 
 const usePostAuthRedirect = () => {
@@ -77,6 +81,9 @@ const usePostAuthRedirect = () => {
         async (authResult: AuthUserLike, options?: HandleAuthSuccessOptions) => {
             // Auth completed successfully; resume normal data fetching.
             setAuthFlow("authed")
+            if (options?.authMethod) {
+                writeLastAuthMethod(options.authMethod)
+            }
             const isInvitedUser = options?.isInvitedUser ?? derivedIsInvitedUser
 
             // Read is_new_user from session payload (set by backend overrides)
