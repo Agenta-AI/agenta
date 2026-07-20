@@ -27,12 +27,14 @@ from oss.src.core.mounts.types import (
 
 from oss.src.apis.fastapi.mounts.models import (
     AgentMountQueryRequest,
+    MountArchiveRequest,
     MountCreateRequest,
     MountCredentialsResponse,
     MountEditRequest,
     MountFileContentResponse,
     MountFileDeletedResponse,
     MountFileListResponse,
+    MountFilePageResponse,
     MountFileWrittenResponse,
     MountFolderCreatedResponse,
     MountQueryRequest,
@@ -43,6 +45,7 @@ from oss.src.apis.fastapi.mounts.utils import (
     download_mount_file,
     merge_mount_query,
     sign_mount_credentials,
+    stream_mounts_archive,
     upload_mount_file,
 )
 
@@ -189,6 +192,16 @@ class MountsRouter:
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
         )
+        # Registered BEFORE "/{mount_id}/archive" so `POST /files/archive` (download-all zip) isn't
+        # captured as archiving a mount literally named "files".
+        self.router.add_api_route(
+            "/files/archive",
+            self.archive_mount_files,
+            methods=["POST"],
+            operation_id="archive_mount_files",
+            response_model=None,
+            status_code=status.HTTP_200_OK,
+        )
         self.router.add_api_route(
             "/{mount_id}/archive",
             self.archive_mount,
@@ -234,6 +247,16 @@ class MountsRouter:
             methods=["GET"],
             operation_id="download_mount_file",
             response_model=None,
+            status_code=status.HTTP_200_OK,
+        )
+        # Registered before "/{mount_id}/files" so `/files/page` isn't swallowed by the browse route.
+        self.router.add_api_route(
+            "/{mount_id}/files/page",
+            self.get_mount_files_page,
+            methods=["GET"],
+            operation_id="get_mount_files_page",
+            response_model=MountFilePageResponse,
+            response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
@@ -489,7 +512,10 @@ class MountsRouter:
         read: Optional[str] = Query(default=None),
         order: Optional[str] = Query(default=None),
         limit: Optional[int] = Query(default=None, ge=0),
-        include_ignored: bool = Query(default=False),
+        depth: Optional[int] = Query(default=None, ge=1),
+        with_counts: bool = Query(default=False),
+        git_aware: bool = Query(default=False),
+        include_gitignored: bool = Query(default=False),
     ):
         await self._check(request, Permission.VIEW_MOUNTS)
 
@@ -510,12 +536,49 @@ class MountsRouter:
             path=path,
             order=order,
             limit=limit,
-            include_ignored=include_ignored,
+            depth=depth,
+            with_counts=with_counts,
+            git_aware=git_aware,
+            include_gitignored=include_gitignored,
         )
         return MountFileListResponse(
             count=len(listing.files),
             total=listing.total,
+            total_capped=listing.total_capped,
             files=listing.files,
+        )
+
+    @intercept_exceptions()
+    @handle_mount_exceptions()
+    async def get_mount_files_page(
+        self,
+        request: Request,
+        mount_id: UUID,
+        *,
+        path: Optional[str] = Query(default=None),
+        cursor: Optional[str] = Query(default=None),
+        limit: int = Query(default=100, ge=1, le=1000),
+        git_aware: bool = Query(default=False),
+        include_gitignored: bool = Query(default=False),
+    ) -> MountFilePageResponse:
+        """One cursor page of the flat (recursive, path-sorted) file listing under `path` — the Files
+        drawer's infinite-scroll flat view. Never enumerates the whole subtree, so it's fast on any
+        mount size; carry `next_cursor` back to fetch the next page."""
+        await self._check(request, Permission.VIEW_MOUNTS)
+
+        files, next_cursor = await self.mounts_service.list_files_page(
+            project_id=UUID(request.state.project_id),
+            mount_id=mount_id,
+            path=path,
+            cursor=cursor,
+            limit=limit,
+            git_aware=git_aware,
+            include_gitignored=include_gitignored,
+        )
+        return MountFilePageResponse(
+            count=len(files),
+            files=files,
+            next_cursor=next_cursor,
         )
 
     @intercept_exceptions()
@@ -594,6 +657,25 @@ class MountsRouter:
             project_id=UUID(request.state.project_id),
             mount_id=mount_id,
             path=path,
+        )
+
+    @intercept_exceptions()
+    @handle_mount_exceptions()
+    async def archive_mount_files(
+        self,
+        request: Request,
+        *,
+        archive_request: MountArchiveRequest,
+    ):
+        await self._check(request, Permission.VIEW_MOUNTS)
+
+        return await stream_mounts_archive(
+            mounts_service=self.mounts_service,
+            project_id=UUID(request.state.project_id),
+            mounts=[
+                (UUID(m.mount_id), m.prefix, m.path) for m in archive_request.mounts
+            ],
+            filename=archive_request.filename,
         )
 
     @intercept_exceptions()

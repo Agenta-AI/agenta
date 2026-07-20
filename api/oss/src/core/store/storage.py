@@ -335,6 +335,63 @@ class ObjectStore:
             )
         return results
 
+    async def list_objects_page(
+        self,
+        *,
+        bucket: str,
+        prefix: str,
+        start_after: Optional[str] = None,
+        max_keys: int = 500,
+    ) -> "Tuple[List[StoreObject], bool]":
+        """One PAGE of objects under `prefix`, in the store's lexicographic (= path) order, resuming
+        strictly AFTER `start_after`. Returns `(objects, has_more)`. Streams lazily and stops after
+        `max_keys` — so it NEVER enumerates a huge subtree; this is the basis for cursor pagination
+        (the caller carries the last key forward as `start_after`). One extra element is pulled to
+        detect `has_more`, then dropped."""
+        client = self._client()
+        results: List[StoreObject] = []
+        async for obj in client.list_objects(
+            bucket, prefix=prefix, recursive=True, start_after=start_after or None
+        ):
+            if obj is None:
+                continue
+            # We already have a full page — the presence of one more object means more remain.
+            if len(results) >= max_keys:
+                return results, True
+            last_modified = getattr(obj, "last_modified", None)
+            mtime = int(last_modified.timestamp() * 1000) if last_modified else None
+            results.append(
+                StoreObject(key=obj.object_name, size=obj.size or 0, mtime=mtime)
+            )
+        return results, False
+
+    async def list_objects_shallow(
+        self,
+        *,
+        bucket: str,
+        prefix: str,
+    ) -> "tuple[List[StoreObject], List[str]]":
+        """One directory LEVEL under `prefix` (delimiter `/`): the immediate file objects, plus the
+        immediate subdirectory prefixes (full keys ending in `/`). Lets a caller descend the tree and
+        prune whole subtrees (a gitignored `node_modules`) WITHOUT enumerating their contents — the
+        `recursive=True` flat listing has no way to exclude a prefix, so a mount full of dependency
+        files must otherwise be scanned in its entirety."""
+        client = self._client()
+        files: List[StoreObject] = []
+        subdirs: List[str] = []
+        async for obj in client.list_objects(bucket, prefix=prefix, recursive=False):
+            if obj is None:
+                continue
+            name = obj.object_name
+            # A common-prefix (subdir) or an explicit empty-folder marker both end in `/`.
+            if getattr(obj, "is_dir", False) or name.endswith("/"):
+                subdirs.append(name)
+                continue
+            last_modified = getattr(obj, "last_modified", None)
+            mtime = int(last_modified.timestamp() * 1000) if last_modified else None
+            files.append(StoreObject(key=name, size=obj.size or 0, mtime=mtime))
+        return files, subdirs
+
     async def get_object(
         self,
         *,
