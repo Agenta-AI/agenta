@@ -96,9 +96,8 @@ export interface DriveFileStats {
     totalSize: number
 }
 
-/** Filter a listing to real user files AND sum their sizes in a SINGLE O(n) pass sharing one
- * folder index. Callers that need both the list and the total should use this rather than calling
- * {@link driveFiles} and {@link driveTotalSize} separately (which would each rebuild the index). */
+/** Filter a listing to real user files AND sum their sizes in a SINGLE O(n) pass sharing one folder
+ * index — the real files (non-folder, non-internal) plus their total size, for the drive summaries. */
 export const driveFileStats = (files: MountFile[] | null | undefined): DriveFileStats => {
     const list = files ?? []
     const folderIndex = buildFolderIndex(list)
@@ -111,14 +110,6 @@ export const driveFileStats = (files: MountFile[] | null | undefined): DriveFile
     }
     return {files: out, totalSize}
 }
-
-/** Non-folder entries only — the "n files" everywhere counts these. Folders (flagged or inferred)
- * and runner-internal runtime artifacts are excluded so the flat lists show only real user files. */
-export const driveFiles = (files: MountFile[] | null | undefined): MountFile[] =>
-    driveFileStats(files).files
-
-export const driveTotalSize = (files: MountFile[] | null | undefined): number =>
-    driveFileStats(files).totalSize
 
 export const humanSize = (bytes?: number | null): string => {
     if (bytes == null) return ""
