@@ -719,7 +719,6 @@ export function AgentTemplateControl({
             indicator: headerIndicator("model-harness"),
             defaultOpen: true,
             onOpen: () => openSectionDrawer("model-harness"),
-            content: mh.modelHarnessDrawerBody,
         },
         hasInstructions && {
             key: "instructions",
@@ -845,7 +844,6 @@ export function AgentTemplateControl({
             defaultOpen: false,
             summary: mh.advancedSummary,
             onOpen: () => openSectionDrawer("advanced"),
-            content: mh.advancedDrawerBody,
         },
     ].filter(Boolean) as {
         key: string
@@ -856,7 +854,8 @@ export function AgentTemplateControl({
         indicator?: {tone: SectionIndicatorTone; tooltip?: string}
         defaultOpen?: boolean
         onOpen?: () => void
-        content: React.ReactNode
+        // Only the inline (non-`onOpen`) sections render a body; drawer-opening sections omit it.
+        content?: React.ReactNode
     }[]
 
     // Keep the item + instruction drawers MOUNTED while they animate closed. Their editing state
