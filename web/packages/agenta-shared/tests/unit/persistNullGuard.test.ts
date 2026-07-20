@@ -5,7 +5,7 @@ import type {PersistedQuery} from "@tanstack/query-persist-client-core"
 import {hashKey} from "@tanstack/react-query"
 import type {QueryKey} from "@tanstack/react-query"
 import {createStore, get, set} from "idb-keyval"
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+import {beforeEach, describe, expect, it, vi} from "vitest"
 
 import {clearPersistedQueryCache, idbQueryStorage} from "../../src/api/persist/idbStorage"
 import {PERSIST_SCHEMA_VERSION} from "../../src/api/persist/version"
@@ -59,34 +59,5 @@ describe("nullish-data guard", () => {
         await vi.waitFor(async () => {
             expect(await get("agenta-imm-legacy", rawStore)).toBeUndefined()
         })
-    })
-})
-
-describe("kill switch (agenta:persist:disable)", () => {
-    const disabledStorage = {
-        getItem: (k: string) => (k === "agenta:persist:disable" ? "1" : null),
-        setItem: () => undefined,
-        removeItem: () => undefined,
-    }
-
-    beforeEach(() => {
-        vi.stubGlobal("localStorage", disabledStorage)
-    })
-
-    afterEach(() => {
-        vi.unstubAllGlobals()
-    })
-
-    it("reads miss and writes no-op while the flag is set", async () => {
-        await idbQueryStorage.setItem("agenta-imm-off", makePersisted(["k6"], {a: 1}))
-        expect(await get("agenta-imm-off", rawStore)).toBeUndefined()
-
-        // Plant a real entry: reads must still miss while disabled
-        await set("agenta-imm-present", makePersisted(["k7"], {b: 2}), rawStore)
-        expect(await idbQueryStorage.getItem("agenta-imm-present")).toBeUndefined()
-
-        // Entry survives (kill switch hides, does not destroy)
-        vi.unstubAllGlobals()
-        expect(await idbQueryStorage.getItem("agenta-imm-present")).toBeTruthy()
     })
 })

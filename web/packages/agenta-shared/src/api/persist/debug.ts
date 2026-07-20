@@ -1,21 +1,11 @@
 import type {PersistedQuery} from "@tanstack/query-persist-client-core"
 
 const DEBUG_FLAG = "agenta:persist:debug"
-const DISABLE_FLAG = "agenta:persist:disable"
 
 /** Enable via `localStorage.setItem("agenta:persist:debug", "1")` + reload; disable with removeItem. */
 export const isPersistDebugEnabled = (): boolean => {
     try {
         return typeof localStorage !== "undefined" && localStorage.getItem(DEBUG_FLAG) === "1"
-    } catch {
-        return false
-    }
-}
-
-/** Kill switch for A/B debugging: `localStorage.setItem("agenta:persist:disable", "1")` + reload. */
-export const isPersistDisabled = (): boolean => {
-    try {
-        return typeof localStorage !== "undefined" && localStorage.getItem(DISABLE_FLAG) === "1"
     } catch {
         return false
     }

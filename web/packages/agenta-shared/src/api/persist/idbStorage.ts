@@ -2,7 +2,7 @@ import type {AsyncStorage, PersistedQuery} from "@tanstack/query-persist-client-
 import {clear, createStore, del, entries, get, set} from "idb-keyval"
 import type {UseStore} from "idb-keyval"
 
-import {isPersistDisabled, persistLog} from "./debug"
+import {persistLog} from "./debug"
 
 const DB_NAME = "agenta-query-cache"
 const STORE_NAME = "queries"
@@ -28,7 +28,7 @@ const hasPersistableData = (value: PersistedQuery): boolean =>
 export const idbQueryStorage: AsyncStorage<PersistedQuery> = {
     getItem: async (key) => {
         const s = getStore()
-        if (!s || isPersistDisabled()) return undefined
+        if (!s) return undefined
         try {
             const value = await get<PersistedQuery>(key, s)
             if (value !== undefined && !hasPersistableData(value)) {
@@ -44,7 +44,7 @@ export const idbQueryStorage: AsyncStorage<PersistedQuery> = {
     },
     setItem: async (key, value) => {
         const s = getStore()
-        if (!s || isPersistDisabled()) return
+        if (!s) return
         if (!hasPersistableData(value)) {
             persistLog("skip", key)
             return
