@@ -11,6 +11,19 @@ const noop = () => undefined
 
 let warmed = false
 
+type PrewarmTask = () => void
+const pendingTasks: PrewarmTask[] = []
+
+// Route-scoped warmups (page-chunk module eval) queue here until the boot graph is live,
+// so their query subscriptions bind to the real queryClient regardless of chunk order.
+export const registerBootPrewarmTask = (task: PrewarmTask) => {
+    if (warmed) {
+        task()
+        return
+    }
+    pendingTasks.push(task)
+}
+
 // First evaluation of the boot atom graph off the big provider-mount commit. Safe
 // pre-auth: every query atom is enabled-gated on sessionExistsAtom (still false here).
 export const prewarmBootQueryGraph = () => {
@@ -24,4 +37,12 @@ export const prewarmBootQueryGraph = () => {
     store.sub(projectsQueryAtom, noop)
     store.sub(selectedOrgQueryAtom, noop)
     store.sub(protectedRouteLatchedReadyAtom, noop)
+
+    pendingTasks.splice(0).forEach((task) => {
+        try {
+            task()
+        } catch {
+            // prewarm is best-effort
+        }
+    })
 }

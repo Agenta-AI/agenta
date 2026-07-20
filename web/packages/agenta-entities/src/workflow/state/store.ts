@@ -467,6 +467,9 @@ export const workflowDetailQueryAtomFamily = atomFamily((workflowId: string | nu
             },
             enabled: get(sessionAtom) && !!projectId && !!workflowId,
             staleTime: 30_000,
+            // Class C paint-fast: PlaygroundRouter branches on this tiny artifact, so serve it
+            // from disk on reload; restored entries older than staleTime revalidate in background.
+            persister: catalogPersister.persisterFn<Workflow | null, (string | null)[]>,
         }
     }),
 )

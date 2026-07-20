@@ -1024,6 +1024,10 @@ playgroundSyncAtom.onMount = (set) => {
                 store.set(playgroundInitializedAtom, true)
             }
         } else {
+            // Synchronous restore FIRST (persisted last-selection / cached latest): on a warm
+            // reload the selection atom is empty at bind time even though a selection exists,
+            // and subscribing the list-data atom below would mount the FULL revisions query.
+            tryApplyDefaults()
             // Deferred by a microtask: these subs fire inside TanStack query notifications,
             // i.e. mid atom-read — applying the selection there mutates the store during a
             // read (jotai's "Detected store mutation during atom read").
@@ -1031,15 +1035,13 @@ playgroundSyncAtom.onMount = (set) => {
                 queueMicrotask(tryApplyDefaults),
             )
             // Subscribe to entity data so we retry when it finishes loading.
-            // Only needed when no URL selection exists and we must find a default.
-            if (currentAppId) {
+            // Only when no selection could be restored — this sub mounts the full list query.
+            if (currentAppId && !hasAppliedDefaults) {
                 currentLatestRevUnsub = store.sub(
                     workflowRevisionsByWorkflowListDataAtomFamily(currentAppId),
                     () => queueMicrotask(tryApplyDefaults),
                 )
             }
-            // Immediate check in case already ready
-            tryApplyDefaults()
         }
     }
     bindRevisionsReady()

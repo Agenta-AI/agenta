@@ -10,6 +10,7 @@ import {fetchProject} from "@/oss/services/project"
 import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {sessionExistsAtom} from "@/oss/state/session"
+import {jwtReadyAtom} from "@/oss/state/session/jwt"
 
 const WORKSPACE_ORG_MAP_KEY = "workspaceOrgMap"
 const LAST_USED_WORKSPACE_ID_KEY = "lastUsedWorkspaceId"
@@ -336,19 +337,15 @@ export const selectedOrgQueryAtom = atomWithQuery<OrgDetails | null>((get) => {
     const snapshot = get(appStateSnapshotAtom)
     const queryOrgId = snapshot.query["organization_id"]
     const id = (typeof queryOrgId === "string" && queryOrgId) || get(selectedOrgIdAtom)
-    const userId = (get(userAtom) as User | null)?.id
+    // Gate on a usable JWT, not on the profile response: waiting for `userAtom` serialized
+    // this fetch behind the /profile/ round-trip on every boot (same fix as projectsQueryAtom).
+    const jwtReady = Boolean(get(jwtReadyAtom).data)
     const isWorkspaceRoute =
         snapshot.routeLayer === "workspace" ||
         snapshot.routeLayer === "project" ||
         snapshot.routeLayer === "app"
     const isAcceptRoute = snapshot.pathname.startsWith("/workspaces/accept")
-    const enabled =
-        !!id &&
-        id !== null &&
-        get(sessionExistsAtom) &&
-        !!userId &&
-        isWorkspaceRoute &&
-        !isAcceptRoute
+    const enabled = !!id && get(sessionExistsAtom) && jwtReady && isWorkspaceRoute && !isAcceptRoute
 
     return {
         queryKey: ["selectedOrg", id],
