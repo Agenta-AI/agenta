@@ -22,6 +22,7 @@ from oss.src.core.mounts.service import MountsService, validate_file_path
 from oss.src.core.store.dtos import StoreObject
 from oss.src.core.mounts.types import (
     MountFileNotFound,
+    MountNotFound,
     MountPathInvalid,
 )
 
@@ -137,6 +138,11 @@ class _StubDAO:
         return self._mount
 
 
+class _MissingMountDAO:
+    async def fetch_mount(self, *, project_id, mount_id):
+        return None
+
+
 def _make_mount() -> Mount:
     return Mount(
         id=uuid4(),
@@ -152,6 +158,49 @@ def _make_service(mount: Mount) -> Tuple[MountsService, UUID, UUID]:
         bucket=_BUCKET,
     )
     return service, mount.project_id, mount.id
+
+
+# ---------------------------------------------------------------------------
+# Archive work list
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+class TestArchiveWorkList:
+    async def test_missing_mount_raises_during_work_list_build(self):
+        pid = uuid4()
+        service = MountsService(
+            mounts_dao=_MissingMountDAO(),
+            mounts_store=FakeMountStorage(),
+            bucket=_BUCKET,
+        )
+
+        with pytest.raises(MountNotFound):
+            await service.build_archive_work_list(
+                project_id=pid,
+                mounts=[(uuid4(), "", "")],
+            )
+
+    async def test_zip_paths_include_mount_prefix(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in ["one.txt", "nested/two.txt"]:
+            await service.write_file(
+                project_id=pid,
+                mount_id=mid,
+                path=path,
+                content=b"x",
+            )
+
+        work = await service.build_archive_work_list(
+            project_id=pid,
+            mounts=[(mid, "prefix", "")],
+        )
+
+        assert {zip_path for zip_path, _key, _size, _mtime in work} == {
+            "prefix/one.txt",
+            "prefix/nested/two.txt",
+        }
 
 
 # ---------------------------------------------------------------------------

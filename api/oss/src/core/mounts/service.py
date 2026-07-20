@@ -1059,23 +1059,22 @@ class MountsService:
         key = self._storage_key(project_id=project_id, mount=mount, path=path)
         return await self.mounts_store.get_object(bucket=self._bucket(), key=key)
 
-    async def iter_archive_members(
+    async def build_archive_work_list(
         self,
         *,
         project_id: UUID,
         mounts: List[Tuple[UUID, str, str]],
-        concurrency: int = _ARCHIVE_READ_CONCURRENCY,
-    ) -> AsyncIterator[Tuple[str, int, Optional[int], bytes]]:
-        """Yield ``(zip_path, size, mtime, raw_bytes)`` for the files in the given mounts, in order —
-        the basis for a STREAMING archive. Each mount is a ``(mount_id, zip_prefix, source_path)``:
+    ) -> List[Tuple[str, str, int, Optional[int]]]:
+        """Build the ordered archive work list for the given mounts.
+
+        Each mount is a ``(mount_id, zip_prefix, source_path)``:
         ``source_path`` scopes it to a FOLDER within the mount ("" = the whole mount, for "download
         all"); ``zip_prefix`` places its files under ``prefix/`` in the zip (e.g. "agent-files" for
-        the folded agent mount). Folder markers are skipped. Reads up to ``concurrency`` files AHEAD
-        (bounded ordered prefetch) — never buffering the zip whole nor hammering the store.
+        the folded agent mount). Folder markers are skipped. Each work item is a
+        ``(zip_path, storage_key, size, mtime)`` tuple.
         """
         bucket = self._bucket()
 
-        # Full ordered work list across mounts: (zip_path, storage_key, size, mtime).
         work: List[Tuple[str, str, int, Optional[int]]] = []
         for mount_id, prefix, source_path in mounts:
             mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
@@ -1100,6 +1099,17 @@ class MountsService:
                     continue
                 zip_path = f"{pfx}/{rel}" if pfx else rel
                 work.append((zip_path, obj.key, obj.size or 0, obj.mtime))
+
+        return work
+
+    async def iter_archive_members(
+        self,
+        *,
+        work: List[Tuple[str, str, int, Optional[int]]],
+        concurrency: int = _ARCHIVE_READ_CONCURRENCY,
+    ) -> AsyncIterator[Tuple[str, int, Optional[int], bytes]]:
+        """Yield ``(zip_path, size, mtime, raw_bytes)`` with bounded ordered prefetch."""
+        bucket = self._bucket()
 
         # Ordered bounded-concurrency prefetch: keep ~`concurrency` reads in flight, yield in order.
         inflight: deque = deque()

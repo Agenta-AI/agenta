@@ -98,6 +98,10 @@ async def stream_mounts_archive(
     service prefetches file bodies with bounded concurrency. ``ZIP_AUTO`` picks zip32/zip64 per file
     by size, so large drives and >4 GB archives are handled.
     """
+    work = await mounts_service.build_archive_work_list(
+        project_id=project_id,
+        mounts=mounts,
+    )
 
     async def members():
         async for (
@@ -106,8 +110,7 @@ async def stream_mounts_archive(
             mtime,
             body,
         ) in mounts_service.iter_archive_members(
-            project_id=project_id,
-            mounts=mounts,
+            work=work,
         ):
             # `mtime` is the store's LastModified as epoch MILLISECONDS (see StoreObject.mtime);
             # `datetime.fromtimestamp` wants SECONDS — passing ms overflows to a year out of range
