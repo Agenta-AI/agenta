@@ -4,12 +4,12 @@
       <picture >
         <source width="275" media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/97e31bfc-b1fc-4d19-b443-5aedf6029017"  >
         <source width="275" media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/fdc5f23f-2095-4cfc-9511-14c6851c1262"  >
-        <img alt="Shows the logo of agenta" src="https://github.com/user-attachments/assets/fdc5f23f-2095-4cfc-9511-14c6851c1262" >
+        <img alt="Agenta のロゴ" src="https://github.com/user-attachments/assets/fdc5f23f-2095-4cfc-9511-14c6851c1262" >
       </picture>
   </a>
   
 <div align="center">
-  <strong> <h1> The open-source workspace for building and running agents </h1></strong>
+  <strong> <h1> エージェントを構築し、実行するためのオープンソース・ワークスペース </h1></strong>
 
 
 <img width="1800" height="680" alt="agenta-github-banner" src="https://github.com/user-attachments/assets/afc83f8f-d644-4dc6-bae7-b26ed2512986" />
@@ -17,7 +17,7 @@
   ---
 
 
-  Build agents that **automate your work** by chatting with them. Share them with **your team**, connect them to the apps you use, and run them in the **background**.
+  対話するだけで、**あなたの作業を自動化する**エージェントを構築できます。**チーム**と共有し、普段使っているアプリと連携させ、**バックグラウンド**で実行しましょう。
 
 </div>
 
@@ -25,8 +25,8 @@
 
 
 <h3 align="center">
-  <a href="https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>Documentation</b></a> &bull;
-  <a href="https://agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>Website</b></a> &bull;
+  <a href="https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>ドキュメント</b></a> &bull;
+  <a href="https://agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>ウェブサイト</b></a> &bull;
   <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>Agenta Cloud</b></a>
 </h3>
 
@@ -70,94 +70,94 @@
       <picture >
         <source width="200" media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/a2069e7b-c3e0-4a5e-9e41-8ddc4660d1f2"  >
         <source width="200" media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/a2069e7b-c3e0-4a5e-9e41-8ddc4660d1f2"  >
-        <img alt="Try Agenta Live Demo" src="https://github.com/user-attachments/assets/a2069e7b-c3e0-4a5e-9e41-8ddc4660d1f2" >
+        <img alt="Agenta のライブデモを試す" src="https://github.com/user-attachments/assets/a2069e7b-c3e0-4a5e-9e41-8ddc4660d1f2" >
       </picture>
   </a>
 </p>
 
 ---
 
-## What is Agenta?
+## Agenta とは？
 
-Agenta is an open-source workspace where you build specialized agents that automate and augment your work.
+Agenta は、あなたの作業を自動化・強化する専用エージェントを構築できるオープンソースのワークスペースです。
 
-You build agents by chatting with them. You describe the work, connect the apps they need, and improve them through feedback.
+エージェントは対話しながら構築します。やってほしい作業を説明し、必要なアプリを連携させ、フィードバックを通じて改善していきます。
 
-You can work with your agents directly in chat and share them with your team.
+エージェントとチャットで直接やり取りでき、チームと共有することもできます。
 
-For recurring work, you can build background agents. These agents run on a schedule or when an event occurs.
+繰り返し発生する作業には、バックグラウンドエージェントを構築できます。これらのエージェントは、設定したスケジュールに沿って、またはイベントが発生したときに実行されます。
 
-## Why use Agenta?
+## なぜ Agenta を使うのか？
 
-### Use your Claude or ChatGPT subscription
+### お使いの Claude や ChatGPT のサブスクリプションを活用
 
-When you self-host Agenta, you can run agents locally with your existing Claude or ChatGPT subscription. You do not need to move every task to metered API billing.
+Agenta をセルフホストすると、既存の Claude や ChatGPT のサブスクリプションを使ってエージェントをローカルで実行できます。すべての作業を従量課金制の API 経由に切り替える必要はありません。
 
-### Choose your harness and model
+### ハーネスとモデルを自由に選択
 
-Switch harnesses and models without rebuilding your agent. Agenta already supports almost any model, whether self-hosted or accessed through an API. Agenta supports Claude Code and Pi as harnesses today, with [more harnesses planned](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme).
+エージェントを作り直すことなく、ハーネスとモデルを切り替えられます。Agenta は、セルフホスト型か API 経由かを問わず、ほぼすべてのモデルにすでに対応しています。現在サポートしているハーネスは Claude Code と Pi で、[今後さらに追加を予定](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme)しています。
 
-### Build with open agent standards
+### オープンなエージェント標準で構築
 
-Define your agent with `AGENTS.md`, skills, and MCP servers. You can bring skills and MCP servers from the agent ecosystem into Agenta.
+エージェントは `AGENTS.md`、スキル、MCP サーバーで定義します。エージェントのエコシステムにあるスキルや MCP サーバーを Agenta に取り込むこともできます。
 
-### Make your agents more reliable over time
+### エージェントの信頼性を継続的に高める
 
-Agenta traces every run and keeps a version history of each agent configuration. Use this history to understand failures, compare changes, and improve your agents over time.
+Agenta はすべての実行をトレースし、各エージェント設定のバージョン履歴を保持します。この履歴を使って、失敗の原因を把握し、変更を比較し、エージェントを継続的に改善できます。
 
-## Features
+## 主な機能
 
-**Workspaces for you and your agents.** Work with your agent on files in a shared workspace. Together, you can write documents, organize research, or maintain a wiki.
+**あなたとエージェントのためのワークスペース。** 共有ワークスペース上で、エージェントと一緒にファイルを扱えます。ドキュメントの作成、リサーチの整理、Wiki の運用などを共同で行えます。
 
-**Human approval and permissions.** Specify permissions for each tool. Choose which actions background agents can run automatically, which need your approval, and which are blocked.
+**人間による承認と権限管理。** ツールごとに権限を設定できます。バックグラウンドエージェントが自動で実行できる操作、承認が必要な操作、禁止する操作を選べます。
 
-**Background agents.** Run agents on a schedule or start them when an event occurs in a connected app.
+**バックグラウンドエージェント。** エージェントをスケジュールで実行したり、連携アプリでイベントが発生したときに起動したりできます。
 
-**Tracing, usage, and cost.** Inspect every model and tool call. Track model requests, token usage, and estimated costs for each agent.
+**トレース、使用量、コスト。** すべてのモデル呼び出しとツール呼び出しを確認できます。エージェントごとにモデルへのリクエスト、トークン使用量、推定コストを追跡できます。
 
-**Team access.** The open-source version lets you share agents with your team and control access by role.
+**チームでの利用。** オープンソース版では、エージェントをチームと共有し、ロールごとにアクセス権を管理できます。
 
-**Integrations.** Connect your agents to the applications you use through MCP, or integrate with more than 1,000 apps through Composio, including Gmail, Slack, Notion, and GitHub.
+**インテグレーション。** MCP を使って、普段使うアプリとエージェントを接続できます。また、Composio を使えば、エージェントを Gmail、Slack、Notion、GitHub など 1,000 以上のアプリと連携できます。
 
-## Get started
+## はじめる
 
-### Try Agenta Cloud
+### Agenta Cloud を試す
 
-The fastest way to try Agenta.
+Agenta を最も手早く試せる方法です。
 
 <p align="center">
   <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
       <picture >
         <source width="200" media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2"  >
         <source width="200" media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2"  >
-        <img alt="Try Agenta Cloud" src="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2" >
+        <img alt="Agenta Cloud を試す" src="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2" >
       </picture>
   </a>
 </p>
 
-### Self-host Agenta
+### Agenta をセルフホストする
 
-Paste this into your agent and it will walk you through setup and testing:
+以下をエージェントに貼り付けると、セットアップとテストを案内してくれます。
 
 ```text
 1. Install the Agenta self-hosting skill: npx skills add Agenta-AI/agenta-skills
 2. Help me self-host Agenta with its repository.
 ```
 
-For more details, read the [self-hosting documentation](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme).
+詳しくは[セルフホスティングのドキュメント](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme)をご覧ください。
 
-## Roadmap
+## ロードマップ
 
-**Harnesses**
+**ハーネス**
 
 - [x] Claude Code
 - [x] Pi
 - [ ] Codex
 - [ ] Gemini
 - [ ] OpenCode
-- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
+- [ ] [Issue を作成して優先度を上げる](https://github.com/Agenta-AI/agenta/issues)
 
-**Models**
+**モデル**
 
 - [x] OpenAI
 - [x] Anthropic
@@ -173,81 +173,81 @@ For more details, read the [self-hosting documentation](https://agenta.ai/docs/s
 - [x] Azure
 - [x] AWS Bedrock
 - [x] MiniMax
-- [x] OpenAI-compatible models
-- [x] Self-hosted models (Ollama)
-- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
+- [x] OpenAI 互換モデル
+- [x] セルフホスト型モデル（Ollama）
+- [ ] [Issue を作成して優先度を上げる](https://github.com/Agenta-AI/agenta/issues)
 
-**Agent runtimes**
+**エージェントランタイム**
 
-- [x] Local runtime
-- [x] Daytona sandboxes
-- [x] Docker sandboxes
-- [ ] E2B sandboxes
+- [x] ローカルランタイム
+- [x] Daytona サンドボックス
+- [x] Docker サンドボックス
+- [ ] E2B サンドボックス
 - [ ] AgentComputer
 - [ ] Vercel
 - [ ] Cloudflare
 - [ ] Modal
 - [ ] BoxLite
-- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
+- [ ] [Issue を作成して優先度を上げる](https://github.com/Agenta-AI/agenta/issues)
 
-**Features**
+**機能**
 
-- [x] Schedules
-- [x] Events from connected apps
-- [x] MCP servers (API key + unauthenticated)
-- [ ] Generic webhook triggers
-- [ ] Additional MCP transports (OAuth)
-- [ ] Channels (Slack, Telegram, Discord, Teams)
-- [ ] Mobile version
+- [x] スケジュール
+- [x] 連携アプリからのイベント
+- [x] MCP サーバー（API キー + 認証なし）
+- [ ] 汎用 Webhook トリガー
+- [ ] MCP のトランスポート追加（OAuth）
+- [ ] チャンネル（Slack、Telegram、Discord、Teams）
+- [ ] モバイル版
 
-See the [complete roadmap](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme). Want to help with one of these items? [Open a discussion](https://github.com/Agenta-AI/agenta/discussions) or contribute.
+[完全なロードマップ](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme)をご覧ください。いずれかの項目に協力していただける場合は、[ディスカッションを開始](https://github.com/Agenta-AI/agenta/discussions)するか、開発に参加してください。
 
-## How Agenta compares
+## 他のツールとの違い
 
-### n8n, Activepieces, and Zapier
+### n8n、Activepieces、Zapier
 
-These products are designed for building workflows with predefined steps. Agenta is designed for work that requires an agent to plan, use tools, and adapt its approach. Use a workflow builder for predictable processes. Use Agenta when the work needs judgment, or when you want the same agent to work with you in chat and run in the background.
+これらの製品は、あらかじめ定義したステップでワークフローを構築するためのものです。一方 Agenta は、エージェントが自ら計画を立て、ツールを使い、状況に応じてやり方を調整する必要のある作業のために設計されています。手順が決まっている処理にはワークフロービルダーを使ってください。判断が必要な作業や、同じエージェントとチャットで協働し、そのエージェントをバックグラウンドでも実行したい場合には Agenta が適しています。
 
 ### Claude Cowork
 
-Claude Cowork provides a workspace built around Claude. Agenta is open source and lets you choose your harness and model, inspect the components of your agents, and run them interactively or in the background.
+Claude Cowork は Claude を中心に据えたワークスペースを提供します。Agenta はオープンソースであり、ハーネスとモデルを自由に選び、エージェントの構成要素を確認し、対話形式でもバックグラウンドでも実行できます。
 
-### Claude Code, Codex, Pi, and OpenCode
+### Claude Code、Codex、Pi、OpenCode
 
-These coding agents provide the execution layer that plans work and uses tools. Agenta adds the shared workspace around that execution layer: files, team access, triggers, versions, and traces. Agenta supports Claude Code and Pi today. Support for more harnesses is on the roadmap.
+これらのコーディングエージェントは、作業を計画しツールを使う実行レイヤーを提供します。Agenta は、その実行レイヤーに、ファイル、チームアクセス、トリガー、バージョン、トレースを備えた共有ワークスペースを提供します。Agenta は現在 Claude Code と Pi に対応しており、より多くのハーネスへの対応をロードマップに掲げています。
 
-## Community and contributing
+## コミュニティとコントリビューション
 
-Agenta is open source under the MIT License. You can inspect the code, run it yourself, and help shape what we build next.
+Agenta は MIT ライセンスのオープンソースです。コードを確認し、自分で実行し、私たちが次に何を作るかを一緒に形づくることができます。
 
-- [Read the documentation](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme)
-- [Report a bug](https://github.com/Agenta-AI/agenta/issues)
-- [Request a feature or share an idea](https://github.com/Agenta-AI/agenta/discussions)
-- [Read the contributing guide](CONTRIBUTING.md)
-- [Join the Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw)
+- [ドキュメントを読む](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme)
+- [バグを報告する](https://github.com/Agenta-AI/agenta/issues)
+- [機能をリクエストする／アイデアを共有する](https://github.com/Agenta-AI/agenta/discussions)
+- [コントリビューションガイドを読む](CONTRIBUTING.md)
+- [Slack コミュニティに参加する](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw)
 
-If Agenta is useful to you, star the repository and tell us what you build.
+Agenta が役に立ったら、リポジトリにスターを付けて、あなたが作ったものを教えてください。
 
-## ⭐ Star Agenta
+## ⭐ Agenta にスターを
 
-**Consider giving us a star!** It helps us grow our community and gets Agenta in front of more developers.
+**ぜひスターを付けてください！** コミュニティの成長につながり、より多くの開発者に Agenta を届けられます。
 </br>
 </br>
 <p align="center">
     <a href="https://github.com/agenta-ai/agenta">
 
-  <img width="300" alt="Star us" src="https://github.com/user-attachments/assets/2c8e580a-c930-4312-bf1b-08f631b41c62" />
+  <img width="300" alt="Agenta にスターを付ける" src="https://github.com/user-attachments/assets/2c8e580a-c930-4312-bf1b-08f631b41c62" />
     <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
 
 </p>
 
-## Contributors ✨
+## コントリビューター ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-69-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
+すばらしいコントリビューターの皆さんに感謝します（[絵文字の凡例](https://allcontributors.org/docs/en/emoji-key)）：
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
@@ -351,4 +351,4 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
-This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind are welcome!
+このプロジェクトは [all-contributors](https://github.com/all-contributors/all-contributors) 仕様に準拠しています。どのような形の貢献も歓迎します！

@@ -4,12 +4,12 @@
       <picture >
         <source width="275" media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/97e31bfc-b1fc-4d19-b443-5aedf6029017"  >
         <source width="275" media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/fdc5f23f-2095-4cfc-9511-14c6851c1262"  >
-        <img alt="Shows the logo of agenta" src="https://github.com/user-attachments/assets/fdc5f23f-2095-4cfc-9511-14c6851c1262" >
+        <img alt="Agenta 로고" src="https://github.com/user-attachments/assets/fdc5f23f-2095-4cfc-9511-14c6851c1262" >
       </picture>
   </a>
   
 <div align="center">
-  <strong> <h1> The open-source workspace for building and running agents </h1></strong>
+  <strong> <h1> 에이전트를 만들고 실행하는 오픈소스 워크스페이스 </h1></strong>
 
 
 <img width="1800" height="680" alt="agenta-github-banner" src="https://github.com/user-attachments/assets/afc83f8f-d644-4dc6-bae7-b26ed2512986" />
@@ -17,7 +17,7 @@
   ---
 
 
-  Build agents that **automate your work** by chatting with them. Share them with **your team**, connect them to the apps you use, and run them in the **background**.
+  대화를 나누는 것만으로 **업무를 자동화하는** 에이전트를 만드세요. **팀**과 공유하고, 평소 사용하는 앱에 연결하고, **백그라운드**에서 실행하세요.
 
 </div>
 
@@ -25,8 +25,8 @@
 
 
 <h3 align="center">
-  <a href="https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>Documentation</b></a> &bull;
-  <a href="https://agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>Website</b></a> &bull;
+  <a href="https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>문서</b></a> &bull;
+  <a href="https://agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>웹사이트</b></a> &bull;
   <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>Agenta Cloud</b></a>
 </h3>
 
@@ -70,94 +70,94 @@
       <picture >
         <source width="200" media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/a2069e7b-c3e0-4a5e-9e41-8ddc4660d1f2"  >
         <source width="200" media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/a2069e7b-c3e0-4a5e-9e41-8ddc4660d1f2"  >
-        <img alt="Try Agenta Live Demo" src="https://github.com/user-attachments/assets/a2069e7b-c3e0-4a5e-9e41-8ddc4660d1f2" >
+        <img alt="Agenta 라이브 데모 사용해 보기" src="https://github.com/user-attachments/assets/a2069e7b-c3e0-4a5e-9e41-8ddc4660d1f2" >
       </picture>
   </a>
 </p>
 
 ---
 
-## What is Agenta?
+## Agenta란?
 
-Agenta is an open-source workspace where you build specialized agents that automate and augment your work.
+Agenta는 업무를 자동화하고 지원하는 특화 에이전트를 만들 수 있는 오픈소스 워크스페이스입니다.
 
-You build agents by chatting with them. You describe the work, connect the apps they need, and improve them through feedback.
+에이전트는 대화를 통해 만듭니다. 원하는 작업을 설명하고, 필요한 앱을 연결하고, 피드백을 통해 개선해 나갑니다.
 
-You can work with your agents directly in chat and share them with your team.
+에이전트와 채팅으로 직접 협업할 수 있고, 팀과 공유할 수도 있습니다.
 
-For recurring work, you can build background agents. These agents run on a schedule or when an event occurs.
+반복되는 업무에는 백그라운드 에이전트를 만들 수 있습니다. 이 에이전트는 설정한 일정에 따라, 또는 특정 이벤트가 발생할 때 실행됩니다.
 
-## Why use Agenta?
+## 왜 Agenta인가?
 
-### Use your Claude or ChatGPT subscription
+### 사용 중인 Claude 또는 ChatGPT 구독 활용
 
-When you self-host Agenta, you can run agents locally with your existing Claude or ChatGPT subscription. You do not need to move every task to metered API billing.
+Agenta를 셀프 호스팅하면 기존에 사용하던 Claude 또는 ChatGPT 구독으로 에이전트를 로컬에서 실행할 수 있습니다. 모든 작업을 사용량에 따라 과금되는 API로 전환할 필요는 없습니다.
 
-### Choose your harness and model
+### 하네스와 모델을 자유롭게 선택
 
-Switch harnesses and models without rebuilding your agent. Agenta already supports almost any model, whether self-hosted or accessed through an API. Agenta supports Claude Code and Pi as harnesses today, with [more harnesses planned](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme).
+에이전트를 다시 만들지 않고도 하네스와 모델을 전환할 수 있습니다. Agenta는 셀프 호스팅 방식이든 API를 통한 방식이든 거의 모든 모델을 이미 지원합니다. 현재 지원하는 하네스는 Claude Code와 Pi이며, [더 많은 하네스 지원을 계획](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme)하고 있습니다.
 
-### Build with open agent standards
+### 개방형 에이전트 표준으로 구축
 
-Define your agent with `AGENTS.md`, skills, and MCP servers. You can bring skills and MCP servers from the agent ecosystem into Agenta.
+에이전트는 `AGENTS.md`, 스킬(skill), MCP 서버로 정의합니다. 에이전트 생태계의 스킬과 MCP 서버를 Agenta로 가져올 수도 있습니다.
 
-### Make your agents more reliable over time
+### 에이전트의 신뢰성을 지속적으로 높이기
 
-Agenta traces every run and keeps a version history of each agent configuration. Use this history to understand failures, compare changes, and improve your agents over time.
+Agenta는 모든 실행을 추적하고 각 에이전트 설정의 버전 기록을 보관합니다. 이 기록을 활용해 실패 원인을 파악하고, 변경 사항을 비교하고, 에이전트를 지속적으로 개선할 수 있습니다.
 
-## Features
+## 주요 기능
 
-**Workspaces for you and your agents.** Work with your agent on files in a shared workspace. Together, you can write documents, organize research, or maintain a wiki.
+**사용자와 에이전트를 위한 워크스페이스.** 공유 워크스페이스에서 에이전트와 함께 파일을 다룹니다. 문서를 작성하고, 리서치를 정리하고, 위키를 관리하는 일을 함께 할 수 있습니다.
 
-**Human approval and permissions.** Specify permissions for each tool. Choose which actions background agents can run automatically, which need your approval, and which are blocked.
+**사용자 승인과 권한 관리.** 각 도구에 대해 권한을 설정합니다. 백그라운드 에이전트가 자동으로 실행할 수 있는 작업, 승인이 필요한 작업, 차단할 작업을 선택할 수 있습니다.
 
-**Background agents.** Run agents on a schedule or start them when an event occurs in a connected app.
+**백그라운드 에이전트.** 에이전트를 일정에 따라 실행하거나, 연결된 앱에서 이벤트가 발생할 때 시작할 수 있습니다.
 
-**Tracing, usage, and cost.** Inspect every model and tool call. Track model requests, token usage, and estimated costs for each agent.
+**추적, 사용량, 비용.** 모든 모델 호출과 도구 호출을 확인할 수 있습니다. 에이전트별로 모델 요청, 토큰 사용량, 예상 비용을 추적합니다.
 
-**Team access.** The open-source version lets you share agents with your team and control access by role.
+**팀 접근 권한.** 오픈소스 버전에서는 에이전트를 팀과 공유하고 역할에 따라 접근 권한을 제어할 수 있습니다.
 
-**Integrations.** Connect your agents to the applications you use through MCP, or integrate with more than 1,000 apps through Composio, including Gmail, Slack, Notion, and GitHub.
+**연동.** MCP를 통해 평소 사용하는 앱에 에이전트를 연결하거나, Composio를 통해 Gmail, Slack, Notion, GitHub를 비롯한 1,000개 이상의 앱과 연동할 수 있습니다.
 
-## Get started
+## 시작하기
 
-### Try Agenta Cloud
+### Agenta Cloud 사용해 보기
 
-The fastest way to try Agenta.
+Agenta를 가장 빠르게 사용해 볼 수 있는 방법입니다.
 
 <p align="center">
   <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
       <picture >
         <source width="200" media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2"  >
         <source width="200" media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2"  >
-        <img alt="Try Agenta Cloud" src="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2" >
+        <img alt="Agenta Cloud 사용해 보기" src="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2" >
       </picture>
   </a>
 </p>
 
-### Self-host Agenta
+### Agenta 셀프 호스팅
 
-Paste this into your agent and it will walk you through setup and testing:
+아래 내용을 에이전트에 붙여넣으면 설치와 테스트 과정을 안내해 줍니다.
 
 ```text
 1. Install the Agenta self-hosting skill: npx skills add Agenta-AI/agenta-skills
 2. Help me self-host Agenta with its repository.
 ```
 
-For more details, read the [self-hosting documentation](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme).
+자세한 내용은 [셀프 호스팅 문서](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme)를 참고하세요.
 
-## Roadmap
+## 로드맵
 
-**Harnesses**
+**하네스**
 
 - [x] Claude Code
 - [x] Pi
 - [ ] Codex
 - [ ] Gemini
 - [ ] OpenCode
-- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
+- [ ] [원하는 항목의 우선 지원을 요청하는 이슈 만들기](https://github.com/Agenta-AI/agenta/issues)
 
-**Models**
+**모델**
 
 - [x] OpenAI
 - [x] Anthropic
@@ -173,81 +173,81 @@ For more details, read the [self-hosting documentation](https://agenta.ai/docs/s
 - [x] Azure
 - [x] AWS Bedrock
 - [x] MiniMax
-- [x] OpenAI-compatible models
-- [x] Self-hosted models (Ollama)
-- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
+- [x] OpenAI 호환 모델
+- [x] 셀프 호스팅 모델(Ollama)
+- [ ] [원하는 항목의 우선 지원을 요청하는 이슈 만들기](https://github.com/Agenta-AI/agenta/issues)
 
-**Agent runtimes**
+**에이전트 런타임**
 
-- [x] Local runtime
-- [x] Daytona sandboxes
-- [x] Docker sandboxes
-- [ ] E2B sandboxes
+- [x] 로컬 런타임
+- [x] Daytona 샌드박스
+- [x] Docker 샌드박스
+- [ ] E2B 샌드박스
 - [ ] AgentComputer
 - [ ] Vercel
 - [ ] Cloudflare
 - [ ] Modal
 - [ ] BoxLite
-- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
+- [ ] [원하는 항목의 우선 지원을 요청하는 이슈 만들기](https://github.com/Agenta-AI/agenta/issues)
 
-**Features**
+**기능**
 
-- [x] Schedules
-- [x] Events from connected apps
-- [x] MCP servers (API key + unauthenticated)
-- [ ] Generic webhook triggers
-- [ ] Additional MCP transports (OAuth)
-- [ ] Channels (Slack, Telegram, Discord, Teams)
-- [ ] Mobile version
+- [x] 스케줄
+- [x] 연결된 앱의 이벤트
+- [x] MCP 서버(API 키 + 인증 없음)
+- [ ] 범용 웹훅 트리거
+- [ ] MCP 전송 방식 추가(OAuth)
+- [ ] 채널(Slack, Telegram, Discord, Teams)
+- [ ] 모바일 버전
 
-See the [complete roadmap](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme). Want to help with one of these items? [Open a discussion](https://github.com/Agenta-AI/agenta/discussions) or contribute.
+[전체 로드맵](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme)을 확인하세요. 이 항목 중 하나를 함께 만들고 싶으신가요? [토론을 시작](https://github.com/Agenta-AI/agenta/discussions)하거나 기여해 주세요.
 
-## How Agenta compares
+## Agenta는 다른 도구와 어떻게 다른가?
 
-### n8n, Activepieces, and Zapier
+### n8n, Activepieces, Zapier
 
-These products are designed for building workflows with predefined steps. Agenta is designed for work that requires an agent to plan, use tools, and adapt its approach. Use a workflow builder for predictable processes. Use Agenta when the work needs judgment, or when you want the same agent to work with you in chat and run in the background.
+이 제품들은 미리 정의된 단계로 워크플로를 구축하기 위한 것입니다. 반면 Agenta는 에이전트가 스스로 계획을 세우고, 도구를 사용하고, 상황에 맞게 접근 방식을 조정해야 하는 작업을 위해 설계되었습니다. 예측 가능한 프로세스에는 워크플로 빌더를 사용하세요. 판단이 필요한 작업을 수행할 때, 또는 같은 에이전트와 채팅으로 협업하면서 그 에이전트를 백그라운드에서도 실행하고 싶을 때는 Agenta를 사용하세요.
 
 ### Claude Cowork
 
-Claude Cowork provides a workspace built around Claude. Agenta is open source and lets you choose your harness and model, inspect the components of your agents, and run them interactively or in the background.
+Claude Cowork는 Claude를 중심으로 구성된 워크스페이스를 제공합니다. Agenta는 오픈소스이며, 하네스와 모델을 직접 선택하고, 에이전트의 구성 요소를 확인하고, 대화형으로든 백그라운드로든 실행할 수 있습니다.
 
-### Claude Code, Codex, Pi, and OpenCode
+### Claude Code, Codex, Pi, OpenCode
 
-These coding agents provide the execution layer that plans work and uses tools. Agenta adds the shared workspace around that execution layer: files, team access, triggers, versions, and traces. Agenta supports Claude Code and Pi today. Support for more harnesses is on the roadmap.
+이 코딩 에이전트들은 작업을 계획하고 도구를 사용하는 실행 계층을 제공합니다. Agenta는 이 실행 계층에 파일, 팀 접근 권한, 트리거, 버전 기록, 실행 추적을 제공하는 공유 워크스페이스를 더합니다. Agenta는 현재 Claude Code와 Pi를 지원하며, 더 많은 하네스 지원이 로드맵에 있습니다.
 
-## Community and contributing
+## 커뮤니티와 기여
 
-Agenta is open source under the MIT License. You can inspect the code, run it yourself, and help shape what we build next.
+Agenta는 MIT 라이선스로 배포되는 오픈소스입니다. 코드를 살펴보고, 직접 실행하고, 우리가 다음에 무엇을 만들지 함께 결정할 수 있습니다.
 
-- [Read the documentation](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme)
-- [Report a bug](https://github.com/Agenta-AI/agenta/issues)
-- [Request a feature or share an idea](https://github.com/Agenta-AI/agenta/discussions)
-- [Read the contributing guide](CONTRIBUTING.md)
-- [Join the Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw)
+- [문서 읽기](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme)
+- [버그 신고하기](https://github.com/Agenta-AI/agenta/issues)
+- [기능 요청 또는 아이디어 공유하기](https://github.com/Agenta-AI/agenta/discussions)
+- [기여 가이드 읽기](CONTRIBUTING.md)
+- [Slack 커뮤니티 참여하기](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw)
 
-If Agenta is useful to you, star the repository and tell us what you build.
+Agenta가 도움이 되었다면 저장소에 스타를 눌러 주시고, 무엇을 만들었는지 알려 주세요.
 
-## ⭐ Star Agenta
+## ⭐ Agenta에 스타 누르기
 
-**Consider giving us a star!** It helps us grow our community and gets Agenta in front of more developers.
+**스타를 눌러 주세요!** 커뮤니티가 성장하는 데 도움이 되고, 더 많은 개발자에게 Agenta를 알릴 수 있습니다.
 </br>
 </br>
 <p align="center">
     <a href="https://github.com/agenta-ai/agenta">
 
-  <img width="300" alt="Star us" src="https://github.com/user-attachments/assets/2c8e580a-c930-4312-bf1b-08f631b41c62" />
+  <img width="300" alt="Agenta에 스타 누르기" src="https://github.com/user-attachments/assets/2c8e580a-c930-4312-bf1b-08f631b41c62" />
     <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
 
 </p>
 
-## Contributors ✨
+## 기여자 ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-69-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
+멋진 기여자 여러분께 감사드립니다([이모지 안내](https://allcontributors.org/docs/en/emoji-key)):
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
@@ -351,4 +351,4 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
-This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind are welcome!
+이 프로젝트는 [all-contributors](https://github.com/all-contributors/all-contributors) 명세를 따릅니다. 어떤 형태의 기여든 환영합니다!

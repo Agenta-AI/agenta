@@ -4,12 +4,12 @@
       <picture >
         <source width="275" media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/97e31bfc-b1fc-4d19-b443-5aedf6029017"  >
         <source width="275" media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/fdc5f23f-2095-4cfc-9511-14c6851c1262"  >
-        <img alt="Shows the logo of agenta" src="https://github.com/user-attachments/assets/fdc5f23f-2095-4cfc-9511-14c6851c1262" >
+        <img alt="Agenta 徽标" src="https://github.com/user-attachments/assets/fdc5f23f-2095-4cfc-9511-14c6851c1262" >
       </picture>
   </a>
   
 <div align="center">
-  <strong> <h1> The open-source workspace for building and running agents </h1></strong>
+  <strong> <h1> 用于构建和运行智能体的开源工作空间 </h1></strong>
 
 
 <img width="1800" height="680" alt="agenta-github-banner" src="https://github.com/user-attachments/assets/afc83f8f-d644-4dc6-bae7-b26ed2512986" />
@@ -17,7 +17,7 @@
   ---
 
 
-  Build agents that **automate your work** by chatting with them. Share them with **your team**, connect them to the apps you use, and run them in the **background**.
+  通过对话构建能**自动完成工作**的智能体。把它们共享给**你的团队**，连接你日常使用的应用，并让它们在**后台**运行。
 
 </div>
 
@@ -25,8 +25,8 @@
 
 
 <h3 align="center">
-  <a href="https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>Documentation</b></a> &bull;
-  <a href="https://agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>Website</b></a> &bull;
+  <a href="https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>文档</b></a> &bull;
+  <a href="https://agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>官网</b></a> &bull;
   <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>Agenta Cloud</b></a>
 </h3>
 
@@ -70,94 +70,94 @@
       <picture >
         <source width="200" media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/a2069e7b-c3e0-4a5e-9e41-8ddc4660d1f2"  >
         <source width="200" media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/a2069e7b-c3e0-4a5e-9e41-8ddc4660d1f2"  >
-        <img alt="Try Agenta Live Demo" src="https://github.com/user-attachments/assets/a2069e7b-c3e0-4a5e-9e41-8ddc4660d1f2" >
+        <img alt="试用 Agenta 在线演示" src="https://github.com/user-attachments/assets/a2069e7b-c3e0-4a5e-9e41-8ddc4660d1f2" >
       </picture>
   </a>
 </p>
 
 ---
 
-## What is Agenta?
+## 什么是 Agenta？
 
-Agenta is an open-source workspace where you build specialized agents that automate and augment your work.
+Agenta 是一个开源工作空间，你可以在其中构建专门的智能体，用来自动化并增强你的工作。
 
-You build agents by chatting with them. You describe the work, connect the apps they need, and improve them through feedback.
+你通过对话来构建智能体。你描述需要完成的工作，连接它们所需的应用，并通过反馈不断改进它们。
 
-You can work with your agents directly in chat and share them with your team.
+你可以在对话中直接与智能体协作，也可以把它们共享给你的团队。
 
-For recurring work, you can build background agents. These agents run on a schedule or when an event occurs.
+对于重复性的工作，你可以构建后台智能体。这类智能体会定时运行，或在某个事件发生时触发运行。
 
-## Why use Agenta?
+## 为什么选择 Agenta？
 
-### Use your Claude or ChatGPT subscription
+### 使用你的 Claude 或 ChatGPT 订阅
 
-When you self-host Agenta, you can run agents locally with your existing Claude or ChatGPT subscription. You do not need to move every task to metered API billing.
+当你自托管 Agenta 时，可以使用现有的 Claude 或 ChatGPT 订阅在本地运行智能体。你不必把所有任务都改为通过按量计费的 API 运行。
 
-### Choose your harness and model
+### 自由选择运行框架和模型
 
-Switch harnesses and models without rebuilding your agent. Agenta already supports almost any model, whether self-hosted or accessed through an API. Agenta supports Claude Code and Pi as harnesses today, with [more harnesses planned](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme).
+无需重建智能体即可切换运行框架（harness）和模型。Agenta 已经支持几乎所有模型，无论是自托管的，还是通过 API 访问的。目前 Agenta 支持 Claude Code 和 Pi 两种运行框架，并且[计划支持更多](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme)。
 
-### Build with open agent standards
+### 基于开放的智能体标准来构建
 
-Define your agent with `AGENTS.md`, skills, and MCP servers. You can bring skills and MCP servers from the agent ecosystem into Agenta.
+使用 `AGENTS.md`、技能（skills）和 MCP 服务器来定义你的智能体。你可以把智能体生态中的技能和 MCP 服务器引入 Agenta。
 
-### Make your agents more reliable over time
+### 让你的智能体随时间变得更可靠
 
-Agenta traces every run and keeps a version history of each agent configuration. Use this history to understand failures, compare changes, and improve your agents over time.
+Agenta 会追踪每一次运行，并为每个智能体的配置保存版本历史。借助这些历史记录，你可以分析失败原因、对比改动，并持续改进你的智能体。
 
-## Features
+## 功能特性
 
-**Workspaces for you and your agents.** Work with your agent on files in a shared workspace. Together, you can write documents, organize research, or maintain a wiki.
+**为你和你的智能体打造的工作空间。** 在共享工作空间中与智能体一起处理文件。你们可以一起撰写文档、整理研究资料，或维护一个 Wiki。
 
-**Human approval and permissions.** Specify permissions for each tool. Choose which actions background agents can run automatically, which need your approval, and which are blocked.
+**人工审批与权限控制。** 为每个工具单独设置权限。你可以决定后台智能体哪些操作能自动执行、哪些需要你批准、哪些被禁止。
 
-**Background agents.** Run agents on a schedule or start them when an event occurs in a connected app.
+**后台智能体。** 让智能体定时运行，或在已连接的应用中发生某个事件时启动它们。
 
-**Tracing, usage, and cost.** Inspect every model and tool call. Track model requests, token usage, and estimated costs for each agent.
+**追踪、用量与成本。** 检查每一次模型调用和工具调用。跟踪每个智能体的模型请求、token 用量以及预估成本。
 
-**Team access.** The open-source version lets you share agents with your team and control access by role.
+**团队访问权限。** 开源版本允许你把智能体共享给团队，并按角色控制访问权限。
 
-**Integrations.** Connect your agents to the applications you use through MCP, or integrate with more than 1,000 apps through Composio, including Gmail, Slack, Notion, and GitHub.
+**集成能力。** 通过 MCP 把智能体连接到你日常使用的应用，或通过 Composio 集成 1000 多个应用，包括 Gmail、Slack、Notion 和 GitHub。
 
-## Get started
+## 快速开始
 
-### Try Agenta Cloud
+### 试用 Agenta Cloud
 
-The fastest way to try Agenta.
+体验 Agenta 最快的方式。
 
 <p align="center">
   <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
       <picture >
         <source width="200" media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2"  >
         <source width="200" media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2"  >
-        <img alt="Try Agenta Cloud" src="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2" >
+        <img alt="试用 Agenta Cloud" src="https://github.com/user-attachments/assets/3aa96780-b7e5-4b6f-bfee-8feaa36ff3b2" >
       </picture>
   </a>
 </p>
 
-### Self-host Agenta
+### 自托管 Agenta
 
-Paste this into your agent and it will walk you through setup and testing:
+将以下内容粘贴到你的智能体中，它会引导你完成安装和测试：
 
 ```text
 1. Install the Agenta self-hosting skill: npx skills add Agenta-AI/agenta-skills
 2. Help me self-host Agenta with its repository.
 ```
 
-For more details, read the [self-hosting documentation](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme).
+更多细节请阅读[自托管文档](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme)。
 
-## Roadmap
+## 路线图
 
-**Harnesses**
+**运行框架**
 
 - [x] Claude Code
 - [x] Pi
 - [ ] Codex
 - [ ] Gemini
 - [ ] OpenCode
-- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
+- [ ] [创建 issue，申请优先支持你需要的功能](https://github.com/Agenta-AI/agenta/issues)
 
-**Models**
+**模型**
 
 - [x] OpenAI
 - [x] Anthropic
@@ -173,81 +173,81 @@ For more details, read the [self-hosting documentation](https://agenta.ai/docs/s
 - [x] Azure
 - [x] AWS Bedrock
 - [x] MiniMax
-- [x] OpenAI-compatible models
-- [x] Self-hosted models (Ollama)
-- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
+- [x] 兼容 OpenAI 的模型
+- [x] 自托管模型（Ollama）
+- [ ] [创建 issue，申请优先支持你需要的功能](https://github.com/Agenta-AI/agenta/issues)
 
-**Agent runtimes**
+**智能体运行时**
 
-- [x] Local runtime
-- [x] Daytona sandboxes
-- [x] Docker sandboxes
-- [ ] E2B sandboxes
+- [x] 本地运行时
+- [x] Daytona 沙箱
+- [x] Docker 沙箱
+- [ ] E2B 沙箱
 - [ ] AgentComputer
 - [ ] Vercel
 - [ ] Cloudflare
 - [ ] Modal
 - [ ] BoxLite
-- [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
+- [ ] [创建 issue，申请优先支持你需要的功能](https://github.com/Agenta-AI/agenta/issues)
 
-**Features**
+**功能**
 
-- [x] Schedules
-- [x] Events from connected apps
-- [x] MCP servers (API key + unauthenticated)
-- [ ] Generic webhook triggers
-- [ ] Additional MCP transports (OAuth)
-- [ ] Channels (Slack, Telegram, Discord, Teams)
-- [ ] Mobile version
+- [x] 定时任务
+- [x] 来自已连接应用的事件
+- [x] MCP 服务器（API 密钥 + 免认证）
+- [ ] 通用 webhook 触发器
+- [ ] 更多 MCP 传输方式（OAuth）
+- [ ] 渠道（Slack、Telegram、Discord、Teams）
+- [ ] 移动版
 
-See the [complete roadmap](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme). Want to help with one of these items? [Open a discussion](https://github.com/Agenta-AI/agenta/discussions) or contribute.
+查看[完整路线图](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme)。想参与其中某一项吗？欢迎[发起讨论](https://github.com/Agenta-AI/agenta/discussions)或参与贡献。
 
-## How Agenta compares
+## Agenta 有何不同
 
-### n8n, Activepieces, and Zapier
+### n8n、Activepieces 和 Zapier
 
-These products are designed for building workflows with predefined steps. Agenta is designed for work that requires an agent to plan, use tools, and adapt its approach. Use a workflow builder for predictable processes. Use Agenta when the work needs judgment, or when you want the same agent to work with you in chat and run in the background.
+这些产品用于按预定义的步骤构建工作流。而 Agenta 面向的是那些需要智能体自行规划、使用工具并灵活调整方法的工作。对于可预测的流程，请使用工作流构建工具；当工作需要判断力，或当你希望同一个智能体既能在对话中与你协作、又能在后台运行时，请使用 Agenta。
 
 ### Claude Cowork
 
-Claude Cowork provides a workspace built around Claude. Agenta is open source and lets you choose your harness and model, inspect the components of your agents, and run them interactively or in the background.
+Claude Cowork 提供的是一个围绕 Claude 构建的工作空间。而 Agenta 是开源的：你可以自由选择运行框架和模型，检查智能体的各个组成部分，并以交互方式或在后台运行它们。
 
-### Claude Code, Codex, Pi, and OpenCode
+### Claude Code、Codex、Pi 和 OpenCode
 
-These coding agents provide the execution layer that plans work and uses tools. Agenta adds the shared workspace around that execution layer: files, team access, triggers, versions, and traces. Agenta supports Claude Code and Pi today. Support for more harnesses is on the roadmap.
+这些编程智能体提供了执行层，负责规划工作并使用工具。Agenta 围绕这个执行层提供共享工作空间，并加入文件、团队访问权限、触发器、版本管理和运行追踪等能力。Agenta 目前支持 Claude Code 和 Pi，更多运行框架的支持已列入路线图。
 
-## Community and contributing
+## 社区与贡献
 
-Agenta is open source under the MIT License. You can inspect the code, run it yourself, and help shape what we build next.
+Agenta 是基于 MIT 许可证的开源项目。你可以查看代码、自行运行，并帮助塑造我们接下来的方向。
 
-- [Read the documentation](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme)
-- [Report a bug](https://github.com/Agenta-AI/agenta/issues)
-- [Request a feature or share an idea](https://github.com/Agenta-AI/agenta/discussions)
-- [Read the contributing guide](CONTRIBUTING.md)
-- [Join the Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw)
+- [阅读文档](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme)
+- [报告问题](https://github.com/Agenta-AI/agenta/issues)
+- [请求功能或分享想法](https://github.com/Agenta-AI/agenta/discussions)
+- [阅读贡献指南](CONTRIBUTING.md)
+- [加入 Slack 社区](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw)
 
-If Agenta is useful to you, star the repository and tell us what you build.
+如果 Agenta 对你有帮助，请给仓库点个 Star，并告诉我们你构建了什么。
 
-## ⭐ Star Agenta
+## ⭐ 给 Agenta 点个 Star
 
-**Consider giving us a star!** It helps us grow our community and gets Agenta in front of more developers.
+**欢迎给 Agenta 点个 Star！** 这有助于我们发展社区，也能让更多开发者看到 Agenta。
 </br>
 </br>
 <p align="center">
     <a href="https://github.com/agenta-ai/agenta">
 
-  <img width="300" alt="Star us" src="https://github.com/user-attachments/assets/2c8e580a-c930-4312-bf1b-08f631b41c62" />
+  <img width="300" alt="给 Agenta 点 Star" src="https://github.com/user-attachments/assets/2c8e580a-c930-4312-bf1b-08f631b41c62" />
     <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
 
 </p>
 
-## Contributors ✨
+## 贡献者 ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-69-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
+感谢这些了不起的贡献者（[emoji 说明](https://allcontributors.org/docs/en/emoji-key)）：
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
@@ -351,4 +351,4 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
-This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind are welcome!
+本项目遵循 [all-contributors](https://github.com/all-contributors/all-contributors) 规范。欢迎任何形式的贡献！
