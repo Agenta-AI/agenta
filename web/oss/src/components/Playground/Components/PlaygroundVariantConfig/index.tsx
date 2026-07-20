@@ -86,17 +86,11 @@ const PlaygroundVariantConfig: React.FC<
     // form/JSON/YAML view switch doesn't apply — hide it for agents (kept for prompt/eval variants).
     const isAgent = useAtomValue(isAgentModeAtomFamily(variantId))
     // `isAgentModeAtomFamily` is false until the revision's is_agent flag loads, so on load the heavy
-    // prompt chrome (view switcher) would flash for an agent. Treat as agent-header mode when it's an
-    // agent, the early app-id signal says agent, OR agent-ness is still unknown (variant not settled).
+    // prompt chrome (view switcher) would flash for an agent. The persisted early app-id signal is
+    // synchronous, so it decides during the load; a query-pending disjunct would mislabel PROMPT
+    // apps as agent chrome for the whole restore window.
     const earlyAgentState = useAtomValue(playgroundEarlyAgentStateAtom)
-    // Narrow to the pending flag: the full query object churns identity on every fetch-state flip.
-    const variantQueryPending = useAtomValue(
-        useMemo(
-            () => selectAtom(workflowMolecule.selectors.query(variantId || ""), (q) => q.isPending),
-            [variantId],
-        ),
-    )
-    const isAgentHeaderMode = isAgent || earlyAgentState === "agent" || variantQueryPending
+    const isAgentHeaderMode = isAgent || earlyAgentState === "agent"
 
     // Refine prompt modal state
     const [refineModalOpen, setRefineModalOpen] = useState(false)
@@ -335,11 +329,11 @@ const PlaygroundVariantConfig: React.FC<
                 )}
             </section>
             {/* Sections 2 + 3 (agent only): Triggers and Mounts — operational, never part of the
-                committable config, each with its own Configuration-style sticky header. Skeleton
-                keeps the three-section shape while hydration is pending OR agent-ness is still
-                unknown (the real sections would fire trigger queries for a maybe-prompt app). */}
+                committable config, each with its own Configuration-style sticky header. Rendered only
+                when the entity is a known/early-signalled agent (so a maybe-prompt app never fires
+                trigger queries); skeleton keeps the three-section shape while hydration is pending. */}
             {isAgentHeaderMode &&
-                (hasPendingHydration || (!isAgent && earlyAgentState !== "agent") ? (
+                (hasPendingHydration ? (
                     <AgentOperationsSkeleton sticky={!embedded} />
                 ) : (
                     <AgentOperationsSections

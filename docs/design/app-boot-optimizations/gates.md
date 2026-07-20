@@ -16,7 +16,7 @@ Legend: [SAFE-RELAX] = gate can key on data presence / synchronous signal;
 
 | Gate | Condition | Verdict |
 |---|---|---|
-| PlaygroundConfigSection ~1888 config skeleton | `schemaQuery.isPending && !hasRenderableConfigSections(activeData)` | **[SAFE-RELAX → RELAXED]** — the data-presence term is sufficient; the `isPending` term only shows the skeleton during the restore frame |
+| PlaygroundConfigSection ~1888 config skeleton | `schemaQuery.isPending && !hasRenderableConfigSections(activeData)` | **[KEEP — audit verdict revised]** — dropping `isPending` makes the "No configuration needed" empty state paint during every restore window (data absent + pending is a real loading state, not a false gate); the skeleton already clears the moment restored data lands |
 | PCS ~695 revision-switch latch | keep previous render until target data or settled | [KEEP] — swap-correctness latch, prefers data-presence already |
 | PCS ~1906 "No configuration needed" | data-null empty state | [RESTRUCTURE] — reached wrongly for drafts pre-hydration; held off by gate 2.1 |
 | SchemaPropertyRenderer ~448 Suspense(AgentTemplateControl) | lazy chunk import | **[SAFE-RELAX → RELAXED]** — preload on the synchronous early-agent signal instead of idle |
@@ -71,6 +71,14 @@ parameters render immediately).
 
 ## Status
 
-Relaxed in this round: 1.1 (isPending term dropped), 1.4 (early preload), 2.2 (sync
-early-agent signal), 3.3 (data-presence). Restructures pending: 2.1 hydration
-fast-path, 3.1/3.6 selection-before-first-render.
+Built in this round: 1.4 (immediate preload on the early-agent signal), 2.1 (hydration
+applies on source-data presence; the `!isPending` term dropped), 2.2/2.4 (agent chrome
+keyed on the synchronous early-agent signal, `variantQueryPending` disjunct removed),
+3.1/3.6 (module-eval URL sync in `state/url/playground.ts` seeds the selection before
+the first React commit), 3.3 (skeleton only when pending AND no data). NOT relaxed:
+1.1 — verdict revised to KEEP (see the Level-1 table); with 2.1 + 3.1 the restored data
+is present by/near first commit, so the remaining skeleton time equals the IDB restore
+latency, which is the correct floor. 2.1's local-server-data reseed idea is moot: the
+draft body cannot exist before its source body (IDB reads are async, drafts are
+reconstructed from patches by design), and compare-mode clones are already seeded at
+hydration-apply time — now the earliest possible moment.
