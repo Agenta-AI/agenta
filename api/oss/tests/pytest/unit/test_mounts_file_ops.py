@@ -18,8 +18,12 @@ from uuid import UUID, uuid4
 import pytest
 
 from oss.src.core.mounts import service as mounts_service_module
-from oss.src.core.mounts.dtos import Mount
-from oss.src.core.mounts.service import MountsService, validate_file_path
+from oss.src.core.mounts.dtos import Mount, MountFile
+from oss.src.core.mounts.service import (
+    MountsService,
+    _rollup_recent_entries,
+    validate_file_path,
+)
 from oss.src.core.store.dtos import StoreObject
 from oss.src.core.mounts.types import (
     MountFileNotFound,
@@ -62,6 +66,73 @@ class TestFilePathValidation:
     def test_rejects_special_chars(self):
         with pytest.raises(MountPathInvalid):
             validate_file_path("file;rm -rf")
+
+
+class TestRollupRecentEntries:
+    def test_clone_then_edit_collapses_to_top_directory(self):
+        files = [
+            MountFile(path="repo/a.txt", mtime=1000, size=1),
+            MountFile(path="repo/web/b.txt", mtime=1001, size=1),
+            MountFile(path="repo/web/c.txt", mtime=1002, size=1),
+            MountFile(path="note.txt", mtime=5000, size=1),
+        ]
+
+        by_path = {entry.path: entry for entry in _rollup_recent_entries(files, None)}
+
+        assert by_path["repo"].is_folder is True
+        assert "note.txt" in by_path
+        assert not by_path["note.txt"].is_folder
+        assert not any(path.startswith("repo/") for path in by_path)
+
+    def test_old_plus_fresh_directory_does_not_collapse(self):
+        files = [
+            MountFile(path="dir/old.txt", mtime=100, size=1),
+            MountFile(path="dir/new.txt", mtime=5000, size=1),
+            MountFile(path="recent.txt", mtime=5001, size=1),
+        ]
+
+        by_path = {entry.path: entry for entry in _rollup_recent_entries(files, None)}
+
+        assert "dir" not in by_path
+        assert "dir/old.txt" in by_path
+        assert "dir/new.txt" in by_path
+
+    def test_untimed_leaf_blocks_collapse(self):
+        files = [
+            MountFile(path="batch/a.txt", mtime=1000, size=1),
+            MountFile(path="batch/b.txt", mtime=None, size=1),
+            MountFile(path="later.txt", mtime=5000, size=1),
+        ]
+
+        by_path = {entry.path: entry for entry in _rollup_recent_entries(files, None)}
+
+        assert "batch" not in by_path
+        assert "batch/a.txt" in by_path
+        assert "batch/b.txt" in by_path
+
+    def test_single_batch_history_produces_no_rollup(self):
+        files = [
+            MountFile(path="repo/a.txt", mtime=1000, size=1),
+            MountFile(path="repo/b.txt", mtime=1001, size=1),
+        ]
+
+        result = _rollup_recent_entries(files, None)
+
+        assert all(not entry.is_folder for entry in result)
+        assert {entry.path for entry in result} == {"repo/a.txt", "repo/b.txt"}
+
+    def test_shallow_to_deep_resolution_picks_repo_over_repo_web(self):
+        files = [
+            MountFile(path="repo/a.txt", mtime=1000, size=1),
+            MountFile(path="repo/web/b.txt", mtime=1001, size=1),
+            MountFile(path="repo/web/c.txt", mtime=1002, size=1),
+            MountFile(path="outside.txt", mtime=9000, size=1),
+        ]
+
+        result = _rollup_recent_entries(files, None)
+        folder_paths = {entry.path for entry in result if entry.is_folder}
+
+        assert folder_paths == {"repo"}
 
 
 # ---------------------------------------------------------------------------
