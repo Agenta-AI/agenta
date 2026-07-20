@@ -80,6 +80,28 @@ class FakeMountStorage:
             if k.startswith(prefix)
         ]
 
+    async def list_objects_shallow(self, *, bucket: str, prefix: str):
+        # One level under `prefix` (delimiter "/"): immediate files + immediate subdir prefixes.
+        # Mirrors the real store: a trailing-slash key is a folder marker / common-prefix (a subdir),
+        # INCLUDING the queried prefix's own marker (`key == prefix`), which the descent must not
+        # re-list (regression guard for the infinite-loop hang).
+        b = self._store.get(bucket, {})
+        files: List[StoreObject] = []
+        subdirs: set[str] = set()
+        for k, v in b.items():
+            if not k.startswith(prefix):
+                continue
+            rest = k[len(prefix) :]
+            if "/" in rest:
+                subdirs.add(prefix + rest.split("/", 1)[0] + "/")
+            elif k.endswith("/"):
+                subdirs.add(
+                    k
+                )  # an empty-folder marker at this level (may equal `prefix`)
+            else:
+                files.append(StoreObject(key=k, size=len(v)))
+        return files, sorted(subdirs)
+
     async def get_object(self, *, bucket: str, key: str) -> bytes:
         b = self._store.get(bucket, {})
         if key not in b:
@@ -164,6 +186,198 @@ class TestMountFileOpsRoundtrip:
 
         with pytest.raises(MountFileNotFound):
             await service.read_file(project_id=pid, mount_id=mid, path="notes.txt")
+
+    async def test_git_aware_recency_descent_prunes_gitignored_dirs(self):
+        # git_aware=True: the recency/flat view descends the tree pruning ignored/plumbing DIRECTORIES
+        # at the store level (never enumerating node_modules), and still drops ignored FILES inside
+        # kept dirs. (git_aware=False keeps them all — covered by test_raw_listing_keeps_everything.)
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path, body in [
+            (".gitignore", b"**/node_modules\n*.pyc\n"),
+            ("api/main.py", b"x"),
+            ("api/main.pyc", b"x"),  # gitignored FILE inside a kept dir
+            ("web/index.ts", b"x"),
+            ("web/node_modules/react/index.js", b"x"),  # gitignored DIR — never listed
+            (".git/HEAD", b"x"),  # plumbing — never listed
+        ]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=body
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, order="path", limit=100, git_aware=True
+        )
+        assert {f.path for f in listing.files} == {
+            ".gitignore",
+            "api/main.py",
+            "web/index.ts",
+        }
+        assert listing.total == 3
+
+    async def test_raw_listing_keeps_git_and_ignored_by_default(self):
+        # Default (git_aware=False) is the plain-endpoint contract: EVERY object under the prefix, incl.
+        # `.git` plumbing and `.gitignore`-matched paths — nothing is pruned for other API consumers.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path, body in [
+            (".gitignore", b"**/node_modules\n"),
+            ("api/main.py", b"x"),
+            ("web/node_modules/react/index.js", b"x"),
+            (".git/HEAD", b"x"),
+        ]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=body
+            )
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, order="path", limit=100
+        )
+        assert {f.path for f in listing.files} == {
+            ".gitignore",
+            "api/main.py",
+            "web/node_modules/react/index.js",
+            ".git/HEAD",
+        }
+
+    async def test_git_aware_recency_descent_survives_folder_markers(self):
+        # An empty-folder marker (a trailing-slash object, incl. a directory's own marker) must NOT
+        # send the git_aware descent into an infinite re-list loop — it would hang the request.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="a/x.py", content=b"y"
+        )
+        await service.create_folder(
+            project_id=pid, mount_id=mid, path="a"
+        )  # creates the "a/" marker
+        await service.create_folder(
+            project_id=pid, mount_id=mid, path="empty"
+        )  # empty folder marker
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, order="path", limit=100, git_aware=True
+        )
+        assert {f.path for f in listing.files} == {"a/x.py"}
+
+    async def test_count_only_returns_total_no_files(self):
+        # limit=0 → a bounded COUNT: the real-file total, no file payload, not capped for a small tree.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in ["a.txt", "b.txt", "sub/c.txt", "node_modules/x/y.js"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+        # node_modules isn't gitignored here (no .gitignore) so it counts under git_aware too.
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=True
+        )
+        assert listing.total == 4
+        assert listing.total_capped is False
+        assert listing.files == []
+
+    async def test_shallow_depth_lists_top_level_only(self):
+        # depth=1 → ONE delimiter level: top-level files + folders, no descent into subtrees. The
+        # nested `sub/c.txt` surfaces its parent `sub` as a folder (never the deep file), and a
+        # huge dump under `node_modules/` costs exactly one folder entry, not an enumeration.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in ["a.txt", "b.txt", "sub/c.txt", "node_modules/x/y.js"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+        listing = await service.list_files(project_id=pid, mount_id=mid, depth=1)
+        by_path = {f.path: f for f in listing.files}
+        assert set(by_path) == {"a.txt", "b.txt", "sub", "node_modules"}
+        assert by_path["a.txt"].is_folder is False
+        assert by_path["sub"].is_folder is True
+        assert by_path["node_modules"].is_folder is True
+        assert listing.total == 4
+
+    async def test_shallow_depth_git_aware_prunes_gitignored_children(self):
+        # depth=1 + git_aware prunes immediate children by `.git`, internals, AND repo `.gitignore`
+        # (ancestor rules included) — so `node_modules` stays hidden while browsing, one level at a
+        # time. git_aware=False keeps them (the raw contract) — see the test above.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path, body in [
+            (".gitignore", b"node_modules/\n"),
+            ("src/app.py", b"x"),
+            ("node_modules/react/index.js", b"x"),
+            (".git/HEAD", b"x"),
+        ]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=body
+            )
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, depth=1, git_aware=True
+        )
+        assert {f.path for f in listing.files} == {".gitignore", "src"}
+
+    async def test_shallow_depth_include_gitignored_keeps_ignored_hides_git(self):
+        # include_gitignored (the "show git-ignored files" toggle) surfaces `.gitignore`-matched
+        # entries again — but `.git` plumbing and internals stay hidden regardless.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path, body in [
+            (".gitignore", b"node_modules/\n"),
+            ("src/app.py", b"x"),
+            ("node_modules/react/index.js", b"x"),
+            (".git/HEAD", b"x"),
+        ]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=body
+            )
+        listing = await service.list_files(
+            project_id=pid,
+            mount_id=mid,
+            depth=1,
+            git_aware=True,
+            include_gitignored=True,
+        )
+        # node_modules now shows (gitignore not applied); `.git` still pruned.
+        assert {f.path for f in listing.files} == {".gitignore", "src", "node_modules"}
+
+    async def test_gitignore_file_survives_dotstar_rule(self):
+        # A repo whose `.gitignore` starts with `.*` (ignore ALL dotfiles) matches `.gitignore`
+        # ITSELF in pathspec — but git keeps a tracked one, and the drawer needs it visible to detect
+        # a git folder. So `.gitignore` stays; a plain ignored dotfile (`.env`) is still pruned.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path, body in [
+            (".gitignore", b".*\n!.github/\n"),
+            (".env", b"secret"),
+            (".github/ci.yml", b"x"),
+            ("src/app.py", b"x"),
+        ]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=body
+            )
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, depth=1, git_aware=True
+        )
+        assert {f.path for f in listing.files} == {".gitignore", ".github", "src"}
+
+    async def test_shallow_depth_with_counts_reports_immediate_children(self):
+        # with_counts attaches item_count = the folder's own immediate (pruned) child count, via one
+        # shallow list per subdir — NOT a recursive descent. `a/` has 3 immediate children (2 files +
+        # the `nested` folder); `.git` inside it is not counted under git_aware.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in [
+            "a/one.txt",
+            "a/two.txt",
+            "a/nested/deep.txt",
+            "a/.git/HEAD",
+            "b/only.txt",
+        ]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, depth=1, with_counts=True, git_aware=True
+        )
+        by_path = {f.path: f for f in listing.files}
+        assert by_path["a"].item_count == 3  # one.txt, two.txt, nested/ (not .git)
+        assert by_path["b"].item_count == 1
 
     async def test_key_is_namespaced_under_mount_prefix(self):
         mount = _make_mount()
