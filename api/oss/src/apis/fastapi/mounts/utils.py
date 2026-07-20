@@ -22,13 +22,19 @@ def _content_disposition_attachment(filename: str) -> str:
 
     `filename` is client-supplied (a download path's basename or the archive name), so it must never
     be interpolated raw: a `"` or control char would break out of the quoted parameter and inject
-    further header directives. The quoted `filename` is stripped to a printable, quote-free ASCII-ish
-    fallback; `filename*` carries the exact (percent-encoded) value for clients that honour it.
+    further header directives. The quoted `filename` is stripped to an ASCII, printable, quote-free
+    fallback (the header is latin-1 encoded); `filename*` carries the exact (percent-encoded) value for
+    clients that honour it.
     """
     safe = (
-        "".join(c for c in filename if c.isprintable() and c not in '"\\') or "download"
+        "".join(
+            c for c in filename if c.isascii() and c.isprintable() and c not in '"\\'
+        )
+        or "download"
     )
-    return f"attachment; filename=\"{safe}\"; filename*=UTF-8''{quote(filename)}"
+    return (
+        f"attachment; filename=\"{safe}\"; filename*=UTF-8''{quote(filename, safe='')}"
+    )
 
 
 async def upload_mount_file(

@@ -17,6 +17,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from oss.src.apis.fastapi.mounts.utils import _content_disposition_attachment
 from oss.src.core.mounts import service as mounts_service_module
 from oss.src.core.mounts.dtos import Mount, MountFile
 from oss.src.core.mounts.service import (
@@ -63,9 +64,59 @@ class TestFilePathValidation:
         with pytest.raises(MountPathInvalid):
             validate_file_path("")
 
-    def test_rejects_special_chars(self):
+    def test_accepts_parentheses_and_brackets(self):
+        validate_file_path("app/(auth)/[slug]/page.tsx")
+
+    def test_accepts_at_sign(self):
+        validate_file_path("@scope/pkg/index.js")
+
+    def test_accepts_plus_signs(self):
+        validate_file_path("c++.md")
+
+    def test_accepts_comma(self):
+        validate_file_path("a,b.txt")
+
+    def test_accepts_hash(self):
+        validate_file_path("notes#1.txt")
+
+    def test_accepts_tilde(self):
+        validate_file_path("~backup")
+
+    def test_accepts_astral_plane_name(self):
+        validate_file_path("\U00020000dir/file.txt")
+
+    def test_rejects_empty_interior_segment(self):
         with pytest.raises(MountPathInvalid):
-            validate_file_path("file;rm -rf")
+            validate_file_path("a//b")
+
+    def test_rejects_dot_segment(self):
+        with pytest.raises(MountPathInvalid):
+            validate_file_path("a/./b")
+
+    def test_rejects_embedded_nul(self):
+        with pytest.raises(MountPathInvalid):
+            validate_file_path("a/b\x00c")
+
+    def test_rejects_control_character(self):
+        with pytest.raises(MountPathInvalid):
+            validate_file_path("a/b\x01c")
+
+
+class TestContentDispositionHeader:
+    @pytest.mark.parametrize(
+        "filename",
+        [
+            "中文报告.zip",
+            "photo\U0001f600.zip",
+            'a"; DROP TABLE.zip',
+            "a\nb.zip",
+        ],
+    )
+    def test_header_is_latin_1_safe_with_utf_8_filename(self, filename):
+        header = _content_disposition_attachment(filename)
+
+        header.encode("latin-1")
+        assert "filename*=UTF-8''" in header
 
 
 class TestRollupRecentEntries:
@@ -288,6 +339,42 @@ class TestArchiveWorkList:
             "prefix/one.txt",
             "prefix/nested/two.txt",
         }
+
+
+@pytest.mark.asyncio
+class TestArchiveZipSlip:
+    async def _work_for_keys(self, keys):
+        mount = _make_mount()
+        storage = FakeMountStorage()
+        service = MountsService(
+            mounts_dao=_StubDAO(mount),
+            mounts_store=storage,
+            bucket=_BUCKET,
+        )
+        mount_base = service._storage_key(project_id=mount.project_id, mount=mount)
+        bucket_store = storage._store.setdefault(_BUCKET, {})
+        for key in keys:
+            bucket_store[f"{mount_base}{key}"] = b"x"
+        return await service.build_archive_work_list(
+            project_id=mount.project_id,
+            mounts=[(mount.id, "", "")],
+        )
+
+    async def test_traversal_keys_are_skipped_not_rewritten(self):
+        # `../evil.txt` and `..\evil.txt` (backslash is a separator to Windows extractors) must not
+        # produce an entry that escapes the archive root; the safe sibling still ships.
+        work = await self._work_for_keys(["good.txt", "../evil.txt", "..\\evil.txt"])
+
+        zip_paths = {zip_path for zip_path, *_rest in work}
+        assert zip_paths == {"good.txt"}
+
+    async def test_traversal_key_does_not_alias_a_real_entry(self):
+        # `a/../report.txt` must NOT be rewritten to `a/report.txt` — that would overwrite the real
+        # `a/report.txt` on extraction. Skipping it leaves the genuine file intact and un-duplicated.
+        work = await self._work_for_keys(["a/report.txt", "a/../report.txt"])
+
+        zip_paths = [zip_path for zip_path, *_rest in work]
+        assert zip_paths == ["a/report.txt"]
 
 
 # ---------------------------------------------------------------------------

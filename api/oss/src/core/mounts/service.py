@@ -2,7 +2,7 @@ import asyncio
 from bisect import bisect_left, bisect_right
 from collections import deque
 from posixpath import basename
-from re import fullmatch, sub
+from re import sub
 from typing import AsyncIterator, TYPE_CHECKING, List, Optional, Tuple
 from uuid import UUID, uuid5, NAMESPACE_DNS
 
@@ -38,9 +38,9 @@ from oss.src.core.mounts.types import (
     MountStorageUnavailable,
 )
 from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.utils.logging import get_module_logger
 
-# Folder/file path segments: word chars, dots, spaces, hyphens — no path traversal.
-_SEGMENT_RE = r"[\w. -]+"
+log = get_module_logger(__name__)
 
 # Reserved slug prefix for service-minted (session) slugs; a caller may not author one.
 _RESERVED_SLUG_PREFIX = "__ag__"
@@ -107,21 +107,39 @@ def reject_reserved_slug(slug: str) -> None:
 
 
 def validate_file_path(path: str) -> None:
-    """Per-segment guard on a caller-supplied file/folder path.
+    """Guard a caller-supplied file/folder path against escaping the mount or corrupting a store key.
 
-    Rejects absolute paths, `..` traversal, and any segment that could escape
-    the mount prefix. Dots are allowed within a segment (filenames) but a bare
-    `..` segment is not.
+    Denylist, not allowlist: reject absolute paths, empty / `.` / `..` segments, and NUL or control
+    characters. Every other character real filenames contain — parentheses, brackets, `@ + , # ~ '`,
+    non-ASCII — is accepted, because the lazy-browse flow round-trips these paths on every expansion.
     """
     if path.startswith("/"):
         raise MountPathInvalid("File path must not be absolute.")
     if not path.strip("/"):
         raise MountPathInvalid("File path must not be empty.")
-    for segment in path.split("/"):
-        if not segment:
-            continue
-        if segment == ".." or not fullmatch(_SEGMENT_RE, segment):
+    if any(ord(c) < 0x20 or c == "\x7f" for c in path):
+        raise MountPathInvalid("File path must not contain control characters.")
+    for segment in path.strip("/").split("/"):
+        if segment in ("", ".", ".."):
             raise MountPathInvalid()
+
+
+def _zip_segments(path: str) -> List[str]:
+    """Split a zip entry path on BOTH separators — a backslash is a separator to Windows extractors,
+    so `..\\x` traverses just like `../x`."""
+    return path.replace("\\", "/").split("/")
+
+
+def _has_unsafe_zip_segment(segments: List[str]) -> bool:
+    """True if any segment is empty / `.` / `..` — i.e. the path could traverse out of the zip root
+    (zip-slip for whoever extracts)."""
+    return any(s in ("", ".", "..") for s in segments)
+
+
+def _safe_zip_segments(path: str) -> List[str]:
+    """Segments safe to place in a zip entry name: drop empty / `.` / `..` (both separators) so a
+    prefix can't mint a `../x` or `..\\x` entry."""
+    return [s for s in _zip_segments(path) if s not in ("", ".", "..")]
 
 
 def _is_internal_mount_path(path: str) -> bool:
@@ -1104,9 +1122,13 @@ class MountsService:
 
         work: List[Tuple[str, str, int, Optional[int]]] = []
         for mount_id, prefix, source_path in mounts:
+            if prefix:
+                validate_file_path(prefix)
+            if source_path:
+                validate_file_path(source_path)
             mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
             mount_base = self._storage_key(project_id=project_id, mount=mount)
-            pfx = prefix.strip("/")
+            pfx_segments = _safe_zip_segments(prefix)
             src = source_path.strip("/")
             # Scope the listing to a folder when `source_path` is set (folder download); the
             # rel path still keeps the folder, so the zip has "<folder>/…" entries.
@@ -1122,9 +1144,17 @@ class MountsService:
                     if obj.key.startswith(mount_base)
                     else obj.key
                 )
-                if not rel:
+                rel_segments = _zip_segments(rel)
+                # Store keys come from signed-credential writers, so `rel` can carry `..` or a
+                # backslash. Don't REWRITE such a key — `a/../report.txt` would collapse onto a real
+                # `a/report.txt` and overwrite it on extraction — skip the member instead.
+                if _has_unsafe_zip_segment(rel_segments):
+                    log.warning(
+                        "mounts.archive: skipping member with unsafe store key",
+                        key=obj.key,
+                    )
                     continue
-                zip_path = f"{pfx}/{rel}" if pfx else rel
+                zip_path = "/".join([*pfx_segments, *rel_segments])
                 work.append((zip_path, obj.key, obj.size or 0, obj.mtime))
 
         return work
