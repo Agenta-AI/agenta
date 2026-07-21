@@ -1388,6 +1388,9 @@ importers:
       marked:
         specifier: ^17.0.4
         version: 17.0.6
+      motion:
+        specifier: ^12.0.0
+        version: 12.38.0(@emotion/is-prop-valid@0.7.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       prismjs:
         specifier: ^1.30.0
         version: 1.30.0

@@ -90,7 +90,9 @@ export function AgentOperationsSections({
                         {countSummary(triggerCount, "trigger")}
                     </span>
                 </div>
-                <div className="px-4 py-3">
+                {/* pb-3 only: the first ConfigAccordionSection row carries its own py-3 header, so a
+                    top py-3 here would double into a dead band under the header bar (mirrors Config). */}
+                <div className="px-4 pb-3">
                     <TriggerManagementSection entityId={revisionId} disabled={disabled} />
                 </div>
             </section>

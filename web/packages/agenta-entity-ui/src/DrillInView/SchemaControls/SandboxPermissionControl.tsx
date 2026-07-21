@@ -110,7 +110,13 @@ export function SandboxPermissionControl({
 
     return (
         <>
-            <RailField label={railInfoLabel("Network egress", NETWORK_EGRESS_HINT)} align="center">
+            {/* `path` = the dot-path the commit-diff classifier flattens this knob to, so a row with
+                an uncommitted change marks itself (see ChangedPathsProvider). */}
+            <RailField
+                label={railInfoLabel("Network egress", NETWORK_EGRESS_HINT)}
+                align="center"
+                path="sandbox.permissions.network.mode"
+            >
                 <Select<NetworkMode>
                     value={current.networkMode}
                     onChange={(v) => write({networkMode: v})}
@@ -121,7 +127,10 @@ export function SandboxPermissionControl({
             </RailField>
 
             {current.networkMode === "allowlist" ? (
-                <RailField label={railInfoLabel("Allowlist", ALLOWLIST_HINT)}>
+                <RailField
+                    label={railInfoLabel("Allowlist", ALLOWLIST_HINT)}
+                    path="sandbox.permissions.network.allowlist"
+                >
                     <Input.TextArea
                         value={current.allowlist.join("\n")}
                         onChange={(e) =>
@@ -140,7 +149,11 @@ export function SandboxPermissionControl({
                 </RailField>
             ) : null}
 
-            <RailField label={railInfoLabel("Filesystem", FILESYSTEM_HINT)} align="center">
+            <RailField
+                label={railInfoLabel("Filesystem", FILESYSTEM_HINT)}
+                align="center"
+                path="sandbox.permissions.filesystem"
+            >
                 <Select<FilesystemMode>
                     value={current.filesystem ?? undefined}
                     onChange={(v) => write({filesystem: (v as FilesystemMode | undefined) ?? null})}
@@ -152,7 +165,11 @@ export function SandboxPermissionControl({
                 />
             </RailField>
 
-            <RailField label={railInfoLabel("Enforcement", ENFORCEMENT_HINT)} align="center">
+            <RailField
+                label={railInfoLabel("Enforcement", ENFORCEMENT_HINT)}
+                align="center"
+                path="sandbox.permissions.enforcement"
+            >
                 <Select<Enforcement>
                     value={current.enforcement}
                     onChange={(v) => write({enforcement: v})}

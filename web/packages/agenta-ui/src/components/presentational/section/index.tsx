@@ -174,4 +174,6 @@ export {
     type ConfigAccordionSectionProps,
     sectionIndicatorColor,
     type SectionIndicatorTone,
+    useAccordionSectionOpen,
 } from "./ConfigAccordionSection"
+export {useRecentFlag} from "./useRecentFlag"
