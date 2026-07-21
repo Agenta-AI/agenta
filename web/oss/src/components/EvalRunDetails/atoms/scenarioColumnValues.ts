@@ -1,9 +1,7 @@
+import {extractStepError, type StepError} from "@agenta/entities/shared/execution/stepErrors"
 import {formatMetricDisplay} from "@agenta/ui/cell-renderers"
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
-
-import type {IStepResponse} from "@/oss/lib/evaluations"
-import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 
 import {readInvocationResponse} from "../../../lib/traces/traceUtils"
 import {previewEvalTypeAtom} from "../state/evalType"
@@ -30,19 +28,14 @@ import {
 import {evaluationRunIndexAtomFamily} from "./table/run"
 import {traceQueryMetaAtomFamily, traceValueAtomFamily} from "./traces"
 
+import type {IStepResponse} from "@/oss/lib/evaluations"
+import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+
 export interface QueryState<T> {
     data: T | null | undefined
     isLoading: boolean
     isFetching: boolean
     error?: unknown
-}
-
-export interface StepError {
-    code?: number
-    type?: string
-    message: string
-    stacktrace?: string
-    raw?: unknown
 }
 
 export type {StepError as EvaluatorStepError}
@@ -298,32 +291,6 @@ const toTraceId = (step: IStepResponse | undefined) => {
         (step as any)?.trace?.tree?.id ||
         undefined
     )
-}
-
-/**
- * Extract step error if the step has status "failure" and an error object.
- * This is used to display evaluator errors in the UI.
- */
-const extractStepError = (step: IStepResponse | undefined): StepError | null => {
-    if (!step) return null
-    const status = (step as any)?.status
-    const error = (step as any)?.error
-    if (status !== "failure" || error === undefined || error === null) return null
-
-    if (typeof error === "object") {
-        return {
-            code: error.code,
-            type: error.type,
-            message: error.message ?? "Unknown error",
-            stacktrace: error.stacktrace,
-            raw: error,
-        }
-    }
-
-    return {
-        message: String(error),
-        raw: error,
-    }
 }
 
 /**

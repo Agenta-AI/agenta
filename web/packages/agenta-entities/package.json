@@ -65,6 +65,7 @@
         "./shared/openapi": "./src/shared/openapi/index.ts",
         "./shared/execution": "./src/shared/execution/index.ts",
         "./shared/execution/invocationErrors": "./src/shared/execution/invocationErrors.ts",
+        "./shared/execution/stepErrors": "./src/shared/execution/stepErrors.ts",
         "./shared/invalidation": "./src/shared/invalidation/index.ts"
     },
     "dependencies": {
