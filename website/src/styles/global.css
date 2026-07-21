@@ -1,10 +1,11 @@
 @import "./tokens.css";
+@import "./tokens-dark.css";
 
 /* ── base reset (from the design's inline <style>) ──────────── */
 html,
 body {
   margin: 0;
-  background: #0a0a0b;
+  background: var(--ag-d-bg-0);
 }
 * {
   box-sizing: border-box;
@@ -13,7 +14,7 @@ a {
   color: inherit;
 }
 
-/* ── keyframes (ported verbatim) ────────────────────────────── */
+/* ── keyframes (ported verbatim from the design) ────────────── */
 @keyframes ag-pulse {
   0% {
     transform: scale(1);
@@ -37,11 +38,26 @@ a {
     transform: translateY(0);
   }
 }
+/* Open-standards marquee tracks (a duplicated strip translated -50%). */
+@keyframes ag-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes ag-marquee-rev {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
 
 /* ── reduced motion: honor the OS setting (WCAG 2.3.3) ────────
-   Neutralizes the looping play-button pulse and one-shot reveals,
-   and collapses hover transitions to instant. Near-zero (not 0) so
-   animationend/transitionend still fire for any JS that awaits them. */
+   Neutralizes the looping play-button pulse, the marquees, and one-shot
+   reveals, and collapses hover transitions to instant. Near-zero (not 0) so
+   animationend/transitionend still fire for any JS that awaits them.
+   Sections with scroll-driven motion (How it works) ship a static fallback. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -51,6 +67,37 @@ a {
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ── nav pill: frosted floating nav on scroll (ported from nav-pill.js) ──
+   A rAF loop in SiteNav toggles `.nav-scrolled` on <html> past 24px; the
+   <nav data-pill> then floats into a glass pill. Class lives on <html> so
+   island re-renders never clobber it. */
+nav[data-pill] {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 50;
+  transition:
+    background 0.25s ease,
+    box-shadow 0.25s ease,
+    border-radius 0.25s ease,
+    margin 0.25s ease,
+    width 0.25s ease,
+    height 0.25s ease,
+    border-color 0.25s ease;
+}
+.nav-scrolled nav[data-pill] {
+  margin: 10px auto 0 !important;
+  width: calc(100% - 40px) !important;
+  max-width: 1120px !important;
+  border-radius: 14px !important;
+  background: var(--ag-d-glass, rgba(18, 16, 15, 0.72)) !important;
+  -webkit-backdrop-filter: saturate(1.6) blur(14px) !important;
+  backdrop-filter: saturate(1.6) blur(14px) !important;
+  box-shadow:
+    0 0 0 1px rgba(250, 247, 242, 0.09),
+    0 12px 36px rgba(0, 0, 0, 0.55) !important;
+  border-color: transparent !important;
 }
 
 /* ── scrollbars (ported verbatim) ───────────────────────────── */
@@ -104,25 +151,35 @@ html,
 
 /* ============================================================================
    Responsive — ported VERBATIM from the design's <style> block.
-   handoff/RESPONSIVE.md standardizes on these CSS media queries.
+   handoff/RESPONSIVE.md standardizes the intent; the design encodes it at
+   1100px (grid collapse) and 860px (mobile: nav → hamburger, single column).
+   QA widths 768 and 390 both fall under 860 → full mobile treatment.
 ============================================================================ */
 @media (max-width: 1100px) {
+  .ag-oss {
+    grid-template-columns: 1fr !important;
+    gap: 48px !important;
+  }
+  .ag-oss-strip {
+    grid-template-columns: 1fr !important;
+  }
+  .ag-oss-strip > a {
+    border-left: none !important;
+  }
+  .ag-oss-strip > a + a {
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+  }
   .ag-int {
     grid-template-columns: repeat(2, 1fr) !important;
   }
-  .ag-diagram {
-    height: auto !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    gap: 14px !important;
+  .ag-rel {
+    grid-template-columns: repeat(2, 1fr) !important;
   }
-  .ag-diagram-svg {
-    display: none !important;
+  .ag-rel > div:nth-child(3) {
+    border-left: none !important;
   }
-  .ag-node {
-    position: static !important;
-    transform: none !important;
+  .ag-rel > div:nth-child(n + 3) {
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
   }
 }
 @media (max-width: 860px) {
@@ -136,27 +193,37 @@ html,
   .ag-menu {
     display: inline-flex !important;
   }
-  .ag-explorer {
-    flex-direction: column !important;
-    height: auto !important;
-  }
-  .ag-explorer-list {
-    width: 100% !important;
-    flex: none !important;
-    border-right: none !important;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
-    flex-direction: row !important;
-    overflow-x: auto !important;
-  }
-  .ag-explorer-list > div {
-    min-width: 210px !important;
-  }
-  .ag-harness {
+  .ag-tpl {
     grid-template-columns: 1fr !important;
   }
-  .ag-harness > div:nth-child(2) {
+  .ag-interop {
+    grid-template-columns: 1fr !important;
+    gap: 40px !important;
+  }
+  .ag-tpl-md {
     border-left: none !important;
-    border-top: 1px solid rgba(255, 255, 255, 0.09) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.07) !important;
+  }
+  .ag-tpl-md-scroll {
+    position: static !important;
+    height: 320px !important;
+  }
+  .ag-tpl-tabs {
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    border-radius: 16px !important;
+  }
+  .ag-rel {
+    grid-template-columns: 1fr !important;
+  }
+  .ag-rel > div {
+    border-left: none !important;
+  }
+  .ag-rel > div + div {
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+  }
+  .ag-relsec {
+    padding-top: 64px !important;
   }
   .ag-row {
     flex-direction: column !important;
