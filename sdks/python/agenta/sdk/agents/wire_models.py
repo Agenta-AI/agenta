@@ -378,7 +378,8 @@ class WireEvent(_WireModel):
     the forward-compatible event types the runner may add, which contradicts the "drop unknown"
     guarantee. The known ``type`` values are documented for readers, not enforced: ``message``,
     ``thought``, the ``message_*`` / ``reasoning_*`` lifecycle trios, ``tool_call``,
-    ``tool_result``, ``interaction_request``, ``data``, ``file``, ``usage``, ``error``, ``done``.
+    ``tool_result``, ``interaction_request``, ``interaction_response``, ``data``, ``file``,
+    ``usage``, ``error``, ``done``.
     """
 
     type: Optional[str] = None

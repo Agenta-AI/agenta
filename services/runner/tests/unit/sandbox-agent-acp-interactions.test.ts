@@ -6,15 +6,19 @@
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
-import type { AgentEvent, ResolvedToolSpec } from "../../src/protocol.ts";
+import type {
+  AgentEvent,
+  AgentRunRequest,
+  ResolvedToolSpec,
+} from "../../src/protocol.ts";
 import { toolSpecsByName } from "../../src/tools/public-spec.ts";
 import type { ClientToolVerdict, Responder } from "../../src/responder.ts";
 import {
   ApprovalResponder,
   ConversationDecisions,
+  extractApprovalDecisions,
 } from "../../src/responder.ts";
 import type { PermissionPlan, Verdict } from "../../src/permission-plan.ts";
-import { PendingApprovalLatch } from "../../src/permission-plan.ts";
 import {
   attachPermissionResponder,
   type PiToolSpecMeta,
@@ -96,7 +100,6 @@ describe("attachPermissionResponder", () => {
       session,
       run: { emitEvent: (event) => events.push(event) },
       responder: fakeResponder({ kind: "allow" }, undefined, seen),
-      latch: new PendingApprovalLatch(),
     });
     emit({
       id: "perm-1",
@@ -124,7 +127,6 @@ describe("attachPermissionResponder", () => {
       session,
       run: { emitEvent: (event) => events.push(event) },
       responder: fakeResponder({ kind: "deny" }),
-      latch: new PendingApprovalLatch(),
     });
     emit({ id: "perm-1", availableReplies: ["once", "reject"] });
     await flushPromises();
@@ -148,7 +150,6 @@ describe("attachPermissionResponder", () => {
         markToolCallDenied: (id) => denied.push(id),
       },
       responder: fakeResponder({ kind: "deny" }),
-      latch: new PendingApprovalLatch(),
     });
     emit({
       id: "perm-1",
@@ -174,7 +175,6 @@ describe("attachPermissionResponder", () => {
         markToolCallDenied: (id) => denied.push(id),
       },
       responder: fakeResponder({ kind: "allow" }),
-      latch: new PendingApprovalLatch(),
     });
     emit({
       id: "perm-1",
@@ -205,7 +205,6 @@ describe("attachPermissionResponder", () => {
       session,
       run: { emitEvent: (event) => events.push(event) },
       responder: fakeResponder({ kind: "pendingApproval" }),
-      latch: new PendingApprovalLatch(),
       onPause: () => {
         pauses += 1;
       },
@@ -256,27 +255,41 @@ describe("attachPermissionResponder", () => {
     ]);
   });
 
-  it("two concurrent pending gates emit and pause only once through the latch", async () => {
+  it("two concurrent pending gates each emit their own card and pause the turn once", async () => {
     const { session, emit } = makeSession();
     const events: AgentEvent[] = [];
+    const gates: string[] = [];
     let pauses = 0;
 
     attachPermissionResponder({
       session,
       run: { emitEvent: (event) => events.push(event) },
       responder: fakeResponder({ kind: "pendingApproval" }),
-      latch: new PendingApprovalLatch(),
       onPause: () => {
         pauses += 1;
+      },
+      onUserApprovalGate: (info) => {
+        gates.push(info.toolCallId);
       },
     });
     emit({ id: "perm-1", toolCall: { toolCallId: "tool-1", name: "edit" } });
     emit({ id: "perm-2", toolCall: { toolCallId: "tool-2", name: "bash" } });
     await flushPromises();
 
-    assert.equal(events.length, 1);
-    assert.equal((events[0] as any).id, "perm-1");
-    assert.equal(pauses, 1);
+    // No latch: each gate emits its own interaction_request card, keyed by its own tool-call id.
+    assert.equal(events.length, 2);
+    assert.deepEqual(
+      events.map((e) => (e as any).id),
+      ["perm-1", "perm-2"],
+    );
+    assert.deepEqual(
+      events.map((e) => (e as any).payload.toolCallId),
+      ["tool-1", "tool-2"],
+    );
+    // onPause fires once per gate at this layer; the shared PendingApprovalPauseController dedupes
+    // to a single turn-end (asserted in pending-approval-pause.test.ts). Both gates signalled.
+    assert.equal(pauses, 2);
+    assert.deepEqual(gates, ["tool-1", "tool-2"]);
   });
 
   it("reply rejection pauses and does not resolve the interaction", async () => {
@@ -290,7 +303,6 @@ describe("attachPermissionResponder", () => {
       session,
       run: { emitEvent: () => {} },
       responder: fakeResponder({ kind: "allow" }),
-      latch: new PendingApprovalLatch(),
       onPause: () => {
         pauses += 1;
       },
@@ -317,7 +329,6 @@ describe("attachPermissionResponder", () => {
       session,
       run: { emitEvent: (event) => events.push(event) },
       responder: fakeResponder({ kind: "allow" }),
-      latch: new PendingApprovalLatch(),
       onPause: () => {
         pauses += 1;
       },
@@ -353,7 +364,6 @@ describe("attachPermissionResponder", () => {
       session,
       run: { emitEvent: (event) => events.push(event) },
       responder: fakeResponder({ kind: "deny" }, { kind: "pendingApproval" }),
-      latch: new PendingApprovalLatch(),
       toolSpecsByName: specsByName([CLIENT_SPEC]),
       onPause: () => {
         pauses += 1;
@@ -424,7 +434,6 @@ describe("attachPermissionResponder", () => {
         { kind: "deny" },
         { kind: "fulfilled", output: { connected: true } },
       ),
-      latch: new PendingApprovalLatch(),
       toolSpecsByName: specsByName([CLIENT_SPEC]),
     });
     emit({
@@ -440,6 +449,168 @@ describe("attachPermissionResponder", () => {
 
     assert.deepEqual(replies, [{ id: "client-1", reply: "once" }]);
     assert.deepEqual(events, []);
+  });
+
+  it("resolves the original interaction token after a cold stored-decision reply", async () => {
+    const decisions = extractApprovalDecisions({
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_call",
+              toolCallId: "tool-original",
+              toolName: "edit",
+              input: { path: "a.txt" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "tool-original",
+              output: {
+                approved: true,
+                interactionToken: "interaction-original",
+              },
+            },
+          ],
+        },
+      ],
+    } as AgentRunRequest);
+    const responder = new ApprovalResponder(
+      permissionPlan("ask"),
+      new ConversationDecisions(decisions),
+    );
+    const replies: Array<{ id: string; reply: string }> = [];
+    const resolved: Array<{
+      token: string;
+      verdict?: { approved: boolean; toolCallId: string };
+    }> = [];
+    const { session, emit } = makeSession(async (id, reply) => {
+      replies.push({ id, reply });
+    });
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder,
+      onResolveInteraction: (token, verdict) => {
+        resolved.push({ token, verdict });
+      },
+    });
+    emit({
+      id: "permission-cold",
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        toolCallId: "tool-cold",
+        name: "edit",
+        rawInput: { path: "a.txt" },
+      },
+    });
+    await flushPromises();
+
+    assert.deepEqual(replies, [{ id: "permission-cold", reply: "once" }]);
+    assert.deepEqual(resolved, [
+      {
+        token: "interaction-original",
+        verdict: { approved: true, toolCallId: "tool-cold" },
+      },
+    ]);
+  });
+
+  it("passes the approval verdict when resolving a previously created gate", async () => {
+    const { session, emit } = makeSession();
+    let permissionCalls = 0;
+    const resolved: Array<{
+      token: string;
+      verdict?: { approved: boolean; toolCallId: string };
+    }> = [];
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: {
+        async onPermission() {
+          permissionCalls += 1;
+          return permissionCalls === 1
+            ? ({ kind: "pendingApproval" } as const)
+            : ({ kind: "deny" } as const);
+        },
+        async onClientTool() {
+          return { kind: "deny" } as const;
+        },
+      },
+      onResolveInteraction: (token, verdict) => {
+        resolved.push({ token, verdict });
+      },
+    });
+    const request = {
+      id: "approval-1",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tool-1", name: "bash" },
+    };
+    emit(request);
+    await flushPromises();
+    emit(request);
+    await flushPromises();
+
+    assert.deepEqual(resolved, [
+      {
+        token: "approval-1",
+        verdict: { approved: false, toolCallId: "tool-1" },
+      },
+    ]);
+  });
+
+  it("resolves a client-tool row without an approval verdict", async () => {
+    const replies: Array<{ id: string; reply: string }> = [];
+    const { session, emit } = makeSession(async (id, reply) => {
+      replies.push({ id, reply });
+    });
+    let clientCalls = 0;
+    const resolved: Array<{
+      token: string;
+      verdict?: { approved: boolean; toolCallId: string };
+    }> = [];
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: {
+        async onPermission() {
+          return { kind: "deny" } as const;
+        },
+        async onClientTool() {
+          clientCalls += 1;
+          return clientCalls === 1
+            ? ({ kind: "pendingApproval" } as const)
+            : ({ kind: "fulfilled", output: { connected: true } } as const);
+        },
+      },
+      toolSpecsByName: specsByName([CLIENT_SPEC]),
+      onResolveInteraction: (token, verdict) => {
+        resolved.push({ token, verdict });
+      },
+    });
+    const request = {
+      id: "client-1",
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        toolCallId: "tool-client",
+        name: "request_connection",
+        input: { integration: "slack" },
+      },
+    };
+    emit(request);
+    await flushPromises();
+    emit(request);
+    await flushPromises();
+
+    assert.deepEqual(replies, [{ id: "client-1", reply: "once" }]);
+    assert.deepEqual(resolved, [{ token: "client-1", verdict: undefined }]);
   });
 
   it("onResolveInteraction never fires for an auto-allowed gate (no durable row exists)", async () => {
@@ -462,7 +633,6 @@ describe("attachPermissionResponder", () => {
       session,
       run: { emitEvent: () => {} },
       responder: fakeResponder({ kind: "allow" }),
-      latch: new PendingApprovalLatch(),
       onResolveInteraction: (token) => {
         resolved.push(token);
       },
@@ -491,7 +661,6 @@ describe("attachPermissionResponder", () => {
       session,
       run: { emitEvent: () => {} },
       responder: fakeResponder({ kind: "pendingApproval" }),
-      latch: new PendingApprovalLatch(),
       onCreateInteraction: (token) => {
         created.push(token);
       },
@@ -531,7 +700,6 @@ describe("attachPermissionResponder", () => {
         ],
       },
       responder: fakeResponder({ kind: "allow" }, undefined, seen),
-      latch: new PendingApprovalLatch(),
     });
     emit({ id: "perm-1", availableReplies: ["once", "reject"], toolCall });
     await flushPromises();
@@ -557,7 +725,6 @@ describe("attachPermissionResponder", () => {
       session,
       run: { emitEvent: () => {} },
       responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
-      latch: new PendingApprovalLatch(),
       toolSpecsByName: specsByName([
         { name: "commit_revision", permission: "ask", readOnly: false },
       ]),
@@ -592,7 +759,6 @@ describe("attachPermissionResponder", () => {
       session,
       run: { emitEvent: () => {} },
       responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
-      latch: new PendingApprovalLatch(),
       toolSpecsByName: specsByName([
         { name: "delete_everything", permission: "deny", readOnly: false },
       ]),
@@ -627,7 +793,6 @@ describe("attachPermissionResponder", () => {
       session,
       run: { emitEvent: () => {} },
       responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
-      latch: new PendingApprovalLatch(),
       toolSpecsByName: specsByName([
         { name: "commit_revision", permission: "ask" },
       ]),
@@ -657,7 +822,6 @@ describe("attachPermissionResponder", () => {
       session,
       run: { emitEvent: () => {} },
       responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
-      latch: new PendingApprovalLatch(),
       serverPermissions: new Map([["github", "deny"]]),
     });
     emit({
@@ -738,7 +902,6 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       session,
       run: { emitEvent: (event) => events.push(event) },
       responder: fakeResponder({ kind: "pendingApproval" }),
-      latch: new PendingApprovalLatch(),
       piToolSpecsByName: piSpecs(),
       onPausedToolCall: (id) => pausedToolCalls.push(id),
       onUserApprovalGate: (info) => gates.push(info),
@@ -779,7 +942,6 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       run: { emitEvent: (event) => events.push(event) },
       // A default-allow responder: if the malformed request fell through it would ALLOW.
       responder: fakeResponder({ kind: "allow" }),
-      latch: new PendingApprovalLatch(),
       piToolSpecsByName: piSpecs(),
       onPause: () => {
         pauses += 1;
@@ -815,7 +977,6 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       session,
       run: { emitEvent: () => {} },
       responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
-      latch: new PendingApprovalLatch(),
       piToolSpecsByName: piSpecs(),
     });
     emit(
@@ -851,7 +1012,6 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       session,
       run: { emitEvent: () => {} },
       responder,
-      latch: new PendingApprovalLatch(),
       piToolSpecsByName,
     });
     emit(
@@ -892,7 +1052,6 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       session,
       run: { emitEvent: () => {} },
       responder,
-      latch: new PendingApprovalLatch(),
       piToolSpecsByName: piSpecs(),
       onPause: () => {
         pauses += 1;
@@ -929,7 +1088,6 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       session,
       run: { emitEvent: () => {} },
       responder,
-      latch: new PendingApprovalLatch(),
       piToolSpecsByName: piSpecs(),
       onPause: () => {
         pauses += 1;
@@ -965,7 +1123,6 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       session,
       run: { emitEvent: (event) => events.push(event) },
       responder,
-      latch: new PendingApprovalLatch(),
       piToolSpecsByName: piSpecs(),
       onPause: () => {
         pauses += 1;
@@ -1000,7 +1157,6 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       session,
       run: { emitEvent: (event) => events.push(event) },
       responder,
-      latch: new PendingApprovalLatch(),
       piToolSpecsByName: piSpecs([["park_probe", {}]]),
     });
     emit(
@@ -1029,7 +1185,6 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       session,
       run: { emitEvent: (event) => events.push(event) },
       responder: fakeResponder({ kind: "pendingApproval" }),
-      latch: new PendingApprovalLatch(),
       piToolSpecsByName: piSpecs([
         [
           "test_run",
@@ -1073,7 +1228,6 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       session,
       run: { emitEvent: () => {} },
       responder,
-      latch: new PendingApprovalLatch(),
       piToolSpecsByName: piSpecs([
         [
           "author_allow",
@@ -1117,7 +1271,6 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       session,
       run: { emitEvent: () => {} },
       responder,
-      latch: new PendingApprovalLatch(),
       piToolSpecsByName: piSpecs([["author_deny", { permission: "deny" }]]),
       onPiGateAllowed: (info) => allowed.push(info),
     });
@@ -1163,7 +1316,6 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
       session,
       run: { emitEvent: (event) => events.push(event) },
       responder: fakeResponder({ kind: "pendingApproval" }),
-      latch: new PendingApprovalLatch(),
       // piToolSpecsByName intentionally absent (a Claude run).
       onPause: () => {
         pauses += 1;

@@ -54,6 +54,8 @@ from oss.src.core.sessions.records.dtos import SessionRecordEvent
 from oss.src.core.sessions.records.streaming import publish_record
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionCreate,
+    SessionInteractionKind,
+    SessionInteractionQuery,
     SessionInteractionStatus,
     SessionInteractionTransition,
 )
@@ -640,6 +642,33 @@ class InteractionsRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
+        resolution = (
+            body.resolution.model_dump() if body.resolution is not None else None
+        )
+        if resolution is not None:
+            interactions = await self.interactions_service.query_interactions(
+                project_id=project_id,
+                query=SessionInteractionQuery(session_id=body.session_id),
+            )
+            source = next(
+                (
+                    interaction
+                    for interaction in interactions
+                    if interaction.token == body.token
+                ),
+                None,
+            )
+            if source is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Interaction not found or already terminal",
+                )
+            if source.kind != SessionInteractionKind.user_approval:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Resolution is only valid for user approval interactions",
+                )
+
         try:
             interaction = await self.interactions_service.transition_interaction(
                 transition=SessionInteractionTransition(
@@ -647,6 +676,7 @@ class InteractionsRouter:
                     session_id=body.session_id,
                     token=body.token,
                     status=body.status,
+                    resolution=resolution,
                 ),
             )
         except InteractionNotFound:

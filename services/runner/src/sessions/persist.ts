@@ -292,10 +292,12 @@ export function buildPersistingEmitter(
       }
     }
 
-    // A tool_result / interaction_request carries the same tool-call id as its tool_call;
-    // give it its own stable id (keyed on the record type) so it lands on a distinct row.
+    // Related tool and interaction events share correlation ids but need distinct, retry-stable
+    // rows, so the record type remains part of the stable id.
     if (
-      (event.type === "tool_result" || event.type === "interaction_request") &&
+      (event.type === "tool_result" ||
+        event.type === "interaction_request" ||
+        event.type === "interaction_response") &&
       event.id
     ) {
       persistEvent(

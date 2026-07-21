@@ -7,6 +7,7 @@ import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import {
+  APPROVED_EXECUTION_RESULT_UNKNOWN,
   createSandboxAgentOtel,
   TOOL_NOT_EXECUTED_PAUSED,
 } from "../../src/tracing/otel.ts";
@@ -451,10 +452,10 @@ describe("extractApprovalDecisions", () => {
     const decisions = extractApprovalDecisions(request);
     assert.deepEqual(
       decisions.get(approvedCallKey("edit", { path: "a.txt" })!),
-      ["allow"],
+      [{ decision: "allow" }],
     );
     assert.deepEqual(decisions.get(approvedCallKey("bash", { cmd: "ls" })!), [
-      "deny",
+      { decision: "deny" },
     ]);
     assert.equal(decisions.has("edit"), false);
     assert.equal(decisions.has("tc-1"), false);
@@ -501,12 +502,15 @@ describe("extractApprovalDecisions", () => {
     const key = approvedCallKey("edit", { path: "a.txt" })!;
     const decisions = extractApprovalDecisions(request);
 
-    assert.deepEqual(decisions.get(key), ["allow", "allow"]);
+    assert.deepEqual(decisions.get(key), [
+      { decision: "allow" },
+      { decision: "allow" },
+    ]);
 
     const stored = new ConversationDecisions(decisions);
     const duplicateGate = gate({ toolName: "edit", args: { path: "a.txt" } });
-    assert.equal(stored.take(duplicateGate), "allow");
-    assert.equal(stored.take(duplicateGate), "allow");
+    assert.deepEqual(stored.take(duplicateGate), { decision: "allow" });
+    assert.deepEqual(stored.take(duplicateGate), { decision: "allow" });
     assert.equal(stored.take(duplicateGate), undefined);
   });
 
@@ -540,13 +544,13 @@ describe("extractApprovalDecisions", () => {
     };
     const stored = new ConversationDecisions(extractApprovalDecisions(request));
 
-    assert.equal(
+    assert.deepEqual(
       stored.take({
         executor: "harness",
         toolName: "mcp__agenta-tools__commit_revision",
         args: { workflow_revision: JSON.stringify(workflowRevision) },
       }),
-      "allow",
+      { decision: "allow" },
     );
   });
 
@@ -672,7 +676,7 @@ describe("client-tool output store (separate from approvals)", () => {
     // ...and lives only in the approval store.
     const decisions = extractApprovalDecisions(request);
     assert.deepEqual(decisions.get(approvedCallKey("edit", { path: "a" })!), [
-      "allow",
+      { decision: "allow" },
     ]);
   });
 
@@ -701,6 +705,14 @@ describe("client-tool output store (separate from approvals)", () => {
               output: TOOL_NOT_EXECUTED_PAUSED,
               isError: true,
             },
+            {
+              type: "tool_result",
+              toolCallId: "c-linear",
+              toolName: "request_connection",
+              input: { integration: "linear" },
+              output: APPROVED_EXECUTION_RESULT_UNKNOWN,
+              isError: true,
+            },
           ],
         },
       ],
@@ -719,7 +731,13 @@ describe("client-tool output store (separate from approvals)", () => {
       ),
       false,
     );
-    // So the model's retry of slack re-parks (a fresh widget) instead of resolving as fulfilled.
+    assert.equal(
+      outputs.has(
+        approvedCallKey("request_connection", { integration: "linear" })!,
+      ),
+      false,
+    );
+    // So the model retry of slack re-parks (a fresh widget) instead of resolving as fulfilled.
     const responder = new ApprovalResponder(
       plan("ask"),
       new ConversationDecisions(extractApprovalDecisions(request), outputs),

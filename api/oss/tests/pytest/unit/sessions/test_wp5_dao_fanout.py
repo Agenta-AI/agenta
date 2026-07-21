@@ -22,8 +22,11 @@ from sqlalchemy import text
 
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionCreate,
+    SessionInteractionData,
     SessionInteractionKind,
     SessionInteractionQuery,
+    SessionInteractionStatus,
+    SessionInteractionTransition,
 )
 from oss.src.core.mounts.dtos import MountCreate
 import oss.src.models.db_models  # noqa: F401
@@ -141,6 +144,74 @@ def interactions_dao():
 @pytest.fixture
 def mounts_dao():
     return MountsDAO(engine=get_transactions_engine())
+
+
+# ---------------------------------------------------------------------------
+# SessionInteractionsDAO transition resolution
+# ---------------------------------------------------------------------------
+
+
+async def test_interaction_transition_preserves_data_and_optionally_adds_resolution(
+    interactions_dao, project
+):
+    project_id = project["project_id"]
+    session_id = f"interaction-resolution-{uuid.uuid4().hex[:8]}"
+    request = {"tool": "bash", "args": {"command": "ls"}}
+
+    await interactions_dao.create_interaction(
+        project_id=project_id,
+        user_id=None,
+        interaction=SessionInteractionCreate(
+            project_id=project_id,
+            session_id=session_id,
+            token="approval-token",
+            kind=SessionInteractionKind.user_approval,
+            data=SessionInteractionData(request=request),
+        ),
+    )
+    transitioned = await interactions_dao.transition_interaction(
+        transition=SessionInteractionTransition(
+            project_id=project_id,
+            session_id=session_id,
+            token="approval-token",
+            status=SessionInteractionStatus.resolved,
+            resolution={"verdict": "approved", "tool_call_id": "tool-1"},
+        )
+    )
+
+    assert transitioned is not None
+    assert transitioned.status == SessionInteractionStatus.resolved
+    assert transitioned.data is not None
+    assert transitioned.data.request == request
+    assert transitioned.data.resolution == {
+        "verdict": "approved",
+        "tool_call_id": "tool-1",
+    }
+
+    await interactions_dao.create_interaction(
+        project_id=project_id,
+        user_id=None,
+        interaction=SessionInteractionCreate(
+            project_id=project_id,
+            session_id=session_id,
+            token="client-token",
+            kind=SessionInteractionKind.client_tool,
+            data=SessionInteractionData(request=request),
+        ),
+    )
+    transitioned_without_resolution = await interactions_dao.transition_interaction(
+        transition=SessionInteractionTransition(
+            project_id=project_id,
+            session_id=session_id,
+            token="client-token",
+            status=SessionInteractionStatus.resolved,
+        )
+    )
+
+    assert transitioned_without_resolution is not None
+    assert transitioned_without_resolution.data is not None
+    assert transitioned_without_resolution.data.request == request
+    assert transitioned_without_resolution.data.resolution is None
 
 
 # ---------------------------------------------------------------------------

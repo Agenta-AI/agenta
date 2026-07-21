@@ -153,6 +153,38 @@ describe("buildPersistingEmitter", () => {
     );
   });
 
+  it("gives interaction responses a retry-stable id distinct from the request", async () => {
+    const { emit, flush } = buildPersistingEmitter(
+      "sess-interaction",
+      () => "Secret t",
+    );
+
+    emit({
+      type: "interaction_request",
+      id: "approval-1",
+      kind: "user_approval",
+    });
+    emit({
+      type: "interaction_response",
+      id: "approval-1",
+      kind: "user_approval",
+      payload: { toolCallId: "tool-1", approved: true },
+    });
+    emit({
+      type: "interaction_response",
+      id: "approval-1",
+      kind: "user_approval",
+      payload: { toolCallId: "tool-1", approved: true },
+    });
+    await flush();
+
+    const bodies = postedBodies as Array<Record<string, unknown>>;
+    assert.ok(typeof bodies[0]["record_id"] === "string");
+    assert.ok(typeof bodies[1]["record_id"] === "string");
+    assert.notEqual(bodies[0]["record_id"], bodies[1]["record_id"]);
+    assert.equal(bodies[1]["record_id"], bodies[2]["record_id"]);
+  });
+
   it("record_index increments monotonically across events", async () => {
     const { emit, flush } = buildPersistingEmitter("sess-4", () => "Secret t");
 

@@ -65,6 +65,9 @@ export const DEFERRED_NOT_EXECUTED_PREFIX = "DEFERRED_NOT_EXECUTED";
 
 export const TOOL_NOT_EXECUTED_PAUSED = `${DEFERRED_NOT_EXECUTED_PREFIX}: paused for another approval; retry the same call if still required.`;
 
+export const APPROVED_EXECUTION_RESULT_UNKNOWN =
+  "APPROVED_EXECUTION_RESULT_UNKNOWN: the approved call started but its result was not observed before the pause ended the turn; do not assume it failed and do not retry a side-effecting call.";
+
 // ---------------------------------------------------------------------------
 // Shared, process-wide tracing infrastructure
 // ---------------------------------------------------------------------------
@@ -1086,6 +1089,8 @@ export interface SandboxAgentOtel {
     isExcluded: (id: string) => boolean,
     message: string,
   ): void;
+  /** Snapshot the ids whose tool calls have no terminal result yet. */
+  openToolCallIds(): string[];
   /**
    * Mark a tool-call id as DENIED (the runner replied `reject` to its gate). Its closing failed
    * result then carries `denied: true` so the egress projects `tool-output-denied` (a decline)
@@ -1615,6 +1620,7 @@ export function createSandboxAgentOtel(
     output: () => accumulated,
     events: () => events,
     settleOpenToolCalls,
+    openToolCallIds: () => [...toolSpans.keys()],
     markToolCallDenied,
     usage: () => usage,
   };

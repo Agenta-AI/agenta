@@ -1,8 +1,8 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from oss.src.core.sessions.streams.dtos import (
     SessionStream,
@@ -101,16 +101,34 @@ class SessionInteractionCreateRequest(BaseModel):
     meta: Optional[Dict[str, Any]] = None
 
 
+class SessionInteractionResolution(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    verdict: Literal["approved", "denied"]
+    tool_call_id: str
+
+
 class SessionInteractionTransitionRequest(BaseModel):
     # No project_id: scope comes from the caller's credential (request.state).
     session_id: str
     token: str
     status: SessionInteractionStatus
+    resolution: Optional[SessionInteractionResolution] = None
+
+    @model_validator(mode="after")
+    def validate_resolution_status(self) -> "SessionInteractionTransitionRequest":
+        # Resolution is answer data, so it is valid only on the resolved lifecycle edge.
+        if (
+            self.resolution is not None
+            and self.status != SessionInteractionStatus.resolved
+        ):
+            raise ValueError("resolution is only valid when status is resolved")
+        return self
 
 
 class SessionInteractionCancelStaleRequest(BaseModel):
-    # Cancels prior turns' pending gates, sparing this turn's own (`turn_id`) and any gates
-    # the current turn answers in-band (`tokens` — a resume must resolve them, not cancel).
+    # Cancels prior turns' pending gates, sparing this turn's own (`turn_id`) and every prior
+    # gate still owned by a live partial resume (`tokens`, including carried gates).
     session_id: str
     turn_id: str
     tokens: Optional[List[str]] = None

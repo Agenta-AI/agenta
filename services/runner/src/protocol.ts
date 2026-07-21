@@ -365,6 +365,14 @@ export type AgentEvent =
       kind: "user_approval" | "user_input" | "client_tool";
       payload?: unknown;
     }
+  // The durable answer half of an interaction_request, emitted when the runner forwards the
+  // human decision to the harness. Its id matches the request so hydration can overlay the answer.
+  | {
+      type: "interaction_response";
+      id: string;
+      kind: "user_approval";
+      payload?: unknown;
+    }
   // One-way generative-UI payloads (not tied to a tool result). `data` -> Vercel `data-<name>`,
   // `file` -> Vercel `file`.
   | { type: "data"; name: string; data: unknown; transient?: boolean }

@@ -11,7 +11,6 @@ import {
 } from "../../responder.ts";
 import {
   piBuiltinIdentity,
-  PendingApprovalLatch,
   type GateDescriptor,
 } from "../../permission-plan.ts";
 import {
@@ -44,7 +43,6 @@ export interface AttachPermissionResponderInput {
     markToolCallDenied?: (toolCallId: string | undefined) => void;
   };
   responder: Responder;
-  latch: PendingApprovalLatch;
   serverPermissions?: ReadonlyMap<string, ToolPermission>;
   /**
    * Called when a gate pauses the turn. The orchestration loop uses this to end the turn
@@ -54,6 +52,17 @@ export interface AttachPermissionResponderInput {
   log?: (msg: string) => void;
   /** Called with the ACP tool-call id when a gate pauses the turn. */
   onPausedToolCall?: (id: string) => void;
+  /** Called before an allow reply can release the harness to execute this tool call. */
+  onAllowedExecution?: (id: string) => void;
+  /** Called before a deny reply so its failed terminal frame remains authoritative. */
+  onAnsweredDeny?: (id: string) => void;
+  /**
+   * Called when a NON-parkable pause happens this turn (a client-tool ACP gate, which cannot be
+   * answered across a turn boundary on the live session). The keep-alive dispatch reads this to
+   * keep a turn that mixes an approval gate with a client-tool pause on the cold path, since only
+   * the cold path can multiplex that mixed set. An approval gate does NOT fire it.
+   */
+  onNonParkablePause?: () => void;
   /** Called on pause to record the pending gate as an interaction (fire-and-forget). */
   onCreateInteraction?: (
     token: string,
@@ -62,13 +71,16 @@ export interface AttachPermissionResponderInput {
     kind: "user_approval" | "client_tool",
   ) => void;
   /** Called after a stored decision was successfully forwarded to the harness. */
-  onResolveInteraction?: (token: string) => void;
+  onResolveInteraction?: (
+    token: string,
+    verdict?: { approved: boolean; toolCallId: string },
+  ) => void;
   /**
    * Fires for EVERY parkable permission gate (a Claude ACP gate or a Pi ACP gate) that
-   * resolves to pendingApproval, BEFORE the single-pause latch. Keep-alive uses it to record
-   * the parked permission id / tool-call id (for a live resume via `respondPermission`) and to
-   * count how many gates are pending this turn (a multi-gate pause does not park). It never
-   * fires for a client-tool gate (`pauseClientTool`), which stays on the cold path.
+   * resolves to pendingApproval. Keep-alive uses it to record every parked permission id /
+   * tool-call id (for a live resume via `respondPermission`, keyed by tool-call id) and to count
+   * how many gates are pending this turn. It never fires for a client-tool gate
+   * (`pauseClientTool`), which fires `onNonParkablePause` instead and stays on the cold path.
    */
   onUserApprovalGate?: (info: {
     permissionId: string;
@@ -109,11 +121,13 @@ export function attachPermissionResponder({
   session,
   run,
   responder,
-  latch,
   serverPermissions = new Map(),
   onPause,
   log,
   onPausedToolCall,
+  onAllowedExecution,
+  onAnsweredDeny,
+  onNonParkablePause,
   onCreateInteraction,
   onResolveInteraction,
   onUserApprovalGate,
@@ -155,19 +169,18 @@ export function attachPermissionResponder({
     gate: GateDescriptor,
     gateType: ParkedApprovalGateType,
   ): void => {
-    // Signal the parkable gate BEFORE the latch so a keep-alive resume can record the pending
-    // permission id and the multi-gate detector counts every pending gate (not just the first).
-    const gateToolCallId = stringValue(req?.toolCall?.toolCallId);
+    // Signal the parkable gate so a keep-alive resume can record the pending permission id and
+    // count every pending gate. Each gate emits its own card: there is no per-turn cap, so N
+    // gated calls in one turn all render and all park (the plural approval path).
+    const toolCallId = stringValue(req?.toolCall?.toolCallId);
     onUserApprovalGate?.({
       permissionId: id,
-      toolCallId: gateToolCallId ?? "",
+      toolCallId: toolCallId ?? "",
       toolName: gate.toolName,
       args: gate.args,
-      interactionToken: interactionEventId(id, gateToolCallId),
+      interactionToken: interactionEventId(id, toolCallId),
       gateType,
     });
-    if (!latch.tryAcquire()) return;
-    const toolCallId = stringValue(req?.toolCall?.toolCallId);
     const eventId = interactionEventId(id, toolCallId);
     if (toolCallId) onPausedToolCall?.(toolCallId);
     run.emitEvent({
@@ -192,7 +205,9 @@ export function attachPermissionResponder({
     gate: GateDescriptor,
     spec: ResolvedToolSpec,
   ): void => {
-    if (!latch.tryAcquire()) return;
+    // A client-tool ACP pause cannot be answered on the live session across a turn boundary, so
+    // flag the turn non-parkable: a turn that mixes this with an approval gate stays cold.
+    onNonParkablePause?.();
     const toolCallId = stringValue(req?.toolCall?.toolCallId);
     const eventId = interactionEventId(id, toolCallId);
     if (toolCallId) onPausedToolCall?.(toolCallId);
@@ -213,10 +228,15 @@ export function attachPermissionResponder({
     onPause?.();
   };
 
-  // Resolve the durable row this gate created, if it created one.
-  const resolveIfCreated = (id: string): void => {
-    if (!createdInteractionIds.delete(id)) return;
-    onResolveInteraction?.(id);
+  // A cold responder has no local creation set, so its stored decision carries the original token.
+  const resolveAfterReply = (
+    id: string,
+    verdict?: { approved: boolean; toolCallId: string },
+    interactionToken?: string,
+  ): void => {
+    const token = createdInteractionIds.delete(id) ? id : interactionToken;
+    if (!token) return;
+    onResolveInteraction?.(token, verdict);
   };
 
   const replyPermission = async (
@@ -224,12 +244,19 @@ export function attachPermissionResponder({
     decision: PermissionDecision,
     availableReplies: string[],
     toolCallId?: string,
+    interactionToken?: string,
   ): Promise<void> => {
     // A deny replies `reject`, which makes the harness close the call as a FAILED tool call. Flag
     // the id first so the closing result carries `denied` and the egress renders a decline, not a
     // breakage. (A malformed-envelope / unknown-builtin fail-closed reject goes through
     // `rejectRequest`, not here, so it stays a plain error — it is not a user/policy denial.)
-    if (decision === "deny") run.markToolCallDenied?.(toolCallId);
+    if (decision === "deny") {
+      run.markToolCallDenied?.(toolCallId);
+      if (toolCallId) onAnsweredDeny?.(toolCallId);
+    }
+    // Mark before replying because an allow can release the harness synchronously and its first
+    // execution frame must already be protected from a concurrently active pause sweep.
+    if (decision === "allow" && toolCallId) onAllowedExecution?.(toolCallId);
     try {
       await session.respondPermission(
         id,
@@ -242,7 +269,14 @@ export function attachPermissionResponder({
       onPause?.();
       return;
     }
-    resolveIfCreated(id);
+    resolveAfterReply(
+      id,
+      {
+        approved: decision === "allow",
+        toolCallId: toolCallId ?? id,
+      },
+      interactionToken,
+    );
   };
 
   const replyClientTool = async (
@@ -262,7 +296,7 @@ export function attachPermissionResponder({
       onPause?.();
       return;
     }
-    resolveIfCreated(id);
+    resolveAfterReply(id);
   };
 
   // A bare reject that answers the harness WITHOUT touching the durable interactions plane (no
@@ -348,7 +382,13 @@ export function attachPermissionResponder({
     if (verdict.kind === "allow" && envelope.gate === "pi-custom-tool") {
       onPiGateAllowed?.({ toolName: gate.toolName!, args: gate.args });
     }
-    await replyPermission(id, verdict.kind, availableReplies, envelope.toolCallId);
+    await replyPermission(
+      id,
+      verdict.kind,
+      availableReplies,
+      envelope.toolCallId,
+      verdict.interactionToken,
+    );
   };
 
   async function handleRequest(req: any): Promise<void> {
@@ -437,6 +477,7 @@ export function attachPermissionResponder({
       verdict.kind,
       availableReplies,
       stringValue(toolCall?.toolCallId),
+      verdict.interactionToken,
     );
   }
 }
@@ -512,7 +553,7 @@ function recordedToolName(
  * strip that prefix so the lookup hits). This is the ONLY source of a tool's true
  * `permission`/`readOnly`, so both the approval card and this descriptor come from one lookup.
  */
-function buildGateDescriptor(
+export function buildGateDescriptor(
   toolCall: any,
   run: { events?: () => AgentEvent[] },
   serverPermissions: ReadonlyMap<string, ToolPermission>,
