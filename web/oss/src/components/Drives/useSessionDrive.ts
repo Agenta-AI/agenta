@@ -1,4 +1,4 @@
-import {useMemo} from "react"
+import {useCallback, useMemo} from "react"
 
 import {
     latestMountFilesQueryFamily,
@@ -76,14 +76,30 @@ export interface SessionDriveData {
     /** The most recent touch across the drive, for the `Updated {rel} · {n} files` summary. */
     lastTouchedAt: number | null
     summary: string
-    /** No data to show YET — a blocking skeleton is appropriate. Goes false as soon as ANY mount's
-     * data arrives (the other may still be loading — see {@link isFetching}). */
+    /** No data to show YET — a blocking skeleton is appropriate. Goes false as soon as the FIRST
+     * mount answers (files, empty, or error); the other may still be loading — see {@link reconciling}
+     * / {@link isFetching}. The fast drive is never blocked on the slow one. */
     isLoading: boolean
+    /** Past the initial blank: one drive has answered but a sibling is still catching up. Surfaces
+     * keep the list (content + a "loading more" hint) instead of the terminal "No files" while data
+     * is still arriving. Optional (the full drive omits it). */
+    reconciling?: boolean
     /** A listing is still in flight even though some data may already be shown — for a subtle
-     * "loading more" hint rather than a blocking skeleton. Optional (the full drive omits it). */
+     * "loading more" hint rather than a blocking skeleton. Covers in-place revalidation too (a
+     * session-switch refetch over cached data). Optional (the full drive omits it). */
     isFetching?: boolean
-    /** Listing (or mount discovery) failed — e.g. object store not configured. */
+    /** Listing (or mount discovery) failed with nothing to show — e.g. object store not configured.
+     * Drives the inline error + Retry card. Session-side only in the summary (an agent-only failure
+     * is {@link partialErrored} instead). */
     errored: boolean
+    /** A mount failed but the drive still shows content (or only the per-artifact agent mount broke) —
+     * so the inline list stays clean and the failure is surfaced as a warning indicator on the
+     * drawer-trigger, with the retry handled inside the drawer. Optional (the full drive omits it). */
+    partialErrored?: boolean
+    /** Re-run the failed listing/count queries (for a retry affordance in the {@link errored} state).
+     * Optional — provided by the summary hook; the full drive omits it. `isFetching` goes true while a
+     * retry is in flight. */
+    retry?: () => void
     /** Map a presented path (as it appears in `files`/`recents`) to the mount + mount-relative path
      * that backs it — the cwd mount, or the nested `agent-files/` agent mount — for read/download. */
     resolveMount: (path: string) => ResolvedMountPath | null
@@ -334,7 +350,21 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
     // id) whenever the record log already has visible changes — no wasted request in the common case.
     const rootQuery = useAtomValue(mountRootQueryFamily(hasVisibleRecords ? "" : (mount?.id ?? "")))
 
-    return useMemo(() => {
+    // Re-run the underlying queries (retry from the errored state). `refetch()` bypasses `enabled`
+    // and DOES invoke the queryFn on the empty-id (disabled) queries, but each queryFn guards its id
+    // (`if (!mountId) return null`, etc.) and returns without a request — so this only ever re-hits
+    // what could actually load. `isFetching` reflects it in flight, driving the retry button's spinner.
+    const retry = useCallback(() => {
+        void mountsQuery.refetch?.()
+        void cwdCount.refetch?.()
+        void rootQuery.refetch?.()
+        if (artifactId) {
+            void agentMountQuery.refetch?.()
+            void agentCount.refetch?.()
+        }
+    }, [mountsQuery, cwdCount, rootQuery, agentMountQuery, agentCount, artifactId])
+
+    const data = useMemo(() => {
         // Newest write/edit per path (the map already dedups by path, keeping the latest timestamp).
         const recordRecents: DriveRecentFile[] = [...recordRecency.entries()]
             .map(([toolPath, at]) => ({path: cleanPath(toolPath), touchedAt: at}))
@@ -374,18 +404,52 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
             return mount ? {mount, path: rel} : null
         }
 
-        // "A request is in flight" — keyed on fetchStatus (`.isFetching`), NOT `.isPending`. A session
-        // switch revalidates the swapped mount's CACHED count (data present, so `isPending` is false)
-        // yet is actively refetching; without fetchStatus the summary surfaces would show no indicator
-        // during that. Disabled queries (empty id) are idle, so they never count.
+        // The two drives — the session cwd and the per-artifact agent mount — resolve INDEPENDENTLY,
+        // and neither blocks the other: content shows the instant either side returns it, and the
+        // slower side reconciles in afterward. So the flags below are framed around per-side
+        // RESOLUTION, not a global "is anything fetching".
+        //
+        // A side is "still resolving" = in play (a session / an artifact was given) but it hasn't
+        // produced its answer yet — neither data nor an error. `isPending` covers first-load mount
+        // discovery; the `data === undefined` term covers the frame between the mount landing and its
+        // count query flipping to fetching. A background REVALIDATION (data present, refetching) is NOT
+        // resolving — it reconciles in place and only feeds the subtle `isFetching` hint below.
+        const cwdResolving =
+            Boolean(sessionId) &&
+            (mountsQuery.isPending ||
+                (Boolean(mount) && cwdCount.data === undefined && !cwdCount.isError))
+        const agentResolving =
+            Boolean(artifactId) &&
+            (agentMountQuery.isPending ||
+                (Boolean(agentMount) && agentCount.data === undefined && !agentCount.isError))
+
+        const cwdInPlay = Boolean(sessionId)
+        const agentInPlay = Boolean(artifactId)
+        // Has at least one in-play side produced its answer (files, empty, or error)?
+        const anyResolved = (cwdInPlay && !cwdResolving) || (agentInPlay && !agentResolving)
+        const anyResolving = cwdResolving || agentResolving
+        const hasContent = recents.length > 0 || fileCount > 0
+
+        // "A request is in flight over data that may already be shown" — the subtle "Loading more…"
+        // hint. Keyed on fetchStatus so a session-switch revalidation (cached data, refetching) still
+        // surfaces it. Disabled queries (empty id) are idle and never count.
         const isFetching =
             mountsQuery.isFetching ||
             cwdCount.isFetching ||
             (Boolean(artifactId) && (agentMountQuery.isFetching || agentCount.isFetching)) ||
             rootQuery.isFetching
-        // Block with a skeleton ONLY while there's nothing to show yet (the first load) — once any data
-        // is in, a refetch shows the subtle "fetching" hint instead of a blocking skeleton.
-        const isLoading = isFetching && recents.length === 0 && fileCount === 0
+
+        // BLOCKING skeleton ONLY at the very start — before ANY in-play side has answered and with
+        // nothing to show. The moment one side answers (or the record log yields recents), we drop the
+        // skeleton and render what we have; the fast drive is never held hostage to the slow one.
+        const isLoading = (cwdInPlay || agentInPlay) && !anyResolved && !hasContent
+        // RECONCILING: past that initial blank, a sibling is still catching up. Surfaces keep the list
+        // (whatever content is in + a "Loading more…" hint) instead of flashing the terminal "No files"
+        // while data is still arriving. Distinct from `isFetching` (which also covers in-place
+        // revalidation and the idle mount→count handoff frame).
+        const reconciling = anyResolving && (anyResolved || hasContent)
+
+        // Per-mount failure: the session cwd and the artifact-scoped agent mount fail independently.
         const sessionErrored =
             Boolean(sessionId) &&
             ((!mountsQuery.isPending && (mountsQuery.data === null || mountsQuery.isError)) ||
@@ -399,8 +463,14 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
                 (Boolean(agentMount) &&
                     !agentCount.isPending &&
                     (agentCount.data === null || agentCount.isError)))
-        // Only a TOTAL failure reads as errored — a partial one still has recents/count to show.
-        const errored = (sessionErrored || agentErrored) && fileCount === 0 && recents.length === 0
+        // TERMINAL error (the inline error + Retry card) means the SESSION (cwd) side failed with
+        // nothing to show. An agent-only failure — or any failure with content still visible — is NOT
+        // terminal: it falls through to the files/empty state so a working session is never masked.
+        const errored = sessionErrored && fileCount === 0 && recents.length === 0
+        // PARTIAL failure: a mount failed but we're NOT in the terminal card (there's content, or only
+        // the agent side broke). The inline list stays clean; instead the drawer-trigger shows a quiet
+        // warning indicator and the drawer itself offers the retry (see the drawer's partial banner).
+        const partialErrored = (sessionErrored || agentErrored) && !errored
 
         const summary = isLoading
             ? "…"
@@ -422,8 +492,10 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
             lastTouchedAt,
             summary,
             isLoading,
+            reconciling,
             isFetching,
             errored,
+            partialErrored,
             resolveMount,
         }
     }, [
@@ -453,4 +525,6 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
         mountsQuery.isFetching,
         mountsQuery.isError,
     ])
+
+    return {...data, retry}
 }
