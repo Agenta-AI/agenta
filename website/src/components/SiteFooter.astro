@@ -20,17 +20,9 @@ const socials = [
 ];
 
 type Link = { label: string; href: string; external?: boolean };
+// Product column removed — those product pages no longer exist. The remaining
+// three columns hold Company / Resources / Legal.
 const columns: { heading: string; links: Link[] }[] = [
-  {
-    heading: "Product",
-    links: [
-      { label: "Prompt Engineering", href: "/product/prompt-engineering" },
-      { label: "Evaluation", href: "/product/evaluation" },
-      { label: "Human annotation", href: "/product/human-annotation" },
-      { label: "Deployment", href: "/product/deployment" },
-      { label: "Observability", href: "/product/observability" },
-    ],
-  },
   {
     heading: "Company",
     links: [

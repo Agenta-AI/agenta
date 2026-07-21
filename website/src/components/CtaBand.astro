@@ -1,20 +1,40 @@
 ---
-import Button from "./Button.astro";
-
-// Default design variant = "Yellow": full-bleed yellow band (the single yellow
-// moment for this viewport). The primary action is a dark keycap button; the
-// secondary is outline. CTA destinations match the live site.
+// Full-bleed yellow CTA band (the single yellow moment for this viewport). The
+// two buttons replicate the live agenta.ai CTA keycaps exactly (dark gradient +
+// white outline gradient, inset top-light shadow, 8px radius). The faded Agenta
+// symbol is a large decorative mark clipped by the band (overflow:hidden), like
+// the live site — non-interactive and aria-hidden.
 const GET_STARTED = "https://cloud.agenta.ai/";
 const BOOK_DEMO = "https://cal.com/mahmoud-mabrouk-ogzgey/demo?duration=30";
+
+// Exact CTA-keycap CSS lifted from live agenta.ai (computed styles). Kept inline
+// here so the band matches the live site without touching the shared button
+// tokens (which the nav/hero also use). Height/padding follow our larger type
+// scale rather than the live 36px/12px so the band CTA reads at page scale.
+const btnBase =
+  "display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 20px;border-radius:8px;font:var(--text-label);cursor:pointer;text-decoration:none;white-space:nowrap;box-sizing:border-box;";
+const btnDark =
+  btnBase +
+  "background:linear-gradient(180deg,#413F3E 0%,#1E1D1C 100%);box-shadow:inset 0 3px 6px rgba(255,255,255,0.3);color:#FFFFFF;";
+const btnWhite =
+  btnBase +
+  "background:linear-gradient(180deg,#F7F6F5 0%,#F1EEEC 100%);box-shadow:inset 0 3px 6px rgba(255,255,255,1);color:var(--ink-900);";
 ---
 
 <section
   data-screen-label="CTA"
-  style="background:var(--surface-cta);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:96px 24px;"
+  style="position:relative;overflow:hidden;background:var(--surface-cta);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:96px 24px;"
 >
+  <img
+    class="ag-cta-img"
+    src="/logos/Agenta-symbol-light.svg"
+    alt=""
+    aria-hidden="true"
+    style="position:absolute;top:50%;right:-40px;transform:translateY(-50%);width:560px;opacity:0.1;pointer-events:none;z-index:0;"
+  />
   <div
     class="ag-cta-row"
-    style="display:flex;align-items:center;justify-content:space-between;width:min(1072px,100%);margin:0 auto;gap:48px;"
+    style="position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;width:min(1072px,100%);margin:0 auto;gap:48px;"
   >
     <div style="display:flex;flex-direction:column;gap:24px;max-width:520px;">
       <h2
@@ -22,22 +42,14 @@ const BOOK_DEMO = "https://cal.com/mahmoud-mabrouk-ogzgey/demo?duration=30";
       >
         Ship agents that actually work
       </h2>
-      <p
-        style="margin:0;font:var(--text-body-md);color:rgba(36,36,36,0.72);"
-      >
+      <p style="margin:0;font:var(--text-body-md);color:rgba(36,36,36,0.72);">
         Build with skills and tools, run on any harness in any environment, and
-        improve with real feedback — all open source.
+        improve with real feedback. All open source.
       </p>
       <div style="display:flex;gap:12px;">
-        <Button variant="dark" size="lg" href={GET_STARTED}>Start building</Button>
-        <Button variant="outline" size="lg" href={BOOK_DEMO}>Book a demo</Button>
+        <a href={GET_STARTED} style={btnDark}>Start building</a>
+        <a href={BOOK_DEMO} style={btnWhite}>Book a demo</a>
       </div>
     </div>
-    <img
-      class="ag-cta-img"
-      src="/logos/Agenta-symbol-light.svg"
-      alt=""
-      style="width:150px;opacity:0.16;"
-    />
   </div>
 </section>
