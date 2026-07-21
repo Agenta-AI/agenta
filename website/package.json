@@ -13,6 +13,7 @@
     "prebuild": "node scripts/fetch-fonts.mjs",
     "build": "astro build",
     "preview": "astro preview",
+    "deploy:preview": "astro build && wrangler deploy",
     "astro": "astro",
     "check": "astro check"
   },
