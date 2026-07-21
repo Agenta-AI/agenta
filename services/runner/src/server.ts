@@ -334,6 +334,9 @@ export async function runWithKeepalive(
 ): Promise<AgentRunResult> {
   const { engine, pool, config, clientGone } = ctx;
   const sessionId = request.sessionId?.trim();
+  // Every execution carries an id: callers that omit `turnId` get one minted here, so the
+  // turns-ledger append and interaction rows are never written without their execution id.
+  request.turnId = request.turnId?.trim() || randomUUID();
 
   // Track whether anything reached the client on this streaming edge. A live continuation/resume
   // that fails AFTER emitting (a partial answer or an error event) must NOT retry cold: the client
@@ -912,6 +915,9 @@ async function runAndStreamWithApiBaseResolved(
   const sessionOwned = isSessionOwned(request);
   const sessionId = request.sessionId!;
   const turnId = resolveTurnId(request);
+  // Write the resolved id back: every downstream reader of `request.turnId` (the turns-ledger
+  // append, interaction rows) must see the SAME execution id the alive-lock and records use.
+  request.turnId = turnId;
 
   // Diagnostic: surface whether the session-owned persist/alive path is entered and
   // whether the invoke credential arrived. Empty cred => heartbeat/persist would 401.
