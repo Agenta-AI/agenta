@@ -845,6 +845,26 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                         stepError,
                     }
                 }
+
+                // Also check if the invocation step itself has failed (e.g.,
+                // missing API key, provider error). When the invocation fails,
+                // metric values like cost/duration/tokens are meaningless —
+                // they either don't exist or contain invalid dict objects.
+                // Return undefined so the cell renders "—" instead of raw dicts.
+                if (invocations.length > 0) {
+                    for (const invStep of invocations) {
+                        const invError = extractStepError(invStep)
+                        if (invError) {
+                            return {
+                                value: undefined,
+                                displayValue: undefined,
+                                isLoading: false,
+                                isFetching: false,
+                                error: undefined,
+                            }
+                        }
+                    }
+                }
             }
 
             let metricCandidate: ScenarioStepValueResult | null = null
