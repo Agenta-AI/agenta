@@ -49,11 +49,47 @@ Per recent run, one row that adapts to what the run produced:
 - **Runs** (was "Requests"), **Avg latency**, **Cost**, **Tokens** over time —
   *`ObservabilityOverview` aggregates, relabelled*.
 
-### Reliability & efficiency (drill-down, not forced)
-- **Most-used tools** — which tools it calls, counts, pass/fail flag — *`ag.tool.name` /
-  `ag.meta.tool.call.result`*.
+### Reliability (drill-down, not forced)
+- **Most-used tools** — which tools it calls, counts, pass/fail flag — *Overview:
+  `ag.tool.name` / `ag.meta.tool.call.result` from the trace store. Live composer
+  equivalent (same style as the context-budget indicator, no new fetch): tool message-parts
+  (`part.type` `tool-*`/`dynamic-tool`, name via `partToolName`, pass/fail via `part.state`);
+  see `research.md` §3b.*
 - **Where it's failing** — failures grouped by cause — *`ag.exception.type`*.
-- **Token & cache efficiency** — token breakdown and cache savings — *`ag.metrics.unit.tokens.*`*.
+
+### Resource usage & cost (the "what is it consuming" group)
+- **Context usage** — how full the model's context window gets per run (occupancy: run
+  tokens vs. the model's window), so a user can see runs approaching compaction/truncation —
+  *reuses PR #5402's primitive. Occupancy per run = `ag.metrics.unit.tokens.total` /
+  `gen_ai.usage.total_tokens` from the trace store, keyed by `ag.meta.model_name`, against
+  the window from `resolveModelContextWindow` / `MODEL_CONTEXT_WINDOWS`
+  (`web/oss/src/components/AgentChatSlice/assets/contextBudget.ts`). Window unknown → show
+  raw token count without the percentage.* Use the **occupancy** measure (current fullness /
+  compaction predictor), not the cumulative running sum. See `research.md` for the full
+  reconciliation and the litellm follow-up for the denominator.
+- **Token consumption** — breakdown of prompt / completion / reasoning / cached tokens per
+  run and over time — *`ag.metrics.unit.tokens.{prompt,completion,reasoning,cache_read,cache_creation,cached}`*.
+- **Cache savings** — how much prompt caching is saving (cache-read share, cost avoided) —
+  *`ag.metrics.unit.tokens.cache_read` / `gen_ai.usage.cache_read.input_tokens`*.
+- **Cost** — cost per run, avg per run, and trend; optionally cost per tool —
+  *`gen_ai.usage.cost`*.
+- **Model & provider** — which model/provider each run used (agents can switch models) —
+  *`ag.meta.model_name` / `ag.meta.provider`*.
+
+## Who reads this (persona → what they use)
+
+The catalog covers three readers without three pages — each view already maps to one of
+them; the layout just orders by priority:
+
+- **Owner / operator** (often non-technical): *does it need me, is it working, what's it
+  costing?* → needs-you, outcomes feed, status band, success rate, cost.
+- **Builder / developer**: *why did it fail, is it efficient, am I near the context limit?*
+  → context usage, token consumption, tool reliability, failures, trace drill-down.
+- **Budget owner / stakeholder**: *what's the spend and is caching helping?* → cost trend,
+  cost per run, cache savings.
+
+Plain-language work stays on top for the operator; usage/efficiency detail sits lower and
+behind clicks for the builder and budget reader.
 
 ### Connections & triggers
 - **Connections** — external integrations and whether any need reconnecting (Reconnect

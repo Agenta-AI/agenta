@@ -52,7 +52,25 @@ Each slice leaves the tree working and testable.
 - **Exit:** a blocked agent shows its pending items and they resolve from Overview; a
   connection needing reauth shows Reconnect; schedules show next run.
 
-## Slice 4 — Empty state + onboarding
+## Slice 4 — Reliability & resource-usage panels
+
+1. Reliability: most-used tools (counts + pass/fail from `ag.tool.name` /
+   `ag.meta.tool.call.result`) and failures grouped by cause (`ag.exception.type`).
+2. Resource usage: token consumption breakdown, cache savings, cost per run/trend, and
+   model/provider per run — all from trace token/cost attributes.
+3. Context usage: reuse PR #5402's primitive
+   (`AgentChatSlice/assets/contextBudget.ts` — `resolveModelContextWindow` /
+   `MODEL_CONTEXT_WINDOWS`). Occupancy per run = run total tokens (trace store) vs. the
+   model's window, keyed by `ag.meta.model_name`; use the occupancy measure (not the
+   running sum); degrade to a raw token count when the window is `null`. First, lift the
+   shared bits (the window map + resolver) out of `AgentChatSlice` to a shared location so
+   composer and Overview read one source; coordinate with #5402 rather than forking the map.
+- **Exit:** a user can see which tools an agent leans on and how reliable they are, how full
+  the context window gets per run (occupancy), and where token/cost is going — with
+  unknown-window runs showing a token count rather than a broken percentage, and no
+  duplicated context-window map.
+
+## Slice 5 — Empty state + onboarding
 
 1. Detect the three zero states (never-run / per-section-empty / first-run-failed) and
    render the right one; never show zeroed prompt-era panels.
@@ -63,7 +81,7 @@ Each slice leaves the tree working and testable.
 - **Exit:** a brand-new agent sees onboarding with a working first action and steps that
   tick off as data appears; a first failed run shows the failure, not "no data".
 
-## Slice 5 (Phase 2, optional) — Materialized aggregates
+## Slice 6 (Phase 2, optional) — Materialized aggregates
 
 Only if Phase 1 render latency proves the per-request aggregation too costly at scale.
 1. Index mount file metadata in Postgres at write time (avoid object-store LIST for chips).
@@ -75,5 +93,5 @@ Only if Phase 1 render latency proves the per-request aggregation too costly at 
 
 ## Flag rollout
 
-Ship Slices 0–4 behind the flag, dogfood, then default on for the agent kind. Slice 5 is a
+Ship Slices 0–5 behind the flag, dogfood, then default on for the agent kind. Slice 6 is a
 performance backstop, not a prerequisite.

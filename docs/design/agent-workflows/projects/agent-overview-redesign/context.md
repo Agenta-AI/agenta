@@ -66,3 +66,7 @@ user onto the same prompt-era panels rendering zeros, with no path toward first 
 4. Every view on the page maps to a named, verified backend data source (`design.md`).
 5. Non-technical and technical users can both read the page: plain-language outcomes up
    top, drill-down detail (traces, tokens, tool calls) available but not forced.
+6. The page surfaces the agent's resource usage in terms each persona can act on — context
+   usage (how full the model's context window gets), token consumption, cache savings, and
+   cost per run — not just aggregate charts. Each of these ties to a named source in
+   `design.md` and maps to a persona in the "Who reads this" section.

@@ -46,6 +46,45 @@ semantic-convention attributes (`ag.*`, `gen_ai.*`) verified present in the SDK 
 Per-run cost, duration, tools-used, tokens, outcome, and failure reason are all derivable
 from a single trace. The existing charts already aggregate over traces.
 
+**Context usage** (how full the model's context window gets) — prior art already exists:
+**PR #5402** (`fe-feat/session-context-info`, Arda, open/draft) adds a "Context X / max
+(Y%)" budget indicator to the agent chat composer. Read its helpers before building the
+Overview version — reuse, don't reinvent:
+
+- `web/oss/src/components/AgentChatSlice/assets/contextBudget.ts` — `computeContextBudget`,
+  `resolveModelContextWindow`, and the `MODEL_CONTEXT_WINDOWS` map.
+- `web/oss/src/components/AgentChatSlice/components/ContextBudgetIndicator.tsx` — the
+  presentational strip.
+
+What that PR establishes (and corrects in this research):
+
+- **The backend does NOT expose per-model context windows to the frontend.** The model
+  registry the FE reads stores only *cost*. The `context_window` field I found earlier in
+  `sdks/python/agenta/sdk/agents/model_catalog.py:74` is SDK-side curated data, not surfaced
+  through the API — so it is not a usable denominator for a FE view today. The denominator
+  instead comes from the hardcoded FE `MODEL_CONTEXT_WINDOWS` map (substring/longest-match on
+  the model id), returning `null` for unknown models → the view drops the "/ max (%)" and
+  shows raw tokens. Documented follow-up: source the window from litellm
+  `get_model_info().max_input_tokens` instead of the static map.
+- **Two candidate measures**, shown side by side in v1 until one is picked on a live agent:
+  - **occupancy** — the *latest* turn's total tokens = how full the window is *now*; grows
+    with the conversation and **drops after a compaction**, so it's the compaction predictor.
+    This is the measure that means "context usage".
+  - **running sum** — Σ of every turn's tokens; cumulative, double-counts resent history,
+    never drops. A usage meter, not an occupancy meter.
+- **Token source (FE):** per-turn usage is stamped on assistant messages
+  (`message.metadata.usage`, read via `getMessageUsage` in
+  `web/oss/src/components/AgentChatSlice/assets/trace.ts`) — no new fetch, works for live and
+  reloaded sessions.
+
+Implication for Overview: the *concept* and the *window map* are shared with the composer,
+but the *data path differs*. The composer reads a single live session's `messages`. Overview
+aggregates across many historical runs, so it reads per-run token totals from the trace
+store (`ag.metrics.unit.tokens.total` / `gen_ai.usage.total_tokens`) and applies the same
+`resolveModelContextWindow` map. Occupancy per run = that run's total tokens vs. the model's
+window. This connects to the known token-overhead behavior (a bare turn can cost ~15K tokens
+from advertised tool schemas); context usage makes that visible on Overview.
+
 ### 2. Produced artifacts — session mounts
 
 `api/oss/src/core/mounts/dtos.py` and `.../sessions/mounts/dtos.py`:
@@ -75,6 +114,31 @@ is fully supported. Not every agent writes files — message-output agents use �
 `user_approval` = approve/deny gate; `user_input` = the agent asked a question;
 `client_tool` = a tool the client must run. A pending interaction means the agent is
 blocked on the human.
+
+### 3b. Tool usage — same live layer as the context budget (no new fetch)
+
+Tool usage is derivable from the same live `messages` array that PR #5402's
+`ContextBudgetIndicator` reads — a "Tools used" readout can mirror the context-budget one
+client-side, and the Overview "Most-used tools" panel has a clean live-session equivalent.
+Tool calls are message *parts*:
+
+- A part is a tool call when `part.type.startsWith("tool-")` or `part.type === "dynamic-tool"`
+  (`web/oss/src/components/AgentChatSlice/AgentConversation.tsx:193-194`; also
+  `state/expandState.ts:39`, `components/ApprovalDock.tsx:26`).
+- Tool name: `partToolName(part)` (`assets/toolDisplay.ts:79` — `dynamic-tool` carries it on
+  `toolName`, typed parts are `type.replace(/^tool-/, "")`); human label via
+  `resolveToolDisplay`.
+- Outcome per call: `part.state` — `output-available` = success, `output-error` /
+  `output-denied` = failed (`SETTLED` set, `components/ToolActivity.tsx:35`); also
+  `input-available` (running), `approval-requested` / `approval-responded` (HITL).
+- Each part also carries `toolCallId`, `input`, `output`, `errorText`. `ToolActivity.tsx`
+  already renders individual calls.
+
+So which-tools / call-count / pass-fail are all computable from the live session with no new
+backend work — the composer parallel to context budget. **Overview** aggregates across
+historical runs instead, from the trace store (`ag.tool.name` / `ag.meta.tool.call.result`),
+per §1. Same concept, two data paths (live messages vs. trace store) — same split as context
+usage.
 
 ### 4. Triggers and schedules
 

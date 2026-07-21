@@ -17,6 +17,11 @@ the visual design.
 - Organize around three questions; lead with work (outcomes + produced artifacts), not
   config.
 - Keep the charts; relabel Requests → Runs.
+- Surface resource usage as a first-class group — context usage (how full the model's
+  window gets), token consumption, cache savings, cost per run — mapped to three personas
+  (owner, builder, budget owner).
+- Reuse PR #5402's context-budget primitive (Arda) for context usage — occupancy measure,
+  shared `MODEL_CONTEXT_WINDOWS` map; don't fork it.
 - Phase 1 composes existing data only (tracing, mounts, session interactions, triggers);
   no new backend endpoints.
 - Artifacts load lazily per row; file-less runs degrade to message output.
