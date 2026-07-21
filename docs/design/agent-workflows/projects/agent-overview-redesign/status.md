@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-07-21
+**Last updated:** 2026-07-21 (context-window sourcing updated per PR #5434)
 
 ## Current stage
 
@@ -22,13 +22,16 @@ only; no code, no branch, no commit.
   tokens vs. the model's window), token consumption, cache savings, cost per run, and
   model/provider. Context usage degrades to a raw token count when the window size is
   unknown.
-- Context usage **reuses PR #5402** (Arda, `fe-feat/session-context-info`), which already
-  builds the composer's context-budget indicator. Overview uses the **occupancy** measure
-  (current fullness / compaction predictor), not the cumulative running sum. The
-  context-window denominator comes from that PR's FE `MODEL_CONTEXT_WINDOWS` map (the backend
-  registry stores only cost, not window sizes); do not fork the map — lift it to a shared
-  location and coordinate with #5402. Follow-up (owned by #5402): source the window from
-  litellm `get_model_info().max_input_tokens`.
+- Context usage **reuses the shipped primitive** across a stacked pair: PR #5402 (Arda,
+  `fe-feat/session-context-info`) + **PR #5434** (Ashraf,
+  `feat/extend-arda's-session-context-work`, stacked on #5402). #5434 is the source of truth.
+  Overview uses the **occupancy** measure only (running sum was dropped in #5434). The
+  context-window denominator comes from the **model catalog on the harness-capabilities doc**,
+  resolved by `contextWindowForModel(capabilities, harness, modelId)` exported from
+  `@agenta/entities/workflow` — no hardcoded map, no litellm follow-up. `context_window: null`
+  entries (e.g. Claude `default` alias) degrade to a raw token count; filling them is a
+  `model_catalog.py` data change, not FE. Match the composer's ambient-meter UI (bar +
+  "Context N% used", amber `>= 75%`, red `>= 90%`).
 - The view catalog serves three personas (owner/operator, builder, budget owner) from one
   page via priority ordering, not three separate pages.
 - Phase 1 composes only data sources that already exist (tracing, mounts, session
@@ -59,18 +62,27 @@ only; no code, no branch, no commit.
 5. **"Run now" ownership** — does Overview trigger a run itself or hand off to the existing
    manual-run path? *Recommend:* reuse the existing manual-trigger path; Overview only
    invokes it.
-6. **Context-window map ownership** — where does the shared `MODEL_CONTEXT_WINDOWS` /
-   `resolveModelContextWindow` live once both composer and Overview use it, and does that
-   lift land in #5402 or here? *Recommend:* lift it to a shared FE location as part of #5402
-   (or a small precursor PR) so Overview imports rather than forks; sequence Slice 4 after
-   #5402 merges. Confirm with Arda.
-7. **Composer vs. Overview measure** — #5402 shows occupancy + running sum side by side to
-   pick one live. Overview should not wait on that: it uses occupancy now. *Confirm* the two
-   surfaces can settle the measure independently (Overview = occupancy; composer picks its
-   own).
+6. ~~Context-window map ownership~~ — **RESOLVED by #5434.** No shared map to own: the
+   denominator is `contextWindowForModel` in `@agenta/entities/workflow`, sourced from the
+   model catalog on the harness-capabilities doc. Overview imports the selector. Slice 4
+   depends on #5434 being merged (it is stacked on #5402).
+7. ~~Composer vs. Overview measure~~ — **RESOLVED by #5434.** Occupancy is the settled
+   measure everywhere; the running sum was dropped. No divergence to reconcile.
+8. ~~Overview data path for context usage~~ — **RESOLVED (traced).** (a) The
+   harness-capabilities doc is a **global, project-independent** atom
+   (`harnessCatalogQueryAtom` ← `GET /workflows/catalog/harnesses/`); Overview reads it with
+   `useAtomValue(harnessCapabilitiesAtomFamily(""))`, no `AgentChatSlice` coupling. (b) Per
+   run, `model` is on the **LLM child span** (`ag.meta.request.model` /
+   `ag.meta.response.model`) while the token total is on the **workflow root** span — pair the
+   root with its LLM child. (c) `harness` is **not on the trace**; it's agent config
+   (`agent.harness.kind`), stable per agent — read it from the agent like the composer does.
+   Call `contextWindowForModel(globalCapabilities, agentHarness, runModel)`; unknowns degrade
+   to raw token count. Implementation note captured in `plan.md` Slice 4.
 
 ## Next action
 
-Share the workspace and the five open questions for agreement. On sign-off, hand the view
-catalog (`design.md`) to design for the Figma pass, and start Slice 0 on an implementation
-branch (separate from this planning session).
+Context-usage feasibility (Q6–8) is fully traced and settled; the remaining open items are
+the product/rollout calls (Q1–5). Share the workspace and Q1–5 for agreement. On sign-off,
+hand the view catalog (`design.md`) to design for the Figma pass, and start Slice 0 on an
+implementation branch (separate from this planning session). Slice 4 depends on #5434 (the
+context-usage primitive) being merged.

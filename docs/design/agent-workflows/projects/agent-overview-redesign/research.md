@@ -46,44 +46,80 @@ semantic-convention attributes (`ag.*`, `gen_ai.*`) verified present in the SDK 
 Per-run cost, duration, tools-used, tokens, outcome, and failure reason are all derivable
 from a single trace. The existing charts already aggregate over traces.
 
-**Context usage** (how full the model's context window gets) — prior art already exists:
-**PR #5402** (`fe-feat/session-context-info`, Arda, open/draft) adds a "Context X / max
-(Y%)" budget indicator to the agent chat composer. Read its helpers before building the
-Overview version — reuse, don't reinvent:
+**Context usage** (how full the model's context window gets) — prior art exists and is now
+settled across a stacked pair. Reuse it; do not reinvent:
 
-- `web/oss/src/components/AgentChatSlice/assets/contextBudget.ts` — `computeContextBudget`,
-  `resolveModelContextWindow`, and the `MODEL_CONTEXT_WINDOWS` map.
-- `web/oss/src/components/AgentChatSlice/components/ContextBudgetIndicator.tsx` — the
-  presentational strip.
+- **PR #5402** (`fe-feat/session-context-info`, Arda) introduced the composer's
+  context-budget indicator.
+- **PR #5434** (`feat/extend-arda's-session-context-work`, Ashraf, stacked on #5402)
+  supersedes the parts below and is the current source of truth.
 
-What that PR establishes (and corrects in this research):
+Files:
+- `web/oss/src/components/AgentChatSlice/assets/contextBudget.ts` — `computeContextBudget`
+  (occupancy only).
+- `web/oss/src/components/AgentChatSlice/components/ContextBudgetIndicator.tsx` — the ambient
+  meter (`maxTokens: number | null` prop).
+- `contextWindowForModel` — exported from `@agenta/entities/workflow`.
 
-- **The backend does NOT expose per-model context windows to the frontend.** The model
-  registry the FE reads stores only *cost*. The `context_window` field I found earlier in
-  `sdks/python/agenta/sdk/agents/model_catalog.py:74` is SDK-side curated data, not surfaced
-  through the API — so it is not a usable denominator for a FE view today. The denominator
-  instead comes from the hardcoded FE `MODEL_CONTEXT_WINDOWS` map (substring/longest-match on
-  the model id), returning `null` for unknown models → the view drops the "/ max (%)" and
-  shows raw tokens. Documented follow-up: source the window from litellm
-  `get_model_info().max_input_tokens` instead of the static map.
-- **Two candidate measures**, shown side by side in v1 until one is picked on a live agent:
-  - **occupancy** — the *latest* turn's total tokens = how full the window is *now*; grows
-    with the conversation and **drops after a compaction**, so it's the compaction predictor.
-    This is the measure that means "context usage".
-  - **running sum** — Σ of every turn's tokens; cumulative, double-counts resent history,
-    never drops. A usage meter, not an occupancy meter.
+What #5434 establishes (and **corrects the earlier finding in this research**):
+
+- **The context window IS available to the frontend — from the model catalog, not a
+  hardcoded map.** The SDK's `model_catalog.py` ships each model's `context_window` on the
+  **harness catalog** the FE already fetches — `GET /workflows/catalog/harnesses/`, a
+  **global, project-independent** query atom (`harnessCatalogQueryAtom` in
+  `web/packages/agenta-entities/src/workflow/state/inspectMeta.ts`, disk-seeded to
+  localStorage, background-revalidated), exposed via `harnessCapabilitiesAtomFamily("")`.
+  (NOT the `/inspect` response — inspect carries no behavior-changing `meta`; the file's own
+  header comment says so.) #5434 deleted the hardcoded `MODEL_CONTEXT_WINDOWS` map +
+  substring resolver and replaced them with an exact-id lookup:
+  `contextWindowForModel(capabilities, harness, modelId)` →
+  `capabilities[harness]?.model_catalog?.find(e => e.id === modelId)?.context_window ?? null`
+  (`@agenta/entities/workflow`). No new endpoint, every model in the picker covered
+  automatically, exact match instead of a guess. (This overrides the prior note that "the
+  backend stores only cost"; the *registry* does, but the *harness-capabilities doc* carries
+  `context_window`. No litellm follow-up needed.)
+- **`harness` is now a required input.** `useAgentModelKeyStatus` returns `harness` (from
+  `agent.harness.kind`, e.g. `pi_core` / `claude`); the lookup is per-harness + per-model.
+- **`context_window: null` still happens** for some catalog entries (e.g. the Claude
+  `default` alias) → degrade to a raw token count, no bar/percent. The fix is a data change
+  in `model_catalog.py`, not frontend.
+- **Occupancy is the locked measure.** #5434 dropped the `Σ` running-sum from both the data
+  layer and the UI (it double-counted resent history and never dropped). Occupancy = the
+  latest turn's total tokens = how full the window is now; drops after a compaction.
+- **UI is an ambient meter**, not a raw dual readout: a slim fill bar + "Context N% used",
+  escalating neutral → amber (`>= 0.75`) → red ("Context almost full", `>= 0.9`); exact
+  counts (`407k / 1M tokens`) in the tooltip.
 - **Token source (FE):** per-turn usage is stamped on assistant messages
   (`message.metadata.usage`, read via `getMessageUsage` in
   `web/oss/src/components/AgentChatSlice/assets/trace.ts`) — no new fetch, works for live and
   reloaded sessions.
 
-Implication for Overview: the *concept* and the *window map* are shared with the composer,
-but the *data path differs*. The composer reads a single live session's `messages`. Overview
-aggregates across many historical runs, so it reads per-run token totals from the trace
-store (`ag.metrics.unit.tokens.total` / `gen_ai.usage.total_tokens`) and applies the same
-`resolveModelContextWindow` map. Occupancy per run = that run's total tokens vs. the model's
-window. This connects to the known token-overhead behavior (a bare turn can cost ~15K tokens
-from advertised tool schemas); context usage makes that visible on Overview.
+Implication for Overview: the *concept*, the *denominator selector* (`contextWindowForModel`),
+and the *occupancy measure* are all shared with the composer — only the *data path differs*.
+The composer reads a single live session's `messages`. Overview aggregates across many
+historical runs, so it reads per-run token totals from the trace store and, for each run,
+resolves the denominator with `contextWindowForModel(capabilities, harness, model)`.
+
+Two inputs to that call are **not co-located on a run** (confirmed for open question #8):
+
+- **`capabilities`** — the global harness-catalog atom above. Readable anywhere with
+  `useAtomValue(harnessCapabilitiesAtomFamily(""))`; no `AgentChatSlice` coupling. ✅
+- **`model`** — sits on the run's **LLM child spans** (`ag.meta.request.model` /
+  `ag.meta.response.model`, mapped in `api/oss/src/apis/fastapi/otlp/opentelemetry/semconv.py`),
+  while the token total (`gen_ai.usage.total_tokens`) is rolled onto the **workflow root**
+  span (`sdks/python/agenta/sdk/agents/tracing.py:record_usage`). So pairing (model, tokens)
+  per run means reading the root **and** its LLM child — a per-run detail read, not just the
+  root aggregate. A run can hold multiple LLM spans; occupancy = the latest turn's total.
+- **`harness`** — **not emitted on any span.** It is an agent-config property
+  (`agent.harness.kind`, e.g. `pi_core` / `claude`), stable per agent. Take it from the
+  agent, exactly as the composer does via `useAgentModelKeyStatus`; do not expect it on the
+  trace. If the agent's harness changed since an old run, or the run's model is absent from
+  the current harness's catalog, `contextWindowForModel` returns `null` → the raw-token
+  degrade already designed for.
+
+Occupancy per run = that run's latest-turn total tokens vs. its model's window. This connects
+to the known token-overhead behavior (a bare turn can cost ~15K tokens from advertised tool
+schemas); context usage makes that visible on Overview.
 
 ### 2. Produced artifacts — session mounts
 

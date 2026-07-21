@@ -60,13 +60,16 @@ Per recent run, one row that adapts to what the run produced:
 ### Resource usage & cost (the "what is it consuming" group)
 - **Context usage** — how full the model's context window gets per run (occupancy: run
   tokens vs. the model's window), so a user can see runs approaching compaction/truncation —
-  *reuses PR #5402's primitive. Occupancy per run = `ag.metrics.unit.tokens.total` /
-  `gen_ai.usage.total_tokens` from the trace store, keyed by `ag.meta.model_name`, against
-  the window from `resolveModelContextWindow` / `MODEL_CONTEXT_WINDOWS`
-  (`web/oss/src/components/AgentChatSlice/assets/contextBudget.ts`). Window unknown → show
-  raw token count without the percentage.* Use the **occupancy** measure (current fullness /
-  compaction predictor), not the cumulative running sum. See `research.md` for the full
-  reconciliation and the litellm follow-up for the denominator.
+  *reuses the shipped primitive from PR #5402 + #5434. Occupancy per run =
+  `ag.metrics.unit.tokens.total` / `gen_ai.usage.total_tokens` from the trace store; the
+  denominator per run = `contextWindowForModel(capabilities, agentHarness, runModel)`
+  (`@agenta/entities/workflow`), sourced from the model catalog — not a hardcoded map.
+  Inputs (traced, `research.md` §1 / Q8): `capabilities` from the global harness-catalog
+  atom; `agentHarness` from agent config (`agent.harness.kind`), not the trace; `runModel`
+  from the run's LLM child span. Window `null` → show raw token count, no bar/percent.* Use the
+  **occupancy** measure (running sum was dropped in #5434). Match the composer's ambient
+  meter: fill bar + "Context N% used", amber `>= 75%`, red `>= 90%`. See `research.md` §1 for
+  the full reconciliation.
 - **Token consumption** — breakdown of prompt / completion / reasoning / cached tokens per
   run and over time — *`ag.metrics.unit.tokens.{prompt,completion,reasoning,cache_read,cache_creation,cached}`*.
 - **Cache savings** — how much prompt caching is saving (cache-read share, cost avoided) —

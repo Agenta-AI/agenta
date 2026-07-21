@@ -58,17 +58,21 @@ Each slice leaves the tree working and testable.
    `ag.meta.tool.call.result`) and failures grouped by cause (`ag.exception.type`).
 2. Resource usage: token consumption breakdown, cache savings, cost per run/trend, and
    model/provider per run — all from trace token/cost attributes.
-3. Context usage: reuse PR #5402's primitive
-   (`AgentChatSlice/assets/contextBudget.ts` — `resolveModelContextWindow` /
-   `MODEL_CONTEXT_WINDOWS`). Occupancy per run = run total tokens (trace store) vs. the
-   model's window, keyed by `ag.meta.model_name`; use the occupancy measure (not the
-   running sum); degrade to a raw token count when the window is `null`. First, lift the
-   shared bits (the window map + resolver) out of `AgentChatSlice` to a shared location so
-   composer and Overview read one source; coordinate with #5402 rather than forking the map.
+3. Context usage: reuse the shipped primitive (PR #5402 + #5434). Denominator per run =
+   `contextWindowForModel(capabilities, agentHarness, runModel)` — already exported from
+   `@agenta/entities/workflow`, sourced from the model catalog on the harness catalog (no map
+   to lift, no fork). Wire the three inputs from their real locations (traced, question #8):
+   `capabilities` from the global `harnessCapabilitiesAtomFamily("")`; `agentHarness` from the
+   agent config (`agent.harness.kind`) — NOT the trace; `runModel` from the run's LLM child
+   span (`ag.meta.request.model` / `ag.meta.response.model`), while the token total comes off
+   the workflow root span — so read root + LLM child together per run. Occupancy = latest
+   turn's total tokens vs. that window; degrade to a raw token count when the window is
+   `null`. Match the composer's ambient-meter styling (bar + "N% used", amber `>= 75%`,
+   red `>= 90%`).
 - **Exit:** a user can see which tools an agent leans on and how reliable they are, how full
-  the context window gets per run (occupancy), and where token/cost is going — with
-  unknown-window runs showing a token count rather than a broken percentage, and no
-  duplicated context-window map.
+  the context window gets per run (occupancy, resolved from the catalog via
+  `contextWindowForModel`), and where token/cost is going — with unknown-window runs showing
+  a token count rather than a broken percentage.
 
 ## Slice 5 — Empty state + onboarding
 
