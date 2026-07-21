@@ -94,6 +94,7 @@ If Agenta doesn't start properly, check these common issues:
 6. Lack of memory provided to docker: If you are experiencing the web container restarting and dying unexpectedly, the most likely cause is that you are running out of memory. You may need to increase the memory allocated to docker (desktop).
 7. The runner container does not start and Docker reports `error gathering device information while adding custom device "/dev/fuse"`: the host has no FUSE device. See [Run agents locally](/self-host/agent-execution/run-agents-locally#troubleshooting).
 8. Docker reports `permission denied` while trying to connect to `/var/run/docker.sock`: your user cannot reach the Docker daemon. Run the commands as `root`, prefix them with `sudo`, or add your user to the `docker` group (`sudo usermod -aG docker $USER`, then open a new login shell). A member of the `docker` group can start a container that mounts the host filesystem, which makes the group equivalent to root on that machine.
+9. Docker reports `failed to resolve reference ... not found` or `manifest unknown` while pulling an image (for example `ghcr.io/agenta-ai/agenta-runner:latest`): the image tag you are pulling is not published to the registry. Pin the image tags to a published release version in your env file. See [How do I lock Agenta to a specific version?](/self-host/faq).
 
 :::info
 To set up a development environment with features like hot-reloading, refer to our [Development Guide](/contributing/guides/development-mode).

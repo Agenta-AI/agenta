@@ -52,7 +52,10 @@ import {Virtuoso, type Components, type VirtuosoHandle} from "react-virtuoso"
 import {ContextRail} from "@/oss/components/Drives/ContextRail"
 import {DriveFileLinkProvider} from "@/oss/components/Drives/DriveFileLinkProvider"
 import {DriveSessionProvider} from "@/oss/components/Drives/driveSessionContext"
-import {FilesDrawer, filesDrawerOpenAtomFamily} from "@/oss/components/Drives/FilesDrawer"
+import {
+    SessionFilesDrawer,
+    filesDrawerOpenAtomFamily,
+} from "@/oss/components/Drives/SessionFilesDrawer"
 import {
     IDE_INSTALL_COMMAND,
     TEMPLATE_STRIP_MODE,
@@ -613,7 +616,7 @@ const AgentConversation = ({
     // THIS conversation's drive: the link provider makes filename mentions clickable, and the
     // Files drawer (below) hosts both the grid and the single-file preview in one surface.
     const quickLookHost = <DriveFileLinkProvider sessionId={sessionId} artifactId={artifactId} />
-    const filesWindowHost = <FilesDrawer sessionId={sessionId} />
+    const filesWindowHost = <SessionFilesDrawer sessionId={sessionId} />
     const setFilesWindowOpen = useSetAtom(filesDrawerOpenAtomFamily(sessionId))
 
     // Hybrid history: localStorage holds only the session INDEX; the durable conversation CONTENT

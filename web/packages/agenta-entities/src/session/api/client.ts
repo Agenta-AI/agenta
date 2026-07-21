@@ -39,12 +39,27 @@ export function getLowPriorityMountsClient() {
  *
  * STANDING RULE: project/app scope ALWAYS rides queryParams, never the body. `abortSignal`
  * is threaded so TanStack Query can cancel in-flight requests.
+ *
+ * `maxRetries` overrides Fern's transport-level retry (default 2). Pass a low value for calls
+ * where a retry can't help — a timed-out object-store LIST just re-times-out and hammers the
+ * backend — so a failure surfaces once and is handled gracefully instead of compounding.
  */
-export function projectScopedRequest(projectId: string, appId?: string, abortSignal?: AbortSignal) {
+export function projectScopedRequest(
+    projectId: string,
+    appId?: string,
+    abortSignal?: AbortSignal,
+    maxRetries?: number,
+) {
     const queryParams: Record<string, string> = {}
     if (projectId) queryParams.project_id = projectId
     if (appId) queryParams.application_id = appId
-    return {queryParams, abortSignal}
+    const options: {
+        queryParams: Record<string, string>
+        abortSignal?: AbortSignal
+        maxRetries?: number
+    } = {queryParams, abortSignal}
+    if (maxRetries !== undefined) options.maxRetries = maxRetries
+    return options
 }
 
 /** True for fetch/Fern abort + timeout cancellations (vs real failures).
