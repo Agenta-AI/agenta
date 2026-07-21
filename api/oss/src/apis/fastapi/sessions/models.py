@@ -175,6 +175,13 @@ class SessionTurnAppendRequest(BaseModel):
     end_time: Optional[datetime] = None
 
 
+class SessionTurnCompleteRequest(BaseModel):
+    session_id: str
+    turn_index: int
+    agent_session_id: Optional[str] = None
+    end_time: datetime
+
+
 class SessionTurnQueryRequest(BaseModel):
     query: Optional[SessionTurnQuery] = None
     windowing: Optional[Windowing] = None

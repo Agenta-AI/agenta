@@ -90,6 +90,7 @@ export async function runTurn(
   const { plan, logger, deps } = env;
   const sessionId = env.sessionId;
   const continuityStore = deps.sessionContinuityStore ?? sessionContinuityStore;
+  const turnStartedAt = new Date().toISOString();
   // `turn_index` is a true conversation-turn counter, not an acquire counter: it advances once per completed turn across every environment serving the session.
   // The shared store advances only on `record()` (paused turns record nothing), so park-and-resume consumes one index; compute it at turn start because a warm environment serves many turns.
   env.continuityTurnIndex = sessionId
@@ -169,6 +170,44 @@ export async function runTurn(
         { role: "user", content: promptText },
       ],
     });
+
+    const sessionTurnClient = deps.appendSessionTurn ?? appendSessionTurn;
+    const syncCred = runCredential(request);
+    const turnLedgerContext =
+      sessionId &&
+      env.continuityTurnIndex !== undefined &&
+      syncCred &&
+      request.streamId
+        ? {
+            sessionId,
+            turnIndex: env.continuityTurnIndex,
+            authorization: syncCred,
+            streamId: request.streamId,
+          }
+        : undefined;
+    if (turnLedgerContext) {
+      const workflowRefs = buildWorkflowReferences(
+        request.runContext?.workflow,
+      );
+      // Row existence proves only that a turn started. Native continuation is trustworthy only
+      // after `end_time` is set.
+      await sessionTurnClient(
+        turnLedgerContext.sessionId,
+        plan.harness,
+        turnLedgerContext.turnIndex,
+        {
+          streamId: turnLedgerContext.streamId,
+          agentSessionId: env.session?.agentSessionId,
+          sandboxId: env.sandbox?.sandboxId,
+          references: workflowRefs ? Object.values(workflowRefs) : undefined,
+          traceId:
+            run.traceId() ?? request.runContext?.trace?.trace_id,
+          spanId: request.runContext?.trace?.span_id,
+          startTime: turnStartedAt,
+        },
+        { authorization: turnLedgerContext.authorization, log: logger },
+      ).catch(() => {});
+    }
 
     const pause = new PendingApprovalPauseController(() => {
       // The sibling settle runs UNCONDITIONALLY, park mode or not: latch-loser tool calls
@@ -553,6 +592,7 @@ export async function runTurn(
 
     const output = run.finish();
     await run.flush();
+    const turnEndedAt = new Date().toISOString();
 
     if (swallowedError) {
       // A failed turn may have left a partial turn in the native transcript: the prior record
@@ -561,39 +601,33 @@ export async function runTurn(
       return { ok: false, error: swallowedError };
     }
 
-    // Capture this harness's native session id for the next turn's setup. Only on a turn that
-    // actually completed (not paused mid-turn — a park has not finished authoring the turn, so
-    // it must not be marked authoritative) and only when the harness surfaced one.
+    // A pause has not finished authoring the turn, so only a completed execution can advance the
+    // in-memory resume pointer or complete the durable ledger row.
     if (
       stopReason !== "paused" &&
       env.continuityTurnIndex !== undefined &&
-      sessionId &&
-      env.session?.agentSessionId
+      sessionId
     ) {
-      (deps.sessionContinuityStore ?? sessionContinuityStore).record(
-        sessionId,
-        plan.harness,
-        env.session.agentSessionId,
-        env.continuityTurnIndex,
-      );
-      // Append this turn to the durable turns log; fire-and-forget (a plain INSERT, no race).
-      const syncCred = runCredential(request);
-      if (syncCred && request.streamId) {
-        const workflowRefs = buildWorkflowReferences(
-          request.runContext?.workflow,
-        );
-        void (deps.appendSessionTurn ?? appendSessionTurn)(
+      const agentSessionId = env.session?.agentSessionId;
+      if (agentSessionId) {
+        (deps.sessionContinuityStore ?? sessionContinuityStore).record(
           sessionId,
           plan.harness,
+          agentSessionId,
           env.continuityTurnIndex,
+        );
+      }
+
+      const completeTurn = sessionTurnClient.complete;
+      if (turnLedgerContext && completeTurn) {
+        await completeTurn(
+          turnLedgerContext.sessionId,
+          turnLedgerContext.turnIndex,
           {
-            streamId: request.streamId,
-            agentSessionId: env.session.agentSessionId,
-            sandboxId: env.sandbox?.sandboxId,
-            references: workflowRefs ? Object.values(workflowRefs) : undefined,
-            traceId: run.traceId(),
+            agentSessionId,
+            endTime: turnEndedAt,
           },
-          { authorization: syncCred, log: logger },
+          { authorization: turnLedgerContext.authorization, log: logger },
         ).catch(() => {});
       }
     } else if (stopReason === "paused") {

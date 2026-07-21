@@ -1,8 +1,8 @@
 /**
  * Durable mirror of `session-continuity.ts`'s in-memory store, so continuity survives a
  * runner restart. Reads the session's LATEST `session_turns` row back into the in-memory
- * store at session setup, and appends a fresh turn row after
- * `SessionContinuityStore.record()`.
+ * store at session setup, inserts a ledger row when a turn starts, and completes that row when
+ * the turn finishes.
  *
  * `appendSessionTurn` is a plain INSERT (`POST /sessions/turns/`) — no read-modify-write, no
  * race. It replaces the old `syncHarnessSessionDurable`, which GET-then-PUT the whole
@@ -23,6 +23,7 @@ export interface WireSessionTurn {
   agent_session_id?: string;
   sandbox_id?: string;
   turn_index?: number;
+  end_time?: string;
 }
 
 interface SessionTurnsQueryResponseWire {
@@ -37,7 +38,7 @@ export interface DurableContinuityDeps {
   log?: (msg: string) => void;
 }
 
-/** The fields the turn-append write carries, beyond the (session, harness, turnIndex) key. */
+/** The fields the turn-start write carries, beyond the (session, harness, turnIndex) key. */
 export interface SessionTurnAppend {
   streamId: string;
   agentSessionId?: string;
@@ -46,14 +47,36 @@ export interface SessionTurnAppend {
   traceId?: string;
   spanId?: string;
   startTime?: string;
-  endTime?: string;
+}
+
+export interface SessionTurnCompletion {
+  agentSessionId?: string;
+  endTime: string;
+}
+
+export type CompleteSessionTurnFn = (
+  sessionId: string,
+  turnIndex: number,
+  turn: SessionTurnCompletion,
+  deps: DurableContinuityDeps,
+) => Promise<void>;
+
+export interface AppendSessionTurnFn {
+  (
+    sessionId: string,
+    harness: string,
+    turnIndex: number,
+    turn: SessionTurnAppend,
+    deps: DurableContinuityDeps,
+  ): Promise<void>;
+  complete?: CompleteSessionTurnFn;
 }
 
 /**
- * Fetch the LATEST turn for a session, optionally scoped to one harness. Ordered by `id`
- * (uuid7 — insertion order, equivalent to `turn_index DESC` for an append-only table) via
- * `windowing: {limit: 1, order: "descending"}`. Returns undefined on any failure (row absent,
- * API unreachable) — every caller treats this as best-effort, degrading to cold replay.
+ * Fetch the LATEST turn for a session, optionally scoped to one harness. Ordered by
+ * `turn_index DESC, id DESC` via `windowing: {limit: 1, order: "descending"}`. Returns undefined
+ * on any failure (row absent, API unreachable) — every caller treats this as best-effort,
+ * degrading to cold replay.
  */
 export async function fetchLatestSessionTurn(
   sessionId: string,
@@ -130,9 +153,12 @@ export async function hydrateHarnessSessionFromDurable(
     latestOverall?.harness_kind === harness
       ? latestOverall
       : await fetchLatestSessionTurn(sessionId, harness, deps);
+  // Row existence proves only that a turn started. Native continuation is trustworthy only after
+  // `end_time` is set.
   if (
     !latestForHarness?.agent_session_id ||
-    latestForHarness.turn_index === undefined
+    latestForHarness.turn_index === undefined ||
+    !latestForHarness.end_time
   ) {
     return;
   }
@@ -147,19 +173,49 @@ export async function hydrateHarnessSessionFromDurable(
   );
 }
 
-/**
- * Append this harness's just-completed-turn as a new `session_turns` row (a plain INSERT —
- * no read, no merge, no race). Call AFTER `SessionContinuityStore.record()` so the persisted
- * turn_index matches the in-memory one exactly. Best-effort and fire-and-forget from the
- * caller's perspective: a failure here only means the NEXT restart cold-replays this harness
- * turn, never a broken current turn.
- */
-export async function appendSessionTurn(
+/** Complete a started row once; retries leave the first completion unchanged. */
+export async function completeSessionTurn(
   sessionId: string,
-  harness: string,
   turnIndex: number,
-  turn: SessionTurnAppend,
+  turn: SessionTurnCompletion,
   deps: DurableContinuityDeps,
+): Promise<void> {
+  const log = deps.log ?? defaultLog;
+  const doFetch = deps.fetchImpl ?? fetch;
+  const base = deps.apiBase ?? apiBase();
+  try {
+    const res = await doFetch(`${base}/sessions/turns/complete`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: deps.authorization,
+      },
+      body: JSON.stringify({
+        session_id: sessionId,
+        turn_index: turnIndex,
+        ...(turn.agentSessionId
+          ? { agent_session_id: turn.agentSessionId }
+          : {}),
+        end_time: turn.endTime,
+      }),
+    });
+    log(
+      `complete ${res.ok ? "OK" : `HTTP ${res.status}`} session=${sessionId} turn=${turnIndex}`,
+    );
+  } catch (err) {
+    log(
+      `complete failed session=${sessionId} turn=${turnIndex}: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`,
+    );
+  }
+}
+
+/** Start one ledger row per conversation turn; approval resumes reuse it through the benign 409. */
+export const appendSessionTurn: AppendSessionTurnFn = async function appendSessionTurn(
+  sessionId,
+  harness,
+  turnIndex,
+  turn,
+  deps,
 ): Promise<void> {
   const log = deps.log ?? defaultLog;
   const doFetch = deps.fetchImpl ?? fetch;
@@ -184,9 +240,9 @@ export async function appendSessionTurn(
         ...(turn.traceId ? { trace_id: turn.traceId } : {}),
         ...(turn.spanId ? { span_id: turn.spanId } : {}),
         ...(turn.startTime ? { start_time: turn.startTime } : {}),
-        ...(turn.endTime ? { end_time: turn.endTime } : {}),
       }),
     });
+    if (res.status === 409) return;
     log(
       `append ${res.ok ? "OK" : `HTTP ${res.status}`} session=${sessionId} harness=${harness} turn=${turnIndex}`,
     );
@@ -195,4 +251,6 @@ export async function appendSessionTurn(
       `append failed session=${sessionId} harness=${harness}: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`,
     );
   }
-}
+};
+
+appendSessionTurn.complete = completeSessionTurn;

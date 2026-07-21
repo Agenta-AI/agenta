@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 
 import {
   appendSessionTurn,
+  completeSessionTurn,
   fetchLatestSessionTurn,
   hydrateHarnessSessionFromDurable,
 } from "../../src/engines/sandbox_agent/session-continuity-durable.ts";
@@ -131,6 +132,7 @@ describe("hydrateHarnessSessionFromDurable", () => {
               harness_kind: "claude",
               agent_session_id: "agent-restored",
               turn_index: 2,
+              end_time: "2026-07-21T10:00:00.000Z",
             },
           ],
         })) as unknown as typeof fetch,
@@ -141,6 +143,29 @@ describe("hydrateHarnessSessionFromDurable", () => {
       turnIndex: 2,
     });
     assert.equal(store.latestTurn("sess-1"), 2);
+  });
+
+  it("does not use a start-only row for native continuity", async () => {
+    const store = new SessionContinuityStore();
+    await hydrateHarnessSessionFromDurable("sess-1", "claude", store, {
+      apiBase: "http://api:8000",
+      authorization: "ApiKey abc",
+      fetchImpl: (async () =>
+        okResponse({
+          turns: [
+            {
+              harness_kind: "claude",
+              agent_session_id: "agent-partial",
+              turn_index: 3,
+            },
+          ],
+        })) as unknown as typeof fetch,
+      log: SILENT,
+    });
+
+    assert.equal(store.get("sess-1", "claude"), undefined);
+    assert.equal(store.latestTurn("sess-1"), 3);
+    assert.equal(isHarnessLoadEligible("sess-1", "claude", store), false);
   });
 
   it("never clobbers a live in-process record with a stale durable read", async () => {
@@ -156,6 +181,7 @@ describe("hydrateHarnessSessionFromDurable", () => {
               harness_kind: "claude",
               agent_session_id: "agent-OLD",
               turn_index: 0,
+              end_time: "2026-07-21T10:00:00.000Z",
             },
           ],
         })) as unknown as typeof fetch,
@@ -225,6 +251,7 @@ describe("hydrateHarnessSessionFromDurable", () => {
               harness_kind: "claude",
               agent_session_id: "agent-claude",
               turn_index: 1,
+              end_time: "2026-07-21T10:00:00.000Z",
             },
           ],
         });
@@ -232,13 +259,13 @@ describe("hydrateHarnessSessionFromDurable", () => {
       if (body.query.harness_kind === "pi") {
         return okResponse({
           turns: [
-            { harness_kind: "pi", agent_session_id: "agent-pi", turn_index: 2 },
+            { harness_kind: "pi", agent_session_id: "agent-pi", turn_index: 2, end_time: "2026-07-21T10:00:00.000Z" },
           ],
         });
       }
       // overall latest (no harness filter): pi's turn 2 wins.
       return okResponse({
-        turns: [{ harness_kind: "pi", agent_session_id: "agent-pi", turn_index: 2 }],
+        turns: [{ harness_kind: "pi", agent_session_id: "agent-pi", turn_index: 2, end_time: "2026-07-21T10:00:00.000Z" }],
       });
     }) as unknown as typeof fetch;
 
@@ -286,6 +313,7 @@ describe("hydrateHarnessSessionFromDurable", () => {
               harness_kind: "claude",
               agent_session_id: "agent-claude",
               turn_index: 4,
+              end_time: "2026-07-21T10:00:00.000Z",
             },
           ],
         });
@@ -343,7 +371,7 @@ describe("appendSessionTurn", () => {
     });
   });
 
-  it("carries sandbox_id, references, and trace_id when given", async () => {
+  it("carries sandbox, references, trace ids, and start_time when given", async () => {
     let body: Record<string, unknown> | undefined;
     await appendSessionTurn(
       "sess-1",
@@ -355,6 +383,8 @@ describe("appendSessionTurn", () => {
         sandboxId: "sbx-1",
         references: [{ id: "wf-1" }, { id: "rev-1", version: "v1" }],
         traceId: "trace-abc",
+        spanId: "a1b2c3d4e5f6a7b8",
+        startTime: "2026-07-21T10:00:00.000Z",
       },
       {
         apiBase: "http://api:8000",
@@ -372,6 +402,27 @@ describe("appendSessionTurn", () => {
       { id: "rev-1", version: "v1" },
     ]);
     assert.equal(body!["trace_id"], "trace-abc");
+    assert.equal(body!["span_id"], "a1b2c3d4e5f6a7b8");
+    assert.equal(body!["start_time"], "2026-07-21T10:00:00.000Z");
+  });
+
+  it("treats a resume execution's duplicate-start 409 as benign", async () => {
+    const logs: string[] = [];
+    await assert.doesNotReject(() =>
+      appendSessionTurn(
+        "sess-1",
+        "claude",
+        0,
+        { streamId: "stream-1" },
+        {
+          apiBase: "http://api:8000",
+          authorization: "ApiKey abc",
+          fetchImpl: (async () => errResponse(409)) as unknown as typeof fetch,
+          log: (message) => logs.push(message),
+        },
+      ),
+    );
+    assert.deepEqual(logs, []);
   });
 
   it("never throws when the POST fails (503)", async () => {
@@ -408,6 +459,91 @@ describe("appendSessionTurn", () => {
         },
       ),
     );
+  });
+});
+
+describe("completeSessionTurn", () => {
+  it("a paused-then-completed turn keeps one row and fills its completion fields", async () => {
+    const rows = new Map<string, Record<string, unknown>>();
+    const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const deps = {
+      apiBase: "http://api:8000",
+      authorization: "ApiKey abc",
+      fetchImpl: (async (url: string, init?: RequestInit) => {
+        const body = JSON.parse(init!.body as string) as Record<string, unknown>;
+        calls.push({ url, body });
+        const key = `${body["session_id"]}:${body["turn_index"]}`;
+        if (url.endsWith("/sessions/turns/")) {
+          if (rows.has(key)) return errResponse(409);
+          rows.set(key, { ...body });
+          return okResponse({ turn: rows.get(key) });
+        }
+
+        const row = rows.get(key);
+        if (!row) return errResponse(404);
+        if (!row["end_time"]) {
+          row["end_time"] = body["end_time"];
+          if (body["agent_session_id"]) {
+            row["agent_session_id"] = body["agent_session_id"];
+          }
+        }
+        return okResponse({ turn: row });
+      }) as unknown as typeof fetch,
+      log: SILENT,
+    };
+
+    await appendSessionTurn(
+      "sess-1",
+      "claude",
+      0,
+      {
+        streamId: "stream-1",
+        traceId: "trace-1",
+        spanId: "a1b2c3d4e5f6a7b8",
+        startTime: "2026-07-21T10:00:00.000Z",
+      },
+      deps,
+    );
+    await appendSessionTurn(
+      "sess-1",
+      "claude",
+      0,
+      {
+        streamId: "stream-1",
+        agentSessionId: "agent-1",
+        startTime: "2026-07-21T10:01:00.000Z",
+      },
+      deps,
+    );
+    await completeSessionTurn(
+      "sess-1",
+      0,
+      {
+        agentSessionId: "agent-1",
+        endTime: "2026-07-21T10:02:00.000Z",
+      },
+      deps,
+    );
+
+    assert.equal(rows.size, 1);
+    assert.deepEqual(rows.get("sess-1:0"), {
+      session_id: "sess-1",
+      stream_id: "stream-1",
+      turn_index: 0,
+      harness_kind: "claude",
+      trace_id: "trace-1",
+      span_id: "a1b2c3d4e5f6a7b8",
+      start_time: "2026-07-21T10:00:00.000Z",
+      agent_session_id: "agent-1",
+      end_time: "2026-07-21T10:02:00.000Z",
+    });
+    assert.equal(calls[2].url, "http://api:8000/sessions/turns/complete");
+    assert.deepEqual(calls[2].body, {
+      session_id: "sess-1",
+      turn_index: 0,
+      agent_session_id: "agent-1",
+      end_time: "2026-07-21T10:02:00.000Z",
+    });
   });
 });
 

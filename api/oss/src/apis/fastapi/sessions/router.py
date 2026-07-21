@@ -61,8 +61,9 @@ from oss.src.core.sessions.interactions.service import SessionInteractionsServic
 from oss.src.core.sessions.interactions.types import InteractionNotFound
 from oss.src.core.sessions.mounts.service import SessionMountsService
 from oss.src.core.sessions.mounts.dtos import SessionMountQuery
-from oss.src.core.sessions.turns.dtos import SessionTurnCreate
+from oss.src.core.sessions.turns.dtos import SessionTurnComplete, SessionTurnCreate
 from oss.src.core.sessions.turns.service import SessionTurnsService
+from oss.src.core.sessions.turns.types import SessionTurnNotFound
 from oss.src.core.sessions.dtos import SessionQuery
 from oss.src.core.sessions.service import SessionsService
 from oss.src.core.mounts.service import MountsService
@@ -107,6 +108,7 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionMountsResponse,
     # turns
     SessionTurnAppendRequest,
+    SessionTurnCompleteRequest,
     SessionTurnQueryRequest,
     SessionTurnResponse,
     SessionTurnsResponse,
@@ -1049,6 +1051,15 @@ class SessionTurnsRouter:
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
+            "/complete",
+            self.complete_turn,
+            methods=["POST"],
+            operation_id="complete_turn",
+            status_code=status.HTTP_200_OK,
+            response_model=SessionTurnResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
             "/query",
             self.query_turns,
             methods=["POST"],
@@ -1100,6 +1111,39 @@ class SessionTurnsRouter:
                 end_time=body.end_time,
             ),
         )
+        return SessionTurnResponse(count=1, turn=turn)
+
+    @intercept_exceptions()
+    async def complete_turn(
+        self,
+        request: Request,
+        body: SessionTurnCompleteRequest,
+    ) -> SessionTurnResponse:
+        project_id: UUID = request.state.project_id
+        user_id: UUID = request.state.user_id
+
+        if not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.RUN_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        try:
+            turn = await self.turns_service.complete_turn(
+                project_id=project_id,
+                turn=SessionTurnComplete(
+                    session_id=body.session_id,
+                    turn_index=body.turn_index,
+                    agent_session_id=body.agent_session_id,
+                    end_time=body.end_time,
+                ),
+            )
+        except SessionTurnNotFound as e:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=e.message,
+            ) from e
         return SessionTurnResponse(count=1, turn=turn)
 
     @intercept_exceptions()

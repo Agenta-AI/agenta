@@ -42,7 +42,10 @@ function fakeHarness(options: FakeOptions = {}) {
     sandboxDisposed: 0,
     sessionDestroyed: 0,
     permissionReplies: [] as Array<{ id: string; reply: string }>,
-    appendedTurnIndexes: [] as number[],
+    startedTurnIndexes: [] as number[],
+    completedTurnIndexes: [] as number[],
+    startedTurns: [] as Array<Record<string, unknown>>,
+    ledgerRows: new Map<number, { startTime?: string; endTime?: string }>(),
     logs: [] as string[],
     runs: [] as FakeRun[],
   };
@@ -121,11 +124,26 @@ function fakeHarness(options: FakeOptions = {}) {
       },
       settleOpenToolCalls() {},
       traceId() {
-        return "trace-1";
+        return "0123456789abcdef0123456789abcdef";
       },
     };
     calls.runs.push(run);
     return run;
+  };
+
+  const sessionTurnClient: NonNullable<
+    SandboxAgentDeps["appendSessionTurn"]
+  > = async (_sessionId, _harness, turnIndex, turn) => {
+    calls.startedTurnIndexes.push(turnIndex);
+    calls.startedTurns.push({ ...turn });
+    if (!calls.ledgerRows.has(turnIndex)) {
+      calls.ledgerRows.set(turnIndex, { startTime: turn.startTime });
+    }
+  };
+  sessionTurnClient.complete = async (_sessionId, turnIndex, turn) => {
+    calls.completedTurnIndexes.push(turnIndex);
+    const row = calls.ledgerRows.get(turnIndex);
+    if (row && !row.endTime) row.endTime = turn.endTime;
   };
 
   const deps: SandboxAgentDeps = {
@@ -170,9 +188,7 @@ function fakeHarness(options: FakeOptions = {}) {
     }),
     sessionContinuityStore: continuityStore,
     hydrateHarnessSessionFromDurable: async () => {},
-    appendSessionTurn: async (_sessionId, _harness, turnIndex) => {
-      calls.appendedTurnIndexes.push(turnIndex);
-    },
+    appendSessionTurn: sessionTurnClient,
   };
 
   return { calls, deps, captured };
@@ -187,6 +203,12 @@ const continuityRequest: AgentRunRequest = {
   ...request,
   sessionId: "sess-1",
   streamId: "stream-1",
+  runContext: {
+    trace: {
+      trace_id: "0123456789abcdef0123456789abcdef",
+      span_id: "a1b2c3d4e5f6a7b8",
+    },
+  },
   telemetry: {
     exporters: { otlp: { headers: { authorization: "ApiKey abc" } } },
   } as any,
@@ -322,7 +344,8 @@ describe("conversation turn indexes", () => {
       assert.equal(result.ok, true);
     }
 
-    assert.deepEqual(calls.appendedTurnIndexes, [0, 1, 2, 3]);
+    assert.deepEqual(calls.startedTurnIndexes, [0, 1, 2, 3]);
+    assert.deepEqual(calls.completedTurnIndexes, [0, 1, 2, 3]);
     await acquired.env.destroy();
   });
 
@@ -352,12 +375,13 @@ describe("conversation turn indexes", () => {
       continuation: true,
     });
 
-    assert.deepEqual(calls.appendedTurnIndexes, [0, 1, 2]);
+    assert.deepEqual(calls.startedTurnIndexes, [0, 0, 1, 2]);
+    assert.deepEqual(calls.completedTurnIndexes, [0, 1, 2]);
     await first.env.destroy();
     await second.env.destroy();
   });
 
-  it("does not consume an index until a paused conversation turn completes", async () => {
+  it("starts a paused turn once across resume and completes that ledger row", async () => {
     const { calls, deps } = fakeHarness({
       stopReasons: ["paused", "complete"],
     });
@@ -373,7 +397,12 @@ describe("conversation turn indexes", () => {
       {},
     );
     assert.equal(parked.stopReason, "paused");
-    assert.deepEqual(calls.appendedTurnIndexes, []);
+    assert.deepEqual(calls.startedTurnIndexes, [0]);
+    assert.deepEqual(calls.completedTurnIndexes, []);
+    assert.equal(calls.ledgerRows.size, 1);
+    assert.equal(typeof calls.startedTurns[0]["startTime"], "string");
+    assert.equal(calls.startedTurns[0]["traceId"], "0123456789abcdef0123456789abcdef");
+    assert.equal(calls.startedTurns[0]["spanId"], "a1b2c3d4e5f6a7b8");
 
     const resumed = await runTurn(
       acquired.env,
@@ -383,7 +412,10 @@ describe("conversation turn indexes", () => {
       { continuation: true },
     );
     assert.equal(resumed.ok, true);
-    assert.deepEqual(calls.appendedTurnIndexes, [0]);
+    assert.deepEqual(calls.startedTurnIndexes, [0, 0]);
+    assert.deepEqual(calls.completedTurnIndexes, [0]);
+    assert.equal(calls.ledgerRows.size, 1);
+    assert.equal(typeof calls.ledgerRows.get(0)?.endTime, "string");
     await acquired.env.destroy();
   });
 });

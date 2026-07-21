@@ -14,9 +14,12 @@ from sqlalchemy import text
 
 from oss.src.core.sessions.turns.dtos import (
     HarnessKind,
+    SessionTurnComplete,
     SessionTurnCreate,
     SessionTurnQuery,
 )
+from oss.src.core.sessions.turns.service import SessionTurnsService
+from oss.src.core.sessions.turns.types import SessionTurnNotFound
 from oss.src.core.shared.dtos import Reference, Windowing
 import oss.src.models.db_models  # noqa: F401
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE  # noqa: F401
@@ -186,6 +189,82 @@ async def test_append_turn_persists_and_sets_created_by_id(dao, project_and_stre
     assert fetched.span_id == span_id
 
 
+async def test_complete_turn_is_guarded_idempotent_and_refuses_unknown(
+    dao, project_and_stream
+):
+    project_id = project_and_stream["project_id"]
+    stream_id = project_and_stream["stream_id"]
+    session_id = project_and_stream["session_id"]
+    started_at = datetime.now(timezone.utc)
+    workflow_ref = Reference(id=uuid.uuid4(), slug="workflow", version="v1")
+
+    started = await dao.append(
+        project_id=project_id,
+        user_id=None,
+        turn=SessionTurnCreate(
+            session_id=session_id,
+            stream_id=stream_id,
+            turn_index=0,
+            harness_kind=HarnessKind.CLAUDE,
+            sandbox_id="sandbox-start",
+            references=[workflow_ref],
+            trace_id=uuid.uuid4(),
+            span_id=uuid.uuid4().hex[:16],
+            start_time=started_at,
+        ),
+    )
+    service = SessionTurnsService(turns_dao=dao)
+    completed_at = datetime.now(timezone.utc)
+
+    for guarded_project_id, guarded_session_id, guarded_turn_index in (
+        (uuid.uuid4(), session_id, 0),
+        (project_id, f"{session_id}-unknown", 0),
+        (project_id, session_id, 99),
+    ):
+        with pytest.raises(SessionTurnNotFound):
+            await service.complete_turn(
+                project_id=guarded_project_id,
+                turn=SessionTurnComplete(
+                    session_id=guarded_session_id,
+                    turn_index=guarded_turn_index,
+                    agent_session_id="must-not-land",
+                    end_time=completed_at,
+                ),
+            )
+
+    completed = await service.complete_turn(
+        project_id=project_id,
+        turn=SessionTurnComplete(
+            session_id=session_id,
+            turn_index=0,
+            agent_session_id="agent-complete",
+            end_time=completed_at,
+        ),
+    )
+    assert completed.id == started.id
+    assert completed.end_time == completed_at
+    assert completed.agent_session_id == "agent-complete"
+    assert completed.stream_id == started.stream_id
+    assert completed.harness_kind == started.harness_kind
+    assert completed.sandbox_id == started.sandbox_id
+    assert completed.references == started.references
+    assert completed.trace_id == started.trace_id
+    assert completed.span_id == started.span_id
+    assert completed.start_time == started.start_time
+
+    retried = await service.complete_turn(
+        project_id=project_id,
+        turn=SessionTurnComplete(
+            session_id=session_id,
+            turn_index=0,
+            agent_session_id="agent-must-not-replace-first-completion",
+            end_time=datetime.now(timezone.utc),
+        ),
+    )
+    assert retried.end_time == completed_at
+    assert retried.agent_session_id == "agent-complete"
+
+
 async def test_multi_turn_appends_persist_with_incrementing_index_and_stable_stream(
     dao, project_and_stream
 ):
@@ -270,8 +349,10 @@ async def test_query_turns_filters_by_references_gin_contains(dao, project_and_s
     assert results[0].id == matching.id
 
 
-async def test_query_turns_windowed_newest_to_oldest(dao, project_and_stream):
-    """W1.6: windowed list, newest -> oldest."""
+async def test_query_turns_orders_by_turn_index_with_id_tiebreaker(
+    dao, project_and_stream
+):
+    """The list follows semantic turn order, independent of insertion order."""
     project_id = project_and_stream["project_id"]
     stream_id = project_and_stream["stream_id"]
     session_id = project_and_stream["session_id"] + "-window"
@@ -286,8 +367,8 @@ async def test_query_turns_windowed_newest_to_oldest(dao, project_and_stream):
         )
         await session.commit()
 
-    created_ids = []
-    for i in range(3):
+    created_ids_by_index = {}
+    for i in (2, 0, 1):
         turn = await dao.append(
             project_id=project_id,
             user_id=None,
@@ -298,7 +379,7 @@ async def test_query_turns_windowed_newest_to_oldest(dao, project_and_stream):
                 harness_kind=HarnessKind.PI,
             ),
         )
-        created_ids.append(turn.id)
+        created_ids_by_index[i] = turn.id
 
     results = await dao.query_turns(
         project_id=project_id,
@@ -306,7 +387,45 @@ async def test_query_turns_windowed_newest_to_oldest(dao, project_and_stream):
         windowing=Windowing(order="descending"),
     )
 
-    assert [r.id for r in results] == list(reversed(created_ids))
+    assert [r.turn_index for r in results] == [2, 1, 0]
+    assert [r.id for r in results] == [
+        created_ids_by_index[2],
+        created_ids_by_index[1],
+        created_ids_by_index[0],
+    ]
+
+    next_page = await dao.query_turns(
+        project_id=project_id,
+        query=SessionTurnQuery(session_id=session_id),
+        windowing=Windowing(order="descending", next=created_ids_by_index[1]),
+    )
+    assert [r.turn_index for r in next_page] == [0]
+
+    tie_reference = Reference(id=uuid.uuid4(), slug="ordering-tie")
+    tied_turns = []
+    for tied_session_id in (f"{session_id}-tie-a", f"{session_id}-tie-b"):
+        tied_turns.append(
+            await dao.append(
+                project_id=project_id,
+                user_id=None,
+                turn=SessionTurnCreate(
+                    session_id=tied_session_id,
+                    stream_id=stream_id,
+                    turn_index=1,
+                    harness_kind=HarnessKind.PI,
+                    references=[tie_reference],
+                ),
+            )
+        )
+
+    tied_results = await dao.query_turns(
+        project_id=project_id,
+        query=SessionTurnQuery(references=[tie_reference]),
+        windowing=Windowing(order="descending"),
+    )
+    assert [r.id for r in tied_results] == sorted(
+        [turn.id for turn in tied_turns], reverse=True
+    )
 
 
 async def test_latest_turn_and_latest_turn_per_harness(dao, project_and_stream):

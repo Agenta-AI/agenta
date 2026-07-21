@@ -1,12 +1,14 @@
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import delete as sa_delete, select
+from sqlalchemy import and_, delete as sa_delete, or_, select
+from sqlalchemy import update as sa_update
 from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.sessions.turns.dtos import (
     HarnessKind,
     SessionTurn,
+    SessionTurnComplete,
     SessionTurnCreate,
     SessionTurnQuery,
 )
@@ -23,7 +25,6 @@ from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
     get_transactions_engine,
 )
-from oss.src.dbs.postgres.shared.utils import apply_windowing
 
 
 class SessionTurnsDAO(SessionTurnsDAOInterface):
@@ -66,6 +67,48 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
                         },
                     ) from e
                 raise
+        return map_turn_dbe_to_dto(turn_dbe=dbe)
+
+    async def complete(
+        self,
+        *,
+        project_id: UUID,
+        #
+        turn: SessionTurnComplete,
+    ) -> Optional[SessionTurn]:
+        values = {"end_time": turn.end_time}
+        if turn.agent_session_id is not None:
+            values["agent_session_id"] = turn.agent_session_id
+
+        async with self.engine.session() as session:
+            stmt = (
+                sa_update(SessionTurnDBE)
+                .where(
+                    SessionTurnDBE.project_id == project_id,
+                    SessionTurnDBE.session_id == turn.session_id,
+                    SessionTurnDBE.turn_index == turn.turn_index,
+                    SessionTurnDBE.end_time.is_(None),
+                )
+                .values(**values)
+                .returning(SessionTurnDBE)
+            )
+            result = await session.execute(stmt)
+            dbe = result.scalar_one_or_none()
+            if dbe is not None:
+                await session.commit()
+                await session.refresh(dbe)
+                return map_turn_dbe_to_dto(turn_dbe=dbe)
+
+            stmt = select(SessionTurnDBE).where(
+                SessionTurnDBE.project_id == project_id,
+                SessionTurnDBE.session_id == turn.session_id,
+                SessionTurnDBE.turn_index == turn.turn_index,
+            )
+            result = await session.execute(stmt)
+            dbe = result.scalar_one_or_none()
+
+        if dbe is None:
+            return None
         return map_turn_dbe_to_dto(turn_dbe=dbe)
 
     async def fetch_turn(
@@ -119,16 +162,67 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
                             SessionTurnDBE.references.contains(turn_references),
                         )
 
+            descending = windowing is None or windowing.order != "ascending"
+            time_attribute = SessionTurnDBE.start_time
+
             if windowing:
-                stmt = apply_windowing(
-                    stmt=stmt,
-                    DBE=SessionTurnDBE,
-                    attribute="id",
-                    order="descending",
-                    windowing=windowing,
+                if windowing.newest is not None:
+                    if descending and windowing.next is None:
+                        stmt = stmt.where(time_attribute < windowing.newest)
+                    else:
+                        stmt = stmt.where(time_attribute <= windowing.newest)
+                if windowing.oldest is not None:
+                    if not descending and windowing.next is None:
+                        stmt = stmt.where(time_attribute > windowing.oldest)
+                    else:
+                        stmt = stmt.where(time_attribute >= windowing.oldest)
+
+                if windowing.next is not None:
+                    cursor_stmt = select(
+                        SessionTurnDBE.turn_index,
+                        SessionTurnDBE.id,
+                    ).where(
+                        SessionTurnDBE.project_id == project_id,
+                        SessionTurnDBE.id == windowing.next,
+                    )
+                    cursor_result = await session.execute(cursor_stmt)
+                    cursor = cursor_result.one_or_none()
+                    if cursor is not None:
+                        cursor_index, cursor_id = cursor
+                        if descending:
+                            stmt = stmt.where(
+                                or_(
+                                    SessionTurnDBE.turn_index < cursor_index,
+                                    and_(
+                                        SessionTurnDBE.turn_index == cursor_index,
+                                        SessionTurnDBE.id < cursor_id,
+                                    ),
+                                )
+                            )
+                        else:
+                            stmt = stmt.where(
+                                or_(
+                                    SessionTurnDBE.turn_index > cursor_index,
+                                    and_(
+                                        SessionTurnDBE.turn_index == cursor_index,
+                                        SessionTurnDBE.id > cursor_id,
+                                    ),
+                                )
+                            )
+
+            if descending:
+                stmt = stmt.order_by(
+                    SessionTurnDBE.turn_index.desc(),
+                    SessionTurnDBE.id.desc(),
                 )
             else:
-                stmt = stmt.order_by(SessionTurnDBE.created_at.desc())
+                stmt = stmt.order_by(
+                    SessionTurnDBE.turn_index.asc(),
+                    SessionTurnDBE.id.asc(),
+                )
+
+            if windowing and windowing.limit:
+                stmt = stmt.limit(windowing.limit)
 
             result = await session.execute(stmt)
             return [map_turn_dbe_to_dto(turn_dbe=dbe) for dbe in result.scalars().all()]

@@ -6,6 +6,7 @@ from oss.src.core.shared.dtos import Windowing
 from oss.src.core.sessions.turns.dtos import (
     HarnessKind,
     SessionTurn,
+    SessionTurnComplete,
     SessionTurnCreate,
     SessionTurnQuery,
 )
@@ -21,6 +22,15 @@ class SessionTurnsDAOInterface(ABC):
         #
         turn: SessionTurnCreate,
     ) -> SessionTurn: ...
+
+    @abstractmethod
+    async def complete(
+        self,
+        *,
+        project_id: UUID,
+        #
+        turn: SessionTurnComplete,
+    ) -> Optional[SessionTurn]: ...
 
     @abstractmethod
     async def fetch_turn(

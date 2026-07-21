@@ -6,7 +6,8 @@ class SessionTurnError(Exception):
 
 
 class SessionTurnNotFound(SessionTurnError):
-    def __init__(self, turn_id: str):
-        self.turn_id = turn_id
-        self.message = f"No turn found with id '{turn_id}'."
+    def __init__(self, session_id: str, turn_index: int):
+        self.session_id = session_id
+        self.turn_index = turn_index
+        self.message = f"No turn {turn_index} found for session '{session_id}'."
         super().__init__(self.message)

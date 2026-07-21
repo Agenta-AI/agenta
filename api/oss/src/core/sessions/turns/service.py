@@ -12,10 +12,12 @@ from oss.src.core.shared.dtos import Windowing
 from oss.src.core.sessions.turns.dtos import (
     HarnessKind,
     SessionTurn,
+    SessionTurnComplete,
     SessionTurnCreate,
     SessionTurnQuery,
 )
 from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
+from oss.src.core.sessions.turns.types import SessionTurnNotFound
 
 
 class SessionTurnsService:
@@ -51,6 +53,21 @@ class SessionTurnsService:
             project_id=project_id,
             turn_id=turn_id,
         )
+
+    async def complete_turn(
+        self,
+        *,
+        project_id: UUID,
+        #
+        turn: SessionTurnComplete,
+    ) -> SessionTurn:
+        completed = await self._dao.complete(
+            project_id=project_id,
+            turn=turn,
+        )
+        if completed is None:
+            raise SessionTurnNotFound(turn.session_id, turn.turn_index)
+        return completed
 
     async def query_turns(
         self,

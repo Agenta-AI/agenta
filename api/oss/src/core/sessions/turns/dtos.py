@@ -38,6 +38,13 @@ class SessionTurnCreate(BaseModel):
     end_time: Optional[datetime] = None
 
 
+class SessionTurnComplete(BaseModel):
+    session_id: str
+    turn_index: int
+    agent_session_id: Optional[str] = None
+    end_time: datetime
+
+
 class SessionTurnQuery(BaseModel):
     session_id: Optional[str] = None
     stream_id: Optional[UUID] = None
