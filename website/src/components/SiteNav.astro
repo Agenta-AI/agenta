@@ -19,57 +19,59 @@ const linkStyle =
   "display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;text-decoration:none;";
 ---
 
-<nav
-  data-pill
-  style="position:relative;display:flex;align-items:center;justify-content:space-between;height:68px;padding:0 24px;background:var(--ag-d-chrome);border:1px solid rgba(255,255,255,0.07);box-sizing:border-box;"
->
-  <a class="ag-brand" href="/" aria-label="Agenta home">
-    <img
-      src="/logos/Agenta-logo-full-dark.svg"
-      alt="Agenta"
-      style="height:23px;max-width:none;display:block;"
-    />
-  </a>
+<!-- Nav is a fixed-geometry sticky shell; only .ag-nav-inner animates (width +
+     paint props + a translateY), so the pill engages with zero page reflow.
+     See the nav-pill block in global.css. -->
+<nav data-pill style="position:sticky;top:0;z-index:50;">
+  <div class="ag-nav-inner">
+    <a class="ag-brand" href="/" aria-label="Agenta home">
+      <img
+        src="/logos/Agenta-logo-full-dark.svg"
+        alt="Agenta"
+        style="height:23px;max-width:none;display:block;"
+      />
+    </a>
 
-  <div class="ag-navlinks" style="display:flex;align-items:center;gap:2px;">
-    {
-      links.map((l) => (
-        <a class="ag-navlink" href={l.href} style={linkStyle}>
-          {l.label}
-          {l.dropdown && <Fragment set:html={chevron} />}
-        </a>
-      ))
-    }
+    <div class="ag-navlinks" style="display:flex;align-items:center;gap:2px;">
+      {
+        links.map((l) => (
+          <a class="ag-navlink" href={l.href} style={linkStyle}>
+            {l.label}
+            {l.dropdown && <Fragment set:html={chevron} />}
+          </a>
+        ))
+      }
+    </div>
+
+    <div class="ag-navcta" style="display:flex;align-items:center;gap:12px;">
+      <a
+        href={BOOK_DEMO}
+        style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;text-decoration:none;"
+        >Book a demo</a
+      >
+      <a
+        href={GET_STARTED}
+        style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;text-decoration:none;"
+        >Get started</a
+      >
+    </div>
+
+    <button
+      class="ag-menu"
+      id="ag-menu-toggle"
+      aria-label="Open menu"
+      aria-expanded="false"
+      style="align-items:center;justify-content:center;width:38px;height:34px;border:none;border-radius:8px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);cursor:pointer;padding:0;"
+    >
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"
+        ><path
+          d="M2 5h14M2 9h14M2 13h14"
+          stroke="#F7F6F4"
+          stroke-width="1.6"
+          stroke-linecap="round"></path></svg
+      >
+    </button>
   </div>
-
-  <div class="ag-navcta" style="display:flex;align-items:center;gap:12px;">
-    <a
-      href={BOOK_DEMO}
-      style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;text-decoration:none;"
-      >Book a demo</a
-    >
-    <a
-      href={GET_STARTED}
-      style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;text-decoration:none;"
-      >Get started</a
-    >
-  </div>
-
-  <button
-    class="ag-menu"
-    id="ag-menu-toggle"
-    aria-label="Open menu"
-    aria-expanded="false"
-    style="align-items:center;justify-content:center;width:38px;height:34px;border:none;border-radius:8px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);cursor:pointer;padding:0;"
-  >
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"
-      ><path
-        d="M2 5h14M2 9h14M2 13h14"
-        stroke="#F7F6F4"
-        stroke-width="1.6"
-        stroke-linecap="round"></path></svg
-    >
-  </button>
 </nav>
 
 <div

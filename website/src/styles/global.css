@@ -69,35 +69,54 @@ a {
   }
 }
 
-/* ── nav pill: frosted floating nav on scroll (ported from nav-pill.js) ──
-   A rAF loop in SiteNav toggles `.nav-scrolled` on <html> past 24px; the
-   <nav data-pill> then floats into a glass pill. Class lives on <html> so
-   island re-renders never clobber it. */
+/* ── nav pill: frosted floating nav on scroll ────────────────────────
+   A rAF loop in SiteNav toggles `.nav-scrolled` on <html> past 24px. The
+   <nav data-pill> is a fixed-geometry sticky SHELL (full width, its box never
+   changes) — only the inner .ag-nav-inner animates, via width + paint props +
+   a translateY. Because nothing about the shell's layout box changes, the pill
+   engages with ZERO page reflow (the earlier margin/width-in-flow approach
+   shifted content). Class lives on <html> so island re-renders never clobber
+   it. */
 nav[data-pill] {
-  position: sticky !important;
-  top: 0 !important;
+  position: sticky;
+  top: 0;
   z-index: 50;
+}
+.ag-nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 68px;
+  padding: 0 24px;
+  box-sizing: border-box;
+  width: 100%;
+  margin-inline: auto;
+  background: var(--ag-d-chrome);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 0;
+  transform: translateY(0);
   transition:
     background 0.25s ease,
     box-shadow 0.25s ease,
     border-radius 0.25s ease,
-    margin 0.25s ease,
+    border-color 0.25s ease,
     width 0.25s ease,
-    height 0.25s ease,
-    border-color 0.25s ease;
+    padding 0.25s ease,
+    transform 0.25s ease;
 }
-.nav-scrolled nav[data-pill] {
-  margin: 18px auto 0 !important;
-  width: calc(100% - 40px) !important;
-  max-width: 1120px !important;
-  border-radius: 14px !important;
-  background: var(--ag-d-glass, rgba(18, 16, 15, 0.72)) !important;
-  -webkit-backdrop-filter: saturate(1.6) blur(14px) !important;
-  backdrop-filter: saturate(1.6) blur(14px) !important;
+.nav-scrolled .ag-nav-inner {
+  /* Shrink to a centered pill and float it 18px down — all inside the fixed
+     shell, so page content never moves. */
+  width: min(1120px, calc(100% - 40px));
+  transform: translateY(18px);
+  border-radius: 14px;
+  border-color: transparent;
+  background: var(--ag-d-glass, rgba(18, 16, 15, 0.72));
+  -webkit-backdrop-filter: saturate(1.6) blur(14px);
+  backdrop-filter: saturate(1.6) blur(14px);
   box-shadow:
     0 0 0 1px rgba(250, 247, 242, 0.09),
-    0 12px 36px rgba(0, 0, 0, 0.55) !important;
-  border-color: transparent !important;
+    0 12px 36px rgba(0, 0, 0, 0.55);
 }
 
 /* ── nav brand: wordmark condenses to the leaf symbol on scroll ──
@@ -180,9 +199,10 @@ html,
     padding-left: 56px !important;
     padding-right: 56px !important;
   }
+  /* Three columns (Company / Resources / Legal) stay in one row down to mobile. */
   .ag-foot-cols {
     display: grid !important;
-    grid-template-columns: repeat(2, auto);
+    grid-template-columns: repeat(3, auto);
     gap: 36px 56px !important;
   }
 }
@@ -283,6 +303,7 @@ html,
     gap: 36px !important;
   }
   .ag-foot-cols {
+    grid-template-columns: repeat(2, auto) !important;
     gap: 32px !important;
   }
   .ag-hero {
