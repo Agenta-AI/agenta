@@ -74,6 +74,9 @@ const toSummary = (s: SessionStream): ServerSessionSummary => ({
     id: s.session_id,
     title: s.name?.trim() ? s.name : undefined,
     createdAt: s.created_at ? Date.parse(s.created_at) || undefined : undefined,
+    // A soft-deleted stream row is a killed/ended session (still resumable) — the list includes it
+    // via include_ended; the sidebar shows it muted.
+    ended: Boolean(s.deleted_at),
 })
 
 /**

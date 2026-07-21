@@ -1,4 +1,4 @@
-import {setSessionHeader} from "@agenta/entities/session"
+import {deleteSessionRemote, setSessionHeader} from "@agenta/entities/session"
 import {generateId} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
 import {atom, type Getter, type Setter} from "jotai"
@@ -42,6 +42,9 @@ export interface AgentChatSession {
     /** Set once the server list confirms this session exists. Distinguishes a remotely-deleted
      * session (was true, now absent from the server → drop) from a purely-local optimistic one. */
     serverKnown?: boolean
+    /** The durable stream row is soft-deleted (killed/ended) — resumable, shown muted in history.
+     * Purely a display hint from the server; a live local session clears it. */
+    ended?: boolean
 }
 
 export const GLOBAL_APP_KEY = "__global__"
@@ -274,6 +277,7 @@ export const adoptSessionAtomFamily = atomFamily((key: string) =>
 export const deleteSessionAtomFamily = atomFamily((key: string) =>
     atom(null, (get, set, id: string) => {
         const all = get(sessionsByAppAtom)
+        const target = (all[key] ?? []).find((s) => s.id === id)
         set(sessionsByAppAtom, {...all, [key]: (all[key] ?? []).filter((s) => s.id !== id)})
 
         const open = currentOpenIds(get, key)
@@ -293,6 +297,12 @@ export const deleteSessionAtomFamily = atomFamily((key: string) =>
         }
 
         clearSessionEphemera(id)
+
+        // Propagate a user delete to the server so it disappears everywhere — but only for a
+        // server-known session (a purely-local husk has no row; the reconciler's own drop path
+        // does its own cleanup and never routes here, so this can't loop).
+        const projectId = get(projectIdAtom)
+        if (projectId && target?.serverKnown) void deleteSessionRemote({sessionId: id, projectId})
     }),
 )
 
@@ -301,6 +311,7 @@ export interface ServerSessionSummary {
     id: string
     title?: string
     createdAt?: number
+    ended?: boolean
 }
 
 /**
@@ -330,6 +341,7 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
                     serverKnown: true,
                     title: s.title?.trim() ? s.title : remote.title,
                     createdAt: s.createdAt ?? remote.createdAt,
+                    ended: remote.ended,
                 })
             } else if (s.serverKnown) {
                 dropped.push(s.id)
@@ -339,7 +351,13 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
         }
         for (const s of server) {
             if (existingIds.has(s.id)) continue
-            merged.push({id: s.id, title: s.title, createdAt: s.createdAt, serverKnown: true})
+            merged.push({
+                id: s.id,
+                title: s.title,
+                createdAt: s.createdAt,
+                serverKnown: true,
+                ended: s.ended,
+            })
         }
 
         const changed =
@@ -351,7 +369,8 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
                     e.id !== m.id ||
                     e.title !== m.title ||
                     e.createdAt !== m.createdAt ||
-                    e.serverKnown !== m.serverKnown
+                    e.serverKnown !== m.serverKnown ||
+                    e.ended !== m.ended
                 )
             })
         if (!changed) return

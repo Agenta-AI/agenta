@@ -409,6 +409,29 @@ export async function killSession({
     return data !== null
 }
 
+/**
+ * DELETE — permanently remove a session (root hard-delete fan-out across turns/streams/
+ * interactions/mounts). Distinct from `killSession` (a soft end that stays resumable). Propagates
+ * the deletion to every device: the reconciler drops a session absent from the server list.
+ * Returns `true` on success, `false` on failure/missing scope.
+ */
+export async function deleteSession({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<boolean> {
+    if (!projectId || !sessionId) return false
+
+    const data = await callFern("[deleteSession]", () =>
+        getSessionsClient().deleteSession(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return data !== null
+}
+
 /** List the mounts (drives) bound to one session. Returns `null` on failure/missing scope. */
 export async function querySessionMounts({
     sessionId,

@@ -80,7 +80,12 @@ const SessionHistoryRow = ({
                 <Text className="!text-xs" ellipsis={{tooltip: label}}>
                     {label}
                 </Text>
-                <Text type="secondary" className="!text-[11px]">
+                <Text type="secondary" className="flex items-center gap-1.5 !text-[11px]">
+                    {session.ended && (
+                        <span className="rounded bg-colorFillTertiary px-1 text-[10px] leading-4">
+                            Ended
+                        </span>
+                    )}
                     {timeAgo(session.createdAt)}
                 </Text>
             </div>
