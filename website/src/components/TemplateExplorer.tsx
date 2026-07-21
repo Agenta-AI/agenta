@@ -35,8 +35,12 @@ const HARNESSES: Harness[] = [
     logo: "/logos/tools/anthropic.svg",
     model: "Runs Claude Opus 4.5",
   },
-  { name: "Codex", logo: null, model: "Runs GPT-5 Codex" },
-  { name: "pi.dev", logo: null, model: "Bring your own model" },
+  { name: "Codex", logo: "/logos/tools/openai.svg", model: "Runs GPT-5 Codex" },
+  {
+    name: "pi.dev",
+    logo: "/logos/tools/pidev.svg",
+    model: "Bring your own model",
+  },
 ];
 
 type Template = {
@@ -355,7 +359,7 @@ export default function TemplateExplorer() {
                         : { color: "rgba(255,255,255,0.5)" }),
                     }}
                   >
-                    {i === hActive ? <Logo src={h.logo} size={13} /> : null}
+                    <Logo src={h.logo} size={13} />
                     {h.name}
                   </span>
                 ))}

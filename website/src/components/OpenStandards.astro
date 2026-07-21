@@ -73,10 +73,10 @@ const rows: Row[] = [
     speed: 55,
     chips: [
       { name: "Claude Code", logo: local("anthropic"), href: "https://claude.com/claude-code" },
-      { name: "pi.dev", href: "https://pi.dev" },
+      { name: "pi.dev", logo: local("pidev"), href: "https://pi.dev" },
       { name: "Codex", soon: true, logo: local("openai"), href: "https://openai.com/codex" },
-      { name: "OpenCode", soon: true, href: "https://opencode.ai" },
-      { name: "hermes", soon: true },
+      { name: "OpenCode", soon: true, logo: local("opencode"), href: "https://opencode.ai" },
+      { name: "Hermes", soon: true, logo: local("hermes") },
     ],
   },
   {
@@ -86,9 +86,9 @@ const rows: Row[] = [
       { name: "Anthropic", logo: local("anthropic"), href: "https://anthropic.com" },
       { name: "OpenAI", logo: local("openai"), href: "https://openai.com" },
       { name: "Ollama", logo: local("ollama"), href: "https://ollama.com" },
-      { name: "xAI", href: "https://x.ai" },
+      { name: "xAI", logo: local("xai"), href: "https://x.ai" },
       { name: "OpenRouter", logo: local("openrouter"), href: "https://openrouter.ai" },
-      { name: "Your own gateway" },
+      { name: "Your own gateway", logo: local("gateway") },
     ],
   },
   {
@@ -97,10 +97,9 @@ const rows: Row[] = [
     chips: [
       { name: "Your local machine", logo: local("docker"), href: "https://docker.com" },
       { name: "Agenta Cloud", logo: "/logos/Agenta-symbol-dark.svg", href: "#" },
-      { name: "Daytona", href: "https://daytona.io" },
-      { name: "E2B", soon: true, href: "https://e2b.dev" },
-      // Vercel: no self-hosted mark yet, degrade to a text chip (see report).
-      { name: "Vercel", soon: true, href: "https://vercel.com" },
+      { name: "Daytona", logo: local("daytona"), href: "https://daytona.io" },
+      { name: "E2B", soon: true, logo: local("e2b"), href: "https://e2b.dev" },
+      { name: "Vercel", soon: true, logo: local("vercel"), href: "https://vercel.com" },
     ],
   },
 ];
@@ -156,8 +155,8 @@ const isExternal = (href?: string) => !!href && href.startsWith("http");
         >One agent package, any stack</span
       >
       <span style="font:var(--text-body-md);color:rgba(255,255,255,0.55);"
-        >Your agent is AGENTS.md, skills, and MCP tools. Swap everything else
-        without rewriting anything.</span
+        >Your agent is AGENTS.md, skills, and MCP tools. Swap the harness, model,
+        or runtime without touching a line.</span
       >
       <span
         style="font:var(--text-body-sm);color:rgba(255,255,255,0.45);border-top:1px solid rgba(255,255,255,0.08);padding-top:16px;"
