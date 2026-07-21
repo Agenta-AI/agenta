@@ -6,6 +6,7 @@ import {
     type WorkflowFlags,
 } from "@agenta/entities/workflow"
 import {atom, type Getter} from "jotai"
+import {selectAtom} from "jotai/utils"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 
@@ -158,18 +159,15 @@ const workflowContextEquals = (a: CurrentWorkflowContext, b: CurrentWorkflowCont
     a.isNotFound === b.isNotFound &&
     a.isError === b.isError
 
-let previousWorkflowContext: CurrentWorkflowContext | null = null
-
-// Reuse the previous object when all fields are unchanged, so query-phase identity
-// churn in the underlying detail query doesn't re-render subscribers.
-export const currentWorkflowContextAtom = atom<CurrentWorkflowContext>((get) => {
-    const next = computeCurrentWorkflowContext(get)
-    if (previousWorkflowContext && workflowContextEquals(previousWorkflowContext, next)) {
-        return previousWorkflowContext
-    }
-    previousWorkflowContext = next
-    return next
-})
+// Reuse the previous object when all fields are unchanged, so query-phase identity churn in
+// the underlying detail query doesn't re-render subscribers. selectAtom keeps this memoization
+// store-scoped (each Jotai store gets its own), matching the stableAtom pattern in
+// PlaygroundConfigSection, instead of a module-level cache shared across every store/test.
+export const currentWorkflowContextAtom = selectAtom(
+    atom(computeCurrentWorkflowContext),
+    (ctx) => ctx,
+    workflowContextEquals,
+)
 
 /**
  * Early, app-id-keyed agent signal for the playground shell/header/layout.
