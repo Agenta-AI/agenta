@@ -106,6 +106,12 @@ describe("redactVaultSecretRow", () => {
         expect(redacted.content).toBe(VAULT_PERSIST_REDACTED)
     })
 
+    it("does not throw when content is null", () => {
+        const row = {name: "x", format: "json", content: null} as unknown as NamedSecretRow
+        expect(() => redactVaultSecretRow(row)).not.toThrow()
+        expect((redactVaultSecretRow(row) as NamedSecretRow).content).toBeNull()
+    })
+
     it("redacts named-secret json content values but keeps keys", () => {
         const row: NamedSecretRow = {
             name: "my-env",
@@ -135,9 +141,16 @@ describe("redactPersistedVaultQuery", () => {
         expect(redacted.queryKey).toEqual(persisted.queryKey)
     })
 
-    it("passes non-array data through untouched", () => {
+    it("passes empty (null/undefined) data through untouched", () => {
         const persisted = wrap(undefined)
         expect(redactPersistedVaultQuery(persisted)).toBe(persisted)
+    })
+
+    it("drops a non-array payload rather than persisting it unredacted (fail-safe)", () => {
+        const persisted = wrap({secrets: [{name: "x", key: "sk-live-leak"}]})
+        const result = redactPersistedVaultQuery(persisted)
+        expect(result.state.data).toBeUndefined()
+        expect(JSON.stringify(result)).not.toContain("sk-live-leak")
     })
 
     it("never leaves a raw secret value anywhere in the serialized payload", () => {

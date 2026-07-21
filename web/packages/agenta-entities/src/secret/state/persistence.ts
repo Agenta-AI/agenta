@@ -45,7 +45,9 @@ export const redactVaultSecretRow = (row: LlmProvider): LlmProvider => {
     }
 
     const named = next as NamedSecretRow
-    if (named.content !== undefined) {
+    // `!= null` (not `!== undefined`): a null content has no secret to redact, and skipping it
+    // avoids `Object.keys(null)` throwing inside this serialize hook.
+    if (named.content != null) {
         if (typeof named.content === "string") {
             named.content = named.content ? VAULT_PERSIST_REDACTED : ""
         } else {
@@ -62,7 +64,14 @@ export const redactVaultSecretRow = (row: LlmProvider): LlmProvider => {
 /** Serialize hook: redact `state.data` without mutating the live query state. */
 export const redactPersistedVaultQuery = (persisted: PersistedQuery): PersistedQuery => {
     const data = persisted.state.data
-    if (!Array.isArray(data)) return persisted
+    // Nothing to persist yet (pending/empty) — pass through unchanged.
+    if (data == null) return persisted
+    // Fail-safe: the vault query returns LlmProvider[]. Any other shape (a misapplied persister,
+    // a future API change) is dropped rather than persisted, so plaintext secrets can never reach
+    // IndexedDB unredacted through an unexpected payload.
+    if (!Array.isArray(data)) {
+        return {...persisted, state: {...persisted.state, data: undefined}}
+    }
 
     return {
         ...persisted,
