@@ -1,0 +1,235 @@
+---
+// Open standards — the marquee stack. Copy left, card right (.ag-interop grid,
+// stacks to one column <=1100px via global.css). Each of the 5 rows is a label +
+// an auto-scrolling chip strip whose direction alternates; hovering a row pauses
+// its marquee and lets you scroll it horizontally (pure CSS, no island).
+//
+// Invariant: a marquee track is the chip strip DUPLICATED once and translated to
+// -50% (keyframes ag-marquee / ag-marquee-rev in global.css), so it loops
+// seamlessly. Never render a single (undoubled) strip on an animated track.
+
+const local = (n: string) => `/logos/tools/${n}.svg`;
+
+// Edge fade so chips dissolve into the card at both ends.
+const MASK =
+  "-webkit-mask-image:linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);mask-image:linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);";
+
+type Chip = {
+  name?: string;
+  mono?: boolean;
+  logo?: string;
+  href?: string;
+  soon?: boolean;
+};
+
+type Row = { label: string; speed: number; chips: Chip[] };
+
+const mcp: Array<[string, string]> = [
+  ["github", "https://github.com"],
+  ["slack", "https://slack.com"],
+  ["linear", "https://linear.app"],
+  ["anthropic", "https://anthropic.com"],
+  ["notion", "https://notion.so"],
+  ["stripe", "https://stripe.com"],
+  ["postgresql", "https://postgresql.org"],
+  ["hubspot", "https://hubspot.com"],
+  ["posthog", "https://posthog.com"],
+  ["googledrive", "https://drive.google.com"],
+  ["zendesk", "https://zendesk.com"],
+  ["docker", "https://docker.com"],
+  ["figma", "https://figma.com"],
+  ["discord", "https://discord.com"],
+  ["asana", "https://asana.com"],
+  ["gitlab", "https://gitlab.com"],
+  ["airtable", "https://airtable.com"],
+  ["supabase", "https://supabase.com"],
+  ["mongodb", "https://mongodb.com"],
+  ["cloudflare", "https://cloudflare.com"],
+];
+
+const rows: Row[] = [
+  {
+    label: "Skills",
+    speed: 42,
+    chips: [
+      "review-diff",
+      "classify",
+      "research-company",
+      "pull-metrics",
+      "style-check",
+      "answer-cited",
+      "draft-outreach",
+      "risk-scan",
+      "build-dashboard",
+    ].map((name) => ({ name, mono: true })),
+  },
+  {
+    label: "MCPs & tools",
+    speed: 30,
+    chips: mcp.map(([slug, href]) => ({ logo: local(slug), href })),
+  },
+  {
+    label: "Harness",
+    speed: 55,
+    chips: [
+      { name: "Claude Code", logo: local("anthropic"), href: "https://claude.com/claude-code" },
+      { name: "pi.dev", href: "https://pi.dev" },
+      { name: "Codex", soon: true, logo: local("openai"), href: "https://openai.com/codex" },
+      { name: "OpenCode", soon: true, href: "https://opencode.ai" },
+      { name: "hermes", soon: true },
+    ],
+  },
+  {
+    label: "Providers",
+    speed: 50,
+    chips: [
+      { name: "Anthropic", logo: local("anthropic"), href: "https://anthropic.com" },
+      { name: "OpenAI", logo: local("openai"), href: "https://openai.com" },
+      { name: "Ollama", logo: local("ollama"), href: "https://ollama.com" },
+      { name: "xAI", href: "https://x.ai" },
+      { name: "OpenRouter", logo: local("openrouter"), href: "https://openrouter.ai" },
+      { name: "Your own gateway" },
+    ],
+  },
+  {
+    label: "Runtime",
+    speed: 48,
+    chips: [
+      { name: "Your local machine", logo: local("docker"), href: "https://docker.com" },
+      { name: "Agenta Cloud", logo: "/logos/Agenta-symbol-dark.svg", href: "#" },
+      { name: "Daytona", href: "https://daytona.io" },
+      { name: "E2B", soon: true, href: "https://e2b.dev" },
+      // Vercel: no self-hosted mark yet, degrade to a text chip (see report).
+      { name: "Vercel", soon: true, href: "https://vercel.com" },
+    ],
+  },
+];
+
+const chipStyle = (c: Chip) => {
+  const named = !!c.name;
+  return (
+    "flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;" +
+    `height:${named ? 36 : 44}px;padding:0 14px;border-radius:9px;white-space:nowrap;text-decoration:none;` +
+    (c.href ? "cursor:pointer;" : "cursor:default;") +
+    (c.mono ? "font:var(--app-text-mono);" : "font:var(--text-label);") +
+    (c.soon
+      ? "background:rgba(255,255,255,0.02);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.07);color:rgba(255,255,255,0.4);"
+      : "background:rgba(255,255,255,0.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.12);color:rgba(255,255,255,0.9);")
+  );
+};
+
+// Marks tint grey #B9B8B6 by masking the (fill=currentColor) SVG, so any logo
+// renders as a flat monochrome silhouette regardless of its source colors.
+const logoStyle = (c: Chip) => {
+  const s = c.name ? 15 : 20;
+  return (
+    `flex:0 0 auto;width:${s}px;height:${s}px;background-color:#B9B8B6;` +
+    `-webkit-mask:url('${c.logo}') center/contain no-repeat;mask:url('${c.logo}') center/contain no-repeat;`
+  );
+};
+
+const soonStyle =
+  "font:500 10px/1 var(--font-sans);letter-spacing:0.05em;text-transform:uppercase;color:rgba(255,255,255,0.35);padding:3px 6px;border-radius:5px;background:rgba(255,255,255,0.06);";
+
+const labelStyle =
+  "font:var(--text-caption);letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.36);padding-left:28px;";
+
+const isExternal = (href?: string) => !!href && href.startsWith("http");
+---
+
+<section
+  data-screen-label="Open standards"
+  class="ag-secpad"
+  style="background:var(--ag-d-bg-1);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:112px 0;display:flex;justify-content:center;"
+>
+  <div
+    class="ag-interop"
+    style="width:min(1120px,100%);display:grid;grid-template-columns:360px 1fr;gap:64px;padding:0 28px;box-sizing:border-box;text-align:left;align-items:center;"
+  >
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <span
+        style="align-self:flex-start;display:inline-flex;align-items:center;height:24px;padding:0 11px;border-radius:999px;background:rgba(255,255,255,0.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.1);font:500 12px/1 var(--font-sans);letter-spacing:0.03em;color:rgba(255,255,255,0.7);"
+        >Open standards</span
+      >
+      <span
+        style="font:300 44px/1.1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;"
+        >One agent package, any stack</span
+      >
+      <span style="font:var(--text-body-md);color:rgba(255,255,255,0.55);"
+        >Your agent is AGENTS.md, skills, and MCP tools. Swap everything else
+        without rewriting anything.</span
+      >
+      <span
+        style="font:var(--text-body-sm);color:rgba(255,255,255,0.45);border-top:1px solid rgba(255,255,255,0.08);padding-top:16px;"
+        >When self-hosting locally, you can use your Claude or ChatGPT
+        subscription.</span
+      >
+    </div>
+
+    <div
+      style="border-radius:12px;background:var(--ag-d-bg-2);box-shadow:0 24px 70px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.07);padding:10px 0;display:flex;flex-direction:column;min-width:0;"
+    >
+      {
+        rows.map((r, i) => (
+          <div
+            style={
+              "display:grid;grid-template-columns:130px 1fr;gap:16px;align-items:center;padding:17px 0;" +
+              (i > 0 ? "border-top:1px solid rgba(255,255,255,0.06);" : "")
+            }
+          >
+            <span style={labelStyle}>{r.label}</span>
+            <div class="ag-io-view" style={"overflow:hidden;" + MASK}>
+              <div
+                class="ag-io-track"
+                style={
+                  "display:flex;gap:10px;width:max-content;padding:2px 0;animation:" +
+                  (i % 2 ? "ag-marquee-rev" : "ag-marquee") +
+                  " " +
+                  r.speed +
+                  "s linear infinite;"
+                }
+              >
+                {r.chips.concat(r.chips).map((c) =>
+                  c.href ? (
+                    <a
+                      href={c.href}
+                      target={isExternal(c.href) ? "_blank" : undefined}
+                      rel={isExternal(c.href) ? "noopener" : undefined}
+                      style={chipStyle(c)}
+                    >
+                      {c.logo && <span style={logoStyle(c)} />}
+                      {c.name && <span>{c.name}</span>}
+                      {c.soon && <span style={soonStyle}>Soon</span>}
+                    </a>
+                  ) : (
+                    <span style={chipStyle(c)}>
+                      {c.logo && <span style={logoStyle(c)} />}
+                      {c.name && <span>{c.name}</span>}
+                      {c.soon && <span style={soonStyle}>Soon</span>}
+                    </span>
+                  ),
+                )}
+              </div>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  /* Hover a row: pause its marquee and let it scroll horizontally. The inline
+     `animation` shorthand and `overflow:hidden` are inline styles, so these
+     hover overrides need !important to win. */
+  .ag-io-view::-webkit-scrollbar {
+    display: none;
+  }
+  .ag-io-view:hover {
+    overflow-x: auto !important;
+    scrollbar-width: none;
+  }
+  .ag-io-view:hover .ag-io-track {
+    animation-play-state: paused !important;
+  }
+</style>

@@ -1,1062 +1,566 @@
 import { useState, type CSSProperties } from "react";
 
 /*
- * TemplateExplorer — the "Build agents using skills and tools" interactive box.
- * Ported 1:1 from the dark landing DC (TEMPLATES data + selection/accordion
- * logic). Rendered as a React island (client:visible) — this is the first
- * proof that Astro islands work in the new stack.
+ * TemplateExplorer — the "An agent for every job" featured-template island.
+ * Ported from the dark landing DC (templateSectionVals): a centered area-tab
+ * pill row over one two-column featured panel (spec left, AGENTS.md right).
+ * The Harness row is itself a segmented switch that swaps the model caption.
+ * Rendered as a React island (client:visible).
  */
 
-const GET_STARTED = "https://cloud.agenta.ai/";
+const CLOUD_URL = "https://cloud.agenta.ai/";
 
-type Skill = { name: string; summary: string; steps: string[] };
-type Tool = {
-  id: string;
-  name: string;
-  mono: string;
-  desc: string;
-  auth: string;
-  actions: string[];
+// Brand marks self-hosted under public/logos/tools/. The source SVGs are
+// fill="currentColor" (they render black as <img>), so we tint them to the
+// design's grey via a CSS mask — which also degrades to an empty box, never a
+// broken-image icon, if a file is missing.
+const LOGO_GREY = "#B9B8B6";
+const LOGO: Record<string, string> = {
+  GitHub: "/logos/tools/github.svg",
+  Linear: "/logos/tools/linear.svg",
+  Zendesk: "/logos/tools/zendesk.svg",
+  Postgres: "/logos/tools/postgresql.svg",
+  HubSpot: "/logos/tools/hubspot.svg",
+  Slack: "/logos/tools/slack.svg",
+  Notion: "/logos/tools/notion.svg",
+  "Google Drive": "/logos/tools/googledrive.svg",
+  PostHog: "/logos/tools/posthog.svg",
+  Stripe: "/logos/tools/stripe.svg",
 };
+
+type Harness = { name: string; logo: string | null; model: string };
+const HARNESSES: Harness[] = [
+  {
+    name: "Claude Code",
+    logo: "/logos/tools/anthropic.svg",
+    model: "Runs Claude Opus 4.5",
+  },
+  { name: "Codex", logo: null, model: "Runs GPT-5 Codex" },
+  { name: "pi.dev", logo: null, model: "Bring your own model" },
+];
+
 type Template = {
-  // Key from the app template registry (web/oss/.../agent-home/assets/templates.ts). The app
-  // captures ?template=<key> on arrival and creates the agent from that template.
+  // Key from the app template registry (web/oss/.../agent-home/assets/templates.ts).
+  // The app captures ?template=<key> on arrival and creates the agent from it.
   key: string;
+  area: string;
   title: string;
   tagline: string;
-  mono: string;
-  triggerShort: string;
-  trigger: string;
-  harness: string;
-  harnessMono: string;
+  trigText: string;
+  trigLogo: string | null;
+  hDefault: number;
+  skills: string[];
+  tools: string[];
   agents: string;
-  skills: Skill[];
-  tools: Tool[];
 };
 
 const TEMPLATES: Template[] = [
   {
     key: "pr-reviewer",
+    area: "Engineering",
     title: "Code review agent",
     tagline: "Reviews every pull request and leaves inline comments.",
-    mono: "</>",
-    triggerShort: "On GitHub PR opened",
-    trigger: "GitHub — pull request opened",
-    harness: "Claude Code",
-    harnessMono: "C",
+    trigText: "On every pull request",
+    trigLogo: LOGO.GitHub,
+    hDefault: 0,
+    skills: ["review-diff", "style-check", "risk-scan"],
+    tools: ["GitHub", "Linear"],
     agents:
-      "# Code review agent\n\nReview the PR diff and be concise.\n- Summarize what changed and why\n- Flag bugs, security and perf issues\n- Suggest concrete, minimal fixes",
-    skills: [
-      {
-        name: "review-diff",
-        summary: "Summarize what a PR changes",
-        steps: [
-          "Read the unified diff",
-          "Group changes by file and intent",
-          "Write a 2–3 sentence summary",
-        ],
-      },
-      {
-        name: "style-check",
-        summary: "Enforce conventions & lint rules",
-        steps: [
-          "Load the repo style guide",
-          "Compare against changed lines only",
-          "Comment on real violations",
-        ],
-      },
-      {
-        name: "risk-scan",
-        summary: "Flag bugs, security & perf risks",
-        steps: [
-          "Scan for unsafe patterns",
-          "Check inputs and error handling",
-          "Rank findings by severity",
-        ],
-      },
-    ],
-    tools: [
-      {
-        id: "github",
-        name: "GitHub",
-        mono: "G",
-        desc: "Read PRs and files, post review comments.",
-        auth: "oauth",
-        actions: ["get_pull_request", "list_files", "create_review_comment"],
-      },
-      {
-        id: "linear",
-        name: "Linear",
-        mono: "L",
-        desc: "Link PRs to issues and update status.",
-        auth: "api_key",
-        actions: ["get_issue", "update_issue"],
-      },
-    ],
-  },
-  {
-    key: "weekly-report",
-    title: "KPI dashboard agent",
-    tagline: "Builds a weekly metrics dashboard and posts it to the team.",
-    mono: "▦",
-    triggerShort: "Every Monday at 11:00",
-    trigger: "Schedule — every Monday at 11:00",
-    harness: "pi.dev",
-    harnessMono: "π",
-    agents:
-      "# KPI dashboard agent\n\nEvery Monday, gather last week’s numbers.\n- PostHog: activation, retention\n- Stripe: MRR, churn\n- Publish to Notion, ping #metrics in Slack",
-    skills: [
-      {
-        name: "pull-metrics",
-        summary: "Gather product & revenue metrics",
-        steps: [
-          "Query PostHog for activation & retention",
-          "Query Stripe for MRR & churn",
-          "Normalize into a weekly snapshot",
-        ],
-      },
-      {
-        name: "build-dashboard",
-        summary: "Compose the dashboard",
-        steps: [
-          "Pick a chart per metric",
-          "Add week-over-week deltas",
-          "Render to a shareable doc",
-        ],
-      },
-      {
-        name: "publish",
-        summary: "Publish & notify the team",
-        steps: [
-          "Push the doc to Notion",
-          "Post a summary to #metrics",
-          "Attach the dashboard link",
-        ],
-      },
-    ],
-    tools: [
-      {
-        id: "posthog",
-        name: "PostHog",
-        mono: "P",
-        desc: "Query product analytics events and funnels.",
-        auth: "api_key",
-        actions: ["query_events", "get_funnel", "get_retention"],
-      },
-      {
-        id: "stripe",
-        name: "Stripe",
-        mono: "S",
-        desc: "Read revenue, subscriptions and churn.",
-        auth: "api_key",
-        actions: ["list_subscriptions", "get_mrr"],
-      },
-      {
-        id: "slack",
-        name: "Slack",
-        mono: "#",
-        desc: "Post messages and dashboards to channels.",
-        auth: "oauth",
-        actions: ["post_message", "upload_file"],
-      },
-    ],
-  },
-  {
-    key: "error-triage",
-    title: "Production bug agent",
-    tagline: "Triages Sentry alerts and opens a fix PR with context.",
-    mono: "!",
-    triggerShort: "On Sentry alert",
-    trigger: "Sentry — new issue alert",
-    harness: "Claude Code",
-    harnessMono: "C",
-    agents:
-      "# Production bug agent\n\nOn a new Sentry issue.\n- Read the stack trace & breadcrumbs\n- Search the codebase for the cause\n- Propose a minimal, tested fix",
-    skills: [
-      {
-        name: "reproduce",
-        summary: "Reproduce from the stack trace",
-        steps: [
-          "Parse the Sentry stack trace",
-          "Identify the failing call path",
-          "Write a minimal repro",
-        ],
-      },
-      {
-        name: "root-cause",
-        summary: "Locate the root cause",
-        steps: [
-          "Search the codebase for the frame",
-          "Inspect recent changes",
-          "Confirm the faulty assumption",
-        ],
-      },
-      {
-        name: "propose-fix",
-        summary: "Draft a minimal fix & PR",
-        steps: [
-          "Write the smallest safe change",
-          "Add a regression test",
-          "Open a PR with context",
-        ],
-      },
-    ],
-    tools: [
-      {
-        id: "sentry",
-        name: "Sentry",
-        mono: "S",
-        desc: "Read issues, events and stack traces.",
-        auth: "oauth",
-        actions: ["get_issue", "list_events", "resolve_issue"],
-      },
-      {
-        id: "github",
-        name: "GitHub",
-        mono: "G",
-        desc: "Search code and open pull requests.",
-        auth: "oauth",
-        actions: ["search_code", "create_pull_request"],
-      },
-    ],
+      "# Code review agent\n\nYou review pull requests for this repository. Be concise and specific. Never approve your own suggestions.\n\n## When triggered\nA pull request is opened or a new commit is pushed to an open PR.\n\n## Steps\n1. Read the PR title, description and linked Linear issue\n2. Review the full diff, file by file\n3. Summarize what changed and why, in 3 sentences max\n4. Flag bugs, security issues and perf regressions inline\n5. Suggest concrete, minimal fixes with code snippets\n\n## Rules\n- Comment only where you would block a merge\n- Prefer one high-signal comment over five nitpicks\n- Never rewrite whole files, propose diffs\n- Style issues: link the guide, do not lecture\n\n## Escalation\nTag the code owner when the diff touches auth, billing or migrations.",
   },
   {
     key: "support-triage",
+    area: "Customer support",
     title: "Customer support agent",
     tagline: "Answers tickets from your docs and escalates the rest.",
-    mono: "?",
-    triggerShort: "On Slack / Zendesk ticket",
-    trigger: "Slack / Zendesk — new ticket",
-    harness: "Codex",
-    harnessMono: "O",
+    trigText: "On every new ticket",
+    trigLogo: null,
+    hDefault: 1,
+    skills: ["classify", "answer"],
+    tools: ["Zendesk", "Postgres"],
     agents:
-      "# Support agent\n\nAnswer strictly from the provided context.\n- Always cite the source doc\n- Escalate billing & security to a human",
-    skills: [
-      {
-        name: "classify",
-        summary: "Classify the incoming request",
-        steps: [
-          "Detect intent & urgency",
-          "Route billing / security to humans",
-          "Tag the ticket",
-        ],
-      },
-      {
-        name: "answer",
-        summary: "Draft a grounded reply",
-        steps: [
-          "Search the knowledge base",
-          "Answer only from sources",
-          "Cite the doc used",
-        ],
-      },
-    ],
-    tools: [
-      {
-        id: "zendesk",
-        name: "Zendesk",
-        mono: "Z",
-        desc: "Read and reply to support tickets.",
-        auth: "oauth",
-        actions: ["get_ticket", "reply_ticket", "tag_ticket"],
-      },
-      {
-        id: "postgres",
-        name: "Postgres",
-        mono: "▢",
-        desc: "Look up orders and account data.",
-        auth: "connection_string",
-        actions: ["query"],
-      },
-    ],
+      "# Support agent\n\nYou answer customer tickets strictly from the provided context. If the answer is not in the docs, say so.\n\n## When triggered\nA new ticket is created in Zendesk.\n\n## Steps\n1. Classify the ticket: how-to, bug, billing, security\n2. Search the docs and past resolved tickets\n3. Draft a reply in the customer’s language\n4. Cite the source doc for every claim\n5. Set the ticket priority based on impact\n\n## Rules\n- Never invent behavior the docs do not describe\n- Never share internal links or customer data\n- Keep replies under 150 words\n- One follow-up question max per reply\n\n## Escalation\nBilling and security tickets go to a human immediately, with your draft attached as an internal note.",
   },
   {
-    key: "changelog-writer",
-    title: "Release notes agent",
-    tagline: "Turns merged PRs into customer-ready release notes.",
-    mono: "¶",
-    triggerShort: "On GitHub release tagged",
-    trigger: "GitHub — release tagged",
-    harness: "Codex",
-    harnessMono: "O",
+    key: "lead-qualifier",
+    area: "Sales",
+    title: "Lead research agent",
+    tagline: "Researches inbound leads and drafts a first reply for review.",
+    trigText: "On every new lead",
+    trigLogo: null,
+    hDefault: 0,
+    skills: ["research-company", "score-fit", "draft-outreach"],
+    tools: ["HubSpot", "Slack"],
     agents:
-      "# Release notes agent\n\nSummarize what shipped this release.\n- Group: Features, Fixes, Chores\n- Plain language, benefit-first\n- Link each item to its PR",
-    skills: [
-      {
-        name: "collect-prs",
-        summary: "Collect merged PRs since last tag",
-        steps: [
-          "List merged PRs",
-          "Filter by milestone",
-          "Extract titles & labels",
-        ],
-      },
-      {
-        name: "write-notes",
-        summary: "Write user-facing notes",
-        steps: [
-          "Group by Features / Fixes / Chores",
-          "Rewrite in plain language",
-          "Link each item to its PR",
-        ],
-      },
-    ],
-    tools: [
-      {
-        id: "github",
-        name: "GitHub",
-        mono: "G",
-        desc: "Read merged PRs and release tags.",
-        auth: "oauth",
-        actions: ["list_pull_requests", "get_release"],
-      },
-      {
-        id: "notion",
-        name: "Notion",
-        mono: "N",
-        desc: "Publish the changelog page.",
-        auth: "oauth",
-        actions: ["create_page", "update_page"],
-      },
-    ],
+      "# Lead research agent\n\nYou research inbound leads and prepare a first reply. Nothing is sent without human approval.\n\n## When triggered\nA new lead is created in HubSpot.\n\n## Steps\n1. Research the company: size, industry, funding, stack\n2. Identify the contact’s role and likely use case\n3. Score fit against the ICP, 1 to 5, with reasons\n4. Draft a short first reply referencing their context\n5. Post the summary and draft to #sales in Slack\n\n## Rules\n- Facts only from public sources, cite each one\n- No pricing commitments in drafts\n- Below a fit score of 2, recommend a polite pass\n- Keep drafts under 120 words\n\n## Escalation\nEnterprise domains and existing customers go straight to the account owner.",
+  },
+  {
+    key: "knowledge-chatbot",
+    area: "Company knowledge",
+    title: "Knowledge agent",
+    tagline: "Answers team questions from your docs, wiki, and past threads.",
+    trigText: "On every Slack mention",
+    trigLogo: LOGO.Slack,
+    hDefault: 1,
+    skills: ["search-sources", "answer-cited"],
+    tools: ["Notion", "Google Drive", "Slack"],
+    agents:
+      "# Knowledge agent\n\nYou answer team questions from company sources only. You are not a general assistant.\n\n## When triggered\nThe agent is mentioned in any Slack channel.\n\n## Steps\n1. Parse the question and identify the topic\n2. Search Notion, Google Drive and past threads\n3. Answer in the thread, short and direct\n4. Link every source you used\n5. If sources conflict, show both and say which is newer\n\n## Rules\n- If the answer is not in the sources, say so plainly\n- Never answer from general knowledge\n- Respect channel privacy, never quote private channels\n- Match the language of the question\n\n## Escalation\nQuestions about legal, HR or compensation get a pointer to the right human, not an answer.",
+  },
+  {
+    key: "weekly-report",
+    area: "Operations",
+    title: "KPI dashboard agent",
+    tagline: "Builds a weekly metrics dashboard and posts it to the team.",
+    trigText: "Every Monday at 11:00",
+    trigLogo: null,
+    hDefault: 2,
+    skills: ["pull-metrics", "build-dashboard", "publish"],
+    tools: ["PostHog", "Stripe", "Slack"],
+    agents:
+      "# KPI dashboard agent\n\nYou build the weekly metrics dashboard. Numbers must reconcile with the source systems exactly.\n\n## When triggered\nEvery Monday at 11:00, Europe/Berlin.\n\n## Steps\n1. Pull last week from PostHog: signups, activation, retention\n2. Pull last week from Stripe: MRR, new revenue, churn\n3. Compare against the previous 4 weeks\n4. Flag any metric that moved more than 10%\n5. Publish the dashboard page to Notion\n6. Post a 5-line summary to #metrics in Slack\n\n## Rules\n- Never estimate a number you could not fetch, mark it missing\n- Week runs Monday to Sunday, UTC\n- Round to whole numbers, currencies to hundreds\n- Keep the summary under 80 words\n\n## Escalation\nIf a source API fails twice, ping the data owner instead of publishing a partial dashboard.",
   },
 ];
 
-const skillCode = (sk: Skill) =>
-  "---\nname: " +
-  sk.name +
-  "\ndescription: " +
-  sk.summary +
-  "\n---\n\n## Instructions\n\n" +
-  sk.steps.map((s) => "- " + s).join("\n");
-
-const toolCode = (t: Tool) =>
-  JSON.stringify(
-    { name: t.id, description: t.desc, auth: t.auth, actions: t.actions },
-    null,
-    2,
+// Grey-tinted brand mark. Rendered as a masked box so any monochrome source SVG
+// resolves to the design grey and a missing file degrades to an empty box.
+function Logo({ src, size }: { src: string | null; size: number }) {
+  if (!src) return null;
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        flex: "0 0 auto",
+        width: size,
+        height: size,
+        backgroundColor: LOGO_GREY,
+        WebkitMaskImage: `url(${src})`,
+        maskImage: `url(${src})`,
+        WebkitMaskRepeat: "no-repeat",
+        maskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+        maskPosition: "center",
+        WebkitMaskSize: "contain",
+        maskSize: "contain",
+      }}
+    />
   );
+}
 
-const chev = (open: boolean): CSSProperties => ({
-  transform: open ? "rotate(90deg)" : "rotate(0deg)",
-  transition: "transform 0.18s ease",
-  flex: "0 0 auto",
-});
-
-const fileBar: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  padding: "8px 12px",
-  borderBottom: "1px solid rgba(255,255,255,0.06)",
-};
-const codeBlock: CSSProperties = {
-  borderRadius: 8,
-  overflow: "hidden",
-  boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.07)",
-  background: "rgba(0,0,0,0.34)",
-};
-const pre: CSSProperties = {
-  margin: 0,
-  padding: "13px 14px",
-  font: "var(--app-text-mono)",
-  color: "rgba(255,255,255,0.7)",
-  whiteSpace: "pre-wrap",
-  lineHeight: 1.6,
+const eyebrow: CSSProperties = {
+  font: "var(--text-caption)",
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+  color: "rgba(255,255,255,0.36)",
 };
 
 export default function TemplateExplorer() {
-  const [selected, setSelected] = useState(0);
-  const [skillOpen, setSkillOpen] = useState(0);
-  const [toolOpen, setToolOpen] = useState(-1);
-  const [sec, setSec] = useState({ skills: true, agents: false, tools: false });
+  const [sel, setSel] = useState(0);
+  // null → follow the current template's default harness.
+  const [harness, setHarness] = useState<number | null>(null);
 
-  const current = TEMPLATES[selected] ?? TEMPLATES[0];
+  const current = TEMPLATES[sel] ?? TEMPLATES[0];
+  const hActive = harness ?? current.hDefault;
 
   return (
     <div
-      className="ag-explorer"
       style={{
-        width: "min(1016px,100%)",
-        height: 520,
-        borderRadius: 12,
-        background: "#121113",
-        boxShadow:
-          "0 24px 70px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.07)",
         display: "flex",
-        overflow: "hidden",
-        textAlign: "left",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 48,
+        width: "100%",
       }}
     >
-      {/* left: clickable use cases */}
+      {/* area tabs */}
       <div
-        data-scroll="dark"
-        className="ag-explorer-list"
+        className="ag-tpl-tabs"
         style={{
-          width: 368,
-          flex: "0 0 368px",
-          background: "rgba(255,255,255,0.02)",
-          borderRight: "1px solid rgba(255,255,255,0.07)",
-          padding: "18px 16px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-          overflow: "auto",
-          boxSizing: "border-box",
+          display: "inline-flex",
+          gap: 4,
+          padding: 4,
+          borderRadius: 12,
+          background: "rgba(255,255,255,0.04)",
+          boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.08)",
+          maxWidth: "calc(100% - 32px)",
         }}
       >
-        <span
-          style={{
-            font: "var(--text-caption)",
-            letterSpacing: "0.06em",
-            textTransform: "uppercase",
-            color: "rgba(255,255,255,0.36)",
-            padding: "2px 6px 6px",
-          }}
-        >
-          Use cases
-        </span>
         {TEMPLATES.map((t, i) => (
-          <div
-            key={t.title}
+          <span
+            key={t.key}
             onClick={() => {
-              setSelected(i);
-              setSkillOpen(0);
-              setToolOpen(-1);
+              setSel(i);
+              setHarness(null);
             }}
             style={{
-              padding: "13px 14px",
-              borderRadius: 10,
+              display: "inline-flex",
+              alignItems: "center",
+              height: 36,
+              padding: "0 16px",
+              borderRadius: 9,
               cursor: "pointer",
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-              transition: "background 0.12s",
-              background:
-                i === selected
-                  ? "rgba(255,255,255,0.06)"
-                  : "rgba(255,255,255,0.015)",
-              boxShadow:
-                i === selected
-                  ? "inset 0 0 0 1px rgba(255,255,255,0.14)"
-                  : "inset 0 0 0 1px rgba(255,255,255,0.05)",
+              font: "var(--text-label)",
+              whiteSpace: "nowrap",
+              ...(i === sel
+                ? {
+                    background: "rgba(242,242,92,0.12)",
+                    boxShadow: "inset 0 0 0 1px rgba(242,242,92,0.3)",
+                    color: "#F7F6F4",
+                  }
+                : { color: "rgba(255,255,255,0.55)" }),
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
-              <span
-                style={{
-                  flex: "0 0 auto",
-                  width: 30,
-                  height: 30,
-                  borderRadius: 8,
-                  background: "rgba(255,255,255,0.07)",
-                  boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.08)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  font: "600 13px/1 var(--font-sans)",
-                  color:
-                    i === selected
-                      ? "var(--yellow-400)"
-                      : "rgba(255,255,255,0.85)",
-                }}
-              >
-                {t.mono}
-              </span>
-              <span style={{ font: "var(--text-label)", color: "#F7F6F4" }}>
-                {t.title}
-              </span>
-            </div>
-            <span
-              style={{
-                font: "var(--text-caption)",
-                color: "rgba(255,255,255,0.5)",
-                paddingLeft: 41,
-              }}
-            >
-              {t.triggerShort}
-            </span>
-          </div>
+            {t.area}
+          </span>
         ))}
       </div>
 
-      {/* right: selected template detail */}
+      {/* featured panel */}
       <div
-        data-scroll="dark"
+        className="ag-tpl"
         style={{
-          flex: 1,
-          minWidth: 0,
-          padding: "24px 28px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-          overflow: "auto",
+          width: "min(1016px,100%)",
+          borderRadius: 12,
+          background: "var(--ag-d-bg-2)",
+          boxShadow:
+            "0 24px 70px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.07)",
+          display: "grid",
+          gridTemplateColumns: "1fr 430px",
+          overflow: "hidden",
+          textAlign: "left",
+          boxSizing: "border-box",
         }}
       >
+        {/* left: spec */}
         <div
           style={{
+            padding: "34px 40px 30px",
             display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: 16,
+            flexDirection: "column",
+            gap: 0,
           }}
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            <span
-              style={{
-                font: "300 24px/1.1 var(--font-display)",
-                color: "#F7F6F4",
-              }}
-            >
-              {current.title}
-            </span>
-            <span
-              style={{
-                font: "var(--text-body-sm)",
-                color: "rgba(255,255,255,0.55)",
-              }}
-            >
-              {current.tagline}
-            </span>
-          </div>
-          <a
-            href={`${GET_STARTED}?template=${current.key}`}
-            target="_blank"
-            rel="noopener"
-            style={{
-              flex: "0 0 auto",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 7,
-              height: 34,
-              padding: "0 16px",
-              borderRadius: 8,
-              background: "var(--grad-btn-primary)",
-              boxShadow: "var(--shadow-btn-primary)",
-              color: "var(--ink-900)",
-              font: "var(--text-label)",
-              cursor: "pointer",
-              textDecoration: "none",
-            }}
-          >
-            Use template
-            <svg width="13" height="13" viewBox="0 0 12 12" fill="none">
-              <path
-                d="M3 2.5 6.5 6 3 9.5"
-                stroke="currentColor"
-                strokeWidth="1.7"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </a>
-        </div>
-
-        {/* trigger + harness */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            flexWrap: "wrap",
-            padding: "12px 14px",
-            borderRadius: 10,
-            background: "rgba(255,255,255,0.025)",
-            boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.07)",
-          }}
-        >
+          <span style={eyebrow}>{current.area}</span>
           <span
             style={{
-              font: "var(--text-caption)",
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-              color: "rgba(255,255,255,0.34)",
-            }}
-          >
-            Trigger
-          </span>
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              height: 30,
-              padding: "0 12px",
-              borderRadius: 8,
-              background: "rgba(242,242,92,0.1)",
-              boxShadow: "inset 0 0 0 1px rgba(242,242,92,0.25)",
-              font: "var(--text-label)",
+              font: "300 32px/1.15 var(--font-display,'GT Alpina',serif)",
               color: "#F7F6F4",
+              marginTop: 12,
             }}
           >
-            <span
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: "50%",
-                background: "var(--yellow-400)",
-                boxShadow: "0 0 8px rgba(242,242,92,0.7)",
-              }}
-            />
-            {current.trigger}
+            {current.title}
           </span>
           <span
             style={{
-              marginLeft: "auto",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 7,
-              height: 30,
-              padding: "0 11px 0 8px",
-              borderRadius: 8,
-              background: "rgba(255,255,255,0.05)",
-              boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.1)",
-              font: "var(--text-label)",
-              color: "rgba(255,255,255,0.82)",
+              font: "var(--text-body-md)",
+              color: "rgba(255,255,255,0.55)",
+              marginTop: 8,
             }}
           >
+            {current.tagline}
+          </span>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "84px 1fr",
+              columnGap: 20,
+              rowGap: 0,
+              alignItems: "center",
+              marginTop: 24,
+              borderTop: "1px solid rgba(255,255,255,0.07)",
+            }}
+          >
+            {/* Trigger */}
+            <span style={{ ...eyebrow, padding: "14px 0" }}>Trigger</span>
+            <div style={{ padding: "10px 0" }}>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 9,
+                  height: 32,
+                  padding: "0 13px",
+                  borderRadius: 8,
+                  background: "rgba(242,242,92,0.1)",
+                  boxShadow: "inset 0 0 0 1px rgba(242,242,92,0.25)",
+                  font: "var(--text-label)",
+                  color: "#F7F6F4",
+                }}
+              >
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: "var(--yellow-400)",
+                    boxShadow: "0 0 8px rgba(242,242,92,0.7)",
+                  }}
+                />
+                <Logo src={current.trigLogo} size={15} />
+                {current.trigText}
+              </span>
+            </div>
+
+            {/* Harness */}
             <span
               style={{
-                width: 19,
-                height: 19,
-                borderRadius: 5,
-                background: "rgba(255,255,255,0.08)",
+                ...eyebrow,
+                padding: "14px 0",
+                borderTop: "1px solid rgba(255,255,255,0.05)",
+              }}
+            >
+              Harness
+            </span>
+            <div
+              style={{
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
-                font: "600 10px/1 var(--font-sans)",
-                color: "rgba(255,255,255,0.88)",
+                gap: 10,
+                flexWrap: "wrap",
+                padding: "10px 0",
+                borderTop: "1px solid rgba(255,255,255,0.05)",
               }}
             >
-              {current.harnessMono}
-            </span>
-            {current.harness}
-          </span>
-        </div>
+              <div
+                style={{
+                  display: "inline-flex",
+                  gap: 3,
+                  padding: 3,
+                  borderRadius: 9,
+                  background: "rgba(255,255,255,0.04)",
+                  boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.08)",
+                }}
+              >
+                {HARNESSES.map((h, i) => (
+                  <span
+                    key={h.name}
+                    onClick={() => setHarness(i)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 7,
+                      height: 28,
+                      padding: "0 12px",
+                      borderRadius: 7,
+                      cursor: "pointer",
+                      font: "var(--text-label)",
+                      whiteSpace: "nowrap",
+                      ...(i === hActive
+                        ? {
+                            background: "rgba(255,255,255,0.09)",
+                            boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.14)",
+                            color: "#F7F6F4",
+                          }
+                        : { color: "rgba(255,255,255,0.5)" }),
+                    }}
+                  >
+                    {i === hActive ? <Logo src={h.logo} size={13} /> : null}
+                    {h.name}
+                  </span>
+                ))}
+              </div>
+              <span
+                style={{
+                  font: "var(--text-caption)",
+                  color: "rgba(255,255,255,0.4)",
+                }}
+              >
+                {HARNESSES[hActive].model}
+              </span>
+            </div>
 
-        {/* Skills */}
-        <div
-          style={{
-            borderTop: "1px solid rgba(255,255,255,0.07)",
-            paddingTop: 6,
-          }}
-        >
-          <div
-            onClick={() => setSec((s) => ({ ...s, skills: !s.skills }))}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: 10,
-              borderRadius: 8,
-              cursor: "pointer",
-            }}
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 12 12"
-              fill="none"
-              style={chev(sec.skills)}
+            {/* Skills */}
+            <span
+              style={{
+                ...eyebrow,
+                padding: "14px 0",
+                borderTop: "1px solid rgba(255,255,255,0.05)",
+              }}
             >
-              <path
-                d="M4 2.5 8 6l-4 3.5"
-                stroke="rgba(255,255,255,0.55)"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span style={{ font: "var(--text-label)", color: "#F7F6F4" }}>
               Skills
             </span>
-            <span
-              style={{
-                font: "var(--app-text-mono)",
-                fontSize: 11,
-                color: "rgba(255,255,255,0.42)",
-                padding: "2px 8px",
-                borderRadius: 999,
-                background: "rgba(255,255,255,0.06)",
-              }}
-            >
-              {current.skills.length}
-            </span>
-          </div>
-          {sec.skills && (
             <div
               style={{
                 display: "flex",
-                flexDirection: "column",
                 gap: 8,
-                padding: "6px 0 2px",
-                animation: "accordion-in 0.2s ease both",
+                flexWrap: "wrap",
+                padding: "10px 0",
+                borderTop: "1px solid rgba(255,255,255,0.05)",
               }}
             >
-              {current.skills.map((sk, i) => (
-                <div
-                  key={sk.name}
+              {current.skills.map((sk) => (
+                <span
+                  key={sk}
                   style={{
-                    borderRadius: 10,
-                    background: "rgba(255,255,255,0.025)",
-                    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.07)",
-                    overflow: "hidden",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    height: 28,
+                    padding: "0 11px",
+                    borderRadius: 8,
+                    background: "rgba(217,119,87,0.1)",
+                    boxShadow: "inset 0 0 0 1px rgba(217,119,87,0.28)",
+                    font: "var(--app-text-mono)",
+                    color: "rgba(255,255,255,0.85)",
                   }}
                 >
-                  <div
-                    onClick={() => setSkillOpen((p) => (p === i ? -1 : i))}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 11,
-                      padding: "11px 13px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <svg
-                      width="11"
-                      height="11"
-                      viewBox="0 0 12 12"
-                      fill="none"
-                      style={chev(skillOpen === i)}
-                    >
-                      <path
-                        d="M4 2.5 8 6l-4 3.5"
-                        stroke="rgba(255,255,255,0.45)"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    <span
-                      style={{
-                        flex: "0 0 auto",
-                        width: 24,
-                        height: 24,
-                        borderRadius: 6,
-                        background: "rgba(217,119,87,0.16)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: "50%",
-                          background: "var(--terracotta-500)",
-                        }}
-                      />
-                    </span>
-                    <span
-                      style={{
-                        flex: "0 0 auto",
-                        font: "var(--app-text-mono)",
-                        color: "#F7F6F4",
-                      }}
-                    >
-                      {sk.name}
-                    </span>
-                    <span
-                      style={{
-                        minWidth: 0,
-                        font: "var(--text-caption)",
-                        color: "rgba(255,255,255,0.45)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {sk.summary}
-                    </span>
-                  </div>
-                  {skillOpen === i && (
-                    <div
-                      style={{
-                        padding: "0 13px 13px 35px",
-                        animation: "accordion-in 0.2s ease both",
-                      }}
-                    >
-                      <div style={codeBlock}>
-                        <div style={fileBar}>
-                          <span
-                            style={{
-                              width: 8,
-                              height: 8,
-                              borderRadius: "50%",
-                              background: "rgba(255,255,255,0.14)",
-                            }}
-                          />
-                          <span
-                            style={{
-                              font: "var(--app-text-mono)",
-                              fontSize: 11,
-                              color: "rgba(255,255,255,0.5)",
-                            }}
-                          >
-                            skills/{sk.name}/SKILL.md
-                          </span>
-                        </div>
-                        <pre style={pre}>{skillCode(sk)}</pre>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                  {sk}
+                </span>
               ))}
             </div>
-          )}
-        </div>
 
-        {/* Agents.md */}
-        <div
-          style={{
-            borderTop: "1px solid rgba(255,255,255,0.07)",
-            paddingTop: 6,
-          }}
-        >
-          <div
-            onClick={() => setSec((s) => ({ ...s, agents: !s.agents }))}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: 10,
-              borderRadius: 8,
-              cursor: "pointer",
-            }}
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 12 12"
-              fill="none"
-              style={chev(sec.agents)}
-            >
-              <path
-                d="M4 2.5 8 6l-4 3.5"
-                stroke="rgba(255,255,255,0.55)"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span style={{ font: "var(--text-label)", color: "#F7F6F4" }}>
-              Agents.md
-            </span>
-          </div>
-          {sec.agents && (
-            <div
+            {/* Tools */}
+            <span
               style={{
-                padding: "6px 0 2px",
-                animation: "accordion-in 0.2s ease both",
+                ...eyebrow,
+                padding: "14px 0",
+                borderTop: "1px solid rgba(255,255,255,0.05)",
               }}
             >
-              <div style={codeBlock}>
-                <div style={fileBar}>
-                  <span
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      background: "rgba(255,255,255,0.14)",
-                    }}
-                  />
-                  <span
-                    style={{
-                      font: "var(--app-text-mono)",
-                      fontSize: 11,
-                      color: "rgba(255,255,255,0.5)",
-                    }}
-                  >
-                    AGENTS.md
-                  </span>
-                </div>
-                <pre style={pre}>{current.agents}</pre>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Tools */}
-        <div
-          style={{
-            borderTop: "1px solid rgba(255,255,255,0.07)",
-            paddingTop: 6,
-          }}
-        >
-          <div
-            onClick={() => setSec((s) => ({ ...s, tools: !s.tools }))}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: 10,
-              borderRadius: 8,
-              cursor: "pointer",
-            }}
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 12 12"
-              fill="none"
-              style={chev(sec.tools)}
-            >
-              <path
-                d="M4 2.5 8 6l-4 3.5"
-                stroke="rgba(255,255,255,0.55)"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span style={{ font: "var(--text-label)", color: "#F7F6F4" }}>
               Tools
             </span>
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                flexWrap: "wrap",
+                padding: "10px 0",
+                borderTop: "1px solid rgba(255,255,255,0.05)",
+              }}
+            >
+              {current.tools.map((tl) => (
+                <span
+                  key={tl}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    height: 28,
+                    padding: "0 11px",
+                    borderRadius: 8,
+                    background: "rgba(255,255,255,0.05)",
+                    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.1)",
+                    font: "var(--text-label)",
+                    color: "rgba(255,255,255,0.82)",
+                  }}
+                >
+                  <Logo src={LOGO[tl] ?? null} size={14} />
+                  {tl}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* CTA */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              marginTop: "auto",
+              paddingTop: 22,
+            }}
+          >
+            <a
+              href={`${CLOUD_URL}?template=${current.key}`}
+              target="_blank"
+              rel="noopener"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 7,
+                height: 38,
+                padding: "0 18px",
+                borderRadius: 8,
+                background: "var(--grad-btn-primary)",
+                boxShadow: "var(--shadow-btn-primary)",
+                color: "var(--ink-900)",
+                font: "var(--text-label)",
+                cursor: "pointer",
+                textDecoration: "none",
+              }}
+            >
+              Use this template
+              <svg width="13" height="13" viewBox="0 0 12 12" fill="none">
+                <path
+                  d="M3 2.5 6.5 6 3 9.5"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </a>
+          </div>
+        </div>
+
+        {/* right: AGENTS.md viewer */}
+        <div
+          className="ag-tpl-md"
+          style={{
+            background: "rgba(0,0,0,0.34)",
+            borderLeft: "1px solid rgba(255,255,255,0.07)",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "12px 16px",
+              borderBottom: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: "rgba(255,255,255,0.14)",
+              }}
+            />
             <span
               style={{
                 font: "var(--app-text-mono)",
                 fontSize: 11,
-                color: "rgba(255,255,255,0.42)",
-                padding: "2px 8px",
-                borderRadius: 999,
-                background: "rgba(255,255,255,0.06)",
+                color: "rgba(255,255,255,0.5)",
               }}
             >
-              {current.tools.length}
+              AGENTS.md
             </span>
           </div>
-          {sec.tools && (
-            <div
+          <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
+            <pre
+              className="ag-tpl-md-scroll"
               style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-                padding: "6px 0 2px",
-                animation: "accordion-in 0.2s ease both",
+                position: "absolute",
+                inset: 0,
+                margin: 0,
+                padding: "20px 22px",
+                font: "var(--app-text-mono)",
+                color: "rgba(255,255,255,0.7)",
+                whiteSpace: "pre-wrap",
+                lineHeight: 1.75,
+                overflow: "auto",
+                boxSizing: "border-box",
               }}
             >
-              {current.tools.map((tl, i) => (
-                <div
-                  key={tl.id}
-                  style={{
-                    borderRadius: 10,
-                    background: "rgba(255,255,255,0.025)",
-                    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.07)",
-                    overflow: "hidden",
-                  }}
-                >
-                  <div
-                    onClick={() => setToolOpen((p) => (p === i ? -1 : i))}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 11,
-                      padding: "11px 13px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <svg
-                      width="11"
-                      height="11"
-                      viewBox="0 0 12 12"
-                      fill="none"
-                      style={chev(toolOpen === i)}
-                    >
-                      <path
-                        d="M4 2.5 8 6l-4 3.5"
-                        stroke="rgba(255,255,255,0.45)"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    <span
-                      style={{
-                        flex: "0 0 auto",
-                        width: 24,
-                        height: 24,
-                        borderRadius: 6,
-                        background: "rgba(255,255,255,0.07)",
-                        boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.08)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        font: "600 11px/1 var(--font-sans)",
-                        color: "rgba(255,255,255,0.85)",
-                      }}
-                    >
-                      {tl.mono}
-                    </span>
-                    <span
-                      style={{
-                        flex: "0 0 auto",
-                        font: "var(--text-label)",
-                        color: "#F7F6F4",
-                      }}
-                    >
-                      {tl.name}
-                    </span>
-                    <span
-                      style={{
-                        minWidth: 0,
-                        font: "var(--text-caption)",
-                        color: "rgba(255,255,255,0.45)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {tl.desc}
-                    </span>
-                  </div>
-                  {toolOpen === i && (
-                    <div
-                      style={{
-                        padding: "0 13px 13px 35px",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 10,
-                        animation: "accordion-in 0.2s ease both",
-                      }}
-                    >
-                      <span
-                        style={{
-                          font: "var(--text-body-sm)",
-                          color: "rgba(255,255,255,0.6)",
-                        }}
-                      >
-                        {tl.desc}
-                      </span>
-                      <div style={codeBlock}>
-                        <div style={fileBar}>
-                          <span
-                            style={{
-                              width: 8,
-                              height: 8,
-                              borderRadius: "50%",
-                              background: "rgba(255,255,255,0.14)",
-                            }}
-                          />
-                          <span
-                            style={{
-                              font: "var(--app-text-mono)",
-                              fontSize: 11,
-                              color: "rgba(255,255,255,0.5)",
-                            }}
-                          >
-                            {tl.id}.tool.json
-                          </span>
-                        </div>
-                        <pre style={pre}>{toolCode(tl)}</pre>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+              {current.agents}
+            </pre>
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 44,
+                background:
+                  "linear-gradient(to bottom, rgba(18,17,19,0), rgba(15,14,16,0.9))",
+                pointerEvents: "none",
+              }}
+            />
+          </div>
         </div>
       </div>
     </div>

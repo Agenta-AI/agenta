@@ -1,0 +1,158 @@
+---
+// Ported 1:1 from the design source: "Agenta Landing - Agents (Dark).dc.html"
+// (OPEN SOURCE section, lines 440-482). Static markup + one small copy-button
+// island (the terminal card's "Copy prompt"). The .ag-oss (2-col band) and
+// .ag-oss-strip (3-item hairline strip) responsive collapses live in
+// global.css; do not re-declare them here.
+import CopyPromptButton from "./CopyPromptButton.tsx";
+
+// Community strip icons — ported verbatim from ossIcon()/ossGh/ossSlack in
+// renderVals(). GitHub is a filled mark; Slack and roadmap are 1.5px strokes.
+const ghIcon = `<svg width="18" height="18" viewBox="0 0 24 24" fill="rgba(255,255,255,0.8)" stroke="none"><path d="M12 1.5c-5.8 0-10.5 4.7-10.5 10.5 0 4.64 3 8.58 7.18 9.97.53.1.72-.23.72-.5 0-.25-.01-1.08-.01-1.96-2.64.49-3.32-.64-3.53-1.23-.12-.3-.63-1.23-1.08-1.48-.37-.2-.89-.68-.01-.7.83-.01 1.42.76 1.61 1.08.94 1.59 2.45 1.14 3.06.87.09-.68.37-1.14.67-1.4-2.34-.26-4.78-1.17-4.78-5.19 0-1.14.41-2.08 1.08-2.82-.11-.26-.47-1.34.1-2.78 0 0 .88-.28 2.89 1.08a9.77 9.77 0 0 1 5.25 0c2.01-1.37 2.89-1.08 2.89-1.08.58 1.44.21 2.52.1 2.78.67.73 1.08 1.67 1.08 2.82 0 4.03-2.45 4.92-4.79 5.18.38.33.71.96.71 1.94 0 1.4-.01 2.54-.01 2.89 0 .28.19.61.72.5A10.52 10.52 0 0 0 22.5 12c0-5.8-4.7-10.5-10.5-10.5Z"/></svg>`;
+
+const slackIcon = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="3" height="8" x="13" y="2" rx="1.5"/><path d="M19 8.5V10h1.5A1.5 1.5 0 1 0 19 8.5"/><rect width="3" height="8" x="8" y="14" rx="1.5"/><path d="M5 15.5V14H3.5A1.5 1.5 0 1 0 5 15.5"/><rect width="8" height="3" x="14" y="13" rx="1.5"/><path d="M15.5 19H14v1.5a1.5 1.5 0 1 0 1.5-1.5"/><rect width="8" height="3" x="2" y="8" rx="1.5"/><path d="M8.5 5H10V3.5A1.5 1.5 0 1 0 8.5 5"/></svg>`;
+
+const roadmapIcon = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 13v8"/><path d="M12 3v3"/><path d="M4 6h13l3 3-3 3H4Z"/></svg>`;
+
+const arrow = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"></path><path d="M7 7h10v10"></path></svg>`;
+
+// Community strip — 3 external links. First item has no left hairline; the rest
+// carry a column divider (flipped to a row divider ≤1100px by global.css).
+const ossStrip = [
+  {
+    icon: ghIcon,
+    title: "Star on GitHub",
+    meta: "3.4k stars · MIT",
+    href: "https://github.com/Agenta-AI/agenta",
+  },
+  {
+    icon: slackIcon,
+    title: "Join the community",
+    meta: "Slack",
+    href: "https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA",
+  },
+  {
+    icon: roadmapIcon,
+    title: "View the roadmap",
+    meta: "Public",
+    href: "https://github.com/orgs/Agenta-AI/projects",
+  },
+].map((s, i) => ({
+  ...s,
+  style:
+    "display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px 28px;text-decoration:none;" +
+    (i > 0 ? "border-left:1px solid rgba(255,255,255,0.09);" : ""),
+}));
+---
+
+<section
+  data-screen-label="Open source"
+  style="background:var(--ag-d-bg-1);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
+>
+  <div class="ag-secpad" style="padding:112px 0 96px;display:flex;justify-content:center;">
+    <div
+      class="ag-oss"
+      style="width:min(1120px,100%);display:grid;grid-template-columns:420px 1fr;gap:72px;padding:0 28px;box-sizing:border-box;align-items:center;text-align:left;"
+    >
+      <div style="display:flex;flex-direction:column;gap:24px;">
+        <span
+          style="align-self:flex-start;display:inline-flex;align-items:center;height:24px;padding:0 11px;border-radius:999px;background:rgba(255,255,255,0.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.1);font:500 12px/1 var(--font-sans);letter-spacing:0.03em;color:rgba(255,255,255,0.7);"
+          >Open source</span
+        >
+        <span
+          style="font:300 44px/1.1 'GT Alpina',serif;color:#F7F6F4;text-wrap:pretty;"
+          >Self-host Agenta on your infrastructure</span
+        >
+        <span
+          style="font:var(--text-body-md);color:rgba(255,255,255,0.55);text-wrap:pretty;"
+          >MIT-licensed and yours to run. Keep your agents and data on your own
+          premises — same code as Agenta Cloud, no lock-in.</span
+        >
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <span
+            style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.12);font:500 12.5px/1 var(--font-sans);color:rgba(255,255,255,0.75);"
+            >MIT license</span
+          >
+          <span
+            style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.12);font:500 12.5px/1 var(--font-sans);color:rgba(255,255,255,0.75);"
+            >Docker Compose</span
+          >
+          <span
+            style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.12);font:500 12.5px/1 var(--font-sans);color:rgba(255,255,255,0.75);"
+            >Kubernetes</span
+          >
+        </div>
+        <div style="display:flex;gap:12px;margin-top:6px;">
+          <a
+            href="https://github.com/Agenta-AI/agenta"
+            target="_blank"
+            rel="noopener"
+            style="display:inline-flex;align-items:center;height:40px;padding:0 18px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);font:600 14px/1 var(--font-sans);color:var(--ink-900);text-decoration:none;"
+            >Explore on GitHub</a
+          >
+          <a
+            href="https://docs.agenta.ai/self-host/quick-start"
+            target="_blank"
+            rel="noopener"
+            style="display:inline-flex;align-items:center;height:40px;padding:0 18px;border-radius:8px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);font:500 14px/1 var(--font-sans);color:#F7F6F4;text-decoration:none;"
+            >Self-hosting docs</a
+          >
+        </div>
+      </div>
+      <div
+        style="border-radius:12px;background:#0B0A0C;box-shadow:0 0 0 1px rgba(255,255,255,0.1), 0 24px 64px rgba(0,0,0,0.5);overflow:hidden;"
+      >
+        <div
+          style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.08);"
+        >
+          <span
+            style="font:400 12px/1 'Geist Mono',monospace;color:rgba(255,255,255,0.4);"
+            >self-host — with your coding agent</span
+          >
+          <CopyPromptButton client:visible />
+        </div>
+        <div
+          style="padding:24px 22px 28px;display:flex;flex-direction:column;gap:12px;font:400 14px/1.6 'Geist Mono',monospace;"
+        >
+          <span style="color:rgba(255,255,255,0.35);"
+            ># paste into Claude Code — it walks you through setup and testing</span
+          >
+          <span style="color:#F7F6F4;"
+            ><span style="color:rgba(255,255,255,0.35);">$ </span>npx skills add
+            Agenta-AI/agenta-skills</span
+          >
+          <span style="color:#F7F6F4;"
+            ><span style="color:rgba(255,255,255,0.35);">&gt; </span>Help me
+            self-host Agenta with its repository.</span
+          >
+          <span style="color:rgba(242,242,92,0.9);"
+            >→ Agenta running at agenta.acme.com</span
+          >
+        </div>
+      </div>
+    </div>
+  </div>
+  <div
+    class="ag-oss-strip"
+    style="display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid rgba(255,255,255,0.09);"
+  >
+    {
+      ossStrip.map((s) => (
+        <a href={s.href} target="_blank" rel="noopener" style={s.style}>
+          <span style="display:flex;align-items:center;gap:12px;">
+            <Fragment set:html={s.icon} />
+            <span style="font:500 14px/1.3 var(--font-sans);color:#F7F6F4;">
+              {s.title}
+            </span>
+          </span>
+          <span style="display:flex;align-items:center;gap:14px;">
+            <span style="font:400 13px/1.3 var(--font-sans);color:rgba(255,255,255,0.45);">
+              {s.meta}
+            </span>
+            <Fragment set:html={arrow} />
+          </span>
+        </a>
+      ))
+    }
+  </div>
+</section>

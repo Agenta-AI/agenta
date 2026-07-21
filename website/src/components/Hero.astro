@@ -1,20 +1,20 @@
 ---
-// Hero — dark landing. Copy = the design's default "Direct" variant.
+// Hero — dark landing. Copy = the approved pivot rev-5 headline.
 const GET_STARTED = "https://cloud.agenta.ai/";
 const READ_DOCS = "https://docs.agenta.ai/";
 
 // heroPre + [chip] + heroPost form the headline. The chip is the single
 // PP Mondwest highlighted word (yellow), per the type-role rules.
-const heroPre = "Build agents and AI automations that ";
-const heroChip = "work";
-const heroPost = ".";
+const heroPre = "The open-source ";
+const heroChip = "workspace";
+const heroPost = " for your agents.";
 const heroSub =
-  "Build using skills and tools, run on any harness, in any environment.";
+  "Build agents through chat. Improve them with feedback. Share them with your whole team.";
 ---
 
 <section
   data-screen-label="Hero"
-  style="background:#0E0D0F;border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:64px 0 88px;text-align:center;"
+  style="background:var(--ag-d-bg-1);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:64px 0 88px;text-align:center;"
 >
   <div style="display:flex;flex-direction:column;align-items:center;gap:32px;">
     <div style="display:flex;flex-direction:column;align-items:center;gap:28px;">
@@ -27,7 +27,7 @@ const heroSub =
         style="margin:0;font:var(--text-display-xl);color:#F7F6F4;max-width:920px;text-wrap:pretty;"
       >
         {heroPre}<span
-          style="display:inline-block;padding:0.02em 0.18em 0.08em;border-radius:10px;background:rgba(255,255,255,0.07);box-shadow:inset 0 1px 0.4px rgba(255,255,255,0.25), 0 0 0 1px rgba(255,255,255,0.06);font-family:var(--font-bitmap);font-weight:400;line-height:1.06;color:var(--yellow-400);vertical-align:baseline;"
+          style="display:inline-block;padding:0.02em 0.18em 0.08em;border-radius:10px;background:rgba(255,255,255,0.07);box-shadow:inset 0 1px 0.4px rgba(255,255,255,0.25), 0 0 0 1px rgba(255,255,255,0.06);font-family:var(--font-bitmap,'PP Mondwest',monospace);font-weight:400;line-height:1.06;color:var(--yellow-400);vertical-align:baseline;"
           >{heroChip}</span
         >{heroPost}
       </h1>
