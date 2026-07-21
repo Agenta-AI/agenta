@@ -120,7 +120,10 @@ const SessionTag = memo(function SessionTag({
     // the matching note in SessionRail: each button carries a Tooltip + Trigger + icon subtree.
     const [hot, setHot] = useState(false)
     const onEnter = useCallback(() => setHot(true), [])
-    const onLeave = useCallback(() => setHot(false), [])
+    const onLeave = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        // Don't unmount the cluster out from under keyboard focus (symmetric with onBlurChip).
+        if (!e.currentTarget.contains(document.activeElement)) setHot(false)
+    }, [])
     const onBlurChip = useCallback((e: React.FocusEvent<HTMLDivElement>) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setHot(false)
     }, [])

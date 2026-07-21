@@ -61,7 +61,11 @@ const SessionRailRow = memo(function SessionRailRow({
     // history of rows paid all of that on boot for pixels nobody sees.
     const [hot, setHot] = useState(false)
     const onEnter = useCallback(() => setHot(true), [])
-    const onLeave = useCallback(() => setHot(false), [])
+    const onLeave = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        // Don't unmount the cluster out from under keyboard focus: a mixed mouse+keyboard user
+        // can tab into a button, then move the mouse off the row. Symmetric with onBlurRow.
+        if (!e.currentTarget.contains(document.activeElement)) setHot(false)
+    }, [])
     const onBlurRow = useCallback((e: React.FocusEvent<HTMLDivElement>) => {
         // Keep the cluster while focus moves INTO it (row → rename button).
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setHot(false)
