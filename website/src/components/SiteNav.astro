@@ -4,12 +4,11 @@
 const BOOK_DEMO = "https://cal.com/mahmoud-mabrouk-ogzgey/demo?duration=30";
 const GET_STARTED = "https://cloud.agenta.ai/";
 
-// Dropdown placeholders (Product / Resources / Community) and not-yet-built
-// internal pages link to "#"; external links are the real destinations.
+// Dropdown placeholders (Resources / Community) and not-yet-built internal
+// pages link to "#". No nav link opens a new tab — Docs stays same-tab too.
 const links = [
-  { label: "Product", href: "#", dropdown: true },
   { label: "Pricing", href: "/pricing" },
-  { label: "Docs", href: "https://docs.agenta.ai/", external: true },
+  { label: "Docs", href: "https://docs.agenta.ai/" },
   { label: "Blog", href: "/blog" },
   { label: "Resources", href: "#", dropdown: true },
   { label: "Community", href: "#", dropdown: true },
@@ -24,24 +23,18 @@ const linkStyle =
   data-pill
   style="position:relative;display:flex;align-items:center;justify-content:space-between;height:68px;padding:0 24px;background:var(--ag-d-chrome);border:1px solid rgba(255,255,255,0.07);box-sizing:border-box;"
 >
-  <a href="/" style="display:flex;align-items:center;">
+  <a class="ag-brand" href="/" aria-label="Agenta home">
     <img
       src="/logos/Agenta-logo-full-dark.svg"
       alt="Agenta"
-      style="height:23px;display:block;"
+      style="height:23px;max-width:none;display:block;"
     />
   </a>
 
   <div class="ag-navlinks" style="display:flex;align-items:center;gap:2px;">
     {
       links.map((l) => (
-        <a
-          class="ag-navlink"
-          href={l.href}
-          target={l.external ? "_blank" : undefined}
-          rel={l.external ? "noopener" : undefined}
-          style={linkStyle}
-        >
+        <a class="ag-navlink" href={l.href} style={linkStyle}>
           {l.label}
           {l.dropdown && <Fragment set:html={chevron} />}
         </a>
@@ -52,15 +45,11 @@ const linkStyle =
   <div class="ag-navcta" style="display:flex;align-items:center;gap:12px;">
     <a
       href={BOOK_DEMO}
-      target="_blank"
-      rel="noopener"
       style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;text-decoration:none;"
       >Book a demo</a
     >
     <a
       href={GET_STARTED}
-      target="_blank"
-      rel="noopener"
       style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;text-decoration:none;"
       >Get started</a
     >
@@ -92,8 +81,6 @@ const linkStyle =
     links.map((l) => (
       <a
         href={l.href}
-        target={l.external ? "_blank" : undefined}
-        rel={l.external ? "noopener" : undefined}
         style="display:flex;align-items:center;height:42px;padding:0 12px;border-radius:8px;font:var(--text-body-md);color:rgba(255,255,255,0.78);cursor:pointer;text-decoration:none;"
       >
         {l.label}
@@ -103,15 +90,11 @@ const linkStyle =
   <div style="display:flex;gap:10px;margin-top:10px;">
     <a
       href={BOOK_DEMO}
-      target="_blank"
-      rel="noopener"
       style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:42px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;text-decoration:none;"
       >Book a demo</a
     >
     <a
       href={GET_STARTED}
-      target="_blank"
-      rel="noopener"
       style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:42px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;text-decoration:none;"
       >Get started</a
     >
