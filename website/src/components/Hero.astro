@@ -24,18 +24,14 @@ const SHOW_HERO_VIDEO = false;
 >
   <div style="display:flex;flex-direction:column;align-items:center;gap:32px;">
     <div style="display:flex;flex-direction:column;align-items:center;gap:28px;">
-      <span
-        style="display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,0.06);box-shadow:0 0 0 1px rgba(255,255,255,0.14);font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.8);"
-        >Now in beta — skills &amp; tools →</span
-      >
       <h1
         class="ag-h1"
         style="margin:0;font:var(--text-display-xl);color:#F7F6F4;max-width:920px;text-wrap:pretty;"
       >
         {heroPre}<span
-          style="display:inline-block;padding:0.02em 0.18em 0.08em;border-radius:10px;background:rgba(255,255,255,0.07);box-shadow:inset 0 1px 0.4px rgba(255,255,255,0.25), 0 0 0 1px rgba(255,255,255,0.06);font-family:var(--font-bitmap,'PP Mondwest',monospace);font-weight:400;line-height:1.06;color:var(--yellow-400);vertical-align:baseline;"
+          style="display:inline-block;padding:0.02em 0.1em 0.08em;border-radius:10px;background:rgba(255,255,255,0.07);box-shadow:inset 0 1px 0.4px rgba(255,255,255,0.25), 0 0 0 1px rgba(255,255,255,0.06);font-family:var(--font-bitmap,'PP Mondwest',monospace);font-weight:400;line-height:1.06;color:var(--yellow-400);vertical-align:baseline;"
           >{heroChip}</span
-        >{heroPost}
+        ><span style="margin-left:-0.02em;">{heroPost}</span>
       </h1>
       <p
         style="margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.6);max-width:600px;text-wrap:pretty;"
