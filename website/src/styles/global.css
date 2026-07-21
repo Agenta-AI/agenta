@@ -38,6 +38,21 @@ a {
   }
 }
 
+/* ── reduced motion: honor the OS setting (WCAG 2.3.3) ────────
+   Neutralizes the looping play-button pulse and one-shot reveals,
+   and collapses hover transitions to instant. Near-zero (not 0) so
+   animationend/transitionend still fire for any JS that awaits them. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* ── scrollbars (ported verbatim) ───────────────────────────── */
 ::-webkit-scrollbar {
   width: 12px;
