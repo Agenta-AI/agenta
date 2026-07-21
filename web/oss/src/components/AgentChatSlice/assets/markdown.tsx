@@ -4,8 +4,13 @@ import {CopyButton} from "@agenta/ui/components/presentational"
 import {XMarkdown} from "@ant-design/x-markdown"
 import Latex from "@ant-design/x-markdown/plugins/Latex"
 import {Tooltip} from "antd"
+import {useAtomValue} from "jotai"
 import {PrismAsync as SyntaxHighlighter} from "react-syntax-highlighter"
 import {oneDark} from "react-syntax-highlighter/dist/esm/styles/prism"
+
+import {useDriveSessionId} from "@/oss/components/Drives/driveSessionContext"
+
+import {chatFileLinkAtomFamily} from "../state/fileLinks"
 
 // Dark-mode-aware markdown styling. `min-w-0` + `max-w-full` + the per-element width guards
 // keep long lines / code blocks from widening their container; code blocks scroll within their
@@ -25,11 +30,17 @@ export const MD_CLASS =
     "[&_td]:border [&_td]:border-solid [&_td]:border-colorBorderSecondary " +
     "[&_td]:px-2.5 [&_td]:py-1.5 [&_td]:align-top [&_td]:break-normal " +
     // Headings — compact for a chat bubble (browser defaults are huge), descending weight/size.
-    "[&_h1]:mt-3 [&_h1]:mb-1 [&_h1]:text-base [&_h1]:font-semibold [&_h1]:leading-snug " +
-    "[&_h2]:mt-3 [&_h2]:mb-1 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:leading-snug " +
-    "[&_h3]:mt-2 [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold " +
-    "[&_h4]:mt-2 [&_h4]:mb-0.5 [&_h4]:text-xs [&_h4]:font-semibold " +
-    "[&_h5]:mt-2 [&_h5]:mb-0.5 [&_h5]:text-xs [&_h5]:font-semibold " +
+    // Colour is `text-inherit`, NOT a fixed token: a global bare-`h1 { color:#333 }` rule
+    // (editor-theme.css) leaks into every unstyled h1 and preflight is off so nothing normalises
+    // it. `inherit` out-specifies that global rule (0,1,1 vs 0,0,1) and makes headings follow the
+    // block's own colour — correct on any surface AND respecting a caller/ancestor recolour (e.g.
+    // a muted context). Same guard on h2–h5 future-proofs against another stray global heading
+    // rule; h6 stays intentionally quieter.
+    "[&_h1]:mt-3 [&_h1]:mb-1 [&_h1]:text-base [&_h1]:font-semibold [&_h1]:leading-snug [&_h1]:text-inherit " +
+    "[&_h2]:mt-3 [&_h2]:mb-1 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:leading-snug [&_h2]:text-inherit " +
+    "[&_h3]:mt-2 [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-inherit " +
+    "[&_h4]:mt-2 [&_h4]:mb-0.5 [&_h4]:text-xs [&_h4]:font-semibold [&_h4]:text-inherit " +
+    "[&_h5]:mt-2 [&_h5]:mb-0.5 [&_h5]:text-xs [&_h5]:font-semibold [&_h5]:text-inherit " +
     "[&_h6]:mt-2 [&_h6]:mb-0.5 [&_h6]:text-xs [&_h6]:font-medium [&_h6]:text-colorTextSecondary " +
     // Blockquote — a quiet left-ruled aside. Layout is forced (!important) so nothing (the UA's
     // logical `margin-inline: 40px`, the Bubble's placement styles, etc.) can push the content into
@@ -44,12 +55,24 @@ export const MD_CLASS =
     "[&_hr]:my-3 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-solid [&_hr]:border-colorBorderSecondary " +
     "[&_img]:my-2 [&_img]:max-w-full [&_img]:rounded " +
     "[&_strong]:font-semibold [&_em]:italic [&_del]:line-through " +
+    // HTML passthrough (LLM output sometimes includes raw HTML): neutralise the elements whose UA
+    // defaults are jarring with preflight off — <mark> (bright yellow bg) → a subtle theme
+    // highlight, <kbd> → a keycap. <sub>/<sup> UA styling (position only) is already fine.
+    "[&_mark]:rounded [&_mark]:bg-colorFillTertiary [&_mark]:px-0.5 [&_mark]:text-inherit " +
+    "[&_kbd]:rounded [&_kbd]:border [&_kbd]:border-solid [&_kbd]:border-colorBorderSecondary " +
+    "[&_kbd]:bg-colorFillTertiary [&_kbd]:px-1 [&_kbd]:font-mono [&_kbd]:text-[0.9em] " +
     "[&_li:has(input)]:list-none [&_input]:mr-1.5 [&_input]:align-middle " +
     // Trim the outer edges so the bubble padding isn't doubled by leading/trailing margins.
     "[&>:first-child]:!mt-0 [&>:last-child]:!mb-0"
 
 /** Math support ($…$ / $$…$$) via KaTeX — registered once as a marked extension. */
 const LATEX_CONFIG = {extensions: Latex()}
+
+/** Chat content must never restyle the app document, so forbid document-affecting tags.
+ * A pasted HTML doc's <style>/<link> would otherwise mount into the live document and
+ * repaint the whole app. Inline `style` attributes on elements stay allowed (expected in
+ * LLM output). FORBID beats XMarkdown's own ADD_TAGS in DOMPurify, so this wins. */
+const DOMPURIFY_CONFIG = {FORBID_TAGS: ["style", "link", "meta", "base", "title"]}
 
 /** Flatten a code element's children (string / text nodes) to the raw source. */
 const childrenToText = (children: ReactNode): string => {
@@ -63,9 +86,29 @@ const childrenToText = (children: ReactNode): string => {
 }
 
 /**
- * Code renderer: inline `code` keeps the styled chip; a fenced block gets Prism syntax
- * highlighting (language-on-demand via PrismAsync, oneDark theme). XMarkdown supplies `block`
- * and `lang` (the fence info string) so we don't have to parse `className`.
+ * Inline code chip. When the active conversation has published a file-link resolver and this span's
+ * text names a real drive file, it renders as a compact inline file reference (icon + name, opens
+ * Quick Look) that flows within the sentence — the heavy block file card is reserved for the tool
+ * step that wrote the file. Otherwise it's a plain code chip.
+ */
+const InlineCode = ({className, children}: {className?: string; children?: ReactNode}) => {
+    // Resolve against THIS conversation's session (from the ambient drive context), so a
+    // backgrounded pane's file mentions don't read another mounted session's resolver.
+    const sessionId = useDriveSessionId()
+    const link = useAtomValue(chatFileLinkAtomFamily(sessionId ?? ""))
+    const text = childrenToText(children).trim()
+    const fallback = <code className={className}>{children}</code>
+    // The Drives resolver decides link-vs-plain (async: records + on-demand single-file check) and
+    // owns the fallback; no resolver mounted → plain code.
+    if (link && text) return <>{link.renderCode(text, fallback)}</>
+    return fallback
+}
+
+/**
+ * Code renderer: inline `code` keeps the styled chip (file-aware, see {@link InlineCode}); a
+ * fenced block gets Prism syntax highlighting (language-on-demand via PrismAsync, oneDark theme).
+ * XMarkdown supplies `block` and `lang` (the fence info string) so we don't have to parse
+ * `className`.
  */
 const CodeBlock = ({
     block,
@@ -78,7 +121,7 @@ const CodeBlock = ({
     className?: string
     children?: ReactNode
 }) => {
-    if (!block) return <code className={className}>{children}</code>
+    if (!block) return <InlineCode className={className}>{children}</InlineCode>
 
     const code = childrenToText(children).replace(/\n$/, "")
 
@@ -108,7 +151,12 @@ const CodeBlock = ({
                     borderRadius: 6,
                     fontSize: "0.75rem",
                 }}
-                codeTagProps={{style: {fontSize: "0.75rem"}}}
+                // Reset the inline-code chip styles MD_CLASS's `[&_code]` applies: the block's own
+                // <code> is inline (white-space:pre), so a chip background breaks per line and looks
+                // like every line is highlighted. Inline style wins over the utility class.
+                codeTagProps={{
+                    style: {fontSize: "0.75rem", background: "transparent", padding: 0},
+                }}
             >
                 {code}
             </SyntaxHighlighter>
@@ -132,8 +180,10 @@ const MD_COMPONENTS = {code: CodeBlock, pre: PreUnwrap}
  * keep the same `content` string, so this skips re-parsing + re-running Prism on them each token.
  * (Settled messages don't re-render at all; the stable-`onRewind` fix handles those.) */
 // Anchor component ensures all markdown-rendered links open in a new tab safely.
-const Anchor = ({href, children, ...rest}: any) => (
-    <a href={href} target="_blank" rel="noopener noreferrer" {...rest}>
+// Only forward real anchor attributes — XMarkdown/html-react-parser also pass internal
+// props (`domNode`, `node`, `streamStatus`, …) that would leak onto the DOM element.
+const Anchor = ({href, children, title, className}: any) => (
+    <a href={href} title={title} className={className} target="_blank" rel="noopener noreferrer">
         {children}
     </a>
 )
@@ -143,6 +193,7 @@ const Markdown = ({content, className}: {content: string; className?: string}) =
         className={className ? `${MD_CLASS} ${className}` : MD_CLASS}
         content={content}
         config={LATEX_CONFIG}
+        dompurifyConfig={DOMPURIFY_CONFIG}
         components={{...MD_COMPONENTS, a: Anchor}}
     />
 )

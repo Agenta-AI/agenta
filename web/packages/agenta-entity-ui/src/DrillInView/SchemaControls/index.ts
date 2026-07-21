@@ -104,8 +104,6 @@ export {McpServerFormView} from "./McpServerFormView"
 export type {McpServerFormViewProps} from "./McpServerFormView"
 export {SkillFormView} from "./SkillFormView"
 export type {SkillFormViewProps} from "./SkillFormView"
-export {agentTemplateLayoutAtom, AGENT_TEMPLATE_LAYOUTS} from "./agentTemplateLayout"
-export type {AgentTemplateLayout} from "./agentTemplateLayout"
 
 // ============================================================================
 // COMPOSITE CONTROLS

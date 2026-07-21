@@ -676,7 +676,7 @@ describe("buildRunPlan", () => {
       assert.equal(result.ok, true);
     });
 
-    it("allows claude x daytona x mixed tools and keeps only executable shim specs", () => {
+    it("allows claude x daytona x mixed tools and advertises both kinds on the shim", () => {
       const result = buildRunPlan(
         {
           harness: "claude",
@@ -702,9 +702,17 @@ describe("buildRunPlan", () => {
         result.plan.executableToolSpecs.map((tool) => tool.name),
         ["server_tool"],
       );
+      assert.equal(
+        result.plan.clientToolPauseDisposition,
+        "cold-acknowledge",
+      );
     });
 
-    it("allows claude x daytona x client-only tools with no shim specs", () => {
+    it("allows claude x daytona x client-ONLY tools (the shim advertises them and the relay parks)", () => {
+      // The shim now advertises client tools too. A client-only run on Daytona builds a normal
+      // plan: the client tool rides toolSpecs, and the pause disposition is "cold-acknowledge" so
+      // a parked client tool gets a benign paused answer (the runner ends the turn; the browser
+      // result returns on the cold-replay resume). This replaces the interim #5366 refusal.
       const result = buildRunPlan(
         {
           harness: "claude",
@@ -719,7 +727,18 @@ describe("buildRunPlan", () => {
 
       assert.equal(result.ok, true);
       if (!result.ok) return;
+      assert.deepEqual(
+        result.plan.toolSpecs.map((tool) => tool.name),
+        ["request_connection"],
+      );
+      // No executable tool remains, but the run is no longer refused.
       assert.deepEqual(result.plan.executableToolSpecs, []);
+      assert.equal(
+        result.plan.clientToolPauseDisposition,
+        "cold-acknowledge",
+        "non-Pi shim path acknowledges a parked client tool with a paused answer",
+      );
+      assert.equal(result.plan.useToolRelay, true);
     });
 
     it("allows pi x daytona x client-only tools (Pi's extension + file relay deliver them)", () => {
@@ -734,6 +753,9 @@ describe("buildRunPlan", () => {
       );
 
       assert.equal(result.ok, true);
+      if (!result.ok) return;
+      // Pi parks through its own extension, so its disposition is "pi-native" (no paused answer).
+      assert.equal(result.plan.clientToolPauseDisposition, "pi-native");
     });
 
     it("still refuses claude x daytona x executable tools under strict restricted network", () => {

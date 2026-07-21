@@ -1,5 +1,4 @@
 import zlib
-from time import perf_counter
 from typing import List
 from uuid import UUID
 
@@ -84,7 +83,6 @@ async def publish_spans(
 
     count = 0
     total_bytes = 0
-    started = perf_counter()
 
     # Full span_dtos list is already in hand, so pipeline all XADDs into one
     # round-trip instead of one XADD per span on the firehose.
@@ -110,13 +108,5 @@ async def publish_spans(
 
         if count:
             await pipe.execute()
-
-    log.tick(
-        "spans.published",
-        count=count,
-        bytes=total_bytes,
-        duration_ms=(perf_counter() - started) * 1000,
-        dims={"stream": "spans"},
-    )
 
     return count

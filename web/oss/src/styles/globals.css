@@ -1,4 +1,5 @@
 @import "./theme-variables.css";
+@import "./auth.css";
 @import "./animations.css";
 @import "./editor-theme.css";
 @import "./code-editor-styles.css";
@@ -275,12 +276,14 @@ body {
 .ag-row-hover:hover {
     background: var(--ag-surface-row-hover);
 }
-/* Selected list row — a lifted card surface with a brand accent bar on the left. Pairs with a base
-   `border border-solid` on the row (this sets the colour + a 2px accent left border + shadow). */
+/* Selected list row — a lifted card surface with a simple, muted accent bar on the LEFT edge only.
+   Square (no radius) so the bar reads as a crisp full-height edge and never hooks the corner (the
+   old rounded 2px bar did, and read harsh in dark mode). Pairs with a base `border border-solid`. */
 .ag-surface-selected {
     background: var(--ag-surface-card);
-    border-color: var(--ag-surface-card-border);
-    border-left: 2px solid var(--ag-surface-accent);
+    border-color: transparent;
+    border-left: 2px solid color-mix(in srgb, var(--ag-surface-accent) 55%, transparent);
+    border-radius: 0;
     box-shadow: var(--ag-surface-card-shadow);
 }
 
@@ -370,7 +373,8 @@ body {
 }
 .dark .ag-drawer-elevated .ag-drawer-row-selected {
     background: var(--ag-drawer-card);
-    border-left: 2px solid var(--ag-surface-accent);
+    border-left: 2px solid color-mix(in srgb, var(--ag-surface-accent) 55%, transparent);
+    border-radius: 0;
 }
 .dark .ag-drawer-elevated .ag-drawer-tag {
     background: var(--ag-drawer-tag-bg);
@@ -402,6 +406,18 @@ body {
 @media (prefers-reduced-motion: no-preference) {
     .playground-splitter-animated > .ant-splitter-panel {
         transition: flex-basis 240ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Orchestration rule: only the DRIVEN pane (first — config / session rail) animates its
+       basis; the fill pane must auto-flex so it tracks the container and the animating sibling
+       EXACTLY per frame. antd re-derives every pane's inline flex-basis from a ResizeObserver,
+       so a transitioned basis on the fill pane lags 240ms behind each recompute whenever the
+       CONTAINER itself is animating — in the nested agent splitters (MainLayout pane hosts the
+       chat panel's rail splitter) that read as the conversation holding its old width and only
+       growing after the left side settled. */
+    .playground-splitter-animated > .ant-splitter-panel:last-child {
+        flex: 1 1 auto !important;
+        transition: none !important;
     }
 
     .playground-splitter > .ant-splitter-bar {
@@ -855,4 +871,28 @@ body {
     color: rgba(255, 255, 255, 0.65);
     background-color: #1f1f1f;
     border-color: #424242;
+}
+
+/* @lexical/code-shiki stamps the shiki theme's PAGE background onto the code node (and tints some
+   tokens) as inline styles. Layered over our own container surface — and because the code element
+   shrink-wraps each line — that reads as per-line grey bands. Strip the injected backgrounds so
+   the code sits flat on the one container surface; token FOREGROUND colours (the actual syntax
+   highlighting) are untouched. */
+.agenta-dynamic-code-block,
+.agenta-dynamic-code-block span {
+    background-color: transparent !important;
+}
+
+/* antd Segmented, icon-only options: the default `.ant-segmented-item-label` centres its content
+   with `line-height`, which drops an inline <svg> to the text baseline (it reads a few px low, and
+   utility classes on the icon can't fix it — the label box, not the icon, owns the height). Force
+   the label box itself to flex-centre so an icon sits dead-centre regardless of its baseline. The
+   doubled `.ant-segmented` keeps this above antd's own runtime-injected rule. */
+.ag-icon-segmented.ant-segmented .ant-segmented-item-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.ag-icon-segmented .ant-segmented-item-label svg {
+    display: block;
 }

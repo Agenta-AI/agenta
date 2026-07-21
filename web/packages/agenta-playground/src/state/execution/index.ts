@@ -359,7 +359,7 @@ export {
     type AgentRequest,
 } from "./agentRequest"
 // Stream vs batch response channel for the agent lane (read by buildAgentRequest's Accept header).
-export {agentChannelModeAtom, type AgentChannelMode} from "./channelMode"
+export {agentChannelModeAtomFamily, type AgentChannelMode} from "./channelMode"
 // Transport negotiation: try stream, fall back to batch on 406, error gracefully otherwise.
 export {createNegotiatingFetch, type NegotiatingFetch} from "./agentNegotiation"
 // Agent-lane HITL resume predicate (approve AND deny both resume the conversation).

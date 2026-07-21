@@ -23,6 +23,13 @@ If conflicts, trust script.
 - clean rebuild: append `--no-cache` (requires `--build`)
 - skip pull step: append `--no-pull`
 - volume reset: append `--nuke`
+- extra compose file: append `--compose-file <name>` (repeatable; bare name resolves in the edition dir, or pass a path)
+- skip local overrides: append `--no-local-overrides` (by default run.sh auto-includes `docker-compose.<stage>.*.local.yml` from the edition dir and prints the effective file set)
+
+## Restart one service (surgical)
+- recreate in place: `bash ./hosting/docker-compose/run.sh --ee --dev --env-file <path> --recreate <service>`
+- rebuild then recreate: swap `--recreate` for `--rebuild` (honors `--no-cache`)
+- Both reuse the full compose set (base + local overrides), so a targeted restart never drops an override. Repeatable; unknown services are rejected.
 
 ## Logs
 General:  `docker compose logs -f --tail=200`

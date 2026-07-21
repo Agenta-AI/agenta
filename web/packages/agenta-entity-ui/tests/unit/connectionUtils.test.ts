@@ -54,6 +54,15 @@ const CAPABILITIES: HarnessCapabilitiesMap = {
             },
         },
     },
+    // A Pi-family harness that consumes the OpenAI-compatible `custom` deployment AND reaches the
+    // openai provider family — the one combination an OpenAI-compatible connection may surface for.
+    pi_openai_compat: {
+        providers: ["openai"],
+        deployments: ["direct", "custom"],
+        connection_modes: ["agenta", "self_managed"],
+        model_selection: "provider/id",
+        models: {openai: ["gpt-5.5"]},
+    },
 }
 
 describe("connectionUtils: modelIdFromConfig", () => {
@@ -359,17 +368,57 @@ describe("connectionUtils: vaultModelGroups (custom_provider connections)", () =
         ).toEqual([])
     })
 
-    it("gates a deployment-kind connection (custom/bedrock/vertex_ai) against consumable deployments, not providers", () => {
-        // claude's capability entry declares "custom" as a consumable deployment.
+    it("gates a NON-custom deployment kind (bedrock) against consumable deployments only", () => {
+        // claude declares "bedrock" as a consumable deployment; its models encode their own family,
+        // so deployment consumption alone is the gate (no single-family provider check).
+        expect(
+            vaultModelGroups(
+                [
+                    {
+                        name: "my-bedrock",
+                        provider: "bedrock",
+                        models: ["eu.anthropic.claude-haiku-4-5"],
+                    },
+                ],
+                CAPABILITIES,
+                "claude",
+            ),
+        ).toHaveLength(1)
+        // pi_core only consumes "direct" — a "bedrock" deployment connection stays hidden there.
+        expect(
+            vaultModelGroups(
+                [
+                    {
+                        name: "my-bedrock",
+                        provider: "bedrock",
+                        models: ["eu.anthropic.claude-haiku-4-5"],
+                    },
+                ],
+                CAPABILITIES,
+                "pi_core",
+            ),
+        ).toEqual([])
+    })
+
+    it("gates an OpenAI-compatible (custom) connection by BOTH consumable deployment and openai reach", () => {
+        // A harness that consumes `custom` AND reaches openai is offered it.
+        expect(
+            vaultModelGroups(
+                [{name: "my-gateway", provider: "custom", models: ["gpt-oss"]}],
+                CAPABILITIES,
+                "pi_openai_compat",
+            ),
+        ).toHaveLength(1)
+        // claude consumes `custom` but only reaches anthropic — the OpenAI-compatible connection is
+        // NOT offered (it resolves to the openai family Claude cannot run).
         expect(
             vaultModelGroups(
                 [{name: "my-gateway", provider: "custom", models: ["gpt-oss"]}],
                 CAPABILITIES,
                 "claude",
             ),
-        ).toHaveLength(1)
-        // pi_core only consumes "direct" — a "custom" deployment connection stays hidden there
-        // (matches the runner: Pi ignores a resolved custom endpoint/base_url in v1).
+        ).toEqual([])
+        // pi_core does not consume `custom` at all — hidden regardless of provider reach.
         expect(
             vaultModelGroups(
                 [{name: "my-gateway", provider: "custom", models: ["gpt-oss"]}],
@@ -387,6 +436,14 @@ describe("connectionUtils: vaultModelGroups (custom_provider connections)", () =
                 "pi_core",
             ),
         ).toHaveLength(1)
+        // A custom connection is also offered under a missing map (both gates read permissive).
+        expect(
+            vaultModelGroups(
+                [{name: "my-gateway", provider: "custom", models: ["gpt-oss"]}],
+                null,
+                "pi_core",
+            ),
+        ).toHaveLength(1)
     })
 
     it("skips connections with no slug or no models", () => {
@@ -400,6 +457,41 @@ describe("connectionUtils: vaultModelGroups (custom_provider connections)", () =
                 "pi_core",
             ),
         ).toEqual([])
+    })
+
+    // Regression pins: the OpenAI-compatible feature adds a `custom`-only branch. Every flow that
+    // does NOT involve a custom connection must stay byte-identical to pre-feature behavior.
+    it("regression: an empty vault yields no groups on any harness (default picker state)", () => {
+        expect(vaultModelGroups([], CAPABILITIES, "pi_core")).toEqual([])
+        expect(vaultModelGroups([], CAPABILITIES, "claude")).toEqual([])
+        expect(vaultModelGroups(null, CAPABILITIES, "claude")).toEqual([])
+    })
+
+    it("regression: a Claude harness still sees its reachable (anthropic) vault connection unchanged", () => {
+        expect(
+            vaultModelGroups(
+                [{name: "my-anthropic", provider: "anthropic", models: ["a1"]}],
+                CAPABILITIES,
+                "claude",
+            ),
+        ).toHaveLength(1)
+    })
+
+    it("regression: a non-custom deployment connection to Claude is unchanged by the custom gate", () => {
+        // Claude consumes bedrock; the new openai-family check must NOT touch non-custom kinds.
+        expect(
+            vaultModelGroups(
+                [
+                    {
+                        name: "my-bedrock",
+                        provider: "bedrock",
+                        models: ["eu.anthropic.claude-haiku-4-5"],
+                    },
+                ],
+                CAPABILITIES,
+                "claude",
+            ),
+        ).toHaveLength(1)
     })
 })
 
@@ -450,5 +542,40 @@ describe("connectionUtils: vaultPickedProviderFamily (F1 — vault pick must per
 
     it("still resolves the family from metadata alone when the id is absent", () => {
         expect(vaultPickedProviderFamily(null, "openai", CAPABILITIES)).toBe("openai")
+    })
+
+    it("defaults an OpenAI-compatible (custom) connection with a bare model id to openai", () => {
+        // The `custom` kind is a deployment surface (not itself a family), but the OpenAI-compatible
+        // endpoint speaks the OpenAI dialect — so a provider-less pick resolves to openai instead of
+        // deferring to the caller's prior-provider fallback (design Decision 8).
+        expect(vaultPickedProviderFamily("gpt-oss", "custom", CAPABILITIES)).toBe("openai")
+        expect(vaultPickedProviderFamily("qwen2.5-coder:7b", "custom", CAPABILITIES)).toBe("openai")
+    })
+
+    it("still prefers an explicit id-encoded family over the custom openai default", () => {
+        // If the id itself encodes a known family, that wins even for a custom connection.
+        expect(
+            vaultPickedProviderFamily("eu.anthropic.claude-haiku-4-5", "custom", CAPABILITIES),
+        ).toBe("anthropic")
+    })
+})
+
+describe("connectionUtils: custom pick persists openai family AND keeps the connection slug", () => {
+    // Mirrors what `useModelHarness.writeModel` composes for a picked OpenAI-compatible option: the
+    // resolved family (openai, from vaultPickedProviderFamily) plus the option's own connection slug
+    // (threaded through `metadata.connectionSlug`). Neither may be dropped.
+    it("composes a ModelRef with provider openai and the preserved agenta slug", () => {
+        const provider = vaultPickedProviderFamily("gpt-oss", "custom", CAPABILITIES)
+        const ref = composeModelValue({
+            modelId: "gpt-oss",
+            provider,
+            mode: "agenta",
+            slug: "my-gateway",
+        })
+        expect(ref).toEqual({
+            model: "gpt-oss",
+            provider: "openai",
+            connection: {mode: "agenta", slug: "my-gateway"},
+        })
     })
 })

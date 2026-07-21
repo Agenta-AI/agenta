@@ -9,7 +9,11 @@ from __future__ import annotations
 
 import json
 
-from agenta.sdk.agents.connections import UnsupportedDeploymentError
+from agenta.sdk.agents.connections import (
+    EndpointResolutionError,
+    UnsupportedDeploymentError,
+    UnsupportedProviderError,
+)
 from agenta.sdk.decorators.routing import handle_invoke_failure
 
 
@@ -24,6 +28,23 @@ async def test_unsupported_deployment_remaps_to_422():
     )
     assert status == 422
     assert "bedrock" in json.dumps(body)
+
+
+async def test_unsupported_provider_remaps_to_422():
+    status, body = await _status_and_body(
+        UnsupportedProviderError(provider="cohere", harness="claude")
+    )
+    assert status == 422
+    assert "cohere" in json.dumps(body)
+
+
+async def test_endpoint_resolution_error_remaps_to_422():
+    # A chosen custom connection with no usable base URL is a config problem, not a server fault.
+    status, body = await _status_and_body(
+        EndpointResolutionError("custom connection 'my-ollama' cannot be resolved")
+    )
+    assert status == 422
+    assert "my-ollama" in json.dumps(body)
 
 
 async def test_unremarkable_exception_still_remaps_to_500():

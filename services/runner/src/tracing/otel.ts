@@ -46,7 +46,7 @@ import {
 } from "@opentelemetry/api";
 import { ExportResultCode } from "@opentelemetry/core";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { Resource } from "@opentelemetry/resources";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 import type {
   ReadableSpan,
   SpanExporter,
@@ -258,7 +258,7 @@ class TraceBatchProcessor implements SpanProcessor {
     spans.push(span);
     this.buffers.set(traceId, spans);
     // No parent in this process => this is the local root and the trace is done.
-    if (!span.parentSpanId) {
+    if (!span.parentSpanContext?.spanId) {
       this.flush(traceId);
     }
   }
@@ -341,11 +341,11 @@ function ensureProvider(): void {
   if (provider) return;
   processor = new TraceBatchProcessor();
   provider = new NodeTracerProvider({
-    resource: new Resource({
+    resource: resourceFromAttributes({
       [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || "pi-agent",
     }),
+    spanProcessors: [processor],
   });
-  provider.addSpanProcessor(processor);
   provider.register();
 }
 
@@ -380,7 +380,7 @@ function orderParentFirst(spans: ReadableSpan[]): ReadableSpan[] {
   const childrenOf = new Map<string, ReadableSpan[]>();
   const roots: ReadableSpan[] = [];
   for (const s of spans) {
-    const parentId = s.parentSpanId;
+    const parentId = s.parentSpanContext?.spanId;
     if (parentId && byId.has(parentId)) {
       const list = childrenOf.get(parentId) ?? [];
       list.push(s);
@@ -1086,6 +1086,12 @@ export interface SandboxAgentOtel {
     isExcluded: (id: string) => boolean,
     message: string,
   ): void;
+  /**
+   * Mark a tool-call id as DENIED (the runner replied `reject` to its gate). Its closing failed
+   * result then carries `denied: true` so the egress projects `tool-output-denied` (a decline)
+   * rather than `tool-output-error` (a breakage). No-op for a falsy id.
+   */
+  markToolCallDenied(toolCallId: string | undefined): void;
   /** Run token/cost totals from the stream, when the harness reported `usage_update`. */
   usage(): AgentUsage | undefined;
 }
@@ -1123,6 +1129,10 @@ export function createSandboxAgentOtel(
     string,
     { span?: Span; name: string; inputJson?: string }
   >();
+  // Tool-call ids the runner replied `reject` to for a HITL deny. The harness closes such a call
+  // as a FAILED tool call (`isError`), indistinguishable on the wire from a real breakage, so the
+  // deny mapping records the id here and `maybeCloseTool` stamps the closing result `denied`.
+  const deniedToolCallIds = new Set<string>();
 
   // Live emission. `record` is the single choke point for every event: it appends to the
   // result log and, on the streaming path, flushes the event the moment it is built — so
@@ -1449,12 +1459,21 @@ export function createSandboxAgentOtel(
       entry.span.end();
     }
     toolSpans.delete(id);
+    // A failed close for a call the runner denied is a decline, not a breakage: stamp `denied`
+    // so the egress projects `tool-output-denied`. The set is consumed so a later reuse of the
+    // id (should one ever occur) is not mis-flagged.
+    const denied = status === "failed" && deniedToolCallIds.delete(id);
     record({
       type: "tool_result",
       id,
       output: out,
       isError: status === "failed",
+      ...(denied ? { denied: true } : {}),
     });
+  }
+
+  function markToolCallDenied(toolCallId: string | undefined): void {
+    if (toolCallId) deniedToolCallIds.add(toolCallId);
   }
 
   function settleOpenToolCalls(
@@ -1552,7 +1571,9 @@ export function createSandboxAgentOtel(
       const reasoning = reasoningAccumulated.trim();
       if (reasoning) record({ type: "thought", text: reasoning });
     }
-    record({ type: "done" });
+    // Stamp the run's trace id on the turn's terminal event so a persisted transcript can link a
+    // replayed turn back to its trace (undefined only in span-less mode with no valid traceparent).
+    record({ type: "done", ...(runTraceId ? { traceId: runTraceId } : {}) });
     if (!emitSpans) return text;
     if (llmSpan) {
       emitMessages(
@@ -1594,6 +1615,7 @@ export function createSandboxAgentOtel(
     output: () => accumulated,
     events: () => events,
     settleOpenToolCalls,
+    markToolCallDenied,
     usage: () => usage,
   };
 }
