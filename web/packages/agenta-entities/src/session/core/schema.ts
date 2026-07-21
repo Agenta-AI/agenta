@@ -150,10 +150,18 @@ export const mountFileSchema = z.object({
     is_folder: z.boolean().nullish(),
     /** Object-store LastModified as epoch ms — the recency source for "newest first" ordering. */
     mtime: z.number().nullish(),
+    /** Direct-child count — set only on a folder entry the recency view rolled a freshly-written
+     * directory up into (so the row can read "N items" instead of a size). */
+    item_count: z.number().nullish(),
 })
 
 export const mountFileListResponseSchema = z.object({
     count: z.number().nullish(),
+    /** Full file count before any `limit` — so a bounded "latest N" listing still reports the true
+     * total for the UI badge. Equals `count` for an unlimited listing. */
+    total: z.number().nullish(),
+    /** `total` is a floor (the count-only scan hit its cap) — the UI shows "N+". */
+    total_capped: z.boolean().nullish(),
     files: z.array(mountFileSchema).nullish(),
 })
 
