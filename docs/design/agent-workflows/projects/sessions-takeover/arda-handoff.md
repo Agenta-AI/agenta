@@ -206,11 +206,16 @@ In order. Guardrails are inline so you do not have to hold them in your head.
    server rename endpoint is on #5436. Replace the localStorage-only title with a write and
    read through the header endpoint.
 
-5. **Build cancel and steer on the existing signal plumbing** (ruling 2.5). Use the Zed
-   protocol shape: cancel the turn, answer every pending permission as cancelled, wait for the
-   harness to settle, then send the new instruction. The kill command and the heartbeat
-   interrupt flag already exist; you are building the dispatch semantics and the surface on
-   top of them.
+5. **Build cancel and steer on the existing signal plumbing** (ruling 2.5). For cancel, use
+   the Zed protocol shape: cancel the turn, answer every pending permission as cancelled, wait
+   for the harness to settle, then send the new instruction. For steer, read the OpenCode
+   comparison first (`opencode-comparison.md`, same folder): their design treats a
+   mid-turn message as durable data, a per-session inbox row marked "steer" or "queue" that
+   the loop picks up at safe boundaries, instead of a dispatch-time judgment call. That
+   pattern is the recommended shape for our steer semantics, because it is exactly what
+   makes "a new message must never be swallowed by parked work" structural rather than
+   heuristic. The kill command and the heartbeat interrupt flag already exist; you are
+   building the dispatch semantics and the surface on top of them.
 
 Out of scope for now: session deletion and live mid-turn attach.
 
