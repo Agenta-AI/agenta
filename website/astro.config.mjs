@@ -18,4 +18,16 @@ export default defineConfig({
   output: "static",
   site: "https://agenta.ai",
   integrations: [react(), mdx()],
+  vite: {
+    // Pin the dev dependency optimizer to development. If the dev server inherits
+    // NODE_ENV=production from the shell, esbuild pre-bundles React's *production*
+    // jsx-dev-runtime (where jsxDEV is a no-op), which throws "jsxDEV is not a
+    // function" on hydration and blanks every client:visible island. This define
+    // only affects the dev pre-bundle; `astro build` uses Rollup and ignores it.
+    optimizeDeps: {
+      esbuildOptions: {
+        define: { "process.env.NODE_ENV": '"development"' },
+      },
+    },
+  },
 });
