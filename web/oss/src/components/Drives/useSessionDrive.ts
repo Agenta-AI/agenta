@@ -350,9 +350,10 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
     // id) whenever the record log already has visible changes — no wasted request in the common case.
     const rootQuery = useAtomValue(mountRootQueryFamily(hasVisibleRecords ? "" : (mount?.id ?? "")))
 
-    // Re-run the underlying queries (retry from the errored state). `refetch()` is a no-op on the
-    // disabled ones (empty id), so this only re-hits what could actually load; `isFetching` reflects
-    // it in flight, driving the retry button's spinner.
+    // Re-run the underlying queries (retry from the errored state). `refetch()` bypasses `enabled`
+    // and DOES invoke the queryFn on the empty-id (disabled) queries, but each queryFn guards its id
+    // (`if (!mountId) return null`, etc.) and returns without a request — so this only ever re-hits
+    // what could actually load. `isFetching` reflects it in flight, driving the retry button's spinner.
     const retry = useCallback(() => {
         void mountsQuery.refetch?.()
         void cwdCount.refetch?.()
