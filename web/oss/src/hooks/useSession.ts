@@ -14,6 +14,11 @@ import {resetProjectData} from "@/oss/state/project"
 import {authFlowAtom, sessionExistsAtom, sessionLoadingAtom} from "@/oss/state/session"
 import {clearInvite} from "@/oss/state/url/auth"
 
+// Session existence is global (one per tab), so a module-level guard is correct here: it
+// dedupes the auth-loss teardown across useSession's several call sites and fires it only on
+// the authed→unauthed edge, not on every logged-out render.
+let lastSessionExists: boolean | null = null
+
 // sessionExistsAtom is a re-export of @agenta/shared/state's sessionAtom,
 // so a single setter covers both oss and entity-package readers.
 export const useSession: () => {
@@ -33,9 +38,15 @@ export const useSession: () => {
     useEffect(() => {
         setSessionLoading(res.loading)
         if (!res.loading) {
-            setSessionExists((res as any).doesSessionExist)
+            const exists = Boolean((res as any).doesSessionExist)
+            setSessionExists(exists)
+            // Central auth-loss teardown: every sign-out path (not just logout()) funnels
+            // through SuperTokens session loss, so clearing persisted PII/secrets from
+            // IndexedDB on the authed→unauthed edge here means no per-path clear can be missed.
+            if (lastSessionExists === true && !exists) void clearPersistedQueryCache()
+            lastSessionExists = exists
             if (authFlow !== "authing") {
-                setAuthFlow((res as any).doesSessionExist ? "authed" : "unauthed")
+                setAuthFlow(exists ? "authed" : "unauthed")
             }
         }
     }, [
@@ -76,9 +87,10 @@ export const useSession: () => {
                 console.error(error)
             }
 
-            // Clear React Query cache to prevent unauthorized requests
+            // Clear React Query cache to prevent unauthorized requests. The persisted IDB
+            // cache is cleared centrally by the auth-loss effect above (signOut() flips the
+            // SuperTokens session, which fires the authed→unauthed edge).
             queryClient.clear()
-            void clearPersistedQueryCache()
 
             // Reset Jotai atoms
             resetProfileData()
