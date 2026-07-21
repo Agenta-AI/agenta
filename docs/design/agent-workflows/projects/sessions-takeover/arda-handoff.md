@@ -239,28 +239,33 @@ Out of scope for now: session deletion and live mid-turn attach.
 - PR #5382 and PR #5436 descriptions, for the exact shape of what merges beneath you. Your
   own PR #5426 description, for the record of what you built and where each piece landed.
 
-## 6. Two questions Mahmoud wants your read on
+## 6. Where the open questions landed, and the one Mahmoud wants your proposal on
 
-Neither is settled. Your view as the frontend owner is why he is asking.
+Two questions this document originally left open were ruled by Mahmoud on 2026-07-21, so
+you inherit the answers rather than the debates.
 
-### 6.1 The streams-table rename
+**The streams table keeps its name.** `session_streams` stays as it is. Since the name
+misleads (the table stores no streamed frames; it holds liveness, ownership, and the
+session's name and description header), keep the architecture document nearby when working
+against it: the row is the session header plus status, and only the service read that
+overlays the live Redis state tells the truth about liveness.
 
-The table named `session_streams` stores no streamed frames; the architecture document opens
-by killing exactly that mental model (architecture document, page 1, mental model 2). It
-holds liveness and ownership, and it now also carries the session identity, the `name` and
-`description` header. The name misleads on both counts. The open question is whether to rename
-the table so its name matches what it holds. You read and write this row from the frontend
-(session fetch, and the rename UI you are about to wire in task 4), so the churn and the
-clarity both land partly on you. Weigh in on whether the rename is worth it and what the name
-should be.
+**The interactions guard is relaxed: every gate gets a durable row.** Today the runner
+skips creating the interaction row when the run context carries no `workflow_revision`
+reference, which leaves those gates invisible to any future inbox and without an audit
+trail. The ruling: create the row anyway, with the reference left empty when absent. The
+runner-side change is queued on our side; what it means for you is that the future inbox
+must tolerate and sensibly display rows that cannot be attributed to an agent (group them
+under the session).
 
-### 6.2 The interactions guard ruling
+### The question that is yours: what should rejecting one card do to its siblings?
 
-The runner refuses to create an interaction row when the run context carries no
-`workflow_revision` reference, because the respond path could not re-invoke anything without
-it. The consequence is that gates in that state are answerable in-band only and are invisible
-to any interactions-plane inbox; a real QA session had approval records but zero interaction
-rows for exactly this reason (architecture document, section 5, "Sharp edges"). The open
-question is whether to keep that guard as is, accepting that some gates never get a durable
-interaction row, or to relax it. It matters to any future approval-inbox surface, which is
-your territory. Weigh in on which way it should go.
+Today rejecting an approval card rejects only that card; other pending cards stay open.
+OpenCode ships the opposite policy: one rejection cancels every pending card in the
+session, on the reasoning that a rejection means "stop what you are doing" rather than "no
+to this one thing" (see the OpenCode comparison in this folder, the approval flow section).
+That policy would also have turned the db58551b incident's dead conversation into a clean
+stop. Mahmoud's ruling is that this is a product-feel call on your surface, and he wants
+your proposal: keep per-card rejection, adopt the cascade, or something between (for
+example, cascade only when the rejection carries no message). Bring the UX reasoning with
+the proposal.

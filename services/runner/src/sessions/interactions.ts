@@ -18,9 +18,7 @@ type Reference = { id?: string; slug?: string; version?: string };
 
 export type InteractionData = {
   request?: { tool: string; args: unknown };
-  // The workflow references that identify which revision THIS turn is running, so the
-  // respond invoke re-resolves the SAME workflow. We store the references (pointers), not
-  // the revision data itself — respond resolves the live revision from them at invoke time.
+  // Optional attribution for out-of-band re-invocation; inbox/audit rows exist without it.
   references?: Record<string, Reference>;
 };
 

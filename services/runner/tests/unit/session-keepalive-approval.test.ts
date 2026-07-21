@@ -1585,6 +1585,148 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     await env.destroy();
   });
 
+  it("creates and resolves a durable gate row without workflow context", async () => {
+    const posted: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        posted.push({
+          url: String(input),
+          body: JSON.parse(init?.body as string) as Record<string, unknown>,
+        });
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      });
+
+    try {
+      const { calls, deps, captured } = pausableHarness();
+      deps.hydrateHarnessSessionFromDurable = async () => {};
+      const noWorkflowRequest: AgentRunRequest = {
+        ...engineReq,
+        ...auth,
+        sessionId: "sess-no-workflow",
+        turnId: "turn-no-workflow-start",
+      };
+      const acquired = await acquireEnvironment(noWorkflowRequest, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const env = acquired.env;
+
+      const firstTurn = runTurn(
+        env,
+        noWorkflowRequest,
+        undefined,
+        undefined,
+        { approvalParkMode: true },
+      );
+      await flush();
+      captured.onEvent!(
+        updateEvent({
+          sessionUpdate: "tool_call",
+          toolCallId: "tc-no-workflow",
+          title: "commit",
+          rawInput: { message: "hi" },
+        }),
+      );
+      captured.onPermissionRequest!({
+        id: "perm-no-workflow",
+        availableReplies: ["once", "reject"],
+        toolCall: {
+          toolCallId: "tc-no-workflow",
+          name: "commit",
+          rawInput: { message: "hi" },
+        },
+      });
+      const paused = await firstTurn;
+      assert.equal(paused.stopReason, "paused");
+      await flush();
+
+      const createCall = posted.find(({ url }) =>
+        url.endsWith("/sessions/interactions/"),
+      );
+      assert.ok(createCall);
+      assert.equal(createCall.body["session_id"], "sess-no-workflow");
+      assert.equal(createCall.body["turn_id"], "turn-no-workflow-start");
+      const createData = createCall.body["data"] as Record<string, unknown>;
+      assert.equal("references" in createData, false);
+
+      const parked = env.parkedApprovals.get("tc-no-workflow");
+      assert.ok(parked);
+      assert.ok(parked.promptPromise);
+      env.clearTurn();
+      const resumedTurn = runTurn(
+        env,
+        approveResume(true, {
+          sessionId: "sess-no-workflow",
+          turnId: "turn-no-workflow-resume",
+        }),
+        undefined,
+        undefined,
+        {
+          approvalParkMode: true,
+          resume: {
+            decisions: [
+              {
+                permissionId: parked.permissionId,
+                reply: "once",
+                toolCallId: parked.toolCallId,
+                toolName: parked.toolName,
+                args: parked.args,
+                interactionToken: parked.interactionToken,
+                promptPromise: parked.promptPromise,
+              },
+            ],
+            carriedForward: [],
+          },
+        },
+      );
+      for (
+        let attempt = 0;
+        attempt < 10 &&
+        !posted.some(({ url }) =>
+          url.endsWith("/sessions/interactions/transition"),
+        );
+        attempt += 1
+      ) {
+        await flush();
+      }
+
+      const resolveCall = posted.find(({ url }) =>
+        url.endsWith("/sessions/interactions/transition"),
+      );
+      assert.ok(
+        resolveCall,
+        JSON.stringify({ posted, permissionReplies: calls.permissionReplies }),
+      );
+      assert.deepEqual(resolveCall.body, {
+        session_id: "sess-no-workflow",
+        token: parked.interactionToken,
+        status: "resolved",
+        resolution: {
+          verdict: "approved",
+          tool_call_id: "tc-no-workflow",
+        },
+      });
+
+      captured.onEvent!(
+        updateEvent({
+          sessionUpdate: "tool_call_update",
+          toolCallId: "tc-no-workflow",
+          status: "completed",
+          content: "committed",
+        }),
+      );
+      calls.resolvePrompt!({
+        stopReason: "complete",
+        usage: { inputTokens: 1, outputTokens: 1 },
+      });
+      const resumed = await resumedTurn;
+      assert.equal(resumed.ok, true);
+      await env.destroy();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("preserves a denied call failed frame while a sibling gate is carried", async () => {
     const { calls, deps, captured } = pausableHarness();
     const acquired = await acquireEnvironment(engineReq, deps);
