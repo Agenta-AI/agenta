@@ -99,16 +99,19 @@ distributions* but cannot see child-span categoricals.
   attributed** (LLM-app runs today; agent runs after the Slice 6 ingest fix), never a false
   zero.
 
-## Slice 5 — Empty state + onboarding
+## Slice 5 — Empty states + never-run guidance
 
 1. Detect the three zero states (never-run / per-section-empty / first-run-failed) and
    render the right one; never show zeroed prompt-era panels.
-2. Build the getting-started checklist (Run it once / Connect / Add a trigger) with
-   self-completing steps driven by first-trace / READY-connection / subscription-exists
-   detection. Reuse agent-home onboarding patterns + `useCreateAgent`.
-3. Dismiss onboarding once the agent has real activity; hand off to active-agent views.
-- **Exit:** a brand-new agent sees onboarding with a working first action and steps that
-  tick off as data appears; a first failed run shows the failure, not "no data".
+2. Never-run agent → the guidance state (structure): a frame of what the page tracks + why
+   it's empty, one pointer to the Playground (reuse the existing Playground route), and a
+   faint preview of the sections that will appear. No run action, no checklist, no template
+   gallery, nothing to dismiss.
+3. Empty-vs-active keys on the first-trace signal (the same one the active views use); once a
+   run exists the active-agent views render. Keep connections/triggers out of the empty state.
+- **Exit:** a brand-new agent sees guidance to the Playground plus a preview of what will
+  appear; once it has run, the same page shows its work; a first failed run shows the failure,
+  not "no data".
 
 ## Slice 6 (Phase 2) — Backend attribution + materialized aggregates
 

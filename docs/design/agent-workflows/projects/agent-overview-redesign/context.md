@@ -21,8 +21,8 @@ user onto the same prompt-era panels rendering zeros, with no path toward first 
 
 - The agent Overview page: what it shows for an **active** agent that has run.
 - The **empty / no-data** state for an agent that exists but has never produced activity.
-- The **fresh-agent onboarding** path: from "just created" to first successful run and
-  first connected trigger.
+- The **never-run empty state**: from "just created" to guidance on where to try the agent
+  (the Playground) and what the page will show once it has run.
 - A named catalog of agent-workflow views/data the page can draw from, each grounded in a
   real backend source (see `design.md` and `research.md`).
 
@@ -61,8 +61,8 @@ user onto the same prompt-era panels rendering zeros, with no path toward first 
    need me?**, **what has it been doing?**, **is it healthy?**
 2. The page shows the agent's actual work — outcomes and produced artifacts — not its
    configuration status.
-3. A brand-new agent sees an onboarding experience with a clear first action, never a wall
-   of zeroed prompt-era panels.
+3. A brand-new agent sees plain-language guidance to where it can be tried (the Playground)
+   and a preview of what will appear, never a wall of zeroed prompt-era panels.
 4. Every view on the page maps to a named, verified backend data source (`design.md`).
 5. Non-technical and technical users can both read the page: plain-language outcomes up
    top, drill-down detail (traces, tokens, tool calls) available but not forced.

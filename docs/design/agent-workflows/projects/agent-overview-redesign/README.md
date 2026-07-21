@@ -6,8 +6,8 @@
 Redesign the agent Overview page so it shows an agent's *work* instead of the
 prompt-management views it inherited (deployments, variants, evaluations). The page is
 organized around three questions — **does it need me?**, **what has it been doing?**, **is
-it healthy?** — and handles the empty/no-data state and fresh-agent onboarding as
-first-class states, not afterthoughts. This workspace names the views and data (each
+it healthy?** — and handles the empty/no-data state, including a never-run agent, as a
+first-class state, not an afterthought. This workspace names the views and data (each
 grounded in a verified backend source) and slices the implementation; it does not prescribe
 the visual design.
 
@@ -32,7 +32,8 @@ the visual design.
   reuses `/analytics/query`; no new backend endpoints (one ingest-side attribution fix is a
   Phase 2 dependency for the Cost/Token views).
 - Artifacts load lazily per row; file-less runs degrade to message output.
-- Three distinct zero states; new agents get onboarding, not zeroed charts.
+- Three distinct zero states; a never-run agent gets plain guidance to the Playground (the
+  Overview reports work, it doesn't run the agent), not zeroed charts.
 - Name views/data here; leave layout/visuals to design.
 
 ## Deliverables
@@ -41,7 +42,7 @@ the visual design.
   criteria.
 - [research.md](research.md) — current wiring and the verified backend data sources, with
   `file:line`.
-- [design.md](design.md) — the view catalog, empty-state behavior, and onboarding flow.
+- [design.md](design.md) — the view catalog, empty-state behavior, and never-run guidance.
 - [plan.md](plan.md) — sliced implementation (Slice 0–5) with exit checks.
 - [status.md](status.md) — living source of truth: locked decisions + open questions.
 
@@ -50,5 +51,5 @@ the visual design.
 Opening an agent's Overview, a user immediately sees whether it needs them, what it has
 produced (plain-language outcomes and downloadable artifacts), and whether it is healthy —
 with drill-down to traces, tools, and token detail available but never forced. A
-brand-new agent sees a short onboarding path to its first successful run and first trigger
-instead of a wall of zeros.
+brand-new agent sees plain guidance to where it can be tried (the Playground) and a preview
+of what will appear, instead of a wall of zeros.

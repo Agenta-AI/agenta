@@ -122,7 +122,8 @@ behind clicks for the builder and budget reader.
 ## Empty / no-data state (agent exists, never produced activity)
 
 Not one panel. Distinguish and handle:
-- **New agent, never run** — onboarding (below), not zeroed charts.
+- **New agent, never run** — the guidance state (below): a frame of what the page tracks +
+  a pointer to the Playground, not zeroed charts, not a run action, not a template picker.
 - **Per-section empty** — a section with no data yet shows an inviting empty state naming
   what will appear there and how to make it appear, not a blank box or a zero.
 - **First run failed** — treat as activity: show the failure and the reason, plus a "try
@@ -134,26 +135,31 @@ Rules:
 - Never show a wall of zero charts as the primary content for a new agent.
 - Every empty section states the one action that fills it.
 
-## Fresh-agent onboarding (just created → first value)
+## Fresh-agent empty state (never run) — guidance, not a launcher
 
-Replace the empty Overview body with a getting-started experience. The milestones map to
-real capabilities and each is individually detectable, so the checklist self-completes:
+The Overview is a **reporting** surface — it shows an agent's work; it isn't where you build
+the agent or where you go to operate it. So a never-run agent gets a **guidance** state — not
+a run action, not a template gallery. (We dropped both the earlier 3-step checklist and the
+inline "Run now": the checklist led with configuration, and a launcher/picker makes the
+Overview pretend to be a surface it isn't. Whether the *active* health band keeps a manual
+"Run now" is a separate open question — see `status.md` Q5.) Structure only — wording is
+design's:
 
-1. **Run it once** — a "Run now" that produces the first outcome. *Done when the first
-   trace exists.*
-2. **Connect an integration** — if the agent's tools/triggers need one. *Done when a
-   `TriggerConnectionStatus` is READY.*
-3. **Add a trigger** — a schedule or event subscription so it runs on its own. *Done when a
-   `TriggerSubscription` exists.*
+- **Frame + why it's empty.** State what this page tracks and that there is nothing yet
+  because the agent hasn't run. Plain, non-technical language.
+- **One direction: the Playground.** A single pointer to the existing Playground (the
+  try/run surface) — the only affordance on the screen. No inline run, no steps.
+- **Expectation-setter.** A faint preview of the sections that will appear (outcomes /
+  health / usage), so the empty page previews the filled one.
+- **Config stays out of the empty state.** Connections/triggers are not shown here — a
+  connection needing auth surfaces as a needs-you item, and a trigger is added from the
+  triggers surface — never as an onboarding step.
+- **Self-filling, nothing to dismiss.** Once a run exists (from the Playground or anywhere)
+  the active-agent views render normally. Empty-vs-active keys on the same first-trace signal
+  the rest of the page uses.
 
-Behavior:
-- Show progress (e.g. 1 of 3), mark steps done as the underlying data appears, and dismiss
-  the onboarding once the agent has real activity — after which the active-agent views take
-  over.
-- Reuse the existing agent-home onboarding / composer patterns and `useCreateAgent` flow
-  rather than inventing a parallel onboarding.
-- Keep it to the few steps that lead to first value; do not gate the page behind it (a user
-  can always ignore the checklist and use "Run now").
+Reuse the existing Playground route rather than inventing a launcher on Overview. Never gate
+the page behind this state.
 
 ## Cross-cutting principles
 

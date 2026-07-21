@@ -2,7 +2,8 @@
 
 **Last updated:** 2026-07-21 (analytics endpoint audited: gateway capability, root-only
 scope, and the agent cost/token attribution gap — research.md §5–6; cost roll-up path traced
-— the fix is a one-line semconv row, Q9)
+— the fix is a one-line semconv row, Q9. Never-run empty state settled: guidance to the
+Playground — not a run action, checklist, or template gallery.)
 
 ## Current stage
 
@@ -57,9 +58,12 @@ only; no code, no branch, no commit.
 - Produced artifacts load lazily per outcome row (no object-store fan-out on first paint);
   rows with no files degrade to message output.
 - Three distinct zero states (never-run / per-section-empty / first-run-failed), not one
-  "no data" panel. New agents get onboarding, not zeroed charts.
-- Onboarding reuses agent-home onboarding patterns + `useCreateAgent`; steps self-complete
-  from real data and dismiss once the agent has activity.
+  "no data" panel. New agents get plain-language guidance, not zeroed charts.
+- **Never-run Overview = guidance, not a launcher.** The Overview reports work; it does not
+  run the agent or pick its template. A never-run agent gets a guidance state — a frame of
+  what the page tracks + a single pointer to the Playground + a preview of what will appear —
+  not a run action, checklist, or template gallery. It self-fills on the first trace; nothing
+  to dismiss. (Supersedes the earlier run-CTA and 3-step-checklist ideas.)
 - This workspace names views/data only; layout, components, and visuals are design's
   (Claude design / Figma).
 - No commits during this planning session.
@@ -77,9 +81,12 @@ only; no code, no branch, no commit.
 4. **Needs-you resolution in place** — resolve pending interactions directly on Overview
    (embed `ApprovalDock`) or link out to the session? *Recommend:* link out in Phase 1,
    embed later if it proves worth it.
-5. **"Run now" ownership** — does Overview trigger a run itself or hand off to the existing
-   manual-run path? *Recommend:* reuse the existing manual-trigger path; Overview only
-   invokes it.
+5. **Manual "Run now" on an *active* agent** — the never-run empty state points to the
+   Playground (Overview reports, it doesn't launch). Does the active health band still keep a
+   manual "Run now" (re-run a working agent on demand), or defer to the Playground/triggers
+   for consistency? *Recommend:* keep a manual re-run on the active band, but if it stays,
+   reuse the existing manual-trigger path — Overview only invokes it, never owns running.
+   Resolve before Slice 1 finalizes the band.
 9. **Agent cost/token attribution — fix at ingest or on the FE?** (research.md §6, Slice 6
    item 1.) **Traced — the cost fix is one line.** The `unit.* → incremental.* → cumulative.*`
    pipe already exists and already handles costs (`span_data_builders.py:171-179`), and
