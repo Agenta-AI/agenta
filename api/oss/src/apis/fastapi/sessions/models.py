@@ -163,6 +163,7 @@ class SessionMountsResponse(BaseModel):
 class SessionTurnAppendRequest(BaseModel):
     # No project_id: scope comes from the caller's credential (request.state).
     session_id: str
+    turn_id: Optional[UUID] = None
     stream_id: UUID
     turn_index: int
     harness_kind: HarnessKind

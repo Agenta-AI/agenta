@@ -12,6 +12,7 @@ from oss.src.core.shared.dtos import Identifier, Lifecycle, OTelSpanId, Referenc
 class SessionTurn(Identifier, Lifecycle):
     project_id: UUID
     session_id: str
+    turn_id: Optional[UUID] = None
     stream_id: UUID
     turn_index: int
     harness_kind: HarnessKind
@@ -26,6 +27,7 @@ class SessionTurn(Identifier, Lifecycle):
 
 class SessionTurnCreate(BaseModel):
     session_id: str
+    turn_id: Optional[UUID] = None
     stream_id: UUID
     turn_index: int
     harness_kind: HarnessKind

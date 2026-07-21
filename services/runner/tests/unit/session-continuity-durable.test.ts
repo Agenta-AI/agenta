@@ -340,7 +340,11 @@ describe("appendSessionTurn", () => {
       "sess-1",
       "claude",
       3,
-      { streamId: "stream-1", agentSessionId: "agent-new" },
+      {
+        streamId: "stream-1",
+        turnId: "turn-execution-3",
+        agentSessionId: "agent-new",
+      },
       {
         apiBase: "http://api:8000",
         authorization: "ApiKey abc",
@@ -365,6 +369,7 @@ describe("appendSessionTurn", () => {
     assert.deepEqual(calls[0].body, {
       session_id: "sess-1",
       stream_id: "stream-1",
+      turn_id: "turn-execution-3",
       turn_index: 3,
       harness_kind: "claude",
       agent_session_id: "agent-new",
@@ -498,6 +503,7 @@ describe("completeSessionTurn", () => {
       0,
       {
         streamId: "stream-1",
+        turnId: "turn-execution-start",
         traceId: "trace-1",
         spanId: "a1b2c3d4e5f6a7b8",
         startTime: "2026-07-21T10:00:00.000Z",
@@ -510,6 +516,7 @@ describe("completeSessionTurn", () => {
       0,
       {
         streamId: "stream-1",
+        turnId: "turn-execution-resume",
         agentSessionId: "agent-1",
         startTime: "2026-07-21T10:01:00.000Z",
       },
@@ -529,6 +536,7 @@ describe("completeSessionTurn", () => {
     assert.deepEqual(rows.get("sess-1:0"), {
       session_id: "sess-1",
       stream_id: "stream-1",
+      turn_id: "turn-execution-start",
       turn_index: 0,
       harness_kind: "claude",
       trace_id: "trace-1",

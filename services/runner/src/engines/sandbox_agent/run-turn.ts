@@ -197,6 +197,7 @@ export async function runTurn(
         turnLedgerContext.turnIndex,
         {
           streamId: turnLedgerContext.streamId,
+          turnId: request.turnId,
           agentSessionId: env.session?.agentSessionId,
           sandboxId: env.sandbox?.sandboxId,
           references: workflowRefs ? Object.values(workflowRefs) : undefined,
@@ -318,7 +319,7 @@ export async function runTurn(
       const cred = runCredential(request);
       if (!cred) return;
       const references = buildWorkflowReferences(request.runContext?.workflow);
-      if (!references?.workflow_revision) return;
+      // Every gate leaves a durable inbox/audit row; workflow references are attribution, not a precondition.
       void createInteraction(
         sessionId,
         request.turnId ?? "",
@@ -338,11 +339,6 @@ export async function runTurn(
     const resolveInteractionToken = (token: string): void => {
       const cred = runCredential(request);
       if (!cred) return;
-      if (
-        !buildWorkflowReferences(request.runContext?.workflow)
-          ?.workflow_revision
-      )
-        return;
       void resolveInteraction(sessionId, token, () => cred);
     };
     const serverPermissions = serverPermissionsFromRequest(request);

@@ -141,7 +141,7 @@ def dao():
     return SessionTurnsDAO(engine=get_transactions_engine())
 
 
-async def test_append_turn_persists_and_sets_created_by_id(dao, project_and_stream):
+async def test_append_turn_persists_and_query_returns_turn_id(dao, project_and_stream):
     """W1.6: append a turn — round-trips every field, and created_by_id is the caller."""
     project_id = project_and_stream["project_id"]
     stream_id = project_and_stream["stream_id"]
@@ -153,11 +153,13 @@ async def test_append_turn_persists_and_sets_created_by_id(dao, project_and_stre
     # span_id is a 16-hex OTel span id (runner shape), NOT a UUID; trace_id is a 32-hex
     # OTel trace id that still fits UUID.
     span_id = uuid.uuid4().hex[:16]
+    execution_turn_id = uuid.uuid4()
     turn = await dao.append(
         project_id=project_id,
         user_id=user_id,
         turn=SessionTurnCreate(
             session_id=session_id,
+            turn_id=execution_turn_id,
             stream_id=stream_id,
             turn_index=0,
             harness_kind=HarnessKind.PI,
@@ -172,6 +174,7 @@ async def test_append_turn_persists_and_sets_created_by_id(dao, project_and_stre
 
     assert turn.id is not None
     assert turn.session_id == session_id
+    assert turn.turn_id == execution_turn_id
     assert turn.stream_id == stream_id
     assert turn.turn_index == 0
     assert turn.harness_kind == HarnessKind.PI
@@ -185,8 +188,16 @@ async def test_append_turn_persists_and_sets_created_by_id(dao, project_and_stre
     fetched = await dao.fetch_turn(project_id=project_id, turn_id=turn.id)
     assert fetched is not None
     assert fetched.id == turn.id
+    assert fetched.turn_id == execution_turn_id
     assert fetched.references == [workflow_ref]
     assert fetched.span_id == span_id
+
+    queried = await dao.query_turns(
+        project_id=project_id,
+        query=SessionTurnQuery(session_id=session_id),
+    )
+    assert len(queried) == 1
+    assert queried[0].turn_id == execution_turn_id
 
 
 async def test_complete_turn_is_guarded_idempotent_and_refuses_unknown(

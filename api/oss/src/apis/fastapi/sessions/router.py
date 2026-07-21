@@ -1099,6 +1099,7 @@ class SessionTurnsRouter:
             user_id=user_id,
             turn=SessionTurnCreate(
                 session_id=body.session_id,
+                turn_id=body.turn_id,
                 stream_id=body.stream_id,
                 turn_index=body.turn_index,
                 harness_kind=body.harness_kind,

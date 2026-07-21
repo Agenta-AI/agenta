@@ -18,6 +18,9 @@ class SessionTurnDBA(
     # Bare string correlator — NOT an FK (sessions may be external). Spine: NOT NULL.
     session_id = Column(String, nullable=False)
 
+    # Per-execution correlator; nullable for rows written before producers supplied it.
+    turn_id = Column(UUID(as_uuid=True), nullable=True)
+
     # Spine: NOT NULL — every turn is written with stream_id in hand (from the heartbeat).
     stream_id = Column(UUID(as_uuid=True), nullable=False)
 

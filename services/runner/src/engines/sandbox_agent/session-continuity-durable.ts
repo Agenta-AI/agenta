@@ -19,6 +19,7 @@ function defaultLog(msg: string): void {
 export type TurnReference = { id?: string; slug?: string; version?: string };
 
 export interface WireSessionTurn {
+  turn_id?: string;
   harness_kind?: string;
   agent_session_id?: string;
   sandbox_id?: string;
@@ -41,6 +42,7 @@ export interface DurableContinuityDeps {
 /** The fields the turn-start write carries, beyond the (session, harness, turnIndex) key. */
 export interface SessionTurnAppend {
   streamId: string;
+  turnId?: string;
   agentSessionId?: string;
   sandboxId?: string;
   references?: TurnReference[];
@@ -230,6 +232,7 @@ export const appendSessionTurn: AppendSessionTurnFn = async function appendSessi
       body: JSON.stringify({
         session_id: sessionId,
         stream_id: turn.streamId,
+        ...(turn.turnId ? { turn_id: turn.turnId } : {}),
         turn_index: turnIndex,
         harness_kind: harness,
         ...(turn.agentSessionId

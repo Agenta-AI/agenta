@@ -203,6 +203,7 @@ const continuityRequest: AgentRunRequest = {
   ...request,
   sessionId: "sess-1",
   streamId: "stream-1",
+  turnId: "turn-execution-1",
   runContext: {
     trace: {
       trace_id: "0123456789abcdef0123456789abcdef",
@@ -403,6 +404,7 @@ describe("conversation turn indexes", () => {
     assert.equal(typeof calls.startedTurns[0]["startTime"], "string");
     assert.equal(calls.startedTurns[0]["traceId"], "0123456789abcdef0123456789abcdef");
     assert.equal(calls.startedTurns[0]["spanId"], "a1b2c3d4e5f6a7b8");
+    assert.equal(calls.startedTurns[0]["turnId"], "turn-execution-1");
 
     const resumed = await runTurn(
       acquired.env,

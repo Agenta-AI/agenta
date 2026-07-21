@@ -121,6 +121,38 @@ describe("buildPersistingEmitter", () => {
     assert.deepEqual(types, ["tool_call", "done"]);
   });
 
+  it("scopes stable tool ids by execution while re-persisting reuses the row", async () => {
+    const first = buildPersistingEmitter(
+      "sess-shared-tool",
+      () => "Secret t",
+      undefined,
+      undefined,
+      "turn-a",
+    );
+    first.emit({ type: "tool_result", id: "call-shared", output: "ok" });
+    first.emit({ type: "tool_result", id: "call-shared", output: "ok" });
+    await first.flush();
+
+    const second = buildPersistingEmitter(
+      "sess-shared-tool",
+      () => "Secret t",
+      undefined,
+      undefined,
+      "turn-b",
+    );
+    second.emit({ type: "tool_result", id: "call-shared", output: "ok" });
+    await second.flush();
+
+    const bodies = postedBodies as Array<Record<string, unknown>>;
+    assert.equal(bodies.length, 3);
+    assert.equal(bodies[0]["record_id"], bodies[1]["record_id"]);
+    assert.notEqual(bodies[0]["record_id"], bodies[2]["record_id"]);
+    assert.deepEqual(
+      bodies.map((body) => body["turn_id"]),
+      ["turn-a", "turn-a", "turn-b"],
+    );
+  });
+
   it("record_index increments monotonically across events", async () => {
     const { emit, flush } = buildPersistingEmitter("sess-4", () => "Secret t");
 

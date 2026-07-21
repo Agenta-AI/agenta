@@ -154,8 +154,8 @@ const OPEN_TOOL_TTL_MS = Number(process.env.AGENTA_RECORD_TOOL_TTL_MS ?? 3000);
  *  - message_start/delta/end and thought_* accumulate text, persisted once on *_end.
  *  - tool_call snapshots for one id accumulate (latest args win) into a single open slot,
  *    persisted once when a non-continuation event arrives, the TTL fires, or the turn
- *    drains. The record carries a stable uuid5 id so a re-sent snapshot (or a resume)
- *    upserts the same row rather than appending.
+ *    drains. The record carries a turn-scoped stable uuid5 id so retries upsert within
+ *    one execution without overwriting the same tool call from another execution.
  */
 export function buildPersistingEmitter(
   sessionId: string,
@@ -196,7 +196,7 @@ export function buildPersistingEmitter(
       event,
       index,
       "agent",
-      stableRecordId(sessionId, id, "tool_call"),
+      stableRecordId(sessionId, id, "tool_call", turnId),
       redactor,
       turnId,
       spanId,
@@ -304,7 +304,7 @@ export function buildPersistingEmitter(
         event,
         eventIndex++,
         "agent",
-        stableRecordId(sessionId, event.id, event.type),
+        stableRecordId(sessionId, event.id, event.type, turnId),
         redactor,
         turnId,
         spanId,

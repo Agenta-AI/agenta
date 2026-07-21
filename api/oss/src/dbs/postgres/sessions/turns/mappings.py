@@ -40,6 +40,7 @@ def map_turn_dto_to_dbe_create(
         created_by_id=user_id,
         #
         session_id=turn.session_id,
+        turn_id=turn.turn_id,
         stream_id=turn.stream_id,
         turn_index=turn.turn_index,
         harness_kind=turn.harness_kind.value,
@@ -69,6 +70,7 @@ def map_turn_dbe_to_dto(
         #
         project_id=turn_dbe.project_id,
         session_id=turn_dbe.session_id,
+        turn_id=turn_dbe.turn_id,
         stream_id=turn_dbe.stream_id,
         turn_index=turn_dbe.turn_index,
         harness_kind=HarnessKind(turn_dbe.harness_kind),
