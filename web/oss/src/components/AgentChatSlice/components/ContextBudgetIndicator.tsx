@@ -71,8 +71,10 @@ const ContextBudgetIndicator = ({messages, maxTokens, className}: ContextBudgetI
             title={
                 <div className="flex flex-col gap-1 text-xs">
                     <span>
-                        How full the model&apos;s context window is this turn. When it fills up,
-                        older messages get summarized to make room.
+                        Context window:
+                        <br />
+                        As it fills up, earlier messages are compressed into summaries, which may
+                        reduce recall of older details.
                     </span>
                     <span className="opacity-70">
                         {max
