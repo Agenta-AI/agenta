@@ -42,13 +42,13 @@ const tierFor = (pct: number | null): Tier =>
 const FILL: Record<Tier, string> = {
     normal: "bg-colorTextTertiary",
     warn: "bg-colorWarning",
-    danger: "bg-colorError",
+    danger: "bg-colorError opacity-70",
 }
 
 const TEXT: Record<Tier, string> = {
     normal: "text-colorTextTertiary",
     warn: "text-colorWarning",
-    danger: "text-colorError",
+    danger: "text-colorError opacity-70",
 }
 
 const ContextBudgetIndicator = ({messages, maxTokens, className}: ContextBudgetIndicatorProps) => {
