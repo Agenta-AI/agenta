@@ -229,6 +229,7 @@ export {
     // Variant/Revision list queries
     workflowVariantsQueryAtomFamily,
     workflowVariantsListDataAtomFamily,
+    workflowVariantsCachedListAtomFamily,
     workflowRevisionsQueryAtomFamily,
     workflowRevisionRefsByVariantAtomFamily,
     workflowRevisionsListDataAtomFamily,

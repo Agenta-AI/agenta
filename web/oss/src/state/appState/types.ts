@@ -20,9 +20,8 @@ export interface ParsedAppLocation extends AppIdentifiers {
     restPath: string[]
 }
 
-export interface AppStateSnapshot extends ParsedAppLocation {
-    timestamp: number
-}
+// No timestamp field: stamping Date.now() forced a new identity on every write
+export type AppStateSnapshot = ParsedAppLocation
 
 export type NavigationMethod = "push" | "replace"
 

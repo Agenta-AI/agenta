@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {catalogPersister} from "@agenta/shared/api/persist"
+import type {QueryKey, QueryPersister} from "@tanstack/react-query"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithInfiniteQuery} from "jotai-tanstack-query"
@@ -37,6 +39,12 @@ export const toolCatalogActionsInfiniteFamily = atomFamily((integrationKey: stri
             staleTime: 5 * 60_000,
             refetchOnWindowFocus: false,
             enabled: !!integrationKey,
+            // Persists whole {pages, pageParams}; cast bridges persisterFn's pageParam-less typing.
+            persister: catalogPersister.persisterFn as QueryPersister<
+                ToolCatalogActionsResponse,
+                QueryKey,
+                unknown
+            >,
         }
     }),
 )

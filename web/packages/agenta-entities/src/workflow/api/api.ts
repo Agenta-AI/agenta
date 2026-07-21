@@ -14,8 +14,11 @@
  * - Create/Update: workflow + revision commit endpoints
  */
 
-import {getAgentaSdkClient} from "@agenta/sdk"
-import {getLowPriorityWorkflowsClient, getWorkflowsClient} from "@agenta/sdk/resources"
+import {
+    getApplicationsClient,
+    getLowPriorityWorkflowsClient,
+    getWorkflowsClient,
+} from "@agenta/sdk/resources"
 import {getAgentaApiUrl, axios, lowPriorityWhenCached} from "@agenta/shared/api"
 import {dereferenceSchema, generateId} from "@agenta/shared/utils"
 import {z} from "zod"
@@ -592,11 +595,9 @@ export async function fetchSimpleApplication(
 ): Promise<SimpleApplicationFetchResponse | null> {
     if (!projectId || !applicationId) return null
 
-    // Fern-generated client (single source of truth for the request/response
-    // shape). Its types under-declare the backend's `extra="allow"`
-    // `additional_context`, so it is read defensively below.
-    const client = getAgentaSdkClient({host: getAgentaApiUrl()})
-    const data = await client.applications.fetchSimpleApplication(
+    // Per-resource Fern client — the root @agenta/sdk barrel would drag the
+    // monolithic AgentaApiClient (all 27 resource clients) into _app's bundle.
+    const data = await getApplicationsClient().fetchSimpleApplication(
         {application_id: applicationId},
         {queryParams: {project_id: projectId}},
     )

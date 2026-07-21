@@ -1,9 +1,7 @@
-import {getAgentaSdkClient} from "@agenta/sdk"
+import {getMountsClient, getSessionsClient} from "@agenta/sdk/resources"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-
-const client = () => getAgentaSdkClient({host: getAgentaApiUrl()})
 
 const scope = (projectId?: string | null) =>
     projectId ? {queryParams: {project_id: projectId}} : undefined
@@ -26,7 +24,7 @@ export interface MountFileText {
 }
 
 export async function fetchStream(sessionId: string, projectId?: string | null) {
-    const res = await client().sessions.fetchSessionStream(
+    const res = await getSessionsClient().fetchSessionStream(
         {session_id: sessionId},
         scope(projectId),
     )
@@ -34,16 +32,16 @@ export async function fetchStream(sessionId: string, projectId?: string | null) 
 }
 
 export async function fetchRecords(sessionId: string, projectId?: string | null) {
-    return client().sessions.queryRecords({session_id: sessionId}, scope(projectId))
+    return getSessionsClient().queryRecords({session_id: sessionId}, scope(projectId))
 }
 
 export async function fetchState(sessionId: string, projectId?: string | null) {
-    const res = await client().sessions.getState({session_id: sessionId}, scope(projectId))
+    const res = await getSessionsClient().getState({session_id: sessionId}, scope(projectId))
     return res.session_state ?? null
 }
 
 export async function fetchMounts(sessionId: string, projectId?: string | null) {
-    return client().sessions.querySessionMounts({session_id: sessionId}, scope(projectId))
+    return getSessionsClient().querySessionMounts({session_id: sessionId}, scope(projectId))
 }
 
 // Fern has no query_agent_mount yet; migrate after client regeneration.
@@ -61,7 +59,7 @@ export async function fetchMountFiles(
     projectId?: string | null,
     path?: string,
 ): Promise<MountFileListing> {
-    const data = await client().mounts.getMountFiles({mount_id: mountId, path}, scope(projectId))
+    const data = await getMountsClient().getMountFiles({mount_id: mountId, path}, scope(projectId))
     return data as MountFileListing
 }
 
@@ -70,7 +68,7 @@ export async function fetchMountFileText(
     projectId: string | null | undefined,
     path: string,
 ): Promise<MountFileText> {
-    const data = await client().mounts.getMountFiles(
+    const data = await getMountsClient().getMountFiles(
         {mount_id: mountId, read: path},
         scope(projectId),
     )
@@ -91,12 +89,12 @@ export async function fetchMountFileBlob(
 }
 
 export async function fetchInteractions(sessionId: string, projectId?: string | null) {
-    return client().sessions.queryInteractions({query: {session_id: sessionId}}, scope(projectId))
+    return getSessionsClient().queryInteractions({query: {session_id: sessionId}}, scope(projectId))
 }
 
 /** ATTACH — steal the attached lock and watch the live turn (force, no prompt). */
 export async function attachStream(sessionId: string, projectId?: string | null) {
-    return client().sessions.setSessionStream(
+    return getSessionsClient().setSessionStream(
         {session_id: sessionId, force: true},
         scope(projectId),
     )
@@ -108,7 +106,7 @@ export async function detachStream(
     watcherId: string,
     projectId?: string | null,
 ) {
-    return client().sessions.detachSessionStream(
+    return getSessionsClient().detachSessionStream(
         {session_id: sessionId, watcher_id: watcherId},
         scope(projectId),
     )
@@ -116,7 +114,7 @@ export async function detachStream(
 
 /** KILL — collapse the nest + tear the session down. */
 export async function killStream(sessionId: string, projectId?: string | null) {
-    return client().sessions.deleteSessionStream({session_id: sessionId}, scope(projectId))
+    return getSessionsClient().deleteSessionStream({session_id: sessionId}, scope(projectId))
 }
 
 export async function respondInteraction(
@@ -124,7 +122,7 @@ export async function respondInteraction(
     answer: Record<string, unknown>,
     projectId?: string | null,
 ) {
-    return client().sessions.respondInteraction(
+    return getSessionsClient().respondInteraction(
         {interaction_id: interactionId, answer},
         scope(projectId),
     )

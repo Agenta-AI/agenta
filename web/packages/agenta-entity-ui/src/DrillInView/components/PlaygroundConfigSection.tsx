@@ -36,9 +36,11 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {ArrowLeft, CaretDown, CaretRight, MagicWand} from "@phosphor-icons/react"
 import {Button, Dropdown, Popover, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
+import deepEqual from "fast-deep-equal"
 import type {Atom, WritableAtom} from "jotai"
 import {atom} from "jotai"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {selectAtom} from "jotai/utils"
 import yaml from "js-yaml"
 
 import {
@@ -291,6 +293,11 @@ function memoAtom<T>(factory: (id: string) => Atom<T>): (id: string) => Atom<T> 
     }
 }
 
+/** Content-stable wrapper: keep the previous value when a recompute yields equal content. */
+function stableAtom<T>(base: Atom<T>, equals: (a: T, b: T) => boolean): Atom<T> {
+    return selectAtom(base, (v) => v, equals)
+}
+
 // ============================================================================
 // DEFAULT ADAPTER (workflowMolecule — direct molecule access)
 // ============================================================================
@@ -413,34 +420,48 @@ const configUpdateRouterAtom = atom(
 function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
     return {
         atoms: {
+            // deepEqual-stable: upstream selectors mint fresh objects per query flip during boot.
             data: memoAtom((id: string) =>
-                atom((get) => {
-                    const config = get(workflowMolecule.selectors.configuration(id))
-                    const full = get(workflowMolecule.selectors.resolvedData(id))
-                    return mergeSiblingFields(config as Record<string, unknown> | null, full)
-                }),
+                stableAtom(
+                    atom((get) => {
+                        const config = get(workflowMolecule.selectors.configuration(id))
+                        const full = get(workflowMolecule.selectors.resolvedData(id))
+                        return mergeSiblingFields(config as Record<string, unknown> | null, full)
+                    }),
+                    deepEqual,
+                ),
             ),
             serverData: memoAtom((id: string) =>
-                atom((get) => {
-                    const config = get(workflowMolecule.selectors.serverConfiguration(id))
-                    const full = get(workflowMolecule.selectors.serverData(id))
-                    return mergeSiblingFields(config as Record<string, unknown> | null, full)
-                }),
+                stableAtom(
+                    atom((get) => {
+                        const config = get(workflowMolecule.selectors.serverConfiguration(id))
+                        const full = get(workflowMolecule.selectors.serverData(id))
+                        return mergeSiblingFields(config as Record<string, unknown> | null, full)
+                    }),
+                    deepEqual,
+                ),
             ),
             draft: (id: string) => workflowMolecule.atoms.draft(id),
             isDirty: (id: string) => workflowMolecule.selectors.isDirty(id),
             schemaQuery: memoAtom((id: string) =>
-                atom((get) => {
-                    const q = get(workflowMolecule.selectors.query(id))
-                    const rawSchema = get(workflowMolecule.selectors.parametersSchema(id))
-                    const schema = isEntitySchema(rawSchema) ? rawSchema : null
-                    return {
-                        isPending: q.isPending,
-                        isError: q.isError,
-                        error: q.error as Error | null,
-                        data: {agConfigSchema: schema},
-                    }
-                }),
+                stableAtom(
+                    atom((get) => {
+                        const q = get(workflowMolecule.selectors.query(id))
+                        const rawSchema = get(workflowMolecule.selectors.parametersSchema(id))
+                        const schema = isEntitySchema(rawSchema) ? rawSchema : null
+                        return {
+                            isPending: q.isPending,
+                            isError: q.isError,
+                            error: q.error as Error | null,
+                            data: {agConfigSchema: schema},
+                        }
+                    }),
+                    (a, b) =>
+                        a.isPending === b.isPending &&
+                        a.isError === b.isError &&
+                        a.error === b.error &&
+                        a.data?.agConfigSchema === b.data?.agConfigSchema,
+                ),
             ),
             agConfigSchema: memoAtom((id: string) =>
                 atom((get) => {
@@ -780,7 +801,7 @@ function PlaygroundConfigSection({
     // Stabilize via serialized key to prevent infinite re-render loops when the
     // parameters object reference changes but content is identical (e.g., during
     // entity loading in URL-driven drawer initialization).
-    const parametersKey = JSON.stringify(parameters)
+    const parametersKey = useMemo(() => JSON.stringify(parameters), [parameters])
     const {displayParameters, metadataMap} = useMemo(() => {
         return {
             displayParameters: stripAgentaMetadata(parameters),
@@ -1824,16 +1845,22 @@ function PlaygroundConfigSection({
                 return <div className="px-4 py-1.5">{props.defaultRender()}</div>
             }
 
-            // The agent_config body is always expanded (its header is suppressed above), so it renders
-            // without the HeightCollapse toggle.
+            // The agent body is always expanded (its header is suppressed above), so it renders
+            // without the HeightCollapse toggle. Detected via the same marker as the header
+            // suppression — both the new `agent-template` and legacy `agent_config` name, so it
+            // holds across the rename (checking only `agent_config` here sent modern agent fields
+            // to the generic else branch, re-adding the collapse and the wider py-3 inset).
             const fieldSchema = schema?.properties
                 ? (schema.properties as Record<string, Record<string, unknown>>)[fieldKey]
                 : null
+            const isAgentMarker = (v: unknown) => v === "agent-template" || v === "agent_config"
             if (
-                fieldSchema?.["x-ag-type-ref"] === "agent_config" ||
-                fieldSchema?.["x-ag-type"] === "agent_config"
+                isAgentMarker(fieldSchema?.["x-ag-type-ref"]) ||
+                isAgentMarker(fieldSchema?.["x-ag-type"])
             ) {
-                return <div className="px-4 py-3">{props.defaultRender()}</div>
+                // pt-1 (not py-3) tightens the gap between the region header and the first section
+                // row; pb-3 keeps the bottom breathing room. The loading fallback below matches.
+                return <div className="px-4 pb-3 pt-1">{props.defaultRender()}</div>
             }
 
             return (
@@ -1853,15 +1880,25 @@ function PlaygroundConfigSection({
         ],
     )
 
+    // Stable slots object — an inline literal would churn the drill-in provider's context value.
+    const drillInSlots = useMemo(
+        () => ({
+            fieldHeader: fieldHeaderSlot,
+            fieldActions: fieldActionsSlot,
+            fieldContent: fieldContentSlot,
+        }),
+        [fieldHeaderSlot, fieldActionsSlot, fieldContentSlot],
+    )
+
     // ========== LOADING / EMPTY STATE ==========
     const isConfigLoading = schemaQuery.isPending && !hasRenderableConfigSections(activeData)
 
     if (isConfigLoading) {
         if (loadingFallback) {
-            // px-4 py-3 mirrors the field-content wrapper the real sections (and the lazy
-            // control's Suspense fallback) render inside — without it the fallback skeleton
-            // sits 16px wider / 12px higher and visibly shifts when the schema lands.
-            return <div className={clsx("px-4 py-3", className)}>{loadingFallback}</div>
+            // px-4 pb-3 pt-1 mirrors the agent_config field-content wrapper the real sections (and
+            // the lazy control's Suspense fallback) render inside — without it the fallback skeleton
+            // shifts when the schema lands.
+            return <div className={clsx("px-4 pb-3 pt-1", className)}>{loadingFallback}</div>
         }
         return (
             <div className={clsx("p-4 flex flex-col gap-3", className)}>
@@ -1955,11 +1992,7 @@ function PlaygroundConfigSection({
                         rootTitle="Configuration"
                         showBreadcrumb={false}
                         collapsible={false}
-                        slots={{
-                            fieldHeader: fieldHeaderSlot,
-                            fieldActions: fieldActionsSlot,
-                            fieldContent: fieldContentSlot,
-                        }}
+                        slots={drillInSlots}
                     />
                 </>
             )}

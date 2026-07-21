@@ -18,8 +18,10 @@
  * ```
  */
 
+import {immutablePersister} from "@agenta/shared/api/persist"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {createBatchFetcher} from "@agenta/shared/utils"
+import type {QueryKey} from "@tanstack/react-query"
 import {atom, getDefaultStore} from "jotai"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
@@ -758,12 +760,14 @@ export const traceEntityAtomFamily = instrumentedAtomFamily(
  */
 export const traceSummaryQueryAtomFamily = instrumentedAtomFamily(
     (traceId: string | null) =>
-        atomWithQuery((get) => {
+        atomWithQuery<TraceSummarySpans | null>((get) => {
             const projectId = get(projectIdAtom)
 
             return {
                 queryKey: ["trace-summary", projectId, traceId ?? "none"],
                 enabled: Boolean(get(sessionAtom) && traceId && projectId),
+                // Class A persistence: reloads restore summaries from IDB, no refetch.
+                persister: immutablePersister.persisterFn<TraceSummarySpans | null, QueryKey>,
                 // Immutable once ingested; invalidateTraceEntityCache covers reruns.
                 staleTime: Infinity,
                 gcTime: 5 * 60_000,
