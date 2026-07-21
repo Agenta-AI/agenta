@@ -381,6 +381,7 @@ export {
     // Agent creation preferences (last-used harness/model/connection default)
     agentCreationPrefsAtom,
     applyAgentCreationPrefs,
+    ensureEnabledSandbox,
     type AgentCreationPrefs,
 } from "./state"
 

@@ -69,11 +69,11 @@ describe("session mounts store", () => {
         const {store} = makeStore()
 
         const unsubMounts = store.sub(sessionMountsQueryFamily(SESSION_ID), () => {})
-        const unsubFiles = store.sub(mountFilesQueryFamily(MOUNT.id), () => {})
+        const unsubFiles = store.sub(mountFilesQueryFamily({mountId: MOUNT.id}), () => {})
         try {
             await waitForAssertion(() => {
                 expect(store.get(sessionMountsQueryFamily(SESSION_ID)).data).toEqual([MOUNT])
-                expect(store.get(mountFilesQueryFamily(MOUNT.id)).data).toEqual([
+                expect(store.get(mountFilesQueryFamily({mountId: MOUNT.id})).data).toEqual([
                     {path: "notes.md", size: 12, is_folder: false},
                 ])
             })
@@ -91,11 +91,11 @@ describe("session mounts store", () => {
         const {store, queryClient} = makeStore()
 
         const unsubMounts = store.sub(sessionMountsQueryFamily(SESSION_ID), () => {})
-        const unsubFiles = store.sub(mountFilesQueryFamily(MOUNT.id), () => {})
+        const unsubFiles = store.sub(mountFilesQueryFamily({mountId: MOUNT.id}), () => {})
         try {
             await waitForAssertion(() => {
                 expect(store.get(sessionMountsQueryFamily(SESSION_ID)).data).toEqual([MOUNT])
-                expect(store.get(mountFilesQueryFamily(MOUNT.id)).data).toEqual([])
+                expect(store.get(mountFilesQueryFamily({mountId: MOUNT.id})).data).toEqual([])
             })
 
             // The turn wrote a file; the next fetch returns it.
@@ -103,7 +103,7 @@ describe("session mounts store", () => {
             store.set(revalidateSessionMountsAtom, SESSION_ID)
 
             await waitForAssertion(() => {
-                expect(store.get(mountFilesQueryFamily(MOUNT.id)).data).toEqual([
+                expect(store.get(mountFilesQueryFamily({mountId: MOUNT.id})).data).toEqual([
                     {path: "new.txt", size: 1, is_folder: false},
                 ])
             })
@@ -127,7 +127,7 @@ describe("session mounts store", () => {
         ).toBe(true)
 
         // ...and the next subscriber (re-expanding the drive) refetches.
-        const unsubAgain = store.sub(mountFilesQueryFamily(MOUNT.id), () => {})
+        const unsubAgain = store.sub(mountFilesQueryFamily({mountId: MOUNT.id}), () => {})
         try {
             await waitForAssertion(() => {
                 expect(queryMountFilesMock.mock.calls.length).toBeGreaterThan(callsBefore)

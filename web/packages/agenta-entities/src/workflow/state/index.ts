@@ -268,5 +268,6 @@ export {
 export {
     agentCreationPrefsAtom,
     applyAgentCreationPrefs,
+    ensureEnabledSandbox,
     type AgentCreationPrefs,
 } from "./agentCreationPrefs"
