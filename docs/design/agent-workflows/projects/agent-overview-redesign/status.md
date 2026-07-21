@@ -1,6 +1,8 @@
 # Status
 
-**Last updated:** 2026-07-21 (context-window sourcing updated per PR #5434)
+**Last updated:** 2026-07-21 (analytics endpoint audited: gateway capability, root-only
+scope, and the agent cost/token attribution gap — research.md §5–6; cost roll-up path traced
+— the fix is a one-line semconv row, Q9)
 
 ## Current stage
 
@@ -17,11 +19,24 @@ only; no code, no branch, no commit.
   **what has it been doing?**, **is it healthy?**
 - Lead with the agent's *work* (outcomes + produced artifacts), not its configuration
   status.
-- Keep the existing charts; relabel Requests → Runs.
+- Keep the charts, but drive them from the **analytics gateway** (`POST /analytics/query`)
+  with **explicit `specs`** — the current dashboard uses ~5% of the endpoint. Relabel
+  Requests → Runs and upgrade Latency from avg-only to **percentiles + histogram** (research.md
+  §5–6).
+- **The analytics endpoint is the gateway for run-level aggregates, and it is root-only**
+  (`WHERE parent_id IS NULL`, one row per run). It serves numeric distributions + root-stamped
+  categoricals. It does **not** serve child-span breakdowns (per-tool usage/pass-fail, per-LLM
+  model mix, failures by the failing child's cause) — those stay on per-run trace reads until a
+  backend roll-up (Slice 6).
+- **Agent cost/token attribution is a real backend gap** (why the live dashboard shows Cost
+  and Tokens as `-`): `gen_ai.usage.cost` is unmapped at ingest and cost is derived only on
+  LLM-type child spans; agent tokens ride a best-effort `record_usage` bridge. The
+  Cost/Token views **degrade gracefully** (reported token count, cost hidden — never a false
+  zero) until the Slice 6 fix lands. Full detail: research.md §6.
 - Resource usage is a first-class group, not just charts: context usage (occupancy: run
   tokens vs. the model's window), token consumption, cache savings, cost per run, and
   model/provider. Context usage degrades to a raw token count when the window size is
-  unknown.
+  unknown; cost/token totals depend on the attribution fix above.
 - Context usage **reuses the shipped primitive** across a stacked pair: PR #5402 (Arda,
   `fe-feat/session-context-info`) + **PR #5434** (Ashraf,
   `feat/extend-arda's-session-context-work`, stacked on #5402). #5434 is the source of truth.
@@ -35,7 +50,10 @@ only; no code, no branch, no commit.
 - The view catalog serves three personas (owner/operator, builder, budget owner) from one
   page via priority ordering, not three separate pages.
 - Phase 1 composes only data sources that already exist (tracing, mounts, session
-  interactions, triggers). No new backend endpoints in Phase 1.
+  interactions, triggers) and reuses the existing `/analytics/query` endpoint. No new backend
+  *endpoints* in Phase 1 — but one backend *ingest fix* (agent cost/token attribution) is a
+  surfaced dependency for the Cost/Token views, tracked in Slice 6 with graceful degradation
+  in the meantime.
 - Produced artifacts load lazily per outcome row (no object-store fan-out on first paint);
   rows with no files degrade to message output.
 - Three distinct zero states (never-run / per-section-empty / first-run-failed), not one
@@ -62,6 +80,20 @@ only; no code, no branch, no commit.
 5. **"Run now" ownership** — does Overview trigger a run itself or hand off to the existing
    manual-run path? *Recommend:* reuse the existing manual-trigger path; Overview only
    invokes it.
+9. **Agent cost/token attribution — fix at ingest or on the FE?** (research.md §6, Slice 6
+   item 1.) **Traced — the cost fix is one line.** The `unit.* → incremental.* → cumulative.*`
+   pipe already exists and already handles costs (`span_data_builders.py:171-179`), and
+   `record_usage` already stamps `gen_ai.usage.cost` on the agent root — the only gap is a
+   missing semconv row. Option (a): add `("gen_ai.usage.cost", "ag.metrics.unit.costs.total")`
+   to semconv; cost then flows to `costs.cumulative.total` (the default spec) with no
+   price-table or span-type work. Covers cost-reporting harnesses; token-only harnesses still
+   need price-table derivation. Watch the double-count risk if the harness batch is later
+   bridged, and note it's ingest-time only (not retroactive). Option (b): FE reads reported
+   per-run usage from the trace and aggregates client-side. *Recommend:* (a) — now known to be
+   cheap and the correct source of truth; (b) is a stopgap. **Tokens are a separate issue** —
+   their pipe is complete, so a `-` means `record_usage` isn't firing, not a mapping gap;
+   diagnose with a live root-span attribute dump. Ship Cost/Token views degraded until (a)
+   lands. Needs a backend owner; the mapping itself is a one-line PR.
 6. ~~Context-window map ownership~~ — **RESOLVED by #5434.** No shared map to own: the
    denominator is `contextWindowForModel` in `@agenta/entities/workflow`, sourced from the
    model catalog on the harness-capabilities doc. Overview imports the selector. Slice 4
@@ -81,8 +113,11 @@ only; no code, no branch, no commit.
 
 ## Next action
 
-Context-usage feasibility (Q6–8) is fully traced and settled; the remaining open items are
-the product/rollout calls (Q1–5). Share the workspace and Q1–5 for agreement. On sign-off,
-hand the view catalog (`design.md`) to design for the Figma pass, and start Slice 0 on an
-implementation branch (separate from this planning session). Slice 4 depends on #5434 (the
-context-usage primitive) being merged.
+Context-usage feasibility (Q6–8) is fully traced and settled. The analytics endpoint is now
+audited (research.md §5–6): it is the gateway for run-level charts/distributions, it is
+root-only, and agent cost/token attribution is a backend gap (new Q9). Remaining open items
+are the product/rollout calls (Q1–5) plus the backend-owned attribution decision (Q9). Share
+the workspace and Q1–5 + Q9 for agreement. On sign-off, hand the view catalog (`design.md`)
+to design for the Figma pass, and start Slice 0 on an implementation branch (separate from
+this planning session). Slice 4 depends on #5434 (the context-usage primitive) being merged;
+its Cost/Token data depends on Q9/Slice 6.

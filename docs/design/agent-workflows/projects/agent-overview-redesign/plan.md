@@ -8,8 +8,13 @@
   untouched for other kinds.
 - Feature-flag the new agent Overview so it can ship dark and be switched on per
   environment.
-- Anything needing new server-side aggregation is Phase 2 (called out in Slice 4), not
-  built in Phase 1.
+- Anything needing new server-side aggregation is Phase 2 (flagged where it bites in Slice 4,
+  built in Slice 6), not built in Phase 1.
+- **One backend dependency is surfaced, not a new endpoint:** agent cost/token
+  **attribution** at ingest (research.md §6). The existing `/analytics/query` endpoint is
+  reused as-is (it is the "gateway" — Slice 1/4); but agent runs don't populate the root
+  cost/token paths it reads, so the Cost/Token views degrade until that ingest fix lands
+  (Slice 4 note + Slice 6). This does not change "no new endpoints in Phase 1."
 
 Each slice leaves the tree working and testable.
 
@@ -27,9 +32,14 @@ Each slice leaves the tree working and testable.
 
 1. Build the status/health band: agent status, last run, next run (cron), success rate,
    avg cost, Run now — all from existing tracing aggregates + trigger schedule.
-2. Relabel the reused charts (Requests → Runs) and mount them under the band.
+2. Drive the charts from the analytics gateway (`POST /analytics/query`) with **explicit
+   `specs`**, not the defaults (research.md §5–6). Relabel Requests → Runs. Add **latency
+   percentiles** (p50/p90/p95 + histogram) — a near-free upgrade over the current avg-only
+   chart, which one slow run skews. Cost/Tokens use the same endpoint but are gated on the
+   attribution fix (Slice 4 note); until then degrade to the reported token count, never a
+   zero.
 - **Exit:** for an agent with runs, the band shows real last-run/next-run/success/cost and
-  the charts render; "Run now" triggers a run.
+  the charts render (latency shows a distribution, not just avg); "Run now" triggers a run.
 
 ## Slice 2 — Outcomes feed (with adaptive artifact/message rows)
 
@@ -54,10 +64,23 @@ Each slice leaves the tree working and testable.
 
 ## Slice 4 — Reliability & resource-usage panels
 
-1. Reliability: most-used tools (counts + pass/fail from `ag.tool.name` /
-   `ag.meta.tool.call.result`) and failures grouped by cause (`ag.exception.type`).
-2. Resource usage: token consumption breakdown, cache savings, cost per run/trend, and
-   model/provider per run — all from trace token/cost attributes.
+Two data paths here — keep them separate (research.md §6). `/analytics/query` aggregates
+**root spans only** (`WHERE parent_id IS NULL`), so it serves run-level *numeric
+distributions* but cannot see child-span categoricals.
+
+1. Reliability (**child-span data → per-run trace reads, not the gateway**): most-used tools
+   (counts + pass/fail from `ag.tool.name` / `ag.meta.tool.call.result`, on tool spans) and
+   failures grouped by cause (`ag.exception.type`). Read from bounded `LIMIT N` recent-run
+   traces; a backend roll-up onto the root (Slice 6) would let the gateway serve these later.
+2. Resource usage:
+   - **Run-level numeric distributions via the gateway** (`/analytics/query` specs):
+     token totals and cost per run — mean/percentiles/histogram/trend — **once agent
+     cost/token attribution is fixed** (research.md §6; cost is dropped at ingest and
+     derived only on LLM-type spans, tokens ride a best-effort bridge). Until then this view
+     degrades to the reported token count and hides cost, never showing a false zero.
+   - **Cache savings** and **per-token-type breakdown / model & provider per run** are
+     child-span or reported-usage data → read per-run from the trace (same path as context
+     usage's `runModel`), not the gateway.
 3. Context usage: reuse the shipped primitive (PR #5402 + #5434). Denominator per run =
    `contextWindowForModel(capabilities, agentHarness, runModel)` — already exported from
    `@agenta/entities/workflow`, sourced from the model catalog on the harness catalog (no map
@@ -69,10 +92,12 @@ Each slice leaves the tree working and testable.
    turn's total tokens vs. that window; degrade to a raw token count when the window is
    `null`. Match the composer's ambient-meter styling (bar + "N% used", amber `>= 75%`,
    red `>= 90%`).
-- **Exit:** a user can see which tools an agent leans on and how reliable they are, how full
-  the context window gets per run (occupancy, resolved from the catalog via
-  `contextWindowForModel`), and where token/cost is going — with unknown-window runs showing
-  a token count rather than a broken percentage.
+- **Exit:** a user can see which tools an agent leans on and how reliable they are (from
+  per-run traces), how full the context window gets per run (occupancy, resolved from the
+  catalog via `contextWindowForModel`), and where tokens are going — with unknown-window runs
+  showing a token count rather than a broken percentage. **Cost is shown only where
+  attributed** (LLM-app runs today; agent runs after the Slice 6 ingest fix), never a false
+  zero.
 
 ## Slice 5 — Empty state + onboarding
 
@@ -85,17 +110,30 @@ Each slice leaves the tree working and testable.
 - **Exit:** a brand-new agent sees onboarding with a working first action and steps that
   tick off as data appears; a first failed run shows the failure, not "no data".
 
-## Slice 6 (Phase 2, optional) — Materialized aggregates
+## Slice 6 (Phase 2) — Backend attribution + materialized aggregates
 
-Only if Phase 1 render latency proves the per-request aggregation too costly at scale.
-1. Index mount file metadata in Postgres at write time (avoid object-store LIST for chips).
-2. Materialize run aggregates (success rate, cost, tool pass/fail) at ingest.
-3. Serve the band + reliability panels from the materialized store; tolerate labelled
-   staleness.
-- **Exit:** Overview first paint no longer depends on live fan-out; numbers are within the
-  stated staleness budget.
+Two independent backend items. The first is a **correctness dependency** (agent cost/token
+data), not just a performance backstop; the rest are performance/scale, done only if Phase 1
+render latency proves the per-request aggregation too costly.
+
+1. **Agent cost/token attribution** (unblocks the Cost/Token views, research.md §6). Pick
+   one: (a) map `gen_ai.usage.cost` in semconv and treat agent/workflow root spans as
+   cost-bearing (or bridge the harness's separate OTLP batch so its LLM spans roll onto the
+   root); or (b) accept the FE reading the agent's reported per-run usage from the trace and
+   aggregating client-side. Either makes the root cost/token paths the gateway reads
+   non-empty for agents.
+2. **Roll child-span categoricals onto the root** (or expose a child-focused analytics
+   aggregation) so most-used-tools / failures-by-cause / model-mix can move from per-run
+   trace reads to the gateway — removes the reliability panels' fan-out.
+3. Index mount file metadata in Postgres at write time (avoid object-store LIST for chips).
+4. Materialize run aggregates (success rate, cost, tool pass/fail) at ingest; serve the band
+   + reliability panels from the materialized store, tolerating labelled staleness.
+- **Exit:** agent Cost/Token views show real numbers; reliability/first-paint no longer
+  depend on live per-run fan-out; numbers are within the stated staleness budget.
 
 ## Flag rollout
 
-Ship Slices 0–5 behind the flag, dogfood, then default on for the agent kind. Slice 6 is a
-performance backstop, not a prerequisite.
+Ship Slices 0–5 behind the flag, dogfood, then default on for the agent kind. Slice 6 is
+mostly a performance backstop, **except item 1 (agent cost/token attribution)**, which gates
+the Cost/Token views specifically — those degrade gracefully until it lands, so it does not
+block the flag, only those two views' data.

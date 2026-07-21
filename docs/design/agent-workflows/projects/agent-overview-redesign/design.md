@@ -45,17 +45,29 @@ Per recent run, one row that adapts to what the run produced:
 - **Run meta** — trigger source · duration · cost · tools-used count — *tracing +
   triggers*.
 
-### Metrics (keep the charts)
-- **Runs** (was "Requests"), **Avg latency**, **Cost**, **Tokens** over time —
-  *`ObservabilityOverview` aggregates, relabelled*.
+### Metrics (charts) — from the analytics gateway
+- **Runs** (was "Requests"), **Latency**, **Cost**, **Tokens** over time — *`POST
+  /analytics/query` with explicit `specs` (research.md §5–6), not the 5% the current charts
+  use.* The endpoint aggregates **root spans only** (one row per run), which is exactly
+  right for run-level charts.
+- **Latency is the free upgrade**: request percentiles + histogram, not just the avg the
+  current chart shows (one 38 s run skews the mean). Show p50/p90/p95, keep avg as a
+  secondary stat.
+- **Cost & Tokens are blocked on attribution** (research.md §6): agent runs don't populate
+  `costs.cumulative.total` (cost is derived only on LLM-type child spans; `gen_ai.usage.cost`
+  is unmapped) and only populate `tokens.cumulative.total` via a best-effort bridge. This is
+  why the live dashboard shows `-`. Depends on the backend fix (plan.md Slice 4 note +
+  Slice 6); until then, degrade to the run-level token count the agent reports, not a zero.
 
 ### Reliability (drill-down, not forced)
-- **Most-used tools** — which tools it calls, counts, pass/fail flag — *Overview:
-  `ag.tool.name` / `ag.meta.tool.call.result` from the trace store. Live composer
-  equivalent (same style as the context-budget indicator, no new fetch): tool message-parts
-  (`part.type` `tool-*`/`dynamic-tool`, name via `partToolName`, pass/fail via `part.state`);
-  see `research.md` §3b.*
-- **Where it's failing** — failures grouped by cause — *`ag.exception.type`*.
+- **Most-used tools** — which tools it calls, counts, pass/fail flag — *`ag.tool.name` /
+  `ag.meta.tool.call.result`, on **tool child spans** → **not** servable by the root-only
+  `/analytics/query`; read per-run via bounded trace reads, or add a backend roll-up
+  (research.md §3b/§6). Live composer equivalent (same style as the context-budget indicator,
+  no new fetch): tool message-parts (`part.type` `tool-*`/`dynamic-tool`, name via
+  `partToolName`, pass/fail via `part.state`).*
+- **Where it's failing** — failures grouped by cause — *`ag.exception.type`; child-span data,
+  same root-only caveat as tools.*
 
 ### Resource usage & cost (the "what is it consuming" group)
 - **Context usage** — how full the model's context window gets per run (occupancy: run
@@ -71,13 +83,20 @@ Per recent run, one row that adapts to what the run produced:
   meter: fill bar + "Context N% used", amber `>= 75%`, red `>= 90%`. See `research.md` §1 for
   the full reconciliation.
 - **Token consumption** — breakdown of prompt / completion / reasoning / cached tokens per
-  run and over time — *`ag.metrics.unit.tokens.{prompt,completion,reasoning,cache_read,cache_creation,cached}`*.
+  run and over time — *`ag.metrics.unit.tokens.{prompt,completion,reasoning,cache_read,cache_creation,cached}`.
+  Run-level totals + distributions (mean/percentiles/histogram) come from the analytics
+  gateway (research.md §6) once agent tokens are attributed to the root; per-token-type
+  breakdown that isn't on the root reads per-run from the trace.*
 - **Cache savings** — how much prompt caching is saving (cache-read share, cost avoided) —
   *`ag.metrics.unit.tokens.cache_read` / `gen_ai.usage.cache_read.input_tokens`*.
 - **Cost** — cost per run, avg per run, and trend; optionally cost per tool —
-  *`gen_ai.usage.cost`*.
+  *`gen_ai.usage.cost`. **Attribution gap (research.md §6):** this attribute is dropped at
+  ingest (no semconv mapping) and cost is derived only on LLM-type child spans, so agent
+  runs currently have no root cost — the live dashboard shows `-`. Needs the backend fix
+  before this view has data.*
 - **Model & provider** — which model/provider each run used (agents can switch models) —
-  *`ag.meta.model_name` / `ag.meta.provider`*.
+  *`ag.meta.model_name` / `ag.meta.provider`; on LLM child spans, so **not** the root-only
+  analytics endpoint — read per-run from the trace (same as context usage's `runModel`).*
 
 ## Who reads this (persona → what they use)
 

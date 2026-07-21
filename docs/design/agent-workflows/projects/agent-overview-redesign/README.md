@@ -16,15 +16,21 @@ the visual design.
 - Replace prompt-era Overview views with agent-native ones, gated by workflow kind.
 - Organize around three questions; lead with work (outcomes + produced artifacts), not
   config.
-- Keep the charts; relabel Requests → Runs.
+- Keep the charts, but drive them from the analytics gateway (`POST /analytics/query`) with
+  explicit specs — the current dashboard uses ~5% of the endpoint. Relabel Requests → Runs;
+  upgrade Latency from avg-only to percentiles. The endpoint is root-only (run-level), so
+  child-span breakdowns (tools, per-cause failures) stay on per-run trace reads. See
+  `research.md` §5–6.
 - Surface resource usage as a first-class group — context usage (how full the model's
   window gets), token consumption, cache savings, cost per run — mapped to three personas
-  (owner, builder, budget owner).
+  (owner, builder, budget owner). Agent cost/token totals depend on a backend attribution fix
+  (`research.md` §6); until it lands these views degrade gracefully, never showing a false zero.
 - Reuse the shipped context-budget primitive (PR #5402 + #5434) for context usage —
   occupancy measure; denominator from `contextWindowForModel` (`@agenta/entities/workflow`,
   sourced from the model catalog), not a hardcoded map.
-- Phase 1 composes existing data only (tracing, mounts, session interactions, triggers);
-  no new backend endpoints.
+- Phase 1 composes existing data only (tracing, mounts, session interactions, triggers) and
+  reuses `/analytics/query`; no new backend endpoints (one ingest-side attribution fix is a
+  Phase 2 dependency for the Cost/Token views).
 - Artifacts load lazily per row; file-less runs degrade to message output.
 - Three distinct zero states; new agents get onboarding, not zeroed charts.
 - Name views/data here; leave layout/visuals to design.

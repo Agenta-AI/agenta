@@ -172,9 +172,11 @@ Tool calls are message *parts*:
 
 So which-tools / call-count / pass-fail are all computable from the live session with no new
 backend work — the composer parallel to context budget. **Overview** aggregates across
-historical runs instead, from the trace store (`ag.tool.name` / `ag.meta.tool.call.result`),
-per §1. Same concept, two data paths (live messages vs. trace store) — same split as context
-usage.
+historical runs instead, from the trace store (`ag.tool.name` / `ag.meta.tool.call.result`).
+Note (see §6): `ag.tool.name` lives on **tool child spans**, so this is **not** servable by
+the root-only `/analytics/query` aggregation — Overview reads it via per-run trace reads
+(bounded `LIMIT N`), or it needs a backend roll-up onto the root. Same concept as context
+usage: two data paths (live messages vs. per-run trace reads), not the aggregate endpoint.
 
 ### 4. Triggers and schedules
 
@@ -192,10 +194,107 @@ usage.
 So "trigger source" (schedule / inbound event / manual), "next scheduled run" (from cron),
 and "connection needs reconnect" (from `ConnectionStatus`) are all available.
 
-### 5. Aggregate metrics — existing charts
+### 5. Aggregate metrics — the analytics endpoint (the gateway)
 
-`ObservabilityOverview` already computes run count, latency, cost, tokens over the trace
-store. Reusable as-is; only the labels change (Requests → Runs).
+`ObservabilityOverview` → `AnalyticsDashboard` → `useObservabilityDashboard` →
+`fetchGenerationsDashboardData` → **`POST /analytics/query`** (Fern `querySpansAnalytics`,
+backend `operation_id="query_analytics"`,
+`api/oss/src/apis/fastapi/tracing/router.py:118`). This one endpoint is far more capable
+than the four charts it currently feeds — see §6. The current wiring uses ~5% of it.
+Reusable, but do **not** treat it as "relabel and ship": the charts today throw away most of
+what the endpoint returns, and its default specs don't attribute agent cost/tokens (§6).
+
+### 6. `POST /analytics/query` — full capability, root-only scope, and the cost/token gap
+
+Verified against `api/oss/src/core/tracing/{service,dtos}.py`,
+`api/oss/src/dbs/postgres/tracing/{dao,utils}.py`,
+`web/oss/src/services/tracing/lib/helpers.ts`, and the ingest roll-up in
+`api/oss/src/core/tracing/utils/trees.py`. This section supersedes the earlier "reusable
+as-is, only labels change" framing.
+
+**Request surface.** The endpoint takes a `TracingQuery` (arbitrary `filtering` +
+time-`windowing`/`interval`) and a list of **`MetricSpec`** (`type` + attribute `path`, plus
+histogram opts `bins`/`vmin`/`vmax`/`edge`; `dtos.py:249`). The frontend currently sends
+**no `specs`** (`web/packages/agenta-entities/src/trace/api/api.ts`), so the backend applies
+`DEFAULT_ANALYTICS_SPECS` — only 6 paths (`service.py:90`): duration, errors, cost.total,
+tokens.total, trace-type, span-type. Then `analyticsToGeneration` (`helpers.ts:106`) reads
+only `sum`/`count` off 5 of them → the 4 charts.
+
+**What it computes per time bucket, per requested spec** (`dao.py:426-484`, builders in
+`utils.py`):
+- **Numeric** (`numeric/continuous`, `numeric/discrete`): `count`, `sum`, `mean`, `min`,
+  `max`, `range`, **percentiles** (p25/p50/p75/p90/p95/p99/…) with IQR/CQV/PSC spreads, and
+  **histograms** (bin counts + shares).
+- **Categorical / binary / string** (`categorical/single|multiple`, `binary`, `string`):
+  **value-count frequencies** — each distinct value + its count + uniqueness.
+
+**Root-only scope — the load-bearing constraint.** The analytics base CTE hardcodes
+`WHERE parent_id IS NULL` (`utils.py:1067`); the `focus` field does not lift this. **Every
+metric is aggregated over root/workflow spans only — one row per run.** Consequences:
+- **Servable directly** (one call, better specs): run count, success/failure split, and
+  **latency distributions** (p50/p90/p95/p99 + histogram — a real upgrade over today's
+  avg-only, which one 38 s run skews). Plus **run-level cost & token distributions** *once
+  attribution is fixed*, and any **categorical stamped on the root** (kind, channel, origin,
+  environment, and the run-level final exception if it lands on the root).
+- **NOT servable by this endpoint**: **per-tool** usage/pass-fail (`ag.tool.name` lives on
+  tool child spans), **per-LLM model/provider** mix (`ag.meta.*.model` on LLM child spans),
+  and **failures grouped by the failing child's** `ag.exception.type`. These are child-span
+  data; the root-only aggregation can't see them. They need per-run trace reads (as §1/§3b
+  already describe) or a backend change (roll those categoricals onto the root, or expose a
+  child-focused aggregation). **This corrects §3b's implication that "Most-used tools" is a
+  trace-store aggregate the dashboard path already serves — it is not, via this endpoint.**
+
+**The cost/token attribution gap (why the live dashboard shows Cost/Tokens `-` for agents).**
+The default specs read `costs.cumulative.total` / `tokens.cumulative.total` on the root,
+populated by the ingest roll-up (`calculate_and_propagate_metrics`), which is LLM-app-shaped:
+- **Cost** is *derived*, never read from the agent. `gen_ai.usage.cost` has **no semconv
+  mapping** (`api/oss/src/apis/fastapi/otlp/opentelemetry/semconv.py`) and is dropped at
+  ingest. `calculate_costs` (`trees.py:547`) computes cost only on spans whose type ∈
+  `{embedding, query, completion, chat, rerank}` (`trees.py:538`) using a model-keyed price
+  table. An agent's root is a `workflow`/`agent` span → not cost-bearing → **cost is always
+  empty for agent runs.**
+- **Tokens** ride a best-effort bridge: the SDK stamps `gen_ai.usage.total_tokens` on the
+  `/invoke` workflow span via `record_usage` (`sdks/python/agenta/sdk/agents/tracing.py:213`)
+  → `unit.tokens.total` → `tokens.incremental.total` → rolled to `tokens.cumulative.total`
+  (`cumulate_tokens`). But `record_usage` early-returns when `usage.total` is falsy, and the
+  harness's real LLM spans arrive in a **separate OTLP batch** that cannot roll onto the root
+  — so tokens land only if that bridge fires with a non-zero total.
+
+Implication: the Resource-usage cost/token numbers cannot come from the default dashboard
+path for agents. Either (i) fix attribution at ingest, or (ii) read the agent's reported
+usage per run from the trace and aggregate on the FE. Tracked as a backend dependency in
+`plan.md` (Slice 4 note + Slice 6).
+
+**The ingest roll-up path, traced (the fix is smaller than "make spans cost-bearing").**
+The `unit.* → incremental.* → cumulative.*` pipe already exists and already handles costs:
+`span_data_builders.py:171-179` renames every metric key unconditionally —
+`unit.costs. → costs.incremental.`, `unit.tokens. → tokens.incremental.`,
+`acc.costs. → costs.cumulative.`, `acc.tokens. → tokens.cumulative.`. So the **cost pipe is
+built**; it is only starved at the semconv step. `record_usage` already stamps
+`gen_ai.usage.cost` on the `/invoke` root (`tracing.py:234`), but semconv has no row for it,
+so `unit.costs.total` is never created and the promotion never fires. **Minimal fix: one
+semconv row** — `("gen_ai.usage.cost", "ag.metrics.unit.costs.total")`. Then:
+`gen_ai.usage.cost` → (semconv) `unit.costs.total` → (`span_data_builders:175`)
+`costs.incremental.total` → (`cumulate_costs`, and `calculate_costs` skips the workflow root
+so it isn't clobbered — root ∉ `TYPES_WITH_COSTS`) `costs.cumulative.total` → read by the
+default analytics spec. Cost appears for agents.
+
+Caveats on that one-liner:
+- **Covers cost-reporting harnesses only.** `record_usage` sets cost only when `usage.cost`
+  is present and early-returns when `usage.total` is falsy. A harness that reports
+  tokens-but-no-cost still needs the price-table derivation — the one-liner is necessary,
+  not complete.
+- **Latent double-count.** It is safe *because* the harness's real LLM spans arrive in a
+  separate OTLP batch (absent from the root's tree). A future "bridge the harness batch" fix
+  that puts price-derived child costs in the same tree would make the root count both. The
+  two fixes collide — pick one.
+- **Ingest-time only.** No retroactive effect; cost shows for runs ingested after the change.
+
+**Cost vs. tokens are different failures.** Cost is broken *at the mapping* (definitive, above).
+Tokens have a *complete* pipe already (`gen_ai.usage.total_tokens` → `unit.tokens.total` →
+`tokens.incremental.total` → `tokens.cumulative.total`). So if the dashboard shows tokens as
+`-`, the cause is `record_usage` not firing for that agent (or the harness-batch separation),
+**not** a semconv gap — confirming it needs a live root-span attribute dump (running stack).
 
 ## FE surfaces that already consume this data (reuse, don't rebuild)
 
