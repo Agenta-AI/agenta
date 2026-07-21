@@ -14,13 +14,14 @@ import {useMemo} from "react"
 import type {UIMessage} from "ai"
 import {Tooltip, Typography} from "antd"
 
-import {computeContextBudget, resolveModelContextWindow} from "../assets/contextBudget"
+import {computeContextBudget} from "../assets/contextBudget"
 
 const {Text} = Typography
 
 export interface ContextBudgetIndicatorProps {
     messages: readonly UIMessage[]
-    model: string | null
+    /** Max context window for the selected model, from the harness catalog; `null` when unknown. */
+    maxTokens: number | null
     className?: string
 }
 
@@ -33,11 +34,8 @@ const fmt = (n: number): string => {
 
 const pctLabel = (pct: number | null): string => (pct == null ? "" : ` (${Math.round(pct * 100)}%)`)
 
-const ContextBudgetIndicator = ({messages, model, className}: ContextBudgetIndicatorProps) => {
-    const budget = useMemo(() => {
-        const maxTokens = resolveModelContextWindow(model)
-        return computeContextBudget(messages, maxTokens)
-    }, [messages, model])
+const ContextBudgetIndicator = ({messages, maxTokens, className}: ContextBudgetIndicatorProps) => {
+    const budget = useMemo(() => computeContextBudget(messages, maxTokens), [messages, maxTokens])
 
     if (budget.occupancyTokens == null && budget.runningSumTokens == null) return null
 
