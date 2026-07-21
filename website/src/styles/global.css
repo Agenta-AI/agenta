@@ -87,7 +87,7 @@ nav[data-pill] {
     border-color 0.25s ease;
 }
 .nav-scrolled nav[data-pill] {
-  margin: 10px auto 0 !important;
+  margin: 18px auto 0 !important;
   width: calc(100% - 40px) !important;
   max-width: 1120px !important;
   border-radius: 14px !important;
@@ -98,6 +98,22 @@ nav[data-pill] {
     0 0 0 1px rgba(250, 247, 242, 0.09),
     0 12px 36px rgba(0, 0, 0, 0.55) !important;
   border-color: transparent !important;
+}
+
+/* ── nav brand: wordmark condenses to the leaf symbol on scroll ──
+   The brand shows the full wordmark at rest; when the nav enters the pill the
+   overflow-hidden container clips the mark left-to-right down to the leaf,
+   leaving only the symbol (matches agenta.ai). Reduced-motion users get the end
+   states instantly via the global prefers-reduced-motion rule above. */
+.ag-brand {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  max-width: 140px;
+  transition: max-width 0.28s ease;
+}
+.nav-scrolled .ag-brand {
+  max-width: 27px;
 }
 
 /* ── scrollbars (ported verbatim) ───────────────────────────── */
@@ -155,6 +171,21 @@ html,
    1100px (grid collapse) and 860px (mobile: nav → hamburger, single column).
    QA widths 768 and 390 both fall under 860 → full mobile treatment.
 ============================================================================ */
+/* Footer: the 1440 artboard's 172px side padding + space-between drops the link
+   columns below the brand between ~860px and 1200px, isolating the brand on its
+   own row. Tighten the padding and lay the columns out 2-up through that band so
+   the brand+columns row holds down to the mobile (860px) breakpoint. */
+@media (max-width: 1200px) {
+  .ag-foot-top {
+    padding-left: 56px !important;
+    padding-right: 56px !important;
+  }
+  .ag-foot-cols {
+    display: grid !important;
+    grid-template-columns: repeat(2, auto);
+    gap: 36px 56px !important;
+  }
+}
 @media (max-width: 1100px) {
   .ag-oss {
     grid-template-columns: 1fr !important;
@@ -253,6 +284,10 @@ html,
   }
   .ag-foot-cols {
     gap: 32px !important;
+  }
+  .ag-hero {
+    padding-top: 80px !important;
+    padding-bottom: 88px !important;
   }
   .ag-h1 {
     font-size: 38px !important;
