@@ -198,7 +198,7 @@ Set on the `runner` service.
 | `AGENTA_RUNNER_PORT` | Bind port | `8765` | no | Chart-managed (`8765`) |
 | `AGENTA_RUNNER_CONCURRENCY_LIMIT` | Maximum concurrent runs | `1000` | no | `agentRunner.env.AGENTA_RUNNER_CONCURRENCY_LIMIT` |
 | `AGENTA_RUNNER_LOG_LEVEL` | Log verbosity | `silent` | no | `agentRunner.logLevel` |
-| `AGENTA_RUNNER_REPLICA_ID` | Replica identity for logs | Generated when unset | no | `agentRunner.env.AGENTA_RUNNER_REPLICA_ID` |
+| `AGENTA_RUNNER_REPLICA_ID` | Runner identity for local-sandbox session ownership | Random per process when unset | no | `agentRunner.env.AGENTA_RUNNER_REPLICA_ID` |
 
 Every variable on this page treats an empty value as unset, so leaving a line blank selects the
 default rather than an empty string.
@@ -206,6 +206,14 @@ default rather than an empty string.
 The code default host is `127.0.0.1`. The bundled Compose files set `AGENTA_RUNNER_HOST=0.0.0.0`
 so the Services container can reach the runner across the Compose network. `AGENTA_RUNNER_PORT` and
 `AGENTA_RUNNER_CONCURRENCY_LIMIT` must be positive integers.
+
+`AGENTA_RUNNER_REPLICA_ID` is not a log label. A local-sandbox session is owned by the runner that
+created it, and the runner refuses to resume one on a different runner. When this value is unset the
+runner generates a fresh id on each start, so a restart orphans its local sessions until the previous
+owner record expires (the owner TTL, 120 seconds by default). The bundled Compose files set a stable
+value so a restart keeps ownership. The local sandbox is single-runner only: running more than one
+runner with the local provider is not supported, because there is no session-to-runner routing. To
+run multiple runners, use the Daytona provider, whose sessions any runner can resume.
 
 ### Routing and authentication
 

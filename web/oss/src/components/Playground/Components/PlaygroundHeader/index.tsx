@@ -14,15 +14,9 @@ import {
 } from "@agenta/entities/workflow"
 import type {EvaluatorCatalogTemplate, Workflow, WorkflowTypeColor} from "@agenta/entities/workflow"
 import {EntityPicker} from "@agenta/entity-ui"
-import {agentTemplateLayoutAtom, AGENT_TEMPLATE_LAYOUTS} from "@agenta/entity-ui/drill-in"
 import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {useEnrichedEvaluatorOnlyAdapter as useEvaluatorOnlyAdapter} from "@agenta/entity-ui/selection"
-import {
-    playgroundController,
-    isAgentModeAtomFamily,
-    agentChannelModeAtom,
-    type AgentChannelMode,
-} from "@agenta/playground"
+import {playgroundController, isAgentModeAtomFamily} from "@agenta/playground"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
 import {textColors} from "@agenta/ui"
 import {VersionBadge} from "@agenta/ui/components/presentational"
@@ -90,12 +84,6 @@ type PlaygroundHeaderProps = BaseContainerProps
 
 /** Entity types that represent evaluator downstream nodes */
 const EVALUATOR_ENTITY_TYPES = ["workflow"]
-
-// Response channel the agent playground speaks to the backend (transport concern, not config).
-const CHANNEL_OPTIONS: {value: AgentChannelMode; label: string}[] = [
-    {value: "stream", label: "Stream"},
-    {value: "batch", label: "Batch"},
-]
 
 /** Resolves a user UUID to a display name via workspace members */
 const MemberAuthor: React.FC<{userId: string}> = ({userId}) => {
@@ -286,12 +274,6 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     const onboarding = useOptionalOnboardingContext()
     const chromeHidden = !!onboarding && !onboarding.chromeRevealed
 
-    // Agent playground settings (page-level): config-panel layout + stream/batch response channel.
-    // These were previously buried in a config item's kebab; they're global, so they live here.
-    const layout = useAtomValue(agentTemplateLayoutAtom)
-    const setLayout = useSetAtom(agentTemplateLayoutAtom)
-    const channelMode = useAtomValue(agentChannelModeAtom)
-    const setChannelMode = useSetAtom(agentChannelModeAtom)
     // SPIKE(virtuoso): live-tunable virtualization knobs (enable + overscan + row estimate).
     // The whole section is hidden unless the NEXT_PUBLIC_AGENT_CHAT_VIRTUALIZATION env flag is set.
     const virtualizationAvailable = isAgentChatVirtualizationAvailable()
@@ -304,42 +286,8 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
 
     const settingsMenuItems: MenuProps["items"] = useMemo(
         () => [
-            {
-                key: "view",
-                type: "group" as const,
-                label: "View",
-                children: AGENT_TEMPLATE_LAYOUTS.map((option) => ({
-                    key: `view-${option.value}`,
-                    label: option.label,
-                    icon:
-                        layout === option.value ? (
-                            <Check size={14} />
-                        ) : (
-                            <span className="inline-block w-[14px]" />
-                        ),
-                    onClick: () => setLayout(option.value),
-                })),
-            },
-            {type: "divider" as const},
-            {
-                key: "channel",
-                type: "group" as const,
-                label: "Response",
-                children: CHANNEL_OPTIONS.map((option) => ({
-                    key: `channel-${option.value}`,
-                    label: option.label,
-                    icon:
-                        channelMode === option.value ? (
-                            <Check size={14} />
-                        ) : (
-                            <span className="inline-block w-[14px]" />
-                        ),
-                    onClick: () => setChannelMode(option.value),
-                })),
-            },
             ...(virtualizationAvailable
                 ? [
-                      {type: "divider" as const},
                       {
                           key: "virtualization",
                           type: "group" as const,
@@ -396,10 +344,6 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         ],
         [
             virtualizationAvailable,
-            layout,
-            setLayout,
-            channelMode,
-            setChannelMode,
             virtualize,
             setVirtualize,
             overscan,
@@ -871,18 +815,20 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                     {label: "Chat", value: "chat"},
                                 ]}
                             />
-                            <Dropdown
-                                trigger={["click"]}
-                                placement="bottomRight"
-                                styles={{root: {width: 180}}}
-                                menu={{items: settingsMenuItems}}
-                            >
-                                <Button
-                                    type="text"
-                                    icon={<GearSix size={16} />}
-                                    aria-label="Playground settings"
-                                />
-                            </Dropdown>
+                            {(settingsMenuItems?.length ?? 0) > 0 && (
+                                <Dropdown
+                                    trigger={["click"]}
+                                    placement="bottomRight"
+                                    styles={{root: {width: 180}}}
+                                    menu={{items: settingsMenuItems}}
+                                >
+                                    <Button
+                                        type="text"
+                                        icon={<GearSix size={16} />}
+                                        aria-label="Playground settings"
+                                    />
+                                </Dropdown>
+                            )}
                         </>
                     )}
                 </div>

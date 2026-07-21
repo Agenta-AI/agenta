@@ -16,7 +16,7 @@ import {
     sessionsListAtomFamily,
 } from "@/oss/components/AgentChatSlice/state/sessions"
 
-import {useSessionDrive, type SessionDriveData} from "./useSessionDrive"
+import {useSessionDriveSummary, type SessionDriveData} from "./useSessionDrive"
 
 export interface ConfigFilesDrawerRequest {
     open: boolean
@@ -49,6 +49,9 @@ export function useConfigDrive(revisionId?: string | null): {
         : (sessions[0]?.id ?? "")
     const sessionId = resolvedId && !isSessionFresh(resolvedId) ? resolvedId : ""
 
-    const drive = useSessionDrive(sessionId, artifactId ?? undefined)
+    // Summary only: the config header/body show a count + the latest handful. The browse drawer
+    // gets its own full drive, gated on open (see StorageSection), so the whole tree is never
+    // fetched just to render this always-mounted section.
+    const drive = useSessionDriveSummary(sessionId, artifactId ?? undefined)
     return {drive, sessionId, artifactId: artifactId ?? undefined}
 }

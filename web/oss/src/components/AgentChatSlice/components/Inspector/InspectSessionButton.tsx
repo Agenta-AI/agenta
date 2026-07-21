@@ -1,25 +1,27 @@
 /**
- * "Inspect session" trigger (build-spec §6) — opens the docked Inspector at Session scope. The
+ * "Inspect session" trigger (build-spec §6) — toggles the docked Inspector at Session scope. The
  * first-class session entry point (the old panel only reached session view via the in-panel
- * toggle). Placed in the thread's session controls.
+ * toggle). Placed in the thread's session controls; clicking again collapses the panel.
  */
 import {MagnifyingGlass} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
-import {openInspectorSessionAtom} from "./state"
+import {inspectorTargetAtom, toggleInspectorSessionAtom} from "./state"
 
 export default function InspectSessionButton({sessionId}: {sessionId: string | null}) {
-    const openSession = useSetAtom(openInspectorSessionAtom)
+    const toggleSession = useSetAtom(toggleInspectorSessionAtom)
+    const open = useAtomValue(inspectorTargetAtom)?.sessionId === sessionId && !!sessionId
     return (
-        <Tooltip title="Inspect session">
+        <Tooltip title={open ? "Hide inspector" : "Inspect session"}>
             <Button
-                type="text"
+                type={open ? "primary" : "text"}
                 size="small"
                 icon={<MagnifyingGlass size={14} />}
                 disabled={!sessionId}
-                onClick={() => sessionId && openSession(sessionId)}
+                onClick={() => sessionId && toggleSession(sessionId)}
                 aria-label="Inspect session"
+                aria-pressed={open}
             />
         </Tooltip>
     )

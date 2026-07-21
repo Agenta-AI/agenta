@@ -482,6 +482,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.90.21
         version: 5.100.9(react@19.2.6)
+      '@tanstack/react-virtual':
+        specifier: ^3.13.2
+        version: 3.13.24(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@tremor/react':
         specifier: ^3.18.7
         version: 3.18.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
