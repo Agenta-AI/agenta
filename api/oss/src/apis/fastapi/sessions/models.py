@@ -31,6 +31,8 @@ class SessionQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
     # Include ended (killed) sessions so the list keeps resumable history, not just live ones.
     include_ended: bool = False
+    # Include archived sessions — off by default (archive hides); on for the archived view.
+    include_archived: bool = False
 
 
 class SessionsResponse(BaseModel):

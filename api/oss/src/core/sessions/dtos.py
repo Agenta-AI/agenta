@@ -13,3 +13,5 @@ class SessionQuery(BaseModel):
     # Include ended (killed) sessions so the durable list keeps resumable history — absence then
     # means genuinely hard-deleted, which the frontend uses to prune a locally-cached session.
     include_ended: bool = False
+    # Include archived sessions — off by default (archive hides); on for the archived view.
+    include_archived: bool = False

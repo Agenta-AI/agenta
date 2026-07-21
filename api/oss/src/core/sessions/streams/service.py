@@ -498,17 +498,15 @@ class SessionStreamsService:
         self,
         *,
         project_id: UUID,
+        user_id: Optional[UUID],
         session_id: str,
     ) -> Optional[SessionStream]:
-        """Soft-archive the stream row (S7/F2 archive fan-out, WP5). Returns the
-        archived row (`deleted_at` set) as the caller's confirmation read."""
+        """Soft-archive the stream row: set `archived_at` (hidden but restorable), distinct from
+        kill's `deleted_at` so a killed session stays listed. Returns the archived confirmation."""
         _validate_session_id(session_id)
-        await self._dao.delete_by_session_id(
+        return await self._dao.set_archived_by_session_id(
             project_id=project_id,
-            session_id=session_id,
-        )
-        return await self._dao.get_by_session_id_including_archived(
-            project_id=project_id,
+            user_id=user_id,
             session_id=session_id,
         )
 
@@ -519,9 +517,9 @@ class SessionStreamsService:
         user_id: Optional[UUID],
         session_id: str,
     ) -> Optional[SessionStream]:
-        """Reverse of `archive`: clears `deleted_at` on the stream row."""
+        """Reverse of `archive`: clears `archived_at`, restoring the session to the list."""
         _validate_session_id(session_id)
-        return await self._dao.unarchive_by_session_id(
+        return await self._dao.clear_archived_by_session_id(
             project_id=project_id,
             user_id=user_id,
             session_id=session_id,
