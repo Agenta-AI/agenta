@@ -270,15 +270,8 @@ export async function querySessions({
 
     const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
     const data = await callFern("[querySessions]", () =>
-        // `include_ended`/`include_archived` aren't in the generated request type yet (backend
-        // fields added after the last client regen); they're sent at runtime and the backend reads
-        // them.
         client.querySessions(
-            {
-                references,
-                include_ended: includeEnded,
-                include_archived: includeArchived,
-            } as Parameters<typeof client.querySessions>[0],
+            {references, include_ended: includeEnded, include_archived: includeArchived},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )

@@ -13,6 +13,7 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface SessionTurnAppendRequest {
     session_id: string;
+    turn_id?: string | null;
     stream_id: string;
     turn_index: number;
     harness_kind: AgentaApi.HarnessKind;

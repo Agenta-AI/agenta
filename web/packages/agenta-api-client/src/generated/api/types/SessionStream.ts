@@ -18,4 +18,5 @@ export interface SessionStream {
     tags?: (Record<string, unknown> | null) | undefined;
     meta?: (Record<string, unknown> | null) | undefined;
     turn_id?: (string | null) | undefined;
+    archived_at?: (string | null) | undefined;
 }

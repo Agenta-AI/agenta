@@ -22,6 +22,7 @@ export type { SessionRecordQueryRequest } from "./SessionRecordQueryRequest.js";
 export type { SessionStreamCommandRequest } from "./SessionStreamCommandRequest.js";
 export type { SessionStreamQueryRequest } from "./SessionStreamQueryRequest.js";
 export type { SessionTurnAppendRequest } from "./SessionTurnAppendRequest.js";
+export type { SessionTurnCompleteRequest } from "./SessionTurnCompleteRequest.js";
 export type { SessionTurnQueryRequest } from "./SessionTurnQueryRequest.js";
 export type { SetSessionStreamHeaderRequest } from "./SetSessionStreamHeaderRequest.js";
 export type { SignSessionMountCredentialsRequest } from "./SignSessionMountCredentialsRequest.js";
