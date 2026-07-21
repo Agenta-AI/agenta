@@ -589,18 +589,26 @@ class SessionStreamsService:
                 stream=SessionStreamEdit(flags=flags, turn_id=turn_id),
             )
             if updated is None:
-                # No live row matched: a killed/archived tombstone occupies the slot. Resume must
+                # No live row matched: a killed tombstone occupies the slot. Resume must
                 # re-nest that same row (keeps its id + header) — clear deleted_at, then re-flag it.
                 await self._dao.unarchive_by_session_id(
                     project_id=project_id,
                     user_id=user_id,
                     session_id=session_id,
                 )
-                await self._dao.update(
+                updated = await self._dao.update(
                     project_id=project_id,
                     user_id=user_id,
                     session_id=session_id,
                     stream=SessionStreamEdit(flags=flags, turn_id=turn_id),
+                )
+            # New activity un-hides an archived session: a live row must never stay archived, or it
+            # would be running yet absent from the default list. Clears only when actually archived.
+            if updated is not None and updated.archived_at is not None:
+                await self._dao.clear_archived_by_session_id(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
                 )
         return turn_id
 

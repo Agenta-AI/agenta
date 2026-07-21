@@ -9,7 +9,7 @@ so the session vanishes from the list and `fetch`/`heartbeat` return `None`. `_s
 detect the no-match update and revive that same row (clear `deleted_at`) so resume re-nests it.
 """
 
-from typing import Optional
+from datetime import datetime, timezone
 from unittest.mock import patch
 from uuid import UUID, uuid4
 
@@ -94,7 +94,75 @@ async def test_resume_after_kill_revives_the_tombstone_row(lock_engine):
 
     assert result.mode == CommandMode.send
     assert result.turn_id is not None
-    assert dao.creates == 1, "create attempted and lost the unique slot to the tombstone"
+    assert dao.creates == 1, (
+        "create attempted and lost the unique slot to the tombstone"
+    )
     assert dao.unarchive_calls == 1, "the dead tombstone must be unarchived on resume"
     assert dao.updates == 2, "no-op update, then a second update after the revive"
     assert dao.row.name == "My chat", "resume keeps the session's header/title"
+
+
+class _ArchivedDAO:
+    """An archived (not killed) session: the row is live for `get`/`update` (deleted_at IS NULL)
+    but carries `archived_at`, so it's hidden from the default list. New activity must clear it."""
+
+    def __init__(self):
+        self.updates = 0
+        self.unarchive_calls = 0
+        self.clear_archived_calls = 0
+        self.row = SessionStream(
+            id=uuid4(),
+            project_id=_PROJECT,
+            session_id=_SESSION,
+            name="Archived chat",
+            archived_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+
+    async def get_by_session_id(self, *, project_id: UUID, session_id: str):
+        return self.row
+
+    async def create(
+        self, *, project_id, user_id, stream
+    ):  # pragma: no cover - row exists
+        raise SessionStreamAlreadyExists(session_id=stream.session_id)
+
+    async def update(self, *, project_id, user_id, session_id, stream):
+        self.updates += 1
+        return self.row
+
+    async def unarchive_by_session_id(self, *, project_id, user_id, session_id):
+        self.unarchive_calls += 1
+        return self.row
+
+    async def clear_archived_by_session_id(self, *, project_id, user_id, session_id):
+        self.clear_archived_calls += 1
+        self.row = self.row.model_copy(update={"archived_at": None})
+        return self.row
+
+    async def delete_by_session_id(self, *, project_id, session_id):
+        return True
+
+
+@pytest.mark.asyncio
+async def test_new_activity_on_archived_session_clears_archived_at(lock_engine):
+    dao = _ArchivedDAO()
+    svc = SessionStreamsService(streams_dao=dao, lock_engine=lock_engine)
+
+    result = await svc.command(
+        project_id=_PROJECT,
+        user_id=_USER,
+        request=SessionStreamCommandRequest(
+            session_id=_SESSION,
+            data=WorkflowServiceRequestData(inputs={"messages": ["back to it"]}),
+            force=False,
+        ),
+    )
+
+    assert result.mode == CommandMode.send
+    # The live row matched, so no tombstone revive — just the flag update, then unhide.
+    assert dao.updates == 1, "live row matched; no revive needed"
+    assert dao.unarchive_calls == 0, (
+        "not a killed tombstone, so deleted_at is never touched"
+    )
+    assert dao.clear_archived_calls == 1, "new activity un-hides an archived session"
+    assert dao.row.archived_at is None, "a live session must not stay archived"
