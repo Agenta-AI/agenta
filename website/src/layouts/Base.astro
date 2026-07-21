@@ -1,5 +1,6 @@
 ---
 import "../styles/global.css";
+import Analytics from "../components/Analytics.astro";
 
 interface Props {
   title?: string;
@@ -53,6 +54,7 @@ const {
       type="font/woff2"
       crossorigin
     />
+    <Analytics />
   </head>
   <body>
     <slot />

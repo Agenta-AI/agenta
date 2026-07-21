@@ -1,0 +1,34 @@
+---
+// PostHog analytics — mirrors the live agenta.ai reverse-proxy setup
+// (api_host = alef.agenta.ai). posthog-js is bundled from npm (no CDN snippet)
+// so the page stays self-contained. Included from Base.astro, so it runs on
+// every page. Production only (import.meta.env.PROD gate — dev never loads it),
+// initialized once, honors Do Not Track. Pure MPA, so PostHog captures a
+// $pageview on each full page load. The project key is public by design.
+---
+
+<script>
+  const dnt =
+    navigator.doNotTrack === "1" ||
+    // @ts-expect-error legacy vendor-prefixed flags
+    window.doNotTrack === "1" ||
+    // @ts-expect-error legacy vendor-prefixed flags
+    navigator.msDoNotTrack === "1";
+
+  // @ts-expect-error one-time guard on window
+  if (import.meta.env.PROD && !dnt && !window.__agPosthogInit) {
+    // @ts-expect-error one-time guard on window
+    window.__agPosthogInit = true;
+    import("posthog-js").then(({ default: posthog }) => {
+      posthog.init("phc_cFT4a4081mXuKxYIrhIt6cmDwSjAO8zQlw9CFE05oSI", {
+        api_host: "https://alef.agenta.ai",
+        ui_host: "https://us.posthog.com",
+        person_profiles: "identified_only",
+        capture_pageview: true,
+        capture_pageleave: true,
+        autocapture: true,
+        respect_dnt: true,
+      });
+    });
+  }
+</script>
