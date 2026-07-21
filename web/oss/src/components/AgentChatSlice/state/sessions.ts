@@ -1,4 +1,9 @@
-import {deleteSessionRemote, setSessionHeader} from "@agenta/entities/session"
+import {
+    archiveSessionRemote,
+    deleteSessionRemote,
+    setSessionHeader,
+    unarchiveSessionRemote,
+} from "@agenta/entities/session"
 import {generateId} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
 import {atom, type Getter, type Setter} from "jotai"
@@ -45,6 +50,9 @@ export interface AgentChatSession {
     /** The durable stream row is soft-deleted (killed/ended) — resumable, shown muted in history.
      * Purely a display hint from the server; a live local session clears it. */
     ended?: boolean
+    /** Hidden-but-recoverable (server `archived_at`). Filtered out of the main history/tabs and
+     * shown only in the archived view; unarchive clears it. Distinct from `ended` (kill). */
+    archived?: boolean
 }
 
 export const GLOBAL_APP_KEY = "__global__"
@@ -137,22 +145,31 @@ export const isSessionHusk = (
     messages: Record<string, UIMessage[]>,
 ): boolean => !session.serverKnown && !session.title?.trim() && !messages[session.id]?.length
 
-/** All sessions for a scope (history), newest first. Backs the history picker. */
+/** Active (non-archived) sessions for a scope, newest first. Backs the main history picker. */
 export const sessionHistoryAtomFamily = atomFamily((key: string) =>
     atom((get) => {
-        const list = get(sessionsByAppAtom)[key] ?? []
+        const list = (get(sessionsByAppAtom)[key] ?? []).filter((s) => !s.archived)
         // Newest first; pre-upgrade sessions (no createdAt) sort last, preserving their order.
         return [...list].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
     }),
 )
 
-/** Sessions shown as tabs for a scope, in tab order. */
+/** Archived sessions for a scope, newest first. Backs the archived view. */
+export const archivedSessionHistoryAtomFamily = atomFamily((key: string) =>
+    atom((get) => {
+        const list = (get(sessionsByAppAtom)[key] ?? []).filter((s) => s.archived)
+        return [...list].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+    }),
+)
+
+/** Sessions shown as tabs for a scope, in tab order. Archived sessions are hidden even if a stale
+ * open-tab id lingers (e.g. archived on another device — the reconciler flips the flag). */
 export const sessionsListAtomFamily = atomFamily((key: string) =>
     atom((get) => {
         const byId = new Map((get(sessionsByAppAtom)[key] ?? []).map((s) => [s.id, s] as const))
         return currentOpenIds(get, key)
             .map((id) => byId.get(id))
-            .filter((s): s is AgentChatSession => Boolean(s))
+            .filter((s): s is AgentChatSession => Boolean(s) && !s!.archived)
     }),
 )
 
@@ -306,12 +323,59 @@ export const deleteSessionAtomFamily = atomFamily((key: string) =>
     }),
 )
 
+/** Archive a session: flag it hidden (optimistic), close its tab, re-point the active tab if it was
+ * the one archived, and propagate to the server so it archives everywhere. Recoverable via unarchive
+ * — history + messages are kept. No-op for an unknown id. */
+export const archiveSessionAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, id: string) => {
+        const all = get(sessionsByAppAtom)
+        const target = (all[key] ?? []).find((s) => s.id === id)
+        if (!target) return
+        set(sessionsByAppAtom, {
+            ...all,
+            [key]: (all[key] ?? []).map((s) => (s.id === id ? {...s, archived: true} : s)),
+        })
+
+        const open = currentOpenIds(get, key)
+        if (open.includes(id)) {
+            set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: open.filter((x) => x !== id)})
+        }
+        const active = get(activeByAppAtom)
+        if (active[key] === id) {
+            set(activeByAppAtom, {...active, [key]: open.filter((x) => x !== id)[0] ?? ""})
+        }
+
+        // Server-known sessions archive remotely; a purely-local session just carries the local flag.
+        const projectId = get(projectIdAtom)
+        if (projectId && target.serverKnown) void archiveSessionRemote({sessionId: id, projectId})
+    }),
+)
+
+/** Unarchive a session: clear the hidden flag (optimistic) so it returns to the main history, and
+ * propagate to the server. The tab stays closed — the user reopens it from history. No-op for an
+ * unknown id. */
+export const unarchiveSessionAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, id: string) => {
+        const all = get(sessionsByAppAtom)
+        const target = (all[key] ?? []).find((s) => s.id === id)
+        if (!target) return
+        set(sessionsByAppAtom, {
+            ...all,
+            [key]: (all[key] ?? []).map((s) => (s.id === id ? {...s, archived: false} : s)),
+        })
+
+        const projectId = get(projectIdAtom)
+        if (projectId && target.serverKnown) void unarchiveSessionRemote({sessionId: id, projectId})
+    }),
+)
+
 /** One session as the server list reports it (mapped from a `SessionStream` by the caller). */
 export interface ServerSessionSummary {
     id: string
     title?: string
     createdAt?: number
     ended?: boolean
+    archived?: boolean
 }
 
 /**
@@ -342,6 +406,7 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
                     title: s.title?.trim() ? s.title : remote.title,
                     createdAt: s.createdAt ?? remote.createdAt,
                     ended: remote.ended,
+                    archived: remote.archived,
                 })
             } else if (s.serverKnown) {
                 dropped.push(s.id)
@@ -357,6 +422,7 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
                 createdAt: s.createdAt,
                 serverKnown: true,
                 ended: s.ended,
+                archived: s.archived,
             })
         }
 
@@ -370,7 +436,8 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
                     e.title !== m.title ||
                     e.createdAt !== m.createdAt ||
                     e.serverKnown !== m.serverKnown ||
-                    e.ended !== m.ended
+                    e.ended !== m.ended ||
+                    e.archived !== m.archived
                 )
             })
         if (!changed) return

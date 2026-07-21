@@ -2,9 +2,17 @@ import {useState} from "react"
 
 import {killSession} from "@agenta/entities/session"
 import {message} from "@agenta/ui/app-message"
-import {ClockCounterClockwise, Power, Trash} from "@phosphor-icons/react"
+import {
+    Archive,
+    ArrowCounterClockwise,
+    CaretRight,
+    ClockCounterClockwise,
+    Power,
+    Trash,
+} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {Button, Empty, Popconfirm, Popover, Tooltip, Typography} from "antd"
+import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -13,12 +21,15 @@ import {sessionLivenessAtomFamily} from "../state/liveness"
 import {useChatScopeKey} from "../state/scope"
 import {
     type AgentChatSession,
+    archiveSessionAtomFamily,
+    archivedSessionHistoryAtomFamily,
     deleteSessionAtomFamily,
     firstUserText,
     openSessionAtomFamily,
     sessionHistoryAtomFamily,
     sessionMessagesAtom,
     timeAgo,
+    unarchiveSessionAtomFamily,
 } from "../state/sessions"
 
 import {SessionStatusDot} from "./SessionTagBar"
@@ -35,11 +46,17 @@ const SessionHistoryRow = ({
     label,
     onOpen,
     onDelete,
+    onArchive,
+    onUnarchive,
+    archived = false,
 }: {
     session: AgentChatSession
     label: string
     onOpen: () => void
     onDelete: () => void
+    onArchive: () => void
+    onUnarchive: () => void
+    archived?: boolean
 }) => {
     const projectId = useAtomValue(projectIdAtom)
     const queryClient = useQueryClient()
@@ -81,6 +98,11 @@ const SessionHistoryRow = ({
                     {label}
                 </Text>
                 <Text type="secondary" className="flex items-center gap-1.5 !text-[11px]">
+                    {archived && (
+                        <span className="rounded bg-colorFillTertiary px-1 text-[10px] leading-4">
+                            Archived
+                        </span>
+                    )}
                     {session.ended && (
                         <span className="rounded bg-colorFillTertiary px-1 text-[10px] leading-4">
                             Ended
@@ -89,7 +111,7 @@ const SessionHistoryRow = ({
                     {timeAgo(session.createdAt)}
                 </Text>
             </div>
-            {nest.isAlive && (
+            {!archived && nest.isAlive && (
                 <Popconfirm
                     title="End this session?"
                     description="The agent's sandbox will be torn down."
@@ -108,6 +130,35 @@ const SessionHistoryRow = ({
                         />
                     </Tooltip>
                 </Popconfirm>
+            )}
+            {archived ? (
+                <Tooltip title="Unarchive session">
+                    <Button
+                        type="text"
+                        size="small"
+                        aria-label="Unarchive session"
+                        className="!opacity-0 group-hover:!opacity-100"
+                        icon={<ArrowCounterClockwise size={14} />}
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            onUnarchive()
+                        }}
+                    />
+                </Tooltip>
+            ) : (
+                <Tooltip title="Archive session">
+                    <Button
+                        type="text"
+                        size="small"
+                        aria-label="Archive session"
+                        className="!opacity-0 group-hover:!opacity-100"
+                        icon={<Archive size={14} />}
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            onArchive()
+                        }}
+                    />
+                </Tooltip>
             )}
             <Tooltip title="Delete session">
                 <Button
@@ -135,11 +186,18 @@ const SessionHistoryRow = ({
 const SessionHistoryList = ({onPicked}: {onPicked: () => void}) => {
     const scope = useChatScopeKey()
     const history = useAtomValue(sessionHistoryAtomFamily(scope))
+    const archivedHistory = useAtomValue(archivedSessionHistoryAtomFamily(scope))
     const allMessages = useAtomValue(sessionMessagesAtom)
     const openSession = useSetAtom(openSessionAtomFamily(scope))
     const deleteSession = useSetAtom(deleteSessionAtomFamily(scope))
+    const archiveSession = useSetAtom(archiveSessionAtomFamily(scope))
+    const unarchiveSession = useSetAtom(unarchiveSessionAtomFamily(scope))
+    const [showArchived, setShowArchived] = useState(false)
 
-    if (history.length === 0) {
+    const labelOf = (session: AgentChatSession) =>
+        session.title || firstUserText(allMessages[session.id]) || "Untitled chat"
+
+    if (history.length === 0 && archivedHistory.length === 0) {
         return (
             <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -155,16 +213,45 @@ const SessionHistoryList = ({onPicked}: {onPicked: () => void}) => {
                 <SessionHistoryRow
                     key={session.id}
                     session={session}
-                    label={
-                        session.title || firstUserText(allMessages[session.id]) || "Untitled chat"
-                    }
+                    label={labelOf(session)}
                     onOpen={() => {
                         openSession(session.id)
                         onPicked()
                     }}
                     onDelete={() => deleteSession(session.id)}
+                    onArchive={() => archiveSession(session.id)}
+                    onUnarchive={() => unarchiveSession(session.id)}
                 />
             ))}
+
+            {archivedHistory.length > 0 && (
+                <>
+                    <button
+                        type="button"
+                        onClick={() => setShowArchived((v) => !v)}
+                        className="mt-1 flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-2 py-1.5 text-left text-[11px] text-colorTextTertiary transition-colors hover:bg-colorFillTertiary"
+                    >
+                        <CaretRight
+                            size={10}
+                            className={clsx("transition-transform", showArchived && "rotate-90")}
+                        />
+                        Archived ({archivedHistory.length})
+                    </button>
+                    {showArchived &&
+                        archivedHistory.map((session) => (
+                            <SessionHistoryRow
+                                key={session.id}
+                                session={session}
+                                label={labelOf(session)}
+                                archived
+                                onOpen={() => undefined}
+                                onDelete={() => deleteSession(session.id)}
+                                onArchive={() => archiveSession(session.id)}
+                                onUnarchive={() => unarchiveSession(session.id)}
+                            />
+                        ))}
+                </>
+            )}
         </div>
     )
 }

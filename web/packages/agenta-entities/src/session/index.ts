@@ -17,6 +17,8 @@ export {
     commandSessionStream,
     killSession,
     deleteSession as deleteSessionRemote,
+    archiveSession as archiveSessionRemote,
+    unarchiveSession as unarchiveSessionRemote,
     querySessionMounts,
     queryMountFiles,
     queryLatestMountFiles,

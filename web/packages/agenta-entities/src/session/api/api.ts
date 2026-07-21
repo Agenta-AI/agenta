@@ -242,6 +242,10 @@ export interface QuerySessionsParams {
     /** Include ended (killed) sessions so the list keeps resumable history — default true. With
      * this, an absent session means hard-deleted, which the reconciler uses to prune the cache. */
     includeEnded?: boolean
+    /** Include archived sessions — default true so the reconciler can carry an `archived` flag and
+     * hide them by display filter, rather than mistake an archived row for a hard-delete and prune
+     * it. Set false only for a view that wants strictly non-archived rows. */
+    includeArchived?: boolean
     appId?: string
     abortSignal?: AbortSignal
     lowPriority?: boolean
@@ -257,6 +261,7 @@ export async function querySessions({
     projectId,
     references,
     includeEnded = true,
+    includeArchived = true,
     appId,
     abortSignal,
     lowPriority,
@@ -265,10 +270,15 @@ export async function querySessions({
 
     const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
     const data = await callFern("[querySessions]", () =>
-        // `include_ended` isn't in the generated request type yet (backend field added after the
-        // last client regen); it's sent at runtime and the backend reads it.
+        // `include_ended`/`include_archived` aren't in the generated request type yet (backend
+        // fields added after the last client regen); they're sent at runtime and the backend reads
+        // them.
         client.querySessions(
-            {references, include_ended: includeEnded} as Parameters<typeof client.querySessions>[0],
+            {
+                references,
+                include_ended: includeEnded,
+                include_archived: includeArchived,
+            } as Parameters<typeof client.querySessions>[0],
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
@@ -425,6 +435,48 @@ export async function deleteSession({
 
     const data = await callFern("[deleteSession]", () =>
         getSessionsClient().deleteSession(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return data !== null
+}
+
+/**
+ * ARCHIVE — hide a session from the default list without ending or deleting it. Sets the stream's
+ * `archived_at` (distinct from `deleted_at`, which kill uses and which stays resumable), so an
+ * archived session is fully recoverable via `unarchiveSession`. Surfaced only by an archived view
+ * (`querySessions({includeArchived})`). Returns `true` on success, `false` on failure/missing scope.
+ */
+export async function archiveSession({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<boolean> {
+    if (!projectId || !sessionId) return false
+
+    const data = await callFern("[archiveSession]", () =>
+        getSessionsClient().archiveSession(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return data !== null
+}
+
+/** UNARCHIVE — reverse of `archiveSession`: clears `archived_at` so the session returns to the
+ * default list. Returns `true` on success, `false` on failure/missing scope. */
+export async function unarchiveSession({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<boolean> {
+    if (!projectId || !sessionId) return false
+
+    const data = await callFern("[unarchiveSession]", () =>
+        getSessionsClient().unarchiveSession(
             {session_id: sessionId},
             projectScopedRequest(projectId, appId, abortSignal),
         ),

@@ -77,6 +77,10 @@ const toSummary = (s: SessionStream): ServerSessionSummary => ({
     // A soft-deleted stream row is a killed/ended session (still resumable) — the list includes it
     // via include_ended; the sidebar shows it muted.
     ended: Boolean(s.deleted_at),
+    // `archived_at` is hidden-but-recoverable: the list includes it (include_archived) so the
+    // reconciler carries the flag instead of pruning the row; the sidebar filters it to the
+    // archived view. Distinct from `ended` (kill), which stays in the main list.
+    archived: Boolean(s.archived_at),
 })
 
 /**

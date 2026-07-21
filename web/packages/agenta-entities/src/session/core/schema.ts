@@ -107,6 +107,8 @@ export const sessionStreamSchema = z.object({
     created_at: z.string().nullish(),
     updated_at: z.string().nullish(),
     deleted_at: z.string().nullish(),
+    // `archived_at` set = hidden-but-recoverable (distinct from `deleted_at`=ended, still resumable).
+    archived_at: z.string().nullish(),
 })
 
 export const sessionStreamsResponseSchema = z.object({
