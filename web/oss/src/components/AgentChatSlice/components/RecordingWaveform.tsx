@@ -21,6 +21,13 @@ type RoundRectCtx = CanvasRenderingContext2D & {
     roundRect?: (x: number, y: number, w: number, h: number, radii: number) => void
 }
 
+/** Computed colours come back as `rgb(...)` / `rgba(...)`; we need the channels to tint by alpha. */
+const parseRgb = (value: string): [number, number, number] => {
+    const parts = value.match(/\d+(?:\.\d+)?/g)
+    if (!parts || parts.length < 3) return [0, 0, 0]
+    return [Number(parts[0]), Number(parts[1]), Number(parts[2])]
+}
+
 const RecordingWaveform = ({
     analyserRef,
     className,
@@ -41,16 +48,21 @@ const RecordingWaveform = ({
         // Explicit buffer type: a bare `Uint8Array` widens to `ArrayBufferLike`, which the
         // analyser's typed signature rejects.
         let spectrum: Uint8Array<ArrayBuffer> | null = null
-        // Resolved once per resize rather than per frame — reading computed style is a style
-        // recalculation, and this runs 60x a second.
-        let colour = "currentColor"
+        let gradient: CanvasGradient | null = null
 
         const resize = () => {
             const dpr = window.devicePixelRatio || 1
-            canvas.width = Math.max(1, Math.floor(canvas.clientWidth * dpr))
+            const width = Math.max(1, canvas.clientWidth)
+            canvas.width = Math.max(1, Math.floor(width * dpr))
             canvas.height = Math.max(1, Math.floor(canvas.clientHeight * dpr))
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-            colour = getComputedStyle(canvas).color
+            // One tint across the strip: slices fade out as they age leftward, so the newest edge
+            // is the strongest and "now" reads without needing a second colour. Built here rather
+            // than per frame — reading computed style forces a style recalculation.
+            const [r, g, b] = parseRgb(getComputedStyle(canvas).color)
+            gradient = ctx.createLinearGradient(0, 0, width, 0)
+            gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.12)`)
+            gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.95)`)
         }
         resize()
         const observer = new ResizeObserver(resize)
@@ -83,19 +95,16 @@ const RecordingWaveform = ({
             const rounded = ctx as RoundRectCtx
 
             ctx.clearRect(0, 0, width, height)
-            ctx.fillStyle = colour
+            if (gradient) ctx.fillStyle = gradient
             for (let i = 0; i < HISTORY; i++) {
                 const barHeight = Math.max(2, historyRef.current[i] * (height - 2))
                 const x = i * (barWidth + gap)
                 const y = mid - barHeight / 2
-                // Older slices recede, so the newest edge reads as "now".
-                ctx.globalAlpha = 0.2 + (i / (HISTORY - 1)) * 0.8
                 ctx.beginPath()
                 if (rounded.roundRect) rounded.roundRect(x, y, barWidth, barHeight, radius)
                 else ctx.rect(x, y, barWidth, barHeight)
                 ctx.fill()
             }
-            ctx.globalAlpha = 1
 
             raf = requestAnimationFrame(draw)
         }

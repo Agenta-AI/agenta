@@ -59,7 +59,10 @@ const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className
             // Matches the composer box exactly (radius / border token / bg / shadow) so the
             // cross-fade reads as the input changing state — a different radius leaves the
             // composer's corners poking out from under this one mid-transition.
-            className={`pointer-events-auto flex h-full items-center gap-4 rounded-lg border border-solid border-colorError bg-[var(--ag-colorBgContainer)] px-4 shadow-[var(--ag-surface-chat-shadow)] ${className ?? ""}`}
+            //
+            // Brand, not error: an error border is the form-validation signal, and nothing here is
+            // invalid. Red is reserved for the record light alone.
+            className={`pointer-events-auto flex h-full items-center gap-4 rounded-lg border border-solid border-colorPrimary bg-[var(--ag-colorBgContainer)] px-4 shadow-[var(--ag-surface-chat-shadow)] ${className ?? ""}`}
         >
             <span className="relative flex h-3 w-3 shrink-0 items-center justify-center">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-colorError opacity-60" />
@@ -74,7 +77,7 @@ const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className
                 {mmss(seconds)}
             </span>
 
-            <RecordingWaveform analyserRef={analyserRef} className="flex-1 text-colorError" />
+            <RecordingWaveform analyserRef={analyserRef} className="flex-1 text-colorPrimary" />
 
             <AnimatePresence initial={false}>
                 {nearLimit && (
