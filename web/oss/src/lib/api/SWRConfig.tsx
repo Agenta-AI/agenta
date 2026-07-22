@@ -1,3 +1,5 @@
+import {useMemo} from "react"
+
 import {SWRConfig, type SWRConfiguration} from "swr"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
@@ -25,8 +27,11 @@ const config: SWRConfiguration = {
     }) as AgentaFetcher,
 }
 
-const AgSWRConfig = ({children, config: passedConfig = {}}: AgSWRConfigProps) => {
-    const mergedConfig = {...config, ...passedConfig}
+const EMPTY_CONFIG: SWRConfiguration = {}
+
+const AgSWRConfig = ({children, config: passedConfig = EMPTY_CONFIG}: AgSWRConfigProps) => {
+    // Stable identity so SWR's context consumers don't re-render per provider render
+    const mergedConfig = useMemo(() => ({...config, ...passedConfig}), [passedConfig])
     return <SWRConfig value={mergedConfig}>{children}</SWRConfig>
 }
 

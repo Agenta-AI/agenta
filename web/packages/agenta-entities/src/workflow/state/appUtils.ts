@@ -12,7 +12,10 @@
  * @packageDocumentation
  */
 
+import {getEnabledSandboxProviders} from "@agenta/shared/api"
+import {catalogPersister} from "@agenta/shared/api/persist"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import type {QueryKey} from "@tanstack/react-query"
 import {atom, getDefaultStore} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -23,7 +26,11 @@ import {fetchWorkflowCatalogTemplates, inspectWorkflow} from "../api"
 import type {Workflow} from "../core"
 import {buildWorkflowUri, parseWorkflowKeyFromUri} from "../core"
 
-import {applyAgentCreationPrefs, agentCreationPrefsAtom} from "./agentCreationPrefs"
+import {
+    applyAgentCreationPrefs,
+    agentCreationPrefsAtom,
+    ensureEnabledSandbox,
+} from "./agentCreationPrefs"
 import {buildServiceUrlFromUri} from "./helpers"
 import {workflowLocalServerDataAtomFamily} from "./store"
 
@@ -35,7 +42,7 @@ import {workflowLocalServerDataAtomFamily} from "./store"
  * Query atom for application template definitions (chat, completion, custom).
  * Templates are static data (built-in app types), cached for 5 minutes.
  */
-export const appTemplatesQueryAtom = atomWithQuery((get) => {
+export const appTemplatesQueryAtom = atomWithQuery<WorkflowCatalogTemplatesResponse>((get) => {
     const projectId = get(projectIdAtom)
     return {
         queryKey: ["appTemplates", projectId],
@@ -46,6 +53,7 @@ export const appTemplatesQueryAtom = atomWithQuery((get) => {
         enabled: get(sessionAtom) && !!projectId,
         staleTime: 5 * 60_000,
         refetchOnWindowFocus: false,
+        persister: catalogPersister.persisterFn<WorkflowCatalogTemplatesResponse, QueryKey>,
     }
 })
 
@@ -193,7 +201,13 @@ export async function createEphemeralAppFromTemplate({
             !Array.isArray(parameters.agent)
                 ? (parameters.agent as Record<string, unknown>)
                 : {}
-        parameters = {...parameters, agent: applyAgentCreationPrefs(agentConfig, agentPrefs)}
+        // Seed a deployment-valid sandbox before commit so a daytona-only deployment doesn't
+        // commit an unrunnable `local` default and then show a phantom Advanced draft on open.
+        const withPrefs = applyAgentCreationPrefs(agentConfig, agentPrefs)
+        parameters = {
+            ...parameters,
+            agent: ensureEnabledSandbox(withPrefs, getEnabledSandboxProviders()),
+        }
     }
 
     // Build the seedable workflow for a given schema set. Flags are synchronous (no network), so

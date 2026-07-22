@@ -1,5 +1,6 @@
 import {useMemo} from "react"
 
+import {idleReadyAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -8,12 +9,14 @@ import {queryTriggerSubscriptions} from "../api"
 import type {TriggerSubscription, TriggerSubscriptionsResponse} from "../core/types"
 
 // Distinct from the catalog/connection keys (["triggers", "catalog"|"connections"]).
-export const triggerSubscriptionsQueryAtom = atomWithQuery<TriggerSubscriptionsResponse>(() => ({
+export const triggerSubscriptionsQueryAtom = atomWithQuery<TriggerSubscriptionsResponse>((get) => ({
     queryKey: ["triggers", "subscriptions"],
     // Secondary (trigger count badge / section); yield to the render-critical playground queries.
     queryFn: () => queryTriggerSubscriptions(undefined, {lowPriority: true}),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
+    // Renders a collapsed-section count; stay out of the cold-load burst entirely.
+    enabled: get(idleReadyAtom),
 }))
 
 export const useTriggerSubscriptions = () => {

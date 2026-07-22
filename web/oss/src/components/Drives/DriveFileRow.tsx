@@ -15,7 +15,8 @@
 import {type CSSProperties, type ReactNode} from "react"
 
 import {type Mount} from "@agenta/entities/session"
-import {FolderSimple} from "@phosphor-icons/react"
+import {ArrowClockwise, CircleNotch, FolderSimple} from "@phosphor-icons/react"
+import {Tooltip} from "antd"
 
 import {driveFileIcon} from "./driveIcons"
 import {isHiddenPath} from "./driveTree"
@@ -31,15 +32,99 @@ export type DriveFileVariant = "row" | "card" | "tile"
 export const FOCUS_RING =
     "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--ant-color-primary)]"
 
+/**
+ * DriveRetryButton — the retry affordance for a drive's errored state. Reads inline in the flow of the
+ * surrounding copy ("Couldn't load files. ↻ Try again"): a retry glyph + link-toned text.
+ *
+ * ALIGNMENT: the button is `display:inline` (NOT inline-flex) so its TEXT sits on the copy's baseline
+ * naturally — `inline-flex align-baseline` synthesises the container baseline as its bottom edge
+ * (there's no baseline-aligned flex item), which floated the whole thing above the line. `[font:inherit]`
+ * makes it take the copy's font (preflight is off → a raw `<button>` would otherwise fall back to the
+ * UA default, Arial 13.3px vs the copy's Inter 12px). Only the ICON is nudged (`-0.15em`) to sit on the
+ * text's optical centre. Warning tone (`colorWarning`, correct light AND dark) so it reads as the
+ * action for a "couldn't load" state and sits as ONE unit with the amber warning glyph beside it —
+ * not a competing blue link; hover underlines. Busy swaps the glyph for a spinner and reads "Loading…",
+ * disabled so it can't double-fire.
+ */
+export const DriveRetryButton = ({onRetry, busy}: {onRetry: () => void; busy?: boolean}) => (
+    <button
+        type="button"
+        onClick={onRetry}
+        disabled={busy}
+        aria-busy={busy || undefined}
+        aria-label="Try loading files again"
+        className={`inline cursor-pointer whitespace-nowrap rounded-sm border-0 bg-transparent p-0 [font:inherit] text-colorWarning transition-colors hover:underline disabled:cursor-default disabled:no-underline disabled:opacity-70 ${FOCUS_RING}`}
+    >
+        {busy ? (
+            <CircleNotch size={13} className="mr-1 inline animate-spin align-[-0.15em]" />
+        ) : (
+            <ArrowClockwise size={13} className="mr-1 inline align-[-0.15em]" />
+        )}
+        {busy ? "Loading…" : "Try again"}
+    </button>
+)
+
+/**
+ * DriveWarningBadge — overlays a small amber dot on the drive-drawer TRIGGER's folder icon when a
+ * mount failed but the drive still browses (`partialErrored`). It rides the folder glyph that's
+ * already there (no separate element widening the row), reads as an "attention" notification, and
+ * since the folder IS the drawer-opener, a tap reaches the drawer where the retry lives. Tooltip
+ * carries the message. `show=false` → renders the children untouched (zero footprint when healthy).
+ * `corner` dodges an existing corner badge (the collapsed rail's count pill sits top-right).
+ */
+export const DriveWarningBadge = ({
+    show,
+    corner = "tr",
+    tooltip = true,
+    children,
+}: {
+    show?: boolean
+    corner?: "tr" | "br"
+    /** Own tooltip. Set false when the wrapped trigger already has one (swap ITS title instead) so two
+     * tooltips don't fire on the same target. */
+    tooltip?: boolean
+    children: ReactNode
+}): ReactNode => {
+    // Return the child verbatim when healthy — NOT a fragment, so an outer <Tooltip> still gets a
+    // single ref-able element to wrap.
+    if (!show) return children
+    const pos = corner === "br" ? "-bottom-0.5 -right-0.5" : "-right-0.5 -top-0.5"
+    const badged = (
+        <span className="relative inline-flex shrink-0">
+            {children}
+            <span
+                role="img"
+                aria-label="Some files couldn’t be loaded"
+                className={`absolute ${pos} h-2 w-2 rounded-full bg-colorWarning ring-1 ring-[var(--ag-colorBgContainer)]`}
+            />
+        </span>
+    )
+    return tooltip ? (
+        <Tooltip title="Some files couldn’t be loaded — open to retry">{badged}</Tooltip>
+    ) : (
+        badged
+    )
+}
+
 // "Just changed" border: a simple, muted accent border (no glow — it read wrong on dense file
 // rows). List rows also drop their radius (square) so the accent reads as a crisp edge.
 const RECENT_BORDER = `color-mix(in srgb, ${AGENT_ACCENT} 55%, transparent)`
 
+// How many placeholder rows a loading summary list renders — a list, not a promise of a count. The
+// summary surfaces (config Files, chat rail, Runtime Files) all show up to 5 recents but cap the
+// skeleton lower so the resolve (skeletons → real rows) never has to shrink far.
+export const SKELETON_ROW_COUNT = 3
+
+// Shimmer placeholder. `bg-colorFillSecondary` reads as a quiet loading block on every surface tone.
+const BAR = "animate-pulse rounded bg-colorFillSecondary"
+// Varied name-bar widths so a skeleton list reads as real files, not a barcode. Indexed by row.
+const SKELETON_NAME_WIDTHS = ["62%", "44%", "72%"]
+
 export const DriveFileRow = ({
-    path,
+    path = "",
     trailing,
     recent,
-    onOpen,
+    onOpen = () => {},
     variant = "row",
     file,
     mount,
@@ -47,13 +132,17 @@ export const DriveFileRow = ({
     hideFolder,
     isFolder,
     staticThumb,
+    loading,
+    skeletonIndex = 0,
 }: {
-    path: string
+    /** Required unless `loading`. */
+    path?: string
     /** Right-aligned (row) or secondary-line (card/tile) meta — size / relative time. */
     trailing?: ReactNode
     /** Highlight as just-changed (teal accent). */
     recent?: boolean
-    onOpen: () => void
+    /** Required unless `loading`. */
+    onOpen?: () => void
     /** Item look; see file header. Defaults to the compact row. */
     variant?: DriveFileVariant
     /** The file + its mount — required by the card/tile thumbnail preview. */
@@ -70,7 +159,81 @@ export const DriveFileRow = ({
     /** card/tile: draw the kind icon instead of fetching a content thumbnail — for the always-mounted
      * summary surfaces, so they don't read every recent file just to preview it. */
     staticThumb?: boolean
+    /** Loading placeholder: same shell (dimensions/padding/border) as a real row of this variant, with
+     * shimmer bars instead of content — so skeleton→real is a content swap with zero layout shift.
+     * Non-interactive (aria-hidden, not a button). `path`/`onOpen` are ignored. */
+    loading?: boolean
+    /** Row position, only for the loading placeholder — varies the name-bar width so the list of
+     * skeletons doesn't read as a barcode. */
+    skeletonIndex?: number
 }) => {
+    if (loading) {
+        const nameW = SKELETON_NAME_WIDTHS[skeletonIndex % SKELETON_NAME_WIDTHS.length]
+        // ROW placeholder — reuses the real row's shell classes (minus button/hover/cursor) so the
+        // padding, gap, transparent left-accent slot, and the `font-mono text-xs` line box that drives
+        // the row height all match exactly. Bars sit inside those real containers.
+        if (variant === "row") {
+            return (
+                <div
+                    aria-hidden
+                    className="flex w-full items-center gap-2 rounded border-y-0 border-l-2 border-r-0 border-solid border-transparent px-1.5 py-1"
+                >
+                    <span className={`h-3.5 w-3.5 shrink-0 ${BAR}`} />
+                    <span className="flex min-w-0 flex-1 items-center font-mono text-xs">
+                        <span
+                            className={`inline-block h-2.5 align-middle ${BAR}`}
+                            style={{width: nameW}}
+                        />
+                    </span>
+                    <span className="shrink-0 text-[11px]">
+                        <span className={`inline-block h-2.5 w-9 align-middle ${BAR}`} />
+                    </span>
+                </div>
+            )
+        }
+        // TILE placeholder — the vertical grid tile (thumb on top + centred name + meta).
+        if (variant === "tile") {
+            return (
+                <div
+                    aria-hidden
+                    className="flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2"
+                >
+                    <div className={`aspect-[4/3] w-full ${BAR}`} />
+                    <span className="flex h-4 items-center justify-center font-mono text-xs">
+                        <span
+                            className={`inline-block h-2.5 align-middle ${BAR}`}
+                            style={{width: nameW}}
+                        />
+                    </span>
+                    <span className="flex h-4 items-center justify-center text-[11px]">
+                        <span className={`inline-block h-2 w-1/3 align-middle ${BAR}`} />
+                    </span>
+                </div>
+            )
+        }
+        // CARD placeholder (horizontal) — thumb + two stacked meta bars.
+        return (
+            <div
+                aria-hidden
+                className="flex w-full items-center gap-2.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-1.5"
+            >
+                <div className="w-16 shrink-0">
+                    <div className={`aspect-[4/3] w-full ${BAR}`} />
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="font-mono text-xs">
+                        <span
+                            className={`inline-block h-2.5 align-middle ${BAR}`}
+                            style={{width: nameW}}
+                        />
+                    </span>
+                    <span className="text-[11px]">
+                        <span className={`inline-block h-2 w-1/3 align-middle ${BAR}`} />
+                    </span>
+                </div>
+            </div>
+        )
+    }
     // Always the basename — folders never bloat the visible name (a nested/long path would
     // truncate the important tail). The full relative path is on the `title` tooltip instead.
     const name = path.split("/").pop() ?? path

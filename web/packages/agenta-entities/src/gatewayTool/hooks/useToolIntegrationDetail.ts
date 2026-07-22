@@ -1,3 +1,5 @@
+import {catalogPersister} from "@agenta/shared/api/persist"
+import type {QueryKey} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -14,6 +16,7 @@ export const toolIntegrationDetailQueryFamily = atomFamily((integrationKey: stri
         staleTime: 5 * 60_000,
         refetchOnWindowFocus: false,
         enabled: !!integrationKey,
+        persister: catalogPersister.persisterFn<ToolCatalogIntegrationResponse, QueryKey>,
     })),
 )
 

@@ -39,6 +39,7 @@ import {
     MagnifyingGlass,
     SidebarSimple,
     Tray,
+    WarningCircle,
     X,
 } from "@phosphor-icons/react"
 import {useVirtualizer} from "@tanstack/react-virtual"
@@ -61,7 +62,7 @@ import {AnimatePresence, animate, motion, useMotionValue} from "motion/react"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {DriveExplorerSkeleton, TileGridSkeleton} from "./DriveExplorerSkeleton"
-import {DriveFileRow, FOCUS_RING} from "./DriveFileRow"
+import {DriveFileRow, DriveRetryButton, FOCUS_RING} from "./DriveFileRow"
 import {driveFileIcon} from "./driveIcons"
 import {
     DriveItemContextMenu,
@@ -964,6 +965,9 @@ const DriveHeader = ({
     downloadingAll,
     expanded,
     onToggleExpand,
+    partialErrored,
+    onRetry,
+    retrying,
 }: {
     selectedPath: string | null
     isFolder: boolean
@@ -993,6 +997,11 @@ const DriveHeader = ({
      * hide the toggle (embedded/non-drawer hosts that don't own the drawer width). */
     expanded?: boolean
     onToggleExpand?: () => void
+    /** A mount failed but the drive still browses — surface a compact warning + retry INLINE in this
+     * header (using its existing slack), never a new row. `retrying` drives the spinner. */
+    partialErrored?: boolean
+    onRetry?: () => void
+    retrying?: boolean
 }) => {
     const atRoot = !selectedPath
     // A file always has details (size/modified); a folder only when it's a repo. Nothing selected
@@ -1063,6 +1072,21 @@ const DriveHeader = ({
                     </Tag>
                 ) : null}
             </div>
+            {/* A mount failed but the drive still browses — a compact warning + retry that lives in
+                the header's existing slack (never a new row). Tooltip carries the full message so the
+                inline footprint stays "⚠ Try again". */}
+            {partialErrored && onRetry ? (
+                <Tooltip title="Some files couldn’t be loaded">
+                    <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+                        <WarningCircle
+                            size={14}
+                            weight="fill"
+                            className="shrink-0 text-colorWarning"
+                        />
+                        <DriveRetryButton onRetry={onRetry} busy={retrying} />
+                    </span>
+                </Tooltip>
+            ) : null}
             <div className="flex shrink-0 items-center gap-1">
                 {selectedPath ? (
                     <Tooltip title="Copy path">
@@ -1653,9 +1677,10 @@ export function DriveExplorer({
         didInitialFocus.current = true
     }, [lazyTree.rootLoading, selectedPath, flatRows.length, indexByPath, focusTreeRow])
 
-    // Only a TOTAL failure blanks the drawer. A partial failure — e.g. the artifact-scoped agent
-    // mount erroring while the session's own files loaded — still has a tree to browse, so fall
-    // through and render it rather than hiding the loaded files behind the banner.
+    // Only a TOTAL failure blanks the drawer. A partial failure — the artifact-scoped agent mount
+    // erroring while the session's own files loaded (or vice-versa) — still has a tree to browse, so
+    // it falls through and renders the tree; its retry rides the existing header (see DriveHeader's
+    // `partialErrored` slot), NOT a new banner row that would shove the content down.
     let body: ReactNode
     if (drive.errored && drive.fileCount === 0) {
         body = (
@@ -1667,6 +1692,15 @@ export function DriveExplorer({
                     description={
                         <span className="text-xs">
                             The file store may not be configured on this deployment.
+                            {drive.retry ? (
+                                <>
+                                    {" "}
+                                    <DriveRetryButton
+                                        onRetry={drive.retry}
+                                        busy={drive.isFetching}
+                                    />
+                                </>
+                            ) : null}
                         </span>
                     }
                 />
@@ -1927,6 +1961,9 @@ export function DriveExplorer({
                         downloadingAll={downloadingAll}
                         expanded={drawerExpanded}
                         onToggleExpand={onToggleExpand}
+                        partialErrored={drive.partialErrored}
+                        onRetry={drive.retry}
+                        retrying={drive.isFetching}
                     />
                     {/* Shared toolbar — the show/hide tree toggle sits FIRST (left), directly above the
                         tree pane it controls; then search + filters. Search forces the tree of matches

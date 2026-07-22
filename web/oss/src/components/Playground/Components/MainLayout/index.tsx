@@ -516,7 +516,13 @@ const PlaygroundMainView = ({
                                     // Agent identified early (persisted agent-type map) but the
                                     // revision hasn't resolved the flag yet — hold the chat pane's
                                     // shape instead of a blank canvas until the host mounts.
-                                    if (isAgentConfig && singleEntityQuery.isPending) {
+                                    // Data presence ends the skeleton: a restored body is renderable
+                                    // even if a pending-shaped state lingers.
+                                    if (
+                                        isAgentConfig &&
+                                        singleEntityQuery.isPending &&
+                                        !singleEntityQuery.data
+                                    ) {
                                         return <AgentChatSkeleton key="agent-generation-skeleton" />
                                     }
                                     return displayedEntities.includes(variantId) ||

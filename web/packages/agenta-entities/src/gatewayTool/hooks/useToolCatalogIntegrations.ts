@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {catalogPersister} from "@agenta/shared/api/persist"
+import type {QueryKey, QueryPersister} from "@tanstack/react-query"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithInfiniteQuery} from "jotai-tanstack-query"
 
@@ -55,6 +57,12 @@ export const toolCatalogIntegrationsInfiniteAtom =
             getNextPageParam: (lastPage) => lastPage.cursor ?? undefined,
             staleTime: 5 * 60_000,
             refetchOnWindowFocus: false,
+            // Persists whole {pages, pageParams}; cast bridges persisterFn's pageParam-less typing.
+            persister: catalogPersister.persisterFn as QueryPersister<
+                ToolCatalogIntegrationsResponse,
+                QueryKey,
+                unknown
+            >,
         }
     })
 

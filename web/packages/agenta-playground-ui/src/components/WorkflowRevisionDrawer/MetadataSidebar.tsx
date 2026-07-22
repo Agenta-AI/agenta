@@ -8,7 +8,7 @@ import {memo, useMemo} from "react"
 
 import {environmentMolecule} from "@agenta/entities/environment"
 import {UserAuthorLabel} from "@agenta/entities/shared"
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {workflowDetailQueryAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {FormattedDate, cn, textColors} from "@agenta/ui"
 import {Typography} from "antd"
 import clsx from "clsx"
@@ -39,10 +39,11 @@ const MetadataSidebar = memo(({revisionId, context, isCompact}: MetadataSidebarP
     const workflowData = useAtomValue(
         useMemo(() => workflowMolecule.selectors.data(revisionId), [revisionId]),
     )
-    const workflowId = workflowData?.workflow_id ?? ""
-    const workflowSlug = useAtomValue(
-        useMemo(() => workflowMolecule.selectors.slug(workflowId), [workflowId]),
-    )
+    const workflowId = workflowData?.workflow_id ?? null
+    // Workflow-keyed detail query (cache-shared) — the molecule's slug selector
+    // is revision-keyed and fires a guaranteed-null /revisions/query for a workflow id.
+    const workflowDetail = useAtomValue(workflowDetailQueryAtomFamily(workflowId))
+    const workflowSlug = workflowDetail.data?.slug ?? null
     const deployedIn = useAtomValue(environmentMolecule.atoms.revisionDeployment(revisionId))
     const {
         renderEnvironmentLabel,

@@ -13,7 +13,13 @@ import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {isSessionFresh} from "@/oss/components/AgentChatSlice/state/sessionEphemera"
 
-import {DriveFileRow, FOCUS_RING} from "./DriveFileRow"
+import {
+    DriveFileRow,
+    DriveRetryButton,
+    DriveWarningBadge,
+    FOCUS_RING,
+    SKELETON_ROW_COUNT,
+} from "./DriveFileRow"
 import {DriveItemContextMenu, useCopyDrivePath, useDriveItemDownload} from "./DriveItemContextMenu"
 import {listArrowKeyDown} from "./driveKeyboard"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "./driveMotion"
@@ -95,18 +101,32 @@ export function ContextRail({
                             <Sidebar size={15} />
                         </span>
                     </Tooltip>
-                    {drive.fileCount > 0 ? (
+                    {drive.fileCount > 0 || drive.partialErrored ? (
+                        // A mount failure badges the folder (bottom-right, clear of the count pill) and
+                        // swaps the tooltip to the retry hint; the strip already opens on click.
                         <Tooltip
-                            title={`${drive.fileCount}${drive.fileCountCapped ? "+" : ""} file${drive.fileCount === 1 && !drive.fileCountCapped ? "" : "s"} in this conversation`}
+                            title={
+                                drive.partialErrored
+                                    ? "Some files couldn’t be loaded — open to retry"
+                                    : `${drive.fileCount}${drive.fileCountCapped ? "+" : ""} file${drive.fileCount === 1 && !drive.fileCountCapped ? "" : "s"} in this conversation`
+                            }
                             placement="left"
                         >
-                            <span className="relative flex h-7 w-7 items-center justify-center text-colorTextSecondary">
-                                <FolderSimple size={15} />
-                                <span className="absolute right-0 top-0 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-[var(--ag-colorPrimary)] px-1 text-[9px] font-semibold leading-none text-[var(--ag-colorBgContainer)]">
-                                    {drive.fileCount}
-                                    {drive.fileCountCapped ? "+" : ""}
+                            <DriveWarningBadge
+                                show={drive.partialErrored}
+                                corner="br"
+                                tooltip={false}
+                            >
+                                <span className="relative flex h-7 w-7 items-center justify-center text-colorTextSecondary">
+                                    <FolderSimple size={15} />
+                                    {drive.fileCount > 0 ? (
+                                        <span className="absolute right-0 top-0 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-[var(--ag-colorPrimary)] px-1 text-[9px] font-semibold leading-none text-[var(--ag-colorBgContainer)]">
+                                            {drive.fileCount}
+                                            {drive.fileCountCapped ? "+" : ""}
+                                        </span>
+                                    ) : null}
                                 </span>
-                            </span>
+                            </DriveWarningBadge>
                         </Tooltip>
                     ) : null}
                     {busy ? (
@@ -159,10 +179,23 @@ const ExpandedRail = ({
                     </Tag>
                 ) : null}
                 <div className="ml-auto flex items-center">
-                    <Tooltip title="Open the Files drawer" placement="bottom">
+                    {/* A mount failure badges the open-drawer folder and swaps its tooltip to the retry
+                        hint (the drawer carries the actual Try again). */}
+                    <Tooltip
+                        title={
+                            drive.partialErrored
+                                ? "Some files couldn’t be loaded — open to retry"
+                                : "Open the Files drawer"
+                        }
+                        placement="bottom"
+                    >
                         <Button
                             type="text"
-                            icon={<FolderOpen size={13} />}
+                            icon={
+                                <DriveWarningBadge show={drive.partialErrored} tooltip={false}>
+                                    <FolderOpen size={13} />
+                                </DriveWarningBadge>
+                            }
                             onClick={onOpenFiles}
                             aria-label="Open the files drawer"
                         />
@@ -178,112 +211,201 @@ const ExpandedRail = ({
                 </div>
             </div>
             <div className="flex flex-col gap-1.5 px-2 pb-2 pt-1" onKeyDown={listArrowKeyDown}>
-                {drive.fileCount === 0 ? (
-                    <Text type="secondary" className="px-1 pb-1 !text-[11px]">
-                        {drive.isLoading ? "Loading…" : "No files yet."}
-                    </Text>
-                ) : drive.recents.length === 0 ? (
-                    // Files exist but none changed in THIS conversation (recents = its record log).
-                    <Text type="secondary" className="px-1 pb-1 !text-[11px]">
-                        No changes yet — open “View all files” to browse.
-                    </Text>
-                ) : (
-                    <>
-                        {/* The recent files as friendly thumbnail cards (a preview a user recognises
-                            at a glance) — the rail has room for it; older files live behind "View
-                            all files". */}
-                        <MotionConfig reducedMotion="user">
-                            <AnimatePresence mode="popLayout" initial={false}>
-                                {drive.recents.slice(0, 5).map((file) => {
-                                    // Route the thumbnail read to the file's own mount (cwd or
-                                    // agent-files); the card still displays the presented path.
-                                    const resolved = drive.resolveMount(file.path)
-                                    const relTime = file.touchedAt
-                                        ? relativeTime(file.touchedAt).replace(" ago", "")
-                                        : undefined
-                                    return (
-                                        <motion.div
-                                            key={file.path}
-                                            layout
-                                            variants={FILE_ITEM_VARIANTS}
-                                            initial="initial"
-                                            animate="animate"
-                                            exit="exit"
-                                            transition={FILE_SPRING}
-                                        >
-                                            <DriveItemContextMenu
-                                                path={file.path}
-                                                isFolder={!!file.is_folder}
-                                                onOpen={() =>
-                                                    file.is_folder
-                                                        ? onOpenFiles()
-                                                        : onQuickLook(file.path)
-                                                }
-                                                onCopyPath={copyPath}
-                                                onDownload={download}
-                                                className="w-full"
-                                            >
-                                                <DriveFileRow
-                                                    variant="card"
-                                                    path={file.path}
-                                                    isFolder={!!file.is_folder}
-                                                    // Summary rail: icon thumbnails only — never read
-                                                    // each recent file's bytes just to preview it.
-                                                    staticThumb
-                                                    file={
-                                                        resolved
-                                                            ? {...file, path: resolved.path}
-                                                            : file
-                                                    }
-                                                    mount={resolved?.mount ?? drive.mount}
-                                                    showOrigin={showOrigin}
-                                                    recent={isRecentlyChanged(file.touchedAt, now)}
-                                                    trailing={
-                                                        file.is_folder
-                                                            ? // Count only when known (rollup folders
-                                                              // have it; the top-level fallback not).
-                                                              [
-                                                                  file.item_count != null
-                                                                      ? `${file.item_count} item${file.item_count === 1 ? "" : "s"}`
-                                                                      : null,
-                                                                  relTime,
-                                                              ]
-                                                                  .filter(Boolean)
-                                                                  .join(" · ") || undefined
-                                                            : relTime
-                                                    }
-                                                    onOpen={() =>
-                                                        file.is_folder
-                                                            ? onOpenFiles()
-                                                            : onQuickLook(file.path)
-                                                    }
-                                                />
-                                            </DriveItemContextMenu>
-                                        </motion.div>
-                                    )
-                                })}
-                            </AnimatePresence>
-                        </MotionConfig>
-                        {drive.isFetching ? (
-                            <div className="flex items-center gap-1.5 px-1 pt-0.5 text-[11px] text-colorTextTertiary">
-                                <CircleNotch size={11} className="animate-spin" />
-                                <span>Loading more…</span>
-                            </div>
-                        ) : null}
-                        {drive.fileCount > 5 ? (
-                            <button
-                                type="button"
-                                onClick={(e) => {
-                                    e.currentTarget.blur()
-                                    onOpenFiles()
-                                }}
-                                className={`mt-0.5 w-fit cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-xs text-[var(--ag-colorInfo)] hover:underline ${FOCUS_RING}`}
+                {(() => {
+                    // The loading skeleton is the SAME card list rendering placeholder cards, so
+                    // skeleton → real is a per-card content swap in one AnimatePresence (no block→list
+                    // jump, no layout shift). Terminal text states crossfade with the list.
+                    const showSkeleton = drive.isLoading
+                    const rows = drive.recents.slice(0, 5)
+                    // `reconciling` keeps us in the list surface (content + a "Loading more…" hint)
+                    // while a sibling drive is still loading — so the terminal "No files" never
+                    // flashes before all drives resolve.
+                    const phase = drive.errored
+                        ? "error"
+                        : showSkeleton || rows.length > 0 || drive.reconciling
+                          ? "list"
+                          : drive.fileCount > 0
+                            ? "no-changes"
+                            : "empty"
+                    return (
+                        <AnimatePresence mode="popLayout" initial={false}>
+                            <motion.div
+                                key={phase}
+                                className="flex flex-col gap-1.5"
+                                initial={{opacity: 0}}
+                                animate={{opacity: 1}}
+                                exit={{opacity: 0}}
+                                transition={{duration: 0.15}}
+                                aria-busy={showSkeleton || undefined}
                             >
-                                View all files
-                            </button>
-                        ) : null}
-                    </>
-                )}
+                                {phase === "error" ? (
+                                    <Text type="secondary" className="px-1 pb-1 !text-[11px]">
+                                        Couldn&rsquo;t load files.{" "}
+                                        {drive.retry ? (
+                                            <DriveRetryButton
+                                                onRetry={drive.retry}
+                                                busy={drive.isFetching}
+                                            />
+                                        ) : null}
+                                    </Text>
+                                ) : phase === "no-changes" ? (
+                                    // Files exist but none changed in THIS conversation (recents = its
+                                    // record log).
+                                    <Text type="secondary" className="px-1 pb-1 !text-[11px]">
+                                        No changes yet — open “View all files” to browse.
+                                    </Text>
+                                ) : phase === "empty" ? (
+                                    <Text type="secondary" className="px-1 pb-1 !text-[11px]">
+                                        No files yet.
+                                    </Text>
+                                ) : (
+                                    <>
+                                        {/* The recent files as friendly thumbnail cards (a preview a
+                                            user recognises at a glance) — the rail has room; older
+                                            files live behind "View all files". */}
+                                        <MotionConfig reducedMotion="user">
+                                            <AnimatePresence mode="popLayout" initial={false}>
+                                                {showSkeleton
+                                                    ? Array.from(
+                                                          {length: SKELETON_ROW_COUNT},
+                                                          (_, i) => (
+                                                              <motion.div
+                                                                  key={`__sk-${i}`}
+                                                                  layout
+                                                                  variants={FILE_ITEM_VARIANTS}
+                                                                  initial="initial"
+                                                                  animate="animate"
+                                                                  exit="exit"
+                                                                  transition={FILE_SPRING}
+                                                              >
+                                                                  <DriveFileRow
+                                                                      loading
+                                                                      variant="card"
+                                                                      skeletonIndex={i}
+                                                                  />
+                                                              </motion.div>
+                                                          ),
+                                                      )
+                                                    : rows.map((file) => {
+                                                          // Route the thumbnail read to the file's own mount (cwd or
+                                                          // agent-files); the card still displays the presented path.
+                                                          const resolved = drive.resolveMount(
+                                                              file.path,
+                                                          )
+                                                          const relTime = file.touchedAt
+                                                              ? relativeTime(
+                                                                    file.touchedAt,
+                                                                ).replace(" ago", "")
+                                                              : undefined
+                                                          return (
+                                                              <motion.div
+                                                                  key={file.path}
+                                                                  layout
+                                                                  variants={FILE_ITEM_VARIANTS}
+                                                                  initial="initial"
+                                                                  animate="animate"
+                                                                  exit="exit"
+                                                                  transition={FILE_SPRING}
+                                                              >
+                                                                  <DriveItemContextMenu
+                                                                      path={file.path}
+                                                                      isFolder={!!file.is_folder}
+                                                                      onOpen={() =>
+                                                                          file.is_folder
+                                                                              ? onOpenFiles()
+                                                                              : onQuickLook(
+                                                                                    file.path,
+                                                                                )
+                                                                      }
+                                                                      onCopyPath={copyPath}
+                                                                      onDownload={download}
+                                                                      className="w-full"
+                                                                  >
+                                                                      <DriveFileRow
+                                                                          variant="card"
+                                                                          path={file.path}
+                                                                          isFolder={
+                                                                              !!file.is_folder
+                                                                          }
+                                                                          // Summary rail: icon thumbnails only — never read
+                                                                          // each recent file's bytes just to preview it.
+                                                                          staticThumb
+                                                                          file={
+                                                                              resolved
+                                                                                  ? {
+                                                                                        ...file,
+                                                                                        path: resolved.path,
+                                                                                    }
+                                                                                  : file
+                                                                          }
+                                                                          mount={
+                                                                              resolved?.mount ??
+                                                                              drive.mount
+                                                                          }
+                                                                          showOrigin={showOrigin}
+                                                                          recent={isRecentlyChanged(
+                                                                              file.touchedAt,
+                                                                              now,
+                                                                          )}
+                                                                          trailing={
+                                                                              file.is_folder
+                                                                                  ? // Count only when known (rollup folders
+                                                                                    // have it; the top-level fallback not).
+                                                                                    [
+                                                                                        file.item_count !=
+                                                                                        null
+                                                                                            ? `${file.item_count} item${file.item_count === 1 ? "" : "s"}`
+                                                                                            : null,
+                                                                                        relTime,
+                                                                                    ]
+                                                                                        .filter(
+                                                                                            Boolean,
+                                                                                        )
+                                                                                        .join(
+                                                                                            " · ",
+                                                                                        ) ||
+                                                                                    undefined
+                                                                                  : relTime
+                                                                          }
+                                                                          onOpen={() =>
+                                                                              file.is_folder
+                                                                                  ? onOpenFiles()
+                                                                                  : onQuickLook(
+                                                                                        file.path,
+                                                                                    )
+                                                                          }
+                                                                      />
+                                                                  </DriveItemContextMenu>
+                                                              </motion.div>
+                                                          )
+                                                      })}
+                                            </AnimatePresence>
+                                        </MotionConfig>
+                                        {!showSkeleton &&
+                                        (drive.reconciling || drive.isFetching) ? (
+                                            <div className="flex items-center gap-1.5 px-1 pt-0.5 text-[11px] text-colorTextTertiary">
+                                                <CircleNotch size={11} className="animate-spin" />
+                                                <span>Loading more…</span>
+                                            </div>
+                                        ) : null}
+                                        {drive.fileCount > 5 ? (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.currentTarget.blur()
+                                                    onOpenFiles()
+                                                }}
+                                                className={`mt-0.5 w-fit cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-xs text-[var(--ag-colorInfo)] hover:underline ${FOCUS_RING}`}
+                                            >
+                                                View all files
+                                            </button>
+                                        ) : null}
+                                    </>
+                                )}
+                            </motion.div>
+                        </AnimatePresence>
+                    )
+                })()}
             </div>
         </aside>
     )

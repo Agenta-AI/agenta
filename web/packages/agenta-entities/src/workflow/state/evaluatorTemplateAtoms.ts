@@ -8,7 +8,9 @@
  * Re-exported from `./evaluatorUtils` for backward compatibility.
  */
 
+import {catalogPersister} from "@agenta/shared/api/persist"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import type {QueryKey} from "@tanstack/react-query"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -20,7 +22,10 @@ import {fetchEvaluatorTemplates} from "../api/templates"
  * Query atom for evaluator template definitions.
  * Templates are static data (built-in evaluator types), cached for 5 minutes.
  */
-export const evaluatorTemplatesQueryAtom = atomWithQuery((get) => {
+export const evaluatorTemplatesQueryAtom = atomWithQuery<{
+    count: number
+    templates: EvaluatorCatalogTemplate[]
+}>((get) => {
     const projectId = get(projectIdAtom)
     return {
         queryKey: ["evaluatorTemplates", projectId],
@@ -31,6 +36,10 @@ export const evaluatorTemplatesQueryAtom = atomWithQuery((get) => {
         enabled: get(sessionAtom) && !!projectId,
         staleTime: 5 * 60_000,
         refetchOnWindowFocus: false,
+        persister: catalogPersister.persisterFn<
+            {count: number; templates: EvaluatorCatalogTemplate[]},
+            QueryKey
+        >,
     }
 })
 

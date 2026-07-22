@@ -9,7 +9,7 @@
 
 import {useMemo} from "react"
 
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {workflowDetailQueryAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
 import {Typography} from "antd"
 import {useAtomValue} from "jotai"
@@ -36,16 +36,17 @@ const EvaluatorPlaygroundHeader: React.FC = () => {
 
     // The entity display name lives on the workflow artifact; the revision's
     // own `name` carries the variant name ("default").
-    const workflowId = evaluatorData?.workflow_id ?? evaluatorEntityId
+    const workflowId = evaluatorData?.workflow_id ?? null
     const artifactName = useAtomValue(
         useMemo(
             () => workflowMolecule.selectors.artifactName(evaluatorEntityId),
             [evaluatorEntityId],
         ),
     )
-    const workflowSlug = useAtomValue(
-        useMemo(() => workflowMolecule.selectors.slug(workflowId), [workflowId]),
-    )
+    // Workflow-keyed detail query (cache-shared) — the molecule's slug selector
+    // is revision-keyed and fires a guaranteed-null /revisions/query for a workflow id.
+    const workflowDetail = useAtomValue(workflowDetailQueryAtomFamily(workflowId))
+    const workflowSlug = workflowDetail.data?.slug ?? null
     const evaluatorName =
         artifactName?.trim() || workflowSlug?.trim() || evaluatorData?.slug?.trim() || "Evaluator"
 
