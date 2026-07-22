@@ -111,6 +111,7 @@ import {
 import QueuedMessages from "./components/QueuedMessages"
 import RevealCollapse from "./components/RevealCollapse"
 import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
+import VoiceInputButton from "./components/VoiceInputButton"
 import {useAgentChatQueue, type QueuedMessage} from "./hooks/useAgentChatQueue"
 import {useAgentModelKeyStatus} from "./hooks/useAgentModelKeyStatus"
 import {useFileActivityDetector} from "./hooks/useFileActivityDetector"
@@ -2254,10 +2255,18 @@ const AgentConversation = ({
                                         streaming={busy}
                                         onStop={handleStop}
                                         prefix={
-                                            // Left cluster of the composer toolbar: the (gated) attach
-                                            // button + the context token-budget readout, filling the
+                                            // Left cluster of the composer toolbar: voice mic + the (gated)
+                                            // attach button + the context token-budget readout, filling the
                                             // otherwise-empty left space next to the attachments icon.
                                             <div className="flex items-center gap-2">
+                                                <VoiceInputButton
+                                                    inputRef={richInputRef}
+                                                    disabled={
+                                                        onboardingActive
+                                                            ? ideHandoffActive
+                                                            : modelBlocked
+                                                    }
+                                                />
                                                 {/* Attach button is gated until the agent service is ready for
                                                 inline file parts (big-agents d4b119af26); paste / drag-to-add
                                                 still work. */}
