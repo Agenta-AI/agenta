@@ -5,10 +5,14 @@ Generated 2026-07-22 from `pnpm --filter @agenta/oss exec tsc --noEmit` and
 
 ## Headline numbers
 
-| App | Baseline | After quick-win pass (2026-07-22) |
-| --- | --- | --- |
-| OSS | 591 | **422** |
-| EE  | 525 | **391** |
+| App | Baseline | Quick wins | EvalRunDetails pass | Parallel area pass (final 2026-07-22) |
+| --- | --- | --- | --- | --- |
+| OSS | 591 | 422 | 347 | **105** |
+| EE  | 525 | 391 | — | **115** |
+
+Remaining long tail (nothing above 5 errors/file): EvaluatorTemplateDropdown,
+observability_helpers, MetricDetailsPreviewPopover, DrillInView provider,
+NewEvaluation Select*Section InfiniteVirtualTable prop mismatches, EE Billing page.
 
 Quick wins QW1–QW3 and QW5–QW10 are DONE (QW4 TraceSpanNode deferred — see below).
 Fixing exports also *surfaced* some previously-masked drift (broken imports resolve as
