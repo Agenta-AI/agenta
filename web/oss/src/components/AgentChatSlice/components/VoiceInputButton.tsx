@@ -1,7 +1,7 @@
 import {useEffect, useRef, type RefObject} from "react"
 
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {CaretDown, Microphone} from "@phosphor-icons/react"
+import {CaretDown, Microphone, TextAa} from "@phosphor-icons/react"
 import {Button, Dropdown, Tooltip, type MenuProps} from "antd"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
@@ -19,6 +19,26 @@ import {useVoiceInput} from "../hooks/useVoiceInput"
 type VoiceMode = "transcribe" | "audio"
 
 const voiceModeAtom = atomWithStorage<VoiceMode>("agenta:agent-chat:voice-mode", "audio")
+
+const MODE_LABEL: Record<VoiceMode, string> = {
+    audio: "Voice message",
+    transcribe: "Voice to text",
+}
+
+/** Verbs, so the tooltip says what pressing it will do — not just which mode is selected. */
+const MODE_HINT: Record<VoiceMode, string> = {
+    audio: "Record a voice message",
+    transcribe: "Dictate into the message",
+}
+
+/** Each mode carries its own icon: the button then shows which one is active, so switching modes
+ * visibly changes the control rather than leaving an identical UI behind a closed menu. */
+const modeIcon = (mode: VoiceMode, filled = false) =>
+    mode === "audio" ? (
+        <Microphone size={16} weight={filled ? "fill" : "regular"} />
+    ) : (
+        <TextAa size={16} weight={filled ? "fill" : "regular"} />
+    )
 
 const VoiceInputButton = ({
     inputRef,
@@ -60,9 +80,9 @@ const VoiceInputButton = ({
     }, [mode, transcribe.recording, transcribe.liveText, inputRef])
 
     // Primary action first: a voice message is the default; dictation is the alternative.
-    const modes: {key: VoiceMode; label: string; supported: boolean}[] = [
-        {key: "audio", label: "Voice message", supported: audioSupported},
-        {key: "transcribe", label: "Voice to text", supported: transcribe.supported},
+    const modes: {key: VoiceMode; supported: boolean}[] = [
+        {key: "audio", supported: audioSupported},
+        {key: "transcribe", supported: transcribe.supported},
     ]
     const available = modes.filter((m) => m.supported)
     if (!available.length) return null
@@ -86,7 +106,12 @@ const VoiceInputButton = ({
         }
     }
 
-    const menuItems: MenuProps["items"] = available.map((m) => ({key: m.key, label: m.label}))
+    // Icons in the menu too, so the mapping between a mode and the button's icon is taught here.
+    const menuItems: MenuProps["items"] = available.map((m) => ({
+        key: m.key,
+        label: MODE_LABEL[m.key],
+        icon: modeIcon(m.key),
+    }))
 
     // Dictation writes into the editor, so it is unaffected by the attachment limit.
     const audioBlocked = effective === "audio" && attachmentsFull
@@ -97,9 +122,7 @@ const VoiceInputButton = ({
           ? "Attachment limit reached — remove a file to record a voice message"
           : dictating
             ? "Stop dictation"
-            : effective === "transcribe"
-              ? "Voice to text"
-              : "Record a voice message"
+            : MODE_HINT[effective]
 
     const highlighted = dictating || audioPending
 
@@ -108,7 +131,7 @@ const VoiceInputButton = ({
             <Tooltip title={title}>
                 <Button
                     type="text"
-                    icon={<Microphone size={16} weight={highlighted ? "fill" : "regular"} />}
+                    icon={modeIcon(effective, highlighted)}
                     onClick={toggle}
                     // A second press while the prompt is open would only queue another request.
                     disabled={disabled || audioPending || audioBlocked}
