@@ -319,6 +319,25 @@ html,
   display: flex;
 }
 
+/* ── blog cards ──────────────────────────────────────────────────────────
+   Vertical post cards (featured/grid/related) are flex columns so the card
+   fills its grid cell (grid stretches items) and the meta/date row, which
+   carries margin-top:auto, pins to a consistent bottom baseline regardless of
+   title/excerpt length. Declared as a class (not inline) so the blog index's
+   category-filter rule (#blog-grid[data-filter] > a:not(...)) still wins on
+   specificity and hides non-matching cards, and so the JS "load more" toggle
+   can hide cards without clobbering the card's display. */
+.ag-vcard {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+/* "Load more" pagination hide — !important so it beats both .ag-vcard's flex
+   and any filter rule while a card is beyond the revealed batch. */
+.blog-hidden {
+  display: none !important;
+}
+
 /* ============================================================================
    Responsive — ported VERBATIM from the design's <style> block.
    handoff/RESPONSIVE.md standardizes the intent; the design encodes it at

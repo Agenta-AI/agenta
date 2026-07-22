@@ -14,6 +14,19 @@ const secondary = featured
   .filter((p) => p.data.featuredRank === 2 || p.data.featuredRank === 3)
   .sort((a, b) => (a.data.featuredRank ?? 99) - (b.data.featuredRank ?? 99));
 
+// The grid excludes the three featured posts so they don't render twice on the
+// page (mirrors agenta.ai/blog, where the featured row and the grid are disjoint).
+const featuredIds = new Set(
+  [primary, ...secondary].filter(Boolean).map((p) => p!.id),
+);
+const gridPosts = all.filter((p) => !featuredIds.has(p.id));
+
+// "Load more" pagination (mirrors agenta.ai/blog): the grid renders every post
+// server-side (SEO + no-JS graceful — all visible without JS), and a small
+// scoped script below reveals them PAGE_SIZE at a time. Featured row is separate
+// and always shown, so it does not count toward the grid batch.
+const PAGE_SIZE = 6;
+
 // Filter pills = "All" + the distinct categories present, stable order.
 const categories = [
   "All",
@@ -32,7 +45,7 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
   <!-- Blog header -->
   <section
     class="ag-headpad ag-pad"
-    style={`background:#0E0D0F;${sectionBorder}padding:72px 0 56px;text-align:center;`}
+    style={`background:#0E0D0F;${sectionBorder}padding:120px 0 56px;text-align:center;`}
   >
     <div style="display:flex;flex-direction:column;align-items:center;gap:18px;">
       <span
@@ -71,7 +84,7 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
           {secondary.length > 0 && (
             <div
               class="ag-sec"
-              style="flex:0 0 388px;display:flex;flex-direction:column;gap:20px;"
+              style="flex:0 0 388px;display:flex;flex-direction:column;gap:24px;"
             >
               {secondary.map((post) => (
                 <PostCard post={post} variant="secondary" />
@@ -102,12 +115,80 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
     <div
       id="blog-grid"
       data-filter="All"
+      data-page-size={PAGE_SIZE}
       class="ag-grid"
       style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;"
     >
-      {all.map((post) => <PostCard post={post} variant="grid" />)}
+      {gridPosts.map((post) => <PostCard post={post} variant="grid" />)}
+    </div>
+
+    <div
+      id="blog-loadmore-wrap"
+      style="display:none;justify-content:center;margin-top:40px;"
+    >
+      <button
+        id="blog-loadmore"
+        type="button"
+        style="display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 24px;border-radius:8px;border:none;cursor:pointer;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);"
+      >
+        Load more
+      </button>
     </div>
   </section>
+
+  <script>
+    // Client-side "load more" for the blog grid. The grid is fully server-rendered
+    // (all posts in the HTML, everything visible with JS off); this script reveals
+    // them PAGE_SIZE at a time and composes with the CategoryFilter island, which
+    // sets [data-filter] on #blog-grid. One place owns each card's visibility here
+    // (inline display), so it wins over the no-JS filter CSS once JS runs.
+    //
+    // Filter + pagination: when a specific category is active we show ALL matching
+    // posts and hide the button (the Engineering/Article subsets are small, and
+    // agenta.ai's filtered pagination is not observable). "All" is paginated.
+    (() => {
+      const grid = document.getElementById("blog-grid");
+      const wrap = document.getElementById("blog-loadmore-wrap");
+      const btn = document.getElementById("blog-loadmore");
+      if (!grid || !wrap || !btn) return;
+      const cards = Array.from(grid.children) as HTMLElement[];
+      const step = Number(grid.getAttribute("data-page-size")) || 6;
+      let limit = step;
+
+      const filterOf = () => grid.getAttribute("data-filter") || "All";
+
+      const apply = () => {
+        // Filtered view: let the category-filter CSS own visibility and reveal
+        // every matching card (subsets are small); no pagination, no button.
+        if (filterOf() !== "All") {
+          for (const card of cards) card.classList.remove("blog-hidden");
+          wrap.style.display = "none";
+          return;
+        }
+        // "All" view: reveal the first `limit` cards, hide the rest.
+        let shown = 0;
+        for (const card of cards) {
+          const visible = shown < limit;
+          card.classList.toggle("blog-hidden", !visible);
+          if (visible) shown++;
+        }
+        wrap.style.display = shown >= cards.length ? "none" : "flex";
+      };
+
+      btn.addEventListener("click", () => {
+        limit += step;
+        apply();
+      });
+
+      // The filter island flips [data-filter]; reset pagination when it changes.
+      new MutationObserver(() => {
+        limit = step;
+        apply();
+      }).observe(grid, { attributes: true, attributeFilter: ["data-filter"] });
+
+      apply();
+    })();
+  </script>
 
   <style is:global>
     /* Category filter. The CategoryFilter island flips [data-filter] on

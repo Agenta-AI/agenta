@@ -9,9 +9,17 @@
 // outline "Star on Github" + yellow "Get started".
 import site from "../../../Agenta landing page pivot/content/site.json";
 
+// Gate: the in-article CTA is hidden on every post for now — the current copy's
+// positioning is outdated and the card can't be dismissed. Every post still
+// embeds `<InlineCTA />` in its MDX body; guarding here renders nothing across
+// all posts without touching 37 MDX files. Flip back to true (with fresh copy)
+// to re-enable. Mirrors the SHOW_HERO_VIDEO / SHOW_COMMUNITY_STRIP pattern.
+const SHOW_INLINE_CTA = false;
+
 const { title, body, primary, secondary } = site.inlineCta;
 ---
 
+{SHOW_INLINE_CTA && (
 <div
   style="border-radius:14px;background:linear-gradient(150deg,#15151A,#100F12);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);padding:26px 28px;display:flex;flex-direction:column;gap:14px;margin:6px 0;"
 >
@@ -34,3 +42,4 @@ const { title, body, primary, secondary } = site.inlineCta;
     >
   </div>
 </div>
+)}
