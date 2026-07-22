@@ -140,6 +140,13 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
         navigator.mediaDevices
             .getUserMedia({audio: true})
             .then((stream) => {
+                // Cancelled while the permission was still pending: the prompt can only be
+                // answered by the person, so honour their cancel by dropping the stream the
+                // moment it arrives rather than starting a recording they backed out of.
+                if (cancelledRef.current) {
+                    stream.getTracks().forEach((t) => t.stop())
+                    return
+                }
                 streamRef.current = stream
                 const mime = pickMime()
                 const rec = new MediaRecorder(stream, mime ? {mimeType: mime} : undefined)
@@ -176,6 +183,8 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
             })
             .catch((e: unknown) => {
                 teardown()
+                // Backed out before answering — not a failure worth reporting.
+                if (cancelledRef.current) return
                 const denied = e instanceof DOMException && e.name === "NotAllowedError"
                 setStatus(denied ? "denied" : "error")
                 setError(
@@ -189,8 +198,15 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
     const stop = useCallback(() => recRef.current?.stop(), [])
     const cancel = useCallback(() => {
         cancelledRef.current = true
-        recRef.current?.stop()
-    }, [])
+        if (recRef.current) {
+            recRef.current.stop() // `onstop` sees the flag and discards the take
+            return
+        }
+        // Still waiting on the permission: there is no recorder to stop, so return to idle now.
+        // The pending `getUserMedia` resolves into a no-op (see `start`).
+        teardown()
+        setStatus("idle")
+    }, [teardown])
     const dismissError = useCallback(() => {
         setError(null)
         setStatus("idle")
