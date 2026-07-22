@@ -48,6 +48,7 @@ import {type UIMessage} from "ai"
 import {App, Button, Modal, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
+import {AnimatePresence, motion} from "motion/react"
 import {useRouter} from "next/router"
 import {Virtuoso, type Components, type VirtuosoHandle} from "react-virtuoso"
 
@@ -91,6 +92,7 @@ import {doesAgentChatStopKillSession} from "./assets/constants"
 import {filesToParts} from "./assets/files"
 import {loadSessionMessages} from "./assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
+import {SESSION_SPRING} from "./assets/sessionMotion"
 import {getMessageTraceId} from "./assets/trace"
 import AgentChatEmptyState from "./components/AgentChatEmptyState"
 import AgentChatHistoryUnavailable from "./components/AgentChatHistoryUnavailable"
@@ -108,6 +110,7 @@ import {
     inspectorTargetAtom,
     openInspectorTurnAtom,
 } from "./components/Inspector/state"
+import MicPermissionNotice from "./components/MicPermissionNotice"
 import QueuedMessages from "./components/QueuedMessages"
 import RecordingBar from "./components/RecordingBar"
 import RevealCollapse from "./components/RevealCollapse"
@@ -2224,20 +2227,12 @@ const AgentConversation = ({
                                 {/* Composer region hydrates independently (Lexical chunk); the fallback is the
                         same skeleton the pane-level gates render for this slot, so the box never
                         changes shape — the editor just materializes inside it. */}
-                                {voiceRecorder.error && !voiceRecorder.active ? (
-                                    <div
-                                        className={`${CHAT_COLUMN} mb-2 flex items-center justify-between gap-2 rounded-md bg-[var(--ant-color-error-bg)] px-2.5 py-1.5 text-xs text-colorError`}
-                                    >
-                                        <span>{voiceRecorder.error}</span>
-                                        <button
-                                            type="button"
-                                            onClick={voiceRecorder.dismissError}
-                                            className="cursor-pointer rounded border-0 bg-transparent text-[11px] text-colorError hover:underline"
-                                        >
-                                            Dismiss
-                                        </button>
-                                    </div>
-                                ) : null}
+                                <MicPermissionNotice
+                                    className={CHAT_COLUMN}
+                                    open={!!voiceRecorder.error && !voiceRecorder.active}
+                                    message={voiceRecorder.error}
+                                    onDismiss={voiceRecorder.dismissError}
+                                />
                                 {/* `mb-3` lives here, not on the input, so the recording overlay
                                 (inset-0) covers the composer box exactly. */}
                                 <div className="relative mb-3">
@@ -2380,14 +2375,25 @@ const AgentConversation = ({
                                             }
                                         />
                                     </Suspense>
-                                    {voiceRecorder.active ? (
-                                        <div className="pointer-events-none absolute inset-0 flex justify-center">
-                                            <RecordingBar
-                                                recorder={voiceRecorder}
-                                                className={`${CHAT_COLUMN} h-full`}
-                                            />
-                                        </div>
-                                    ) : null}
+                                    {/* Cross-fades over the composer instead of popping; same spring
+                                    as the rest of the slice's chrome. */}
+                                    <AnimatePresence initial={false}>
+                                        {voiceRecorder.active && (
+                                            <motion.div
+                                                key="recording"
+                                                initial={{opacity: 0, y: 4}}
+                                                animate={{opacity: 1, y: 0}}
+                                                exit={{opacity: 0, y: 4}}
+                                                transition={SESSION_SPRING}
+                                                className="pointer-events-none absolute inset-0 flex justify-center"
+                                            >
+                                                <RecordingBar
+                                                    recorder={voiceRecorder}
+                                                    className={`${CHAT_COLUMN} h-full`}
+                                                />
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
                             </Reveal>
                         </div>
