@@ -122,3 +122,19 @@ export const harnessCapabilitiesAtomFamily = atomFamily((_harnessRef: string) =>
         return query.data ?? null
     }),
 )
+
+/**
+ * The model's context window (max input tokens) from the harness catalog, matched by exact id — the
+ * same `id`-keyed join the model picker uses. `null` when the catalog, harness, or entry is absent,
+ * or the entry carries no `context_window`. Source of truth is the SDK model catalog
+ * (`model_catalog.py`), so no window is ever hardcoded on the frontend.
+ */
+export function contextWindowForModel(
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+    harness: string | null | undefined,
+    modelId: string | null | undefined,
+): number | null {
+    if (!capabilities || !harness || !modelId) return null
+    const entry = capabilities[harness]?.model_catalog?.find((e) => e.id === modelId)
+    return entry?.context_window ?? null
+}

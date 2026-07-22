@@ -15,6 +15,8 @@ export interface AgentModelKeyStatus {
     provider: string | null
     /** The selected model id (display). */
     model: string | null
+    /** The selected harness type (e.g. "pi_core" / "claude"), from `agent.harness.kind`. */
+    harness: string | null
     /** Whether the project's vault holds a key for that provider. */
     hasKey: boolean
     /** The canonical vault provider entry for the model's provider (to open the configure drawer). */
@@ -38,6 +40,10 @@ interface LlmRef {
     provider?: unknown
     model?: unknown
     connection?: {mode?: unknown} | null
+}
+
+interface HarnessRef {
+    kind?: unknown
 }
 
 /**
@@ -64,8 +70,13 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
     const keySetupDone = useAtomValue(providerKeySetupDoneAtom)
 
     return useMemo(() => {
-        const llm = (config as {agent?: {llm?: LlmRef}} | null)?.agent?.llm
+        const agent = (config as {agent?: {llm?: LlmRef; harness?: HarnessRef}} | null)?.agent
+        const llm = agent?.llm
         const model = typeof llm?.model === "string" && llm.model ? llm.model : null
+        const harness =
+            typeof agent?.harness?.kind === "string" && agent.harness.kind
+                ? agent.harness.kind
+                : null
         // Provider is stored on the ModelRef; fall back to a `provider/id` model prefix (Pi naming).
         const provider =
             typeof llm?.provider === "string" && llm.provider
@@ -90,6 +101,7 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
         return {
             provider,
             model,
+            harness,
             hasKey: !!providerEntry?.key,
             providerEntry,
             loading,

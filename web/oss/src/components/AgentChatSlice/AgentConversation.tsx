@@ -17,6 +17,8 @@ import {
 } from "@agenta/entities/session"
 import {markTraceAsFresh} from "@agenta/entities/trace"
 import {
+    contextWindowForModel,
+    harnessCapabilitiesAtomFamily,
     invalidateAgentCommittedRevisionCache,
     workflowBuildKitOverlayReadyAtomFamily,
     workflowMolecule,
@@ -98,6 +100,7 @@ import ApprovalDock, {getPendingApprovals} from "./components/ApprovalDock"
 import type {ClientToolOutputHandler} from "./components/clientTools"
 import ComposerAttachments from "./components/ComposerAttachments"
 import ConnectModelBanner from "./components/ConnectModelBanner"
+import ContextBudgetIndicator from "./components/ContextBudgetIndicator"
 import {Inspector} from "./components/Inspector/Inspector"
 import {invalidateSessionInspector} from "./components/Inspector/invalidate"
 import {
@@ -745,6 +748,14 @@ const AgentConversation = ({
     // composer until connected — see `gateActive` on `useAgentModelKeyStatus` for the full chain.
     const modelKey = useAgentModelKeyStatus(entityId)
     const modelBlocked = modelKey.gateActive
+
+    // Context-window denominator for the token-budget indicator: the SDK model catalog's own
+    // `context_window`, delivered on the (global) harness-capabilities document — never hardcoded.
+    const harnessCapabilities = useAtomValue(harnessCapabilitiesAtomFamily(""))
+    const contextMaxTokens = useMemo(
+        () => contextWindowForModel(harnessCapabilities, modelKey.harness, modelKey.model),
+        [harnessCapabilities, modelKey.harness, modelKey.model],
+    )
 
     // ── Playground-native onboarding ──────────────────────────────────────────
     // This chat panel IS the onboarding surface while the agent is ephemeral: the empty state shows the
@@ -2243,25 +2254,39 @@ const AgentConversation = ({
                                         streaming={busy}
                                         onStop={handleStop}
                                         prefix={
-                                            // Attach button is gated until the agent service is ready for inline
-                                            // file parts (big-agents d4b119af26); paste / drag-to-add still work.
-                                            <Tooltip
-                                                title={
-                                                    atMax
-                                                        ? `Up to ${limits.maxCount} files`
-                                                        : "Attach files coming soon"
-                                                }
-                                            >
-                                                <Button
-                                                    type="text"
-                                                    icon={<Paperclip size={16} />}
-                                                    disabled={true}
-                                                    onClick={() =>
-                                                        setAttachmentsOpen((open) => !open)
+                                            // Left cluster of the composer toolbar: the (gated) attach
+                                            // button + the context token-budget readout, filling the
+                                            // otherwise-empty left space next to the attachments icon.
+                                            <div className="flex items-center gap-2">
+                                                {/* Attach button is gated until the agent service is ready for
+                                                inline file parts (big-agents d4b119af26); paste / drag-to-add
+                                                still work. */}
+                                                <Tooltip
+                                                    title={
+                                                        atMax
+                                                            ? `Up to ${limits.maxCount} files`
+                                                            : "Attach files coming soon"
                                                     }
-                                                    aria-label="Attach files"
-                                                />
-                                            </Tooltip>
+                                                >
+                                                    <Button
+                                                        type="text"
+                                                        icon={<Paperclip size={16} />}
+                                                        disabled={true}
+                                                        onClick={() =>
+                                                            setAttachmentsOpen((open) => !open)
+                                                        }
+                                                        aria-label="Attach files"
+                                                    />
+                                                </Tooltip>
+                                                {/* Only meaningful in a real conversation — hidden during
+                                                onboarding (no turns / no usage yet). */}
+                                                {!onboardingActive ? (
+                                                    <ContextBudgetIndicator
+                                                        messages={messages}
+                                                        maxTokens={contextMaxTokens}
+                                                    />
+                                                ) : null}
+                                            </div>
                                         }
                                         header={
                                             <HeightCollapse

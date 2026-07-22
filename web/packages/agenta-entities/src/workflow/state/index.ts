@@ -16,6 +16,7 @@ export {workflowMolecule, type WorkflowMolecule} from "./molecule"
 
 export {
     harnessCapabilitiesAtomFamily,
+    contextWindowForModel,
     type HarnessCapabilities,
     type HarnessCapabilitiesMap,
     type ModelCatalogEntry,
