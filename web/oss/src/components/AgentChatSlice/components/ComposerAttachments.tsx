@@ -23,6 +23,7 @@ import {
 } from "../assets/attachments"
 import {SESSION_SPRING} from "../assets/sessionMotion"
 
+import {isViewable} from "./AttachmentViewerDrawer"
 import AudioPlayer from "./AudioPlayer"
 
 const {Text} = Typography
@@ -59,7 +60,10 @@ const RemoveButton = ({
     <button
         type="button"
         aria-label={`Remove ${name}`}
-        onClick={onRemove}
+        onClick={(e) => {
+            e.stopPropagation()
+            onRemove()
+        }}
         className={
             overlay
                 ? "absolute right-1 top-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.6)] text-white opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
@@ -71,9 +75,19 @@ const RemoveButton = ({
 )
 
 /** Shared chip shell: fixed height, one border treatment, room for a trailing remove. */
-const Chip = ({children, className}: {children: ReactNode; className?: string}) => (
+const Chip = ({
+    children,
+    className,
+    onClick,
+}: {
+    children: ReactNode
+    className?: string
+    onClick?: () => void
+}) => (
     <div
-        className={`flex ${TILE} items-center gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary px-2 ${className ?? ""}`}
+        role={onClick ? "button" : undefined}
+        onClick={onClick}
+        className={`flex ${TILE} items-center gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary px-2 ${onClick ? "cursor-pointer hover:border-colorBorder" : ""} ${className ?? ""}`}
     >
         {children}
     </div>
@@ -90,6 +104,8 @@ interface ComposerAttachmentsProps {
     onAdd: (incoming: File[]) => void
     onRemove: (uid: string) => void
     onDismissRejections: () => void
+    /** Open a viewable attachment (image/document) in the Files drawer. */
+    onView?: (uid: string) => void
 }
 
 /**
@@ -107,6 +123,7 @@ const ComposerAttachments = ({
     onAdd,
     onRemove,
     onDismissRejections,
+    onView,
 }: ComposerAttachmentsProps) => {
     const inputRef = useRef<HTMLInputElement>(null)
     const [previews, setPreviews] = useState<Record<string, string>>({})
@@ -269,7 +286,12 @@ const ComposerAttachments = ({
                                                 </Tooltip>
                                             ) : type.startsWith("image/") && url ? (
                                                 <div
-                                                    className={`group relative ${TILE} w-12 overflow-hidden rounded-lg border border-solid border-colorBorderSecondary`}
+                                                    role={onView ? "button" : undefined}
+                                                    aria-label={
+                                                        onView ? `View ${f.name}` : undefined
+                                                    }
+                                                    onClick={() => onView?.(f.uid)}
+                                                    className={`group relative ${TILE} w-12 overflow-hidden rounded-lg border border-solid border-colorBorderSecondary ${onView ? "cursor-pointer" : ""}`}
                                                 >
                                                     {/* Local object URL — next/image can't optimize a blob. */}
                                                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -285,7 +307,14 @@ const ComposerAttachments = ({
                                                     />
                                                 </div>
                                             ) : (
-                                                <Chip className="max-w-[200px]">
+                                                <Chip
+                                                    className="max-w-[200px]"
+                                                    onClick={
+                                                        onView && isViewable(type)
+                                                            ? () => onView(f.uid)
+                                                            : undefined
+                                                    }
+                                                >
                                                     <Icon
                                                         size={18}
                                                         className="shrink-0 text-colorTextSecondary"

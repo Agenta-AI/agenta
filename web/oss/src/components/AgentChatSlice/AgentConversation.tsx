@@ -101,6 +101,7 @@ import AgentChatHistoryUnavailable from "./components/AgentChatHistoryUnavailabl
 import {ComposerSkeleton, TranscriptSkeleton} from "./components/AgentChatSkeleton"
 import AgentMessage from "./components/AgentMessage"
 import ApprovalDock, {getPendingApprovals} from "./components/ApprovalDock"
+import AttachmentViewerDrawer from "./components/AttachmentViewerDrawer"
 import type {ClientToolOutputHandler} from "./components/clientTools"
 import ComposerAttachments from "./components/ComposerAttachments"
 import ConnectModelBanner from "./components/ConnectModelBanner"
@@ -415,6 +416,8 @@ const AgentConversation = ({
     }, [files, sessionId])
     // Files turned away by the guardrails (too big, wrong type, over the count), shown inline.
     const [rejections, setRejections] = useState<AttachmentRejection[]>([])
+    // The attachment currently open in the Files-drawer preview (its uid), or null when closed.
+    const [viewingUid, setViewingUid] = useState<string | null>(null)
     const [attachmentsOpen, setAttachmentsOpen] = useState(false)
     // Single limits object so it can later be swapped for capability-derived limits.
     const limits = DEFAULT_ATTACHMENT_LIMITS
@@ -2008,6 +2011,11 @@ const AgentConversation = ({
                 {modalContextHolder}
                 {quickLookHost}
                 {filesWindowHost}
+                <AttachmentViewerDrawer
+                    uploads={files}
+                    openUid={viewingUid}
+                    onClose={() => setViewingUid(null)}
+                />
                 {/* Resizable [chat | right panel] split. The panel (turn inspector OR session content)
                 pushes the chat aside rather than overlaying it, and collapses to 0 when closed. */}
                 <RightPanelSplit
@@ -2438,6 +2446,7 @@ const AgentConversation = ({
                                                         onDismissRejections={() =>
                                                             setRejections([])
                                                         }
+                                                        onView={setViewingUid}
                                                     />
                                                 </HeightCollapse>
                                             }
