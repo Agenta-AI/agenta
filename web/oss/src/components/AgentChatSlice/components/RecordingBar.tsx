@@ -1,6 +1,6 @@
 import {useEffect, useState} from "react"
 
-import {Check, X} from "@phosphor-icons/react"
+import {Check, PaperPlaneRight, X} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import {AnimatePresence, motion} from "motion/react"
 
@@ -19,7 +19,16 @@ const MAX_SECONDS = Math.floor(MAX_RECORDING_MS / 1000)
  * the mic permission is the browser's own prompt, so we stay out of its way). Live timer + input
  * level, with delete (discard) and attach (keep) exits.
  */
-const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className?: string}) => {
+const RecordingBar = ({
+    recorder,
+    willSend,
+    className,
+}: {
+    recorder: AudioRecorder
+    /** Confirm sends the take outright (nothing else composed) rather than parking it in the tray. */
+    willSend: boolean
+    className?: string
+}) => {
     const {analyserRef, startedAtRef, stop, cancel} = recorder
 
     // Only the clock lives in React, quantised to whole seconds — so this repaints ~1x/s. The
@@ -108,13 +117,17 @@ const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className
                     animate={{opacity: 1, scale: 1}}
                     transition={SESSION_SPRING}
                 >
-                    <Tooltip title="Attach to message">
+                    <Tooltip title={willSend ? "Send voice message" : "Attach to message"}>
                         <Button
                             type="primary"
                             shape="circle"
-                            icon={<Check size={18} />}
+                            icon={willSend ? <PaperPlaneRight size={18} /> : <Check size={18} />}
                             onClick={stop}
-                            aria-label="Stop recording and attach it"
+                            aria-label={
+                                willSend
+                                    ? "Stop recording and send the voice message"
+                                    : "Stop recording and attach it to the message"
+                            }
                         />
                     </Tooltip>
                 </motion.div>

@@ -1639,7 +1639,24 @@ const AgentConversation = ({
 
     // Voice-message recording: the clip lands in the attachment tray like any file. Owned here so
     // the recording takeover (RecordingBar) can cover the whole composer while capturing.
-    const voiceRecorder = useAudioRecorder((file) => addFiles([file]))
+    /**
+     * A voice message recorded into an otherwise-empty composer IS the message, so the take is
+     * sent on confirm rather than parked in the tray. With text or other attachments staged, the
+     * person is mid-composition, so it attaches instead and they send when ready.
+     *
+     * Decided when recording STARTS: the composer is covered by the recording bar and drops are
+     * blocked while capturing, so neither the text nor the tray can change in between.
+     */
+    const [voiceWillSend, setVoiceWillSend] = useState(false)
+    const voiceRecorder = useAudioRecorder((file) => {
+        if (voiceWillSend) handleSubmit("", [file])
+        else addFiles([file])
+    })
+    const startVoiceMessage = () => {
+        const hasText = !!(richInputRef.current?.getMarkdown() ?? "").trim()
+        setVoiceWillSend(!hasText && files.length === 0)
+        voiceRecorder.start()
+    }
     // Dictation runs inside the mic button (its transcript changes far too often to lift here), so
     // it reports failures up for the shared notice.
     const [dictationError, setDictationError] = useState<string | null>(null)
@@ -1688,11 +1705,14 @@ const AgentConversation = ({
         }
     }
 
-    const handleSubmit = async (text: string) => {
+    const handleSubmit = async (text: string, extraFiles: File[] = []) => {
         const trimmed = text.trim()
-        const fileObjs = files
-            .map((f) => f.originFileObj as File | undefined)
-            .filter((f): f is File => Boolean(f))
+        const fileObjs = [
+            ...files
+                .map((f) => f.originFileObj as File | undefined)
+                .filter((f): f is File => Boolean(f)),
+            ...extraFiles,
+        ]
         if (!trimmed && fileObjs.length === 0) return
         const fileParts = fileObjs.length ? await filesToParts(fileObjs) : undefined
         // Glide to the bottom; the min-h-full active turn makes that show the new question at the top
@@ -2295,7 +2315,7 @@ const AgentConversation = ({
                                                 <div className="flex items-center gap-2">
                                                     <VoiceInputButton
                                                         inputRef={richInputRef}
-                                                        onStartAudio={voiceRecorder.start}
+                                                        onStartAudio={startVoiceMessage}
                                                         audioSupported={voiceRecorder.supported}
                                                         audioPending={voiceRecorder.pending}
                                                         attachmentsFull={atMax}
@@ -2410,6 +2430,7 @@ const AgentConversation = ({
                                             >
                                                 <RecordingBar
                                                     recorder={voiceRecorder}
+                                                    willSend={voiceWillSend}
                                                     className={`${CHAT_COLUMN} h-full`}
                                                 />
                                             </motion.div>
