@@ -1,7 +1,7 @@
 import {useEffect, useRef, type RefObject} from "react"
 
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {CaretDown, Microphone, TextAa} from "@phosphor-icons/react"
+import {CaretDown, Microphone, Waveform} from "@phosphor-icons/react"
 import {Button, Dropdown, Tooltip, type MenuProps} from "antd"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
@@ -31,13 +31,14 @@ const MODE_HINT: Record<VoiceMode, string> = {
     transcribe: "Dictate into the message",
 }
 
-/** Each mode carries its own icon: the button then shows which one is active, so switching modes
- * visibly changes the control rather than leaving an identical UI behind a closed menu. */
+/** Each mode carries its own icon, so the button shows which is active and switching visibly
+ * changes the control. Both stay voice-y — the difference is what comes OUT: a waveform for an
+ * audio clip, and the microphone every phone keyboard uses for dictation. */
 const modeIcon = (mode: VoiceMode, filled = false) =>
     mode === "audio" ? (
-        <Microphone size={16} weight={filled ? "fill" : "regular"} />
+        <Waveform size={16} weight={filled ? "fill" : "regular"} />
     ) : (
-        <TextAa size={16} weight={filled ? "fill" : "regular"} />
+        <Microphone size={16} weight={filled ? "fill" : "regular"} />
     )
 
 const VoiceInputButton = ({

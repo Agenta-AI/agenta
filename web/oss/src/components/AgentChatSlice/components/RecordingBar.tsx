@@ -1,6 +1,7 @@
 import {useEffect, useState} from "react"
 
-import {Check, PaperPlaneRight, X} from "@phosphor-icons/react"
+import {ComposerSendButton} from "@agenta/ui/rich-chat-input"
+import {Check, X} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import {AnimatePresence, motion} from "motion/react"
 
@@ -118,12 +119,13 @@ const RecordingBar = ({
                     transition={SESSION_SPRING}
                 >
                     <Tooltip title={willSend ? "Send voice message" : "Attach to message"}>
-                        <Button
-                            type="primary"
-                            shape="circle"
-                            icon={willSend ? <PaperPlaneRight size={18} /> : <Check size={18} />}
+                        {/* The composer's own send control — sending is one affordance, wherever
+                        it is triggered from. Only the glyph changes when the take is being
+                        attached to a message in progress rather than sent outright. */}
+                        <ComposerSendButton
                             onClick={stop}
-                            aria-label={
+                            icon={willSend ? undefined : <Check size={16} weight="bold" />}
+                            ariaLabel={
                                 willSend
                                     ? "Stop recording and send the voice message"
                                     : "Stop recording and attach it to the message"
