@@ -216,3 +216,23 @@ describe("transcriptToMessages approval hydration", () => {
         })
     })
 })
+
+describe("transcriptToMessages paused end-marker", () => {
+    it("flags the message whose turn ended paused (done.stopReason)", () => {
+        const messages = transcriptToMessages([
+            ...approvalRecords(),
+            record("record-done-paused", {type: "done", stopReason: "paused"}),
+        ])
+        expect(messages).not.toBeNull()
+        expect(messages?.[0].metadata).toMatchObject({paused: true})
+    })
+
+    it("does not flag a normally completed turn", () => {
+        const messages = transcriptToMessages([
+            ...approvalRecords(),
+            record("record-done-complete", {type: "done"}),
+        ])
+        expect(messages).not.toBeNull()
+        expect((messages?.[0].metadata as {paused?: boolean} | undefined)?.paused).toBeUndefined()
+    })
+})

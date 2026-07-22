@@ -854,7 +854,7 @@ export async function runTurn(
       run.emitEvent({ type: "error", message: swallowedError });
     }
 
-    const output = run.finish();
+    const output = run.finish(stopReason);
     await run.flush();
     const turnEndedAt = new Date().toISOString();
 

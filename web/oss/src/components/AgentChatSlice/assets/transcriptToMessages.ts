@@ -38,6 +38,9 @@ interface DraftMessage {
     traceId?: string
     /** Token/cost totals from the turn's persisted `usage` event, in the raw stream shape. */
     usage?: {input?: number; output?: number; total?: number; cost?: number}
+    /** The turn's terminal `done` carried `stopReason:"paused"` — it ended mid-approval, not at a
+     *  real boundary. Surfaced on the message so a cold reload's adoption heuristic can compare state. */
+    paused?: boolean
 }
 
 interface TranscriptIndex {
@@ -280,6 +283,9 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
         // fresh message per turn.
         if (row.session_update === "done" || p.type === "done") {
             if (current && traceId && !current.traceId) current.traceId = traceId
+            // A paused turn's `done` carries stopReason:"paused" — mark the closing message so a cold
+            // reload can tell this turn ended mid-approval, not at a real boundary (read by adoption).
+            if (current && p.stopReason === "paused") current.paused = true
             current = null
             continue
         }
@@ -301,6 +307,7 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
             const metadata: Record<string, unknown> = {}
             if (d.traceId) metadata.traceId = d.traceId
             if (d.usage) metadata.usage = d.usage
+            if (d.paused) metadata.paused = true
             return {
                 id: d.id,
                 role: d.role,

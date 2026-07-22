@@ -998,7 +998,20 @@ const AgentConversation = ({
         const adopt = (serverMsgs: UIMessage[] | null) => {
             if (cancelled || !serverMsgs || serverMsgs.length === 0) return
             const prev = messagesRef.current
-            if (busyRef.current || serverMsgs.length <= prev.length) return
+            if (busyRef.current) return
+            // Adopt the server transcript when it is strictly ahead by count, OR when our LOCAL tail
+            // is stuck paused (mid-approval) while the server has moved past it to a terminal turn — a
+            // resume that completed on another device. Count alone misses the latter (same bubble
+            // count) and was silently propped up by the now-removed duplicate user row; the server's
+            // `paused` flag rides the runner's `done.stopReason` through `transcriptToMessages`.
+            const serverAheadByCount = serverMsgs.length > prev.length
+            const localTailPaused = getPendingApprovals(prev).length > 0
+            const serverTail = serverMsgs[serverMsgs.length - 1] as
+                | {metadata?: {paused?: boolean}}
+                | undefined
+            const serverTailComplete =
+                !serverTail?.metadata?.paused && getPendingApprovals(serverMsgs).length === 0
+            if (!serverAheadByCount && !(localTailPaused && serverTailComplete)) return
             serverMsgs.forEach((m) => {
                 seenIdsRef.current.add(m.id)
                 restoredIdsRef.current.add(m.id)
