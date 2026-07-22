@@ -2261,6 +2261,7 @@ const AgentConversation = ({
                                             <div className="flex items-center gap-2">
                                                 <VoiceInputButton
                                                     inputRef={richInputRef}
+                                                    onAudio={(file) => addFiles([file])}
                                                     disabled={
                                                         onboardingActive
                                                             ? ideHandoffActive
