@@ -4,6 +4,8 @@ import {
     File as FileIcon,
     FileText,
     Image as ImageIcon,
+    Pause,
+    Play,
     Plus,
     UploadSimple,
     WarningCircle,
@@ -20,6 +22,65 @@ const iconForType = (mediaType: string) => {
     if (mediaType.startsWith("image/")) return ImageIcon
     if (mediaType === "application/pdf" || mediaType.startsWith("text/")) return FileText
     return FileIcon
+}
+
+const fmtTime = (s: number): string => {
+    if (!isFinite(s)) return "0:00"
+    const t = Math.floor(s)
+    return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`
+}
+
+/** A recorded/attached audio clip: play-pause with an elapsed readout, previewable before send. */
+const AudioChip = ({url, name, onRemove}: {url: string; name: string; onRemove: () => void}) => {
+    const ref = useRef<HTMLAudioElement>(null)
+    const [playing, setPlaying] = useState(false)
+    const [cur, setCur] = useState(0)
+    const [dur, setDur] = useState(0)
+    const toggle = () => {
+        const a = ref.current
+        if (!a) return
+        if (a.paused) a.play().catch(() => {})
+        else a.pause()
+    }
+    return (
+        <div className="flex max-w-[220px] items-center gap-2 rounded-lg border border-solid border-colorBorderSecondary px-2 py-1.5">
+            <button
+                type="button"
+                onClick={toggle}
+                aria-label={playing ? `Pause ${name}` : `Play ${name}`}
+                className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-colorFillTertiary text-colorText transition-colors hover:bg-colorFillSecondary"
+            >
+                {playing ? <Pause size={14} weight="fill" /> : <Play size={14} weight="fill" />}
+            </button>
+            <div className="flex min-w-0 flex-col">
+                <Text className="!text-xs truncate" title={name}>
+                    {name}
+                </Text>
+                <Text type="secondary" className="!text-[11px] tabular-nums">
+                    {fmtTime(cur)}
+                    {isFinite(dur) && dur > 0 ? ` / ${fmtTime(dur)}` : ""}
+                </Text>
+            </div>
+            <button
+                type="button"
+                aria-label={`Remove ${name}`}
+                onClick={onRemove}
+                className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-colorFillTertiary text-colorTextSecondary transition-colors hover:bg-colorFillSecondary"
+            >
+                <X size={10} />
+            </button>
+            <audio
+                ref={ref}
+                src={url}
+                onPlay={() => setPlaying(true)}
+                onPause={() => setPlaying(false)}
+                onEnded={() => setPlaying(false)}
+                onTimeUpdate={(e) => setCur(e.currentTarget.currentTime)}
+                onLoadedMetadata={(e) => setDur(e.currentTarget.duration)}
+                className="hidden"
+            />
+        </div>
+    )
 }
 
 interface ComposerAttachmentsProps {
@@ -58,7 +119,8 @@ const ComposerAttachments = ({
         const next: Record<string, string> = {}
         files.forEach((f) => {
             const file = f.originFileObj as File | undefined
-            if (file && (file.type || "").startsWith("image/")) {
+            const type = file?.type || ""
+            if (file && (type.startsWith("image/") || type.startsWith("audio/"))) {
                 next[f.uid] = URL.createObjectURL(file)
             }
         })
@@ -126,8 +188,18 @@ const ComposerAttachments = ({
                         const type = file?.type || ""
                         const Icon = iconForType(type)
                         const size = file ? formatBytes(file.size) : ""
-                        const preview = previews[f.uid]
-                        return preview ? (
+                        const url = previews[f.uid]
+                        if (type.startsWith("audio/") && url) {
+                            return (
+                                <AudioChip
+                                    key={f.uid}
+                                    url={url}
+                                    name={f.name}
+                                    onRemove={() => onRemove(f.uid)}
+                                />
+                            )
+                        }
+                        return url ? (
                             <div
                                 key={f.uid}
                                 className="relative h-12 w-12 overflow-hidden rounded-lg border border-solid border-colorBorderSecondary"
@@ -135,7 +207,7 @@ const ComposerAttachments = ({
                                 {/* Local object URL — next/image can't optimize a blob. */}
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
-                                    src={preview}
+                                    src={url}
                                     alt={f.name}
                                     className="h-full w-full object-cover"
                                 />

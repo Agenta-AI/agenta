@@ -109,11 +109,13 @@ import {
     openInspectorTurnAtom,
 } from "./components/Inspector/state"
 import QueuedMessages from "./components/QueuedMessages"
+import RecordingBar from "./components/RecordingBar"
 import RevealCollapse from "./components/RevealCollapse"
 import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
 import VoiceInputButton from "./components/VoiceInputButton"
 import {useAgentChatQueue, type QueuedMessage} from "./hooks/useAgentChatQueue"
 import {useAgentModelKeyStatus} from "./hooks/useAgentModelKeyStatus"
+import {useAudioRecorder} from "./hooks/useAudioRecorder"
 import {useFileActivityDetector} from "./hooks/useFileActivityDetector"
 import {expandedKeysForMessages, pruneExpandedAtom} from "./state/expandState"
 import {agentFirstRunSeedAtom} from "./state/firstRunSeed"
@@ -1632,6 +1634,10 @@ const AgentConversation = ({
 
     const removeFile = (uid: string) => setFiles((prev) => prev.filter((f) => f.uid !== uid))
 
+    // Voice-message recording: the clip lands in the attachment tray like any file. Owned here so
+    // the recording takeover (RecordingBar) can cover the whole composer while capturing.
+    const voiceRecorder = useAudioRecorder((file) => addFiles([file]))
+
     // Native drag-and-drop onto the whole panel. A depth counter ignores dragenter/leave from
     // nested children so the overlay doesn't flicker; only file drags (not text) are handled.
     const isFileDrag = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes("Files")
@@ -2218,142 +2224,171 @@ const AgentConversation = ({
                                 {/* Composer region hydrates independently (Lexical chunk); the fallback is the
                         same skeleton the pane-level gates render for this slot, so the box never
                         changes shape — the editor just materializes inside it. */}
-                                <Suspense
-                                    fallback={
-                                        <ComposerSkeleton className={`${CHAT_COLUMN} mb-3`} />
-                                    }
-                                >
-                                    <RichChatInput
-                                        ref={richInputRef}
-                                        autoFocus={autoFocusComposer}
-                                        className={`${CHAT_COLUMN} mb-3`}
-                                        // Onboarding: submit = commit the ephemeral — Enter creates the agent
-                                        // (matching the composer's "↵ Send" hint); ⌘/Shift+Enter inserts newlines
-                                        // for longer descriptions.
-                                        onSubmit={
-                                            onboardingActive
-                                                ? () => handleCreateAgent()
-                                                : handleSubmit
+                                {voiceRecorder.error && !voiceRecorder.active ? (
+                                    <div
+                                        className={`${CHAT_COLUMN} mb-2 flex items-center justify-between gap-2 rounded-md bg-[var(--ant-color-error-bg)] px-2.5 py-1.5 text-xs text-colorError`}
+                                    >
+                                        <span>{voiceRecorder.error}</span>
+                                        <button
+                                            type="button"
+                                            onClick={voiceRecorder.dismissError}
+                                            className="cursor-pointer rounded border-0 bg-transparent text-[11px] text-colorError hover:underline"
+                                        >
+                                            Dismiss
+                                        </button>
+                                    </div>
+                                ) : null}
+                                <div className="relative">
+                                    <Suspense
+                                        fallback={
+                                            <ComposerSkeleton className={`${CHAT_COLUMN} mb-3`} />
                                         }
-                                        disabled={
-                                            onboardingActive ? ideHandoffActive : modelBlocked
-                                        }
-                                        hideSendButton={onboardingActive}
-                                        placeholder={
-                                            onboardingActive
-                                                ? ideHandoffActive
-                                                    ? "Continue in your IDE from the steps above — or start over."
-                                                    : STRIP_COPY.describeAgentPlaceholder
-                                                : modelBlocked
-                                                  ? "Connect a model to start chatting…"
-                                                  : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
-                                        }
-                                        initialMarkdown={initialDraft}
-                                        onChange={handleComposerChange}
-                                        onPasteFile={(pasted) => addFiles(Array.from(pasted))}
-                                        sendForceEnabled={files.length > 0}
-                                        streaming={busy}
-                                        onStop={handleStop}
-                                        prefix={
-                                            // Left cluster of the composer toolbar: voice mic + the (gated)
-                                            // attach button + the context token-budget readout, filling the
-                                            // otherwise-empty left space next to the attachments icon.
-                                            <div className="flex items-center gap-2">
-                                                <VoiceInputButton
-                                                    inputRef={richInputRef}
-                                                    onAudio={(file) => addFiles([file])}
-                                                    disabled={
-                                                        onboardingActive
-                                                            ? ideHandoffActive
-                                                            : modelBlocked
-                                                    }
-                                                />
-                                                {/* Attach button is gated until the agent service is ready for
+                                    >
+                                        <RichChatInput
+                                            ref={richInputRef}
+                                            autoFocus={autoFocusComposer}
+                                            className={`${CHAT_COLUMN} mb-3`}
+                                            // Onboarding: submit = commit the ephemeral — Enter creates the agent
+                                            // (matching the composer's "↵ Send" hint); ⌘/Shift+Enter inserts newlines
+                                            // for longer descriptions.
+                                            onSubmit={
+                                                onboardingActive
+                                                    ? () => handleCreateAgent()
+                                                    : handleSubmit
+                                            }
+                                            disabled={
+                                                onboardingActive ? ideHandoffActive : modelBlocked
+                                            }
+                                            hideSendButton={onboardingActive}
+                                            placeholder={
+                                                onboardingActive
+                                                    ? ideHandoffActive
+                                                        ? "Continue in your IDE from the steps above — or start over."
+                                                        : STRIP_COPY.describeAgentPlaceholder
+                                                    : modelBlocked
+                                                      ? "Connect a model to start chatting…"
+                                                      : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                                            }
+                                            initialMarkdown={initialDraft}
+                                            onChange={handleComposerChange}
+                                            onPasteFile={(pasted) => addFiles(Array.from(pasted))}
+                                            sendForceEnabled={files.length > 0}
+                                            streaming={busy}
+                                            onStop={handleStop}
+                                            prefix={
+                                                // Left cluster of the composer toolbar: voice mic + the (gated)
+                                                // attach button + the context token-budget readout, filling the
+                                                // otherwise-empty left space next to the attachments icon.
+                                                <div className="flex items-center gap-2">
+                                                    <VoiceInputButton
+                                                        inputRef={richInputRef}
+                                                        onStartAudio={voiceRecorder.start}
+                                                        audioSupported={voiceRecorder.supported}
+                                                        disabled={
+                                                            onboardingActive
+                                                                ? ideHandoffActive
+                                                                : modelBlocked
+                                                        }
+                                                    />
+                                                    {/* Attach button is gated until the agent service is ready for
                                                 inline file parts (big-agents d4b119af26); paste / drag-to-add
                                                 still work. */}
-                                                <Tooltip
-                                                    title={
-                                                        atMax
-                                                            ? `Up to ${limits.maxCount} files`
-                                                            : "Attach files coming soon"
-                                                    }
-                                                >
-                                                    <Button
-                                                        type="text"
-                                                        icon={<Paperclip size={16} />}
-                                                        disabled={true}
-                                                        onClick={() =>
-                                                            setAttachmentsOpen((open) => !open)
+                                                    <Tooltip
+                                                        title={
+                                                            atMax
+                                                                ? `Up to ${limits.maxCount} files`
+                                                                : "Attach files coming soon"
                                                         }
-                                                        aria-label="Attach files"
-                                                    />
-                                                </Tooltip>
-                                                {/* Only meaningful in a real conversation — hidden during
-                                                onboarding (no turns / no usage yet). */}
-                                                {!onboardingActive ? (
-                                                    <ContextBudgetIndicator
-                                                        messages={messages}
-                                                        maxTokens={contextMaxTokens}
-                                                    />
-                                                ) : null}
-                                            </div>
-                                        }
-                                        header={
-                                            <HeightCollapse
-                                                open={attachmentsOpen || files.length > 0}
-                                            >
-                                                <ComposerAttachments
-                                                    files={files}
-                                                    rejections={rejections}
-                                                    limits={limits}
-                                                    onAdd={addFiles}
-                                                    onRemove={removeFile}
-                                                    onDismissRejections={() => setRejections([])}
-                                                />
-                                            </HeightCollapse>
-                                        }
-                                        trailing={
-                                            onboardingActive ? (
-                                                ideHandoffActive ? (
-                                                    <Button
-                                                        onClick={handleStartOver}
-                                                        className="!shadow-none"
                                                     >
-                                                        Start over
-                                                    </Button>
-                                                ) : TEMPLATE_STRIP_MODE ? (
-                                                    // Strip era: the SAME action cluster as the home hero composer
-                                                    // (shared component), with the one-click copy + toast handoff.
-                                                    <AgentIntentActions
-                                                        onCreate={handleCreateAgent}
-                                                        onCodingAgentCopy={handleCodingAgentCopy}
-                                                        creating={!!onboarding?.committing}
+                                                        <Button
+                                                            type="text"
+                                                            icon={<Paperclip size={16} />}
+                                                            disabled={true}
+                                                            onClick={() =>
+                                                                setAttachmentsOpen((open) => !open)
+                                                            }
+                                                            aria-label="Attach files"
+                                                        />
+                                                    </Tooltip>
+                                                    {/* Only meaningful in a real conversation — hidden during
+                                                onboarding (no turns / no usage yet). */}
+                                                    {!onboardingActive ? (
+                                                        <ContextBudgetIndicator
+                                                            messages={messages}
+                                                            maxTokens={contextMaxTokens}
+                                                        />
+                                                    ) : null}
+                                                </div>
+                                            }
+                                            header={
+                                                <HeightCollapse
+                                                    open={attachmentsOpen || files.length > 0}
+                                                >
+                                                    <ComposerAttachments
+                                                        files={files}
+                                                        rejections={rejections}
+                                                        limits={limits}
+                                                        onAdd={addFiles}
+                                                        onRemove={removeFile}
+                                                        onDismissRejections={() =>
+                                                            setRejections([])
+                                                        }
                                                     />
-                                                ) : (
-                                                    <div className="flex items-center gap-2">
+                                                </HeightCollapse>
+                                            }
+                                            trailing={
+                                                onboardingActive ? (
+                                                    ideHandoffActive ? (
                                                         <Button
-                                                            icon={<Code size={14} />}
-                                                            onClick={streamIdeBubble}
+                                                            onClick={handleStartOver}
                                                             className="!shadow-none"
                                                         >
-                                                            Continue in IDE
+                                                            Start over
                                                         </Button>
-                                                        <Button
-                                                            type="primary"
-                                                            icon={<ArrowRight size={14} />}
-                                                            iconPosition="end"
-                                                            loading={!!onboarding?.committing}
-                                                            onClick={handleCreateAgent}
-                                                            className="!shadow-none"
-                                                        >
-                                                            Create agent
-                                                        </Button>
-                                                    </div>
-                                                )
-                                            ) : undefined
-                                        }
-                                    />
-                                </Suspense>
+                                                    ) : TEMPLATE_STRIP_MODE ? (
+                                                        // Strip era: the SAME action cluster as the home hero composer
+                                                        // (shared component), with the one-click copy + toast handoff.
+                                                        <AgentIntentActions
+                                                            onCreate={handleCreateAgent}
+                                                            onCodingAgentCopy={
+                                                                handleCodingAgentCopy
+                                                            }
+                                                            creating={!!onboarding?.committing}
+                                                        />
+                                                    ) : (
+                                                        <div className="flex items-center gap-2">
+                                                            <Button
+                                                                icon={<Code size={14} />}
+                                                                onClick={streamIdeBubble}
+                                                                className="!shadow-none"
+                                                            >
+                                                                Continue in IDE
+                                                            </Button>
+                                                            <Button
+                                                                type="primary"
+                                                                icon={<ArrowRight size={14} />}
+                                                                iconPosition="end"
+                                                                loading={!!onboarding?.committing}
+                                                                onClick={handleCreateAgent}
+                                                                className="!shadow-none"
+                                                            >
+                                                                Create agent
+                                                            </Button>
+                                                        </div>
+                                                    )
+                                                ) : undefined
+                                            }
+                                        />
+                                    </Suspense>
+                                    {voiceRecorder.active ? (
+                                        <div className="pointer-events-none absolute inset-x-0 bottom-3 top-0 flex justify-center">
+                                            <RecordingBar
+                                                recorder={voiceRecorder}
+                                                className={`${CHAT_COLUMN} h-full`}
+                                            />
+                                        </div>
+                                    ) : null}
+                                </div>
                             </Reveal>
                         </div>
                         {/* Chat-mode context rail (spec E1): docked right of the transcript, Files
