@@ -1640,11 +1640,26 @@ const AgentConversation = ({
     // Voice-message recording: the clip lands in the attachment tray like any file. Owned here so
     // the recording takeover (RecordingBar) can cover the whole composer while capturing.
     const voiceRecorder = useAudioRecorder((file) => addFiles([file]))
+    // Dictation runs inside the mic button (its transcript changes far too often to lift here), so
+    // it reports failures up for the shared notice.
+    const [dictationError, setDictationError] = useState<string | null>(null)
+    const micError = voiceRecorder.error ?? dictationError
+    const dismissMicError = () => {
+        setDictationError(null)
+        voiceRecorder.dismissError()
+    }
 
     // Native drag-and-drop onto the whole panel. A depth counter ignores dragenter/leave from
     // nested children so the overlay doesn't flicker; only file drags (not text) are handled.
     const isFileDrag = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes("Files")
+    // While a take is in flight the composer is covered by the recording bar, and a drop landing
+    // now could take the last tray slot — which would reject (and destroy) the recording on
+    // attach. Guarded at the entry points, not in `addFiles`, because the recorder's own
+    // completion goes straight there and must always get through.
+    const attachmentsBusy = () => voiceRecorder.active
+
     const onDragEnter = (e: React.DragEvent) => {
+        if (attachmentsBusy()) return
         if (!isFileDrag(e)) return
         dragDepthRef.current += 1
         setIsDragging(true)
@@ -1661,6 +1676,7 @@ const AgentConversation = ({
         }
     }
     const onDrop = (e: React.DragEvent) => {
+        if (attachmentsBusy()) return
         if (!isFileDrag(e)) return
         e.preventDefault()
         dragDepthRef.current = 0
@@ -2229,9 +2245,9 @@ const AgentConversation = ({
                         changes shape — the editor just materializes inside it. */}
                                 <MicPermissionNotice
                                     className={CHAT_COLUMN}
-                                    open={!!voiceRecorder.error && !voiceRecorder.active}
-                                    message={voiceRecorder.error}
-                                    onDismiss={voiceRecorder.dismissError}
+                                    open={!!micError && !voiceRecorder.active}
+                                    message={micError}
+                                    onDismiss={dismissMicError}
                                 />
                                 {/* `mb-3` lives here, not on the input, so the recording overlay
                                 (inset-0) covers the composer box exactly. */}
@@ -2266,7 +2282,9 @@ const AgentConversation = ({
                                             }
                                             initialMarkdown={initialDraft}
                                             onChange={handleComposerChange}
-                                            onPasteFile={(pasted) => addFiles(Array.from(pasted))}
+                                            onPasteFile={(pasted) => {
+                                                if (!attachmentsBusy()) addFiles(Array.from(pasted))
+                                            }}
                                             sendForceEnabled={files.length > 0}
                                             streaming={busy}
                                             onStop={handleStop}
@@ -2281,6 +2299,7 @@ const AgentConversation = ({
                                                         audioSupported={voiceRecorder.supported}
                                                         audioPending={voiceRecorder.pending}
                                                         attachmentsFull={atMax}
+                                                        onDictationError={setDictationError}
                                                         disabled={
                                                             onboardingActive
                                                                 ? ideHandoffActive

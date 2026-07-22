@@ -26,11 +26,15 @@ const VoiceInputButton = ({
     audioSupported,
     audioPending,
     attachmentsFull,
+    onDictationError,
     disabled,
 }: {
     inputRef: RefObject<RichChatInputHandle | null>
     onStartAudio: () => void
     audioSupported: boolean
+    /** Report dictation failures upward so they surface in the shared mic notice rather than a
+     * tooltip nobody hovers. The transcript itself stays local — it changes far too often to lift. */
+    onDictationError: (message: string | null) => void
     /** Tray is at its file limit. A voice message attaches like any file, so recording one now
      * would be rejected on attach — i.e. the take would be destroyed after the fact. */
     attachmentsFull: boolean
@@ -42,6 +46,10 @@ const VoiceInputButton = ({
     const [mode, setMode] = useAtom(voiceModeAtom)
     const transcribe = useVoiceInput()
     const baseRef = useRef("")
+
+    useEffect(() => {
+        onDictationError(transcribe.error)
+    }, [transcribe.error, onDictationError])
 
     // Stream the running transcript into the editor while dictating.
     useEffect(() => {
@@ -87,12 +95,11 @@ const VoiceInputButton = ({
         ? "Waiting for your browser's microphone prompt…"
         : audioBlocked
           ? "Attachment limit reached — remove a file to record a voice message"
-          : ((effective === "transcribe" ? transcribe.error : null) ??
-            (dictating
-                ? "Stop dictation"
-                : effective === "transcribe"
-                  ? "Voice to text"
-                  : "Record a voice message"))
+          : dictating
+            ? "Stop dictation"
+            : effective === "transcribe"
+              ? "Voice to text"
+              : "Record a voice message"
 
     const highlighted = dictating || audioPending
 
