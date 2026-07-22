@@ -12,13 +12,12 @@
  * `api/oss/src/apis/fastapi/workflows/router.py` (`/catalog/harnesses/`).
  */
 
+import {catalogPersister} from "@agenta/shared/api/persist"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
-import {atomWithQuery} from "jotai-tanstack-query"
+import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {fetchHarnessCapabilities} from "../api"
-
-import {persistedCatalogSeed, writePersistedCatalog} from "./persistedCatalog"
 
 /** A real, sourced price (USD per million tokens). Never a rating. */
 export interface ModelPricing {
@@ -89,27 +88,24 @@ export type HarnessCapabilitiesMap = Record<string, HarnessCapabilities>
  * The harness catalog. Global and project-independent (the catalog is static), so it is not keyed
  * by anything.
  *
- * Persisted to localStorage (`persistedCatalogSeed`) so an agent-playground reload has the harness
+ * Persisted to IndexedDB (`catalogPersister`) so an agent-playground reload has the harness
  * capabilities available for first paint (model picker + collapsed "Unavailable"/"Connect key"
- * badges) without a blocking fetch, then revalidates once in the background. NOT `staleTime:
- * Infinity` — harness capabilities are still evolving, so the disk seed is treated as stale-on-reload.
+ * badges) without a blocking fetch, then revalidates once in the background when stale. NOT
+ * `staleTime: Infinity` — harness capabilities are still evolving.
  */
-const HARNESS_CATALOG_CACHE_KEY = "harness-catalog"
-export const harnessCatalogQueryAtom = atomWithQuery<HarnessCapabilitiesMap>(() => {
-    const seed = persistedCatalogSeed<HarnessCapabilitiesMap>(HARNESS_CATALOG_CACHE_KEY)
-    // Disk seed present → the model picker / badges already painted, so this fetch is a background
-    // revalidation; demote it to low priority so it yields to the critical-path queries.
-    const lowPriority = seed.initialData !== undefined
+export const harnessCatalogQueryAtom = atomWithQuery<HarnessCapabilitiesMap>((get) => {
+    const queryClient = get(queryClientAtom)
+    const queryKey = ["workflows", "catalog", "harnesses"]
     return {
-        queryKey: ["workflows", "catalog", "harnesses"],
+        queryKey,
         queryFn: async () => {
-            const catalog = (await fetchHarnessCapabilities({
+            // In-memory data present ⇒ this is a background revalidate ⇒ low network priority.
+            const lowPriority = queryClient.getQueryData(queryKey) !== undefined
+            return (await fetchHarnessCapabilities({
                 lowPriority,
             })) as unknown as HarnessCapabilitiesMap
-            writePersistedCatalog(HARNESS_CATALOG_CACHE_KEY, catalog)
-            return catalog
         },
-        ...seed,
+        persister: catalogPersister.persisterFn,
         staleTime: 5 * 60_000,
         refetchOnWindowFocus: false,
     }

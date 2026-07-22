@@ -41,7 +41,7 @@ export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
                     <span className={titleClass}>Triggers</span>
                     <Skeleton.Button active size="small" style={{width: 44, height: 14}} />
                 </div>
-                <div className="flex flex-col px-4">
+                <div className="flex flex-col px-4 pb-3 pt-1">
                     <SkeletonSectionRow title={112} value={44} withAdd divider />
                     <SkeletonSectionRow title={82} value={44} withAdd />
                 </div>
@@ -51,7 +51,7 @@ export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
                     <span className={titleClass}>Files</span>
                     <Skeleton.Button active size="small" style={{width: 44, height: 14}} />
                 </div>
-                <div className="flex flex-col px-4">
+                <div className="flex flex-col px-4 pb-3 pt-1">
                     <SkeletonSectionRow title={86} value={90} divider />
                     <SkeletonSectionRow title={110} value={110} />
                 </div>
@@ -90,7 +90,7 @@ export function AgentOperationsSections({
                         {countSummary(triggerCount, "trigger")}
                     </span>
                 </div>
-                <div className="px-4 py-3">
+                <div className="px-4 pb-3 pt-1">
                     <TriggerManagementSection entityId={revisionId} disabled={disabled} />
                 </div>
             </section>
@@ -100,7 +100,7 @@ export function AgentOperationsSections({
                     <span className={titleClass}>Files</span>
                     {storageHeader}
                 </div>
-                <div className="flex flex-col px-4 py-3">
+                <div className="flex flex-col px-4 pb-3 pt-1">
                     {storage ?? (
                         // Static fallback for surfaces that don't slot the live Files body.
                         <Typography.Text type="secondary" className="text-xs">

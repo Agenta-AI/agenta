@@ -610,6 +610,13 @@ const AgentConversation = ({
 
     const busy = status === "submitted" || status === "streaming"
 
+    // `messages`/`busy` change every token; consumers that must stay referentially stable
+    // (`handleRewind`, the hydration/SWR adoption guards) read them through refs instead.
+    const messagesRef = useRef(messages)
+    messagesRef.current = messages
+    const busyRef = useRef(busy)
+    busyRef.current = busy
+
     // Mid-stream drive signals: settled write-ish tool calls append file-activity entries (and
     // throttle-revalidate the drives) as the turn streams, not just at onFinish.
     useFileActivityDetector({sessionId, messages})
@@ -647,7 +654,23 @@ const AgentConversation = ({
         // StrictMode's mount→unmount→mount cycle re-runs the fetch (the first run is cancelled)
         // instead of latching a ref that leaves the transcript blank.
         let cancelled = false
-        loadSessionMessages(sessionId)
+        // Post-restore revalidation: the first result may be the disk-restored log (paints
+        // instantly); when the guaranteed background refetch lands, adopt it under the same
+        // guards as the SWR effect below — never mid-stream, only when strictly ahead.
+        const adoptRefreshed = (freshMsgs: UIMessage[]) => {
+            if (cancelled || busyRef.current) return
+            if (freshMsgs.length <= messagesRef.current.length) return
+            freshMsgs.forEach((m) => {
+                seenIdsRef.current.add(m.id)
+                restoredIdsRef.current.add(m.id)
+            })
+            armBottomRef.current = true
+            // The restore said "no records" but the server has some — clear the notice.
+            setHydratedEmpty(false)
+            setMessages(freshMsgs)
+            persistMessages({id: sessionId, messages: freshMsgs})
+        }
+        loadSessionMessages(sessionId, adoptRefreshed)
             .then((msgs) => {
                 if (cancelled) return
                 if (!msgs || msgs.length === 0) {
@@ -953,14 +976,6 @@ const AgentConversation = ({
     }, [firstRunSeed, entityId, activeSessionId, sessionId, messages.length, setFirstRunSeed])
     const consumedRunNonceRef = useRef<number | null>(null)
 
-    // `handleRewind` is passed to every memo'd `AgentMessage`, so it must stay referentially
-    // stable — a streamed token must not recreate it and re-render the whole list. `messages`/
-    // `busy` change every token, so read them through refs instead of capturing them.
-    const messagesRef = useRef(messages)
-    messagesRef.current = messages
-    const busyRef = useRef(busy)
-    busyRef.current = busy
-
     // SWR revalidate-on-open: a cached session paints instantly from localStorage; in the background
     // we refetch the durable records ONCE (low-priority) and adopt the server transcript ONLY IF it's
     // strictly ahead of what we're showing (a turn finished on another device). We never clobber a
@@ -974,7 +989,7 @@ const AgentConversation = ({
         // As with the hydration effect above: no persistent ref, so StrictMode's double-mount
         // re-runs the revalidation rather than latching it out.
         let cancelled = false
-        loadSessionMessages(sessionId).then((serverMsgs) => {
+        const adopt = (serverMsgs: UIMessage[] | null) => {
             if (cancelled || !serverMsgs || serverMsgs.length === 0) return
             const prev = messagesRef.current
             if (busyRef.current || serverMsgs.length <= prev.length) return
@@ -985,7 +1000,10 @@ const AgentConversation = ({
             armBottomRef.current = true
             setMessages(serverMsgs)
             persistMessages({id: sessionId, messages: serverMsgs})
-        })
+        }
+        // The first result may itself be the disk-restored records log; the callback re-applies
+        // the same guarded adoption when the guaranteed background revalidation lands.
+        loadSessionMessages(sessionId, adopt).then(adopt)
         return () => {
             cancelled = true
         }

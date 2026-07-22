@@ -55,6 +55,21 @@ const config = [
             },
         },
         rules: {
+            // Root barrel statically imports the monolithic AgentaApiClient (all 27
+            // resource clients, ~300KB parsed) into any eager import graph. Use the
+            // per-resource accessors instead. Regressed once (June fix, July relapse).
+            "no-restricted-imports": [
+                "error",
+                {
+                    paths: [
+                        {
+                            name: "@agenta/sdk",
+                            message:
+                                "Import per-resource accessors from '@agenta/sdk/resources' (or '@agenta/sdk/config' for host pinning) — the root barrel bundles all 27 Fern resource clients.",
+                        },
+                    ],
+                },
+            ],
             "prefer-const": "off",
             "no-self-assign": "off",
             "no-empty": "off",

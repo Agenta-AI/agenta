@@ -65,3 +65,33 @@ export function applyAgentCreationPrefs(
 
     return next
 }
+
+/**
+ * Ensure a new agent's `sandbox.kind` is one the deployment actually enables. The template default
+ * is `local` (SDK `AgentTemplate.sandbox`), which is also the runtime default when no kind is set.
+ * A deployment that doesn't enable `local` (e.g. daytona-only) would otherwise COMMIT an unrunnable
+ * `local` config, and the playground's Advanced section then auto-rewrites it to an enabled provider
+ * on open — diverging from the just-committed value and surfacing a phantom "Unsaved advanced-setting
+ * changes" draft on a freshly created agent. Coercing at mint time keeps the committed config valid,
+ * so there is nothing for the panel to rewrite.
+ *
+ * `enabledProviders` is the deployment's enabled set (`getEnabledSandboxProviders()`), injected so
+ * this stays a pure, testable transform. Only touches the config when the effective kind isn't
+ * enabled; leaves it byte-for-byte otherwise (no spurious `sandbox` section on the common path).
+ */
+export function ensureEnabledSandbox(
+    agentConfig: Record<string, unknown>,
+    enabledProviders: string[],
+): Record<string, unknown> {
+    if (enabledProviders.length === 0) return agentConfig
+    const sandbox =
+        agentConfig.sandbox &&
+        typeof agentConfig.sandbox === "object" &&
+        !Array.isArray(agentConfig.sandbox)
+            ? (agentConfig.sandbox as Record<string, unknown>)
+            : {}
+    // Unset kind runs as `local` (SDK/runtime default), so treat that as the effective selection.
+    const effectiveKind = typeof sandbox.kind === "string" ? sandbox.kind : "local"
+    if (enabledProviders.includes(effectiveKind)) return agentConfig
+    return {...agentConfig, sandbox: {...sandbox, kind: enabledProviders[0]}}
+}

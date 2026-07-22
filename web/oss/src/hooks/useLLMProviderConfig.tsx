@@ -50,34 +50,42 @@ export function useLLMProviderConfig() {
         setInitialProviderKind(null)
     }, [])
 
-    const footerContent = (
-        <>
-            <Divider className="!mx-0 !my-0.5" />
-            <Button
-                className="mb-0.5 flex w-full items-center justify-between px-2"
-                onClick={() => setIsConfigProviderOpen(true)}
-                type="text"
-                variant="outlined"
-            >
-                <span className="flex items-center gap-1">
-                    <Plus size={14} /> Add custom provider
-                </span>
+    // Memoized: a fresh element here would churn llmProviderConfig identity every render,
+    // fanning out through DrillInUIContext to every config-panel consumer.
+    const footerContent = useMemo(
+        () => (
+            <>
+                <Divider className="!mx-0 !my-0.5" />
+                <Button
+                    className="mb-0.5 flex w-full items-center justify-between px-2"
+                    onClick={() => setIsConfigProviderOpen(true)}
+                    type="text"
+                    variant="outlined"
+                >
+                    <span className="flex items-center gap-1">
+                        <Plus size={14} /> Add custom provider
+                    </span>
 
-                <div className="flex items-center gap-0.5">
-                    {icons.map((IconComp, idx) => (
-                        <IconComp key={`provider-icon-${idx}`} className="w-5 h-5" />
-                    ))}
-                </div>
-            </Button>
-        </>
+                    <div className="flex items-center gap-0.5">
+                        {icons.map((IconComp, idx) => (
+                            <IconComp key={`provider-icon-${idx}`} className="w-5 h-5" />
+                        ))}
+                    </div>
+                </Button>
+            </>
+        ),
+        [],
     )
 
-    const configureProviderDrawer = (
-        <ConfigureProviderDrawer
-            open={isConfigProviderOpen}
-            initialProviderKind={initialProviderKind ?? undefined}
-            onClose={closeConfigureProvider}
-        />
+    const configureProviderDrawer = useMemo(
+        () => (
+            <ConfigureProviderDrawer
+                open={isConfigProviderOpen}
+                initialProviderKind={initialProviderKind ?? undefined}
+                onClose={closeConfigureProvider}
+            />
+        ),
+        [isConfigProviderOpen, initialProviderKind, closeConfigureProvider],
     )
 
     const llmProviderConfig = useMemo(
