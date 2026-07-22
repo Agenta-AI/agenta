@@ -197,6 +197,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         )
 
         const comfortable = size === "comfortable"
+        const hintsVisible = focused && !dictating
 
         return (
             <LexicalExtensionComposer extension={chatInputExtension} contentEditable={null}>
@@ -258,14 +259,16 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         {hideShortcutHints ? null : (
                             // The format hints are a focus-only aid: kept mounted (so their space
                             // never reflows the row) and faded in when the editor takes focus.
+                            // Dictation hides them the same way — editing is locked while speech
+                            // comes in, so every shortcut they advertise is inert.
                             <div
                                 className={clsx(
                                     "flex flex-wrap items-center gap-2.5 transition-[opacity,transform] duration-200 ease-out",
-                                    focused
+                                    hintsVisible
                                         ? "translate-y-0 opacity-100"
                                         : "pointer-events-none translate-y-0.5 opacity-0",
                                 )}
-                                aria-hidden={!focused}
+                                aria-hidden={!hintsVisible}
                             >
                                 <ShortcutHint keys={`${modKey} B`} label="Bold" />
                                 <ShortcutHint keys={`${modKey} I`} label="Italic" />
