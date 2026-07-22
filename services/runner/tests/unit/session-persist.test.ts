@@ -25,12 +25,13 @@ vi.stubGlobal("fetch", async (_url: string, init?: RequestInit) => {
   return new Response(JSON.stringify({ ok: true }), { status: 200 });
 });
 
-const { buildPersistingEmitter, drainPersist } =
+const { buildPersistingEmitter, drainPersist, takePersistFailures } =
   await import("../../src/sessions/persist.ts");
 
 beforeEach(() => {
   postedBodies.length = 0;
   fetchFailCount = 0;
+  vi.unstubAllEnvs();
 });
 
 describe("buildPersistingEmitter", () => {
@@ -463,6 +464,45 @@ describe("buildPersistingEmitter API contract", () => {
     assert.equal(OTEL_SPAN_ID.test("a1b2c3d4e5f6a7b8"), true);
     assert.equal(OTEL_SPAN_ID.test("span-def"), false);
     assert.equal(OTEL_SPAN_ID.test("f".repeat(32)), false); // a UUID (32 hex) is not a span id
+  });
+});
+
+describe("durable records (AGENTA_RECORDS_DURABLE)", () => {
+  it("legacy (flag off): a permanent failure is dropped and NOT counted", async () => {
+    fetchFailCount = 99; // never succeeds
+    const { emit, flush } = buildPersistingEmitter("sess-legacy", () => "t");
+    emit({ type: "message", text: "x" });
+    await flush();
+
+    assert.equal(postedBodies.length, 0); // dropped
+    assert.equal(takePersistFailures("sess-legacy"), 0); // counting is off
+  });
+
+  it("durable: a permanent failure is dropped AND counted for the session", async () => {
+    vi.stubEnv("AGENTA_RECORDS_DURABLE", "true");
+    vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "2"); // keep the test fast
+    fetchFailCount = 99;
+    const { emit, flush } = buildPersistingEmitter("sess-durable", () => "t");
+    emit({ type: "message", text: "x" });
+    emit({ type: "done" });
+    await flush();
+
+    assert.equal(postedBodies.length, 0); // both records dropped
+    assert.equal(takePersistFailures("sess-durable"), 2);
+    // take clears the count.
+    assert.equal(takePersistFailures("sess-durable"), 0);
+  });
+
+  it("durable: a transient failure recovers within the retry budget (no drop counted)", async () => {
+    vi.stubEnv("AGENTA_RECORDS_DURABLE", "true");
+    vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "5");
+    fetchFailCount = 2; // fails twice, then the 3rd attempt lands
+    const { emit, flush } = buildPersistingEmitter("sess-recover", () => "t");
+    emit({ type: "message", text: "x" });
+    await flush();
+
+    assert.equal(postedBodies.length, 1); // landed
+    assert.equal(takePersistFailures("sess-recover"), 0);
   });
 });
 
