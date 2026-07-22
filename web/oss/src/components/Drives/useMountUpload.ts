@@ -23,23 +23,37 @@ export interface MountUploadItem {
     percent: number
     /** Failure message, or null while pending. */
     error: string | null
+    /** Mount-relative destination folder, so a view can show the item inline in that folder. */
+    destFolder: string
+    /** The file's media type, for the optimistic tile's icon/thumbnail. */
+    mediaType: string
+    /** Object URL for an in-flight image, so the optimistic tile can preview it. Revoked on settle. */
+    previewUrl: string | null
+}
+
+/** Where an upload lands: the resolved mount (cwd or the folded agent-files mount) + folder. */
+export interface MountUploadTarget {
+    mount: Mount
+    /** Mount-relative folder ("" = root). */
+    destFolder: string
 }
 
 export interface MountUpload {
     items: MountUploadItem[]
-    /** Upload files into `destFolder` (mount-relative; "" = root). */
-    upload: (files: File[], destFolder: string) => void
+    /** In-flight items destined for this mount-relative folder — for optimistic in-folder tiles. */
+    itemsFor: (destFolder: string) => MountUploadItem[]
+    upload: (files: File[], target: MountUploadTarget) => void
     retry: (id: string) => void
     dismiss: (id: string) => void
 }
 
-export function useMountUpload(mount: Mount | null): MountUpload {
+export function useMountUpload(): MountUpload {
     const projectId = useAtomValue(projectIdAtom)
     const queryClient = useAtomValue(queryClientAtom)
     const [items, setItems] = useState<MountUploadItem[]>([])
 
     // Per-item inputs kept for retry, plus abort controllers for cleanup.
-    const sources = useRef(new Map<string, {file: File; destFolder: string}>())
+    const sources = useRef(new Map<string, {file: File; target: MountUploadTarget}>())
     const controllers = useRef(new Map<string, AbortController>())
 
     const patch = useCallback((id: string, next: Partial<MountUploadItem>) => {
@@ -56,14 +70,14 @@ export function useMountUpload(mount: Mount | null): MountUpload {
     const run = useCallback(
         (id: string) => {
             const src = sources.current.get(id)
-            if (!src || !mount) return
+            if (!src) return
             controllers.current.get(id)?.abort()
             const controller = new AbortController()
             controllers.current.set(id, controller)
             patch(id, {percent: 0, error: null})
             uploadMountFile({
-                mountId: mount.id ?? "",
-                destFolder: src.destFolder,
+                mountId: src.target.mount.id ?? "",
+                destFolder: src.target.destFolder,
                 file: src.file,
                 projectId,
                 onProgress: (percent) => patch(id, {percent}),
@@ -73,7 +87,11 @@ export function useMountUpload(mount: Mount | null): MountUpload {
                     if (controller.signal.aborted) return
                     controllers.current.delete(id)
                     sources.current.delete(id)
-                    setItems((prev) => prev.filter((it) => it.id !== id))
+                    setItems((prev) => {
+                        prev.find((it) => it.id === id)?.previewUrl &&
+                            URL.revokeObjectURL(prev.find((it) => it.id === id)!.previewUrl!)
+                        return prev.filter((it) => it.id !== id)
+                    })
                     refreshListing()
                 })
                 .catch((e: unknown) => {
@@ -82,16 +100,24 @@ export function useMountUpload(mount: Mount | null): MountUpload {
                     patch(id, {error: e instanceof Error ? e.message : "Upload failed"})
                 })
         },
-        [mount, projectId, patch, refreshListing],
+        [projectId, patch, refreshListing],
     )
 
     const upload = useCallback(
-        (files: File[], destFolder: string) => {
+        (files: File[], target: MountUploadTarget) => {
             const started: MountUploadItem[] = []
             files.forEach((file, i) => {
                 const id = `${Date.now()}-${i}-${file.name}`
-                sources.current.set(id, {file, destFolder})
-                started.push({id, name: file.name, percent: 0, error: null})
+                sources.current.set(id, {file, target})
+                started.push({
+                    id,
+                    name: file.name,
+                    percent: 0,
+                    error: null,
+                    destFolder: target.destFolder,
+                    mediaType: file.type || "",
+                    previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
+                })
             })
             setItems((prev) => [...prev, ...started])
             started.forEach((it) => run(it.id))
@@ -104,13 +130,22 @@ export function useMountUpload(mount: Mount | null): MountUpload {
         controllers.current.get(id)?.abort()
         controllers.current.delete(id)
         sources.current.delete(id)
-        setItems((prev) => prev.filter((it) => it.id !== id))
+        setItems((prev) => {
+            const url = prev.find((it) => it.id === id)?.previewUrl
+            if (url) URL.revokeObjectURL(url)
+            return prev.filter((it) => it.id !== id)
+        })
     }, [])
+
+    const itemsFor = useCallback(
+        (destFolder: string) => items.filter((it) => it.destFolder === destFolder),
+        [items],
+    )
 
     useEffect(() => {
         const map = controllers.current
         return () => map.forEach((c) => c.abort())
     }, [])
 
-    return {items, upload, retry, dismiss}
+    return {items, itemsFor, upload, retry, dismiss}
 }
