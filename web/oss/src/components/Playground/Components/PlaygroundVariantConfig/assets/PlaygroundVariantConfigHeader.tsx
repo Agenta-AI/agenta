@@ -203,8 +203,10 @@ const PlaygroundVariantConfigHeader = ({
                     // agent name), so this bar reads as the config panel's "Configuration" header.
                     // Also the neutral header while agent-ness is unknown, so the prompt chrome below
                     // never flashes on load for an agent.
+                    // "Configuration" shortens to "Config" once the panel is too narrow for it.
                     <span className="text-[13px] font-semibold text-[var(--ant-color-text)]">
-                        Configuration
+                        <span className="ag-config-title-long">Configuration</span>
+                        <span className="ag-config-title-short">Config</span>
                     </span>
                 ) : (
                     <>
@@ -267,7 +269,7 @@ const PlaygroundVariantConfigHeader = ({
                     </>
                 )}
             </div>
-            <div className="flex items-center justify-end gap-2 shrink-0 grow min-w-0">
+            <div className="ag-config-actions flex items-center justify-end gap-2 shrink-0 grow min-w-0">
                 {extraActions}
                 {hasPresets && onLoadPreset && (
                     <Button size="small" onClick={onLoadPreset}>

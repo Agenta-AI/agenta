@@ -22,6 +22,7 @@ import {chatPanelMaximizedAtom} from "@/oss/components/AgentChatSlice/state/pane
 // Direct file import — the SessionInspector barrel would statically pull the (dynamic,
 // open-on-demand) inspector drawer back into this chunk.
 import PanelSessionInspectorButton from "@/oss/components/SessionInspector/PanelSessionInspectorButton"
+import {useScrollbarGutterVar} from "@/oss/hooks/useScrollbarGutterVar"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
@@ -268,9 +269,10 @@ const PlaygroundMainView = ({
     const animateSplit = justToggled || holdAnimate
 
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])
-    const {setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
+    const {configPanelRef, setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
         enabled: isComparisonView,
     })
+    useScrollbarGutterVar(configPanelRef)
 
     const handleAddRunnable = useCallback(async () => {
         const selection = await openEntitySelector({
@@ -365,7 +367,10 @@ const PlaygroundMainView = ({
                     <SplitterPanel
                         defaultSize={configDefaultSize}
                         size={configCollapsed ? 0 : undefined}
-                        min="20%"
+                        // Agent config collapses to icon + summary rows below 320px (see the
+                        // `config` container query in globals.css), so it can go much narrower
+                        // than the percentage floor the prompt playground needs.
+                        min={isAgentConfig ? 240 : "20%"}
                         max={configMaxSize}
                         className="!h-full"
                         collapsible={splitCollapsible}
@@ -375,16 +380,19 @@ const PlaygroundMainView = ({
                             The notice lives OUTSIDE the scroller, so it sits at the pane's bottom
                             edge regardless of content height or scroll position. */}
                         <div
-                            className={clsx("flex h-full min-h-0 w-full flex-col", {
-                                // Config = the raised authoring surface (covers the notice too).
-                                "ag-panel-raised": isAgentConfig,
-                            })}
+                            className={clsx(
+                                "@container/config flex h-full min-h-0 w-full flex-col",
+                                {
+                                    // Config = the raised authoring surface (covers the notice too).
+                                    "ag-panel-raised": isAgentConfig,
+                                },
+                            )}
                         >
                             <section
                                 ref={setConfigPanelRef}
                                 className={clsx([
                                     {
-                                        "ag-scroll-quiet grow w-full min-h-0 overflow-y-auto":
+                                        "ag-scroll-quiet ag-scroll-bleed grow w-full min-h-0 overflow-y-auto":
                                             !isComparisonView,
                                         "grow w-full min-h-0 overflow-x-auto flex [&::-webkit-scrollbar]:w-0":
                                             isComparisonView,
@@ -457,7 +465,7 @@ const PlaygroundMainView = ({
                             className={clsx([
                                 "playground-generation",
                                 {
-                                    "grow w-full h-full overflow-y-auto overflow-x-hidden":
+                                    "ag-scroll-quiet grow w-full h-full overflow-y-auto overflow-x-hidden":
                                         !isComparisonView,
                                     "grow w-full h-full overflow-auto [&::-webkit-scrollbar]:w-0":
                                         isComparisonView,

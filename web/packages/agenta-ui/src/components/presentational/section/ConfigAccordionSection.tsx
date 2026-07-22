@@ -271,7 +271,9 @@ export function ConfigAccordionSection({
                     ) : null}
                     <Text
                         className={cn(
-                            "min-w-0 truncate font-medium",
+                            // `ag-section-title` is a hook for narrow layouts that drop the title
+                            // and keep the icon + summary (see the `config` container query).
+                            "ag-section-title min-w-0 truncate font-medium",
                             size === "compact" ? "text-xs" : "text-sm",
                         )}
                     >

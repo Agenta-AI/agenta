@@ -125,7 +125,7 @@ export function ItemRow({
                 {descriptor.description ? (
                     <Typography.Text
                         type="secondary"
-                        className="block truncate text-xs leading-tight"
+                        className="ag-row-secondary block truncate text-xs leading-tight"
                     >
                         {descriptor.description}
                     </Typography.Text>
@@ -134,7 +134,7 @@ export function ItemRow({
             <div className="flex shrink-0 items-center gap-1.5">
                 {status ? <StatusTag status={status} /> : null}
                 {descriptor.tags.map((tag) => (
-                    <Tag key={tag} className="m-0 text-[11px]">
+                    <Tag key={tag} className="ag-row-secondary m-0 text-[11px]">
                         {tag}
                     </Tag>
                 ))}
@@ -283,7 +283,10 @@ export function InstructionsFileRow({
                     <span className="truncate font-mono text-[13px] font-medium leading-tight">
                         {filename}
                     </span>
-                    <Typography.Text type="secondary" className="shrink-0 text-[11px]">
+                    <Typography.Text
+                        type="secondary"
+                        className="ag-row-secondary shrink-0 text-[11px]"
+                    >
                         {meta}
                     </Typography.Text>
                     {status ? <StatusTag status={status} /> : null}
