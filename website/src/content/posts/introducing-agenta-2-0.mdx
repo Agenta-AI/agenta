@@ -14,35 +14,37 @@ tags: ["Article"]
 
 Today, we are introducing Agenta 2.0, an open-source workspace for building and running agents.
 
-Agenta lets you build specialized agents for different areas of work. You can work with them as AI coworkers, share them with your team, and use them to automate recurring work.
+Agenta lets you build specialized agents for different areas of work. You can work with them as AI coworkers, share them with your team, and use them to automate recurring tasks.
 
 ## Agents are becoming a new building block for work
 
-Agents have reached a point where they can perform and organize substantial work.
+Agents have reached a point where they can help with a [large share of tasks across a company](https://www.anthropic.com/research/labor-market-impacts).
 
-Give an agent a goal, the right context, and access to tools, and it can decide how to approach the job. It can inspect information, use applications, write scripts, and adapt when the situation changes.
+Give an agent a goal, clear instructions, the right context, and access to tools, and it can complete many tasks autonomously. It can inspect information, use applications, write scripts, and adapt when the situation changes.
 
-Until now, automating work often meant defining every step in advance. You designed a workflow and specified what should happen at each branch. This remains the right approach when a process is fixed and every step must be predictable.
+Until now, automating work often meant defining every step in advance. You designed a deterministic workflow and specified what should happen at each branch. This remains the right approach in high-governance settings where every step must be predictable.
 
-But much of our work is not like that. Research, product decisions, customer support, sales, and company operations require context and judgment. The right next step depends on what the system finds.
+But much of our work is not like that. Research, product decisions, customer support, sales, and company operations require context and judgment. The right next step depends on what the system finds. Agents have become much better at handling this kind of work.
 
-An agent can become the basic unit that performs this work. At a technical level, we think of the agent as a new compute primitive. In practical terms, you describe the job, provide the context and tools, and let the agent create the logic it needs.
+An agent can become the basic unit that performs this work. At a technical level, we think of the agent as a new compute primitive. In practical terms, you describe the job, provide the context and tools, and let the agent reason through the problem.
 
-People still provide direction, feedback, and judgment. Agents take on more of the execution.
+People still provide direction, feedback, and judgment. They do not need to encode every path. Agents take on more of the execution.
 
 ## Building useful agents still requires too much work
 
-Most companies are not working this way yet.
+Most companies are not yet using agents to their full potential.
 
 A useful agent needs company context. It needs instructions, files, skills, tools, and access to the applications where work happens. People need a way to improve it, share it, run it again, and understand what happened when it makes a mistake.
 
+Most importantly, the people doing the work need to be able to create their own agents. They understand the work best.
+
 Today, this capability is spread across several kinds of products.
 
-Coding agents such as Claude Code, Codex, and Pi give individual technical users a strong environment. Closed AI workspaces provide a polished experience, but limit how much users can inspect, change, or move. Visual workflow builders work well when users can define the process in advance. Agent frameworks provide flexibility, but require a team to build and operate the surrounding system.
+Coding agents such as Claude Code and Codex are very powerful, but still require technical skills. Closed AI workspaces provide a polished experience, but limit how much users can inspect, change, or move and lock them into one provider. Visual workflow builders work well when users can define the process in advance, but they do not fully use what this new agent paradigm makes possible.
 
 The result is an awkward choice between agency, ease of use, automation, and control.
 
-We think agents need an open workspace where people can build them through use, give them lasting context, share them with a team, automate suitable work, and control how they run.
+We think teams need an open workspace where every team member can build agents by working with them, give them lasting context, share them with the team, automate suitable work, and control how they run.
 
 ## A workspace for you and your agents
 
@@ -52,23 +54,21 @@ You start with a real job and describe it in chat. The agent works with you, use
 
 Each agent has a persistent workspace. It can maintain research, documents, plans, reports, and other artifacts instead of starting every conversation without context.
 
-You improve the agent through real work and feedback. When it becomes useful, you can share it with your team. For suitable recurring work, you can run it on a schedule or when an event occurs in a connected application.
+You improve the agent through real work and feedback, then share it with your team. For recurring work, you can create loops that run on a schedule or when an event occurs in a connected application.
 
-The AI coworker and the automation are not separate systems. They are two ways to use the same agent. You can work with it directly when the job needs discussion, then let it handle understood parts of the work in the background.
+In other words, the AI coworker and the automation are not separate systems. They are two ways to use the same agent. You can work with it directly when the job needs discussion, then let it handle understood parts of the work in the background.
 
-## Open agents, open choices
+## Using open standards
 
-The agent itself remains simple and inspectable. An Agenta agent is built from components such as `AGENTS.md`, skills, tools, and files. You can see and change how it works.
+The agent itself remains simple and portable. An Agenta agent is built from standard components: `AGENTS.md`, skills, tools, and MCP servers. You can see and change how it works.
 
-Agenta adds the workspace, sharing, triggers, versions, and operational history around the agent. It keeps the agent separate from the model and harness that run it.
+This means two things. First, you can reuse compatible MCP servers and skills from the broader agent ecosystem.
 
-This means you can choose the right setup for the job without rebuilding the agent from the beginning.
+Second, you can switch supported models or harnesses without rebuilding the agent. You can choose the right setup for each task without being locked into one provider.
 
 We already work this way inside Agenta. Our go-to-market work uses GPT-5.6. We use a different coding harness for engineering. When speed matters, we use GLM 5.2 Nitro through OpenRouter. In our self-hosted setup, personal agents can use our existing Claude Code and Codex subscriptions.
 
-{/* VERIFY BEFORE PUBLICATION: Confirm the exact GTM model and harness, the engineering harness name, GLM 5.2 Nitro support, subscription setup, portability limits, and every stated stack combination. */}
-
-The important point is not the number of supported providers. It is that the agent and its work do not have to begin again when the surrounding stack changes.
+Our vision is to let you run your agents almost anywhere: locally, in Agenta Cloud, or through execution environments such as Daytona. Over time, we plan to support more environments, including E2B, Vercel, and AWS.
 
 ## A go-to-market agent in practice
 
@@ -78,40 +78,32 @@ As a technical founder, I work across product, engineering, research, positionin
 
 My go-to-market agent works with a persistent workspace containing our product context, research, positioning, decisions, launch plans, and drafts. I use it in chat to research questions, compare new information with earlier decisions, update documents, and prepare assets. This announcement is one output from that ongoing work.
 
-I also use agents for recurring work. One helps operate our social listening through Octolens, where it manages research vocabulary, monitoring feeds, and the decisions behind them.
+I also use agents for recurring work. One, for instance, helps operate our social listening through [Octolens](https://octolens.com/), where it manages research vocabulary, monitoring feeds, and the decisions behind them.
 
-{/* VERIFY BEFORE PUBLICATION: Confirm the exact Octolens automation, its trigger, what it performs automatically, and what still requires Mahmoud's approval. Link the public example only if it exposes no private configuration or credentials. */}
+The agent does not make decisions for me. It gathers and structures information, records context, and helps perform the work. Over time, I give it feedback and refine it to fit the way I work. It gives me immense leverage.
 
-The agent does not make company decisions for me. It gathers and structures information, records context, and helps perform the work. I provide direction, correct it, and make the final decisions.
+## Reliability and continuous improvement
 
-## Reliability comes from improvement
+The first version of Agenta focused on helping teams build, evaluate, and observe applications powered by LLMs. That foundation remains important because reliability is still a major challenge when building agents.
 
-The first version of Agenta focused on helping teams build, evaluate, and observe applications powered by language models. That foundation remains important because agents still make mistakes.
+When we started Agenta, LLMs were poor at following instructions and understanding what users meant. Much of our time went into prompt engineering and complex workflows designed to compensate. Today, agents are far better at following instructions. Many workflows can now be expressed as instructions to an agent instead of being defined step by step.
 
-For a company, reliability is not only about whether one run succeeds. It is about making an agent better at a defined job over time.
+Reliability today is about explaining the job clearly. Say you are building an agent to reach out to prospects. How do you define your ideal customer profile? What style should the agent follow? What should it focus on when researching a prospect, and what should it ignore?
 
-First, people need to state what good work looks like. Then they need to review real results and give feedback. When something goes wrong, they need to inspect the trace, understand which instruction or action caused the problem, and change the agent without losing what already worked.
+You cannot build a reliable agent that performs a job successfully without answering these questions. There is no shortcut. You need to review real results, give feedback, and iterate.
 
-Agenta supports this improvement loop through tracing, annotations, evaluations, and versioning. An annotation records structured feedback on a run. An evaluation checks an output against a defined expectation. Versioning connects each result to the agent configuration that produced it.
+Agenta provides the tools to improve agents continuously. Every run is logged and traced with its inputs and outputs. Every agent configuration is versioned. A user can give feedback, and the agent can inspect what happened, identify why it made a mistake, and propose configuration changes.
 
-Together, these tools help teams make agents more reliable and predictable. They do not make a language model deterministic. They provide the evidence needed to improve the agent and decide which work still needs human review.
+Over time, you build more capable agents that become part of your company's operating DNA and differentiation. They encode your best practices, standard operating procedures, and ways of working.
 
-Permissions and human approval add another layer of control. Teams can decide which actions an agent may perform, which require approval, and which remain blocked.
-
-{/* VERIFY BEFORE PUBLICATION: Confirm tracing, annotations, evaluations, versioning, permissions, approval behavior, and configuration restoration in the launch build. */}
+The second layer of reliability comes from permissions and human approval. We built Agenta with a detailed permission system and human-in-the-loop controls. Teams can decide which actions an agent may perform, which require approval, and which remain blocked.
 
 ## Getting started
 
-Agenta 2.0 is available through Agenta Cloud and as a self-hosted product.
+Agenta 2.0 is available through Agenta Cloud and as an open-source, self-hosted product.
 
-{/* VERIFY BEFORE PUBLICATION: Confirm availability, release name, license, tested installation path, and destination links. */}
+Start with a template. Ask an agent to customize it, then give it the context and access to the tools it needs. Improve it through use. Over time, you can automate parts of the work and build a system that gives your whole team far more leverage.
 
-Start with one area of work. Build an agent around a real job, give it the context it needs, and improve it through use. Once it works well, share it with your team or let it handle suitable parts of the work in the background.
+[Try Agenta Cloud](https://cloud.agenta.ai), [star Agenta on GitHub](https://github.com/Agenta-AI/agenta), or follow the self-hosting guide to run it yourself.
 
-Agenta is still early. Some integrations and execution options require additional setup. Our documentation will explain the current limits and the setup required.
-
-[Try Agenta Cloud](https://cloud.agenta.ai), [view Agenta on GitHub](https://github.com/Agenta-AI/agenta), or follow the self-hosting guide to run it yourself.
-
-We believe the people who understand the work should be able to build the agents that do it.
-
-If you build an agent, tell us what work you gave it, where it helped, and where it failed. That feedback will shape what we build next.
+We believe the people who understand the work should be able to build the agents that do it. We want to help build the next million agents.
