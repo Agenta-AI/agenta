@@ -5,8 +5,8 @@ import {useCallback, useEffect, useRef, useState} from "react"
  * is independent of any model/audio capability — the composer receives words, not audio. Returns
  * `supported: false` where the API is absent (e.g. Firefox), so callers can hide the affordance.
  *
- * `liveText` is the running transcript for the active session (finalized words + the current
- * interim guess), so a caller can stream it into the editor as the person speaks.
+ * Committed words and the volatile tail are reported separately, so the editor can render the
+ * provisional part distinctly instead of the caller flattening both into one string.
  */
 
 // Minimal shapes for the bits of the Web Speech API we touch (not in the DOM lib types).
@@ -46,8 +46,10 @@ const getRecognitionCtor = (): SpeechRecognitionCtor | undefined => {
 export interface VoiceInput {
     supported: boolean
     recording: boolean
-    /** Finalized words + the current interim guess for the active session. */
-    liveText: string
+    /** Words the recogniser has settled on this session. */
+    finalText: string
+    /** The volatile tail it is still revising — rendered distinctly by the editor. */
+    interimText: string
     error: string | null
     start: () => void
     stop: () => void
@@ -60,7 +62,7 @@ export function useVoiceInput(): VoiceInput {
     const supported = !!ctorRef.current
 
     const [recording, setRecording] = useState(false)
-    const [liveText, setLiveText] = useState("")
+    const [transcript, setTranscript] = useState({finalText: "", interimText: ""})
     const [error, setError] = useState<string | null>(null)
 
     const recRef = useRef<SpeechRecognitionLike | null>(null)
@@ -70,7 +72,7 @@ export function useVoiceInput(): VoiceInput {
 
     const reset = useCallback(() => {
         finalRef.current = ""
-        setLiveText("")
+        setTranscript({finalText: "", interimText: ""})
         setError(null)
     }, [])
 
@@ -84,7 +86,7 @@ export function useVoiceInput(): VoiceInput {
         if (!Ctor || recRef.current) return
         setError(null)
         finalRef.current = ""
-        setLiveText("")
+        setTranscript({finalText: "", interimText: ""})
         stoppingRef.current = false
 
         const rec = new Ctor()
@@ -103,7 +105,7 @@ export function useVoiceInput(): VoiceInput {
                     interim += result[0].transcript
                 }
             }
-            setLiveText((finalRef.current + " " + interim).trim())
+            setTranscript({finalText: finalRef.current, interimText: interim.trim()})
         }
         rec.onerror = (e) => {
             if (e.error === "no-speech" || e.error === "aborted") return
@@ -141,5 +143,14 @@ export function useVoiceInput(): VoiceInput {
         [],
     )
 
-    return {supported, recording, liveText, error, start, stop, reset}
+    return {
+        supported,
+        recording,
+        finalText: transcript.finalText,
+        interimText: transcript.interimText,
+        error,
+        start,
+        stop,
+        reset,
+    }
 }

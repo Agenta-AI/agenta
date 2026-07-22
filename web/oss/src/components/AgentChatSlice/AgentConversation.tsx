@@ -1660,6 +1660,8 @@ const AgentConversation = ({
     // Dictation runs inside the mic button (its transcript changes far too often to lift here), so
     // it reports failures up for the shared notice.
     const [dictationError, setDictationError] = useState<string | null>(null)
+    // Locks the editor while speech is coming in, so typing can't interleave with the transcript.
+    const [dictating, setDictating] = useState(false)
     const micError = voiceRecorder.error ?? dictationError
     const dismissMicError = () => {
         setDictationError(null)
@@ -2278,6 +2280,7 @@ const AgentConversation = ({
                                         <RichChatInput
                                             ref={richInputRef}
                                             autoFocus={autoFocusComposer}
+                                            dictating={dictating}
                                             className={CHAT_COLUMN}
                                             // Onboarding: submit = commit the ephemeral — Enter creates the agent
                                             // (matching the composer's "↵ Send" hint); ⌘/Shift+Enter inserts newlines
@@ -2320,6 +2323,7 @@ const AgentConversation = ({
                                                         audioPending={voiceRecorder.pending}
                                                         attachmentsFull={atMax}
                                                         onDictationError={setDictationError}
+                                                        onDictatingChange={setDictating}
                                                         disabled={
                                                             onboardingActive
                                                                 ? ideHandoffActive

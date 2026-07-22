@@ -47,6 +47,7 @@ const VoiceInputButton = ({
     audioPending,
     attachmentsFull,
     onDictationError,
+    onDictatingChange,
     disabled,
 }: {
     inputRef: RefObject<RichChatInputHandle | null>
@@ -55,6 +56,8 @@ const VoiceInputButton = ({
     /** Report dictation failures upward so they surface in the shared mic notice rather than a
      * tooltip nobody hovers. The transcript itself stays local — it changes far too often to lift. */
     onDictationError: (message: string | null) => void
+    /** Dictation locks the editor while it runs, which the composer owns. */
+    onDictatingChange: (active: boolean) => void
     /** Tray is at its file limit. A voice message attaches like any file, so recording one now
      * would be rejected on attach — i.e. the take would be destroyed after the fact. */
     attachmentsFull: boolean
@@ -65,19 +68,30 @@ const VoiceInputButton = ({
 }) => {
     const [mode, setMode] = useAtom(voiceModeAtom)
     const transcribe = useVoiceInput()
-    const baseRef = useRef("")
 
     useEffect(() => {
         onDictationError(transcribe.error)
     }, [transcribe.error, onDictationError])
 
-    // Stream the running transcript into the editor while dictating.
+    // Push the transcript through the editor's dictation session: committed words land as normal
+    // text, the provisional tail is styled as unsettled. No document rewrite, so the undo history
+    // and anything already typed survive.
     useEffect(() => {
-        if (mode !== "transcribe" || !transcribe.recording) return
-        const base = baseRef.current
-        const live = transcribe.liveText
-        inputRef.current?.setMarkdown(base && live ? `${base} ${live}` : base || live)
-    }, [mode, transcribe.recording, transcribe.liveText, inputRef])
+        if (!transcribe.recording) return
+        inputRef.current?.updateDictation(transcribe.finalText, transcribe.interimText)
+    }, [transcribe.recording, transcribe.finalText, transcribe.interimText, inputRef])
+
+    // Settle the editor session once the recogniser actually stops (it emits a last final result
+    // on the way out, so ending earlier would drop those words).
+    const wasRecording = useRef(false)
+    useEffect(() => {
+        if (wasRecording.current && !transcribe.recording) {
+            inputRef.current?.endDictation()
+            inputRef.current?.focus()
+        }
+        wasRecording.current = transcribe.recording
+        onDictatingChange(transcribe.recording)
+    }, [transcribe.recording, inputRef, onDictatingChange])
 
     // Primary action first: a voice message is the default; dictation is the alternative.
     const modes: {key: VoiceMode; supported: boolean}[] = [
@@ -99,9 +113,8 @@ const VoiceInputButton = ({
         }
         if (transcribe.recording) {
             transcribe.stop()
-            inputRef.current?.focus()
         } else {
-            baseRef.current = (inputRef.current?.getMarkdown() ?? "").trimEnd()
+            inputRef.current?.beginDictation()
             transcribe.start()
         }
     }
