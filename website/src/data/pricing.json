@@ -8,8 +8,16 @@
   "hostingToggle": {
     "defaultMode": "cloud",
     "options": [
-      { "mode": "cloud", "label": "Agenta Cloud", "sublabel": "(we host)" },
-      { "mode": "selfHosted", "label": "Self-hosted", "sublabel": "(you host)" }
+      {
+        "mode": "cloud",
+        "label": "Agenta Cloud",
+        "sublabel": "(we host)"
+      },
+      {
+        "mode": "selfHosted",
+        "label": "Self-hosted",
+        "sublabel": "(you host)"
+      }
     ]
   },
   "links": [
@@ -17,7 +25,10 @@
       "text": "GitHub Issues",
       "href": "https://github.com/Agenta-AI/agenta/issues"
     },
-    { "text": "team@agenta.ai", "href": "mailto:team@agenta.ai" }
+    {
+      "text": "team@agenta.ai",
+      "href": "mailto:team@agenta.ai"
+    }
   ],
   "plansByMode": {
     "cloud": [
@@ -175,10 +186,22 @@
     "cloud": {
       "title": "Compare Agenta Cloud plans",
       "columns": [
-        { "name": "Hobby", "price": "Free" },
-        { "name": "Pro", "price": "$29/mo" },
-        { "name": "Business", "price": "$299/mo" },
-        { "name": "Enterprise", "price": "Custom" }
+        {
+          "name": "Hobby",
+          "price": "Free"
+        },
+        {
+          "name": "Pro",
+          "price": "$29/mo"
+        },
+        {
+          "name": "Business",
+          "price": "$299/mo"
+        },
+        {
+          "name": "Enterprise",
+          "price": "Custom"
+        }
       ],
       "groups": [
         {
@@ -186,19 +209,39 @@
           "rows": [
             {
               "label": "Team members",
-              "cells": ["2", "Unlimited", "Unlimited", "Unlimited"]
+              "cells": [
+                "2",
+                "Unlimited",
+                "Unlimited",
+                "Unlimited"
+              ]
             },
             {
               "label": "Projects",
-              "cells": ["Unlimited", "Unlimited", "Unlimited", "Unlimited"]
+              "cells": [
+                "Unlimited",
+                "Unlimited",
+                "Unlimited",
+                "Unlimited"
+              ]
             },
             {
               "label": "Agents and workflows",
-              "cells": ["Unlimited", "Unlimited", "Unlimited", "Unlimited"]
+              "cells": [
+                "Unlimited",
+                "Unlimited",
+                "Unlimited",
+                "Unlimited"
+              ]
             },
             {
               "label": "Schedules and event triggers",
-              "cells": ["Unlimited", "Unlimited", "Unlimited", "Unlimited"]
+              "cells": [
+                "Unlimited",
+                "Unlimited",
+                "Unlimited",
+                "Unlimited"
+              ]
             },
             {
               "label": "Agent runs per month",
@@ -211,11 +254,21 @@
             },
             {
               "label": "Evaluations per month",
-              "cells": ["20", "Unlimited", "Unlimited", "Unlimited"]
+              "cells": [
+                "20",
+                "Unlimited",
+                "Unlimited",
+                "Unlimited"
+              ]
             },
             {
               "label": "Trace data retention",
-              "cells": ["1 week", "1 month", "3 months", "Custom"]
+              "cells": [
+                "1 week",
+                "1 month",
+                "3 months",
+                "Custom"
+              ]
             }
           ]
         },
@@ -224,32 +277,75 @@
           "rows": [
             {
               "label": "Build and use agents through chat",
-              "cells": [true, true, true, true]
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
             },
             {
               "label": "Instructions and reusable skills",
-              "cells": [true, true, true, true]
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
             },
             {
               "label": "Tools and integrations",
-              "cells": [true, true, true, true]
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
             },
-            { "label": "MCP servers", "cells": [true, true, true, true] },
+            {
+              "label": "MCP servers",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
             {
               "label": "Model and harness choice",
-              "cells": [true, true, true, true]
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
             },
             {
               "label": "Files and persistent context",
-              "cells": [true, true, true, true]
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
             },
             {
               "label": "Shared agents and conversations",
-              "cells": [true, true, true, true]
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
             },
             {
               "label": "Granular tool permissions",
-              "cells": [true, true, true, true]
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
             }
           ]
         },
@@ -258,16 +354,39 @@
           "rows": [
             {
               "label": "Interactive agent runs",
-              "cells": [true, true, true, true]
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
             },
-            { "label": "Scheduled runs", "cells": [true, true, true, true] },
+            {
+              "label": "Scheduled runs",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
             {
               "label": "Event-triggered runs",
-              "cells": [true, true, true, true]
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
             },
             {
               "label": "Unlimited schedules and triggers",
-              "cells": [true, true, true, true]
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
             }
           ]
         },
@@ -276,27 +395,57 @@
           "rows": [
             {
               "label": "Trace for every agent run",
-              "cells": [true, true, true, true]
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
             },
             {
               "label": "Agent and prompt version history",
-              "cells": [true, true, true, true]
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
             },
             {
               "label": "Playground and side-by-side comparison",
-              "cells": [true, true, true, true]
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
             },
             {
               "label": "Evaluations and LLM-as-a-judge",
-              "cells": [true, true, true, true]
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
             },
             {
               "label": "Token usage and estimated model costs",
-              "cells": [true, true, true, true]
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
             },
             {
               "label": "Execution logs and errors",
-              "cells": [true, true, true, true]
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
             }
           ]
         },
@@ -305,41 +454,116 @@
           "rows": [
             {
               "label": "Shared agents and conversations",
-              "cells": [true, true, true, true]
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
             },
-            { "label": "Team roles", "cells": [false, false, true, true] },
+            {
+              "label": "Team roles",
+              "cells": [
+                false,
+                false,
+                true,
+                true
+              ]
+            },
             {
               "label": "Role-based access control",
-              "cells": [false, false, true, true]
+              "cells": [
+                false,
+                false,
+                true,
+                true
+              ]
             },
-            { "label": "SSO", "cells": [false, false, true, true] },
+            {
+              "label": "SSO",
+              "cells": [
+                false,
+                false,
+                true,
+                true
+              ]
+            },
             {
               "label": "SOC 2 Type II report",
-              "cells": [false, false, true, true]
+              "cells": [
+                false,
+                false,
+                true,
+                true
+              ]
             },
-            { "label": "Audit logs", "cells": [false, false, false, true] },
-            { "label": "Custom domains", "cells": [false, false, false, true] }
+            {
+              "label": "Audit logs",
+              "cells": [
+                false,
+                false,
+                false,
+                true
+              ]
+            },
+            {
+              "label": "Custom domains",
+              "cells": [
+                false,
+                false,
+                false,
+                true
+              ]
+            }
           ]
         },
         {
           "title": "Support",
           "rows": [
-            { "label": "GitHub Issues", "cells": [true, true, true, true] },
+            {
+              "label": "GitHub Issues",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
             {
               "label": "Priority support",
-              "cells": [false, false, true, true]
+              "cells": [
+                false,
+                false,
+                true,
+                true
+              ]
             },
             {
               "label": "Private Slack Connect channel",
-              "cells": [false, false, true, true]
+              "cells": [
+                false,
+                false,
+                true,
+                true
+              ]
             },
             {
               "label": "Dedicated support",
-              "cells": [false, false, false, true]
+              "cells": [
+                false,
+                false,
+                false,
+                true
+              ]
             },
             {
               "label": "Custom service-level agreement",
-              "cells": [false, false, false, true]
+              "cells": [
+                false,
+                false,
+                false,
+                true
+              ]
             }
           ]
         }
@@ -348,32 +572,74 @@
     "selfHosted": {
       "title": "Compare self-hosted plans",
       "columns": [
-        { "name": "Open source", "price": "Free" },
-        { "name": "Enterprise", "price": "Custom" }
+        {
+          "name": "Open source",
+          "price": "Free"
+        },
+        {
+          "name": "Enterprise",
+          "price": "Custom"
+        }
       ],
       "groups": [
         {
           "title": "Usage and core product",
           "rows": [
-            { "label": "Team members", "cells": ["Unlimited", "Unlimited"] },
-            { "label": "Projects", "cells": ["Unlimited", "Unlimited"] },
+            {
+              "label": "Team members",
+              "cells": [
+                "Unlimited",
+                "Unlimited"
+              ]
+            },
+            {
+              "label": "Projects",
+              "cells": [
+                "Unlimited",
+                "Unlimited"
+              ]
+            },
             {
               "label": "Agents and workflows",
-              "cells": ["Unlimited", "Unlimited"]
+              "cells": [
+                "Unlimited",
+                "Unlimited"
+              ]
             },
             {
               "label": "Schedules and event triggers",
-              "cells": ["Unlimited", "Unlimited"]
+              "cells": [
+                "Unlimited",
+                "Unlimited"
+              ]
             },
-            { "label": "Agent runs", "cells": ["Unlimited", "Unlimited"] },
-            { "label": "Evaluations", "cells": ["Unlimited", "Unlimited"] },
+            {
+              "label": "Agent runs",
+              "cells": [
+                "Unlimited",
+                "Unlimited"
+              ]
+            },
+            {
+              "label": "Evaluations",
+              "cells": [
+                "Unlimited",
+                "Unlimited"
+              ]
+            },
             {
               "label": "Trace data retention",
-              "cells": ["Self-managed", "Self-managed"]
+              "cells": [
+                "Self-managed",
+                "Self-managed"
+              ]
             },
             {
               "label": "Model usage",
-              "cells": ["Bring your own", "Bring your own"]
+              "cells": [
+                "Bring your own",
+                "Bring your own"
+              ]
             }
           ]
         },
@@ -382,21 +648,60 @@
           "rows": [
             {
               "label": "Build and use agents through chat",
-              "cells": [true, true]
+              "cells": [
+                true,
+                true
+              ]
             },
             {
               "label": "Instructions and reusable skills",
-              "cells": [true, true]
+              "cells": [
+                true,
+                true
+              ]
             },
-            { "label": "Tools and integrations", "cells": [true, true] },
-            { "label": "MCP servers", "cells": [true, true] },
-            { "label": "Model and harness choice", "cells": [true, true] },
-            { "label": "Files and persistent context", "cells": [true, true] },
+            {
+              "label": "Tools and integrations",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "MCP servers",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Model and harness choice",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Files and persistent context",
+              "cells": [
+                true,
+                true
+              ]
+            },
             {
               "label": "Shared agents and conversations",
-              "cells": [true, true]
+              "cells": [
+                true,
+                true
+              ]
             },
-            { "label": "Granular tool permissions", "cells": [true, true] }
+            {
+              "label": "Granular tool permissions",
+              "cells": [
+                true,
+                true
+              ]
+            }
           ]
         },
         {
@@ -404,55 +709,139 @@
           "rows": [
             {
               "label": "Interactive, scheduled, and event-triggered runs",
-              "cells": [true, true]
+              "cells": [
+                true,
+                true
+              ]
             },
-            { "label": "Trace for every agent run", "cells": [true, true] },
+            {
+              "label": "Trace for every agent run",
+              "cells": [
+                true,
+                true
+              ]
+            },
             {
               "label": "Agent and prompt version history",
-              "cells": [true, true]
+              "cells": [
+                true,
+                true
+              ]
             },
             {
               "label": "Playground and side-by-side comparison",
-              "cells": [true, true]
+              "cells": [
+                true,
+                true
+              ]
             },
             {
               "label": "Evaluations and LLM-as-a-judge",
-              "cells": [true, true]
+              "cells": [
+                true,
+                true
+              ]
             },
             {
               "label": "Token usage and estimated model costs",
-              "cells": [true, true]
+              "cells": [
+                true,
+                true
+              ]
             },
-            { "label": "Execution logs and errors", "cells": [true, true] }
+            {
+              "label": "Execution logs and errors",
+              "cells": [
+                true,
+                true
+              ]
+            }
           ]
         },
         {
           "title": "Collaboration and security",
           "rows": [
-            { "label": "Role-based access control", "cells": [true, true] },
-            { "label": "SSO", "cells": [true, true] },
-            { "label": "Audit logs", "cells": [false, true] },
-            { "label": "Custom domains", "cells": [false, true] }
+            {
+              "label": "Role-based access control",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "SSO",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Audit logs",
+              "cells": [
+                false,
+                true
+              ]
+            },
+            {
+              "label": "Custom domains",
+              "cells": [
+                false,
+                true
+              ]
+            }
           ]
         },
         {
           "title": "Deployment and support",
           "rows": [
-            { "label": "Docker Compose", "cells": [true, true] },
+            {
+              "label": "Docker Compose",
+              "cells": [
+                true,
+                true
+              ]
+            },
             {
               "label": "Deployment and upgrade support",
-              "cells": ["Community", "Included"]
+              "cells": [
+                "Community",
+                "Included"
+              ]
             },
-            { "label": "GitHub Issues", "cells": [true, true] },
-            { "label": "Priority support", "cells": [false, true] },
+            {
+              "label": "GitHub Issues",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Priority support",
+              "cells": [
+                false,
+                true
+              ]
+            },
             {
               "label": "Private Slack Connect channel",
-              "cells": [false, true]
+              "cells": [
+                false,
+                true
+              ]
             },
-            { "label": "Dedicated support", "cells": [false, true] },
+            {
+              "label": "Dedicated support",
+              "cells": [
+                false,
+                true
+              ]
+            },
             {
               "label": "Custom service-level agreement",
-              "cells": [false, true]
+              "cells": [
+                false,
+                true
+              ]
             }
           ]
         }
@@ -519,10 +908,6 @@
     {
       "question": "Do you offer discounts for startups, students, or researchers?",
       "answer": "Yes. Early-stage startups, students, and researchers can email team@agenta.ai to ask about discounted or free access. Include what you are building and how you plan to use Agenta."
-    },
-    {
-      "question": "Does Agenta offer a free trial?",
-      "answer": "Agenta does not use a time-limited free trial. Start with the free Hobby plan on Agenta Cloud or deploy the free open-source edition on your own infrastructure."
     }
   ]
 }
