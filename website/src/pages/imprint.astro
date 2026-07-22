@@ -1,16 +1,13 @@
 ---
 import Site from "../layouts/Site.astro";
 
-// Verbatim legal content captured from https://agenta.ai/imprint on 2026-06-26.
-// NOTE: The live scraper could not confirm whether managing director name(s),
-// commercial register number (Amtsgericht), or VAT ID (USt-IdNr.) are published
-// on the live page — those fields are required by § 5 TMG and by § 2 DL-InfoV.
-// Before launch, verify the live Impressum and add any missing fields verbatim.
+// Legal data confirmed by the founder on 2026-07-22 (register HRB 254081 B,
+// VAT DE363150015, managing director). § 5 DDG replaced § 5 TMG in May 2024.
 ---
 
 <Site
   title="Imprint — Agenta"
-  description="Legal imprint for Agentatech UG (haftungsbeschränkt), Berlin. Required by § 5 TMG."
+  description="Legal imprint for Agentatech UG (haftungsbeschränkt), Berlin. Required by § 5 DDG."
   showCta={false}
 >
   <!-- ══ HERO ══════════════════════════════════════════════════════════ -->
@@ -32,7 +29,7 @@ import Site from "../layouts/Site.astro";
       <p
         style="margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.6);max-width:540px;text-wrap:pretty;"
       >
-        Information in accordance with Section 5 TMG.
+        Information in accordance with § 5 DDG (Digitale-Dienste-Gesetz).
         This page also serves as the contact page for Agenta.
       </p>
     </div>
@@ -68,9 +65,24 @@ import Site from "../layouts/Site.astro";
             Germany
           </dd>
 
-          <!-- VERIFY BEFORE LAUNCH: managing director, Handelsregister, USt-IdNr.
-               The scraper did not capture these fields. Add verbatim if present
-               on the live page — required by § 5 TMG / § 2 DL-InfoV. -->
+          <dt style="color:rgba(255,255,255,0.38);font:var(--text-label);">Represented by</dt>
+          <dd style="margin:0;overflow-wrap:anywhere;">Managing director (Geschäftsführer): Mahmoud Mabrouk</dd>
+
+          <dt style="color:rgba(255,255,255,0.38);font:var(--text-label);">Commercial register</dt>
+          <dd style="margin:0;overflow-wrap:anywhere;">
+            Amtsgericht Charlottenburg (Berlin)<br />
+            HRB 254081 B
+          </dd>
+
+          <dt style="color:rgba(255,255,255,0.38);font:var(--text-label);">VAT ID</dt>
+          <dd style="margin:0;overflow-wrap:anywhere;">
+            USt-IdNr. in accordance with § 27a UStG: DE363150015
+          </dd>
+
+          <dt style="color:rgba(255,255,255,0.38);font:var(--text-label);">Responsible for content</dt>
+          <dd style="margin:0;overflow-wrap:anywhere;">
+            Mahmoud Mabrouk (address as above), § 18 Abs. 2 MStV
+          </dd>
         </dl>
       </div>
 
