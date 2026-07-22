@@ -94,10 +94,18 @@ const AudioPlayer = ({src, name, className}: {src: string; name: string; classNa
             >
                 {playing ? <Pause size={14} weight="fill" /> : <Play size={14} weight="fill" />}
             </button>
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <Text className="!text-xs truncate" title={name}>
-                    {name}
-                </Text>
+            {/* Name and time share the top row so they align on one baseline; the bar spans the
+            full width beneath both, rather than the time floating between the two rows. */}
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                <div className="flex items-baseline justify-between gap-2">
+                    <Text className="!text-xs truncate" title={name}>
+                        {name}
+                    </Text>
+                    <Text type="secondary" className="!text-[11px] shrink-0 tabular-nums">
+                        {fmt(current)}
+                        {duration > 0 ? ` / ${fmt(duration)}` : ""}
+                    </Text>
+                </div>
                 <div className="h-0.5 w-full overflow-hidden rounded-full bg-colorFillTertiary">
                     <div
                         className="h-full rounded-full bg-colorPrimary"
@@ -105,10 +113,6 @@ const AudioPlayer = ({src, name, className}: {src: string; name: string; classNa
                     />
                 </div>
             </div>
-            <Text type="secondary" className="!text-[11px] shrink-0 tabular-nums">
-                {fmt(current)}
-                {duration > 0 ? ` / ${fmt(duration)}` : ""}
-            </Text>
             <audio ref={audioRef} src={src} preload="metadata" className="hidden" />
         </div>
     )
