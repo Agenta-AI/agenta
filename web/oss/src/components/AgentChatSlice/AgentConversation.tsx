@@ -86,6 +86,7 @@ import {AgentChatTransport} from "./assets/AgentChatTransport"
 import {
     type AttachmentRejection,
     DEFAULT_ATTACHMENT_LIMITS,
+    describeAccepted,
     validateIncoming,
 } from "./assets/attachments"
 import {doesAgentChatStopKillSession} from "./assets/constants"
@@ -2041,7 +2042,7 @@ const AgentConversation = ({
                                     <span className="text-xs text-colorTextSecondary">
                                         {atMax
                                             ? `Remove one to add another (${limits.maxCount} max)`
-                                            : `${limits.label} · up to ${limits.maxCount}, ${Math.round(limits.maxBytes / 1024 / 1024)} MB each`}
+                                            : `${describeAccepted(limits)} · up to ${limits.maxCount} files`}
                                     </span>
                                 </div>
                             )}
@@ -2384,13 +2385,17 @@ const AgentConversation = ({
                                                         title={
                                                             atMax
                                                                 ? `Up to ${limits.maxCount} files`
-                                                                : "Attach files coming soon"
+                                                                : "Attach files"
                                                         }
                                                     >
                                                         <Button
                                                             type="text"
                                                             icon={<Paperclip size={16} />}
-                                                            disabled={true}
+                                                            // Paste, drop and voice all attach
+                                                            // already; leaving the obvious control
+                                                            // dead was the odd one out. Gated with
+                                                            // them on the composer being usable.
+                                                            disabled={composerDisabled}
                                                             onClick={() =>
                                                                 setAttachmentsOpen((open) => !open)
                                                             }

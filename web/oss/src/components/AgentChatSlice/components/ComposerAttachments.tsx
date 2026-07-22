@@ -13,7 +13,13 @@ import {Tooltip, Typography} from "antd"
 import type {UploadFile} from "antd"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
-import {type AttachmentLimits, type AttachmentRejection, formatBytes} from "../assets/attachments"
+import {
+    acceptAttrFor,
+    type AttachmentLimits,
+    type AttachmentRejection,
+    describeAccepted,
+    formatBytes,
+} from "../assets/attachments"
 import {SESSION_SPRING} from "../assets/sessionMotion"
 
 import AudioPlayer from "./AudioPlayer"
@@ -100,7 +106,6 @@ const ComposerAttachments = ({
     const inputRef = useRef<HTMLInputElement>(null)
     const [previews, setPreviews] = useState<Record<string, string>>({})
     const atMax = files.length >= limits.maxCount
-    const maxMb = Math.round(limits.maxBytes / 1024 / 1024)
 
     // Object URLs for image previews and audio playback, recreated when the list changes and
     // revoked on cleanup (the list is small, ≤ maxCount). Without revoking, removed files leak.
@@ -146,7 +151,7 @@ const ComposerAttachments = ({
                     ref={inputRef}
                     type="file"
                     multiple
-                    accept={limits.acceptAttr}
+                    accept={acceptAttrFor(limits)}
                     onChange={onInput}
                     className="hidden"
                 />
@@ -197,7 +202,7 @@ const ComposerAttachments = ({
                         <UploadSimple size={18} className="text-colorTextTertiary" />
                         <Text className="!text-xs !font-medium">Attach files</Text>
                         <Text type="secondary" className="!text-[11px]">
-                            {limits.label} · up to {limits.maxCount}, {maxMb} MB each
+                            {describeAccepted(limits)} · up to {limits.maxCount} files
                         </Text>
                     </button>
                 ) : (
