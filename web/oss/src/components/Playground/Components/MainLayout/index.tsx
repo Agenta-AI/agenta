@@ -384,7 +384,8 @@ const PlaygroundMainView = ({
                                 ref={setConfigPanelRef}
                                 className={clsx([
                                     {
-                                        "grow w-full min-h-0 overflow-y-auto": !isComparisonView,
+                                        "ag-scroll-quiet grow w-full min-h-0 overflow-y-auto":
+                                            !isComparisonView,
                                         "grow w-full min-h-0 overflow-x-auto flex [&::-webkit-scrollbar]:w-0":
                                             isComparisonView,
                                     },

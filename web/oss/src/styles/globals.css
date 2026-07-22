@@ -896,3 +896,43 @@ body {
 .ag-icon-segmented .ant-segmented-item-label svg {
     display: block;
 }
+
+/* Quiet scrollbars. The gutter is reserved at the thumb's width whether or not the
+   content overflows, so revealing the thumb never shifts the content, and the thumb
+   only appears while the pointer or focus is inside the scroller. */
+.ag-scroll-quiet {
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+}
+
+.ag-scroll-quiet:hover,
+.ag-scroll-quiet:focus-within {
+    scrollbar-color: var(--ag-scroll-thumb) transparent;
+}
+
+.ag-scroll-quiet::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.ag-scroll-quiet::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.ag-scroll-quiet::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    background-clip: content-box;
+    border: 2px solid transparent;
+    border-radius: 999px;
+    transition: background-color 150ms ease;
+}
+
+.ag-scroll-quiet:hover::-webkit-scrollbar-thumb,
+.ag-scroll-quiet:focus-within::-webkit-scrollbar-thumb {
+    background-color: var(--ag-scroll-thumb);
+}
+
+.ag-scroll-quiet::-webkit-scrollbar-thumb:hover {
+    background-color: var(--ag-scroll-thumb-hover);
+}

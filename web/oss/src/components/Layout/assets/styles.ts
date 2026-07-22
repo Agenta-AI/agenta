@@ -27,7 +27,7 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         justifyContent: "space-between",
         width: "100%",
         padding: "8px 1.5rem",
-        borderBottom: `1px solid ${theme.colorBorderSecondary}`,
+        borderBottom: "1px solid var(--ag-shell-line)",
     },
     topRightBar: {
         display: "flex",
