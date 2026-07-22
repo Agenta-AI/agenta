@@ -11,7 +11,7 @@ export const GET: APIRoute = () => {
 
   const body = noindex
     ? "User-agent: *\nDisallow: /"
-    : "# Agenta marketing site (https://agenta.ai)\n# Allow all crawlers full access; point them at the generated sitemap index.\nUser-agent: *\nAllow: /\n\nSitemap: https://agenta.ai/sitemap-index.xml\n";
+    : "# Agenta marketing site (https://agenta.ai)\n# Allow all crawlers full access; point them at the generated sitemap index.\n# The docs sitemap is listed too because agenta.ai/docs/* proxies the docs site.\nUser-agent: *\nAllow: /\n\nSitemap: https://agenta.ai/sitemap-index.xml\nSitemap: https://agenta.ai/docs/sitemap.xml\n";
 
   return new Response(body, {
     headers: { "Content-Type": "text/plain; charset=utf-8" },
