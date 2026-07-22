@@ -87,5 +87,7 @@ Every PR that touches `website/**` gets an automatically deployed preview, via
 - Content is MDX in `src/content/` (posts, authors) + JSON singletons; the shapes
   match `Agenta landing page pivot/handoff/CONTENT_MODEL.md`.
 - Style against the ported design tokens in `src/styles/`. Never invent a hex.
-- Shared chrome is `src/layouts/Site.astro` + `src/components/NavBar|Footer|CtaBand`.
-  Reuse them; do not re-implement nav/footer per page.
+- Shared chrome is `src/layouts/Site.astro` + `src/components/SiteNav|SiteFooter|CtaBand`.
+  There is exactly one nav and one footer component; `SiteNav` takes `sticky` (set only
+  by the landing page) to enable the scroll-pill behavior, and renders the identical
+  static bar everywhere else. Reuse them; do not re-implement nav/footer per page.
