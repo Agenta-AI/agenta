@@ -91,7 +91,7 @@ nav[data-pill] {
   align-items: center;
   justify-content: space-between;
   height: 68px;
-  padding: 0 24px;
+  padding: 0 var(--nav-pad-x);
   box-sizing: border-box;
   width: 100%;
   margin-inline: auto;
@@ -104,18 +104,17 @@ nav[data-pill] {
     border-radius 0.25s ease,
     border-color 0.25s ease,
     width 0.25s ease,
-    height 0.25s ease,
-    padding 0.25s ease;
+    transform 0.25s ease;
 }
 .nav-scrolled .ag-nav-inner {
-  /* Shrink to a centered pill and inset its height symmetrically. margin-inline
-     auto keeps it horizontally centered; the shell's align-items:center keeps
-     the reduced-height pill vertically centered — so the center links (pinned
-     separately) stay dead-centered on it without moving. */
-  width: min(1120px, calc(100% - 40px));
-  height: 54px;
-  border-radius: 14px;
+  /* Float into a centered pill: full height is kept (agenta.ai keeps 68px), the
+     bar narrows and rounds, and translateY drops it clear of the top edge by
+     --nav-pill-inset. margin-inline auto keeps it horizontally centered so the
+     brand/CTAs ride its edges inward symmetrically. */
+  width: min(var(--nav-pill-max), calc(100% - 32px));
+  border-radius: var(--nav-pill-radius);
   border-color: transparent;
+  transform: translateY(var(--nav-pill-inset));
   background: var(--ag-d-glass, rgba(18, 16, 15, 0.72));
   -webkit-backdrop-filter: saturate(1.6) blur(14px);
   backdrop-filter: saturate(1.6) blur(14px);
@@ -136,6 +135,12 @@ nav[data-pill] {
   align-items: center;
   gap: 2px;
   z-index: 1;
+  transition: transform 0.25s ease;
+}
+/* Links ride the pill down by the same inset so they stay centered on it: only
+   the y shifts (dy = +inset), x is untouched (dx = 0), matching agenta.ai. */
+.nav-scrolled .ag-navlinks {
+  transform: translate(-50%, calc(-50% + var(--nav-pill-inset)));
 }
 
 /* ── nav brand: wordmark condenses to the leaf symbol on scroll ──
@@ -199,6 +204,110 @@ html,
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
 }
 
+/* ── button hover (matches agenta.ai) ────────────────────────────────
+   Keycaps: the inset top-light glow widens on hover (blur 6→16px), same
+   color — a subtle brighten, no transform. Per-button alpha via --key-alpha.
+   Ghost/outline buttons brighten their fill instead. */
+.ag-key {
+  transition: box-shadow 0.2s ease;
+}
+.ag-key:hover {
+  box-shadow: inset 0 3px 16px rgba(255, 255, 255, var(--key-alpha, 0.85));
+}
+.ag-ghost {
+  transition: background 0.2s ease;
+}
+.ag-ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ── nav dropdowns (Resources / Community) ───────────────────────────
+   Open on hover and on keyboard focus (focus-within). The panel sits flush
+   under the trigger; a transparent bridge (padding-top on the panel wrapper)
+   spans the gap so crossing the cursor never closes it. A short open delay is
+   hover-intent: brushing past doesn't flash the menu open. */
+.ag-navdd {
+  position: relative;
+  display: inline-flex;
+}
+.ag-navdd-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  padding-top: 8px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease,
+    visibility 0.16s ease;
+  transition-delay: 0.12s;
+  z-index: 60;
+}
+.ag-navdd:hover .ag-navdd-panel,
+.ag-navdd:focus-within .ag-navdd-panel {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition-delay: 0s;
+}
+.ag-navdd-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 264px;
+  padding: 8px;
+  border-radius: 14px;
+  background: var(--ag-d-chrome);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 20px 48px rgba(0, 0, 0, 0.55);
+}
+.ag-navdd-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: background 0.16s ease;
+}
+.ag-navdd-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.ag-navdd-ico {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.82);
+}
+.ag-navdd-title {
+  font: var(--text-label);
+  color: #f7f6f4;
+  line-height: 1.25;
+}
+.ag-navdd-desc {
+  font: var(--text-caption);
+  color: rgba(255, 255, 255, 0.45);
+  line-height: 1.25;
+}
+/* Chevron flips when its menu is open, like agenta.ai. */
+.ag-navdd:hover .ag-navdd-chev,
+.ag-navdd:focus-within .ag-navdd-chev {
+  transform: rotate(180deg);
+}
+.ag-navdd-chev {
+  display: inline-flex;
+  transition: transform 0.16s ease;
+}
+
 /* ── mobile menu (replaces the DC sc-if/menuOpen state) ─────── */
 .ag-menu {
   display: none;
@@ -216,6 +325,19 @@ html,
    1100px (grid collapse) and 860px (mobile: nav → hamburger, single column).
    QA widths 768 and 390 both fall under 860 → full mobile treatment.
 ============================================================================ */
+/* Landing section rhythm steps down with the layout: redefining the token here
+   scales every section that reads var(--section-pad-y) at once (desktop 112 →
+   mobile 64 → phone 56). Sections must reference the token, not hard numbers. */
+@media (max-width: 860px) {
+  :root {
+    --section-pad-y: 64px;
+  }
+}
+@media (max-width: 600px) {
+  :root {
+    --section-pad-y: 56px;
+  }
+}
 /* Footer: the 1440 artboard's 172px side padding + space-between drops the link
    columns below the brand between ~860px and 1200px, isolating the brand on its
    own row. Tighten the padding and lay the columns out 2-up through that band so
@@ -303,9 +425,6 @@ html,
   .ag-rel > div + div {
     border-top: 1px solid rgba(255, 255, 255, 0.09);
   }
-  .ag-relsec {
-    padding-top: 64px !important;
-  }
   .ag-row {
     flex-direction: column !important;
     align-items: stretch !important;
@@ -382,9 +501,6 @@ html,
     padding-top: 56px !important;
     padding-bottom: 56px !important;
   }
-  .ag-relsec {
-    padding-top: 56px !important;
-  }
 
   /* How it works: drop the files drawer so the chat story owns the width. */
   .ag-hiw-files {
@@ -408,10 +524,7 @@ html,
     border-top: none !important;
   }
 
-  /* CTA band: tighten padding (the decorative symbol is already hidden <=860). */
-  .ag-cta-sec {
-    padding: 64px 24px !important;
-  }
+  /* CTA band: vertical padding follows the section token; tighten the row gap. */
   .ag-cta-row {
     gap: 22px !important;
   }

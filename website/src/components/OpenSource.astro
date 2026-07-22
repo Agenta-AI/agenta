@@ -53,7 +53,7 @@ const ossStrip = [
   data-screen-label="Open source"
   style="background:var(--ag-d-bg-1);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
 >
-  <div class="ag-secpad" style="padding:112px 0 96px;display:flex;justify-content:center;">
+  <div class="ag-secpad" style="padding:var(--section-pad-y) 0;display:flex;justify-content:center;">
     <div
       class="ag-oss"
       style="width:min(1120px,100%);display:grid;grid-template-columns:420px 1fr;gap:72px;padding:0 28px;box-sizing:border-box;align-items:center;text-align:left;"
@@ -92,13 +92,15 @@ const ossStrip = [
         </div>
         <div style="display:flex;gap:12px;margin-top:6px;">
           <a
+            class="ag-key"
             href="https://github.com/Agenta-AI/agenta"
             target="_blank"
             rel="noopener"
-            style="display:inline-flex;align-items:center;height:40px;padding:0 18px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);font:600 14px/1 var(--font-sans);color:var(--ink-900);text-decoration:none;"
+            style="--key-alpha:0.9;display:inline-flex;align-items:center;height:40px;padding:0 18px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);font:600 14px/1 var(--font-sans);color:var(--ink-900);text-decoration:none;"
             >Explore on GitHub</a
           >
           <a
+            class="ag-ghost"
             href="https://docs.agenta.ai/self-host/quick-start"
             target="_blank"
             rel="noopener"

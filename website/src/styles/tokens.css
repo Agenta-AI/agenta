@@ -143,10 +143,12 @@
   /* ── typography.css ───────────────────────────────────────── */
   --font-display: "GT Alpina", Georgia, "Times New Roman", serif;
   --font-bitmap: "PP Mondwest", "Courier New", monospace;
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+  --font-sans:
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
   --font-ui: "Geist", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-mono:
+    "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   /* web type scale */
   --text-display-xl: 300 68px/72px var(--font-display);
@@ -182,8 +184,24 @@
   --content-width: 1072px;
   --prose-width: 677px;
   --nav-height: 68px;
+
+  /* ── landing section rhythm ───────────────────────────────────
+     One symmetric vertical rhythm for every landing section: content
+     closes, then equal clear space precedes the section edge (agenta.ai's
+     practice; 112 aligns to the earlier sections). The value steps down at
+     the mobile/phone breakpoints — see the :root overrides in global.css —
+     so every section that reads `var(--section-pad-y)` scales together. */
   --section-pad-y: 112px;
   --section-pad-y-dark: 128px;
+
+  /* ── nav pill geometry (scrolled state) ───────────────────────
+     Matched to live agenta.ai: the bar keeps its full 68px height, floats
+     24px below the viewport, and rounds to 16px. Consumed by the
+     nav-scrolled rules in global.css. */
+  --nav-pill-inset: 24px;
+  --nav-pill-radius: 16px;
+  --nav-pill-max: 1256px;
+  --nav-pad-x: 32px;
 
   --app-sidebar-width: 220px;
   --app-item-height: 32px;
@@ -195,16 +213,18 @@
   --radius-xl: 16px;
   --radius-pill: 999px;
 
-  --shadow-ring: 0px 0px 0px 1px rgba(63, 70, 75, 0.1),
-    0px 1px 3px 0px rgba(63, 70, 75, 0.1);
-  --shadow-ring-soft: 0px 0px 0px 1px rgba(72, 70, 68, 0.08),
+  --shadow-ring:
+    0px 0px 0px 1px rgba(63, 70, 75, 0.1), 0px 1px 3px 0px rgba(63, 70, 75, 0.1);
+  --shadow-ring-soft:
+    0px 0px 0px 1px rgba(72, 70, 68, 0.08),
     0px 1px 3px 0px rgba(72, 70, 68, 0.08);
   --shadow-btn-primary: inset 0px 2px 6.4px 0px rgba(255, 255, 255, 0.8);
   --shadow-btn-dark: inset 0px 2px 6.4px 0px rgba(255, 255, 255, 0.3);
-  --shadow-btn-outline: 0 0 0 1px var(--paper-150),
-    inset 0px 2px 6px 0px #ffffff;
+  --shadow-btn-outline:
+    0 0 0 1px var(--paper-150), inset 0px 2px 6px 0px #ffffff;
   --shadow-badge: 0 0 0 1px var(--paper-150), inset 0px 2px 0.4px 0px #ffffff;
-  --shadow-frame: 0px 0px 0px 1px rgba(72, 70, 68, 0.08),
+  --shadow-frame:
+    0px 0px 0px 1px rgba(72, 70, 68, 0.08),
     0px 1px 3px 0px rgba(72, 70, 68, 0.02), 0px 0px 0px 6px #f6f4f2,
     0px 0px 0px 7px #e7e5e3;
 }

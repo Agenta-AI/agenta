@@ -4,27 +4,59 @@
 const BOOK_DEMO = "https://cal.com/mahmoud-mabrouk-ogzgey/demo?duration=30";
 const GET_STARTED = "https://cloud.agenta.ai/";
 
-// Dropdown placeholders (Resources / Community) and not-yet-built internal
-// pages link to "#". No nav link opens a new tab — Docs stays same-tab too.
+// Top-level links that navigate directly.
 const links = [
   { label: "Pricing", href: "/pricing" },
   { label: "Docs", href: "https://docs.agenta.ai/" },
   { label: "Blog", href: "/blog" },
-  { label: "Resources", href: "#", dropdown: true },
-  { label: "Community", href: "#", dropdown: true },
+];
+
+// Lucide-style 1.5px line icons (currentColor) for the dropdown items, mirroring
+// live agenta.ai's menus (help-circle · history · route for Resources; brand
+// glyphs for Community).
+const icoHelp = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>`;
+const icoHistory = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>`;
+const icoRoute = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg>`;
+const icoGithub = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>`;
+const icoSlack = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="3" height="8" x="13" y="2" rx="1.5"/><path d="M19 8.5V10h1.5A1.5 1.5 0 1 0 19 8.5"/><rect width="3" height="8" x="8" y="14" rx="1.5"/><path d="M5 15.5V14H3.5A1.5 1.5 0 1 0 5 15.5"/><rect width="8" height="3" x="14" y="13" rx="1.5"/><path d="M15.5 19H14v1.5a1.5 1.5 0 1 0 1.5-1.5"/><rect width="8" height="3" x="2" y="8" rx="1.5"/><path d="M8.5 5H10V3.5A1.5 1.5 0 1 0 8.5 5"/></svg>`;
+const icoX = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l16 16M20 4L4 20"/></svg>`;
+const icoLinkedin = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/></svg>`;
+
+// Dropdown menus (open on hover / keyboard focus). Resources mirrors agenta.ai's
+// three-item menu; Community lists the real community channels.
+type Item = { label: string; desc: string; href: string; icon: string; external?: boolean };
+const dropdowns: { label: string; items: Item[] }[] = [
+  {
+    label: "Resources",
+    items: [
+      { label: "Tutorial", desc: "Get started with Agenta", href: "/tutorial", icon: icoHelp },
+      { label: "Changelog", desc: "See our latest releases", href: "/changelog", icon: icoHistory },
+      { label: "Roadmap", desc: "See what's coming next", href: "/roadmap", icon: icoRoute },
+    ],
+  },
+  {
+    label: "Community",
+    items: [
+      { label: "GitHub", desc: "Star the repository", href: "https://github.com/Agenta-AI/agenta", icon: icoGithub, external: true },
+      { label: "Slack", desc: "Join the conversation", href: "https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA", icon: icoSlack, external: true },
+      { label: "X / Twitter", desc: "Follow for updates", href: "https://x.com/agenta_ai", icon: icoX, external: true },
+      { label: "LinkedIn", desc: "Follow the company", href: "https://www.linkedin.com/company/agenta-ai", icon: icoLinkedin, external: true },
+    ],
+  },
 ];
 
 const chevron = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 4.25 6 7.75l3.5-3.5" stroke="currentColor" stroke-width="1.5"/></svg>`;
 const linkStyle =
   "display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;text-decoration:none;";
+const triggerStyle = linkStyle + "border:none;background:transparent;";
 ---
 
 <!-- Nav is a fixed-geometry sticky shell (height stable, vertical center fixed);
-     only .ag-nav-inner animates — width shrinks into a centered pill while brand
-     (left) and CTAs (right) ride its edges inward. The center links live in a
-     SEPARATE layer absolutely centered on the shell, so they never shift a pixel
-     in x or y between the bar and pill states. See the nav-pill block in
-     global.css. -->
+     only .ag-nav-inner animates — it narrows into a centered pill and drops by
+     --nav-pill-inset while brand (left) and CTAs (right) ride its edges inward.
+     The center links live in a SEPARATE layer absolutely centered on the shell;
+     on scroll they ride down by the same inset (dy only, dx stays 0) so they
+     never shift horizontally. See the nav-pill block in global.css. -->
 <nav data-pill style="position:sticky;top:0;z-index:50;">
   <div class="ag-nav-inner">
     <a class="ag-brand" href="/" aria-label="Agenta home">
@@ -37,13 +69,15 @@ const linkStyle =
 
     <div class="ag-navcta" style="display:flex;align-items:center;gap:12px;">
       <a
+        class="ag-ghost"
         href={BOOK_DEMO}
         style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;text-decoration:none;"
         >Book a demo</a
       >
       <a
+        class="ag-key"
         href={GET_STARTED}
-        style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;text-decoration:none;"
+        style="--key-alpha:0.9;display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;text-decoration:none;"
         >Get started</a
       >
     </div>
@@ -70,8 +104,40 @@ const linkStyle =
       links.map((l) => (
         <a class="ag-navlink" href={l.href} style={linkStyle}>
           {l.label}
-          {l.dropdown && <Fragment set:html={chevron} />}
         </a>
+      ))
+    }
+    {
+      dropdowns.map((dd) => (
+        <div class="ag-navdd">
+          <button
+            class="ag-navlink"
+            style={triggerStyle}
+            aria-haspopup="true"
+            aria-expanded="false"
+          >
+            {dd.label}
+            <span class="ag-navdd-chev" set:html={chevron} />
+          </button>
+          <div class="ag-navdd-panel">
+            <div class="ag-navdd-menu">
+              {dd.items.map((it) => (
+                <a
+                  class="ag-navdd-item"
+                  href={it.href}
+                  target={it.external ? "_blank" : undefined}
+                  rel={it.external ? "noopener" : undefined}
+                >
+                  <span class="ag-navdd-ico" set:html={it.icon} />
+                  <span style="display:flex;flex-direction:column;gap:2px;">
+                    <span class="ag-navdd-title">{it.label}</span>
+                    <span class="ag-navdd-desc">{it.desc}</span>
+                  </span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
       ))
     }
   </div>
@@ -92,15 +158,37 @@ const linkStyle =
       </a>
     ))
   }
+  {
+    dropdowns.map((dd) => (
+      <Fragment>
+        <span style="padding:12px 12px 4px;font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.38);">
+          {dd.label}
+        </span>
+        {dd.items.map((it) => (
+          <a
+            href={it.href}
+            target={it.external ? "_blank" : undefined}
+            rel={it.external ? "noopener" : undefined}
+            style="display:flex;align-items:center;gap:12px;height:42px;padding:0 12px;border-radius:8px;font:var(--text-body-md);color:rgba(255,255,255,0.78);cursor:pointer;text-decoration:none;"
+          >
+            <span class="ag-navdd-ico" style="width:30px;height:30px;" set:html={it.icon} />
+            {it.label}
+          </a>
+        ))}
+      </Fragment>
+    ))
+  }
   <div style="display:flex;gap:10px;margin-top:10px;">
     <a
+      class="ag-ghost"
       href={BOOK_DEMO}
       style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:42px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);cursor:pointer;text-decoration:none;"
       >Book a demo</a
     >
     <a
+      class="ag-key"
       href={GET_STARTED}
-      style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:42px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;text-decoration:none;"
+      style="--key-alpha:0.9;flex:1;display:inline-flex;align-items:center;justify-content:center;height:42px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);cursor:pointer;text-decoration:none;"
       >Get started</a
     >
   </div>

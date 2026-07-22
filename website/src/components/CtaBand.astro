@@ -15,16 +15,16 @@ const btnBase =
   "display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 20px;border-radius:8px;font:var(--text-label);cursor:pointer;text-decoration:none;white-space:nowrap;box-sizing:border-box;";
 const btnDark =
   btnBase +
-  "background:linear-gradient(180deg,#413F3E 0%,#1E1D1C 100%);box-shadow:inset 0 3px 6px rgba(255,255,255,0.3);color:#FFFFFF;";
+  "--key-alpha:0.42;background:linear-gradient(180deg,#413F3E 0%,#1E1D1C 100%);box-shadow:inset 0 3px 6px rgba(255,255,255,0.3);color:#FFFFFF;";
 const btnWhite =
   btnBase +
-  "background:linear-gradient(180deg,#F7F6F5 0%,#F1EEEC 100%);box-shadow:inset 0 3px 6px rgba(255,255,255,1);color:var(--ink-900);";
+  "--key-alpha:1;background:linear-gradient(180deg,#F7F6F5 0%,#F1EEEC 100%);box-shadow:inset 0 3px 6px rgba(255,255,255,1);color:var(--ink-900);";
 ---
 
 <section
   data-screen-label="CTA"
   class="ag-cta-sec"
-  style="position:relative;overflow:hidden;background:var(--surface-cta);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:96px 24px;"
+  style="position:relative;overflow:hidden;background:var(--surface-cta);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:var(--section-pad-y) 24px;"
 >
   <img
     class="ag-cta-img"
@@ -48,8 +48,8 @@ const btnWhite =
         improve with real feedback. All open source.
       </p>
       <div style="display:flex;gap:12px;">
-        <a href={GET_STARTED} style={btnDark}>Start building</a>
-        <a href={BOOK_DEMO} style={btnWhite}>Book a demo</a>
+        <a class="ag-key" href={GET_STARTED} style={btnDark}>Start building</a>
+        <a class="ag-key" href={BOOK_DEMO} style={btnWhite}>Book a demo</a>
       </div>
     </div>
   </div>
