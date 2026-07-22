@@ -7,10 +7,8 @@ import {AnimatePresence, motion} from "motion/react"
 import {SESSION_SPRING} from "../assets/sessionMotion"
 import {type AudioRecorder, MAX_RECORDING_MS} from "../hooks/useAudioRecorder"
 
-const mmss = (ms: number): string => {
-    const s = Math.floor(ms / 1000)
-    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`
-}
+const mmss = (totalSeconds: number): string =>
+    `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`
 
 // Fixed level bars; each lights once the smoothed input level crosses its threshold.
 const BAR_THRESHOLDS = [0.08, 0.16, 0.26, 0.38, 0.52, 0.68, 0.85]
@@ -25,15 +23,23 @@ const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className
     const {status, meterRef, stop, cancel} = recorder
     const requesting = status === "requesting"
 
-    // Sample the live readouts here rather than holding them in the recorder's owner — this is a
-    // small component, so a frame-rate repaint is cheap; the conversation is not.
-    const [meter, setMeter] = useState({level: 0, elapsedMs: 0})
+    // One rAF drives both readouts, sampled here rather than in the recorder's owner: this is a
+    // small component, so repainting it is cheap; the conversation is not.
+    //
+    // Both values are QUANTISED to what is actually visible — the meter is N discrete bars and the
+    // clock ticks once a second — so a 60Hz loop only causes a render when a bar lights or the
+    // second rolls over, not on every frame.
+    const [{bars, seconds}, setReadout] = useState({bars: 0, seconds: 0})
     useEffect(() => {
         let raf = 0
         const tick = () => {
-            const {level, elapsedMs} = meterRef.current
-            setMeter((prev) =>
-                prev.level === level && prev.elapsedMs === elapsedMs ? prev : {level, elapsedMs},
+            const {level, startedAt} = meterRef.current
+            const nextBars = BAR_THRESHOLDS.filter((t) => level >= t).length
+            const nextSeconds = startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0
+            setReadout((prev) =>
+                prev.bars === nextBars && prev.seconds === nextSeconds
+                    ? prev
+                    : {bars: nextBars, seconds: nextSeconds},
             )
             raf = requestAnimationFrame(tick)
         }
@@ -41,9 +47,8 @@ const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className
         return () => cancelAnimationFrame(raf)
     }, [meterRef])
 
-    const {level, elapsedMs} = meter
-    const remaining = Math.max(0, MAX_RECORDING_MS - elapsedMs)
-    const nearLimit = !requesting && remaining <= 30_000
+    const remainingSeconds = Math.max(0, Math.floor(MAX_RECORDING_MS / 1000) - seconds)
+    const nearLimit = !requesting && remainingSeconds <= 30
 
     // Esc discards the take (standard for a modal capture).
     useEffect(() => {
@@ -110,16 +115,16 @@ const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className
                                 nearLimit ? "text-colorError" : "text-colorText"
                             }`}
                         >
-                            {mmss(elapsedMs)}
+                            {mmss(seconds)}
                         </span>
                         <div className="flex flex-1 items-center gap-1" aria-hidden>
-                            {BAR_THRESHOLDS.map((threshold, i) => (
+                            {BAR_THRESHOLDS.map((_, i) => (
                                 <span
                                     key={i}
                                     className="w-[3px] rounded-full bg-colorError transition-opacity duration-100"
                                     style={{
                                         height: `${8 + i * 3}px`,
-                                        opacity: level >= threshold ? 1 : 0.2,
+                                        opacity: i < bars ? 1 : 0.2,
                                     }}
                                 />
                             ))}
@@ -132,7 +137,7 @@ const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className
                                     transition={FADE_TRANSITION}
                                     className="text-xs text-colorError"
                                 >
-                                    {mmss(remaining)} left
+                                    {mmss(remainingSeconds)} left
                                 </motion.span>
                             )}
                         </AnimatePresence>

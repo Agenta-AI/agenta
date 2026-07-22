@@ -41,8 +41,11 @@ const getAudioContextCtor = (): typeof AudioContext | undefined => {
  * this hook is owned by a very large component — putting them in state re-renders the whole
  * conversation 60x a second. `RecordingBar` samples this ref itself, so only it repaints. */
 export interface AudioMeter {
+    /** Smoothed input level 0–1. Best-effort: metering can fail without affecting capture. */
     level: number
-    elapsedMs: number
+    /** Capture start (epoch ms), 0 when idle. Elapsed is DERIVED from this by the meter UI, so the
+     * clock never depends on a polling timer and cannot drift. */
+    startedAt: number
 }
 
 export interface AudioRecorder {
@@ -76,13 +79,15 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
 
     const [status, setStatus] = useState<RecorderStatus>("idle")
     const [error, setError] = useState<string | null>(null)
-    const meterRef = useRef<AudioMeter>({level: 0, elapsedMs: 0})
+    const meterRef = useRef<AudioMeter>({level: 0, startedAt: 0})
 
     const recRef = useRef<MediaRecorder | null>(null)
     const streamRef = useRef<MediaStream | null>(null)
     const chunksRef = useRef<Blob[]>([])
     const startedAtRef = useRef(0)
-    const timerRef = useRef<number | undefined>(undefined)
+    // Deadline for the hard cap. A timer, not rAF: rAF pauses in a background tab, which would
+    // let a backgrounded recording run past the limit forever.
+    const capTimerRef = useRef<number | undefined>(undefined)
     const rafRef = useRef<number | undefined>(undefined)
     const audioCtxRef = useRef<AudioContext | null>(null)
     const cancelledRef = useRef(false)
@@ -90,7 +95,7 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
     onCompleteRef.current = onComplete
 
     const teardown = useCallback(() => {
-        window.clearInterval(timerRef.current)
+        window.clearTimeout(capTimerRef.current)
         if (rafRef.current !== undefined) cancelAnimationFrame(rafRef.current)
         rafRef.current = undefined
         audioCtxRef.current?.close().catch(() => {})
@@ -98,7 +103,7 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
         streamRef.current?.getTracks().forEach((t) => t.stop())
         streamRef.current = null
         recRef.current = null
-        meterRef.current = {level: 0, elapsedMs: 0}
+        meterRef.current = {level: 0, startedAt: 0}
     }, [])
 
     const meter = useCallback((stream: MediaStream) => {
@@ -162,14 +167,11 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
                 }
                 recRef.current = rec
                 startedAtRef.current = Date.now()
-                meterRef.current = {level: 0, elapsedMs: 0}
+                meterRef.current = {level: 0, startedAt: startedAtRef.current}
                 setStatus("recording")
                 meter(stream)
-                timerRef.current = window.setInterval(() => {
-                    const ms = Date.now() - startedAtRef.current
-                    meterRef.current.elapsedMs = ms
-                    if (ms >= MAX_RECORDING_MS) rec.stop() // auto-stop and keep at the cap
-                }, 200)
+                // One deadline instead of polling; auto-stops and keeps at the cap.
+                capTimerRef.current = window.setTimeout(() => rec.stop(), MAX_RECORDING_MS)
                 rec.start()
             })
             .catch((e: unknown) => {
