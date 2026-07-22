@@ -54,7 +54,31 @@ The rule: **proprietary/large assets live in the deployed output, never in git.*
   `pnpm exec astro dev --host 0.0.0.0 --port 4321` — then open
   `http://<box-ip>:4321/` (the box's port 4321 must be reachable).
 - `pnpm build` produces the static `dist/`. Deploy target is Cloudflare Workers
-  Static Assets (see `wrangler.jsonc`); deploy is not wired yet.
+  Static Assets (see `wrangler.jsonc`). `pnpm deploy:preview` deploys the shared
+  team preview manually (needs the Cloudflare creds from `~/.agenta-marketing.env`).
+
+## CI preview deploys
+
+Every PR that touches `website/**` gets an automatically deployed preview, via
+`.github/workflows/15-website-preview.yml`.
+
+- **How:** the workflow builds the site and runs `wrangler versions upload
+  --preview-alias pr-<number>` against the single `agenta-website-preview` worker.
+  This publishes a new *version* with its own shareable preview URL and does **not**
+  touch the worker's production deployment, so one worker serves every PR's preview
+  (no per-PR worker sprawl, no cleanup job). The stable alias makes the URL
+  deterministic per PR: `https://pr-<number>-agenta-website-preview.<subdomain>.workers.dev`.
+- **Where the URL appears:** a single sticky PR comment (header `website-preview`)
+  that updates in place on every push, so pushes never spam new comments.
+- **Secrets (GitHub Actions, referenced by name — never commit values):**
+  `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` for the deploy, and the four R2
+  vars (`R2_S3_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and the
+  non-secret `R2_FONTS_BUCKET`, set inline in the workflow) so the licensed fonts are
+  fetched into the preview build. Without the R2 secrets the build still succeeds with
+  fallback fonts (see the asset-hosting section above).
+- **Fork PRs:** deployment is skipped for PRs from forks (the job guards on
+  `head.repo.full_name == github.repository`), so secrets are never exposed to
+  untrusted code. Fork PRs simply get no preview comment.
 
 ## Conventions
 

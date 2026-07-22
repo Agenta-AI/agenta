@@ -7,6 +7,9 @@
   // deploy with per-PR previews). Pages is in maintenance mode; use Workers.
   "name": "agenta-website-preview",
   "compatibility_date": "2026-07-01",
+  // Per-PR CI previews use `wrangler versions upload --preview-alias pr-<n>`, which
+  // needs version preview URLs enabled on this worker.
+  "preview_urls": true,
   "assets": {
     "directory": "./dist",
     // Serve /about for both /about and /about/ ; canonicalize to no trailing slash.
