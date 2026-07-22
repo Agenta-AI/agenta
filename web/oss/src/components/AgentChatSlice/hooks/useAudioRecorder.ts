@@ -18,6 +18,21 @@ export const MAX_RECORDING_MS = 5 * 60 * 1000
 /** Takes shorter than this are discarded — a mis-tap, not a message. */
 const MIN_RECORDING_MS = 700
 
+const BLOCKED_MESSAGE = "Microphone access is blocked — enable it in your browser settings."
+const DISMISSED_MESSAGE = "Microphone access is needed to record a voice message."
+
+/** The browser's stored decision, or null where the Permissions API can't answer (e.g. Firefox). */
+const micPermissionState = async (): Promise<PermissionState | null> => {
+    try {
+        const perms = navigator.permissions
+        if (!perms?.query) return null
+        const result = await perms.query({name: "microphone" as PermissionName})
+        return result.state
+    } catch {
+        return null
+    }
+}
+
 const MIME_CANDIDATES = ["audio/webm", "audio/mp4", "audio/ogg"]
 
 const pickMime = (): string => {
@@ -53,12 +68,10 @@ export interface AudioRecorder {
     status: RecorderStatus
     /** True while requesting permission or recording. */
     active: boolean
-    /**
-     * Whether to show the recording takeover. Recording shows immediately; a pending permission
-     * only shows once it is slow enough to be worth explaining — otherwise an instantly-resolved
-     * request (already granted, or already denied) flashes the bar in and straight back out.
-     */
+    /** Whether to show the recording takeover — capturing only, never while awaiting permission. */
     takeoverVisible: boolean
+    /** Awaiting the browser permission prompt; surface this on the mic itself, not as a takeover. */
+    pending: boolean
     /** Live level + elapsed, sampled by the meter UI (see `AudioMeter`). */
     meterRef: RefObject<AudioMeter>
     /** Human message for the `denied` / `error` states; null otherwise. */
@@ -186,12 +199,19 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
                 // Backed out before answering — not a failure worth reporting.
                 if (cancelledRef.current) return
                 const denied = e instanceof DOMException && e.name === "NotAllowedError"
-                setStatus(denied ? "denied" : "error")
-                setError(
-                    denied
-                        ? "Microphone access denied — enable it in your browser settings."
-                        : "Could not start recording.",
-                )
+                if (!denied) {
+                    setStatus("error")
+                    setError("Could not start recording.")
+                    return
+                }
+                // Chrome rejects identically whether the prompt was BLOCKED or merely dismissed,
+                // so ask the permission store which it was — telling someone to go change browser
+                // settings when they could simply try again is a dead end.
+                setStatus("denied")
+                setError(BLOCKED_MESSAGE)
+                micPermissionState().then((state) => {
+                    if (state === "prompt") setError(DISMISSED_MESSAGE)
+                })
             })
     }, [supported, teardown, meter])
 
@@ -221,24 +241,15 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
         [teardown],
     )
 
-    // A permission request that resolves immediately (already granted, or already denied) would
-    // otherwise flash the takeover in and straight back out. Only surface the waiting state once
-    // it has actually lasted long enough to be worth explaining.
-    const [requestingIsSlow, setRequestingIsSlow] = useState(false)
-    useEffect(() => {
-        if (status !== "requesting") {
-            setRequestingIsSlow(false)
-            return
-        }
-        const t = window.setTimeout(() => setRequestingIsSlow(true), 350)
-        return () => window.clearTimeout(t)
-    }, [status])
-
     return {
         supported,
         status,
         active: status === "requesting" || status === "recording",
-        takeoverVisible: status === "recording" || (status === "requesting" && requestingIsSlow),
+        // Only once actually capturing. While the permission prompt is up the BROWSER owns the
+        // interaction — a page cannot dismiss that prompt, so covering the composer with our own
+        // chrome (and a cancel button that cannot cancel it) would only compete with it.
+        takeoverVisible: status === "recording",
+        pending: status === "requesting",
         meterRef,
         error,
         start,

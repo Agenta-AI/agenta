@@ -2279,6 +2279,7 @@ const AgentConversation = ({
                                                         inputRef={richInputRef}
                                                         onStartAudio={voiceRecorder.start}
                                                         audioSupported={voiceRecorder.supported}
+                                                        audioPending={voiceRecorder.pending}
                                                         disabled={
                                                             onboardingActive
                                                                 ? ideHandoffActive

@@ -24,11 +24,15 @@ const VoiceInputButton = ({
     inputRef,
     onStartAudio,
     audioSupported,
+    audioPending,
     disabled,
 }: {
     inputRef: RefObject<RichChatInputHandle | null>
     onStartAudio: () => void
     audioSupported: boolean
+    /** Awaiting the browser's mic prompt — shown here rather than as a composer takeover, since
+     * the prompt is the browser's own UI and a page cannot dismiss it. */
+    audioPending: boolean
     disabled?: boolean
 }) => {
     const [mode, setMode] = useAtom(voiceModeAtom)
@@ -72,27 +76,37 @@ const VoiceInputButton = ({
 
     const menuItems: MenuProps["items"] = available.map((m) => ({key: m.key, label: m.label}))
 
-    const title =
-        (effective === "transcribe" ? transcribe.error : null) ??
-        (dictating
-            ? "Stop dictation"
-            : effective === "transcribe"
-              ? "Voice to text"
-              : "Record a voice message")
+    const title = audioPending
+        ? "Waiting for your browser's microphone prompt…"
+        : ((effective === "transcribe" ? transcribe.error : null) ??
+          (dictating
+              ? "Stop dictation"
+              : effective === "transcribe"
+                ? "Voice to text"
+                : "Record a voice message"))
+
+    const highlighted = dictating || audioPending
 
     return (
         <div className="flex items-center">
             <Tooltip title={title}>
                 <Button
                     type="text"
-                    icon={<Microphone size={16} weight={dictating ? "fill" : "regular"} />}
+                    icon={<Microphone size={16} weight={highlighted ? "fill" : "regular"} />}
                     onClick={toggle}
-                    disabled={disabled}
+                    // A second press while the prompt is open would only queue another request.
+                    disabled={disabled || audioPending}
                     aria-label={dictating ? "Stop voice input" : title}
-                    className={dictating ? "!text-colorError animate-pulse" : undefined}
+                    className={
+                        dictating
+                            ? "!text-colorError animate-pulse"
+                            : audioPending
+                              ? "animate-pulse"
+                              : undefined
+                    }
                 />
             </Tooltip>
-            {available.length > 1 && !dictating ? (
+            {available.length > 1 && !dictating && !audioPending ? (
                 <Dropdown
                     trigger={["click"]}
                     disabled={disabled}
