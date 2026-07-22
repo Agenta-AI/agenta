@@ -1,52 +1,26 @@
 ---
 import Site from "../layouts/Site.astro";
 import SectionTitle from "../components/SectionTitle.astro";
-import BillingToggle from "../components/BillingToggle.tsx";
+import HostingToggle from "../components/HostingToggle.tsx";
+import PlanCard from "../components/PlanCard.astro";
 
-// Source of truth: the design's pricing data + schema.
-// `Agenta landing page pivot/content/pricing.json` (the shape is the contract;
-// the numbers are design placeholders — see the note above the plan grid).
-import pricing from "../../../Agenta landing page pivot/content/pricing.json";
+// Single source of truth for ALL pricing-page content. No content literals below.
+import pricing from "../data/pricing.json";
 
-const { plans, comparison, faqs, billing } = pricing;
-type Plan = (typeof plans)[number];
+const { hostingToggle, plansByMode, comparison, faqs } = pricing;
+type Plan = (typeof plansByMode.cloud)[number];
 
-// CTA destinations (match the live site / task brief, NOT the placeholder hrefs
-// in pricing.json): every paid/free plan → cloud; Enterprise → the demo call.
+// Hero / CTA-band destinations (not plan CTAs, which come from the data file).
 const CLOUD = "https://cloud.agenta.ai/";
 const DEMO = "https://cal.com/mahmoud-mabrouk-ogzgey/demo";
-const ctaHref = (plan: Plan) => (plan.id === "enterprise" ? DEMO : CLOUD);
 
-const priceFor = (plan: Plan, annual: boolean) =>
-  plan.customPrice ?? "$" + (annual ? plan.priceAnnual : plan.priceMonthly);
-const unitFor = (plan: Plan, annual: boolean) =>
-  annual ? plan.unitAnnual : plan.unitMonthly;
-
-// ── card chrome (ported from the design's inline styles) ──
-const cardBase =
-  "position:relative;display:flex;flex-direction:column;gap:16px;padding:28px 26px;border-radius:14px;box-sizing:border-box;";
-const cardPlain =
-  cardBase +
-  "background:rgba(255,255,255,0.025);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);";
-const cardPop =
-  cardBase +
-  "background:rgba(242,242,92,0.05);box-shadow:inset 0 0 0 1px rgba(242,242,92,0.3),0 0 60px rgba(242,242,92,0.08);";
-
-const ctaBase =
-  "display:inline-flex;align-items:center;justify-content:center;width:100%;height:40px;border-radius:8px;font:var(--text-label);cursor:pointer;text-decoration:none;box-sizing:border-box;";
-const ctaYellow =
-  ctaBase +
-  "background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);";
-const ctaOutline =
-  ctaBase +
-  "background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.16);color:#fff;";
-
-const COLS = "grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;";
+// Comparison table: Features label + one column per plan (all five plans, always shown).
+const COLS = `grid-template-columns:1.4fr repeat(${comparison.columns.length}, 1fr);`;
 ---
 
 <Site
   title="Pricing — Agenta"
-  description="Simple pricing that scales with your team. Start free and self-host forever, or scale on the cloud with prompt management, evaluation, and observability built in."
+  description="Simple pricing that scales with your team. Self-host the open-source platform for free, or run on Agenta Cloud with prompt management, evaluation, and observability built in."
   cta={{
     title: "Start free, scale when you're ready",
     body: "Open-source and self-hostable forever. Sign up in seconds, no credit card required.",
@@ -56,11 +30,11 @@ const COLS = "grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;";
     secondaryHref: DEMO,
   }}
 >
-  <!-- #pricing-root carries data-billing; the BillingToggle island flips it and
-       the CSS below swaps the .bill-monthly / .bill-annual prices. Default is
-       monthly so the page is correct before hydration / without JS. -->
-  <div id="pricing-root" data-billing={billing.defaultCycle}>
-    <!-- ============ HERO + BILLING TOGGLE ============ -->
+  <!-- #pricing-root carries data-hosting; the HostingToggle island flips it and
+       the CSS below swaps the cloud / self-hosted plan sets. Default is cloud so
+       the page is correct before hydration / without JS. -->
+  <div id="pricing-root" data-hosting={hostingToggle.defaultMode === "selfHosted" ? "selfhosted" : "cloud"}>
+    <!-- ============ HERO + HOSTING TOGGLE ============ -->
     <section class="pricing-hero" data-screen-label="Pricing hero">
       <div
         style="display:flex;flex-direction:column;align-items:center;gap:28px;"
@@ -83,113 +57,33 @@ const COLS = "grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;";
           <p
             style="margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.6);max-width:560px;text-wrap:pretty;"
           >
-            Start free and self-host forever, or scale on the cloud with prompt
-            management, evaluation, and observability built in.
+            Self-host the open-source platform for free, or run on Agenta Cloud
+            with prompt management, evaluation, and observability built in.
           </p>
         </div>
 
-        <BillingToggle
+        <HostingToggle
           client:visible
           targetId="pricing-root"
-          defaultCycle={billing.defaultCycle as "monthly" | "annual"}
-          annualDiscountLabel={billing.annualDiscountLabel}
+          defaultMode={hostingToggle.defaultMode as "cloud" | "selfHosted"}
+          options={hostingToggle.options as { mode: "cloud" | "selfHosted"; label: string; sublabel?: string }[]}
         />
       </div>
     </section>
 
     <!-- ============ PLAN CARDS ============ -->
-    <!-- DESIGN PLACEHOLDER PRICES: Pro $49 ($39 annual) and Business $399 ($319
-         annual) come from pricing.json and are NOT real Agenta plan pricing.
-         Replace with real plan data before launch. The data shape is the contract. -->
     <section class="cards-section" data-screen-label="Plan cards">
-      <div class="plan-grid">
-        {
-          plans.map((plan) => (
-            <div style={plan.popular ? cardPop : cardPlain}>
-              {plan.popular && (
-                <span style="position:absolute;top:18px;right:18px;display:inline-flex;align-items:center;height:22px;padding:0 11px;border-radius:999px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);font:var(--text-caption);letter-spacing:0.03em;color:var(--ink-900);">
-                  Most popular
-                </span>
-              )}
-
-              <div style="display:flex;flex-direction:column;gap:6px;">
-                <span style="font:300 22px/1.1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">
-                  {plan.name}
-                </span>
-                <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.55);min-height:38px;text-wrap:pretty;">
-                  {plan.tagline}
-                </span>
-              </div>
-
-              {/* both prices render; CSS shows the one for the active cycle */}
-              <div
-                class="bill bill-monthly"
-                style="align-items:baseline;gap:7px;min-height:52px;"
-              >
-                <span style="font:300 44px/1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">
-                  {priceFor(plan, false)}
-                </span>
-                <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.5);">
-                  {unitFor(plan, false)}
-                </span>
-              </div>
-              <div
-                class="bill bill-annual"
-                style="align-items:baseline;gap:7px;min-height:52px;"
-              >
-                <span style="font:300 44px/1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">
-                  {priceFor(plan, true)}
-                </span>
-                <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.5);">
-                  {unitFor(plan, true)}
-                </span>
-              </div>
-
-              <a
-                href={ctaHref(plan)}
-                target="_blank"
-                rel="noopener"
-                style={plan.cta.style === "primary" ? ctaYellow : ctaOutline}
-              >
-                {plan.cta.label}
-              </a>
-
-              <div style="height:1px;background:rgba(255,255,255,0.08);margin:4px 0;" />
-              <span style="font:var(--text-caption);letter-spacing:0.04em;color:rgba(255,255,255,0.45);">
-                {plan.includesLabel}
-              </span>
-              <div style="display:flex;flex-direction:column;gap:11px;">
-                {plan.features.map((f) => (
-                  <div style="display:flex;align-items:flex-start;gap:10px;">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 18 18"
-                      fill="none"
-                      style="margin-top:1px;flex:0 0 auto;"
-                    >
-                      <circle cx="9" cy="9" r="9" fill="var(--yellow-400)" />
-                      <path
-                        d="M5 9.2 7.6 11.8 13 6.4"
-                        stroke="var(--ink-900)"
-                        stroke-width="1.7"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                    </svg>
-                    <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.72);">
-                      {f}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))
-        }
+      <div class="plan-grid plan-grid-cloud mode-cloud">
+        {plansByMode.cloud.map((plan: Plan) => <PlanCard plan={plan} />)}
+      </div>
+      <div class="plan-grid plan-grid-self mode-selfhosted">
+        {plansByMode.selfHosted.map((plan: Plan) => <PlanCard plan={plan} />)}
       </div>
     </section>
 
     <!-- ============ COMPARISON TABLE ============ -->
+    <!-- Always shows every plan side by side, independent of the toggle: comparing
+         all plans at once is the section's whole purpose. -->
     <section class="cmp-section" data-screen-label="Comparison">
       <div class="cmp-wrap">
         <SectionTitle
@@ -214,17 +108,8 @@ const COLS = "grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;";
                     <span style="font:300 19px/1.1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">
                       {c.name}
                     </span>
-                    <span
-                      class="bill bill-monthly"
-                      style="font:var(--text-caption);color:rgba(255,255,255,0.5);"
-                    >
-                      {c.priceMonthly}
-                    </span>
-                    <span
-                      class="bill bill-annual"
-                      style="font:var(--text-caption);color:rgba(255,255,255,0.5);"
-                    >
-                      {c.priceAnnual}
+                    <span style="font:var(--text-caption);color:rgba(255,255,255,0.5);">
+                      {c.price}
                     </span>
                   </div>
                 ))
@@ -352,21 +237,26 @@ const COLS = "grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;";
     gap: 16px;
     margin: 0 auto;
     align-items: stretch;
-    grid-template-columns: repeat(4, 1fr);
     width: 100%;
-    max-width: 1336px;
-    padding: 0 24px;
     box-sizing: border-box;
+    padding: 0 24px;
+  }
+  /* Cloud mode: three plans. */
+  .plan-grid-cloud {
+    grid-template-columns: repeat(3, 1fr);
+    max-width: 1040px;
+  }
+  /* Self-hosted mode: two plans, centered (not stretched full width). */
+  .plan-grid-self {
+    grid-template-columns: repeat(2, 1fr);
+    max-width: 720px;
   }
 
-  /* ── monthly / annual price swap (driven by #pricing-root[data-billing]) ── */
-  .bill {
-    display: flex;
-  }
-  [data-billing="monthly"] .bill-annual {
+  /* ── hosting-mode swap (driven by #pricing-root[data-hosting]) ── */
+  [data-hosting="cloud"] .mode-selfhosted {
     display: none;
   }
-  [data-billing="annual"] .bill-monthly {
+  [data-hosting="selfhosted"] .mode-cloud {
     display: none;
   }
 
@@ -389,7 +279,7 @@ const COLS = "grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;";
   /* The table never collapses: it keeps full-size columns and scrolls sideways
      when the viewport is narrower than its min-width (see RESPONSIVE.md). */
   .cmp-table {
-    min-width: 780px;
+    min-width: 920px;
     max-width: 1336px;
     margin: 0 auto;
   }
@@ -448,8 +338,9 @@ const COLS = "grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;";
 
   /* ── responsive (CSS media queries per handoff/RESPONSIVE.md) ── */
   @media (max-width: 1000px) {
-    .plan-grid {
+    .plan-grid-cloud {
       grid-template-columns: repeat(2, 1fr);
+      max-width: 720px;
     }
   }
   @media (max-width: 760px) {
@@ -471,7 +362,8 @@ const COLS = "grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;";
     }
   }
   @media (max-width: 680px) {
-    .plan-grid {
+    .plan-grid-cloud,
+    .plan-grid-self {
       grid-template-columns: 1fr;
     }
   }
