@@ -21,14 +21,14 @@ const newClient = () =>
 
 // persist-client-core bundles its own query-core copy, so its persisterFn signature is
 // structurally identical but nominally distinct from react-query's QueryPersister
-const asPersister = <T,>(fn: typeof immutablePersister.persisterFn): QueryPersister<T> =>
+const asPersister = <T>(fn: typeof immutablePersister.persisterFn): QueryPersister<T> =>
     fn as unknown as QueryPersister<T>
 
 // persistQueryByKey's QueryClient type also comes from the bundled query-core copy
 type PersisterClient = Parameters<typeof immutablePersister.persistQueryByKey>[1]
 
 // a queryFn that must never run; retry:false makes any call fail the test loudly
-const neverFetch = <T,>() =>
+const neverFetch = <T>() =>
     vi.fn(async (): Promise<T> => {
         throw new Error("unexpected fetch")
     })
@@ -69,7 +69,11 @@ const agedCopy = (entry: PersistedQuery, dataUpdatedAt: number): PersistedQuery 
     state: {...entry.state, dataUpdatedAt},
 })
 
-const makePersisted = (key: QueryKey, data: unknown, dataUpdatedAt = Date.now()): PersistedQuery => ({
+const makePersisted = (
+    key: QueryKey,
+    data: unknown,
+    dataUpdatedAt = Date.now(),
+): PersistedQuery => ({
     buster: PERSIST_SCHEMA_VERSION,
     queryHash: hashKey(key),
     queryKey: key,
@@ -218,9 +222,7 @@ describe("catalogPersister (Class B)", () => {
 
             // one background revalidate fires because the restored entry is stale
             await vi.waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
-            await vi.waitFor(() =>
-                expect(observer.getCurrentResult().data).toEqual(freshBody),
-            )
+            await vi.waitFor(() => expect(observer.getCurrentResult().data).toEqual(freshBody))
             await flushMacrotasks()
             expect(spy).toHaveBeenCalledTimes(1)
         } finally {
@@ -360,7 +362,10 @@ describe("catalog list-query restore — flags at restore (Phase 2 gate)", () =>
         )
 
         const clientB = newClient()
-        const spy = vi.fn(async () => ({count: 3, refs: [{id: "rev-3"}, {id: "rev-2"}, {id: "rev-1"}]}))
+        const spy = vi.fn(async () => ({
+            count: 3,
+            refs: [{id: "rev-3"}, {id: "rev-2"}, {id: "rev-1"}],
+        }))
         const observer = new QueryObserver<typeof diskList>(clientB, {
             queryKey: key,
             queryFn: spy,
@@ -505,13 +510,13 @@ describe("SSR guard (no indexedDB)", () => {
         vi.stubGlobal("indexedDB", undefined)
         try {
             const mod = await import("../../src/api/persist/idbStorage")
-            await expect(
-                Promise.resolve(mod.idbQueryStorage.getItem("k")),
-            ).resolves.toBeUndefined()
+            await expect(Promise.resolve(mod.idbQueryStorage.getItem("k"))).resolves.toBeUndefined()
             await expect(
                 Promise.resolve(mod.idbQueryStorage.setItem("k", makePersisted(["k"], 1))),
             ).resolves.toBeUndefined()
-            await expect(Promise.resolve(mod.idbQueryStorage.removeItem("k"))).resolves.toBeUndefined()
+            await expect(
+                Promise.resolve(mod.idbQueryStorage.removeItem("k")),
+            ).resolves.toBeUndefined()
             await expect(Promise.resolve(mod.idbQueryStorage.entries?.())).resolves.toEqual([])
             await expect(mod.clearPersistedQueryCache()).resolves.toBeUndefined()
         } finally {
