@@ -19,9 +19,12 @@ const linkStyle =
   "display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:8px;font:var(--text-label);color:rgba(255,255,255,0.7);cursor:pointer;text-decoration:none;";
 ---
 
-<!-- Nav is a fixed-geometry sticky shell; only .ag-nav-inner animates (width +
-     paint props + a translateY), so the pill engages with zero page reflow.
-     See the nav-pill block in global.css. -->
+<!-- Nav is a fixed-geometry sticky shell (height stable, vertical center fixed);
+     only .ag-nav-inner animates — width shrinks into a centered pill while brand
+     (left) and CTAs (right) ride its edges inward. The center links live in a
+     SEPARATE layer absolutely centered on the shell, so they never shift a pixel
+     in x or y between the bar and pill states. See the nav-pill block in
+     global.css. -->
 <nav data-pill style="position:sticky;top:0;z-index:50;">
   <div class="ag-nav-inner">
     <a class="ag-brand" href="/" aria-label="Agenta home">
@@ -31,17 +34,6 @@ const linkStyle =
         style="height:23px;max-width:none;display:block;"
       />
     </a>
-
-    <div class="ag-navlinks" style="display:flex;align-items:center;gap:2px;">
-      {
-        links.map((l) => (
-          <a class="ag-navlink" href={l.href} style={linkStyle}>
-            {l.label}
-            {l.dropdown && <Fragment set:html={chevron} />}
-          </a>
-        ))
-      }
-    </div>
 
     <div class="ag-navcta" style="display:flex;align-items:center;gap:12px;">
       <a
@@ -71,6 +63,17 @@ const linkStyle =
           stroke-linecap="round"></path></svg
       >
     </button>
+  </div>
+
+  <div class="ag-navlinks">
+    {
+      links.map((l) => (
+        <a class="ag-navlink" href={l.href} style={linkStyle}>
+          {l.label}
+          {l.dropdown && <Fragment set:html={chevron} />}
+        </a>
+      ))
+    }
   </div>
 </nav>
 

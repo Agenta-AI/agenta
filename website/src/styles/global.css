@@ -71,16 +71,20 @@ a {
 
 /* ── nav pill: frosted floating nav on scroll ────────────────────────
    A rAF loop in SiteNav toggles `.nav-scrolled` on <html> past 24px. The
-   <nav data-pill> is a fixed-geometry sticky SHELL (full width, its box never
-   changes) — only the inner .ag-nav-inner animates, via width + paint props +
-   a translateY. Because nothing about the shell's layout box changes, the pill
-   engages with ZERO page reflow (the earlier margin/width-in-flow approach
-   shifted content). Class lives on <html> so island re-renders never clobber
-   it. */
+   <nav data-pill> is a fixed-geometry sticky SHELL (full width, height 68px,
+   vertical center never moves). Only .ag-nav-inner animates: its width shrinks
+   into a centered pill and its height insets symmetrically (so the vertical
+   center stays put), carrying brand (left) and CTAs (right) inward. The center
+   links are NOT in .ag-nav-inner — they sit in an absolutely-centered layer on
+   the shell, so they hold their exact x/y across both states (measured delta
+   0,0). Class lives on <html> so island re-renders never clobber it. */
 nav[data-pill] {
   position: sticky;
   top: 0;
   z-index: 50;
+  display: flex;
+  align-items: center;
+  height: 68px;
 }
 .ag-nav-inner {
   display: flex;
@@ -94,21 +98,22 @@ nav[data-pill] {
   background: var(--ag-d-chrome);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 0;
-  transform: translateY(0);
   transition:
     background 0.25s ease,
     box-shadow 0.25s ease,
     border-radius 0.25s ease,
     border-color 0.25s ease,
     width 0.25s ease,
-    padding 0.25s ease,
-    transform 0.25s ease;
+    height 0.25s ease,
+    padding 0.25s ease;
 }
 .nav-scrolled .ag-nav-inner {
-  /* Shrink to a centered pill and float it 18px down — all inside the fixed
-     shell, so page content never moves. */
+  /* Shrink to a centered pill and inset its height symmetrically. margin-inline
+     auto keeps it horizontally centered; the shell's align-items:center keeps
+     the reduced-height pill vertically centered — so the center links (pinned
+     separately) stay dead-centered on it without moving. */
   width: min(1120px, calc(100% - 40px));
-  transform: translateY(18px);
+  height: 54px;
   border-radius: 14px;
   border-color: transparent;
   background: var(--ag-d-glass, rgba(18, 16, 15, 0.72));
@@ -117,6 +122,20 @@ nav[data-pill] {
   box-shadow:
     0 0 0 1px rgba(250, 247, 242, 0.09),
     0 12px 36px rgba(0, 0, 0, 0.55);
+}
+
+/* Center links: pinned to the shell's exact center in BOTH states. Absolute
+   positioning against the sticky shell (whose box never changes) guarantees a
+   0,0 rect delta between the bar and pill. */
+.ag-navlinks {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  z-index: 1;
 }
 
 /* ── nav brand: wordmark condenses to the leaf symbol on scroll ──
@@ -172,6 +191,13 @@ html,
 .ag-foot-link:hover {
   color: rgba(255, 255, 255, 0.9);
 }
+.ag-foot-social:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+.ag-oss-chip:hover {
+  color: rgba(255, 255, 255, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
 
 /* ── mobile menu (replaces the DC sc-if/menuOpen state) ─────── */
 .ag-menu {
@@ -196,6 +222,10 @@ html,
    the brand+columns row holds down to the mobile (860px) breakpoint. */
 @media (max-width: 1200px) {
   .ag-foot-top {
+    padding-left: 56px !important;
+    padding-right: 56px !important;
+  }
+  .ag-foot-bottom {
     padding-left: 56px !important;
     padding-right: 56px !important;
   }
@@ -298,9 +328,12 @@ html,
     grid-template-columns: 1fr !important;
   }
   .ag-foot-top {
-    padding: 48px 24px 56px !important;
+    padding: 48px 24px 40px !important;
     flex-direction: column !important;
-    gap: 36px !important;
+    gap: 40px !important;
+  }
+  .ag-foot-bottom {
+    padding: 18px 24px !important;
   }
   .ag-foot-cols {
     grid-template-columns: repeat(2, auto) !important;
@@ -325,5 +358,61 @@ html,
 @media (min-width: 861px) {
   .ag-mobile-menu {
     display: none !important;
+  }
+}
+
+/* ============================================================================
+   Phone (<=600px). The <=860 block already gives the full mobile treatment
+   (hamburger nav, single-column grids); this tightens type scale, section
+   padding, and the two components that still crowd at ~412px: the How-it-works
+   files drawer and the Templates spec rows.
+============================================================================ */
+@media (max-width: 600px) {
+  /* Hero: smaller headline, tighter band. */
+  .ag-hero {
+    padding-top: 64px !important;
+    padding-bottom: 64px !important;
+  }
+  .ag-h1 {
+    font-size: 32px !important;
+    line-height: 1.1 !important;
+  }
+  /* Section vertical rhythm. */
+  .ag-secpad {
+    padding-top: 56px !important;
+    padding-bottom: 56px !important;
+  }
+  .ag-relsec {
+    padding-top: 56px !important;
+  }
+
+  /* How it works: drop the files drawer so the chat story owns the width. */
+  .ag-hiw-files {
+    display: none !important;
+  }
+
+  /* Templates: stack each spec row (label over its chips) so the harness switch
+     and chip rows get the full panel width instead of a 84px-narrowed column. */
+  .ag-tpl-left {
+    padding: 26px 20px 24px !important;
+  }
+  .ag-tpl-grid {
+    grid-template-columns: 1fr !important;
+    column-gap: 0 !important;
+  }
+  .ag-tpl-grid > span {
+    padding: 15px 0 3px !important;
+  }
+  .ag-tpl-grid > div {
+    padding: 2px 0 13px !important;
+    border-top: none !important;
+  }
+
+  /* CTA band: tighten padding (the decorative symbol is already hidden <=860). */
+  .ag-cta-sec {
+    padding: 64px 24px !important;
+  }
+  .ag-cta-row {
+    gap: 22px !important;
   }
 }

@@ -405,7 +405,7 @@ function FilesDrawer({ stage }: { stage: number }) {
   const files = filesForStage(stage);
   const count = stage >= 2 ? "4" : "3";
   return (
-    <div style={{ flex: "0 0 auto", width: 212 }}>
+    <div className="ag-hiw-files" style={{ flex: "0 0 auto", width: 212 }}>
       <div
         style={{
           width: 212,
