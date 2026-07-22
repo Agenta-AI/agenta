@@ -1,34 +1,45 @@
 # Cloudflare Workers Static Assets edge response headers.
 # https://developers.cloudflare.com/workers/static-assets/headers/
 #
-# Rule matching is top-to-bottom; first match wins.
+# A request that matches several rules INHERITS all of their headers, and a
+# header set by more than one matching rule is joined with a comma. Since every
+# path below also matches the `/*` page rule at the bottom, each asset block
+# first clears the inherited `Cache-Control` (`! Cache-Control`) before setting
+# its own — otherwise assets would ship a malformed, dual-`max-age` header.
 # Astro build emits content-hashed filenames under /_astro/; those can be
 # cached forever. Font files under /fonts/ are also content-stable once
 # uploaded to R2 and baked into dist.
 
 # Hashed build assets — cache forever, immutable.
 /_astro/*
+  ! Cache-Control
   Cache-Control: public, max-age=31536000, immutable
 
 # Licensed + open font files — cache forever, immutable.
 /fonts/*
+  ! Cache-Control
   Cache-Control: public, max-age=31536000, immutable
 
 # OG images and other public static assets — 1 week, revalidate.
 /og/*
+  ! Cache-Control
   Cache-Control: public, max-age=604800, stale-while-revalidate=86400
 
 /icons/*
+  ! Cache-Control
   Cache-Control: public, max-age=604800, stale-while-revalidate=86400
 
 /logos/*
+  ! Cache-Control
   Cache-Control: public, max-age=604800, stale-while-revalidate=86400
 
 # Blog images (served from /blog/ and /authors/ under public/).
 /blog/*
+  ! Cache-Control
   Cache-Control: public, max-age=604800, stale-while-revalidate=86400
 
 /authors/*
+  ! Cache-Control
   Cache-Control: public, max-age=604800, stale-while-revalidate=86400
 
 # HTML pages — short TTL; stale-while-revalidate so users see fresh content.

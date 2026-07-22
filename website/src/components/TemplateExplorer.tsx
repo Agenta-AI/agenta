@@ -192,6 +192,8 @@ export default function TemplateExplorer() {
       {/* area tabs */}
       <div
         className="ag-tpl-tabs"
+        role="tablist"
+        aria-label="Template area"
         style={{
           display: "inline-flex",
           gap: 4,
@@ -203,8 +205,11 @@ export default function TemplateExplorer() {
         }}
       >
         {TEMPLATES.map((t, i) => (
-          <span
+          <button
             key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={i === sel}
             onClick={() => {
               setSel(i);
               setHarness(null);
@@ -215,6 +220,8 @@ export default function TemplateExplorer() {
               height: 36,
               padding: "0 16px",
               borderRadius: 9,
+              border: "none",
+              background: "transparent",
               cursor: "pointer",
               font: "var(--text-label)",
               whiteSpace: "nowrap",
@@ -228,7 +235,7 @@ export default function TemplateExplorer() {
             }}
           >
             {t.area}
-          </span>
+          </button>
         ))}
       </div>
 
@@ -352,8 +359,10 @@ export default function TemplateExplorer() {
                 }}
               >
                 {HARNESSES.map((h, i) => (
-                  <span
+                  <button
                     key={h.name}
+                    type="button"
+                    aria-pressed={i === hActive}
                     onClick={() => setHarness(i)}
                     style={{
                       display: "inline-flex",
@@ -362,6 +371,8 @@ export default function TemplateExplorer() {
                       height: 28,
                       padding: "0 12px",
                       borderRadius: 7,
+                      border: "none",
+                      background: "transparent",
                       cursor: "pointer",
                       font: "var(--text-label)",
                       whiteSpace: "nowrap",
@@ -377,7 +388,7 @@ export default function TemplateExplorer() {
                     {h.soon && <span style={soonBadge}>Soon</span>}
                     <Logo src={h.logo} size={13} />
                     {h.name}
-                  </span>
+                  </button>
                 ))}
               </div>
             </div>

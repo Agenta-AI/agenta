@@ -4,8 +4,25 @@
 // white outline gradient, inset top-light shadow, 8px radius). The faded Agenta
 // symbol is a large decorative mark clipped by the band (overflow:hidden), like
 // the live site — non-interactive and aria-hidden.
-const GET_STARTED = "https://cloud.agenta.ai/";
-const BOOK_DEMO = "https://cal.com/mahmoud-mabrouk-ogzgey/demo?duration=30";
+// Copy + destinations. Every field falls back to the landing CTA, but a page
+// (e.g. /pricing) can override any of them via the `cta` prop forwarded by
+// Site.astro. Without this, per-page CTA overrides were silently ignored.
+interface Props {
+  title?: string;
+  body?: string;
+  primaryLabel?: string;
+  primaryHref?: string;
+  secondaryLabel?: string;
+  secondaryHref?: string;
+}
+const {
+  title = "Ship agents that actually work",
+  body = "Build with skills and tools, run on any harness in any environment, and improve with real feedback. All open source.",
+  primaryLabel = "Start building",
+  primaryHref = "https://cloud.agenta.ai/",
+  secondaryLabel = "Book a demo",
+  secondaryHref = "https://cal.com/mahmoud-mabrouk-ogzgey/demo?duration=30",
+} = Astro.props as Props;
 
 // Exact CTA-keycap CSS lifted from live agenta.ai (computed styles). Kept inline
 // here so the band matches the live site without touching the shared button
@@ -41,15 +58,14 @@ const btnWhite =
       <h2
         style="margin:0;font:var(--text-display-lg);color:var(--text-on-yellow);text-wrap:pretty;"
       >
-        Ship agents that actually work
+        {title}
       </h2>
       <p style="margin:0;font:var(--text-body-md);color:rgba(36,36,36,0.72);">
-        Build with skills and tools, run on any harness in any environment, and
-        improve with real feedback. All open source.
+        {body}
       </p>
       <div style="display:flex;gap:12px;">
-        <a class="ag-key" href={GET_STARTED} style={btnDark}>Start building</a>
-        <a class="ag-key" href={BOOK_DEMO} style={btnWhite}>Book a demo</a>
+        <a class="ag-key" href={primaryHref} style={btnDark}>{primaryLabel}</a>
+        <a class="ag-key" href={secondaryHref} style={btnWhite}>{secondaryLabel}</a>
       </div>
     </div>
   </div>

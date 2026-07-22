@@ -43,10 +43,18 @@ if (!API_KEY) {
 async function openFramer() {
   const candidates = [];
   if (PROJECT_URL) {
-    candidates.push({ label: "project-url + key", arg0: PROJECT_URL, token: API_KEY });
+    candidates.push({
+      label: "project-url + key",
+      arg0: PROJECT_URL,
+      token: API_KEY,
+    });
   }
   candidates.push({ label: "key-as-arg0", arg0: API_KEY, token: undefined });
-  candidates.push({ label: "key-as-token-no-project", arg0: "", token: API_KEY });
+  candidates.push({
+    label: "key-as-token-no-project",
+    arg0: "",
+    token: API_KEY,
+  });
 
   let lastErr;
   for (const c of candidates) {
@@ -111,8 +119,9 @@ async function introspect(framer) {
     };
   }
 
-  const scratch =
-    "/tmp/claude-1000/-home-mahmoud-code-agenta/26f40a6a-8d2e-490f-9048-49f051a3bb87/scratchpad";
+  // Introspection dump goes in a gitignored repo-relative scratch dir so this
+  // step runs on any machine / in CI (not a hardcoded local session path).
+  const scratch = path.join(ROOT, ".scratch");
   await mkdir(scratch, { recursive: true });
   await writeFile(
     path.join(scratch, "framer-dump.json"),
@@ -215,7 +224,10 @@ function rewriteHref(href) {
   // marketing site does NOT build /docs routes). Keep it ABSOLUTE so it always
   // resolves to the canonical docs URL, matching the Footer's Legal links.
   if (/^https?:\/\/(?:www\.)?agenta\.ai\/docs(\/|$|#|\?)/i.test(href)) {
-    return href.replace(/^https?:\/\/(?:www\.)?agenta\.ai/i, "https://agenta.ai");
+    return href.replace(
+      /^https?:\/\/(?:www\.)?agenta\.ai/i,
+      "https://agenta.ai",
+    );
   }
   // Match the marketing host (www optional), strip to a site-relative path so
   // /blog, /authors, /pricing, /launch-week-* links stay on-site.
@@ -237,15 +249,18 @@ function rewriteHref(href) {
 
 function decodeEntities(s) {
   if (!s) return s;
+  // Decode `&amp;` LAST so we never double-unescape: e.g. `&amp;lt;` must decode
+  // to the literal text `&lt;`, not to `<`. Decoding `&amp;`→`&` first would turn
+  // it into `&lt;` and the next pass would wrongly decode that to `<`.
   return s
-    .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&#x27;/g, "'")
     .replace(/&nbsp;/g, " ")
-    .replace(/&apos;/g, "'");
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
 }
 
 // Escape the few characters that break MDX/Markdown when they appear in plain
@@ -255,7 +270,9 @@ function decodeEntities(s) {
 // MDX parser. We escape these exactly once, after all inline markup is built and
 // after protected spans (code, links) are pulled out, so we never double-escape.
 function escapeMdxText(s) {
-  return s.replace(/([{}<])/g, "\\$1");
+  // Escape backslash FIRST (so we don't double-escape the backslashes we add
+  // for `{`, `}`, `<`), then the MDX-hostile characters.
+  return s.replace(/\\/g, "\\\\").replace(/([{}<])/g, "\\$1");
 }
 
 // Convert inline HTML (within a paragraph / heading / list item) to Markdown
@@ -720,8 +737,7 @@ async function runImport(framer) {
       socials.push({ platform: "linkedin", url: ln });
     if (typeof gh === "string" && gh)
       socials.push({ platform: "github", url: gh });
-    if (typeof tw === "string" && tw)
-      socials.push({ platform: "x", url: tw });
+    if (typeof tw === "string" && tw) socials.push({ platform: "x", url: tw });
 
     const json = {
       slug,
@@ -734,7 +750,9 @@ async function runImport(framer) {
       path.join(AUTHORS_DIR, `${slug}.json`),
       JSON.stringify(json, null, 2) + "\n",
     );
-    console.log(`  + ${slug} (${name}) avatar=${avatar} socials=${socials.length}`);
+    console.log(
+      `  + ${slug} (${name}) avatar=${avatar} socials=${socials.length}`,
+    );
   }
 
   // --- Posts ---------------------------------------------------------------
@@ -852,7 +870,10 @@ async function runImport(framer) {
       ctaInjected = true;
     }
 
-    let body = mdParts.join("\n\n").replace(/\n{3,}/g, "\n\n").trim();
+    let body = mdParts
+      .join("\n\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
 
     // --- Frontmatter ---
     const fm = [];
@@ -869,8 +890,7 @@ async function runImport(framer) {
       fm.push(`ogImage: ${heroPath}`);
     }
     if (primary) fm.push(`author: ${primary}`);
-    if (coAuthors.length)
-      fm.push(`coAuthors: [${coAuthors.join(", ")}]`);
+    if (coAuthors.length) fm.push(`coAuthors: [${coAuthors.join(", ")}]`);
     fm.push(`featured: false`);
     // Preserve the original CMS Tag verbatim in tags[] (lower-cased token).
     fm.push(`tags: [${yamlString(tag)}]`);
@@ -894,7 +914,9 @@ async function runImport(framer) {
     console.log(`   ${t} (${n}) → ${CATEGORY_MAP[t] || "Article"}`);
   }
   console.log(`\nPer-author PRIMARY counts:`);
-  for (const [a, n] of Object.entries(authorPrimary).sort((x, y) => y[1] - x[1]))
+  for (const [a, n] of Object.entries(authorPrimary).sort(
+    (x, y) => y[1] - x[1],
+  ))
     console.log(`   ${a}: ${n}`);
   console.log(`Per-author CO-AUTHOR counts:`);
   for (const [a, n] of Object.entries(authorCo).sort((x, y) => y[1] - x[1]))

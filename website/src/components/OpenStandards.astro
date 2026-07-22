@@ -188,26 +188,32 @@ const isExternal = (href?: string) => !!href && href.startsWith("http");
                   "s linear infinite;"
                 }
               >
-                {r.chips.concat(r.chips).map((c) =>
-                  c.href ? (
+                {r.chips.concat(r.chips).map((c, idx) => {
+                  // The chip list is duplicated for the seamless scroll loop; the
+                  // second copy is decorative, so hide it from AT and keyboard
+                  // focus to avoid announcing/tabbing every link twice.
+                  const dup = idx >= r.chips.length;
+                  return c.href ? (
                     <a
                       href={c.href}
                       target={isExternal(c.href) ? "_blank" : undefined}
                       rel={isExternal(c.href) ? "noopener" : undefined}
                       style={chipStyle(c)}
+                      aria-hidden={dup ? "true" : undefined}
+                      tabindex={dup ? -1 : undefined}
                     >
                       {c.logo && <span style={logoStyle(c)} />}
                       {c.name && <span>{c.name}</span>}
                       {c.soon && <span style={soonStyle}>Soon</span>}
                     </a>
                   ) : (
-                    <span style={chipStyle(c)}>
+                    <span style={chipStyle(c)} aria-hidden={dup ? "true" : undefined}>
                       {c.logo && <span style={logoStyle(c)} />}
                       {c.name && <span>{c.name}</span>}
                       {c.soon && <span style={soonStyle}>Soon</span>}
                     </span>
-                  ),
-                )}
+                  );
+                })}
               </div>
             </div>
           </div>

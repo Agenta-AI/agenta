@@ -10,5 +10,8 @@ dist/
 .astro/
 .env
 
+# Local scratch dir (import-framer introspect dump)
+.scratch/
+
 # Dependencies
 node_modules/

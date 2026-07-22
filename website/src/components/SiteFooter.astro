@@ -16,7 +16,11 @@ const socials = [
     url: "https://github.com/Agenta-AI/agenta",
     icon: "/icons/social-3.svg",
   },
-  { platform: "slack", url: "https://join.slack.com/", icon: "/icons/social-4.svg" },
+  {
+    platform: "slack",
+    url: "https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw",
+    icon: "/icons/social-4.svg",
+  },
 ];
 
 type Link = { label: string; href: string; external?: boolean };
@@ -67,7 +71,7 @@ const columns: { heading: string; links: Link[] }[] = [
   },
 ];
 
-const copyright = "Copyright © 2020 – 2060 Agentatech UG";
+const copyright = `Copyright © 2020 – ${new Date().getFullYear()} Agentatech UG`;
 ---
 
 <footer

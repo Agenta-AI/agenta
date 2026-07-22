@@ -16,8 +16,14 @@ export default function CopyPromptButton() {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>();
 
-  const onCopy = () => {
-    navigator.clipboard?.writeText(PROMPT);
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard?.writeText(PROMPT);
+    } catch {
+      // Clipboard blocked/unavailable — leave the label unchanged rather than
+      // claiming success.
+      return;
+    }
     setCopied(true);
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setCopied(false), 1600);

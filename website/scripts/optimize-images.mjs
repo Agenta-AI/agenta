@@ -25,11 +25,11 @@ const require = createRequire(import.meta.url);
 // the content-addressable store and patch the module search paths before loading.
 const sharpStoreDir = path.join(
   ROOT,
-  "node_modules/.pnpm/sharp@0.34.5/node_modules"
+  "node_modules/.pnpm/sharp@0.34.5/node_modules",
 );
 const sharpStoreDir2 = path.join(
   ROOT,
-  "node_modules/.pnpm/sharp@0.33.5/node_modules"
+  "node_modules/.pnpm/sharp@0.33.5/node_modules",
 );
 const nodePath = (process.env.NODE_PATH || "")
   .split(path.delimiter)
@@ -82,14 +82,11 @@ function bytesToMB(b) {
 async function main() {
   console.log("sharp loaded OK:", sharp.versions?.sharp || "?");
 
-  const dirs = [
-    path.join(PUBLIC, "blog"),
-    path.join(PUBLIC, "authors"),
-  ];
+  const dirs = [path.join(PUBLIC, "blog"), path.join(PUBLIC, "authors")];
 
   const allFiles = dirs.flatMap((d) => walkDir(d));
   const rasterFiles = allFiles.filter((f) =>
-    RASTER_EXTS.has(path.extname(f).toLowerCase())
+    RASTER_EXTS.has(path.extname(f).toLowerCase()),
   );
 
   console.log(`Found ${rasterFiles.length} raster images to convert.`);
@@ -124,13 +121,27 @@ async function main() {
       await pipeline.toFile(webpPath);
 
       const newSize = statSync(webpPath).size;
-      afterBytes += newSize;
+      const relPath = src.replace(PUBLIC + "/", "");
+      const label = relPath.split("/").slice(-2).join("/");
 
+      // If the WebP came out no smaller than the source (happens for already-
+      // efficient PNGs/JPEGs), keep the original and drop the WebP — shipping a
+      // larger file to every visitor is the opposite of optimizing.
+      if (newSize >= originalSize) {
+        unlinkSync(webpPath);
+        afterBytes += originalSize;
+        console.log(
+          `  = ${label}  kept original (webp was larger: ` +
+            `${(originalSize / 1024).toFixed(0)}KB → ${(newSize / 1024).toFixed(0)}KB)`,
+        );
+        continue;
+      }
+
+      afterBytes += newSize;
       unlinkSync(src);
 
       const saving = originalSize - newSize;
       const savingPct = ((saving / originalSize) * 100).toFixed(1);
-      const relPath = src.replace(PUBLIC + "/", "");
       results.push({
         file: "/" + relPath,
         originalSize,
@@ -139,11 +150,10 @@ async function main() {
         originalWidth: meta.width,
       });
 
-      const label = relPath.split("/").slice(-2).join("/");
       console.log(
         `  ✓ ${label} → .webp  ` +
           `${(originalSize / 1024).toFixed(0)}KB → ${(newSize / 1024).toFixed(0)}KB ` +
-          `(-${savingPct}%)`
+          `(-${savingPct}%)`,
       );
       converted++;
     } catch (err) {
@@ -156,7 +166,7 @@ async function main() {
   const savedMB = beforeBytes - afterBytes;
   console.log(
     `Saved: ${bytesToMB(savedMB)} MB ` +
-      `(${(((savedMB) / beforeBytes) * 100).toFixed(1)}%)`
+      `(${((savedMB / beforeBytes) * 100).toFixed(1)}%)`,
   );
 
   const manifest = {
