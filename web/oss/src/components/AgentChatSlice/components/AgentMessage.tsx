@@ -40,6 +40,7 @@ import {
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
 import {messageCreatedAtAtomFamily, nowTickAtom, timeAgo} from "../state/sessions"
 
+import AudioPlayer from "./AudioPlayer"
 import {ClientToolPart, isClientToolPart, type ClientToolOutputHandler} from "./clientTools"
 import ToolActivity from "./ToolActivity"
 
@@ -449,6 +450,17 @@ const AgentMessage = ({
         if (part.type === "file") {
             const file = part as FileUIPart
             const kind = fileKind(file.mediaType)
+            // A voice message is playable in the transcript, not an inert card.
+            if (kind === "audio") {
+                return (
+                    <AudioPlayer
+                        key={partKey}
+                        src={file.url}
+                        name={filePartName(file)}
+                        className="max-w-[320px] rounded-lg border border-solid border-colorBorderSecondary px-2 py-1.5"
+                    />
+                )
+            }
             return (
                 <FileCard
                     key={partKey}
