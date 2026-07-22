@@ -4,10 +4,17 @@
 // MDX rendering by passing `components={{ InlineCTA }}` to <Content /> in the post
 // page, so posts resolve it without importing.
 //
-// Copy is global, edited once: `Agenta landing page pivot/content/site.json →
-// inlineCta`. Layout ported from the post DC (Agenta Blog Post (Dark).dc.html):
-// outline "Star on Github" + yellow "Get started".
-import site from "../../../Agenta landing page pivot/content/site.json";
+// Layout ported from the post DC (Agenta Blog Post (Dark).dc.html): outline
+// "Star on Github" + yellow "Get started". Copy is inlined here (not read from
+// the untracked design-handoff folder) so the site builds from the repo alone.
+const site = {
+  inlineCta: {
+    title: "Ship reliable AI apps faster",
+    body: "Agenta is the open-source LLMOps platform: prompt management, evals, and LLM observability all in one place.",
+    primary: { label: "Star on Github", href: "https://github.com/Agenta-AI/agenta" },
+    secondary: { label: "Get started", href: "https://cloud.agenta.ai" },
+  },
+};
 
 // Gate: the in-article CTA is hidden on every post for now — the current copy's
 // positioning is outdated and the card can't be dismissed. Every post still
