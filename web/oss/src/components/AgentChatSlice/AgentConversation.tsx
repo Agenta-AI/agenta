@@ -17,6 +17,8 @@ import {
 } from "@agenta/entities/session"
 import {markTraceAsFresh} from "@agenta/entities/trace"
 import {
+    contextWindowForModel,
+    harnessCapabilitiesAtomFamily,
     invalidateAgentCommittedRevisionCache,
     workflowBuildKitOverlayReadyAtomFamily,
     workflowMolecule,
@@ -723,6 +725,14 @@ const AgentConversation = ({
     // composer until connected — see `gateActive` on `useAgentModelKeyStatus` for the full chain.
     const modelKey = useAgentModelKeyStatus(entityId)
     const modelBlocked = modelKey.gateActive
+
+    // Context-window denominator for the token-budget indicator: the SDK model catalog's own
+    // `context_window`, delivered on the (global) harness-capabilities document — never hardcoded.
+    const harnessCapabilities = useAtomValue(harnessCapabilitiesAtomFamily(""))
+    const contextMaxTokens = useMemo(
+        () => contextWindowForModel(harnessCapabilities, modelKey.harness, modelKey.model),
+        [harnessCapabilities, modelKey.harness, modelKey.model],
+    )
 
     // ── Playground-native onboarding ──────────────────────────────────────────
     // This chat panel IS the onboarding surface while the agent is ephemeral: the empty state shows the
@@ -2255,7 +2265,7 @@ const AgentConversation = ({
                                                 {!onboardingActive ? (
                                                     <ContextBudgetIndicator
                                                         messages={messages}
-                                                        model={modelKey.model}
+                                                        maxTokens={contextMaxTokens}
                                                     />
                                                 ) : null}
                                             </div>
