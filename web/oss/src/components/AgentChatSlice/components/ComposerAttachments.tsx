@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState, type ReactNode} from "react"
 
 import {
+    EarSlash,
     File as FileIcon,
     FileText,
     Image as ImageIcon,
@@ -82,6 +83,9 @@ interface ComposerAttachmentsProps {
     files: UploadFile[]
     rejections: AttachmentRejection[]
     limits: AttachmentLimits
+    /** Whether the model can take audio in; `null` when unknown. `false` marks an attached clip
+     * as workspace-only, since the model itself won't hear it (design decision D6). */
+    audioPerceivable: boolean | null
     /** Add picked files through the caller's guardrails (`validateIncoming`). */
     onAdd: (incoming: File[]) => void
     onRemove: (uid: string) => void
@@ -99,6 +103,7 @@ const ComposerAttachments = ({
     files,
     rejections,
     limits,
+    audioPerceivable,
     onAdd,
     onRemove,
     onDismissRejections,
@@ -237,14 +242,31 @@ const ComposerAttachments = ({
                                             exit="exit"
                                         >
                                             {type.startsWith("audio/") && url ? (
-                                                <Chip className="w-[248px]">
-                                                    <AudioPlayer
-                                                        src={url}
-                                                        name={f.name}
-                                                        className="min-w-0 flex-1"
-                                                    />
-                                                    <RemoveButton name={f.name} onRemove={remove} />
-                                                </Chip>
+                                                <Tooltip
+                                                    title={
+                                                        audioPerceivable === false
+                                                            ? "The model can’t hear this — attached for the agent’s tools only."
+                                                            : undefined
+                                                    }
+                                                >
+                                                    <Chip className="w-[248px]">
+                                                        <AudioPlayer
+                                                            src={url}
+                                                            name={f.name}
+                                                            className="min-w-0 flex-1"
+                                                        />
+                                                        {audioPerceivable === false && (
+                                                            <EarSlash
+                                                                size={14}
+                                                                className="shrink-0 text-colorTextTertiary"
+                                                            />
+                                                        )}
+                                                        <RemoveButton
+                                                            name={f.name}
+                                                            onRemove={remove}
+                                                        />
+                                                    </Chip>
+                                                </Tooltip>
                                             ) : type.startsWith("image/") && url ? (
                                                 <div
                                                     className={`group relative ${TILE} w-12 overflow-hidden rounded-lg border border-solid border-colorBorderSecondary`}

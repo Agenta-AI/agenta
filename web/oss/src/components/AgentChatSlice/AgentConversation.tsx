@@ -19,6 +19,7 @@ import {markTraceAsFresh} from "@agenta/entities/trace"
 import {
     contextWindowForModel,
     harnessCapabilitiesAtomFamily,
+    modalitiesForModel,
     invalidateAgentCommittedRevisionCache,
     workflowBuildKitOverlayReadyAtomFamily,
     workflowMolecule,
@@ -763,6 +764,16 @@ const AgentConversation = ({
         () => contextWindowForModel(harnessCapabilities, modelKey.harness, modelKey.model),
         [harnessCapabilities, modelKey.harness, modelKey.model],
     )
+
+    /**
+     * Whether the selected model can actually take audio in. `null` means the catalog does not
+     * say — treated as unknown, never as "no", so a missing field can't quietly demote voice.
+     * Drives which voice mode leads; it never refuses an attachment (design decision D6).
+     */
+    const audioPerceivable = useMemo(() => {
+        const modalities = modalitiesForModel(harnessCapabilities, modelKey.harness, modelKey.model)
+        return modalities ? modalities.includes("audio") : null
+    }, [harnessCapabilities, modelKey.harness, modelKey.model])
 
     // ── Playground-native onboarding ──────────────────────────────────────────
     // This chat panel IS the onboarding surface while the agent is ephemeral: the empty state shows the
@@ -2369,6 +2380,7 @@ const AgentConversation = ({
                                                             voiceRecorder.supported
                                                         }
                                                         audioPending={voiceRecorder.pending}
+                                                        audioPerceivable={audioPerceivable}
                                                         attachmentsFull={atMax}
                                                         onDictationError={setDictationError}
                                                         onDictatingChange={setDictating}
@@ -2420,6 +2432,7 @@ const AgentConversation = ({
                                                         files={files}
                                                         rejections={rejections}
                                                         limits={limits}
+                                                        audioPerceivable={audioPerceivable}
                                                         onAdd={addFiles}
                                                         onRemove={removeFile}
                                                         onDismissRejections={() =>
