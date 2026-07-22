@@ -68,6 +68,18 @@ export interface Testset {
     columns?: string[]
 }
 
+export interface PreviewTestCase {
+    created_at: string
+    created_by_id: string
+
+    id: string
+    set_id: string
+    testset_id: string
+    data: Record<string, any>
+    /** Legacy testcases carry inputs instead of data */
+    inputs?: Record<string, any>
+}
+
 export interface PreviewTestset {
     id: string
     name: string

@@ -52,17 +52,24 @@ const createMetaSkeletonColumns = (options?: {
     return columns
 }
 
+// NOTE (latent runtime bug, typed as-is per WP-4e-2a): the "outputs" caller below invokes
+// this with only 5 positional args, omitting `stepType` — so at runtime `startOrder`'s slot
+// receives the order number (200) as `stepType`, and the real `startOrder` is `undefined`
+// (making `order` NaN for that group). To type the function faithfully WITHOUT changing
+// that behavior, `stepType` is widened to also accept the number that is actually passed,
+// and `startOrder` is optional. Do not "fix" by inserting the missing argument — that would
+// change the shipped skeleton columns. See QA flag.
 const createSkeletonGroupColumns = (
     groupId: string,
     label: string,
     kind: EvaluationTableColumnGroup["kind"],
     columnKind: EvaluationColumnKind,
-    stepType: EvaluationTableColumn["stepType"],
-    startOrder: number,
+    stepType: EvaluationTableColumn["stepType"] | number,
+    startOrder?: number,
 ): {columns: EvaluationTableColumn[]; group: EvaluationTableColumnGroup} => {
     const columns: EvaluationTableColumn[] = []
     for (let index = 0; index < SKELETON_COLUMNS_PER_GROUP; index += 1) {
-        const order = startOrder + index
+        const order = (startOrder as number) + index
         columns.push({
             id: `skeleton:${groupId}:${index}`,
             label: `${label} ${index + 1}`,
@@ -70,7 +77,7 @@ const createSkeletonGroupColumns = (
             kind: columnKind,
             path: `${groupId}.${index}`,
             pathSegments: [groupId, `${index}`],
-            stepType,
+            stepType: stepType as EvaluationTableColumn["stepType"],
             order,
             width: stepType === "input" || stepType === "invocation" ? 320 : 200,
             minWidth: stepType === "input" || stepType === "invocation" ? 200 : 160,

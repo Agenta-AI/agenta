@@ -6,6 +6,7 @@ export type EvaluationColumnKind =
     | "meta"
     | "testset"
     | "query"
+    | "input"
     | "invocation"
     | "annotation"
     | "evaluator"

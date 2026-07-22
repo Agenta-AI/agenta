@@ -167,7 +167,11 @@ const buildTraceDataFromEntry = (
     spanNodes.forEach((span) => {
         const inferredTraceId =
             span.trace_id ?? traceId ?? (span.span_id ? `${span.span_id}-trace` : "trace")
-        convertSpanNodeToTraceNode(span, inferredTraceId, flat)
+        // `transformTracesResponseToTree` yields the entities-package TraceSpanNode, while
+        // `convertSpanNodeToTraceNode` is written against the structurally-equivalent OSS
+        // TraceSpanNode (same backend span shape). Align the annotation at the boundary; no
+        // data is converted.
+        convertSpanNodeToTraceNode(span as unknown as TraceSpanNode, inferredTraceId, flat)
     })
 
     const treeEntry: TraceTree = {

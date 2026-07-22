@@ -177,7 +177,9 @@ const useFocusDrawerSections = (runId: string | null) => {
                     }))
 
                 const staticColumns: SectionColumnEntry[] =
-                    group.kind === "metric" && group.staticMetricColumns?.length
+                    // Dead branch: the early return above excludes "metric" groups; cast keeps
+                    // the exact runtime behavior while satisfying TS (typed as-is per WP-4e-2a).
+                    (group.kind as string) === "metric" && group.staticMetricColumns?.length
                         ? group.staticMetricColumns.map((definition) => {
                               const column = buildStaticMetricColumn(group.id, definition)
                               return {
@@ -1344,7 +1346,9 @@ export const FocusDrawerContent = ({
                     }))
 
                 const staticColumns: SectionColumnEntry[] =
-                    group.kind === "metric" && group.staticMetricColumns?.length
+                    // Dead branch: the early return above excludes "metric" groups; cast keeps
+                    // the exact runtime behavior while satisfying TS (typed as-is per WP-4e-2a).
+                    (group.kind as string) === "metric" && group.staticMetricColumns?.length
                         ? group.staticMetricColumns.map((definition) => {
                               const column = buildStaticMetricColumn(group.id, definition)
                               return {

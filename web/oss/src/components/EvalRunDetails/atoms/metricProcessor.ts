@@ -1,6 +1,8 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 
+import type {EvaluationRunKind} from "../../EvaluationRunsTablePOC/types"
+
 import {wasScenarioRecentlySaved} from "./metrics"
 import {
     MetricProcessor,
@@ -13,6 +15,8 @@ import {
     RunRefreshDetailResult,
     ScenarioRefreshDetailResult,
 } from "./runMetrics/types"
+
+export type {MetricProcessor, MetricScope} from "./runMetrics/types"
 
 // Debug logger that only logs in development environments
 const isDev = process.env.NODE_ENV === "development"
@@ -143,7 +147,7 @@ export const createMetricProcessor = ({
     source,
     evaluationType,
 }: MetricProcessorOptions & {
-    evaluationType?: "auto" | "human" | "online" | null
+    evaluationType?: EvaluationRunKind | null
 }): MetricProcessor => {
     const state: MetricProcessorState = {
         pending: [],

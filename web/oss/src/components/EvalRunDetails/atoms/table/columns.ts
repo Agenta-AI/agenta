@@ -249,7 +249,7 @@ const registerStepGroup = ({
     role: StepRole
     registry: Map<string, StepGroupInfo>
     groupIdOverride?: string
-    groupKindOverride?: EvaluationTableColumnGroup["kind"]
+    groupKindOverride?: StepGroupInfo["kind"]
     labelOverride?: string
 }) => {
     const key = stepMeta?.key ?? column.stepKey ?? `${role}:unknown`
