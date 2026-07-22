@@ -117,6 +117,21 @@ const ComposerAttachments = ({
         return () => Object.values(next).forEach((u) => URL.revokeObjectURL(u))
     }, [files])
 
+    // A newly added tile lands at the end of the band, which may be off-screen once the row
+    // scrolls — bring it into view so attaching something always shows it. `scroll-smooth` on the
+    // container is motion-safe, so this respects reduced-motion for free.
+    const scrollRef = useRef<HTMLDivElement>(null)
+    const previousCount = useRef(files.length)
+    useEffect(() => {
+        if (files.length > previousCount.current) {
+            requestAnimationFrame(() => {
+                const el = scrollRef.current
+                if (el) el.scrollLeft = el.scrollWidth
+            })
+        }
+        previousCount.current = files.length
+    }, [files.length])
+
     const pick = () => inputRef.current?.click()
     const onInput = (e: React.ChangeEvent<HTMLInputElement>) => {
         const list = e.target.files
@@ -186,104 +201,112 @@ const ComposerAttachments = ({
                         </Text>
                     </button>
                 ) : (
-                    <div className="flex flex-wrap items-center gap-2">
-                        {/* popLayout: a removed tile leaves the flow at once, so the rest close the
-                        gap while it animates out rather than after. */}
-                        <AnimatePresence initial={false} mode="popLayout">
-                            {files.map((f) => {
-                                const file = f.originFileObj as File | undefined
-                                const type = file?.type || ""
-                                const Icon = iconForType(type)
-                                const size = file ? formatBytes(file.size) : ""
-                                const url = previews[f.uid]
-                                const remove = () => onRemove(f.uid)
-
-                                return (
-                                    <motion.div
-                                        key={f.uid}
-                                        layout
-                                        variants={ITEM_VARIANTS}
-                                        initial="initial"
-                                        animate="animate"
-                                        exit="exit"
-                                    >
-                                        {type.startsWith("audio/") && url ? (
-                                            <Chip className="w-[248px]">
-                                                <AudioPlayer
-                                                    src={url}
-                                                    name={f.name}
-                                                    className="min-w-0 flex-1"
-                                                />
-                                                <RemoveButton name={f.name} onRemove={remove} />
-                                            </Chip>
-                                        ) : type.startsWith("image/") && url ? (
-                                            <div
-                                                className={`group relative ${TILE} w-12 overflow-hidden rounded-lg border border-solid border-colorBorderSecondary`}
-                                            >
-                                                {/* Local object URL — next/image can't optimize a blob. */}
-                                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                <img
-                                                    src={url}
-                                                    alt={f.name}
-                                                    className="h-full w-full object-cover"
-                                                />
-                                                <RemoveButton
-                                                    name={f.name}
-                                                    onRemove={remove}
-                                                    overlay
-                                                />
-                                            </div>
-                                        ) : (
-                                            <Chip className="max-w-[200px]">
-                                                <Icon
-                                                    size={18}
-                                                    className="shrink-0 text-colorTextSecondary"
-                                                />
-                                                <div className="flex min-w-0 flex-col">
-                                                    <Text
-                                                        className="!text-xs truncate"
-                                                        title={f.name}
-                                                    >
-                                                        {f.name}
-                                                    </Text>
-                                                    {size && (
-                                                        <Text
-                                                            type="secondary"
-                                                            className="!text-[11px]"
-                                                        >
-                                                            {size}
-                                                        </Text>
-                                                    )}
-                                                </div>
-                                                <RemoveButton name={f.name} onRemove={remove} />
-                                            </Chip>
-                                        )}
-                                    </motion.div>
-                                )
-                            })}
-                        </AnimatePresence>
-
-                        {!atMax && (
-                            <motion.div layout>
-                                <Tooltip title="Add more">
-                                    <button
-                                        type="button"
-                                        onClick={pick}
-                                        aria-label="Add more files"
-                                        className={`flex ${TILE} w-12 cursor-pointer items-center justify-center rounded-lg border border-dashed border-colorBorder bg-transparent text-colorTextTertiary transition-colors hover:border-colorPrimary hover:bg-colorFillQuaternary hover:text-colorPrimary`}
-                                    >
-                                        <Plus size={16} />
-                                    </button>
-                                </Tooltip>
-                            </motion.div>
-                        )}
-
-                        <motion.span
-                            layout
-                            className="ml-auto shrink-0 text-[11px] tabular-nums text-colorTextTertiary"
+                    <div className="flex items-center gap-2">
+                        {/* One scrolling band rather than wrapping: five audio clips would otherwise
+                        stack into five rows and push the composer down the screen. Mirrors the
+                        session tag bar — contained overscroll so it can't chain to the page, and no
+                        visible scrollbar under a 48px strip. */}
+                        <div
+                            ref={scrollRef}
+                            className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto overscroll-x-contain py-0.5 motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                         >
+                            {/* popLayout: a removed tile leaves the flow at once, so the rest close
+                            the gap while it animates out rather than after. */}
+                            <AnimatePresence initial={false} mode="popLayout">
+                                {files.map((f) => {
+                                    const file = f.originFileObj as File | undefined
+                                    const type = file?.type || ""
+                                    const Icon = iconForType(type)
+                                    const size = file ? formatBytes(file.size) : ""
+                                    const url = previews[f.uid]
+                                    const remove = () => onRemove(f.uid)
+
+                                    return (
+                                        <motion.div
+                                            key={f.uid}
+                                            layout
+                                            className="shrink-0"
+                                            variants={ITEM_VARIANTS}
+                                            initial="initial"
+                                            animate="animate"
+                                            exit="exit"
+                                        >
+                                            {type.startsWith("audio/") && url ? (
+                                                <Chip className="w-[248px]">
+                                                    <AudioPlayer
+                                                        src={url}
+                                                        name={f.name}
+                                                        className="min-w-0 flex-1"
+                                                    />
+                                                    <RemoveButton name={f.name} onRemove={remove} />
+                                                </Chip>
+                                            ) : type.startsWith("image/") && url ? (
+                                                <div
+                                                    className={`group relative ${TILE} w-12 overflow-hidden rounded-lg border border-solid border-colorBorderSecondary`}
+                                                >
+                                                    {/* Local object URL — next/image can't optimize a blob. */}
+                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                    <img
+                                                        src={url}
+                                                        alt={f.name}
+                                                        className="h-full w-full object-cover"
+                                                    />
+                                                    <RemoveButton
+                                                        name={f.name}
+                                                        onRemove={remove}
+                                                        overlay
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <Chip className="max-w-[200px]">
+                                                    <Icon
+                                                        size={18}
+                                                        className="shrink-0 text-colorTextSecondary"
+                                                    />
+                                                    <div className="flex min-w-0 flex-col">
+                                                        <Text
+                                                            className="!text-xs truncate"
+                                                            title={f.name}
+                                                        >
+                                                            {f.name}
+                                                        </Text>
+                                                        {size && (
+                                                            <Text
+                                                                type="secondary"
+                                                                className="!text-[11px]"
+                                                            >
+                                                                {size}
+                                                            </Text>
+                                                        )}
+                                                    </div>
+                                                    <RemoveButton name={f.name} onRemove={remove} />
+                                                </Chip>
+                                            )}
+                                        </motion.div>
+                                    )
+                                })}
+                            </AnimatePresence>
+
+                            {!atMax && (
+                                <motion.div layout className="shrink-0">
+                                    <Tooltip title="Add more">
+                                        <button
+                                            type="button"
+                                            onClick={pick}
+                                            aria-label="Add more files"
+                                            className={`flex ${TILE} w-12 cursor-pointer items-center justify-center rounded-lg border border-dashed border-colorBorder bg-transparent text-colorTextTertiary transition-colors hover:border-colorPrimary hover:bg-colorFillQuaternary hover:text-colorPrimary`}
+                                        >
+                                            <Plus size={16} />
+                                        </button>
+                                    </Tooltip>
+                                </motion.div>
+                            )}
+                        </div>
+
+                        {/* Outside the scroller: the count must stay put rather than scroll away. */}
+                        <span className="shrink-0 text-[11px] tabular-nums text-colorTextTertiary">
                             {files.length} / {limits.maxCount}
-                        </motion.span>
+                        </span>
                     </div>
                 )}
             </div>
