@@ -24,6 +24,7 @@ import {CopyButton} from "@agenta/ui/components/presentational"
 import {
     ArrowsIn,
     ArrowsOut,
+    File as FileIcon,
     UploadSimple,
     CaretDown,
     CaretRight,
@@ -87,8 +88,9 @@ import {ORIGIN_TIP, OriginTag} from "./OriginTag"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
 import {DriveFileBody} from "./renderers"
 import {DriveRepoMetaList} from "./repoMeta"
+import {type DriveDrop, useDriveDrop} from "./useDriveDrop"
 import {useLazyDriveTree} from "./useLazyDriveTree"
-import {useMountUpload} from "./useMountUpload"
+import {type MountUploadItem, useMountUpload} from "./useMountUpload"
 import {
     AGENT_FILES_DIR,
     driveHasMixedOrigins,
@@ -668,6 +670,73 @@ export const FolderTile = ({node, onOpen}: {node: DriveTreeNode; onOpen: () => v
     )
 }
 
+/** An in-flight upload as a grid tile — same 4:3 shape as a file tile, with a progress bar (image
+ * preview when available) or a retry on failure. */
+const UploadTile = ({
+    item,
+    onRetry,
+    onDismiss,
+}: {
+    item: MountUploadItem
+    onRetry?: (id: string) => void
+    onDismiss?: (id: string) => void
+}) => (
+    <div className="flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2">
+        <div className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded bg-colorFillTertiary">
+            {item.previewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                    src={item.previewUrl}
+                    alt={item.name}
+                    className={`h-full w-full object-cover ${item.error ? "opacity-40" : "opacity-70"}`}
+                />
+            ) : (
+                <FileIcon size={40} className="text-colorTextTertiary" />
+            )}
+            {item.error ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-[var(--ant-color-error-bg)]">
+                    <WarningCircle size={20} weight="fill" className="text-colorError" />
+                    <div className="flex items-center gap-2">
+                        {onRetry ? (
+                            <button
+                                type="button"
+                                onClick={() => onRetry(item.id)}
+                                className="cursor-pointer rounded border-0 bg-transparent text-[11px] text-colorPrimary hover:underline"
+                            >
+                                Retry
+                            </button>
+                        ) : null}
+                        {onDismiss ? (
+                            <button
+                                type="button"
+                                onClick={() => onDismiss(item.id)}
+                                className="cursor-pointer rounded border-0 bg-transparent text-[11px] text-colorTextTertiary hover:underline"
+                            >
+                                Dismiss
+                            </button>
+                        ) : null}
+                    </div>
+                </div>
+            ) : (
+                <div className="absolute inset-x-2 bottom-2">
+                    <div className="h-1 w-full overflow-hidden rounded-full bg-[rgba(0,0,0,0.25)]">
+                        <div
+                            className="h-full rounded-full bg-colorPrimary transition-[width] duration-150"
+                            style={{width: `${item.percent}%`}}
+                        />
+                    </div>
+                </div>
+            )}
+        </div>
+        <span className="w-full truncate text-center font-mono text-xs" title={item.name}>
+            {item.name}
+        </span>
+        <span className="w-full truncate text-center text-[11px] text-colorTextTertiary">
+            {item.error ? "Upload failed" : `Uploading… ${item.percent}%`}
+        </span>
+    </div>
+)
+
 /** Right pane when a FOLDER is selected: fixed header (clickable breadcrumb + folder name) over a
  * grid of the folder's immediate children — subfolders drill in, files open the preview. Reuses the
  * chat grid's file tile (DriveFileRow). */
@@ -683,12 +752,22 @@ const FolderView = ({
     autoFocus,
     anticipateShift,
     onSelect,
+    drop,
+    pendingUploads,
+    onRetryUpload,
+    onDismissUpload,
 }: {
     folderPath: string
     nodes: DriveTreeNode[]
     rootLabel: string
     drive: SessionDriveData
     showOrigin: boolean
+    /** Drag-and-drop upload behaviour (folder highlight, spring-load, drop) — absent = disabled. */
+    drop?: DriveDrop
+    /** In-flight uploads landing in THIS folder — shown as optimistic tiles beside its contents. */
+    pendingUploads?: MountUploadItem[]
+    onRetryUpload?: (id: string) => void
+    onDismissUpload?: (id: string) => void
     /** This folder's level is still loading (lazy) — show the tile skeleton, not "Empty folder". */
     loading?: boolean
     /** Chrome mode: the drawer's single header owns the breadcrumb/name/repo toggle, so drop this
@@ -718,10 +797,26 @@ const FolderView = ({
     const [repoExpanded, setRepoExpanded] = useState(false)
     // Folders first (matching the tree's sort), then files — one combined list so the grid windows
     // uniformly even when a folder holds thousands of immediate children.
-    const entries = useMemo(
-        () => [...nodes].sort((a, b) => (a.isFolder === b.isFolder ? 0 : a.isFolder ? -1 : 1)),
-        [nodes],
+    // Optimistic tiles for uploads landing here — synthetic file nodes under an `__upload__/` path,
+    // looked up by `uploadByPath` in renderTile to draw a progress tile instead of a real one.
+    const uploadByPath = useMemo(
+        () =>
+            new Map<string, MountUploadItem>(
+                (pendingUploads ?? []).map((it) => [`__upload__/${it.id}`, it]),
+            ),
+        [pendingUploads],
     )
+    const entries = useMemo(() => {
+        const uploadNodes: DriveTreeNode[] = (pendingUploads ?? []).map((it) => ({
+            name: it.name,
+            path: `__upload__/${it.id}`,
+            isFolder: false,
+            children: [],
+        }))
+        return [...uploadNodes, ...nodes].sort((a, b) =>
+            a.isFolder === b.isFolder ? 0 : a.isFolder ? -1 : 1,
+        )
+    }, [pendingUploads, nodes])
     // Only surface the skeleton if the level is genuinely slow to load (>140ms); a quick load skips
     // straight to the grid so the user never sees a one-frame skeleton flash.
     const showSkeleton = useDelayedTrue(Boolean(loading) && nodes.length === 0, 140)
@@ -826,9 +921,14 @@ const FolderView = ({
             {/* The content region crossfades between its states (absolute + overlapping), so a folder
                 swap or skeleton→grid never hard-cuts. The skeleton is DELAYED — a fast load skips it
                 entirely and the grid fades straight in from the previous folder. */}
-            <div className="relative min-h-0 flex-1">
+            <div
+                className={`relative min-h-0 flex-1 transition-colors ${
+                    drop?.hoverPath === folderPath ? "bg-[var(--ant-color-primary-bg)]" : ""
+                }`}
+                {...(drop ? drop.containerDropProps(folderPath) : {})}
+            >
                 <AnimatePresence initial={false}>
-                    {nodes.length > 0 ? (
+                    {entries.length > 0 ? (
                         <motion.div
                             key={`grid:${folderPath}`}
                             className="absolute inset-0 flex min-h-0 flex-col"
@@ -858,6 +958,22 @@ const FolderView = ({
                                 onMetaBack={() => onSelect(parentOf(folderPath))}
                                 getKey={(n) => n.path}
                                 renderTile={(n) => {
+                                    // Optimistic upload tile (synthetic node) — progress, not a real file.
+                                    const uploadItem = uploadByPath.get(n.path)
+                                    if (uploadItem) {
+                                        return (
+                                            <motion.div
+                                                className="min-w-0"
+                                                {...revealFade(gridRevealNow)}
+                                            >
+                                                <UploadTile
+                                                    item={uploadItem}
+                                                    onRetry={onRetryUpload}
+                                                    onDismiss={onDismissUpload}
+                                                />
+                                            </motion.div>
+                                        )
+                                    }
                                     const open = () => onSelect(n.path)
                                     const file = recentsByPath.get(n.path)
                                     const resolved = drive.resolveMount(n.path)
@@ -903,9 +1019,20 @@ const FolderView = ({
                                     // One-shot staggered entrance (see gridRevealNow) — cascades the
                                     // tiles in by index when the level first reveals; `min-w-0` keeps
                                     // the wrapper a shrinkable grid cell so tiles don't overflow.
+                                    // Folder tiles are drop targets: spring-load + upload, with a
+                                    // ring while hovered.
+                                    const folderDrop =
+                                        n.isFolder && drop
+                                            ? drop.folderDropProps(n.path)
+                                            : undefined
                                     return (
                                         <motion.div
-                                            className="min-w-0"
+                                            className={`min-w-0 rounded-lg ${
+                                                drop?.hoverPath === n.path
+                                                    ? "ring-2 ring-colorPrimary"
+                                                    : ""
+                                            }`}
+                                            {...folderDrop}
                                             {...revealFade(gridRevealNow)}
                                         >
                                             {content}
@@ -1417,10 +1544,10 @@ export function DriveExplorer({
     // fetched in one shot then, so per-folder placeholders would be wrong).
     const isDirLoading = useCallback(
         (path: string) =>
-            !explicitFiles &&
-            !searchActive &&
-            (lazyTree.fetchingDirs.has(path) || !lazyTree.loadedDirs.has(path)),
-        [explicitFiles, searchActive, lazyTree.fetchingDirs, lazyTree.loadedDirs],
+            // Only shimmer until a folder's FIRST load — a background refetch (e.g. after an upload)
+            // keeps the current tiles/rows on screen instead of flashing a skeleton.
+            !explicitFiles && !searchActive && !lazyTree.loadedDirs.has(path),
+        [explicitFiles, searchActive, lazyTree.loadedDirs],
     )
     // The visible rows, flattened for virtualization (see flattenTree), plus a path→row-index map for
     // O(1) keyboard navigation.
@@ -1483,15 +1610,21 @@ export function DriveExplorer({
         : selectedPath
           ? selectedPath.slice(0, Math.max(0, selectedPath.lastIndexOf("/")))
           : ""
-    const startUpload = useCallback(
-        (picked: File[]) => {
-            const resolved = drive.resolveMount(currentFolder)
+    const uploadIntoFolder = useCallback(
+        (picked: File[], folder: string) => {
+            const resolved = drive.resolveMount(folder)
             if (resolved) {
                 mountUpload.upload(picked, {mount: resolved.mount, destFolder: resolved.path})
             }
         },
-        [drive, currentFolder, mountUpload],
+        [drive, mountUpload],
     )
+    // Drag-and-drop uploads: highlight + spring-load into folders, drop to upload. Disabled in the
+    // local-file preview (no mount to write to).
+    const drop = useDriveDrop({
+        onUpload: canUpload ? uploadIntoFolder : () => {},
+        onNavigate: select,
+    })
     const selected = drive.recents.find((f) => f.path === selectedPath) ?? null
     const showOrigin = driveHasMixedOrigins(drive.recents)
 
@@ -1803,6 +1936,12 @@ export function DriveExplorer({
                     autoFocus={!treeVisible}
                     anticipateShift={treeShift}
                     onSelect={select}
+                    drop={canUpload ? drop : undefined}
+                    pendingUploads={mountUpload.itemsFor(
+                        drive.resolveMount(selectedPath ?? "")?.path ?? selectedPath ?? "",
+                    )}
+                    onRetryUpload={mountUpload.retry}
+                    onDismissUpload={mountUpload.dismiss}
                 />
             ) : (
                 <DriveFilePreview
@@ -2017,7 +2156,7 @@ export function DriveExplorer({
                         className="hidden"
                         onChange={(e) => {
                             const picked = e.target.files
-                            if (picked?.length) startUpload(Array.from(picked))
+                            if (picked?.length) uploadIntoFolder(Array.from(picked), currentFolder)
                             e.target.value = ""
                         }}
                     />
