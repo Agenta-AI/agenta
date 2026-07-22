@@ -17,9 +17,11 @@ import {
  * tail — and only their text is set as speech arrives. Everything else in the document is untouched.
  */
 
-/** Provisional speech. Opacity + italic reads as "not settled yet" in either theme without a colour
- * token, and leaves nothing behind once the words are committed. */
-export const INTERIM_STYLE = "opacity: 0.55; font-style: italic;"
+/** Provisional speech: a gentle dim, nothing more. The words are visibly rewriting themselves as
+ * the recogniser settles, which is most of the signal — italics or a heavier fade on a run this
+ * long reads as emphasis and costs legibility. Opacity alone also needs no colour token, so it
+ * holds in either theme, and leaves nothing behind once the words are committed. */
+export const INTERIM_STYLE = "opacity: 0.65;"
 
 export interface DictationSession {
     /** Push the recogniser's committed text and its provisional tail. */
