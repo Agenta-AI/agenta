@@ -1,5 +1,7 @@
 import type {EvaluatorDefinition, MetricColumnDefinition} from "@agenta/entities/workflow"
 
+export type {MetricColumnDefinition}
+
 export type EvaluationColumnKind =
     | "meta"
     | "testset"
