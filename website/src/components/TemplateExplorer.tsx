@@ -28,19 +28,21 @@ const LOGO: Record<string, string> = {
   Stripe: "/logos/tools/stripe.svg",
 };
 
-type Harness = { name: string; logo: string | null; model: string };
+type Harness = { name: string; logo: string | null; soon?: boolean };
 const HARNESSES: Harness[] = [
-  {
-    name: "Claude Code",
-    logo: "/logos/tools/anthropic.svg",
-    model: "Runs Claude Opus 4.5",
-  },
-  { name: "Codex", logo: "/logos/tools/openai.svg", model: "Runs GPT-5 Codex" },
-  {
-    name: "pi.dev",
-    logo: "/logos/tools/pidev.svg",
-    model: "Bring your own model",
-  },
+  { name: "Claude Code", logo: "/logos/tools/anthropic.svg" },
+  { name: "Codex", logo: "/logos/tools/openai.svg", soon: true },
+  { name: "pi.dev", logo: "/logos/tools/pidev.svg" },
+];
+
+// Model providers the agent can run on, shown icon-only (the row reads as a set
+// of marks). "Self-hosted" is the one entry no single mark represents, so it
+// keeps its text.
+const MODELS: { name: string; logo: string }[] = [
+  { name: "OpenAI", logo: "/logos/tools/openai.svg" },
+  { name: "Anthropic", logo: "/logos/tools/anthropic.svg" },
+  { name: "Gemini", logo: "/logos/tools/gemini.svg" },
+  { name: "xAI", logo: "/logos/tools/xai.svg" },
 ];
 
 type Template = {
@@ -158,6 +160,17 @@ const eyebrow: CSSProperties = {
   color: "rgba(255,255,255,0.36)",
 };
 
+// Small "Soon" tag shown in front of a not-yet-available harness option.
+const soonBadge: CSSProperties = {
+  font: "500 9px/1 var(--font-sans)",
+  letterSpacing: "0.05em",
+  textTransform: "uppercase",
+  color: "rgba(255,255,255,0.55)",
+  background: "rgba(255,255,255,0.08)",
+  padding: "3px 5px",
+  borderRadius: 4,
+};
+
 export default function TemplateExplorer() {
   const [sel, setSel] = useState(0);
   // null → follow the current template's default harness.
@@ -237,6 +250,7 @@ export default function TemplateExplorer() {
       >
         {/* left: spec */}
         <div
+          className="ag-tpl-left"
           style={{
             padding: "34px 40px 30px",
             display: "flex",
@@ -265,6 +279,7 @@ export default function TemplateExplorer() {
           </span>
 
           <div
+            className="ag-tpl-grid"
             style={{
               display: "grid",
               gridTemplateColumns: "84px 1fr",
@@ -359,18 +374,67 @@ export default function TemplateExplorer() {
                         : { color: "rgba(255,255,255,0.5)" }),
                     }}
                   >
+                    {h.soon && <span style={soonBadge}>Soon</span>}
                     <Logo src={h.logo} size={13} />
                     {h.name}
                   </span>
                 ))}
               </div>
+            </div>
+
+            {/* Models */}
+            <span
+              style={{
+                ...eyebrow,
+                padding: "14px 0",
+                borderTop: "1px solid rgba(255,255,255,0.05)",
+              }}
+            >
+              Models
+            </span>
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                flexWrap: "wrap",
+                alignItems: "center",
+                padding: "10px 0",
+                borderTop: "1px solid rgba(255,255,255,0.05)",
+              }}
+            >
+              {MODELS.map((m) => (
+                <span
+                  key={m.name}
+                  aria-label={m.name}
+                  title={m.name}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 36,
+                    height: 28,
+                    borderRadius: 8,
+                    background: "rgba(255,255,255,0.05)",
+                    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.1)",
+                  }}
+                >
+                  <Logo src={m.logo} size={16} />
+                </span>
+              ))}
               <span
                 style={{
-                  font: "var(--text-caption)",
-                  color: "rgba(255,255,255,0.4)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  height: 28,
+                  padding: "0 11px",
+                  borderRadius: 8,
+                  background: "rgba(255,255,255,0.05)",
+                  boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.1)",
+                  font: "var(--text-label)",
+                  color: "rgba(255,255,255,0.82)",
                 }}
               >
-                {HARNESSES[hActive].model}
+                Self-hosted
               </span>
             </div>
 
