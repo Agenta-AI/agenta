@@ -1,6 +1,10 @@
 {
-  "_note": "This file drives the ENTIRE pricing page (website/src/pages/pricing.astro). Every visible string lives here — nothing is hardcoded in the component. Edit this file to change prices, plans, chips, CTAs, the comparison table, or the FAQ. Structure: `hostingToggle` = the two-option Cloud/Self-hosted switch; `plansByMode` = the plan cards shown for each toggle option (cloud = 4 cards, selfHosted = 2 cards); `comparison` = the always-visible side-by-side table (independent of the toggle, shows all five plans as columns); `faqs` = the FAQ accordion. In `comparison.groups[].rows[].cells`, `true` renders a check, `false` renders a dash, and a string renders as-is. Plan card `chip` is a small pill that straddles the card's top border (null = no chip); `cta.style` is `primary` (yellow) or `outline`. Card chrome is uniform across every plan. Adding or removing a feature keeps the CTA divider aligned across a row automatically (the grid uses subgrid row tracks, so no per-card heights to tune).",
-
+  "_note": "This file drives the ENTIRE pricing page (website/src/pages/pricing.astro). Every visible string lives here — nothing is hardcoded in the component. Edit this file to change the hero, prices, plans, chips, CTAs, the comparison tables, or the FAQ. Structure: `hero` = the eyebrow/headline/description at the top of the page; `hostingToggle` = the two-option Cloud/Self-hosted switch; `plansByMode` = the plan cards shown for each toggle option (cloud = 4 cards, selfHosted = 2 cards); `comparisonByMode` = the comparison table shown for each toggle option, rendered server-side for BOTH modes and swapped by the same toggle (cloud = 4 plan columns, selfHosted = 2 plan columns); `faqs` = the FAQ accordion; `links` = a lookup that turns any occurrence of a `text` token in a feature, comparison label, comparison cell, or FAQ answer into a link to `href` (this is how the visible strings stay the source of truth while still linking — no link text is hardcoded in the components). In `comparisonByMode[mode].groups[].rows[].cells`, `true` renders a check, `false` renders a dash, and a string renders as-is. Plan card `chip` is a small pill that straddles the card's top border (null = no chip); `cta.style` is `primary` (yellow) or `outline`. Card chrome is uniform across every plan. Adding or removing a feature keeps the CTA divider aligned across a row automatically (the grid uses subgrid row tracks, so no per-card heights to tune).",
+  "hero": {
+    "eyebrow": "Pricing",
+    "headline": "Unlimited users. Unlimited agents and workflows. Pay only when your agents run.",
+    "description": "Start free with two team members. Every paid plan includes unlimited users, agents, workflows, schedules, and triggers."
+  },
   "hostingToggle": {
     "defaultMode": "cloud",
     "options": [
@@ -8,7 +12,13 @@
       { "mode": "selfHosted", "label": "Self-hosted", "sublabel": "(you host)" }
     ]
   },
-
+  "links": [
+    {
+      "text": "GitHub Issues",
+      "href": "https://github.com/Agenta-AI/agenta/issues"
+    },
+    { "text": "team@agenta.ai", "href": "mailto:team@agenta.ai" }
+  ],
   "plansByMode": {
     "cloud": [
       {
@@ -26,59 +36,64 @@
         "includesLabel": "Includes",
         "features": [
           "2 team members",
-          "5k traces / month",
-          "20 evaluations / month",
-          "1-week data retention",
-          "Community support"
+          "Unlimited projects",
+          "Unlimited agents and workflows",
+          "5,000 agent runs / month",
+          "1-week trace data retention",
+          "Community support through GitHub Issues"
         ]
       },
       {
         "id": "pro",
         "name": "Pro",
-        "tagline": "For teams shipping to production.",
+        "tagline": "For teams running agents in production.",
         "price": "$29",
         "unit": "/month",
         "chip": "Unlimited users",
         "cta": {
-          "label": "Start free trial",
+          "label": "Upgrade to Pro",
           "href": "https://cloud.agenta.ai/",
           "style": "primary"
         },
         "includesLabel": "Everything in Hobby, plus",
         "features": [
           "Unlimited team members",
-          "First 10k traces / month free, then $5 per 10k",
+          "Unlimited schedules and event triggers",
+          "10,000 agent runs / month included",
+          "$5 per additional 10,000 runs",
           "Unlimited evaluations",
-          "1-month data retention",
-          "Email support"
+          "1-month trace data retention",
+          "Community support through GitHub Issues"
         ]
       },
       {
         "id": "business",
         "name": "Business",
-        "tagline": "For scaling teams that need governance.",
+        "tagline": "For teams that need governance, compliance, and priority support.",
         "price": "$299",
         "unit": "/month",
         "chip": "Unlimited users",
         "cta": {
-          "label": "Start free trial",
+          "label": "Upgrade to Business",
           "href": "https://cloud.agenta.ai/",
           "style": "outline"
         },
         "includesLabel": "Everything in Pro, plus",
         "features": [
-          "First 1M traces / month free, then $5 per 10k",
-          "Role-based access control",
-          "SSO and SOC 2",
-          "Audit logs and audit-grade controls",
-          "Quarterly data retention",
-          "Priority support"
+          "10,000 agent runs / month included",
+          "$5 per additional 10,000 runs",
+          "Team roles and role-based access control",
+          "SSO",
+          "SOC 2 Type II report",
+          "3-month trace data retention",
+          "Priority support",
+          "Private Slack Connect channel"
         ]
       },
       {
         "id": "enterprise-cloud",
         "name": "Enterprise",
-        "tagline": "For organizations that need a dedicated, compliant cloud.",
+        "tagline": "For organizations that need advanced controls and dedicated support.",
         "price": "Custom",
         "unit": "",
         "chip": null,
@@ -89,10 +104,14 @@
         },
         "includesLabel": "Everything in Business, plus",
         "features": [
-          "Dedicated or isolated cloud",
-          "SSO and MFA",
-          "SOC 2 and audit logs",
-          "SLA with dedicated support"
+          "Custom usage and trace data retention",
+          "Audit logs",
+          "Custom domains",
+          "Custom security and legal terms",
+          "Deployment and onboarding support",
+          "Dedicated support",
+          "Private Slack Connect channel",
+          "Custom service-level agreement"
         ]
       }
     ],
@@ -100,9 +119,9 @@
       {
         "id": "open-source",
         "name": "Open source",
-        "tagline": "The full platform, running on your own infrastructure.",
+        "tagline": "The open-source agent workspace, running on your infrastructure.",
         "price": "Free",
-        "unit": "",
+        "unit": "forever",
         "chip": null,
         "cta": {
           "label": "Read the docs",
@@ -111,17 +130,25 @@
         },
         "includesLabel": "Includes",
         "features": [
-          "The full open-source platform",
-          "Docker Compose and Helm deploys",
-          "Prompt management, evaluation, and observability",
-          "Unlimited team members",
-          "Community support"
+          "Unlimited users and projects",
+          "Unlimited agents and workflows",
+          "Unlimited schedules and event triggers",
+          "Build and use agents through chat",
+          "Bring your own models and credentials",
+          "Instructions, skills, tools, integrations, and MCP servers",
+          "Files and persistent context",
+          "Shared agents and conversations",
+          "Role-based access control",
+          "SSO",
+          "Tracing, evaluations, and versioned agent configuration",
+          "Docker Compose deployment",
+          "Community support through GitHub Issues"
         ]
       },
       {
         "id": "enterprise",
         "name": "Enterprise",
-        "tagline": "For organizations with security and compliance needs.",
+        "tagline": "For organizations that need advanced controls and commercial support on their own infrastructure.",
         "price": "Custom",
         "unit": "",
         "chip": null,
@@ -132,137 +159,370 @@
         },
         "includesLabel": "Everything in Open source, plus",
         "features": [
-          "SSO and MFA",
-          "SOC 2 and audit logs",
-          "Dedicated support with an SLA",
-          "Deployment support",
-          "Self-host or dedicated cloud"
+          "Audit logs",
+          "Custom domains",
+          "Deployment and upgrade support",
+          "Security and architecture reviews",
+          "Priority support",
+          "Private Slack Connect channel",
+          "Dedicated support",
+          "Custom service-level agreement"
         ]
       }
     ]
   },
-
-  "comparison": {
-    "columns": [
-      { "name": "Open source", "price": "Free" },
-      { "name": "Hobby", "price": "Free" },
-      { "name": "Pro", "price": "$29/mo" },
-      { "name": "Business", "price": "$299/mo" },
-      { "name": "Enterprise", "price": "Custom" }
-    ],
-    "groups": [
-      {
-        "title": "Usage and limits",
-        "rows": [
-          {
-            "label": "Team members",
-            "cells": ["Unlimited", "2", "Unlimited", "Unlimited", "Unlimited"]
-          },
-          {
-            "label": "Traces per month",
-            "cells": [
-              "Unlimited",
-              "5k",
-              "10k, then $5 per 10k",
-              "1M, then $5 per 10k",
-              "Custom"
-            ]
-          },
-          {
-            "label": "Evaluations per month",
-            "cells": ["Unlimited", "20", "Unlimited", "Unlimited", "Unlimited"]
-          },
-          {
-            "label": "Data retention",
-            "cells": [
-              "Self-managed",
-              "1 week",
-              "1 month",
-              "Quarterly",
-              "Custom"
-            ]
-          }
-        ]
-      },
-      {
-        "title": "Build and evaluate",
-        "rows": [
-          {
-            "label": "Prompt management and versioning",
-            "cells": [true, true, true, true, true]
-          },
-          {
-            "label": "Playground and side-by-side compare",
-            "cells": [true, true, true, true, true]
-          },
-          {
-            "label": "Evaluation and LLM-as-a-judge",
-            "cells": [true, true, true, true, true]
-          },
-          {
-            "label": "Observability and tracing",
-            "cells": [true, true, true, true, true]
-          }
-        ]
-      },
-      {
-        "title": "Security and support",
-        "rows": [
-          {
-            "label": "Role-based access control",
-            "cells": [false, false, false, true, true]
-          },
-          {
-            "label": "SSO and MFA",
-            "cells": [false, false, false, true, true]
-          },
-          {
-            "label": "SOC 2 and audit logs",
-            "cells": [false, false, false, true, true]
-          },
-          {
-            "label": "Self-hosting",
-            "cells": [true, false, false, false, true]
-          },
-          {
-            "label": "Support",
-            "cells": [
-              "Community",
-              "Community",
-              "Email",
-              "Priority",
-              "Dedicated + SLA"
-            ]
-          }
-        ]
-      }
-    ]
+  "comparisonByMode": {
+    "cloud": {
+      "title": "Compare Agenta Cloud plans",
+      "columns": [
+        { "name": "Hobby", "price": "Free" },
+        { "name": "Pro", "price": "$29/mo" },
+        { "name": "Business", "price": "$299/mo" },
+        { "name": "Enterprise", "price": "Custom" }
+      ],
+      "groups": [
+        {
+          "title": "Usage and limits",
+          "rows": [
+            {
+              "label": "Team members",
+              "cells": ["2", "Unlimited", "Unlimited", "Unlimited"]
+            },
+            {
+              "label": "Projects",
+              "cells": ["Unlimited", "Unlimited", "Unlimited", "Unlimited"]
+            },
+            {
+              "label": "Agents and workflows",
+              "cells": ["Unlimited", "Unlimited", "Unlimited", "Unlimited"]
+            },
+            {
+              "label": "Schedules and event triggers",
+              "cells": ["Unlimited", "Unlimited", "Unlimited", "Unlimited"]
+            },
+            {
+              "label": "Agent runs per month",
+              "cells": [
+                "5,000",
+                "10,000, then $5 per 10,000",
+                "10,000, then $5 per 10,000",
+                "Custom"
+              ]
+            },
+            {
+              "label": "Evaluations per month",
+              "cells": ["20", "Unlimited", "Unlimited", "Unlimited"]
+            },
+            {
+              "label": "Trace data retention",
+              "cells": ["1 week", "1 month", "3 months", "Custom"]
+            }
+          ]
+        },
+        {
+          "title": "Build and use agents",
+          "rows": [
+            {
+              "label": "Build and use agents through chat",
+              "cells": [true, true, true, true]
+            },
+            {
+              "label": "Instructions and reusable skills",
+              "cells": [true, true, true, true]
+            },
+            {
+              "label": "Tools and integrations",
+              "cells": [true, true, true, true]
+            },
+            { "label": "MCP servers", "cells": [true, true, true, true] },
+            {
+              "label": "Model and harness choice",
+              "cells": [true, true, true, true]
+            },
+            {
+              "label": "Files and persistent context",
+              "cells": [true, true, true, true]
+            },
+            {
+              "label": "Shared agents and conversations",
+              "cells": [true, true, true, true]
+            },
+            {
+              "label": "Granular tool permissions",
+              "cells": [true, true, true, true]
+            }
+          ]
+        },
+        {
+          "title": "Run and automate",
+          "rows": [
+            {
+              "label": "Interactive agent runs",
+              "cells": [true, true, true, true]
+            },
+            { "label": "Scheduled runs", "cells": [true, true, true, true] },
+            {
+              "label": "Event-triggered runs",
+              "cells": [true, true, true, true]
+            },
+            {
+              "label": "Unlimited schedules and triggers",
+              "cells": [true, true, true, true]
+            }
+          ]
+        },
+        {
+          "title": "Observe and improve",
+          "rows": [
+            {
+              "label": "Trace for every agent run",
+              "cells": [true, true, true, true]
+            },
+            {
+              "label": "Agent and prompt version history",
+              "cells": [true, true, true, true]
+            },
+            {
+              "label": "Playground and side-by-side comparison",
+              "cells": [true, true, true, true]
+            },
+            {
+              "label": "Evaluations and LLM-as-a-judge",
+              "cells": [true, true, true, true]
+            },
+            {
+              "label": "Token usage and estimated model costs",
+              "cells": [true, true, true, true]
+            },
+            {
+              "label": "Execution logs and errors",
+              "cells": [true, true, true, true]
+            }
+          ]
+        },
+        {
+          "title": "Collaboration, security, and compliance",
+          "rows": [
+            {
+              "label": "Shared agents and conversations",
+              "cells": [true, true, true, true]
+            },
+            { "label": "Team roles", "cells": [false, false, true, true] },
+            {
+              "label": "Role-based access control",
+              "cells": [false, false, true, true]
+            },
+            { "label": "SSO", "cells": [false, false, true, true] },
+            {
+              "label": "SOC 2 Type II report",
+              "cells": [false, false, true, true]
+            },
+            { "label": "Audit logs", "cells": [false, false, false, true] },
+            { "label": "Custom domains", "cells": [false, false, false, true] }
+          ]
+        },
+        {
+          "title": "Support",
+          "rows": [
+            { "label": "GitHub Issues", "cells": [true, true, true, true] },
+            {
+              "label": "Priority support",
+              "cells": [false, false, true, true]
+            },
+            {
+              "label": "Private Slack Connect channel",
+              "cells": [false, false, true, true]
+            },
+            {
+              "label": "Dedicated support",
+              "cells": [false, false, false, true]
+            },
+            {
+              "label": "Custom service-level agreement",
+              "cells": [false, false, false, true]
+            }
+          ]
+        }
+      ]
+    },
+    "selfHosted": {
+      "title": "Compare self-hosted plans",
+      "columns": [
+        { "name": "Open source", "price": "Free" },
+        { "name": "Enterprise", "price": "Custom" }
+      ],
+      "groups": [
+        {
+          "title": "Usage and core product",
+          "rows": [
+            { "label": "Team members", "cells": ["Unlimited", "Unlimited"] },
+            { "label": "Projects", "cells": ["Unlimited", "Unlimited"] },
+            {
+              "label": "Agents and workflows",
+              "cells": ["Unlimited", "Unlimited"]
+            },
+            {
+              "label": "Schedules and event triggers",
+              "cells": ["Unlimited", "Unlimited"]
+            },
+            { "label": "Agent runs", "cells": ["Unlimited", "Unlimited"] },
+            { "label": "Evaluations", "cells": ["Unlimited", "Unlimited"] },
+            {
+              "label": "Trace data retention",
+              "cells": ["Self-managed", "Self-managed"]
+            },
+            {
+              "label": "Model usage",
+              "cells": ["Bring your own", "Bring your own"]
+            }
+          ]
+        },
+        {
+          "title": "Build and use agents",
+          "rows": [
+            {
+              "label": "Build and use agents through chat",
+              "cells": [true, true]
+            },
+            {
+              "label": "Instructions and reusable skills",
+              "cells": [true, true]
+            },
+            { "label": "Tools and integrations", "cells": [true, true] },
+            { "label": "MCP servers", "cells": [true, true] },
+            { "label": "Model and harness choice", "cells": [true, true] },
+            { "label": "Files and persistent context", "cells": [true, true] },
+            {
+              "label": "Shared agents and conversations",
+              "cells": [true, true]
+            },
+            { "label": "Granular tool permissions", "cells": [true, true] }
+          ]
+        },
+        {
+          "title": "Run, observe, and improve",
+          "rows": [
+            {
+              "label": "Interactive, scheduled, and event-triggered runs",
+              "cells": [true, true]
+            },
+            { "label": "Trace for every agent run", "cells": [true, true] },
+            {
+              "label": "Agent and prompt version history",
+              "cells": [true, true]
+            },
+            {
+              "label": "Playground and side-by-side comparison",
+              "cells": [true, true]
+            },
+            {
+              "label": "Evaluations and LLM-as-a-judge",
+              "cells": [true, true]
+            },
+            {
+              "label": "Token usage and estimated model costs",
+              "cells": [true, true]
+            },
+            { "label": "Execution logs and errors", "cells": [true, true] }
+          ]
+        },
+        {
+          "title": "Collaboration and security",
+          "rows": [
+            { "label": "Role-based access control", "cells": [true, true] },
+            { "label": "SSO", "cells": [true, true] },
+            { "label": "Audit logs", "cells": [false, true] },
+            { "label": "Custom domains", "cells": [false, true] }
+          ]
+        },
+        {
+          "title": "Deployment and support",
+          "rows": [
+            { "label": "Docker Compose", "cells": [true, true] },
+            {
+              "label": "Deployment and upgrade support",
+              "cells": ["Community", "Included"]
+            },
+            { "label": "GitHub Issues", "cells": [true, true] },
+            { "label": "Priority support", "cells": [false, true] },
+            {
+              "label": "Private Slack Connect channel",
+              "cells": [false, true]
+            },
+            { "label": "Dedicated support", "cells": [false, true] },
+            {
+              "label": "Custom service-level agreement",
+              "cells": [false, true]
+            }
+          ]
+        }
+      ]
+    }
   },
-
   "faqs": [
     {
-      "question": "Is Agenta really open source?",
-      "answer": "Yes. The core platform is open source under a permissive license and you can self-host the full stack for free, forever. The cloud plans add managed hosting, higher limits, and team features on top."
+      "question": "What counts as an agent run?",
+      "answer": "An agent run is any tracked execution that creates a trace. Sending a message to an agent, creating an annotation, or starting an agent from a schedule or event each creates one agent run and one trace. Each new message, annotation, or trigger is a separate run."
     },
     {
-      "question": "What counts as a trace?",
-      "answer": "A trace is one end-to-end run of your LLM app or agent — every step, prompt, tool call, and response captured for observability. Cloud plans include a monthly trace volume, with pay-as-you-go for anything beyond it."
+      "question": "Is an agent run the same as a trace?",
+      "answer": "An agent run is the customer-facing usage unit. A trace is the technical record Agenta creates for that run so you can inspect its model calls, tool calls, timing, outputs, and errors. Every agent run creates one trace."
     },
     {
-      "question": "Can I switch plans or cancel anytime?",
-      "answer": "Yes. Upgrade, downgrade, or cancel from your workspace settings at any time. Changes take effect right away."
+      "question": "Are users, projects, agents, and workflows really unlimited?",
+      "answer": "Yes, on every paid Cloud plan and both self-hosted plans. Invite as many team members as you need and create as many projects, agents, workflows, schedules, and triggers as you want. The free Cloud Hobby plan includes two team members. You pay based on agent runs, not seats, projects, agents, steps, or workflows."
     },
     {
-      "question": "Do you offer discounts for startups or academia?",
-      "answer": "We do. Early-stage startups, students, and researchers can apply for discounted or free access — reach out to the team and tell us about your project."
+      "question": "Are AI model costs included?",
+      "answer": "No. Connect your own model-provider credentials and pay the provider directly."
     },
     {
-      "question": "What happens when I hit my usage limit?",
-      "answer": "Nothing breaks. On Pro and Business, traces beyond your included volume are billed at $5 per 10k traces, so you keep shipping without interruption. On Hobby you can upgrade any time to raise your limits, and we notify you before you get close."
+      "question": "Which model providers can I use?",
+      "answer": "Connect OpenAI, Anthropic, Gemini, Mistral, Groq, MiniMax, Together AI, OpenRouter, Azure OpenAI, AWS Bedrock, or Google Vertex AI. You can also connect an OpenAI-compatible endpoint."
     },
     {
-      "question": "How does Enterprise self-hosting work?",
-      "answer": "Enterprise customers can deploy Agenta in their own cloud or on-prem with SSO/MFA, SOC 2, audit logs, and a dedicated SLA. Our team supports the rollout and ongoing operations."
+      "question": "What happens when I reach my usage limit?",
+      "answer": "Hobby stops running agents after 5,000 agent runs in a monthly billing period. Upgrade to Pro to continue. Pro and Business include 10,000 agent runs per month. Additional runs are billed automatically at $5 per 10,000, and your agents continue running without interruption."
+    },
+    {
+      "question": "Do unused agent runs roll over?",
+      "answer": "No. Included agent runs reset at the start of each monthly billing period."
+    },
+    {
+      "question": "Where can I monitor usage?",
+      "answer": "Open Settings, then Billing to see your current agent-run usage and plan allowance."
+    },
+    {
+      "question": "How can I estimate how many agent runs I need?",
+      "answer": "Count each message sent to an agent, each annotation, and each invocation started by a schedule or event. For example, one daily scheduled agent uses about 30 or 31 runs per month, one agent triggered every hour uses about 720 to 744 runs per month, and a chat with 20 user messages uses 20 runs."
+    },
+    {
+      "question": "What does trace data retention cover?",
+      "answer": "Trace data retention controls how long Agenta Cloud keeps technical execution records, including model calls, tool calls, timing, outputs, errors, evaluations, and annotations. Hobby retains trace data for one week, Pro for one month, and Business for three months. Enterprise retention is configurable. Trace data retention does not describe the retention of chats, project files, or persistent agent context. With self-hosted Agenta, you manage trace storage and retention in your own infrastructure."
+    },
+    {
+      "question": "What is the difference between Agenta Cloud and self-hosted Agenta?",
+      "answer": "Agenta Cloud is operated by us. We run the application, storage, agent runner, upgrades, and backups. With self-hosted Agenta, you deploy and operate those components in your own infrastructure, connect your own model and integration accounts, and control where your data is stored."
+    },
+    {
+      "question": "What is included in the free open-source edition?",
+      "answer": "The open-source edition includes the core agent workspace: chat, projects, agent configuration, instructions, skills, tools, integrations, MCP servers, files, schedules, event triggers, tracing, evaluations, version history, role-based access control, and SSO. You can create unlimited users, projects, agents, and workflows on your own infrastructure."
+    },
+    {
+      "question": "Why pay for Enterprise if Agenta is open source?",
+      "answer": "Enterprise adds audit logs, custom domains, deployment and upgrade support, priority support, a private Slack Connect channel, dedicated support, and a custom service-level agreement. The open-source edition remains free for teams that can operate it themselves and do not need those commercial features or services."
+    },
+    {
+      "question": "Can I switch plans or cancel at any time?",
+      "answer": "Yes. Upgrade, downgrade, or cancel from Settings, then Billing."
+    },
+    {
+      "question": "Do you offer discounts for startups, students, or researchers?",
+      "answer": "Yes. Early-stage startups, students, and researchers can email team@agenta.ai to ask about discounted or free access. Include what you are building and how you plan to use Agenta."
+    },
+    {
+      "question": "Does Agenta offer a free trial?",
+      "answer": "Agenta does not use a time-limited free trial. Start with the free Hobby plan on Agenta Cloud or deploy the free open-source edition on your own infrastructure."
     }
   ]
 }

@@ -7,6 +7,11 @@
 // in the row, so the divider that opens row 4 lands at the same Y across every card —
 // structurally, with no per-card heights to tune when content in pricing.json changes.
 // The chip is absolutely positioned (out of flow), so it never consumes a row track.
+//
+// Feature strings pass through `linkify` so tokens declared in pricing.json `links`
+// (e.g. "GitHub Issues") render as anchors — the link text still comes from the data.
+import { linkify, type PricingLink } from "../lib/pricingLinks";
+
 interface Plan {
   name: string;
   tagline: string;
@@ -17,7 +22,13 @@ interface Plan {
   includesLabel: string;
   features: string[];
 }
-const { plan } = Astro.props as { plan: Plan };
+const { plan, links = [] } = Astro.props as {
+  plan: Plan;
+  links?: PricingLink[];
+};
+
+const linkStyle =
+  "color:var(--yellow-400);text-decoration:underline;text-underline-offset:2px;";
 
 const card =
   "position:relative;display:grid;grid-row:span 4;grid-template-rows:subgrid;row-gap:16px;padding:28px 26px;border-radius:14px;box-sizing:border-box;background:rgba(255,255,255,0.025);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);";
@@ -98,7 +109,7 @@ const ctaOutline =
               />
             </svg>
             <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.72);">
-              {f}
+              {linkify(f, links).map((part) => (part.href ? <a href={part.href} target={part.href.startsWith("mailto:") ? undefined : "_blank"} rel={part.href.startsWith("mailto:") ? undefined : "noopener"} style={linkStyle}>{part.text}</a> : <Fragment>{part.text}</Fragment>))}
             </span>
           </div>
         ))

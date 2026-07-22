@@ -3,19 +3,32 @@ import Site from "../layouts/Site.astro";
 import SectionTitle from "../components/SectionTitle.astro";
 import HostingToggle from "../components/HostingToggle.tsx";
 import PlanCard from "../components/PlanCard.astro";
+import { linkify, type PricingLink } from "../lib/pricingLinks";
 
 // Single source of truth for ALL pricing-page content. No content literals below.
 import pricing from "../data/pricing.json";
 
-const { hostingToggle, plansByMode, comparison, faqs } = pricing;
+const { hero, hostingToggle, plansByMode, comparisonByMode, faqs } = pricing;
+const links = (pricing.links ?? []) as PricingLink[];
 type Plan = (typeof plansByMode.cloud)[number];
 
 // Hero / CTA-band destinations (not plan CTAs, which come from the data file).
 const CLOUD = "https://cloud.agenta.ai/";
 const DEMO = "https://cal.com/mahmoud-mabrouk-ogzgey/demo";
 
-// Comparison table: Features label + one column per plan (all five plans, always shown).
-const COLS = `grid-template-columns:1.4fr repeat(${comparison.columns.length}, 1fr);`;
+// Both comparison tables render server-side; the hosting toggle swaps them with the
+// same data-hosting CSS mechanism as the plan grids (correct pre-hydration / no JS).
+const comparisonModes = [
+  { mode: "cloud" as const, cls: "mode-cloud", data: comparisonByMode.cloud },
+  {
+    mode: "selfHosted" as const,
+    cls: "mode-selfhosted",
+    data: comparisonByMode.selfHosted,
+  },
+];
+
+const linkStyle =
+  "color:var(--yellow-400);text-decoration:underline;text-underline-offset:2px;";
 ---
 
 <Site
@@ -44,21 +57,17 @@ const COLS = `grid-template-columns:1.4fr repeat(${comparison.columns.length}, 1
         >
           <span
             style="display:inline-flex;align-items:center;height:24px;padding:0 13px;border-radius:999px;background:rgba(255,255,255,0.06);box-shadow:0 0 0 1px rgba(255,255,255,0.14);font:var(--text-caption);letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.7);"
-            >Pricing</span
+            >{hero.eyebrow}</span
           >
           <h1
             style="margin:0;font:var(--text-display-lg);color:#F7F6F4;max-width:760px;text-wrap:pretty;"
           >
-            Simple pricing that scales with your <span
-              style="display:inline-block;padding:0.02em 0.18em 0.08em;border-radius:10px;background:rgba(255,255,255,0.07);box-shadow:inset 0 1px 0.4px rgba(255,255,255,0.25),0 0 0 1px rgba(255,255,255,0.06);font-family:var(--font-bitmap,'PP Mondwest',monospace);font-weight:400;line-height:1.06;color:var(--yellow-400);"
-              >team</span
-            >
+            {hero.headline}
           </h1>
           <p
             style="margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.6);max-width:560px;text-wrap:pretty;"
           >
-            Self-host the open-source platform for free, or run on Agenta Cloud
-            with prompt management, evaluation, and observability built in.
+            {hero.description}
           </p>
         </div>
 
@@ -74,93 +83,100 @@ const COLS = `grid-template-columns:1.4fr repeat(${comparison.columns.length}, 1
     <!-- ============ PLAN CARDS ============ -->
     <section class="cards-section" data-screen-label="Plan cards">
       <div class="plan-grid plan-grid-cloud mode-cloud">
-        {plansByMode.cloud.map((plan: Plan) => <PlanCard plan={plan} />)}
+        {plansByMode.cloud.map((plan: Plan) => <PlanCard plan={plan} links={links} />)}
       </div>
       <div class="plan-grid plan-grid-self mode-selfhosted">
-        {plansByMode.selfHosted.map((plan: Plan) => <PlanCard plan={plan} />)}
+        {plansByMode.selfHosted.map((plan: Plan) => <PlanCard plan={plan} links={links} />)}
       </div>
     </section>
 
     <!-- ============ COMPARISON TABLE ============ -->
-    <!-- Always shows every plan side by side, independent of the toggle: comparing
-         all plans at once is the section's whole purpose. -->
+    <!-- One comparison table per hosting mode, both server-rendered and swapped by the
+         same data-hosting CSS as the plan grids. Cloud has 4 plan columns, self-hosted
+         has 2 — each uses its own grid template so the 2-column table fills the width
+         cleanly instead of leaving empty plan columns. -->
     <section class="cmp-section" data-screen-label="Comparison">
-      <div class="cmp-wrap">
-        <SectionTitle
-          dark
-          badge="Compare"
-          title="Compare every plan"
-          subtitle="All the limits and capabilities, side by side. Self-host the open-source core for free, forever."
-        />
+      {
+        comparisonModes.map(({ cls, data }) => {
+          const cols = data.columns.length;
+          const COLS = `grid-template-columns:1.4fr repeat(${cols}, 1fr);`;
+          // Wide (cloud/4-col) table keeps full-size columns and scrolls sideways on
+          // narrow viewports; the 2-col table is capped narrower so it reads cleanly.
+          const tableStyle =
+            cols >= 3
+              ? "min-width:920px;max-width:1336px;margin:0 auto;"
+              : "min-width:520px;max-width:900px;margin:0 auto;";
+          return (
+            <div class={`cmp-wrap ${cls}`}>
+              <SectionTitle dark badge="Compare" title={data.title} />
 
-        <div class="cmp-scroll" data-scroll="dark">
-          <div class="cmp-table">
-            <!-- header row -->
-            <div
-              style={`display:grid;${COLS}align-items:end;padding:0 24px 18px;border-bottom:1px solid rgba(255,255,255,0.12);`}
-            >
-              <span style="font:var(--text-label);color:rgba(255,255,255,0.5);"
-                >Features</span
-              >
-              {
-                comparison.columns.map((c) => (
-                  <div style="display:flex;flex-direction:column;gap:3px;">
-                    <span style="font:300 19px/1.1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">
-                      {c.name}
+              <div class="cmp-scroll" data-scroll="dark">
+                <div class="cmp-table" style={tableStyle}>
+                  {/* header row */}
+                  <div
+                    style={`display:grid;${COLS}align-items:end;padding:0 24px 18px;border-bottom:1px solid rgba(255,255,255,0.12);`}
+                  >
+                    <span style="font:var(--text-label);color:rgba(255,255,255,0.5);">
+                      Features
                     </span>
-                    <span style="font:var(--text-caption);color:rgba(255,255,255,0.5);">
-                      {c.price}
-                    </span>
-                  </div>
-                ))
-              }
-            </div>
-
-            {
-              comparison.groups.map((g) => (
-                <Fragment>
-                  <div style="padding:22px 24px 10px;">
-                    <span style="font:var(--text-caption);letter-spacing:0.08em;text-transform:uppercase;color:var(--yellow-400);">
-                      {g.title}
-                    </span>
-                  </div>
-                  {g.rows.map((r) => (
-                    <div
-                      style={`display:grid;${COLS}align-items:center;padding:14px 24px;border-top:1px solid rgba(255,255,255,0.07);`}
-                    >
-                      <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.78);">
-                        {r.label}
-                      </span>
-                      {r.cells.map((cell) => (
-                        <span style="display:flex;align-items:center;">
-                          {cell === true ? (
-                            <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
-                              <circle cx="9" cy="9" r="9" fill="var(--yellow-400)" />
-                              <path
-                                d="M5 9.2 7.6 11.8 13 6.4"
-                                stroke="var(--ink-900)"
-                                stroke-width="1.7"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                              />
-                            </svg>
-                          ) : cell === false ? (
-                            <span style="width:14px;height:1.5px;background:rgba(255,255,255,0.2);border-radius:2px;" />
-                          ) : (
-                            <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.78);">
-                              {cell}
-                            </span>
-                          )}
+                    {data.columns.map((c) => (
+                      <div style="display:flex;flex-direction:column;gap:3px;">
+                        <span style="font:300 19px/1.1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">
+                          {c.name}
                         </span>
+                        <span style="font:var(--text-caption);color:rgba(255,255,255,0.5);">
+                          {c.price}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {data.groups.map((g) => (
+                    <Fragment>
+                      <div style="padding:22px 24px 10px;">
+                        <span style="font:var(--text-caption);letter-spacing:0.08em;text-transform:uppercase;color:var(--yellow-400);">
+                          {g.title}
+                        </span>
+                      </div>
+                      {g.rows.map((r) => (
+                        <div
+                          style={`display:grid;${COLS}align-items:center;padding:14px 24px;border-top:1px solid rgba(255,255,255,0.07);`}
+                        >
+                          <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.78);">
+                            {linkify(r.label, links).map((part) => (part.href ? <a href={part.href} target={part.href.startsWith("mailto:") ? undefined : "_blank"} rel={part.href.startsWith("mailto:") ? undefined : "noopener"} style={linkStyle}>{part.text}</a> : <Fragment>{part.text}</Fragment>))}
+                          </span>
+                          {r.cells.map((cell) => (
+                            <span style="display:flex;align-items:center;">
+                              {cell === true ? (
+                                <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
+                                  <circle cx="9" cy="9" r="9" fill="var(--yellow-400)" />
+                                  <path
+                                    d="M5 9.2 7.6 11.8 13 6.4"
+                                    stroke="var(--ink-900)"
+                                    stroke-width="1.7"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                  />
+                                </svg>
+                              ) : cell === false ? (
+                                <span style="width:14px;height:1.5px;background:rgba(255,255,255,0.2);border-radius:2px;" />
+                              ) : (
+                                <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.78);">
+                                  {cell}
+                                </span>
+                              )}
+                            </span>
+                          ))}
+                        </div>
                       ))}
-                    </div>
+                    </Fragment>
                   ))}
-                </Fragment>
-              ))
-            }
-          </div>
-        </div>
-      </div>
+                </div>
+              </div>
+            </div>
+          );
+        })
+      }
     </section>
 
     <!-- ============ FAQ ============ -->
@@ -193,7 +209,9 @@ const COLS = `grid-template-columns:1.4fr repeat(${comparison.columns.length}, 1
                     />
                   </svg>
                 </summary>
-                <p class="faq-a">{f.answer}</p>
+                <p class="faq-a">
+                  {linkify(f.answer, links).map((part) => (part.href ? <a href={part.href} target={part.href.startsWith("mailto:") ? undefined : "_blank"} rel={part.href.startsWith("mailto:") ? undefined : "noopener"} style={linkStyle}>{part.text}</a> : <Fragment>{part.text}</Fragment>))}
+                </p>
               </details>
             ))
           }
