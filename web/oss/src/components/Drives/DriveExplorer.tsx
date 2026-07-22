@@ -964,7 +964,15 @@ const FolderView = ({
                                         return (
                                             <motion.div
                                                 className="min-w-0"
-                                                {...revealFade(gridRevealNow)}
+                                                // A new upload appears mid-listing, so it always fades
+                                                // itself in (the grid glides the others aside) — not
+                                                // gated on the folder's one-shot reveal.
+                                                initial={{opacity: 0, scale: 0.96}}
+                                                animate={{opacity: 1, scale: 1}}
+                                                transition={{
+                                                    duration: 0.18,
+                                                    ease: [0.4, 0, 0.2, 1],
+                                                }}
                                             >
                                                 <UploadTile
                                                     item={uploadItem}
@@ -1581,6 +1589,21 @@ export function DriveExplorer({
     useEffect(() => {
         prevLoadedRef.current = lazyTree.loadedDirs
     }, [lazyTree.loadedDirs])
+    // Every path ever shown (never pruned on collapse), so a row appearing in an ALREADY-loaded folder
+    // — an upload landing via the silent revalidate — is recognised as first-ever and fades in, while
+    // a cached folder's re-expand (paths seen before) does not. First loads are covered by
+    // justLoadedDirs above; this only adds the "new file in an open folder" case.
+    const everSeenRef = useRef<Set<string>>(new Set())
+    const firstEverPaths = useMemo(() => {
+        const fresh = new Set<string>()
+        for (const r of flatRows) {
+            if (!r.loading && !everSeenRef.current.has(r.node.path)) fresh.add(r.node.path)
+        }
+        return fresh
+    }, [flatRows])
+    useEffect(() => {
+        for (const r of flatRows) if (!r.loading) everSeenRef.current.add(r.node.path)
+    }, [flatRows])
     // Flat lookup of every tree node by path, so a selected FOLDER can render its children (folder
     // view) and a selected FILE the preview. Root ("") maps to the top-level nodes.
     const nodeByPath = useMemo(() => {
@@ -2013,7 +2036,10 @@ export function DriveExplorer({
                                         // THIS render animate in (staggered by sibling order), so the
                                         // skeleton→content swap settles gracefully. Empty on every
                                         // other render → the virtualizer's scroll remounts don't replay.
-                                        const reveal = !row.loading && justLoadedDirs.has(parent)
+                                        const reveal =
+                                            !row.loading &&
+                                            (justLoadedDirs.has(parent) ||
+                                                firstEverPaths.has(node.path))
                                         // Folder rows are drop targets: spring-load + upload, with a
                                         // tint while hovered.
                                         const rowFolderDrop =

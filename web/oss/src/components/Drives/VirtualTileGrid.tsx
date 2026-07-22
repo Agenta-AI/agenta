@@ -161,6 +161,7 @@ export function VirtualTileGrid<T>({
     // Layout runs on the frozen (final) width while a shift is in flight, else the live width.
     const layoutWidth = frozenWidth ?? width
     const [prevCols, setPrevCols] = useState<number | null>(null)
+    const [prevCount, setPrevCount] = useState<number | null>(null)
     const [reflowing, setReflowing] = useState(false)
     let cols =
         minColumnWidth && layoutWidth > 0
@@ -191,6 +192,16 @@ export function VirtualTileGrid<T>({
         setPrevCols(cols)
         setReflowing(true)
     }
+    // Item COUNT changed within the same mount (an optimistic upload tile inserted/removed, or an
+    // infinite-scroll append) → open the spring window so tiles that shift slot GLIDE instead of
+    // snapping. Tiles whose slot is unchanged (e.g. an end-append) spring to the same target, so they
+    // don't move; only the ones that actually reflow animate.
+    if (prevCount === null) {
+        setPrevCount(items.length)
+    } else if (items.length !== prevCount) {
+        setPrevCount(items.length)
+        setReflowing(true)
+    }
     // The live width caught up with the frozen target → unfreeze, keeping the spring window open so
     // the in-flight settle (and the ≤2px residual retarget) stays springy instead of snapping.
     if (arrived) {
@@ -202,7 +213,7 @@ export function VirtualTileGrid<T>({
         if (!reflowing) return
         const t = setTimeout(() => setReflowing(false), REFLOW_MS)
         return () => clearTimeout(t)
-    }, [reflowing, prevCols, frozenWidth])
+    }, [reflowing, prevCols, prevCount, frozenWidth])
     // Safety: never stay frozen if the pane's animation was interrupted and the width never arrives.
     useEffect(() => {
         if (frozenWidth === null) return
