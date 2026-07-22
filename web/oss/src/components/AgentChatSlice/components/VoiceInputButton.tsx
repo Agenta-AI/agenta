@@ -18,7 +18,7 @@ import {useVoiceInput} from "../hooks/useVoiceInput"
 
 type VoiceMode = "transcribe" | "audio"
 
-const voiceModeAtom = atomWithStorage<VoiceMode>("agenta:agent-chat:voice-mode", "transcribe")
+const voiceModeAtom = atomWithStorage<VoiceMode>("agenta:agent-chat:voice-mode", "audio")
 
 const VoiceInputButton = ({
     inputRef,
@@ -43,9 +43,10 @@ const VoiceInputButton = ({
         inputRef.current?.setMarkdown(base && live ? `${base} ${live}` : base || live)
     }, [mode, transcribe.recording, transcribe.liveText, inputRef])
 
+    // Primary action first: a voice message is the default; dictation is the alternative.
     const modes: {key: VoiceMode; label: string; supported: boolean}[] = [
-        {key: "transcribe", label: "Voice to text", supported: transcribe.supported},
         {key: "audio", label: "Voice message", supported: audioSupported},
+        {key: "transcribe", label: "Voice to text", supported: transcribe.supported},
     ]
     const available = modes.filter((m) => m.supported)
     if (!available.length) return null
