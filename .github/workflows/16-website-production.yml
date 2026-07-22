@@ -48,6 +48,9 @@ jobs:
           R2_S3_ENDPOINT: ${{ secrets.R2_S3_ENDPOINT }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          # PostHog project key: public by design (ingest-only); analytics also
+          # requires the runtime agenta.ai host guard, so previews stay silent.
+          PUBLIC_POSTHOG_KEY: phc_cFT4a4081mXuKxYIrhIt6cmDwSjAO8zQlw9CFE05oSI
         run: cd website && pnpm run build
 
       - name: Deploy production
