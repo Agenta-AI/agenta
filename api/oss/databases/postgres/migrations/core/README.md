@@ -1,5 +1,27 @@
 # Migrations with Alembic
 
+> [!IMPORTANT]
+> **This `core/` chain is PARKED (frozen legacy history).** Do **not** add new revisions
+> here — it ends at `park00000000_park_legacy_chain.py` and never advances. The same
+> applies to the parked `tracing/` chain.
+>
+> Author new migrations in the active chains instead:
+>
+> | Scope | Chain (author here) | Root | Version table | Runs in |
+> |-------|---------------------|------|---------------|---------|
+> | shared core schema | `core_oss/` (under `oss/`) | `oss000000000` | `alembic_version_oss` | **OSS and EE** (EE ships the `oss/` tree) |
+> | EE-only core schema | `core_ee/` (under `ee/`) | `ee0000000000` | `alembic_version_ee` | EE only |
+> | shared tracing schema | `tracing_oss/` | `oss000000000` | `alembic_version_oss` | OSS and EE |
+> | EE-only tracing schema | `tracing_ee/` | `ee0000000000` | `alembic_version_ee` | EE only |
+>
+> Define-once-use-both migrations (most schema changes) go in `core_oss` (or
+> `tracing_oss`) — author them **once**, never copy into the EE tree. Only genuinely
+> EE-divergent schema goes in `core_ee`/`tracing_ee`. Full rules and the OSS→EE edition
+> switch: `docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md`.
+>
+> The commands below still describe the alembic mechanics, but swap the `-w .../core`
+> working directory for `.../core_oss` (or the right active chain) when creating revisions.
+
 Generic single-database configuration with an async dbapi.
 
 ## Autogenerate Migrations

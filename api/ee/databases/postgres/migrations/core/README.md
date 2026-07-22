@@ -1,5 +1,12 @@
 # Migrations with Alembic
 
+> [!IMPORTANT]
+> **This `core/` chain is PARKED (frozen legacy history).** Do **not** add new revisions
+> here — it ends at `park00000000` and never advances. Shared schema changes go in
+> `oss/databases/postgres/migrations/core_oss/` (EE ships and runs the `oss/` tree);
+> EE-only schema goes in `core_ee/`. Full rules:
+> `docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md`.
+
 Generic single-database configuration with an async dbapi.
 
 ## Autogenerate Migrations
