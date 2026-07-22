@@ -35,21 +35,29 @@ const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className
 
     return (
         <div
-            className={`pointer-events-auto flex h-full items-center gap-3 rounded-xl border border-solid border-colorError bg-colorBgContainer px-3 shadow-sm ${className ?? ""}`}
+            role="status"
+            aria-live="polite"
+            // Red reads as "live", so it only appears once we are actually capturing — waiting on
+            // the mic is a neutral state, not an error.
+            className={`pointer-events-auto flex h-full items-center gap-3 rounded-xl border border-solid ${
+                requesting ? "border-colorBorder" : "border-colorError"
+            } bg-colorBgContainer px-3 shadow-sm ${className ?? ""}`}
         >
             <span className="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center">
-                {!requesting && (
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-colorError opacity-60" />
+                {requesting ? (
+                    <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-colorTextTertiary" />
+                ) : (
+                    <>
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-colorError opacity-60" />
+                        <span className="inline-flex h-2.5 w-2.5 rounded-full bg-colorError" />
+                    </>
                 )}
-                <span
-                    className={`inline-flex h-2.5 w-2.5 rounded-full ${
-                        requesting ? "bg-colorTextTertiary" : "bg-colorError"
-                    }`}
-                />
             </span>
 
             {requesting ? (
-                <span className="text-xs text-colorTextSecondary">Waiting for microphone…</span>
+                <span className="text-xs text-colorTextSecondary">
+                    Allow microphone access to start recording
+                </span>
             ) : (
                 <>
                     <span
@@ -77,23 +85,23 @@ const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className
                 </>
             )}
 
-            <div className="flex shrink-0 items-center gap-1">
-                <Tooltip title="Discard (Esc)">
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+                <Tooltip title={requesting ? "Cancel" : "Delete recording (Esc)"}>
                     <Button
                         type="text"
                         icon={<X size={16} />}
                         onClick={cancel}
-                        aria-label="Discard recording"
+                        aria-label={requesting ? "Cancel" : "Delete recording"}
                     />
                 </Tooltip>
                 {!requesting && (
-                    <Tooltip title="Stop & attach">
+                    <Tooltip title="Attach to message">
                         <Button
                             type="primary"
                             shape="circle"
                             icon={<Check size={16} />}
                             onClick={stop}
-                            aria-label="Stop and attach recording"
+                            aria-label="Stop recording and attach it"
                         />
                     </Tooltip>
                 )}

@@ -2238,16 +2238,16 @@ const AgentConversation = ({
                                         </button>
                                     </div>
                                 ) : null}
-                                <div className="relative">
+                                {/* `mb-3` lives here, not on the input, so the recording overlay
+                                (inset-0) covers the composer box exactly. */}
+                                <div className="relative mb-3">
                                     <Suspense
-                                        fallback={
-                                            <ComposerSkeleton className={`${CHAT_COLUMN} mb-3`} />
-                                        }
+                                        fallback={<ComposerSkeleton className={CHAT_COLUMN} />}
                                     >
                                         <RichChatInput
                                             ref={richInputRef}
                                             autoFocus={autoFocusComposer}
-                                            className={`${CHAT_COLUMN} mb-3`}
+                                            className={CHAT_COLUMN}
                                             // Onboarding: submit = commit the ephemeral — Enter creates the agent
                                             // (matching the composer's "↵ Send" hint); ⌘/Shift+Enter inserts newlines
                                             // for longer descriptions.
@@ -2381,7 +2381,7 @@ const AgentConversation = ({
                                         />
                                     </Suspense>
                                     {voiceRecorder.active ? (
-                                        <div className="pointer-events-none absolute inset-x-0 bottom-3 top-0 flex justify-center">
+                                        <div className="pointer-events-none absolute inset-0 flex justify-center">
                                             <RecordingBar
                                                 recorder={voiceRecorder}
                                                 className={`${CHAT_COLUMN} h-full`}
