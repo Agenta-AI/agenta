@@ -1987,6 +1987,7 @@ export function DriveExplorer({
                             // scroll together. `overscroll-contain` stops rubber-band chaining.
                             className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
                             onKeyDown={onTreeKeyDown}
+                            {...(canUpload ? drop.containerDropProps(currentFolder) : {})}
                         >
                             {flatRows.length === 0 ? (
                                 <Text type="secondary" className="px-1 !text-[11px]">
@@ -2013,11 +2014,22 @@ export function DriveExplorer({
                                         // skeleton→content swap settles gracefully. Empty on every
                                         // other render → the virtualizer's scroll remounts don't replay.
                                         const reveal = !row.loading && justLoadedDirs.has(parent)
+                                        // Folder rows are drop targets: spring-load + upload, with a
+                                        // tint while hovered.
+                                        const rowFolderDrop =
+                                            node.isFolder && canUpload
+                                                ? drop.folderDropProps(node.path)
+                                                : undefined
                                         return (
                                             <div
                                                 key={vRow.key}
                                                 data-index={vRow.index}
                                                 ref={measureRow}
+                                                className={
+                                                    drop.hoverPath === node.path
+                                                        ? "rounded bg-[var(--ant-color-primary-bg)]"
+                                                        : undefined
+                                                }
                                                 style={{
                                                     position: "absolute",
                                                     top: 0,
@@ -2025,6 +2037,7 @@ export function DriveExplorer({
                                                     width: "100%",
                                                     transform: `translateY(${vRow.start}px)`,
                                                 }}
+                                                {...rowFolderDrop}
                                             >
                                                 <motion.div {...revealFade(reveal)}>
                                                     {row.loading ? (
