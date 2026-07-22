@@ -10,6 +10,7 @@ import {useRouter} from "next/router"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {buildProjectSwitchHref} from "@/oss/lib/navigation/projectSwitchHref"
+import type {OrgDetails} from "@/oss/lib/Types"
 import {createProject, deleteProject, patchProject} from "@/oss/services/project"
 import type {ProjectsResponse} from "@/oss/services/project/types"
 import {appIdentifiersAtom} from "@/oss/state/appState"
@@ -75,7 +76,11 @@ const ListOfProjects = ({
             if (!proj) return
             const organizationId =
                 proj.organization_id ||
-                orgs.find((org) => org.default_workspace?.id === proj.workspace_id)?.id
+                // Latent: GET /organizations list omits default_workspace (details-only field) — typed as-is.
+                orgs.find(
+                    (org) =>
+                        (org as Partial<OrgDetails>).default_workspace?.id === proj.workspace_id,
+                )?.id
             if (!organizationId) return
             if (!map.has(organizationId)) {
                 map.set(organizationId, [])

@@ -15,8 +15,8 @@ interface ExpandedRowState<ChildType> {
 interface UseExpandableRowsConfig<RecordType, ChildType> {
     config: ExpandableRowConfig<RecordType, ChildType> | undefined
     rowKey: TableProps<RecordType>["rowKey"]
-    // dataSource is available for future use (e.g., clearing cache on data change)
-    _dataSource?: RecordType[]
+    // dataSource is accepted but unused for now (e.g., clearing cache on data change)
+    dataSource?: RecordType[]
 }
 
 interface UseExpandableRowsReturn<RecordType, _ChildType> {

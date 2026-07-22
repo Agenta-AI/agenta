@@ -10,9 +10,47 @@ Generated 2026-07-22 from `pnpm --filter @agenta/oss exec tsc --noEmit` and
 | OSS | 591 | 422 | 347 | **105** |
 | EE  | 525 | 391 | — | **115** |
 
-Remaining long tail (nothing above 5 errors/file): EvaluatorTemplateDropdown,
-observability_helpers, MetricDetailsPreviewPopover, DrillInView provider,
-NewEvaluation Select*Section InfiniteVirtualTable prop mismatches, EE Billing page.
+## Final-tail inventory (105 OSS + 11 EE-only) — wave plan for parallel agents
+
+Codes: TS2322 (32), TS2345 (21), TS2339 (17), TS2353 (6), TS2769 (5), rest singletons.
+No single-fix mega-clusters remain; grouping is by SCOPE so agents don't collide.
+
+### Wave 1 — shared roots (must land first; one agent or inline)
+
+**W1a. InfiniteVirtualTable internals (9 errs).** `atoms/columnHiddenKeys.ts` (2×TS2349
+not-callable), `columns/cells.tsx` (TS2558), `columns/createStandardColumns.tsx`
+(`columnVisibilityLocked` TS2353 — the extended-column type should be EXPORTED here and
+the three local copies made in the previous pass — `VisibilityColumn` in
+EvalRunDetails/buildPreviewColumns, `ObservabilityColumn`, `SessionColumn` — repointed to
+it), `columns/types.ts` (dataIndex on union), `InfiniteVirtualTableInner.tsx` (TS2345),
+`useExpandableRows.tsx`, `useTableKeyboardShortcuts.ts` (2). Fixing
+`InfiniteVirtualTableFeatureProps` here likely clears the three NewEvaluation
+Select*Section TS2322s in wave 2 for free.
+
+**W1b. Cross-cutting micro-patterns (~10 errs, mechanical).**
+- `PopoverStylesType` `body` key (TestsetsHeaderFilters, +1) — reuse the cast pattern
+  already applied in EvaluationRunsHeaderFilters.
+- `Cannot find namespace 'JSX'` (2) — React 19: `React.JSX.Element`.
+- Filter operator `string` → union (`FiltersPreview`, `Filters/Filters.tsx`) — the
+  operator union lives in lib/Types; type the producer.
+- `lib/traces/observability_helpers.ts` (4): `AgentaNodeDTO.span_id` (2) + 2 more —
+  legacy DTO vs span shape.
+- `Org.default_workspace` (2 sites) — verify against backend; add optional field or cast.
+
+### Wave 2 — disjoint consumer scopes (parallel, after wave 1)
+
+| Agent | Scope | Errs | Files |
+| --- | --- | --- | --- |
+| 2A | Evaluators + Evaluations | 16 | evaluatorFiltering.ts (FilterableEvaluator vs EvaluatorCatalogTemplate — one generic fix), EvaluatorTemplateDropdown, HumanEvaluatorDrawer, MetricDetailsPreviewPopover (ChartDatum missing label/count), ResponsiveMetricChart (d.edge undefined) |
+| 2B | pages/evaluations | 12 | NewEvaluationModalContent/Inner (TS2769, TabPlacement, unknown→string), Select*Section leftovers post-W1a, cellRenderers status-map index |
+| 2C | Testcases/Testsets/Deployments | 11 | TestcasesTableShell (store variance, rowSelection), CommitTestsetModal, TestcaseRowActionsDropdown, useTestcasesTable, TestsetsTable, DeploymentsDashboard (3) |
+| 2D | DrillInView + EditorViews | 10 | OSSdrillInUIProvider ComponentType mismatches (4 — the DrillInUIContext slot types under-declare the real editor props; widen the SLOT type, one fix clears all 4), TraceSpanDrillInView EntityAPI (same cast as DataPreviewEditor), viewModes TMode, SimpleSharedEditor (Format vs CodeLanguage, "html" member) |
+| 2E | App-shell misc | ~20 | pages/workspaces/accept (3), pages/w overview (3), Sidebar (3), state/project (2), services/{evaluations,evaluationRuns,runMetrics,organization} (6), RequireWorkflowKind (2), References (2), EntityIdentity (2), AgentChatSlice (2), lib/helpers (2) |
+| 2F | EE-only | 11 | Billing/index.tsx (7), PricingModalContent, HistoryConfig, ApiKeyInput, PostSignupHeader — run `pnpm --filter @agenta/ee exec tsc` |
+
+Sequencing: W1a+W1b first (small, fast). Then 2A–2F fully parallel — file sets are
+disjoint and none depend on each other. 2B should re-run tsc after W1a lands to see
+which Select*Section errors already died.
 
 Quick wins QW1–QW3 and QW5–QW10 are DONE (QW4 TraceSpanNode deferred — see below).
 Fixing exports also *surfaced* some previously-masked drift (broken imports resolve as

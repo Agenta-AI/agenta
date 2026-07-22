@@ -24,6 +24,7 @@ import Session from "supertokens-auth-react/recipe/session"
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {useSession} from "@/oss/hooks/useSession"
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
+import type {OrgDetails} from "@/oss/lib/Types"
 import {checkOrganizationAccess} from "@/oss/services/organization/api"
 import {useOrgData} from "@/oss/state/org"
 import {resetOrganizationData} from "@/oss/state/org"
@@ -798,7 +799,10 @@ const ListOfOrgs = ({
 
                     await deleteMutation.mutateAsync(orgToDelete)
                     const deletedOrg = organizations.find((org) => org.id === orgToDelete)
-                    const deletedWorkspaceId = deletedOrg?.default_workspace?.id || null
+                    // Latent: GET /organizations list omits default_workspace (details-only field) — typed as-is.
+                    const deletedWorkspaceId =
+                        (deletedOrg as Partial<OrgDetails> | undefined)?.default_workspace?.id ||
+                        null
                     clearWorkspaceOrgCache(deletedWorkspaceId)
                     clearLastUsedProjectId(deletedWorkspaceId)
                     // If we deleted the current org, select another one

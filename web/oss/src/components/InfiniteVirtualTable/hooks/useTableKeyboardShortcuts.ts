@@ -50,14 +50,14 @@ interface NormalizedRowShortcuts<RecordType> {
     onExport?: (payload: {key: Key | null; record: RecordType | null; selection: Key[]}) => void
 }
 
+export interface TableShortcutRowProps {
+    "data-ivt-row-key"?: Key
+    className?: string
+    onMouseEnter?: () => void
+}
+
 interface TableShortcutResult<RecordType> {
-    getRowProps?: (
-        record: RecordType,
-        index: number,
-    ) => {
-        className?: string
-        onMouseEnter?: () => void
-    }
+    getRowProps?: (record: RecordType, index?: number) => TableShortcutRowProps | undefined
 }
 
 const DEFAULT_HIGHLIGHT_CLASS = "ivt-row--highlighted"
@@ -121,7 +121,7 @@ const normalizeKeyboardShortcutConfig = <RecordType extends object>(
 const resolveRowKey = <RecordType extends object>(
     rowKey: InfiniteVirtualTableProps<RecordType>["rowKey"],
     record: RecordType,
-    index: number,
+    index?: number,
 ): Key | null => {
     if (typeof rowKey === "function") {
         const value = rowKey(record, index)
@@ -479,7 +479,8 @@ function useTableKeyboardShortcuts<RecordType extends object>({
         const entry = highlightEntryRef.current
         if (!entry) return false
         const isSelected = selectedKeySet.has(entry.key)
-        const nextKeys = isSelected
+        // Annotated: array-literal construction widens Key's unique-symbol member to symbol.
+        const nextKeys: Key[] = isSelected
             ? selectedKeys.filter((key) => key !== entry.key)
             : [...selectedKeys, entry.key]
         triggerSelectionChange(nextKeys)
@@ -516,12 +517,12 @@ function useTableKeyboardShortcuts<RecordType extends object>({
     }, [rowShortcuts, selectedKeySet, selectedKeys])
 
     const getRowProps = useCallback(
-        (record: RecordType, index: number) => {
+        (record: RecordType, index?: number) => {
             if (!rowShortcuts.enabled) return undefined
             const key = resolveRowKey(rowKey, record, index)
             if (key === null || key === undefined) return undefined
             const isHighlighted = highlightedKey !== null && key === highlightedKey
-            const props: Record<string, any> = {"data-ivt-row-key": key}
+            const props: TableShortcutRowProps = {"data-ivt-row-key": key}
             if (isHighlighted) {
                 props.className = rowShortcuts.highlightClassName
             }

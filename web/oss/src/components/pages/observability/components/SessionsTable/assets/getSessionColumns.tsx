@@ -1,7 +1,8 @@
 import {Key} from "react"
 
 import {ColumnVisibilityMenuTrigger} from "@agenta/ui/table"
-import {ColumnsType} from "antd/es/table"
+
+import type {ExtendedColumnType} from "@/oss/components/InfiniteVirtualTable"
 
 import {
     DurationCell,
@@ -26,11 +27,7 @@ export interface SessionRow {
 }
 
 // antd column extended with props consumed by the InfiniteVirtualTable layer.
-type SessionColumn = ColumnsType<SessionRow>[number] & {
-    columnVisibilityLocked?: boolean
-    columnVisibilityLabel?: string
-    exportEnabled?: boolean
-}
+type SessionColumn = ExtendedColumnType<SessionRow>
 
 export const getSessionColumns = (): SessionColumn[] => [
     {

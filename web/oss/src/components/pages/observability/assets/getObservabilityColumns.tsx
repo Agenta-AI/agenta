@@ -6,6 +6,7 @@ import {ColumnVisibilityMenuTrigger} from "@agenta/ui/table"
 import {Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 
+import type {ExtendedColumnType} from "@/oss/components/InfiniteVirtualTable"
 import {sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {
@@ -32,13 +33,7 @@ interface ObservabilityColumnsProps {
 export type TraceRow = TraceSpanNode & {key: Key; [key: string]: unknown}
 
 // antd column extended with props consumed by the InfiniteVirtualTable layer.
-type ObservabilityColumn = ColumnsType<TraceRow>[number] & {
-    defaultHidden?: boolean
-    maxWidth?: number
-    columnVisibilityLocked?: boolean
-    columnVisibilityLabel?: string
-    exportEnabled?: boolean
-}
+type ObservabilityColumn = ExtendedColumnType<TraceRow>
 
 const collectDefaultHiddenColumnKeys = <T,>(columns: ColumnsType<T>): string[] => {
     const hiddenKeys = new Set<string>()

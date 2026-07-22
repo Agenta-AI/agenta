@@ -5,6 +5,7 @@ import type {ColumnsType, ColumnType} from "antd/es/table"
 import clsx from "clsx"
 
 import {ColumnVisibilityHeader} from "@/oss/components/InfiniteVirtualTable"
+import type {ExtendedColumnType} from "@/oss/components/InfiniteVirtualTable"
 
 import type {
     EvaluationTableColumn,
@@ -120,7 +121,7 @@ export interface BuildPreviewColumnsResult<RowType> {
 }
 
 /** antd column extended with the visibility-menu label consumed by useColumnVisibility */
-type VisibilityColumn<RowType> = ColumnsType<RowType>[number] & {columnVisibilityLabel?: string}
+type VisibilityColumn<RowType> = ExtendedColumnType<RowType>
 
 const createStaticMetricColumns = <RowType,>(
     groupId: string,
