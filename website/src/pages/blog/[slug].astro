@@ -240,6 +240,7 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
           </a>
         </div>
         <div
+          id="post-related-grid"
           class="ag-grid"
           style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;"
         >
@@ -250,4 +251,22 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
       </section>
     )
   }
+
+  <style is:global>
+    /* "More from the blog" grid collapse: 4 → 2 (≤1024) → 1 (≤600). */
+    @media (max-width: 1024px) {
+      #post-related-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+    }
+    @media (max-width: 600px) {
+      #post-related-grid {
+        grid-template-columns: 1fr !important;
+      }
+      .ag-pad {
+        padding-left: 20px !important;
+        padding-right: 20px !important;
+      }
+    }
+  </style>
 </Site>

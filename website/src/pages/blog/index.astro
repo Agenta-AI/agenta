@@ -108,4 +108,37 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
       {all.map((post) => <PostCard post={post} variant="grid" />)}
     </div>
   </section>
+
+  <style is:global>
+    /* Category filter. The CategoryFilter island flips [data-filter] on
+       #blog-grid; these rules hide the non-matching cards. The default
+       (data-filter="All", and the no-JS state) shows every card. */
+    #blog-grid[data-filter="Engineering"] > a:not([data-category="Engineering"]),
+    #blog-grid[data-filter="Article"] > a:not([data-category="Article"]) {
+      display: none;
+    }
+
+    /* Grid + featured collapse mirrors agenta.ai/blog: grid 3 → 2 (≤1024) → 1
+       (≤600); the featured row stacks below 1024. */
+    @media (max-width: 1024px) {
+      #blog-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+      .ag-featrow {
+        flex-direction: column !important;
+      }
+      .ag-sec {
+        flex: 0 0 auto !important;
+      }
+    }
+    @media (max-width: 600px) {
+      #blog-grid {
+        grid-template-columns: 1fr !important;
+      }
+      .ag-pad {
+        padding-left: 20px !important;
+        padding-right: 20px !important;
+      }
+    }
+  </style>
 </Site>

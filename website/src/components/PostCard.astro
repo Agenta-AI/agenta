@@ -20,8 +20,8 @@ const href = `/blog/${post.id}`;
 const dateLabel = formatDate(date);
 const gradient = categoryGradient(category);
 
-// Vertical-card hero heights by variant.
-const heroHeight = variant === "featured" ? 300 : variant === "related" ? 160 : 168;
+// Vertical-card hero is a fixed 16:9 frame (matches agenta.ai/blog); the image
+// fills it with object-fit:cover so no card size distorts the crop.
 
 const darkPill =
   "position:relative;display:inline-flex;align-items:center;height:22px;padding:0 11px;border-radius:999px;background:rgba(0,0,0,0.35);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);font:var(--text-caption);letter-spacing:0.04em;color:rgba(255,255,255,0.85);";
@@ -76,7 +76,7 @@ const yellowPill =
       style="text-decoration:none;flex-direction:column;border-radius:12px;overflow:hidden;background:rgba(255,255,255,0.02);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.07);"
     >
       <div
-        style={`position:relative;height:${heroHeight}px;background:${gradient};overflow:hidden;display:flex;align-items:flex-end;padding:16px;box-sizing:border-box;`}
+        style={`position:relative;aspect-ratio:16/9;background:${gradient};overflow:hidden;display:flex;align-items:flex-end;padding:16px;box-sizing:border-box;`}
       >
         {heroImage ? (
           <img
