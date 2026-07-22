@@ -6,6 +6,10 @@ import {
   resolvePromptText,
 } from "../../protocol.ts";
 import { approvalDecisionOf } from "../../responder.ts";
+import {
+  APPROVED_EXECUTION_RESULT_UNKNOWN,
+  DEFERRED_NOT_EXECUTED_PREFIX,
+} from "../../tracing/otel.ts";
 
 export type ApprovalRenderHint = "executed" | "lastPending" | "stalePending";
 
@@ -132,6 +136,25 @@ function capToolResultBody(body: string): string {
 }
 
 /**
+ * A pause-terminalization sentinel is runner bookkeeping written when a turn parks, NOT a tool
+ * failure. Left on the generic `[<tool> error: …]` path the model reads "error" as a refusal — the
+ * parallel-approval bug (turn 6d34b1ea) — so render each as an explicit, non-error nudge. The two
+ * carry OPPOSITE guidance: a deferred call never ran and must be re-issued; an approved call may
+ * already have run and must NOT be retried. Returns undefined for any other tool result.
+ */
+function pauseSentinelNudge(block: ContentBlock): string | undefined {
+  if (typeof block.output !== "string") return undefined;
+  const toolName = block.toolName ?? "tool";
+  if (block.output.startsWith(DEFERRED_NOT_EXECUTED_PREFIX)) {
+    return `[${toolName} was NOT run — the turn paused for another approval first, so it was skipped, not denied. Call ${toolName} again with the same arguments now to run it.]`;
+  }
+  if (block.output === APPROVED_EXECUTION_RESULT_UNKNOWN) {
+    return `[${toolName} was approved and may have already run; its result was not observed before the pause ended the turn. Do NOT assume it failed and do NOT retry a side-effecting call.]`;
+  }
+  return undefined;
+}
+
+/**
  * Render one message for the replayed transcript, including resolved tool turns. Under
  * the cold model, ACP prompt content blocks cannot carry tool calls/results, so resolved
  * interactions are encoded as text.
@@ -168,10 +191,15 @@ export function messageTranscript(
           parts.push(`[user DENIED ${toolName}; the call was not executed.]`);
         }
       } else {
-        const body = capToolResultBody(safeJson(block.output));
-        parts.push(
-          `[${block.toolName ?? "tool"} ${block.isError ? "error" : "returned"}: ${body}]`,
-        );
+        const nudge = pauseSentinelNudge(block);
+        if (nudge !== undefined) {
+          parts.push(nudge);
+        } else {
+          const body = capToolResultBody(safeJson(block.output));
+          parts.push(
+            `[${block.toolName ?? "tool"} ${block.isError ? "error" : "returned"}: ${body}]`,
+          );
+        }
       }
     } else if (block.type === "image") {
       parts.push("[image]");
