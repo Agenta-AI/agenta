@@ -43,13 +43,15 @@ const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className
         <div
             role="status"
             aria-live="polite"
-            // Red reads as "live", so it only eases in once we are actually capturing — waiting on
-            // the mic is a neutral state, not an error.
-            className={`pointer-events-auto flex h-full items-center gap-3 rounded-xl border border-solid transition-colors duration-300 ${
-                requesting ? "border-colorBorder" : "border-colorError"
-            } bg-colorBgContainer px-3 shadow-sm ${className ?? ""}`}
+            // Matches the composer box exactly (radius / border token / bg / shadow) so the
+            // cross-fade reads as the input changing state — a different radius leaves the
+            // composer's corners poking out from under this one mid-transition. Red reads as
+            // "live", so it only eases in once we are actually capturing.
+            className={`pointer-events-auto flex h-full items-center gap-4 rounded-lg border border-solid bg-[var(--ag-colorBgContainer)] px-4 shadow-[var(--ag-surface-chat-shadow)] transition-colors duration-300 ${
+                requesting ? "border-[var(--ag-composer-border)]" : "border-colorError"
+            } ${className ?? ""}`}
         >
-            <span className="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center">
+            <span className="relative flex h-3 w-3 shrink-0 items-center justify-center">
                 <AnimatePresence initial={false}>
                     {!requesting && (
                         <motion.span
@@ -62,7 +64,7 @@ const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className
                     )}
                 </AnimatePresence>
                 <span
-                    className={`inline-flex h-2.5 w-2.5 rounded-full transition-colors duration-300 ${
+                    className={`inline-flex h-3 w-3 rounded-full transition-colors duration-300 ${
                         requesting ? "animate-pulse bg-colorTextTertiary" : "bg-colorError"
                     }`}
                 />
@@ -74,7 +76,7 @@ const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className
                         key="waiting"
                         {...FADE}
                         transition={FADE_TRANSITION}
-                        className="text-xs text-colorTextSecondary"
+                        className="text-sm text-colorTextSecondary"
                     >
                         Allow microphone access to start recording
                     </motion.span>
@@ -86,19 +88,19 @@ const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className
                         className="flex flex-1 items-center gap-3"
                     >
                         <span
-                            className={`text-xs tabular-nums transition-colors duration-300 ${
+                            className={`text-sm tabular-nums transition-colors duration-300 ${
                                 nearLimit ? "text-colorError" : "text-colorText"
                             }`}
                         >
                             {mmss(elapsedMs)}
                         </span>
-                        <div className="flex flex-1 items-center gap-0.5" aria-hidden>
+                        <div className="flex flex-1 items-center gap-1" aria-hidden>
                             {BAR_THRESHOLDS.map((threshold, i) => (
                                 <span
                                     key={i}
-                                    className="w-0.5 rounded-full bg-colorError transition-opacity duration-100"
+                                    className="w-[3px] rounded-full bg-colorError transition-opacity duration-100"
                                     style={{
-                                        height: `${6 + i * 2}px`,
+                                        height: `${8 + i * 3}px`,
                                         opacity: level >= threshold ? 1 : 0.2,
                                     }}
                                 />
@@ -110,7 +112,7 @@ const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className
                                     key="left"
                                     {...FADE}
                                     transition={FADE_TRANSITION}
-                                    className="text-[11px] text-colorError"
+                                    className="text-xs text-colorError"
                                 >
                                     {mmss(remaining)} left
                                 </motion.span>
@@ -124,7 +126,7 @@ const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className
                 <Tooltip title={requesting ? "Cancel" : "Delete recording (Esc)"}>
                     <Button
                         type="text"
-                        icon={<X size={16} />}
+                        icon={<X size={18} />}
                         onClick={cancel}
                         aria-label={requesting ? "Cancel" : "Delete recording"}
                     />
@@ -142,7 +144,7 @@ const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className
                                 <Button
                                     type="primary"
                                     shape="circle"
-                                    icon={<Check size={16} />}
+                                    icon={<Check size={18} />}
                                     onClick={stop}
                                     aria-label="Stop recording and attach it"
                                 />
