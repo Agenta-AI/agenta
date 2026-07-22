@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useRef, useState, type RefObject} from "react"
 
 /**
  * Records mic audio via MediaRecorder and hands back a `File` on stop (for the attachment tray).
@@ -37,15 +37,27 @@ const getAudioContextCtor = (): typeof AudioContext | undefined => {
     return w.AudioContext ?? w.webkitAudioContext
 }
 
+/** Live capture readouts. Kept in a ref, NOT React state: they tick at animation-frame rate, and
+ * this hook is owned by a very large component — putting them in state re-renders the whole
+ * conversation 60x a second. `RecordingBar` samples this ref itself, so only it repaints. */
+export interface AudioMeter {
+    level: number
+    elapsedMs: number
+}
+
 export interface AudioRecorder {
     supported: boolean
     status: RecorderStatus
-    /** True while requesting permission or recording (the composer shows the recording bar). */
+    /** True while requesting permission or recording. */
     active: boolean
-    /** Elapsed recording time in ms (for a live mm:ss readout). */
-    elapsedMs: number
-    /** Smoothed input level, 0–1 (for a live level meter). */
-    level: number
+    /**
+     * Whether to show the recording takeover. Recording shows immediately; a pending permission
+     * only shows once it is slow enough to be worth explaining — otherwise an instantly-resolved
+     * request (already granted, or already denied) flashes the bar in and straight back out.
+     */
+    takeoverVisible: boolean
+    /** Live level + elapsed, sampled by the meter UI (see `AudioMeter`). */
+    meterRef: RefObject<AudioMeter>
     /** Human message for the `denied` / `error` states; null otherwise. */
     error: string | null
     start: () => void
@@ -63,9 +75,8 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
         typeof MediaRecorder !== "undefined"
 
     const [status, setStatus] = useState<RecorderStatus>("idle")
-    const [elapsedMs, setElapsedMs] = useState(0)
-    const [level, setLevel] = useState(0)
     const [error, setError] = useState<string | null>(null)
+    const meterRef = useRef<AudioMeter>({level: 0, elapsedMs: 0})
 
     const recRef = useRef<MediaRecorder | null>(null)
     const streamRef = useRef<MediaStream | null>(null)
@@ -87,7 +98,7 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
         streamRef.current?.getTracks().forEach((t) => t.stop())
         streamRef.current = null
         recRef.current = null
-        setLevel(0)
+        meterRef.current = {level: 0, elapsedMs: 0}
     }, [])
 
     const meter = useCallback((stream: MediaStream) => {
@@ -105,8 +116,9 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
                 analyser.getByteTimeDomainData(buf)
                 let peak = 0
                 for (const v of buf) peak = Math.max(peak, Math.abs(v - 128))
-                // Smooth toward the new peak so the meter doesn't strobe.
-                setLevel((prev) => prev * 0.6 + Math.min(1, peak / 90) * 0.4)
+                // Smooth toward the new peak so the meter doesn't strobe. Ref write, no re-render.
+                const prev = meterRef.current.level
+                meterRef.current.level = prev * 0.6 + Math.min(1, peak / 90) * 0.4
                 rafRef.current = requestAnimationFrame(tick)
             }
             rafRef.current = requestAnimationFrame(tick)
@@ -150,12 +162,12 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
                 }
                 recRef.current = rec
                 startedAtRef.current = Date.now()
-                setElapsedMs(0)
+                meterRef.current = {level: 0, elapsedMs: 0}
                 setStatus("recording")
                 meter(stream)
                 timerRef.current = window.setInterval(() => {
                     const ms = Date.now() - startedAtRef.current
-                    setElapsedMs(ms)
+                    meterRef.current.elapsedMs = ms
                     if (ms >= MAX_RECORDING_MS) rec.stop() // auto-stop and keep at the cap
                 }, 200)
                 rec.start()
@@ -191,12 +203,25 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
         [teardown],
     )
 
+    // A permission request that resolves immediately (already granted, or already denied) would
+    // otherwise flash the takeover in and straight back out. Only surface the waiting state once
+    // it has actually lasted long enough to be worth explaining.
+    const [requestingIsSlow, setRequestingIsSlow] = useState(false)
+    useEffect(() => {
+        if (status !== "requesting") {
+            setRequestingIsSlow(false)
+            return
+        }
+        const t = window.setTimeout(() => setRequestingIsSlow(true), 350)
+        return () => window.clearTimeout(t)
+    }, [status])
+
     return {
         supported,
         status,
         active: status === "requesting" || status === "recording",
-        elapsedMs,
-        level,
+        takeoverVisible: status === "recording" || (status === "requesting" && requestingIsSlow),
+        meterRef,
         error,
         start,
         stop,

@@ -2378,7 +2378,7 @@ const AgentConversation = ({
                                     {/* Cross-fades over the composer instead of popping; same spring
                                     as the rest of the slice's chrome. */}
                                     <AnimatePresence initial={false}>
-                                        {voiceRecorder.active && (
+                                        {voiceRecorder.takeoverVisible && (
                                             <motion.div
                                                 key="recording"
                                                 initial={{opacity: 0, y: 4}}

@@ -1,4 +1,4 @@
-import {useEffect} from "react"
+import {useEffect, useState} from "react"
 
 import {Check, X} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
@@ -22,8 +22,26 @@ const FADE_TRANSITION = {duration: 0.15}
 /** The composer's recording takeover: shown over the input while a voice message is captured.
  * Live timer + input-level meter, with discard (cancel) and stop-&-attach (keep) exits. */
 const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className?: string}) => {
-    const {status, elapsedMs, level, stop, cancel} = recorder
+    const {status, meterRef, stop, cancel} = recorder
     const requesting = status === "requesting"
+
+    // Sample the live readouts here rather than holding them in the recorder's owner — this is a
+    // small component, so a frame-rate repaint is cheap; the conversation is not.
+    const [meter, setMeter] = useState({level: 0, elapsedMs: 0})
+    useEffect(() => {
+        let raf = 0
+        const tick = () => {
+            const {level, elapsedMs} = meterRef.current
+            setMeter((prev) =>
+                prev.level === level && prev.elapsedMs === elapsedMs ? prev : {level, elapsedMs},
+            )
+            raf = requestAnimationFrame(tick)
+        }
+        raf = requestAnimationFrame(tick)
+        return () => cancelAnimationFrame(raf)
+    }, [meterRef])
+
+    const {level, elapsedMs} = meter
     const remaining = Math.max(0, MAX_RECORDING_MS - elapsedMs)
     const nearLimit = !requesting && remaining <= 30_000
 
