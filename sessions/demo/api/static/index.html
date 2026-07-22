@@ -1,0 +1,943 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>persistent-sessions playground</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #ddd; background: #14161a; }
+  header { padding: 10px 16px; background: #1c1f26; border-bottom: 1px solid #2a2e37; font-weight: 600; }
+  .wrap { display: grid; grid-template-columns: 340px 1fr; height: 100vh; }
+  .side { border-right: 1px solid #2a2e37; overflow: auto; padding: 10px; }
+  /* right pane: collapsible panels on top, then a chat CARD that fills the rest. The chat card
+     owns its own scroll history + composer pinned to ITS bottom (a self-contained chat section). */
+  .main { overflow: hidden; padding: 16px; display: grid; grid-template-rows: auto 1fr; gap: 12px; height: 100vh; }
+  .panels { display: flex; flex-direction: column; gap: 8px; }
+  .chat-card { border: 1px solid #2a2e37; border-radius: 8px; display: grid; grid-template-rows: 1fr auto; overflow: hidden; min-height: 0; }
+  .chat-scroll { overflow: auto; padding: 14px 16px; }
+  .composer { border-top: 1px solid #2a2e37; padding: 12px; background: #14161a; }
+  /* keep scrolling, hide the scrollbar chrome (Firefox + WebKit/Chromium) */
+  .side, .main, pre { scrollbar-width: none; -ms-overflow-style: none; }
+  .side::-webkit-scrollbar, .main::-webkit-scrollbar, pre::-webkit-scrollbar { width: 0; height: 0; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #8a93a3; margin: 0 0 8px; }
+  .sess { position: relative; padding: 9px 46px 9px 11px; border: 1px solid #2a2e37; border-radius: 6px; margin-bottom: 6px; cursor: pointer; }
+  .sess:hover { background: #1c1f26; }
+  .sess .actions { position: absolute; top: 0; bottom: 0; right: 0; padding: 7px 6px; display: flex; flex-direction: column; justify-content: space-between; gap: 2px; border-left: 1px solid #2a2e37; }
+  .sess .actions button { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: transparent; color: #6a7383; border: 0; border-radius: 5px; padding: 0; cursor: pointer; transition: color .12s, background .12s; }
+  .sess .actions button svg { display: block; flex: 0 0 auto; aspect-ratio: 1 / 1; }
+  .sess .actions .slot { width: 28px; height: 28px; }  /* spacer keeps delete pinned bottom when no kill */
+  .sess .del:hover { color: #f56b6b; background: rgba(245,107,107,.14); }
+  .sess .actions button.kill { color: #c2412f; }  /* dark red — kill only renders when a sandbox is live (killable) */
+  .sess .actions button.kill:hover { color: #e25555; background: rgba(226,85,85,.16); }
+  .sess .live { color: #5ec98a; }
+  .sess .run { color: #4c8bf5; }
+  .sess .run.detached { color: #e5b878; }  /* amber = run continues but no tab is watching */
+  .sess.active { border-color: #4c8bf5; background: #1a2230; }
+  .sess .id { color: #7fd1b9; word-break: break-all; font-size: 11.5px; margin-bottom: 4px; }
+  textarea, input, select { width: 100%; background: #0f1115; color: #ddd; border: 1px solid #2a2e37; border-radius: 6px; padding: 8px; font: inherit; }
+  textarea:focus, input:focus, select:focus { outline: none; border-color: #4c8bf5; }
+  select {
+    -webkit-appearance: none; appearance: none; cursor: pointer; padding-right: 30px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' fill='none' stroke='%238a93a3' stroke-width='1.5'/></svg>");
+    background-repeat: no-repeat; background-position: right 10px center;
+  }
+  select:hover { border-color: #3a414e; }
+  select:disabled { opacity: .55; cursor: default; }
+  select option { background: #1c1f26; color: #ddd; }
+  button { background: #4c8bf5; color: #fff; border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer; font: inherit; }
+  button:disabled { opacity: .5; cursor: default; }
+  /* primary button: fixed min-width so Send<->Cancel doesn't shift the row (pixel parity) */
+  #send { min-width: 76px; }
+  #send.danger { background: #c2412f; }
+  /* composer: textarea + send button, SAME height. align-items:stretch makes the button match
+     the textarea's rendered height exactly; the button stays ~square via its fixed width. */
+  .composer-row { display: flex; gap: 8px; align-items: stretch; }
+  .composer textarea { flex: 1; resize: none; height: 52px; min-height: 52px; box-sizing: border-box; }
+  .send-split { flex: 0 0 52px; }
+  .send-split .main-act { width: 52px; height: 100%; padding: 0; border-radius: 8px;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 22px; line-height: 1; }
+  .send-split.running .main-act { background: #c2412f; }
+  /* collapsible panels (filesystem, transcript) — same look as the old details.log */
+  details.panel { border: 1px solid #2a2e37; border-radius: 8px; background: #14161a; }
+  details.panel > summary { cursor: pointer; padding: 9px 12px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #8a93a3; list-style: none; }
+  details.panel > summary::-webkit-details-marker { display: none; }
+  details.panel > summary::before { content: '▸ '; }
+  details.panel[open] > summary::before { content: '▾ '; }
+  details.panel .panel-body { padding: 0 12px 12px; }
+  /* gated: can't open a panel until a session is selected */
+  details.panel.disabled > summary { color: #4a505c; cursor: not-allowed; }
+  details.panel.disabled { opacity: .6; }
+  /* resizable container: drag the bottom-right corner to grow it (full width, taller) */
+  .resizable { resize: vertical; overflow: auto; height: 260px; min-height: 120px; }
+  .files.resizable { display: grid; grid-template-columns: 220px 1fr; gap: 0; }
+  .files.resizable .filelist { overflow: auto; padding-right: 10px; border-right: 1px solid #2a2e37; }
+  .files.resizable #filebody { overflow: auto; height: 100%; margin: 0; border-radius: 0; }
+  #transcript.resizable { background: #0b0d10; border-radius: 6px; padding: 8px; max-height: none; }
+  /* attach/detach card icon: lives in the .actions stack like kill/delete */
+  .sess .actions button.watch { color: #6aa3e0; }
+  .sess .actions button.watch:hover { color: #9cc4f0; background: rgba(106,163,224,.16); }
+  /* force = a pill toggle: grey/off, blue/on, with a sliding knob */
+  button.toggle { display: inline-flex; align-items: center; gap: 7px; background: #1c1f26; color: #8a93a3; border: 1px solid #2a2e37; padding: 6px 12px 6px 8px; border-radius: 999px; font-size: 12px; }
+  button.toggle .knob { width: 26px; height: 15px; border-radius: 999px; background: #3a414e; position: relative; transition: background .15s; flex: 0 0 auto; }
+  button.toggle .knob::after { content: ''; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: #8a93a3; transition: transform .15s, background .15s; }
+  button.toggle[aria-checked="true"] { color: #cfe0ff; border-color: #345; }
+  button.toggle[aria-checked="true"] .knob { background: #4c8bf5; }
+  button.toggle[aria-checked="true"] .knob::after { transform: translateX(11px); background: #fff; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .dim { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+  .dim > span { font-size: 9.5px; text-transform: uppercase; letter-spacing: .07em; color: #6a7383; }
+  /* Parameters: label on the LEFT of each dropdown (saves vertical space) */
+  #params .dim { flex-direction: row; align-items: center; gap: 8px; margin-bottom: 7px; }
+  #params .dim > span { flex: 0 0 64px; margin: 0; }
+  #params .dim select { flex: 1; }
+  .card { border: 1px solid #2a2e37; border-radius: 8px; padding: 12px; }
+  .file-row { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 4px; }
+  .file-row:hover { background: #1c1f26; }
+  .file-row.active { background: #1a2230; }
+  .file-row .fname { flex: 1; cursor: pointer; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-row.active .fname { color: #7fd1b9; }
+  .file-row .caret { flex: 0 0 10px; color: #6a7383; font-size: 9px; cursor: pointer; }
+  .file-row.dir .fname { color: #9cc1f5; cursor: pointer; }  /* folders read as blue */
+  .file-row .fsize { color: #6a7383; font-size: 10.5px; flex: 0 0 auto; }
+  .file-row .fdel { background: transparent; color: #6a7383; border: 0; padding: 0 4px; cursor: pointer; font-size: 11px; opacity: 0; flex: 0 0 auto; }
+  .file-row:hover .fdel { opacity: 1; }
+  .file-row .fdel:hover { color: #f56b6b; }
+  pre { margin: 0; white-space: pre-wrap; word-break: break-word; background: #0f1115; padding: 10px; border-radius: 6px; overflow: auto; }
+  .ev { border-left: 2px solid #2a2e37; padding: 2px 0 2px 10px; margin: 2px 0; }
+  .ev .tag { color: #c08bf5; }
+  .ev.client .tag { color: #f5b14c; }
+  /* chat: user bubble (right, blue) / agent bubble (left, dark) / tool chips */
+  #chat { display: flex; flex-direction: column; gap: 8px; }
+  .bubble { max-width: 78%; padding: 8px 11px; border-radius: 10px; white-space: pre-wrap; word-break: break-word; }
+  .bubble.user { align-self: flex-end; background: #20354f; color: #cfe0ff; border-bottom-right-radius: 3px; }
+  .bubble.agent { align-self: flex-start; background: #1c1f26; color: #d7dbe2; border: 1px solid #2a2e37; border-bottom-left-radius: 3px; }
+  .bubble .who { font-size: 9.5px; text-transform: uppercase; letter-spacing: .07em; color: #6a7383; margin-bottom: 3px; }
+  /* tool call = one detailed line: kind glyph + a one-liner (command / file path) */
+  .tool-line { align-self: flex-start; display: flex; align-items: baseline; gap: 7px; max-width: 88%; font-size: 11.5px; color: #9b8fb5; padding: 1px 2px; }
+  .tool-line .ti { flex: 0 0 auto; width: 13px; text-align: center; color: #c2a5f5; font-weight: 600; }
+  .tool-line .tl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .9; }
+  .tool-line.done .ti { color: #5ec98a; }
+  .tool-line.failed .ti { color: #f56b6b; }
+  .tool-line.failed .tl { color: #f5a6a6; }
+  /* a real cancel in the transcript -> hairline rule with "interrupted" centered */
+  .chat-sep { align-self: stretch; display: flex; align-items: center; gap: 12px; margin: 10px 0; color: #8a93a3; font-size: 10px; text-transform: uppercase; letter-spacing: .1em; }
+  .chat-sep::before, .chat-sep::after { content: ''; flex: 1 1 auto; height: 1px; background: #353a44; }
+  #transcript { background: #0b0d10; border-radius: 6px; padding: 8px; max-height: 320px; overflow: auto; }
+  .muted { color: #8a93a3; }
+  .badge { display: inline-block; font-size: 11.5px; line-height: 1.3; padding: 1px 8px; border-radius: 9px; background: #2a2e37; color: #aab; white-space: nowrap; }
+  /* one colour per dimension so a card reads at a glance */
+  .badge.b-sandbox  { background: #243044; color: #9cc1f5; }  /* blue  = where */
+  .badge.b-harness  { background: #2c2440; color: #c2a5f5; }  /* purple = agent */
+  .badge.b-provider { background: #1f3a2e; color: #7fd1a0; }  /* green = LLM api */
+  .badge.b-model    { background: #382f1c; color: #e5b878; }  /* amber = model */
+  .badge.b-reasoning{ background: #3a2430; color: #f0a0bc; }  /* pink  = reasoning */
+  .sess .meta { color: #8a93a3; font-size: 11px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-top: 4px; }
+  .sess .meta.line-events { margin-top: 2px; margin-bottom: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="side">
+    <!-- PARAMETERS: the 5 session dimensions (request.data.parameters). Locked once a session
+         exists; editable while composing a new session. -->
+    <div class="card" id="params" style="margin-bottom:10px">
+      <h2>Parameters</h2>
+      <label class="dim"><span>sandbox</span>
+        <select id="sandbox" onchange="onHarnessChange()">
+          <option value="local">local</option>
+          <option value="docker">docker</option>
+          <option value="daytona">daytona</option>
+          <option value="modal">modal</option>
+          <option value="e2b">e2b</option>
+        </select>
+      </label>
+      <label class="dim"><span>harness</span>
+        <select id="harness" onchange="onHarnessChange()">
+          <option value="claude">claude</option>
+          <option value="codex">codex</option>
+          <option value="opencode">opencode</option>
+          <option value="pi">pi</option>
+        </select>
+      </label>
+      <label class="dim"><span>provider</span>
+        <select id="provider" onchange="onProviderChange()">
+          <option value="anthropic">anthropic</option>
+          <option value="openai">openai</option>
+        </select>
+      </label>
+      <label class="dim"><span>model</span>
+        <select id="model"></select>
+      </label>
+      <label class="dim"><span>reasoning</span>
+        <select id="reasoning">
+          <option value="none">none</option>
+          <option value="low">low</option>
+          <option value="medium">medium</option>
+          <option value="high">high</option>
+        </select>
+      </label>
+    </div>
+    <button onclick="newSession()" style="width:100%;margin-bottom:10px">+ new session</button>
+    <div id="sessions"></div>
+  </div>
+
+  <!-- RIGHT: resizable FS/Transcript panels (gated on a selected session) + a self-contained
+       chat card (history scrolls, composer pinned to its bottom). -->
+  <div class="main">
+    <div class="panels">
+      <details class="panel" id="fs-panel">
+        <summary>Filesystem</summary>
+        <div class="panel-body">
+          <div class="files resizable">
+            <div class="filelist" id="filelist"></div>
+            <pre id="filebody" class="muted">select a file</pre>
+          </div>
+        </div>
+      </details>
+      <details class="panel" id="tx-panel">
+        <summary>Transcript</summary>
+        <div class="panel-body">
+          <div id="transcript" class="resizable"></div>
+        </div>
+      </details>
+    </div>
+
+    <div class="chat-card">
+      <div class="chat-scroll">
+        <div id="chat"></div>
+      </div>
+      <div class="composer">
+        <div class="composer-row">
+          <textarea id="prompt" rows="2" placeholder="Type something here  (enter = newline · shift+enter = send · command+enter = steer)"></textarea>
+          <div class="send-split" id="send-split">
+            <button id="send" class="main-act" title="send (shift+enter)" onclick="primaryAction()"></button>
+          </div>
+        </div>
+        <div id="status" class="muted" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+// Surface errors instead of swallowing them silently (the hidden #status hid this for too long).
+window.addEventListener('error', (e) => { console.error('[window.error]', e.message, e.error); showStatus('JS error: ' + e.message, true); });
+window.addEventListener('unhandledrejection', (e) => { console.error('[unhandledrejection]', e.reason); showStatus('promise error: ' + (e.reason?.message || e.reason), true); });
+// Status is SILENT for normal states (sending/done/steering = noise). Only real ERRORS render.
+function showStatus(msg, isError) {
+  const s = document.getElementById('status');
+  if (!s) return;
+  if (!isError) { s.style.display = 'none'; s.textContent = ''; return; }
+  s.style.display = '';
+  s.textContent = msg;
+  s.style.color = '#f56b6b';
+}
+
+let current = null;
+
+const uuidv4 = () => (crypto.randomUUID ? crypto.randomUUID()
+  : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    }));
+
+let allSessions = [];
+
+// change signal for the selected session: re-render its detail panes only when its data
+// actually moved (new events / activity), so polling never clobbers the open file or scroll.
+let currentSig = null;
+let openFile = null; // path of the file the user has open, so refreshes can keep it selected
+function sigOf(s) { return s ? `${s.events}|${s.updated_at}|${s.sandbox_id || ''}|${s.live}|${s.run_alive}|${s.attached}` : null; }
+
+// The composer's single send button: ↑ sends (shift+enter); while a run is in flight it becomes
+// a ■ Stop (cancel). Steer (force takeover) has no button — it's the command+enter shortcut.
+const ICON_SEND = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`;
+const ICON_STOP = `<svg viewBox="0 0 24 24" width="18" height="18"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>`;
+function setRunning(on) {
+  const split = $('send-split');
+  split.classList.toggle('running', on);
+  $('send').innerHTML = on ? ICON_STOP : ICON_SEND;
+  $('send').title = on ? 'stop the run' : 'send (shift+enter)';
+}
+
+// ↑ primary action: Stop while running, else Send.
+function primaryAction() {
+  if ($('send-split').classList.contains('running')) cancelRun();
+  else invoke(false);
+}
+// Steer = force takeover (command+enter). No button; keep the fn for the shortcut.
+function steerSend() {
+  invoke(true);
+}
+
+// Model vocabularies are HARNESS-specific (discovered from each adapter), not just
+// provider-specific. claude is anthropic-only, codex is openai-only; opencode & pi
+// accept both and use provider/model-prefixed ids.
+//   - providers: which LLM APIs a harness supports (first = default; single = locked)
+//   - models[provider]: the selectable model ids for that harness+provider
+const HARNESS = {
+  claude: {
+    providers: ["anthropic"],
+    models: { anthropic: ["default", "opus[1m]", "sonnet", "sonnet[1m]", "haiku"] },
+  },
+  codex: {
+    providers: ["openai"],
+    models: { openai: ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"] },
+  },
+  opencode: {
+    providers: ["anthropic", "openai"],
+    models: {
+      anthropic: ["anthropic/claude-opus-4-8", "anthropic/claude-sonnet-4-6", "anthropic/claude-haiku-4-5"],
+      openai: ["openai/gpt-5.5", "openai/gpt-5.4", "openai/gpt-5.4-mini", "openai/o4-mini"],
+    },
+  },
+  pi: {
+    providers: ["anthropic", "openai"],
+    models: {
+      anthropic: ["anthropic/claude-opus-4-8", "anthropic/claude-sonnet-4-6", "anthropic/claude-haiku-4-5"],
+      openai: ["openai/gpt-5.5", "openai/gpt-5.4", "openai/gpt-5.4-mini", "openai/o4-mini"],
+    },
+  },
+};
+
+const $ = (id) => document.getElementById(id);
+// the list filter key = sandbox/harness (where × what)
+function harness(s) { return `${s.sandbox}/${s.harness}`; }
+// model id sometimes carries a redundant "provider/" prefix (opencode/pi) — drop it
+function modelShort(s) {
+  if (!s.model) return '';
+  return s.model.startsWith(s.provider + '/') ? s.model.slice(s.provider.length + 1) : s.model;
+}
+
+// Cascade: harness -> allowed providers (lock if single) -> models for that provider.
+// Pass selected provider/model to preserve them when reflecting an existing session.
+function refreshProviderAndModels(selProvider, selModel) {
+  const h = $('harness').value;
+  const spec = HARNESS[h] || HARNESS.claude;
+  const provSel = $('provider');
+  provSel.innerHTML = spec.providers.map(p => `<option value="${p}">${p}</option>`).join('');
+  if (selProvider && spec.providers.includes(selProvider)) provSel.value = selProvider;
+  // claude/codex have a single provider -> lock it; opencode/pi -> selectable
+  provSel.disabled = spec.providers.length === 1 || $('sandbox').disabled;
+  refreshModels(selModel);
+}
+
+function refreshModels(selModel) {
+  const h = $('harness').value, prov = $('provider').value;
+  const models = (HARNESS[h]?.models?.[prov]) || [];
+  const sel = $('model');
+  sel.innerHTML = models.map(m => `<option value="${m}">${m}</option>`).join('');
+  if (selModel && models.includes(selModel)) sel.value = selModel;
+}
+
+function onProviderChange() { refreshModels(); }
+
+async function refreshSessions() {
+  // Returns true on a SUCCESSFUL fetch (so callers can trust an absent session = deleted, not a
+  // transient failure). On error, leave allSessions as-is and signal failure.
+  let sessions;
+  try {
+    const resp = await fetch('/sessions');
+    if (!resp.ok) return false;
+    sessions = (await resp.json()).sessions;
+  } catch { return false; }
+  allSessions = sessions;
+  // Drop the watch intent BEFORE painting, so the card plug + composer button read the same
+  // myWatchSid: once the watched run is no longer alive, we're not its watcher anymore. BUT never
+  // drop it while WE still hold an in-flight watch connection for it (liveSid) — a freshly-sent run
+  // hasn't acquired `alive` yet, and our own stream is the proof we're driving it.
+  if (myWatchSid && myWatchSid !== liveSid) {
+    const w = allSessions.find(x => x.id === myWatchSid);
+    if (!w || !w.run_alive) myWatchSid = null;
+  }
+  // show ALL sessions (no filtering by the invoke selection)
+  const shown = sessions;
+  const el = document.getElementById('sessions');
+  el.innerHTML = '';
+  for (const s of shown) {
+    const d = document.createElement('div');
+    d.className = 'sess' + (s.id === current ? ' active' : '');
+    // actions stack vertically on the right: kill (top, if live), then delete (bottom)
+    const delBtn = `<button class="del" title="delete session" aria-label="delete session">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+        </svg></button>`;
+    // kill slot is always rendered (empty spacer when no live sandbox) so kill stays
+    // pinned top and delete pinned bottom regardless of whether a sandbox is live.
+    // kill/live key off `live` (sandbox_id within the TTL), not the raw recorded id —
+    // a sandbox past the live window has auto-stopped, so the badge/button drop.
+    const killBtn = s.live ? `<button class="kill" title="kill sandbox (cwd stays durable)" aria-label="kill sandbox">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
+        </svg></button>` : `<span class="slot"></span>`;
+    // attach/detach icon (the WATCHING axis) — only on a live run. "Am I watching?" = this tab
+    // INTENDS to watch this session (myWatchSid), which persists across the per-fetch liveCtl
+    // churn so the icon doesn't flicker on steer/send returns.
+    //  - I'm the watcher  -> DETACH (unplug): drop it, run continues
+    //  - alive but I'm not watching -> ATTACH (plug): adopt + watch
+    // "I'm watching" = this tab intends to watch (myWatchSid). A run counts as live for the icon
+    // if the server says alive OR we still hold an in-flight watch connection for it (liveSid —
+    // the post-Send pre-`alive` window), so the plug matches the composer button exactly.
+    const iAmWatching = myWatchSid === s.id;
+    const runLive = s.run_alive || (liveSid === s.id && iAmWatching);
+    let watchBtn = '<span class="slot"></span>';
+    if (runLive && iAmWatching) {
+      // DETACH = disconnect (unplugged): the two plug halves pulled apart
+      watchBtn = `<button class="watch detach" title="detach (disconnect; run continues)" aria-label="detach">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="2" y1="22" x2="6.5" y2="17.5"/><line x1="17.5" y1="6.5" x2="22" y2="2"/>
+          <path d="M9 11l1.5-1.5a2.83 2.83 0 0 0 0-4L9 4"/><path d="M15 13l-1.5 1.5a2.83 2.83 0 0 1-4 0L8 13"/>
+          <line x1="13" y1="7" x2="16" y2="10"/><line x1="8" y1="12" x2="11" y2="15"/>
+        </svg></button>`;
+    } else if (runLive) {
+      // ATTACH = connect (plug): adopt + watch a running session this tab isn't driving. (Shown
+      // even if another tab is attached — attaching just steals the watch lock, harmless.)
+      watchBtn = `<button class="watch attach" title="attach (connect; watch this run)" aria-label="attach">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 2v6"/><path d="M15 2v6"/><path d="M7 8h10v3a5 5 0 0 1-5 5v0a5 5 0 0 1-5-5V8z"/><line x1="12" y1="16" x2="12" y2="22"/>
+        </svg></button>`;
+    }
+    d.innerHTML = `<div class="actions">${killBtn}${watchBtn}${delBtn}</div>
+      <div class="id">${s.id}</div>
+      <div class="meta line-events">${s.events} events · ${new Date(s.updated_at).toLocaleTimeString()}${s.live ? ' · <span class="live">● live</span>' : ''}${s.run_alive ? ` · <span class="run${s.attached ? '' : ' detached'}">▶ running</span>` : ''}</div>
+      <div class="meta">
+        <span class="badge b-sandbox" title="sandbox">${s.sandbox}</span><span class="badge b-harness" title="harness">${s.harness}</span>
+      </div>
+      <div class="meta">
+        <span class="badge b-provider" title="provider">${s.provider}</span>${modelShort(s) ? `<span class="badge b-model" title="model">${modelShort(s)}</span>` : ''}${s.reasoning && s.reasoning !== 'none' ? `<span class="badge b-reasoning" title="reasoning">${s.reasoning}</span>` : ''}
+      </div>`;
+    d.onclick = () => select(s.id);
+    d.querySelector('.del').onclick = (e) => { e.stopPropagation(); delSession(s.id); };
+    const kb = d.querySelector('.kill');
+    if (kb) kb.onclick = (e) => { e.stopPropagation(); killSandbox(s.id); };
+    const wb = d.querySelector('.watch');
+    if (wb) wb.onclick = (e) => {
+      e.stopPropagation();
+      if (wb.classList.contains('detach')) detachRun();
+      else attachRun(s.id);
+    };
+    el.appendChild(d);
+  }
+  // paint the composer button from the SAME snapshot we just rendered the cards from, so the
+  // ■/↑ button and the card's attach/detach plug never disagree (both key on run_alive + myWatchSid).
+  reconcileRunButton();
+  return true;
+}
+
+// the single source of truth for "is THIS tab driving the selected live run" — used by BOTH the
+// composer ■/↑ button and (implicitly) the card plug icon, so they always agree.
+function iDriveSelected() {
+  if (!current) return false;
+  // We drive the selected run if we hold a live watch connection for it (liveSid — covers the
+  // window right after Send before `alive` propagates) OR the server says it's alive and we're
+  // the watcher. Either way we show ■ + the detach plug.
+  if (liveSid === current && myWatchSid === current) return true;
+  const s = allSessions.find(x => x.id === current);
+  return !!(s && s.run_alive && myWatchSid === s.id);
+}
+
+const DIMS = ['sandbox', 'harness', 'provider', 'model', 'reasoning'];
+function setDimsDisabled(v) {
+  DIMS.forEach(d => $(d).disabled = v);
+  // when unlocking, provider stays locked for single-provider harnesses (claude/codex)
+  if (!v) { const spec = HARNESS[$('harness').value]; if (spec) $('provider').disabled = spec.providers.length === 1; }
+}
+
+// Changing sandbox/harness starts a new-session selection: deselect any active
+// session and rebuild the harness-specific provider/model cascade.
+function onHarnessChange() {
+  current = null;
+  setDimsDisabled(false);
+  refreshProviderAndModels();
+  refreshSessions();
+}
+
+async function killSandbox(sid) {
+  // destroy the remote sandbox; cwd stays durable in SeaweedFS (next invoke remounts it)
+  await fetch(`/sessions/${sid}/sandbox`, { method: 'DELETE' });
+  await refreshSessions();
+}
+
+async function delSession(sid) {
+  await fetch(`/sessions/${sid}`, { method: 'DELETE' });
+  if (current === sid) newSession(); // resets selection + clears the right-hand panes
+  await refreshSessions();
+}
+
+// Panels are meaningless without a session — gate them closed + disabled until one is selected.
+function setPanelsEnabled(on) {
+  for (const id of ['fs-panel', 'tx-panel']) {
+    const p = $(id);
+    p.classList.toggle('disabled', !on);
+    if (!on) p.open = false;
+  }
+}
+
+function newSession() {
+  current = null;
+  currentSig = null;
+  openFile = null;
+  setDimsDisabled(false);
+  setPanelsEnabled(false);
+  // clear the detail panes + drop the active highlight on the previously selected card
+  $('filelist').innerHTML = '';
+  $('filebody').textContent = 'select a file'; $('filebody').className = 'muted';
+  $('chat').innerHTML = '';
+  $('transcript').innerHTML = '';
+  refreshSessions();
+  $('prompt').focus();
+}
+
+// A session's dimensions are fixed once created — mirror them into the (locked) invoke selects.
+function reflectDims(s) {
+  if (!s) return;
+  $('sandbox').value = s.sandbox;
+  $('harness').value = s.harness;
+  refreshProviderAndModels(s.provider, s.model);  // harness-aware cascade
+  $('reasoning').value = s.reasoning || 'none';
+  setDimsDisabled(true);
+}
+
+async function select(sid) {
+  current = sid;
+  openFile = null;
+  setPanelsEnabled(true);
+  const s = allSessions.find(x => x.id === sid);
+  reflectDims(s);
+  currentSig = sigOf(s); // baseline so the next tick only re-renders on real change
+  await Promise.all([refreshSessions(), loadFiles(sid), loadTranscript(sid)]);
+}
+
+async function openFileBody(sid, path) {
+  const body = document.getElementById('filebody');
+  const r = await (await fetch(`/sessions/${sid}/files?read=${encodeURIComponent(path)}`)).json();
+  body.textContent = r.content; body.className = '';
+}
+
+const expandedDirs = new Set();  // folder paths the user has expanded (persist across refreshes)
+
+// Build a nested tree from flat S3 keys ("europe/countries.md" -> dir europe -> file countries.md).
+function buildTree(files) {
+  const root = { dirs: {}, files: [] };
+  for (const f of files) {
+    const parts = f.path.split('/').filter(Boolean);
+    if (f.path.endsWith('/')) {  // folder marker (size-0 key) — ensure the dir node exists
+      let n = root;
+      for (const p of parts) { n.dirs[p] = n.dirs[p] || { dirs: {}, files: [] }; n = n.dirs[p]; }
+      continue;
+    }
+    let n = root;
+    for (let i = 0; i < parts.length - 1; i++) {
+      n.dirs[parts[i]] = n.dirs[parts[i]] || { dirs: {}, files: [] };
+      n = n.dirs[parts[i]];
+    }
+    n.files.push({ name: parts[parts.length - 1], path: f.path, size: f.size });
+  }
+  return root;
+}
+
+async function loadFiles(sid) {
+  const list = document.getElementById('filelist');
+  const body = document.getElementById('filebody');
+  const { files } = await (await fetch(`/sessions/${sid}/files`)).json();
+  if (openFile && !(files || []).some(f => f.path === openFile)) {
+    openFile = null;
+    body.textContent = 'select a file'; body.className = 'muted';
+  } else if (!openFile) {
+    body.textContent = 'select a file'; body.className = 'muted';
+  }
+  if (!files || !files.length) { list.innerHTML = '<span class="muted">empty</span>'; return; }
+  list.innerHTML = '';
+  renderTree(list, buildTree(files), '', 0, sid, body);
+  if (openFile) await openFileBody(sid, openFile);
+}
+
+// Render a tree node: folders first (collapsible, indented), then files. `depth` adds a small
+// inward shift per level so nesting reads without wasting width.
+function renderTree(container, node, prefix, depth, sid, body) {
+  const pad = (d) => `padding-left:${6 + d * 12}px`;
+  for (const name of Object.keys(node.dirs).sort()) {
+    const dirPath = prefix + name + '/';
+    const open = expandedDirs.has(dirPath);
+    const row = document.createElement('div');
+    row.className = 'file-row dir';
+    row.style = pad(depth);
+    row.innerHTML = `<span class="caret">${open ? '▾' : '▸'}</span><span class="fname">${escapeHtml(name)}/</span>` +
+      `<button class="fdel" title="delete folder" aria-label="delete folder">✕</button>`;
+    row.querySelector('.caret').parentNode.onclick = () => {
+      open ? expandedDirs.delete(dirPath) : expandedDirs.add(dirPath);
+      loadFiles(sid);
+    };
+    row.querySelector('.fdel').onclick = async (e) => {
+      e.stopPropagation();
+      await fetch(`/sessions/${sid}/files?path=${encodeURIComponent(dirPath)}`, { method: 'DELETE' });
+      await loadFiles(sid);
+    };
+    container.appendChild(row);
+    if (open) renderTree(container, node.dirs[name], dirPath, depth + 1, sid, body);
+  }
+  for (const f of node.files.sort((a, b) => a.name.localeCompare(b.name))) {
+    const d = document.createElement('div');
+    d.className = 'file-row' + (f.path === openFile ? ' active' : '');
+    d.style = pad(depth);
+    d.innerHTML = `<span class="fname">${escapeHtml(f.name)}</span><span class="fsize">${f.size}b</span>` +
+      `<button class="fdel" title="delete" aria-label="delete">✕</button>`;
+    d.querySelector('.fname').onclick = async () => {
+      if (openFile === f.path) {  // click the open file again -> close it
+        openFile = null; d.classList.remove('active');
+        body.textContent = 'select a file'; body.className = 'muted';
+        return;
+      }
+      [...container.querySelectorAll('.file-row')].forEach(c => c.classList.remove('active'));
+      d.classList.add('active');
+      openFile = f.path;
+      await openFileBody(sid, f.path);
+    };
+    d.querySelector('.fdel').onclick = async (e) => {
+      e.stopPropagation();
+      await fetch(`/sessions/${sid}/files?path=${encodeURIComponent(f.path)}`, { method: 'DELETE' });
+      if (openFile === f.path) { openFile = null; body.textContent = 'select a file'; body.className = 'muted'; }
+      await loadFiles(sid);
+    };
+    container.appendChild(d);
+  }
+}
+
+async function loadTranscript(sid) {
+  // A brand-new session 404s here until its first event lands — treat that as "no events yet"
+  // instead of throwing (an unguarded throw used to abort the whole send).
+  const resp = await fetch(`/sessions/${sid}/transcript`);
+  const events = resp.ok ? (await resp.json()).events : [];
+  renderChat(events);
+  renderLog(events);
+}
+
+// CHAT view: user prompts + agent messages as bubbles; each tool call = ONE detailed line
+// (kind icon + a one-liner: the command run, or the file written/edited). usage/chunk noise
+// hidden. The full raw series lives in the collapsible log below.
+const TOOL_ICON = { execute: '$', read: '⤓', edit: '✎', write: '✎', search: '⌕', fetch: '⇩', think: '✷', other: '⚙' };
+
+// Build a one-liner from a tool's merged {kind,title,rawInput}. Prefers the concrete command/path
+// from rawInput, falls back to the title (which often already holds the real command on updates).
+function toolLine(t) {
+  const kind = t.kind || 'other';
+  const icon = TOOL_ICON[kind] || '⚙';
+  const ri = t.rawInput || {};
+  let detail = '';
+  if (kind === 'execute') detail = ri.command || t.title || '';
+  else if (kind === 'edit' || kind === 'write' || kind === 'read')
+    detail = ri.file_path || ri.path || ri.abs_path || t.title || '';
+  else detail = t.title || ri.command || ri.path || '';
+  detail = String(detail).split('\n')[0].replace(/\/work\/[0-9a-f-]{36}\//g, '');  // drop cwd noise
+  if (detail.length > 100) detail = detail.slice(0, 100) + '…';
+  // generic placeholders ("Terminal"/"Write") aren't useful — show the kind if that's all we have
+  if (!detail || detail === 'Terminal' || detail === 'Write') detail = detail || kind;
+  return { icon, label: detail };
+}
+
+// Paint a tool-line chip from its merged _tool state.
+function paintTool(chip) {
+  const { icon, label } = toolLine(chip._tool);
+  chip.innerHTML = `<span class="ti">${icon}</span><span class="tl">${escapeHtml(label)}</span>`;
+}
+
+function renderChat(events) {
+  const c = document.getElementById('chat');
+  if (!events.length) { c.innerHTML = '<span class="muted">no messages</span>'; return; }
+  c.innerHTML = '';
+  const toolEls = {};  // toolCallId -> the chip element, so updates enrich the same line
+  for (const e of events) {
+    const p = e.payload || {};
+    const su = e.session_update;
+    const u = p.params?.update || {};
+    if (p.method === 'session/prompt') {
+      addBubble(c, 'user', p.params?.prompt?.[0]?.text || '');
+    } else if (p.method === 'session/cancel' || su === 'session/cancel') {
+      // the REAL cancel event in the transcript -> horizontal rule with "interrupted" centered
+      const sep = document.createElement('div');
+      sep.className = 'chat-sep';
+      sep.innerHTML = '<span>interrupted</span>';
+      c.appendChild(sep);
+    } else if (su === 'agent_message') {
+      const txt = u.content?.text || '';
+      // the harness's own "*Conversation interrupted*" artifact is redundant with the separator
+      // we draw from the session/cancel event — drop it so we don't show both.
+      if (txt && txt.trim() !== '*Conversation interrupted*') addBubble(c, 'agent', txt);
+    } else if (su === 'tool_call') {
+      const id = u.toolCallId || ('t' + Object.keys(toolEls).length);
+      const chip = document.createElement('div');
+      chip.className = 'tool-line';
+      // remember the best-known kind/title/input for THIS call; updates merge into it so a
+      // later status-only update can't wipe the good detail.
+      chip._tool = { kind: u.kind, title: u.title, rawInput: u.rawInput };
+      paintTool(chip);
+      c.appendChild(chip);
+      toolEls[id] = chip;
+    } else if (su === 'tool_call_update') {
+      const chip = toolEls[u.toolCallId];
+      if (chip) {
+        const t = chip._tool;
+        if (u.kind) t.kind = u.kind;                                  // merge, never downgrade
+        if (u.title) t.title = u.title;
+        if (u.rawInput && Object.keys(u.rawInput).length) t.rawInput = u.rawInput;
+        paintTool(chip);
+        if (u.status === 'completed') chip.classList.add('done');
+        if (u.status === 'failed') chip.classList.add('failed');
+      }
+    }
+    // usage_update, chunks, jsonrpc results: hidden from chat (visible in the raw log)
+  }
+  const sc = document.querySelector('.chat-scroll');
+  if (sc) sc.scrollTop = sc.scrollHeight;
+}
+
+function addBubble(c, who, text) {
+  const d = document.createElement('div');
+  d.className = 'bubble ' + who;
+  d.innerHTML = `<div class="who">${who}</div>${escapeHtml(text)}`;
+  c.appendChild(d);
+}
+
+// RAW LOG: the full terminal-style event series (what Transcript used to show), collapsed.
+function renderLog(events) {
+  const t = document.getElementById('transcript');
+  if (!events.length) { t.innerHTML = '<span class="muted">no events</span>'; return; }
+  t.innerHTML = '';
+  for (const e of events) {
+    const p = e.payload || {};
+    let text = '';
+    if (p.method === 'session/prompt') text = '“' + (p.params?.prompt?.[0]?.text || '') + '”';
+    else if (e.session_update === 'agent_message' || e.session_update === 'agent_message_chunk') text = p.params?.update?.content?.text || '';
+    else if (e.session_update?.startsWith('tool_call')) text = p.params?.update?.title || e.session_update;
+    else text = e.session_update || p.method || '';
+    if (text === '') continue;
+    const d = document.createElement('div');
+    d.className = 'ev ' + (e.sender || '');
+    d.innerHTML = `<span class="tag">[${e.seq}] ${e.sender || ''} ${e.session_update || p.method || ''}</span> ${escapeHtml(text)}`;
+    t.appendChild(d);
+  }
+}
+
+function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+// While THIS tab holds an /invoke connection (driving a send, or watching via attach), we keep
+// its AbortController so we can DETACH = drop the connection client-side (run keeps going).
+let liveCtl = null;
+let liveSid = null;  // the session this tab is currently attached to (driving or watching)
+// "This tab intends to watch session X" — persists across the per-fetch liveCtl lifecycle so the
+// card icon/button don't flicker when a steer/send fetch returns mid-run. Set when we drive/attach,
+// cleared on explicit detach or when the run ends.
+let myWatchSid = null;
+
+// Build the control-plane envelope. `data:null` = control only (attach/cancel); otherwise a
+// real prompt rides in data.inputs.messages[0], dims in data.parameters.
+function envelope({ sid, prompt, force }) {
+  const body = { force: !!force };
+  if (sid) body.session_id = sid;
+  if (prompt === null) { body.data = null; return body; }  // CONTROL: no work
+  body.data = {
+    inputs: { messages: [{ role: 'user', content: prompt }] },
+    parameters: {
+      sandbox: $('sandbox').value, harness: $('harness').value,
+      provider: $('provider').value, model: $('model').value || null,
+      reasoning: $('reasoning').value,
+    },
+  };
+  return body;
+}
+
+// SEND (or force-steer). sid comes from the selected session (`current`); for a NEW session we
+// mint the id client-side so the card is selected + the panes bind live from the first moment
+// (otherwise `current` would stay null for the whole run and a 2nd Send would mint AGAIN).
+async function invoke(force) {
+  const sid = current || uuidv4();
+  const prompt = $('prompt').value.trim();
+  if (!prompt) return;
+  showStatus('', false);  // clear any stale error
+  // Clear the input optimistically the moment we send (the message is now in the transcript).
+  $('prompt').value = ''; $('prompt').style.height = '';
+  if (liveCtl) liveCtl.abort();   // drop any prior watch on this tab first (one watch per tab)
+  const ctl = new AbortController();
+  liveCtl = ctl;
+  liveSid = sid;
+  myWatchSid = sid;            // this tab is now the watcher (persists across the fetch lifecycle)
+  setRunning(true);  // ↑ -> ■ Stop
+  current = sid;
+  setPanelsEnabled(true);
+  select(sid).catch(() => {});  // new session 404s its transcript until the first event — fine
+  try {
+    const resp = await fetch('/invoke', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(envelope({ sid, prompt, force })),
+      signal: ctl.signal,
+    });
+    const r = await resp.json();
+    if (resp.status === 409) {
+      if (r.reattachable && r.session_id) {
+        await select(r.session_id);  // silently reattach to watch
+      } else {
+        showStatus('session in use — another tab is driving; command+enter to steer', true);
+        $('prompt').value = prompt;  // restore so they can retry/steer
+      }
+    } else if (r.detail) {
+      showStatus('error: ' + String(r.detail).slice(0, 120), true);
+      $('prompt').value = prompt;
+    } else {  // done or detached — both silent; the chat/poll shows the result
+      // `detached` = another tab STOLE our watch (server displaced us). We are no longer the
+      // watcher; drop the intent so the button flips to ↑ + the card shows the attach plug.
+      // Do NOT re-select/re-attach (that would steal it back -> ping-pong between tabs).
+      if (r.status === 'detached' && myWatchSid === sid) myWatchSid = null;
+      await select(r.session_id);
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') showStatus('error: ' + (e.message || e), true);  // abort = detach, silent
+  }
+  // only clear the live connection refs if THIS send still owns them (a concurrent steal/attach/
+  // steer may have already installed its own controller — clearing here would strand it).
+  if (liveCtl === ctl) { liveCtl = null; liveSid = null; }
+  // Don't blindly flip to ↑: the run may still be alive (detached). Reconcile against FRESH state
+  // RIGHT NOW so the button doesn't flicker Send→Cancel until the next 3s tick.
+  await refreshSessions();
+  await reconcileRunButton();
+}
+
+// Set the composer button to ■/↑ from the SELECTED session's live state (one source of truth,
+// called both on every tick and immediately after a send/steer so there's no flicker window).
+function reconcileRunButton() {
+  // ■ Cancel only when THIS tab is watching the selected live run (iDriveSelected — the shared
+  // predicate the card plug also keys on). After a detach the run keeps going but WE aren't driving
+  // it -> show ↑ Send (use the attach plug to re-adopt). myWatchSid cleanup happens in refreshSessions
+  // BEFORE the cards paint, so button and plug never disagree.
+  const iDrive = iDriveSelected();
+  const running = $('send-split').classList.contains('running');
+  if (iDrive !== running) setRunning(iDrive);
+}
+
+// STOP / CANCEL: end the live run (null-data, force=F). Cancel is a non-enforcement control (it
+// stops THIS session's run, doesn't override another tab), so it rides on force=F. Works whether
+// we're the driver or just attached. Then drop our watch connection.
+async function cancelRun() {
+  const sid = liveSid || current;
+  if (!sid) return;
+  try {
+    await fetch('/invoke', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(envelope({ sid, prompt: null, force: false })),
+    });
+  } catch (e) { showStatus('stop error: ' + e, true); }
+  if (liveCtl) liveCtl.abort();  // stop watching too; the run is ending
+  await refreshSessions();
+  await reconcileRunButton();  // settle the button now, don't wait for the tick
+}
+
+// ATTACH (card icon, on a DETACHED live run): adopt the run — hold `attached` + watch the
+// transcript until it ends. force=T because attach STEALS the watch from any prior tab (an
+// enforcement over another tab). Keep the AbortController so the Detach icon can drop it.
+async function attachRun(sid) {
+  await select(sid);
+  if (liveCtl) liveCtl.abort();   // drop any prior watch on this tab first (one watch per tab)
+  const ctl = new AbortController();
+  liveCtl = ctl;
+  liveSid = sid;
+  myWatchSid = sid;            // adopting the watch
+  setRunning(true);
+  try {
+    const resp = await fetch('/invoke', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(envelope({ sid, prompt: null, force: true })),
+      signal: ctl.signal,
+    });
+    const r = await resp.json();
+    // If the run already ended, attach has nothing to watch — say so (don't leave it a silent
+    // no-op that reads as "cancelled"). detached/done are silent (the poll shows the result).
+    if (r.status === 'no_live_run') showStatus('run already finished — nothing to attach', true);
+  } catch (e) {
+    if (e.name === 'AbortError') { /* detached or superseded by steer/attach — silent */ }
+    else showStatus('attach error: ' + e, true);
+  }
+  // Only tear down if THIS attach still owns the live refs. A steer/attach that superseded us
+  // already installed its own ctl + watch intent; clearing them here would strand it as detached.
+  if (liveCtl === ctl) {
+    liveCtl = null; liveSid = null;
+    if (myWatchSid === sid) myWatchSid = null;  // attach ended -> no longer watching
+  }
+  await refreshSessions();
+  await reconcileRunButton();  // settle the button now, don't wait for the tick
+}
+
+// DETACH (card icon, while attached): drop our watch connection client-side. The run keeps
+// executing + persisting server-side — detach must never cancel.
+function detachRun() {
+  myWatchSid = null;       // explicitly stop watching (run continues server-side)
+  if (liveCtl) liveCtl.abort();
+  reconcileRunButton();  // run stays alive -> button stays ■; settle immediately
+}
+
+// One polling tick: refresh the session list AND keep the right-hand detail panes in sync
+// with the selected session. Detail panes re-render only when the selected session's change
+// signature moved (new events from this or another dashboard, sandbox going live/dead) — so
+// an idle tick is cheap and never disturbs the open file or scroll position.
+async function tick() {
+  const ok = await refreshSessions();
+  const s = current ? allSessions.find(x => x.id === current) : null;
+  // Single source of truth for the composer button: ■ Cancel iff the selected session is alive.
+  await reconcileRunButton();
+  if (!current) return;
+  if (!s) {
+    // Selected session is gone from the list. If the refresh SUCCEEDED, the session was genuinely
+    // DELETED (here or in another tab) -> clear the selection + right pane so we stop showing a
+    // dead session. If the refresh FAILED (transient), keep `current` so a hiccup doesn't drop it.
+    if (ok) newSession();
+    return;
+  }
+  const sig = sigOf(s);
+  if (sig === currentSig) return; // nothing changed for the selected session
+  currentSig = sig;
+  reflectDims(s);                 // keep the (locked) invoke dimensions mirrored
+  await Promise.all([loadFiles(current), loadTranscript(current)]);
+}
+
+// composer: SHIFT+ENTER sends, ENTER inserts a newline. The textarea auto-grows so the newline
+// is visible. (Inverted from the usual chat default, per request.)
+const _prompt = $('prompt');
+function autogrow() {
+  _prompt.style.height = 'auto';
+  _prompt.style.height = Math.min(_prompt.scrollHeight, 200) + 'px';
+}
+_prompt.addEventListener('input', autogrow);
+_prompt.addEventListener('keydown', (e) => {
+  if (e.isComposing) return;
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();   // ⌘/ctrl+enter = steer (force takeover)
+    steerSend();
+  } else if (e.key === 'Enter' && e.shiftKey) {
+    e.preventDefault();   // shift+enter = send
+    primaryAction();
+  } else if (e.key === 'Enter') {
+    setTimeout(autogrow, 0);  // plain enter = newline; resize after it lands
+  }
+});
+
+// block opening a panel while it's gated (no session selected)
+for (const id of ['fs-panel', 'tx-panel']) {
+  $(id).querySelector('summary').addEventListener('click', (e) => {
+    if ($(id).classList.contains('disabled')) e.preventDefault();
+  });
+}
+
+setRunning(false);
+setPanelsEnabled(false);
+refreshProviderAndModels();
+// Clock-aligned ticking: instead of setInterval (which fires relative to each tab's load time, so
+// two tabs drift out of phase), schedule every tick to the next 3s wall-clock boundary. All tabs
+// then refresh together on the same boundaries.
+const TICK_MS = 3000;
+function scheduleTick() {
+  const delay = TICK_MS - (Date.now() % TICK_MS);
+  setTimeout(async () => { try { await tick(); } finally { scheduleTick(); } }, delay);
+}
+tick();
+scheduleTick();
+</script>
+</body>
+</html>
