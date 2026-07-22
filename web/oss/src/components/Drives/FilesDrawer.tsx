@@ -11,6 +11,7 @@
  */
 import {useEffect, useState} from "react"
 
+import {type MountFile} from "@agenta/entities/session"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import dynamic from "next/dynamic"
 
@@ -36,6 +37,8 @@ export interface FilesDrawerProps {
     /** The resolved (summary) drive — the host fetches it (useConfigDrive / useSessionDriveSummary);
      * DriveExplorer lazy-loads each directory level from it, so no whole-tree fetch to open. */
     drive: SessionDriveData
+    /** Local-file mode: preview this flat list instead of the mount tree (see DriveExplorer). */
+    explicitFiles?: MountFile[]
     /** Raw ids for the header's overflow menu (drive id + session/agent id). */
     driveIds?: DriveId[]
     scope?: DriveScope
@@ -47,6 +50,7 @@ export function FilesDrawer({
     open,
     onClose,
     drive,
+    explicitFiles,
     driveIds,
     scope = "session",
     initialPath,
@@ -77,6 +81,7 @@ export function FilesDrawer({
         >
             <DriveExplorer
                 drive={drive}
+                explicitFiles={explicitFiles}
                 scope={scope}
                 initialPath={initialPath}
                 onClose={onClose}

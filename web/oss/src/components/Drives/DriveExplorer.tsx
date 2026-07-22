@@ -19,7 +19,7 @@ import {
     useState,
 } from "react"
 
-import {type Mount} from "@agenta/entities/session"
+import {type Mount, type MountFile} from "@agenta/entities/session"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {
     ArrowsIn,
@@ -1167,6 +1167,7 @@ const DriveHeader = ({
  */
 export function DriveExplorer({
     drive,
+    explicitFiles,
     scope = "session",
     initialPath,
     onClose,
@@ -1175,6 +1176,10 @@ export function DriveExplorer({
     onToggleExpand,
 }: {
     drive: SessionDriveData
+    /** Render this flat list instead of the mount's lazy-loaded tree — the local-file mode used to
+     * preview composer attachments. When set, the mount tree and its loading states are bypassed;
+     * bytes come from a `DriveFileSourceContext` (see `driveFileSource`) rather than downloads. */
+    explicitFiles?: MountFile[]
     scope?: DriveScope
     initialPath?: string | null
     /** When provided, the explorer renders its OWN single header (breadcrumb + node + actions + this
@@ -1378,11 +1383,12 @@ export function DriveExplorer({
         })
     }, [lazyTree.files, selectedPath])
     const originFiltered = useMemo(() => {
-        let files = lazyTree.files
+        // Local-file mode: the explicit list is the whole tree; the mount's lazy files are ignored.
+        let files = explicitFiles ?? lazyTree.files
         if (originFilter !== "all") files = files.filter((f) => fileOrigin(f.path) === originFilter)
         if (!showHidden) files = files.filter((f) => !isHiddenPath(f.path))
         return files
-    }, [lazyTree.files, originFilter, showHidden])
+    }, [explicitFiles, lazyTree.files, originFilter, showHidden])
     const tree = useMemo(() => buildDriveTree(originFiltered), [originFiltered])
     const shownTree = useMemo(() => filterDriveTree(tree, deferredSearch), [tree, deferredSearch])
     // While searching, show every surviving branch expanded so matches are visible.
@@ -1395,8 +1401,10 @@ export function DriveExplorer({
     // fetched in one shot then, so per-folder placeholders would be wrong).
     const isDirLoading = useCallback(
         (path: string) =>
-            !searchActive && (lazyTree.fetchingDirs.has(path) || !lazyTree.loadedDirs.has(path)),
-        [searchActive, lazyTree.fetchingDirs, lazyTree.loadedDirs],
+            !explicitFiles &&
+            !searchActive &&
+            (lazyTree.fetchingDirs.has(path) || !lazyTree.loadedDirs.has(path)),
+        [explicitFiles, searchActive, lazyTree.fetchingDirs, lazyTree.loadedDirs],
     )
     // The visible rows, flattened for virtualization (see flattenTree), plus a path→row-index map for
     // O(1) keyboard navigation.
