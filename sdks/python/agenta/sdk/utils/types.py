@@ -2,7 +2,17 @@ import json
 from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
-from typing import Annotated, ClassVar, List, Union, Optional, Dict, Literal, Any
+from typing import (
+    Annotated,
+    ClassVar,
+    List,
+    Union,
+    Optional,
+    Dict,
+    Literal,
+    Any,
+    TypeAlias,
+)
 
 from pydantic import ConfigDict, BaseModel, HttpUrl, RootModel
 from pydantic import Field, model_validator, AliasChoices
@@ -410,6 +420,33 @@ ResponseFormat = Union[
 ]
 
 
+class ChatCompletionNamedToolChoiceFunction(BaseModel):
+    name: str
+
+
+class ChatCompletionNamedToolChoice(BaseModel):
+    type: Literal["function"]
+    function: ChatCompletionNamedToolChoiceFunction
+
+
+class ChatCompletionAllowedTools(BaseModel):
+    mode: Literal["auto", "required"]
+    tools: List[Dict[str, Any]]
+
+
+class ChatCompletionAllowedToolChoice(BaseModel):
+    type: Literal["allowed_tools"]
+    allowed_tools: ChatCompletionAllowedTools
+
+
+ToolChoice: TypeAlias = Union[
+    Literal["none", "auto", "required"],
+    ChatCompletionNamedToolChoice,
+    ChatCompletionAllowedToolChoice,
+    Dict[str, Any],
+]
+
+
 class ModelConfig(BaseModel):
     """Configuration for model parameters"""
 
@@ -472,7 +509,7 @@ class ModelConfig(BaseModel):
         default=None,
         description="A list of tools the model may call. Currently, only functions are supported as a tool",
     )
-    tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = Field(
+    tool_choice: Optional[ToolChoice] = Field(
         default=None, description="Controls which (if any) tool is called by the model"
     )
 
@@ -600,7 +637,7 @@ class AgLLM(AgSchemaMixin):
         json_schema_extra={"x-ag-type": "choice"},
     )
     chat_template_kwargs: Optional[Dict[str, Any]] = Field(default=None)
-    tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = Field(
+    tool_choice: Optional[ToolChoice] = Field(
         default=None,
     )
     template_format: Literal["mustache", "curly", "fstring", "jinja2"] = Field(
@@ -1019,7 +1056,13 @@ class PromptTemplate(AgSchemaMixin):
             kwargs["tools"] = llm_config.tools
             # Only set tool_choice if tools are present
             if llm_config.tool_choice is not None:
-                kwargs["tool_choice"] = llm_config.tool_choice
+                if isinstance(llm_config.tool_choice, BaseModel):
+                    kwargs["tool_choice"] = llm_config.tool_choice.model_dump(
+                        by_alias=True,
+                        exclude_none=True,
+                    )
+                else:
+                    kwargs["tool_choice"] = llm_config.tool_choice
 
         return kwargs
 
