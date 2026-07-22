@@ -45,7 +45,7 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
                             icon={<ArrowSquareOut size={14} />}
                             className="flex items-center justify-center"
                             onClick={() => {
-                                goToPlayground(env.deployedRevisionId)
+                                goToPlayground(env.deployedRevisionId ?? undefined)
                             }}
                         />
                     </Flex>

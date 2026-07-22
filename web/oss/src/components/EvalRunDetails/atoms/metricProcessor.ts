@@ -693,7 +693,7 @@ export const createMetricProcessor = ({
                     )
                     const newMetricIds = runMetrics
                         .map((metric: any) => metric?.id)
-                        .filter((id): id is string => Boolean(id))
+                        .filter((id: unknown): id is string => Boolean(id))
                     const runReasons = new Set<string>()
                     const runOldMetricIds = new Set<string>()
                     pending
@@ -704,7 +704,9 @@ export const createMetricProcessor = ({
                         })
 
                     const oldMetricIdsArray = Array.from(runOldMetricIds)
-                    const reusedRunMetricIds = newMetricIds.filter((id) => runOldMetricIds.has(id))
+                    const reusedRunMetricIds = newMetricIds.filter((id: string) =>
+                        runOldMetricIds.has(id),
+                    )
                     const staleRunMetricIds = oldMetricIdsArray.filter(
                         (id) => !reusedRunMetricIds.includes(id),
                     )

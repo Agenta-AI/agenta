@@ -86,7 +86,9 @@ const CreateVariantModal: FC<CreateVariantModalProps> = ({
             propsSetIsModalOpen(false)
             message.success(`Variant "${newVariantName}" created successfully`)
         } catch (error) {
-            message.error(`Failed to create variant: ${error.message}`)
+            message.error(
+                `Failed to create variant: ${error instanceof Error ? error.message : String(error)}`,
+            )
         } finally {
             setIsSubmitting(false)
         }

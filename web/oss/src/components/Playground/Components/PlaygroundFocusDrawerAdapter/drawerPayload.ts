@@ -13,6 +13,8 @@ export interface PlaygroundDrawerOutputNodePayload {
 }
 
 export interface PlaygroundDrawerPayload {
+    // Index signature so the payload satisfies Record<string, unknown> editor values
+    [key: string]: unknown
     inputs: Record<string, unknown>
     suggestedFields: {key: string; label: string; type: string}[]
     outputs: {

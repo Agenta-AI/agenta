@@ -593,7 +593,7 @@ export const evaluationRunsFilterOptionsAtom = atom((get) => {
     const evaluatorOptions =
         evaluatorData.length > 0
             ? evaluatorData
-                  .map((item) => {
+                  .map((item): {label: string; value: string; slug?: string} | null => {
                       const id =
                           (typeof item.id === "string" && item.id.trim()) ||
                           (typeof (item as any).key === "string" && (item as any).key.trim()) ||
@@ -678,7 +678,11 @@ export const evaluationRunsVariantOptionsAtom = atom((get) => {
     const isLoading = loadables.some((result) => result.state === "loading")
 
     const variants = loadables.flatMap((result) =>
-        result.state === "hasData" ? (result.data?.workflow_variants ?? []) : [],
+        // Latent bug typed as-is per WP-4e-2a: `result.data` is the query-observer object,
+        // so `workflow_variants` is read off the wrong level and is always undefined.
+        result.state === "hasData"
+            ? ((result.data as unknown as {workflow_variants?: any[]})?.workflow_variants ?? [])
+            : [],
     )
 
     const seen = new Set<string>()

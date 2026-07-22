@@ -20,8 +20,8 @@ export interface UpdatedMetricType {
 }
 export type UpdatedMetricsType = Record<string, Record<string, UpdatedMetricType>>
 export interface AnnotateDrawerIdsType {
-    traceId: string
-    spanId: string
+    traceId?: string
+    spanId?: string
 }
 export interface AnnotateDrawerProps extends DrawerProps {
     data?: AnnotationDto[]

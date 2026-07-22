@@ -243,7 +243,7 @@ const PlaygroundVariantConfig: React.FC<
                     embedded={embedded}
                     variantNameOverride={variantNameOverride}
                     revisionOverride={revisionOverride}
-                    evaluatorLabel={evaluatorInfo?.label}
+                    evaluatorLabel={evaluatorInfo?.label ?? undefined}
                     hasPresets={hasPresets}
                     onLoadPreset={() => setIsPresetModalOpen(true)}
                     extraActions={isAgentHeaderMode ? undefined : viewModeSelector}

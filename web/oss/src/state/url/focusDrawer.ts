@@ -88,7 +88,7 @@ export const syncFocusDrawerStateFromUrl = (nextUrl?: string) => {
                     (urlProvided && currentState.open && hasStoredTarget && !currentState.isClosing)
 
                 if (shouldReset) {
-                    store.set(resetAtom, null)
+                    store.set(resetAtom)
                 }
             })
             return

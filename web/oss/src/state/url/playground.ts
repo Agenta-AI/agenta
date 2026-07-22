@@ -21,7 +21,13 @@ import {
     urlSnapshotController,
 } from "@agenta/playground"
 import type {PlaygroundSnapshot} from "@agenta/playground/snapshot"
-import {playgroundSnapshotController} from "@agenta/playground/state"
+import {
+    playgroundSnapshotController,
+    type EntityType,
+    type HydratedSnapshotEntity,
+    type RunnableType,
+    type SnapshotSelectionInput,
+} from "@agenta/playground/state"
 import {atom, getDefaultStore} from "jotai"
 import type {Store} from "jotai/vanilla/store"
 
@@ -200,26 +206,6 @@ const arraysEqual = (a: string[], b: string[]) => {
     return true
 }
 
-interface HydratedEntityDescriptor {
-    id: string
-    runnableType: RunnableType
-    entityType?: string
-    depth?: number
-    label?: string
-}
-
-type RunnableType = "evaluator" | "workflow"
-
-type PlaygroundEntityType = "evaluator" | "workflow"
-
-interface SnapshotSelectionInput {
-    id: string
-    runnableType: RunnableType
-    entityType?: PlaygroundEntityType
-    depth?: number
-    label?: string
-}
-
 interface PlaygroundNode {
     id: string
     entityType: string
@@ -231,7 +217,8 @@ interface PlaygroundNode {
 const entityTypeToRunnableType = (entityType: string | undefined): RunnableType | null => {
     switch (entityType) {
         case "evaluator":
-            return "evaluator"
+            // Legacy snapshots may carry "evaluator"; typed as-is (package RunnableType is "workflow"-only)
+            return "evaluator" as RunnableType
         case "workflow":
             return "workflow"
         default:
@@ -239,10 +226,11 @@ const entityTypeToRunnableType = (entityType: string | undefined): RunnableType 
     }
 }
 
-const runnableTypeToEntityType = (runnableType: RunnableType): PlaygroundEntityType | null => {
+const runnableTypeToEntityType = (runnableType: string): EntityType | null => {
     switch (runnableType) {
         case "evaluator":
-            return "evaluator"
+            // Legacy snapshots may carry "evaluator"; typed as-is (package EntityType has no "evaluator")
+            return "evaluator" as EntityType
         case "workflow":
             return "workflow"
         default:
@@ -270,7 +258,7 @@ const buildSnapshotSelectionInputs = (
         snapshotInputs.push({
             id: rootEntityId,
             runnableType,
-            ...(node?.entityType ? {entityType: node.entityType as PlaygroundEntityType} : {}),
+            ...(node?.entityType ? {entityType: node.entityType} : {}),
             ...(hasDownstreamNodes ? {depth: 0} : {}),
             ...(node?.label ? {label: node.label} : {}),
         })
@@ -285,7 +273,7 @@ const buildSnapshotSelectionInputs = (
         snapshotInputs.push({
             id: node.entityId,
             runnableType,
-            entityType: node.entityType as PlaygroundEntityType,
+            entityType: node.entityType,
             depth: node.depth,
             ...(node.label ? {label: node.label} : {}),
         })
@@ -473,7 +461,7 @@ export const updatePlaygroundUrlWithDrafts = () => {
 const applyPlaygroundSelection = (
     store: Store,
     next: string[],
-    hydratedEntities?: HydratedEntityDescriptor[],
+    hydratedEntities?: HydratedSnapshotEntity[],
     options?: {skipInitialRow?: boolean},
 ): boolean => {
     const sanitized = sanitizeRevisionList(next)
@@ -518,7 +506,7 @@ const applyPlaygroundSelection = (
             rootHydratedEntities.find((entity) => entity.id === rootEntityIds[0]) ??
             rootHydratedEntities[0]
         const primaryEntityType =
-            (primaryHydratedEntity?.entityType as PlaygroundEntityType | undefined) ??
+            (primaryHydratedEntity?.entityType as EntityType | undefined) ??
             (primaryHydratedEntity
                 ? runnableTypeToEntityType(primaryHydratedEntity.runnableType)
                 : null) ??
@@ -568,7 +556,7 @@ const applyPlaygroundSelection = (
     for (const downstream of downstreamHydratedEntities) {
         const depth = downstream.depth ?? 1
         const entityType =
-            (downstream.entityType as PlaygroundEntityType | undefined) ??
+            (downstream.entityType as EntityType | undefined) ??
             runnableTypeToEntityType(downstream.runnableType)
         if (!entityType) continue
 
@@ -679,10 +667,11 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
                     hydrateResult.loadable || hydrateResult.localTestset,
                 )
 
+                const hydratedSelection = hydrateResult.selection
                 const selectionChanged = applyPlaygroundSelection(
                     store,
-                    hydrateResult.selection,
-                    hydrateResult.entities as HydratedEntityDescriptor[] | undefined,
+                    hydratedSelection,
+                    hydrateResult.entities,
                     hasLoadableRestore ? {skipInitialRow: true} : undefined,
                 )
 
@@ -705,7 +694,7 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
                     skipUrlRevisionsUntilUpdate = true
                     // Update URL with new selection (deferred to avoid sync loop)
                     requestAnimationFrame(() => {
-                        writePlaygroundSelectionToQuery(hydrateResult.selection)
+                        writePlaygroundSelectionToQuery(hydratedSelection)
                         skipUrlRevisionsUntilUpdate = false
                     })
                 }

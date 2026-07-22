@@ -326,7 +326,7 @@ const tableColumnsBaseAtomFamily = atomFamily((runId: string | null) =>
         const evaluatorQuery = get(evaluationEvaluatorsByRunQueryAtomFamily(runId))
         const evaluators = evaluatorQuery?.data ?? []
 
-        const mappings = Array.isArray(runData.camelRun?.data?.mappings)
+        const mappings: RawMapping[] = Array.isArray(runData.camelRun?.data?.mappings)
             ? runData.camelRun.data.mappings
             : []
 

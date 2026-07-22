@@ -239,7 +239,7 @@ const MetricComparisonCard = ({metric}: MetricComparisonCardProps) => {
                             <Tooltip
                                 cursor={false}
                                 labelFormatter={(label) => String(label)}
-                                formatter={(value: number, _name, props) => {
+                                formatter={(value, _name, props) => {
                                     const runKey =
                                         typeof props?.dataKey === "string" ? props.dataKey : ""
                                     const meta = runMetaMap.get(runKey)

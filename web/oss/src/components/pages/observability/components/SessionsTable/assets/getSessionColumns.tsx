@@ -21,9 +21,18 @@ export interface SessionRow {
     key: Key
     isSkeleton?: boolean
     __isSkeleton?: boolean
+    // Index signature required by InfiniteTableRowBase.
+    [key: string]: unknown
 }
 
-export const getSessionColumns = (): ColumnsType<SessionRow> => [
+// antd column extended with props consumed by the InfiniteVirtualTable layer.
+type SessionColumn = ColumnsType<SessionRow>[number] & {
+    columnVisibilityLocked?: boolean
+    columnVisibilityLabel?: string
+    exportEnabled?: boolean
+}
+
+export const getSessionColumns = (): SessionColumn[] => [
     {
         title: "Session id",
         dataIndex: "session_id",

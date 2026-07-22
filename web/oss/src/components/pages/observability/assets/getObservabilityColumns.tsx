@@ -1,3 +1,5 @@
+import type {Key} from "react"
+
 import {LastInputMessageCell, SmartCellContent} from "@agenta/ui/cell-renderers"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {ColumnVisibilityMenuTrigger} from "@agenta/ui/table"
@@ -26,6 +28,18 @@ interface ObservabilityColumnsProps {
     evaluatorSlugs: string[]
 }
 
+// Row alias: TraceSpanNode lacks the required key + index signature of InfiniteTableRowBase.
+export type TraceRow = TraceSpanNode & {key: Key; [key: string]: unknown}
+
+// antd column extended with props consumed by the InfiniteVirtualTable layer.
+type ObservabilityColumn = ColumnsType<TraceRow>[number] & {
+    defaultHidden?: boolean
+    maxWidth?: number
+    columnVisibilityLocked?: boolean
+    columnVisibilityLabel?: string
+    exportEnabled?: boolean
+}
+
 const collectDefaultHiddenColumnKeys = <T,>(columns: ColumnsType<T>): string[] => {
     const hiddenKeys = new Set<string>()
 
@@ -47,7 +61,7 @@ const collectDefaultHiddenColumnKeys = <T,>(columns: ColumnsType<T>): string[] =
 }
 
 export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsProps) => {
-    const columns: ColumnsType<TraceSpanNode> = [
+    const columns: ObservabilityColumn[] = [
         {
             title: "ID",
             dataIndex: ["span_id"],
@@ -182,7 +196,7 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             }),
             render: (_, record) => {
                 const duration = getLatency(record)
-                return <DurationCell ms={duration} />
+                return <DurationCell ms={duration ?? undefined} />
             },
         },
         {
@@ -195,7 +209,7 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             }),
             render: (_, record) => {
                 const cost = getCost(record)
-                return <CostCell cost={cost} />
+                return <CostCell cost={cost ?? undefined} />
             },
         },
         {
@@ -208,7 +222,7 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             }),
             render: (_, record) => {
                 const tokens = getTokens(record)
-                return <UsageCell tokens={tokens} />
+                return <UsageCell tokens={tokens ?? undefined} />
             },
         },
         {

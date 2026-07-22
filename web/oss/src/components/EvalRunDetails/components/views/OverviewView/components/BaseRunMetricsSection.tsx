@@ -135,7 +135,7 @@ const BaseRunMetricsSection = ({baseRunId, comparisonRunIds}: BaseRunMetricsSect
     const temporalCharts = useMemo<TemporalChartEntry[]>(() => {
         if (!hasTemporalMetrics) return []
 
-        const convertPoint = (point: TemporalMetricPoint) => {
+        const convertPoint = (point: TemporalMetricPoint): TemporalMetricsSeriesPoint | null => {
             const resolved = resolveMetricValue(
                 point.stats,
                 point.stats.count as number | undefined,

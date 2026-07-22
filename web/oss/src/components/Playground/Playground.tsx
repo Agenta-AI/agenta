@@ -1,9 +1,13 @@
-import {type FC, useCallback, useEffect, useMemo} from "react"
+import {type ComponentProps, type FC, useCallback, useEffect, useMemo} from "react"
 
 import {executeToolCall} from "@agenta/entities/gatewayTool"
 import {loadableController} from "@agenta/entities/loadable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
-import {GatewayToolAssistantActions, type PlaygroundUIProviders} from "@agenta/playground-ui"
+import {
+    GatewayToolAssistantActions,
+    type ChatTurnAssistantActionsProps,
+    type PlaygroundUIProviders,
+} from "@agenta/playground-ui"
 import {useLocalDraftWarning} from "@agenta/playground-ui/hooks"
 import {preloadEditorPlugins, SyncStateTag} from "@agenta/ui"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -108,8 +112,16 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
     const providers = {
         SimpleSharedEditor,
         SharedGenerationResultUtils,
-        ChatTurnAssistantActions: (props) => (
-            <GatewayToolAssistantActions {...props} onExecuteToolCall={executeToolCall} />
+        ChatTurnAssistantActions: (props: ChatTurnAssistantActionsProps) => (
+            <GatewayToolAssistantActions
+                {...props}
+                // Fern ToolCall/ToolCallResponse drift from the package's inline shapes; runtime payloads match — typed as-is
+                onExecuteToolCall={
+                    executeToolCall as unknown as ComponentProps<
+                        typeof GatewayToolAssistantActions
+                    >["onExecuteToolCall"]
+                }
+            />
         ),
         // Third generation arm: agent-type entities render the agent-chat surface. The frame is
         // synchronous (real structure paints immediately); the AI SDK stays in the lazy conversation

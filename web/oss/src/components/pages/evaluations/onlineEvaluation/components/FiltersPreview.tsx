@@ -23,6 +23,8 @@ interface FiltersPreviewProps {
     filters?: Filter[]
     className?: string
     compact?: boolean
+    // Accepted by callers but not consumed yet — typed as-is per WP-4e-2a.
+    compactMaxRows?: number
 }
 
 interface NormalizedFilter {

@@ -4,6 +4,7 @@ import {Trash} from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import DeleteEvaluationModalButton from "@/oss/components/DeleteEvaluationModal/DeleteEvaluationModalButton"
+import type {DeleteEvaluationKind} from "@/oss/components/DeleteEvaluationModal/types"
 
 import {EVALUATION_RUNS_QUERY_KEY_ROOT} from "../atoms/tableStore"
 import {
@@ -40,7 +41,8 @@ const EvaluationRunsDeleteButton = () => {
     const deletionConfig = useMemo(() => {
         if (!selection.hasSelection) return undefined
         return {
-            evaluationKind: deleteContext.evaluationKind,
+            // EvaluationRunKind includes "all"; delete contexts only carry concrete kinds.
+            evaluationKind: deleteContext.evaluationKind as DeleteEvaluationKind,
             projectId: deleteContext.projectId,
             previewRunIds: selection.previewRunIds,
             invalidateQueryKeys: [EVALUATION_RUNS_QUERY_KEY_ROOT],

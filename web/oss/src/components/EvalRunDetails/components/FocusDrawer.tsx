@@ -141,7 +141,8 @@ interface FocusDrawerSection {
  * Hook to compute sections for a given run
  */
 const useFocusDrawerSections = (runId: string | null) => {
-    const {columnResult} = usePreviewTableData({runId: runId ?? undefined})
+    // Hook tolerates a nullish runId at runtime (falsy atom-family key); typed as-is.
+    const {columnResult} = usePreviewTableData({runId: (runId ?? undefined) as string})
     const descriptorMap = useAtomValue(
         useMemo(() => columnValueDescriptorMapAtomFamily(runId), [runId]),
     )
@@ -455,7 +456,7 @@ const ScenarioColumnValue = memo(
             const formattedValue =
                 typeof rawFormattedValue === "boolean"
                     ? String(rawFormattedValue)
-                    : rawFormattedValue
+                    : (rawFormattedValue as ReactNode)
 
             const isPlaceholder = formattedValue === METRIC_EMPTY_PLACEHOLDER
 

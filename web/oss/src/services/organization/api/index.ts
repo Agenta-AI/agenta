@@ -176,7 +176,7 @@ export const fetchOrganizationDomains = async (): Promise<OrganizationDomain[]> 
  */
 export const createOrganizationDomain = async (payload: {
     domain: string
-    name: string
+    name?: string
     description?: string
 }): Promise<OrganizationDomain> => {
     const response = await axios.post(`${getAgentaApiUrl()}/organizations/domains/`, payload, {
@@ -230,23 +230,29 @@ export const deleteOrganizationDomain = async (domainId: string): Promise<void> 
 // SSO/OIDC Provider API
 // ============================================================================
 
+export interface OrganizationProviderSettings {
+    issuer_url?: string
+    client_id?: string
+    client_secret?: string
+    authorization_endpoint?: string
+    token_endpoint?: string
+    userinfo_endpoint?: string
+    scopes?: string[]
+}
+
 export interface OrganizationProvider {
     id: string
     slug: string
     organization_id: string
-    provider_type: "oidc"
-    name: string
-    client_id: string
-    client_secret: string
-    issuer_url: string
-    authorization_endpoint?: string
-    token_endpoint?: string
-    userinfo_endpoint?: string
-    scopes: string[]
+    name?: string | null
+    description?: string | null
+    // Backend serves free-form dicts (OrganizationProviderResponse.flags/settings)
     flags: {
         is_valid?: boolean
         is_active?: boolean
+        is_enabled?: boolean
     }
+    settings: OrganizationProviderSettings
     created_at: string
     updated_at: string | null
 }
@@ -266,13 +272,10 @@ export const fetchOrganizationProviders = async (): Promise<OrganizationProvider
  */
 export const createOrganizationProvider = async (payload: {
     slug: string
-    provider_type: "oidc"
-    config: {
-        issuer_url: string
-        client_id: string
-        client_secret: string
-        scopes?: string[]
-    }
+    name?: string
+    description?: string
+    flags?: Record<string, boolean>
+    settings: OrganizationProviderSettings
 }): Promise<OrganizationProvider> => {
     const response = await axios.post(`${getAgentaApiUrl()}/organizations/providers/`, payload, {
         _ignoreError: true,
@@ -287,15 +290,10 @@ export const updateOrganizationProvider = async (
     providerId: string,
     payload: {
         slug?: string
-        config?: {
-            issuer_url?: string
-            client_id?: string
-            client_secret?: string
-            scopes?: string[]
-        }
-        flags?: {
-            is_enabled?: boolean
-        }
+        name?: string
+        description?: string
+        settings?: OrganizationProviderSettings
+        flags?: Record<string, boolean>
     },
 ): Promise<OrganizationProvider> => {
     const response = await axios.patch(

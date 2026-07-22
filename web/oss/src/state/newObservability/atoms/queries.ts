@@ -246,7 +246,7 @@ export const traceAnnotationInfoAtomFamily = atomFamily((key: string) =>
 )
 
 // Formatting helpers ----------------------------------------------------------
-export const formattedTimestampAtomFamily = atomFamily((ts?: string) =>
+export const formattedTimestampAtomFamily = atomFamily((ts?: string | number) =>
     atom(() => formatDay({date: ts, outputFormat: "HH:mm:ss DD MMM YYYY"})),
 )
 

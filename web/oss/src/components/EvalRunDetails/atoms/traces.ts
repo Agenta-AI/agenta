@@ -160,7 +160,11 @@ const buildTraceDataFromEntry = (
         },
     }
 
-    const spanNodes = transformTracesResponseToTree(scopedResponse)
+    // OSS TracesResponse is the same backend payload shape the entities-package
+    // transform expects; align at the boundary, no data is converted.
+    const spanNodes = transformTracesResponseToTree(
+        scopedResponse as unknown as Parameters<typeof transformTracesResponseToTree>[0],
+    )
     if (!spanNodes.length) return null
 
     const flat: TraceNode[] = []

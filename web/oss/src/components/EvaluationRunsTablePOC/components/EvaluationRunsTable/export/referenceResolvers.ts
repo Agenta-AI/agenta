@@ -10,7 +10,7 @@ import {
     evaluatorReferenceAtomFamily,
     previewTestsetReferenceAtomFamily,
 } from "@/oss/components/References/atoms/entityReferences"
-import {getUniquePartOfId} from "@/oss/lib/helpers/utils"
+import {getUniquePartOfId, isUuid} from "@/oss/lib/helpers/utils"
 
 import {
     formatVariantRevisionLabel,

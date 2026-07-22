@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, type ComponentProps} from "react"
 
 import {traceSpanMolecule} from "@agenta/entities/trace"
 import {Typography} from "antd"
@@ -89,7 +89,13 @@ export function DataPreviewEditor({
 
             <EntityDualViewEditor
                 entityId={rowDataPreview}
-                entity={entityWithDrillIn}
+                // trace molecule's controller state lacks serverData/isNew declared by
+                // EntityAPI; the editor tolerates their absence — typed as-is.
+                entity={
+                    entityWithDrillIn as unknown as ComponentProps<
+                        typeof EntityDualViewEditor
+                    >["entity"]
+                }
                 defaultEditMode="fields"
                 showViewToggle={false}
                 // Multi-span navigation

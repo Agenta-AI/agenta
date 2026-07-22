@@ -99,7 +99,7 @@ export const transformMetadata = ({
 
             return metadataItem
         })
-        .filter(Boolean)
+        .filter((item): item is NonNullable<typeof item> => Boolean(item))
 
     return metadata.sort((a, b) => {
         const typePriority = (type: string) => {
@@ -403,7 +403,7 @@ export const generateNewAnnotationPayloadData = ({
         if (!updatedMetric || Object.keys(updatedMetric).length === 0) continue
 
         const outputsSchema = getEvaluatorOutputsSchema(evaluator)
-        const schemaProps = outputsSchema.properties ?? {}
+        const schemaProps: Record<string, any> = outputsSchema.properties ?? {}
         const requiredKeys = outputsSchema.required ?? []
 
         const metrics: Record<string, any> = {}

@@ -99,10 +99,10 @@ export interface UseTestsetDrawerResult {
     onSaveEditedTrace: (value?: string) => void
     onRevertEditedTrace: () => void
     customSelectOptions: (divider?: boolean) => any[]
-    renderSelectedRevisionLabel: (labels: string[], selectedOptions?: any[]) => string
+    renderSelectedRevisionLabel: (labels: string[], selectedOptions?: any[]) => React.ReactNode
 
     // Refs
-    elemRef: React.RefObject<HTMLDivElement>
+    elemRef: React.RefObject<HTMLDivElement | null>
 }
 
 export function useTestsetDrawer(): UseTestsetDrawerResult {
