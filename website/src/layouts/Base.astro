@@ -5,12 +5,42 @@ import Analytics from "../components/Analytics.astro";
 interface Props {
   title?: string;
   description?: string;
+  // og:type — "article" for blog posts, "website" for everything else.
+  ogType?: "website" | "article";
+  // Page-specific share image (absolute path under /public, e.g. a post hero).
+  // Falls back to the site default OG image when omitted.
+  ogImage?: string;
+  // Override the auto-derived canonical (rarely needed; pages compute it from
+  // their own URL by default).
+  canonical?: string;
 }
 
 const {
   title = "Agenta — Build agents and AI automations that work",
   description = "Build agents using skills and tools, run on any harness, in any environment. The open platform for agents and AI automation.",
+  ogType = "website",
+  ogImage,
+  canonical,
 } = Astro.props;
+
+// Canonical URL: strip any trailing slash. Our Cloudflare assets config sets
+// html_handling: "drop-trailing-slash" (wrangler.jsonc), so every route is
+// served at its no-slash form — the canonical must match. `canonical` is an
+// escape hatch for the rare page that needs to override this.
+const canonicalHref =
+  canonical ??
+  (() => {
+    const path = Astro.url.pathname.replace(/\/+$/, "");
+    return new URL(path === "" ? "/" : path, Astro.site).toString();
+  })();
+
+// Share image: page-specific ogImage (resolved to an absolute URL) or the site
+// default. Both must be absolute for crawlers/social cards.
+const ogImageUrl = new URL(ogImage ?? "/og/default.png", Astro.site).toString();
+
+// noindex: preview/test deploys set PUBLIC_NOINDEX=true so crawlers never index
+// them. The matching disallow-all robots.txt lives in src/pages/robots.txt.ts.
+const noindex = import.meta.env.PUBLIC_NOINDEX === "true";
 ---
 
 <!doctype html>
@@ -18,17 +48,37 @@ const {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="icon" href="/logos/Agenta-symbol-dark-accent.svg" />
     <meta name="generator" content={Astro.generator} />
+
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
 
     <title>{title}</title>
     <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalHref} />
+
+    <!-- Favicons. SVG (adaptive, dark tile + brand mark) is preferred by modern
+         browsers; .ico is the universal fallback; PNGs cover legacy + Apple. -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="/favicon-16x16.png" type="image/png" sizes="16x16" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#0A0A0B" />
 
     <!-- Open Graph -->
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:site_name" content="Agenta" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta name="theme-color" content="#0A0A0B" />
+    <meta property="og:url" content={canonicalHref} />
+    <meta property="og:image" content={ogImageUrl} />
+
+    <!-- Twitter / X card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageUrl} />
 
     <!-- Web fonts: Inter (body) + Geist / Geist Mono (used in the explorer code blocks).
          GT Alpina + PP Mondwest are self-hosted (see src/styles/tokens.css). -->
@@ -54,6 +104,10 @@ const {
       type="font/woff2"
       crossorigin
     />
+
+    <!-- Page-specific head content (JSON-LD, per-page robots overrides, etc.). -->
+    <slot name="head" />
+
     <Analytics />
   </head>
   <body>
