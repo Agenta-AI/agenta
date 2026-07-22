@@ -382,7 +382,8 @@ export const filtersAtomFamily = atomFamily((tab: ObservabilityTabInfo) =>
 // Proxy filters atom
 export const filtersAtom = atom(
     (get) => get(filtersAtomFamily(get(observabilityTabAtom))),
-    (get, set, update: Filter[]) => set(filtersAtomFamily(get(observabilityTabAtom)), update),
+    (get, set, update: Filter[] | ((prev: Filter[]) => Filter[])) =>
+        set(filtersAtomFamily(get(observabilityTabAtom)), update),
 )
 
 // Table/UI controls -----------------------------------------------------------

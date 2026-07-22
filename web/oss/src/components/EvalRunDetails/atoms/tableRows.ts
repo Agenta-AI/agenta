@@ -17,4 +17,5 @@ export interface PreviewTableRow {
     /** Timestamp for online evaluation scenarios (batch grouping) */
     timestamp?: string | null
     __isSkeleton: boolean
+    [key: string]: unknown
 }

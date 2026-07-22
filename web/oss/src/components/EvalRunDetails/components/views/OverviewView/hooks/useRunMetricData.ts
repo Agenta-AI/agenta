@@ -11,6 +11,7 @@ import {
     runTemporalMetricKeysAtomFamily,
     runTemporalMetricSeriesAtomFamily,
     TemporalMetricPoint,
+    type RunLevelMetricSelection,
 } from "@/oss/components/Evaluations/atoms/runMetrics"
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 import type {BasicStats} from "@/oss/lib/metricUtils"
@@ -114,7 +115,7 @@ export interface RunMetricSelectionEntry {
         runId: string
         index: number
         runKey: string
-        selection: ReturnType<typeof previewRunMetricStatsSelectorFamily>
+        selection: RunLevelMetricSelection
     }[]
 }
 

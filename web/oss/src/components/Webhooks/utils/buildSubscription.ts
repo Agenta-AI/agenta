@@ -14,20 +14,7 @@ export const buildSubscription = (
     isEdit: boolean,
     subscriptionId?: string,
 ): WebhookSubscriptionCreateRequest | WebhookSubscriptionEditRequest => {
-    const {
-        provider,
-        name,
-        event_types,
-        url,
-        headers,
-        auth_mode,
-        auth_value,
-        github_sub_type,
-        github_repo,
-        github_pat,
-        github_workflow,
-        github_branch,
-    } = formValues
+    const {provider, name, event_types} = formValues
 
     // Common data
     const baseSubscription = {
@@ -35,7 +22,8 @@ export const buildSubscription = (
         ...(isEdit && {id: subscriptionId}),
     }
 
-    if (provider === "webhook") {
+    if (formValues.provider === "webhook") {
+        const {url, headers, auth_mode, auth_value} = formValues
         const subscription: WebhookSubscriptionCreateRequest["subscription"] = {
             ...baseSubscription,
             data: {
@@ -52,7 +40,9 @@ export const buildSubscription = (
         }
 
         return {subscription}
-    } else if (provider === "github") {
+    } else if (formValues.provider === "github") {
+        const {github_sub_type, github_repo, github_pat, github_workflow, github_branch} =
+            formValues
         const subType = github_sub_type || "repository_dispatch"
         const repo = github_repo || ""
         let finalUrl = GITHUB_URL_TEMPLATES[subType].replace("{repo}", repo)
