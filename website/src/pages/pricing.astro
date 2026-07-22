@@ -241,10 +241,12 @@ const COLS = `grid-template-columns:1.4fr repeat(${comparison.columns.length}, 1
     box-sizing: border-box;
     padding: 0 24px;
   }
-  /* Cloud mode: three plans. */
+  /* Cloud mode: four plans. Cards are subgrid children (PlanCard.astro); the grid
+     defines no explicit rows, so the four row tracks are implicit and shared across a
+     card row, which is what keeps every card's CTA divider on one line. */
   .plan-grid-cloud {
-    grid-template-columns: repeat(3, 1fr);
-    max-width: 1040px;
+    grid-template-columns: repeat(4, 1fr);
+    max-width: 1240px;
   }
   /* Self-hosted mode: two plans, centered (not stretched full width). */
   .plan-grid-self {
@@ -336,8 +338,9 @@ const COLS = `grid-template-columns:1.4fr repeat(${comparison.columns.length}, 1
     animation: accordion-in 0.2s ease both;
   }
 
-  /* ── responsive (CSS media queries per handoff/RESPONSIVE.md) ── */
-  @media (max-width: 1000px) {
+  /* ── responsive: mirror agenta.ai/pricing — 4-across on desktop, halving to a
+     two-up tablet grid, then a single column on phones (self-hosted keeps two). ── */
+  @media (max-width: 900px) {
     .plan-grid-cloud {
       grid-template-columns: repeat(2, 1fr);
       max-width: 720px;
@@ -365,6 +368,7 @@ const COLS = `grid-template-columns:1.4fr repeat(${comparison.columns.length}, 1
     .plan-grid-cloud,
     .plan-grid-self {
       grid-template-columns: 1fr;
+      max-width: 420px;
     }
   }
 </style>

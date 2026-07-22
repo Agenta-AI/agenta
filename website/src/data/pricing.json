@@ -1,5 +1,5 @@
 {
-  "_note": "This file drives the ENTIRE pricing page (website/src/pages/pricing.astro). Every visible string lives here — nothing is hardcoded in the component. Edit this file to change prices, plans, chips, CTAs, the comparison table, or the FAQ. Structure: `hostingToggle` = the two-option Cloud/Self-hosted switch; `plansByMode` = the plan cards shown for each toggle option (cloud = 3 cards, selfHosted = 2 cards); `comparison` = the always-visible side-by-side table (independent of the toggle, shows all five plans as columns); `faqs` = the FAQ accordion. In `comparison.groups[].rows[].cells`, `true` renders a check, `false` renders a dash, and a string renders as-is. Plan card `chip` is a small pill above the price (null = no chip); `popular` = true gives the highlighted card chrome; `cta.style` is `primary` (yellow) or `outline`.",
+  "_note": "This file drives the ENTIRE pricing page (website/src/pages/pricing.astro). Every visible string lives here — nothing is hardcoded in the component. Edit this file to change prices, plans, chips, CTAs, the comparison table, or the FAQ. Structure: `hostingToggle` = the two-option Cloud/Self-hosted switch; `plansByMode` = the plan cards shown for each toggle option (cloud = 4 cards, selfHosted = 2 cards); `comparison` = the always-visible side-by-side table (independent of the toggle, shows all five plans as columns); `faqs` = the FAQ accordion. In `comparison.groups[].rows[].cells`, `true` renders a check, `false` renders a dash, and a string renders as-is. Plan card `chip` is a small pill that straddles the card's top border (null = no chip); `cta.style` is `primary` (yellow) or `outline`. Card chrome is uniform across every plan. Adding or removing a feature keeps the CTA divider aligned across a row automatically (the grid uses subgrid row tracks, so no per-card heights to tune).",
 
   "hostingToggle": {
     "defaultMode": "cloud",
@@ -18,8 +18,11 @@
         "price": "$0",
         "unit": "forever",
         "chip": null,
-        "popular": false,
-        "cta": { "label": "Start for free", "href": "https://cloud.agenta.ai/", "style": "outline" },
+        "cta": {
+          "label": "Start for free",
+          "href": "https://cloud.agenta.ai/",
+          "style": "outline"
+        },
         "includesLabel": "Includes",
         "features": [
           "2 team members",
@@ -36,8 +39,11 @@
         "price": "$29",
         "unit": "/month",
         "chip": "Unlimited users",
-        "popular": true,
-        "cta": { "label": "Start free trial", "href": "https://cloud.agenta.ai/", "style": "primary" },
+        "cta": {
+          "label": "Start free trial",
+          "href": "https://cloud.agenta.ai/",
+          "style": "primary"
+        },
         "includesLabel": "Everything in Hobby, plus",
         "features": [
           "Unlimited team members",
@@ -54,8 +60,11 @@
         "price": "$299",
         "unit": "/month",
         "chip": "Unlimited users",
-        "popular": false,
-        "cta": { "label": "Start free trial", "href": "https://cloud.agenta.ai/", "style": "outline" },
+        "cta": {
+          "label": "Start free trial",
+          "href": "https://cloud.agenta.ai/",
+          "style": "outline"
+        },
         "includesLabel": "Everything in Pro, plus",
         "features": [
           "First 1M traces / month free, then $5 per 10k",
@@ -64,6 +73,26 @@
           "Audit logs and audit-grade controls",
           "Quarterly data retention",
           "Priority support"
+        ]
+      },
+      {
+        "id": "enterprise-cloud",
+        "name": "Enterprise",
+        "tagline": "For organizations that need a dedicated, compliant cloud.",
+        "price": "Custom",
+        "unit": "",
+        "chip": null,
+        "cta": {
+          "label": "Book a demo",
+          "href": "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
+          "style": "outline"
+        },
+        "includesLabel": "Everything in Business, plus",
+        "features": [
+          "Dedicated or isolated cloud",
+          "SSO and MFA",
+          "SOC 2 and audit logs",
+          "SLA with dedicated support"
         ]
       }
     ],
@@ -75,8 +104,11 @@
         "price": "Free",
         "unit": "",
         "chip": null,
-        "popular": false,
-        "cta": { "label": "Read the docs", "href": "https://docs.agenta.ai", "style": "outline" },
+        "cta": {
+          "label": "Read the docs",
+          "href": "https://docs.agenta.ai",
+          "style": "outline"
+        },
         "includesLabel": "Includes",
         "features": [
           "The full open-source platform",
@@ -93,8 +125,11 @@
         "price": "Custom",
         "unit": "",
         "chip": null,
-        "popular": false,
-        "cta": { "label": "Book a demo", "href": "https://cal.com/mahmoud-mabrouk-ogzgey/demo", "style": "primary" },
+        "cta": {
+          "label": "Book a demo",
+          "href": "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
+          "style": "primary"
+        },
         "includesLabel": "Everything in Open source, plus",
         "features": [
           "SSO and MFA",
@@ -119,29 +154,86 @@
       {
         "title": "Usage and limits",
         "rows": [
-          { "label": "Team members", "cells": ["Unlimited", "2", "Unlimited", "Unlimited", "Unlimited"] },
-          { "label": "Traces per month", "cells": ["Unlimited", "5k", "10k, then $5 per 10k", "1M, then $5 per 10k", "Custom"] },
-          { "label": "Evaluations per month", "cells": ["Unlimited", "20", "Unlimited", "Unlimited", "Unlimited"] },
-          { "label": "Data retention", "cells": ["Self-managed", "1 week", "1 month", "Quarterly", "Custom"] }
+          {
+            "label": "Team members",
+            "cells": ["Unlimited", "2", "Unlimited", "Unlimited", "Unlimited"]
+          },
+          {
+            "label": "Traces per month",
+            "cells": [
+              "Unlimited",
+              "5k",
+              "10k, then $5 per 10k",
+              "1M, then $5 per 10k",
+              "Custom"
+            ]
+          },
+          {
+            "label": "Evaluations per month",
+            "cells": ["Unlimited", "20", "Unlimited", "Unlimited", "Unlimited"]
+          },
+          {
+            "label": "Data retention",
+            "cells": [
+              "Self-managed",
+              "1 week",
+              "1 month",
+              "Quarterly",
+              "Custom"
+            ]
+          }
         ]
       },
       {
         "title": "Build and evaluate",
         "rows": [
-          { "label": "Prompt management and versioning", "cells": [true, true, true, true, true] },
-          { "label": "Playground and side-by-side compare", "cells": [true, true, true, true, true] },
-          { "label": "Evaluation and LLM-as-a-judge", "cells": [true, true, true, true, true] },
-          { "label": "Observability and tracing", "cells": [true, true, true, true, true] }
+          {
+            "label": "Prompt management and versioning",
+            "cells": [true, true, true, true, true]
+          },
+          {
+            "label": "Playground and side-by-side compare",
+            "cells": [true, true, true, true, true]
+          },
+          {
+            "label": "Evaluation and LLM-as-a-judge",
+            "cells": [true, true, true, true, true]
+          },
+          {
+            "label": "Observability and tracing",
+            "cells": [true, true, true, true, true]
+          }
         ]
       },
       {
         "title": "Security and support",
         "rows": [
-          { "label": "Role-based access control", "cells": [false, false, false, true, true] },
-          { "label": "SSO and MFA", "cells": [false, false, false, true, true] },
-          { "label": "SOC 2 and audit logs", "cells": [false, false, false, true, true] },
-          { "label": "Self-hosting", "cells": [true, false, false, false, true] },
-          { "label": "Support", "cells": ["Community", "Community", "Email", "Priority", "Dedicated + SLA"] }
+          {
+            "label": "Role-based access control",
+            "cells": [false, false, false, true, true]
+          },
+          {
+            "label": "SSO and MFA",
+            "cells": [false, false, false, true, true]
+          },
+          {
+            "label": "SOC 2 and audit logs",
+            "cells": [false, false, false, true, true]
+          },
+          {
+            "label": "Self-hosting",
+            "cells": [true, false, false, false, true]
+          },
+          {
+            "label": "Support",
+            "cells": [
+              "Community",
+              "Community",
+              "Email",
+              "Priority",
+              "Dedicated + SLA"
+            ]
+          }
         ]
       }
     ]
