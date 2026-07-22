@@ -12,11 +12,19 @@
 // be production, indexable builds too, so the gates above alone would let their
 // traffic reach the real PostHog project. Analytics initializes ONLY on the real
 // site (agenta.ai / www.agenta.ai); every *.workers.dev preview host is skipped.
-const posthogKey = import.meta.env.PUBLIC_POSTHOG_KEY;
-const noindex = import.meta.env.PUBLIC_NOINDEX === "true";
+//
+// This script must stay BUNDLED (no define:vars / is:inline): an inline script's
+// import("posthog-js") is a bare specifier the browser cannot resolve, so
+// analytics silently never loads. Vite statically replaces the PUBLIC_* env
+// reads in bundled client code, which is why no value handoff is needed.
 ---
 
-<script define:vars={{ posthogKey, noindex }}>
+<script>
+  import posthog from "posthog-js";
+
+  const posthogKey = import.meta.env.PUBLIC_POSTHOG_KEY;
+  const noindex = import.meta.env.PUBLIC_NOINDEX === "true";
+
   const dnt =
     navigator.doNotTrack === "1" ||
     // @ts-expect-error legacy vendor-prefixed flags
@@ -31,16 +39,14 @@ const noindex = import.meta.env.PUBLIC_NOINDEX === "true";
   if (posthogKey && !noindex && isRealSite && !dnt && !window.__agPosthogInit) {
     // @ts-expect-error one-time guard on window
     window.__agPosthogInit = true;
-    import("posthog-js").then(({ default: posthog }) => {
-      posthog.init(posthogKey, {
-        api_host: "https://alef.agenta.ai",
-        ui_host: "https://us.posthog.com",
-        person_profiles: "identified_only",
-        capture_pageview: true,
-        capture_pageleave: true,
-        autocapture: true,
-        respect_dnt: true,
-      });
+    posthog.init(posthogKey, {
+      api_host: "https://alef.agenta.ai",
+      ui_host: "https://us.posthog.com",
+      person_profiles: "identified_only",
+      capture_pageview: true,
+      capture_pageleave: true,
+      autocapture: true,
+      respect_dnt: true,
     });
   }
 </script>
