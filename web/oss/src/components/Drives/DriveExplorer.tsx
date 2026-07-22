@@ -24,6 +24,7 @@ import {CopyButton} from "@agenta/ui/components/presentational"
 import {
     ArrowsIn,
     ArrowsOut,
+    UploadSimple,
     CaretDown,
     CaretRight,
     CircleNotch,
@@ -87,6 +88,7 @@ import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
 import {DriveFileBody} from "./renderers"
 import {DriveRepoMetaList} from "./repoMeta"
 import {useLazyDriveTree} from "./useLazyDriveTree"
+import {useMountUpload} from "./useMountUpload"
 import {
     AGENT_FILES_DIR,
     driveHasMixedOrigins,
@@ -968,10 +970,13 @@ const DriveHeader = ({
     partialErrored,
     onRetry,
     retrying,
+    onUpload,
 }: {
     selectedPath: string | null
     isFolder: boolean
     rootLabel: string
+    /** Pick files to upload into the current folder — shown only for a writable mount. */
+    onUpload?: () => void
     /** Immediate-child count for a non-root folder (null when unknown / at root). */
     itemCount: number | null
     /** Whole-drive file count — the chip at the root, preserving the old "N files". */
@@ -1088,6 +1093,17 @@ const DriveHeader = ({
                 </Tooltip>
             ) : null}
             <div className="flex shrink-0 items-center gap-1">
+                {onUpload ? (
+                    <Tooltip title="Upload to this folder">
+                        <Button
+                            type="text"
+                            aria-label="Upload files"
+                            icon={<UploadSimple size={16} />}
+                            onClick={onUpload}
+                            className="!h-7 !w-7 !p-0 !text-colorTextSecondary hover:!text-colorText"
+                        />
+                    </Tooltip>
+                ) : null}
                 {selectedPath ? (
                     <Tooltip title="Copy path">
                         <CopyButton
@@ -1456,6 +1472,26 @@ export function DriveExplorer({
     // mode a not-yet-loaded selection is treated as a FILE (the preview reads by path), so an initial
     // file target shows its preview immediately instead of a wrong "empty folder" flash.
     const selectedIsFolder = selectedPath === "" || selectedNode?.isFolder === true
+
+    // Upload files INTO the current folder — mount-backed, writable hosts only (never the local-file
+    // preview, which has no mount to write to).
+    const mountUpload = useMountUpload()
+    const uploadInputRef = useRef<HTMLInputElement>(null)
+    const canUpload = !explicitFiles && !!drive.mount
+    const currentFolder = selectedIsFolder
+        ? (selectedPath ?? "")
+        : selectedPath
+          ? selectedPath.slice(0, Math.max(0, selectedPath.lastIndexOf("/")))
+          : ""
+    const startUpload = useCallback(
+        (picked: File[]) => {
+            const resolved = drive.resolveMount(currentFolder)
+            if (resolved) {
+                mountUpload.upload(picked, {mount: resolved.mount, destFolder: resolved.path})
+            }
+        },
+        [drive, currentFolder, mountUpload],
+    )
     const selected = drive.recents.find((f) => f.path === selectedPath) ?? null
     const showOrigin = driveHasMixedOrigins(drive.recents)
 
@@ -1972,7 +2008,66 @@ export function DriveExplorer({
                         partialErrored={drive.partialErrored}
                         onRetry={drive.retry}
                         retrying={drive.isFetching}
+                        onUpload={canUpload ? () => uploadInputRef.current?.click() : undefined}
                     />
+                    <input
+                        ref={uploadInputRef}
+                        type="file"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => {
+                            const picked = e.target.files
+                            if (picked?.length) startUpload(Array.from(picked))
+                            e.target.value = ""
+                        }}
+                    />
+                    {mountUpload.items.length > 0 ? (
+                        <div className="flex shrink-0 flex-col gap-1.5 border-0 border-b border-solid border-colorBorderSecondary px-3 py-2">
+                            {mountUpload.items.map((it) => (
+                                <div key={it.id} className="flex items-center gap-2 text-xs">
+                                    <span className="min-w-0 flex-1 truncate" title={it.name}>
+                                        {it.name}
+                                    </span>
+                                    {it.error ? (
+                                        <>
+                                            <Tooltip title={it.error}>
+                                                <span className="shrink-0 text-colorError">
+                                                    Failed
+                                                </span>
+                                            </Tooltip>
+                                            <button
+                                                type="button"
+                                                onClick={() => mountUpload.retry(it.id)}
+                                                className="shrink-0 cursor-pointer rounded border-0 bg-transparent text-colorPrimary hover:underline"
+                                            >
+                                                Retry
+                                            </button>
+                                            <button
+                                                type="button"
+                                                aria-label="Dismiss"
+                                                onClick={() => mountUpload.dismiss(it.id)}
+                                                className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-colorTextTertiary hover:text-colorText"
+                                            >
+                                                <X size={11} />
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="h-1 w-24 shrink-0 overflow-hidden rounded-full bg-colorFillTertiary">
+                                                <div
+                                                    className="h-full rounded-full bg-colorPrimary transition-[width] duration-150"
+                                                    style={{width: `${it.percent}%`}}
+                                                />
+                                            </div>
+                                            <span className="shrink-0 tabular-nums text-colorTextTertiary">
+                                                {it.percent}%
+                                            </span>
+                                        </>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    ) : null}
                     {/* Shared toolbar — the show/hide tree toggle sits FIRST (left), directly above the
                         tree pane it controls; then search + filters. Search forces the tree of matches
                         (see body), so the toggle is disabled while searching. */}
