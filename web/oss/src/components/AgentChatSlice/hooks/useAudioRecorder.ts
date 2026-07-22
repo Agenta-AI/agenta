@@ -52,17 +52,6 @@ const getAudioContextCtor = (): typeof AudioContext | undefined => {
     return w.AudioContext ?? w.webkitAudioContext
 }
 
-/** Live capture readouts. Kept in a ref, NOT React state: they tick at animation-frame rate, and
- * this hook is owned by a very large component — putting them in state re-renders the whole
- * conversation 60x a second. `RecordingBar` samples this ref itself, so only it repaints. */
-export interface AudioMeter {
-    /** Smoothed input level 0–1. Best-effort: metering can fail without affecting capture. */
-    level: number
-    /** Capture start (epoch ms), 0 when idle. Elapsed is DERIVED from this by the meter UI, so the
-     * clock never depends on a polling timer and cannot drift. */
-    startedAt: number
-}
-
 export interface AudioRecorder {
     supported: boolean
     status: RecorderStatus
@@ -72,8 +61,15 @@ export interface AudioRecorder {
     takeoverVisible: boolean
     /** Awaiting the browser permission prompt; surface this on the mic itself, not as a takeover. */
     pending: boolean
-    /** Live level + elapsed, sampled by the meter UI (see `AudioMeter`). */
-    meterRef: RefObject<AudioMeter>
+    /**
+     * Live analyser for the waveform, or null when metering is unavailable (it is best-effort and
+     * never blocks capture). The view samples and draws from this — visualisation state stays out
+     * of React entirely, so it costs no renders.
+     */
+    analyserRef: RefObject<AnalyserNode | null>
+    /** Capture start (epoch ms), 0 when idle. Elapsed is DERIVED from this, so the clock needs no
+     * polling timer and cannot drift. */
+    startedAtRef: RefObject<number>
     /** Human message for the `denied` / `error` states; null otherwise. */
     error: string | null
     start: () => void
@@ -92,7 +88,6 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
 
     const [status, setStatus] = useState<RecorderStatus>("idle")
     const [error, setError] = useState<string | null>(null)
-    const meterRef = useRef<AudioMeter>({level: 0, startedAt: 0})
 
     const recRef = useRef<MediaRecorder | null>(null)
     const streamRef = useRef<MediaStream | null>(null)
@@ -101,7 +96,7 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
     // Deadline for the hard cap. A timer, not rAF: rAF pauses in a background tab, which would
     // let a backgrounded recording run past the limit forever.
     const capTimerRef = useRef<number | undefined>(undefined)
-    const rafRef = useRef<number | undefined>(undefined)
+    const analyserRef = useRef<AnalyserNode | null>(null)
     const audioCtxRef = useRef<AudioContext | null>(null)
     const cancelledRef = useRef(false)
     const onCompleteRef = useRef(onComplete)
@@ -109,16 +104,16 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
 
     const teardown = useCallback(() => {
         window.clearTimeout(capTimerRef.current)
-        if (rafRef.current !== undefined) cancelAnimationFrame(rafRef.current)
-        rafRef.current = undefined
+        analyserRef.current = null
         audioCtxRef.current?.close().catch(() => {})
         audioCtxRef.current = null
         streamRef.current?.getTracks().forEach((t) => t.stop())
         streamRef.current = null
         recRef.current = null
-        meterRef.current = {level: 0, startedAt: 0}
+        startedAtRef.current = 0
     }, [])
 
+    /** Build the analysis graph. The view samples it; this only owns its lifecycle. */
     const meter = useCallback((stream: MediaStream) => {
         const Ctor = getAudioContextCtor()
         if (!Ctor) return
@@ -127,19 +122,11 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
             audioCtxRef.current = ctx
             const source = ctx.createMediaStreamSource(stream)
             const analyser = ctx.createAnalyser()
-            analyser.fftSize = 256
+            // 512-point FFT: enough spectral detail for a voice waveform without much cost.
+            analyser.fftSize = 512
+            analyser.smoothingTimeConstant = 0.7
             source.connect(analyser)
-            const buf = new Uint8Array(analyser.frequencyBinCount)
-            const tick = () => {
-                analyser.getByteTimeDomainData(buf)
-                let peak = 0
-                for (const v of buf) peak = Math.max(peak, Math.abs(v - 128))
-                // Smooth toward the new peak so the meter doesn't strobe. Ref write, no re-render.
-                const prev = meterRef.current.level
-                meterRef.current.level = prev * 0.6 + Math.min(1, peak / 90) * 0.4
-                rafRef.current = requestAnimationFrame(tick)
-            }
-            rafRef.current = requestAnimationFrame(tick)
+            analyserRef.current = analyser
         } catch {
             // Metering is a nicety — recording still works without it.
         }
@@ -187,7 +174,6 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
                 }
                 recRef.current = rec
                 startedAtRef.current = Date.now()
-                meterRef.current = {level: 0, startedAt: startedAtRef.current}
                 setStatus("recording")
                 meter(stream)
                 // One deadline instead of polling; auto-stops and keeps at the cap.
@@ -250,7 +236,8 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
         // chrome (and a cancel button that cannot cancel it) would only compete with it.
         takeoverVisible: status === "recording",
         pending: status === "requesting",
-        meterRef,
+        analyserRef,
+        startedAtRef,
         error,
         start,
         stop,

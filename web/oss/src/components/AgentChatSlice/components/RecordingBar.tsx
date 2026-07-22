@@ -7,11 +7,11 @@ import {AnimatePresence, motion} from "motion/react"
 import {SESSION_SPRING} from "../assets/sessionMotion"
 import {type AudioRecorder, MAX_RECORDING_MS} from "../hooks/useAudioRecorder"
 
+import RecordingWaveform from "./RecordingWaveform"
+
 const mmss = (totalSeconds: number): string =>
     `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`
 
-// Fixed level bars; each lights once the smoothed input level crosses its threshold.
-const BAR_THRESHOLDS = [0.08, 0.16, 0.26, 0.38, 0.52, 0.68, 0.85]
 const MAX_SECONDS = Math.floor(MAX_RECORDING_MS / 1000)
 
 /**
@@ -20,31 +20,22 @@ const MAX_SECONDS = Math.floor(MAX_RECORDING_MS / 1000)
  * level, with delete (discard) and attach (keep) exits.
  */
 const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className?: string}) => {
-    const {meterRef, stop, cancel} = recorder
+    const {analyserRef, startedAtRef, stop, cancel} = recorder
 
-    // One rAF drives both readouts, sampled here rather than in the recorder's owner: this is a
-    // small component, so repainting it is cheap; the conversation is not.
-    //
-    // Both values are QUANTISED to what is actually visible — the meter is N discrete bars and the
-    // clock ticks once a second — so a 60Hz loop only causes a render when a bar lights or the
-    // second rolls over, not on every frame.
-    const [{bars, seconds}, setReadout] = useState({bars: 0, seconds: 0})
+    // Only the clock lives in React, quantised to whole seconds — so this repaints ~1x/s. The
+    // waveform draws itself straight to canvas and never renders.
+    const [seconds, setSeconds] = useState(0)
     useEffect(() => {
         let raf = 0
         const tick = () => {
-            const {level, startedAt} = meterRef.current
-            const nextBars = BAR_THRESHOLDS.filter((t) => level >= t).length
-            const nextSeconds = startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0
-            setReadout((prev) =>
-                prev.bars === nextBars && prev.seconds === nextSeconds
-                    ? prev
-                    : {bars: nextBars, seconds: nextSeconds},
-            )
+            const startedAt = startedAtRef.current
+            const next = startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0
+            setSeconds((prev) => (prev === next ? prev : next))
             raf = requestAnimationFrame(tick)
         }
         raf = requestAnimationFrame(tick)
         return () => cancelAnimationFrame(raf)
-    }, [meterRef])
+    }, [startedAtRef])
 
     const remainingSeconds = Math.max(0, MAX_SECONDS - seconds)
     const nearLimit = remainingSeconds <= 30
@@ -83,15 +74,7 @@ const RecordingBar = ({recorder, className}: {recorder: AudioRecorder; className
                 {mmss(seconds)}
             </span>
 
-            <div className="flex flex-1 items-center gap-1" aria-hidden>
-                {BAR_THRESHOLDS.map((_, i) => (
-                    <span
-                        key={i}
-                        className="w-[3px] rounded-full bg-colorError transition-opacity duration-100"
-                        style={{height: `${8 + i * 3}px`, opacity: i < bars ? 1 : 0.2}}
-                    />
-                ))}
-            </div>
+            <RecordingWaveform analyserRef={analyserRef} className="flex-1 text-colorError" />
 
             <AnimatePresence initial={false}>
                 {nearLimit && (
