@@ -11,7 +11,7 @@
  */
 import {useEffect, useMemo, useRef, useState} from "react"
 
-import {mountFileContentQueryFamily, type Mount} from "@agenta/entities/session"
+import {type Mount} from "@agenta/entities/session"
 import {DownloadSimple, FileDashed} from "@phosphor-icons/react"
 import {Button, Segmented, Skeleton} from "antd"
 import {useAtomValue} from "jotai"
@@ -20,13 +20,14 @@ import dynamic from "next/dynamic"
 import Markdown from "@/oss/components/AgentChatSlice/assets/markdown"
 import {projectIdAtom} from "@/oss/state/project"
 
-import {driveCodeLanguage, resolveDriveFileKind, type DriveFileKind} from "./driveKinds"
 import {
-    downloadMountFile,
-    fetchMountFileBlob,
-    useMountFileMediaSrc,
-    useMountFileObjectUrl,
-} from "./driveMedia"
+    useDriveDownload,
+    useDriveFileText,
+    useDriveMediaSrc,
+    useDriveObjectUrl,
+} from "./driveFileSource"
+import {driveCodeLanguage, resolveDriveFileKind, type DriveFileKind} from "./driveKinds"
+import {fetchMountFileBlob} from "./driveMedia"
 import {humanSize} from "./driveTree"
 
 // Lexical + lazy-Shiki code block (theme-paired highlighting). Loaded only when a code body
@@ -104,12 +105,9 @@ const CenterCard = ({
 )
 
 const DownloadAction = ({mount, path}: {mount: Mount | null; path: string}) => {
-    const projectId = useAtomValue(projectIdAtom)
+    const download = useDriveDownload(mount, path)
     return (
-        <Button
-            icon={<DownloadSimple size={13} />}
-            onClick={() => void downloadMountFile({mount, path, projectId})}
-        >
+        <Button icon={<DownloadSimple size={13} />} onClick={download}>
             Download to open
         </Button>
     )
@@ -137,7 +135,7 @@ const TextBody = ({
     path: string
     kind: DriveFileKind
 }) => {
-    const contentQuery = useAtomValue(mountFileContentQueryFamily({mountId: mount?.id ?? "", path}))
+    const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
 
     if (contentQuery.isPending)
@@ -174,7 +172,7 @@ const TextBody = ({
 /** Syntax-highlighted body for code (and structured-data) files — the same lexical/Shiki block
  * the playground drawers use, read-only, horizontal scroll (code must not soft-wrap). */
 const CodeBody = ({mount, path}: {mount: Mount | null; path: string}) => {
-    const contentQuery = useAtomValue(mountFileContentQueryFamily({mountId: mount?.id ?? "", path}))
+    const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
 
     const value = useMemo(() => {
@@ -207,7 +205,7 @@ const CodeBody = ({mount, path}: {mount: Mount | null; path: string}) => {
 const CSV_ROW_CAP = 500
 
 const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
-    const contentQuery = useAtomValue(mountFileContentQueryFamily({mountId: mount?.id ?? "", path}))
+    const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
     // +2 (header + CSV_ROW_CAP body + 1 probe): parse one row PAST the display cap so `capped` below
     // can tell "exactly CSV_ROW_CAP body rows" from "more than that" and show the truncation banner.
@@ -398,7 +396,7 @@ const HtmlBody = ({
     onNavigate?: (path: string) => void
 }) => {
     const projectId = useAtomValue(projectIdAtom)
-    const contentQuery = useAtomValue(mountFileContentQueryFamily({mountId: mount?.id ?? "", path}))
+    const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
     const [view, setView] = useState<"preview" | "source">("preview")
     const [assembled, setAssembled] = useState<string | null>(null)
@@ -493,7 +491,7 @@ const MediaLoading = () => (
 
 const ImageBody = ({mount, path}: {mount: Mount | null; path: string}) => {
     // Direct URL first: the browser streams/decodes outside the JS heap; blob only on auth error.
-    const {src: url, isPending, failed, onError} = useMountFileMediaSrc(mount, path)
+    const {src: url, isPending, failed, onError} = useDriveMediaSrc(mount, path)
     const [zoomed, setZoomed] = useState(false)
     if (isPending) return <MediaLoading />
     if (failed || !url)
@@ -532,7 +530,7 @@ const ImageBody = ({mount, path}: {mount: Mount | null; path: string}) => {
 }
 
 const PdfBody = ({mount, path}: {mount: Mount | null; path: string}) => {
-    const {url, isPending, failed} = useMountFileObjectUrl(mount, path)
+    const {url, isPending, failed} = useDriveObjectUrl(mount, path)
     if (isPending) return <MediaLoading />
     if (failed || !url)
         return <DownloadCard mount={mount} path={path} title="Couldn't load this PDF" />
@@ -545,7 +543,7 @@ const PdfBody = ({mount, path}: {mount: Mount | null; path: string}) => {
 
 const AudioBody = ({mount, path}: {mount: Mount | null; path: string}) => {
     // Direct URL first: progressive playback, no JS-heap buffering; blob only on auth error.
-    const {src: url, isPending, failed, onError} = useMountFileMediaSrc(mount, path)
+    const {src: url, isPending, failed, onError} = useDriveMediaSrc(mount, path)
     if (isPending) return <MediaLoading />
     if (failed || !url)
         return <DownloadCard mount={mount} path={path} title="Couldn't load this audio file" />
@@ -560,7 +558,7 @@ const AudioBody = ({mount, path}: {mount: Mount | null; path: string}) => {
 
 const VideoBody = ({mount, path}: {mount: Mount | null; path: string}) => {
     // Direct URL first: progressive playback, no JS-heap buffering; blob only on auth error.
-    const {src: url, isPending, failed, onError} = useMountFileMediaSrc(mount, path)
+    const {src: url, isPending, failed, onError} = useDriveMediaSrc(mount, path)
     if (isPending) return <MediaLoading />
     if (failed || !url)
         return <DownloadCard mount={mount} path={path} title="Couldn't load this video" />
