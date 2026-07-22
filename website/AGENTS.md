@@ -4,7 +4,7 @@ The Agenta marketing website (`agenta.ai`): Astro, static-first, deployed on
 Cloudflare. Independent of `web/` (the app) and `docs/` (Docusaurus). Full project
 context, decisions, and the design source live in
 [docs/design/marketing-website/](../docs/design/marketing-website/) — read its
-`AGENTS.md` and `STATUS.md` first.
+`AGENTS.md` first.
 
 ## Asset hosting — proprietary and large files (IMPORTANT)
 
@@ -80,13 +80,26 @@ Every PR that touches `website/**` gets an automatically deployed preview, via
   `head.repo.full_name == github.repository`), so secrets are never exposed to
   untrusted code. Fork PRs simply get no preview comment.
 
-## Conventions
+## CI production deploy
+
+Every merge to `main` that touches `website/**` deploys production, via
+`.github/workflows/16-website-production.yml` (also `workflow_dispatch`).
+
+- **How:** builds with the same R2 font secrets, then runs `wrangler deploy
+  --config wrangler.production.jsonc` — a real deploy (not `versions upload`) to the
+  separate production worker `agenta-website` (`preview_urls: false`, no routes yet;
+  the `agenta.ai` domain is attached in the Cloudflare dashboard).
+- **Guard:** runs only on `Agenta-AI/agenta`; same secrets as the preview workflow.
 
 - Static-first (`output: 'static'`); interactivity is browser-side React islands
   (`client:visible`), never SSR. This keeps us off the `workerd` ≠ Node edge cases.
 - Content is MDX in `src/content/` (posts, authors) + JSON singletons; the shapes
   match `Agenta landing page pivot/handoff/CONTENT_MODEL.md`.
 - Style against the ported design tokens in `src/styles/`. Never invent a hex.
+- SEO: every page passes `title` + `description` (and `ogType`/`ogImage` for blog
+  posts) through `Site` → `Base`, which emits the meta/OG/Twitter/canonical head. The
+  sitemap is generated automatically (`@astrojs/sitemap`). Do not hand-write head meta
+  per page.
 - Shared chrome is `src/layouts/Site.astro` + `src/components/SiteNav|SiteFooter|CtaBand`.
   There is exactly one nav and one footer component; `SiteNav` takes `sticky` (set only
   by the landing page) to enable the scroll-pill behavior, and renders the identical
