@@ -1,10 +1,12 @@
 import {useEffect, useRef, useState, type ReactNode} from "react"
 
 import {
+    ArrowClockwise,
     EarSlash,
     File as FileIcon,
     FileText,
     Image as ImageIcon,
+    ImageBroken,
     Plus,
     UploadSimple,
     WarningCircle,
@@ -74,6 +76,50 @@ const RemoveButton = ({
     </button>
 )
 
+/** Upload state drawn over a tile: a progress scrim while uploading, a retry-able error otherwise.
+ * Reads antd's `UploadFile` fields, so the (future) upload flow only has to set status/percent. */
+const StatusOverlay = ({file, onRetry}: {file: UploadFile; onRetry?: (uid: string) => void}) => {
+    if (file.status === "uploading") {
+        const pct = Math.max(0, Math.min(100, Math.round(file.percent ?? 0)))
+        return (
+            <>
+                <div className="pointer-events-none absolute inset-0 rounded-lg bg-[rgba(0,0,0,0.4)]" />
+                <div className="pointer-events-none absolute inset-x-1.5 bottom-1.5 flex items-center gap-1.5">
+                    <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[rgba(255,255,255,0.3)]">
+                        <div
+                            className="h-full rounded-full bg-colorPrimary transition-[width] duration-150"
+                            style={{width: `${pct}%`}}
+                        />
+                    </div>
+                    <span className="text-[10px] font-medium tabular-nums text-white">{pct}%</span>
+                </div>
+            </>
+        )
+    }
+    if (file.status === "error") {
+        return (
+            <Tooltip title={typeof file.error === "string" ? file.error : "Upload failed"}>
+                <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-[var(--ant-color-error-bg)] ring-1 ring-inset ring-colorError">
+                    {onRetry && (
+                        <button
+                            type="button"
+                            aria-label={`Retry ${file.name}`}
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                onRetry(file.uid)
+                            }}
+                            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border-0 bg-colorError text-white"
+                        >
+                            <ArrowClockwise size={14} weight="bold" />
+                        </button>
+                    )}
+                </div>
+            </Tooltip>
+        )
+    }
+    return null
+}
+
 /** Shared chip shell: fixed height, one border treatment, room for a trailing remove. */
 const Chip = ({
     children,
@@ -106,6 +152,8 @@ interface ComposerAttachmentsProps {
     onDismissRejections: () => void
     /** Open a viewable attachment (image/document) in the Files drawer. */
     onView?: (uid: string) => void
+    /** Retry a failed upload (wired to the upload flow). */
+    onRetry?: (uid: string) => void
 }
 
 /**
@@ -124,9 +172,12 @@ const ComposerAttachments = ({
     onRemove,
     onDismissRejections,
     onView,
+    onRetry,
 }: ComposerAttachmentsProps) => {
     const inputRef = useRef<HTMLInputElement>(null)
     const [previews, setPreviews] = useState<Record<string, string>>({})
+    // Thumbnails whose object URL failed to decode (corrupt / unsupported image) — show a fallback.
+    const [previewFailed, setPreviewFailed] = useState<Set<string>>(new Set())
     const atMax = files.length >= limits.maxCount
 
     // Object URLs for image previews and audio playback, recreated when the list changes and
@@ -252,7 +303,7 @@ const ComposerAttachments = ({
                                         <motion.div
                                             key={f.uid}
                                             layout
-                                            className="shrink-0"
+                                            className="relative shrink-0"
                                             variants={ITEM_VARIANTS}
                                             initial="initial"
                                             animate="animate"
@@ -293,13 +344,26 @@ const ComposerAttachments = ({
                                                     onClick={() => onView?.(f.uid)}
                                                     className={`group relative ${TILE} w-12 overflow-hidden rounded-lg border border-solid border-colorBorderSecondary ${onView ? "cursor-pointer" : ""}`}
                                                 >
-                                                    {/* Local object URL — next/image can't optimize a blob. */}
-                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                    <img
-                                                        src={url}
-                                                        alt={f.name}
-                                                        className="h-full w-full object-cover"
-                                                    />
+                                                    {previewFailed.has(f.uid) ? (
+                                                        <div className="flex h-full w-full items-center justify-center bg-colorFillQuaternary text-colorTextTertiary">
+                                                            <ImageBroken size={18} />
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            {/* Local object URL — next/image can't optimize a blob. */}
+                                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                            <img
+                                                                src={url}
+                                                                alt={f.name}
+                                                                onError={() =>
+                                                                    setPreviewFailed((prev) =>
+                                                                        new Set(prev).add(f.uid),
+                                                                    )
+                                                                }
+                                                                className="h-full w-full object-cover"
+                                                            />
+                                                        </>
+                                                    )}
                                                     <RemoveButton
                                                         name={f.name}
                                                         onRemove={remove}
@@ -338,6 +402,7 @@ const ComposerAttachments = ({
                                                     <RemoveButton name={f.name} onRemove={remove} />
                                                 </Chip>
                                             )}
+                                            <StatusOverlay file={f} onRetry={onRetry} />
                                         </motion.div>
                                     )
                                 })}

@@ -37,7 +37,17 @@ export function useDriveMediaSrc(
 ): {src: string | null; isPending: boolean; failed: boolean; onError: () => void} {
     const local = useLocalFile(path)
     const mountRes = useMountFileMediaSrc(mount, path)
-    if (local) return {src: local.objectUrl, isPending: false, failed: false, onError: () => {}}
+    // A local blob can still fail to decode (corrupt / unsupported) — surface it like a mount error
+    // so the viewer shows its "couldn't load" card rather than a broken element.
+    const [localFailed, setLocalFailed] = useState(false)
+    if (local) {
+        return {
+            src: localFailed ? null : local.objectUrl,
+            isPending: false,
+            failed: localFailed,
+            onError: () => setLocalFailed(true),
+        }
+    }
     return mountRes
 }
 

@@ -121,6 +121,7 @@ import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
 import VoiceInputButton from "./components/VoiceInputButton"
 import {useAgentChatQueue, type QueuedMessage} from "./hooks/useAgentChatQueue"
 import {useAgentModelKeyStatus} from "./hooks/useAgentModelKeyStatus"
+import {useAttachmentUploads} from "./hooks/useAttachmentUploads"
 import {useAudioRecorder} from "./hooks/useAudioRecorder"
 import {useFileActivityDetector} from "./hooks/useFileActivityDetector"
 import {expandedKeysForMessages, pruneExpandedAtom} from "./state/expandState"
@@ -1640,11 +1641,22 @@ const AgentConversation = ({
         originFileObj: file as UploadFile["originFileObj"],
     })
 
+    // Upload lifecycle for the tray (progress / error / retry). The transport is not wired yet, so
+    // no uploader is passed — files stay "done" and enqueue is a no-op. When upload lands, provide
+    // an uploader here and the whole flow runs; the tray already renders every state.
+    const uploads = useAttachmentUploads(files, setFiles, undefined)
+    // A staged attachment blocks send only once uploads exist: while any is uploading or has failed,
+    // the message isn't ready. All-"done" today, so this is inert until the transport is wired.
+    const attachmentsSettled = !files.some((f) => f.status === "uploading" || f.status === "error")
+
     /** Add files from paste / programmatic sources through the guardrails. */
     const addFiles = (incoming: File[], extraRejections: AttachmentRejection[] = []) => {
         const {accepted, rejections} = validateIncoming(incoming, files.length, limits)
         const allRejections = [...extraRejections, ...rejections]
-        if (accepted.length) setFiles((prev) => [...prev, ...accepted.map(toUploadFile)])
+        if (accepted.length) {
+            setFiles((prev) => [...prev, ...accepted.map(toUploadFile)])
+            uploads.enqueue(accepted.map((f) => `${f.name}-${f.lastModified}-${f.size}`))
+        }
         setRejections(allRejections)
         // Open for rejections too. Otherwise dropping something unsupported writes a message into
         // a closed panel and reads as nothing having happened at all.
@@ -1752,6 +1764,7 @@ const AgentConversation = ({
             ...extraFiles,
         ]
         if (!trimmed && fileObjs.length === 0) return
+        if (!attachmentsSettled) return
         const fileParts = fileObjs.length ? await filesToParts(fileObjs) : undefined
         // Glide to the bottom; the min-h-full active turn makes that show the new question at the top
         // with the answer streaming below. Park during the glide, follow again on settle. Clear any
@@ -2366,7 +2379,9 @@ const AgentConversation = ({
                                                 if (!attachmentsBlocked())
                                                     addFiles(Array.from(pasted))
                                             }}
-                                            sendForceEnabled={files.length > 0}
+                                            sendForceEnabled={
+                                                files.length > 0 && attachmentsSettled
+                                            }
                                             streaming={busy}
                                             onStop={handleStop}
                                             prefix={
@@ -2447,6 +2462,7 @@ const AgentConversation = ({
                                                             setRejections([])
                                                         }
                                                         onView={setViewingUid}
+                                                        onRetry={uploads.retry}
                                                     />
                                                 </HeightCollapse>
                                             }
