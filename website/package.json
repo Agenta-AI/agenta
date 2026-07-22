@@ -21,7 +21,7 @@
     "@astrojs/mdx": "^5.0.6",
     "@astrojs/react": "^5.0.7",
     "@astrojs/sitemap": "^3.7.3",
-    "astro": "^6.4.8",
+    "astro": "^7.1.0",
     "posthog-js": "^1.406.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
