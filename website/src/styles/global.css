@@ -562,40 +562,50 @@ html,
    Body is a muted warm white for comfortable reading; headings brighter; links
    carry the brand accent; code sits on a subtle raised surface.
 ============================================================================ */
+/* Body scale tuned against Linear's blog (linear.app/now): 15–16px regular 400
+   with a slight negative tracking reads far lighter than a heavier 17px block.
+   We keep Inter for body and GT Alpina for headings — only size/weight/leading
+   and tracking follow Linear. */
 .ag-prose {
   color: rgba(255, 255, 255, 0.72);
   font-family: var(--font-sans);
-  font-size: 17px;
-  line-height: 1.75;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.65;
+  letter-spacing: -0.011em;
 }
 .ag-prose > :first-child {
   margin-top: 0;
 }
 .ag-prose p {
-  margin: 0 0 1.15em;
+  margin: 0 0 1.25em;
 }
 .ag-prose h2 {
-  margin: 2em 0 0.6em;
-  font: 400 30px/1.2 var(--font-display);
+  margin: 2em 0 0.55em;
+  font: 400 26px/1.25 var(--font-display);
+  letter-spacing: -0.015em;
   color: var(--text-on-dark-heading);
   text-wrap: pretty;
 }
 .ag-prose h3 {
-  margin: 1.6em 0 0.5em;
-  font: 400 23px/1.3 var(--font-display);
+  margin: 1.7em 0 0.5em;
+  font: 400 20px/1.3 var(--font-display);
+  letter-spacing: -0.012em;
   color: var(--text-on-dark-heading);
   text-wrap: pretty;
 }
 .ag-prose h4 {
-  margin: 1.4em 0 0.4em;
-  font: 600 17px/1.4 var(--font-sans);
+  margin: 1.5em 0 0.4em;
+  font: 600 16px/1.4 var(--font-sans);
+  letter-spacing: -0.006em;
   color: var(--text-on-dark-heading);
 }
 .ag-prose a {
   color: var(--yellow-400);
+  font-weight: 400;
   text-decoration: underline;
   text-underline-offset: 2px;
-  text-decoration-color: rgba(242, 242, 92, 0.4);
+  text-decoration-color: rgba(242, 242, 92, 0.55);
 }
 .ag-prose a:hover {
   text-decoration-color: var(--yellow-400);
