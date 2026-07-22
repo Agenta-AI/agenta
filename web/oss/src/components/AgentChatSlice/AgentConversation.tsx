@@ -1626,13 +1626,14 @@ const AgentConversation = ({
     })
 
     /** Add files from paste / programmatic sources through the guardrails. */
-    const addFiles = (incoming: File[]) => {
-        const {accepted, rejections: rej} = validateIncoming(incoming, files.length, limits)
-        if (accepted.length) {
-            setFiles((prev) => [...prev, ...accepted.map(toUploadFile)])
-            setAttachmentsOpen(true)
-        }
-        setRejections(rej)
+    const addFiles = (incoming: File[], extraRejections: AttachmentRejection[] = []) => {
+        const {accepted, rejections} = validateIncoming(incoming, files.length, limits)
+        const allRejections = [...extraRejections, ...rejections]
+        if (accepted.length) setFiles((prev) => [...prev, ...accepted.map(toUploadFile)])
+        setRejections(allRejections)
+        // Open for rejections too. Otherwise dropping something unsupported writes a message into
+        // a closed panel and reads as nothing having happened at all.
+        if (accepted.length || allRejections.length) setAttachmentsOpen(true)
     }
 
     const removeFile = (uid: string) => setFiles((prev) => prev.filter((f) => f.uid !== uid))
@@ -1675,16 +1676,23 @@ const AgentConversation = ({
     // now could take the last tray slot — which would reject (and destroy) the recording on
     // attach. Guarded at the entry points, not in `addFiles`, because the recorder's own
     // completion goes straight there and must always get through.
-    const attachmentsBusy = () => voiceRecorder.active
+    /**
+     * Attachments are refused while a take is in flight (the composer is covered, and a late drop
+     * could steal the tray slot the recording needs) and while the composer itself is disabled —
+     * accepting files into an input you cannot send from is a dead end.
+     */
+    const composerDisabled = onboardingActive ? ideHandoffActive : modelBlocked
+    const attachmentsBlocked = () => voiceRecorder.active || composerDisabled
 
     const onDragEnter = (e: React.DragEvent) => {
-        if (attachmentsBusy()) return
+        if (attachmentsBlocked()) return
         if (!isFileDrag(e)) return
         dragDepthRef.current += 1
         setIsDragging(true)
     }
     const onDragOver = (e: React.DragEvent) => {
-        if (isFileDrag(e)) e.preventDefault()
+        // Only claim the drop when we would actually take it, so the cursor stays honest.
+        if (!attachmentsBlocked() && isFileDrag(e)) e.preventDefault()
     }
     const onDragLeave = (e: React.DragEvent) => {
         if (!isFileDrag(e)) return
@@ -1695,16 +1703,29 @@ const AgentConversation = ({
         }
     }
     const onDrop = (e: React.DragEvent) => {
-        if (attachmentsBusy()) return
+        if (attachmentsBlocked()) return
         if (!isFileDrag(e)) return
         e.preventDefault()
         dragDepthRef.current = 0
         setIsDragging(false)
-        const dropped = Array.from(e.dataTransfer.files)
-        if (dropped.length) {
-            addFiles(dropped)
-            setAttachmentsOpen(true)
-        }
+
+        // A dropped folder still arrives in `files` — as a typeless, zero-byte entry that the
+        // guardrails would reject as "not a supported file type", which is misleading. Name it.
+        // `webkitGetAsEntry` is only valid synchronously, during this event.
+        const folderNames = Array.from(e.dataTransfer.items ?? [])
+            .map((item) => (item.kind === "file" ? item.webkitGetAsEntry() : null))
+            .filter((entry): entry is FileSystemEntry => !!entry?.isDirectory)
+            .map((entry) => entry.name)
+
+        const dropped = Array.from(e.dataTransfer.files).filter(
+            (f) => !folderNames.includes(f.name),
+        )
+        const folderRejections = folderNames.map((name) => ({
+            name,
+            reason: "is a folder — drop the files inside it",
+        }))
+
+        if (dropped.length || folderRejections.length) addFiles(dropped, folderRejections)
     }
 
     const handleSubmit = async (text: string, extraFiles: File[] = []) => {
@@ -1996,15 +2017,31 @@ const AgentConversation = ({
                             beside it keeps a fixed top and doesn't ride the transition upward.
                             box-border so the padding fits inside h-full (preflight is off). */}
                         <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col gap-3 box-border pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
+                            {/* At the limit the overlay says so rather than inviting a drop it is
+                            about to reject wholesale. */}
                             {isDragging && (
-                                <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-colorPrimary bg-[var(--ant-color-primary-bg)]">
-                                    <UploadSimple size={26} className="text-colorPrimary" />
-                                    <span className="text-sm font-medium text-colorPrimary">
-                                        Drop files here
+                                <div
+                                    className={`pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed ${
+                                        atMax
+                                            ? "border-colorError bg-[var(--ant-color-error-bg)]"
+                                            : "border-colorPrimary bg-[var(--ant-color-primary-bg)]"
+                                    }`}
+                                >
+                                    <UploadSimple
+                                        size={26}
+                                        className={atMax ? "text-colorError" : "text-colorPrimary"}
+                                    />
+                                    <span
+                                        className={`text-sm font-medium ${
+                                            atMax ? "text-colorError" : "text-colorPrimary"
+                                        }`}
+                                    >
+                                        {atMax ? "Attachment limit reached" : "Drop files here"}
                                     </span>
                                     <span className="text-xs text-colorTextSecondary">
-                                        {limits.label} · up to {limits.maxCount},{" "}
-                                        {Math.round(limits.maxBytes / 1024 / 1024)} MB each
+                                        {atMax
+                                            ? `Remove one to add another (${limits.maxCount} max)`
+                                            : `${limits.label} · up to ${limits.maxCount}, ${Math.round(limits.maxBytes / 1024 / 1024)} MB each`}
                                     </span>
                                 </div>
                             )}
@@ -2306,7 +2343,8 @@ const AgentConversation = ({
                                             initialMarkdown={initialDraft}
                                             onChange={handleComposerChange}
                                             onPasteFile={(pasted) => {
-                                                if (!attachmentsBusy()) addFiles(Array.from(pasted))
+                                                if (!attachmentsBlocked())
+                                                    addFiles(Array.from(pasted))
                                             }}
                                             sendForceEnabled={files.length > 0}
                                             streaming={busy}
