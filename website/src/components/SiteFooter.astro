@@ -35,9 +35,17 @@ const columns: { heading: string; links: Link[] }[] = [
     heading: "Resources",
     links: [
       { label: "Docs", href: "https://docs.agenta.ai/", external: true },
-      { label: "Tutorial", href: "/tutorial" },
-      { label: "Changelog", href: "/changelog" },
-      { label: "Roadmap", href: "/roadmap" },
+      {
+        label: "Tutorial",
+        href: "https://agenta.ai/docs/tutorials/cookbooks/capture-user-feedback",
+        external: true,
+      },
+      {
+        label: "Changelog",
+        href: "https://agenta.ai/docs/changelog/main",
+        external: true,
+      },
+      { label: "Roadmap", href: "https://agenta.ai/docs/roadmap", external: true },
       { label: "Blog", href: "/blog" },
       { label: "Status", href: "https://status.agenta.ai", external: true },
     ],
@@ -46,10 +54,22 @@ const columns: { heading: string; links: Link[] }[] = [
     heading: "Legal",
     links: [
       { label: "Imprint", href: "/imprint" },
-      { label: "Terms of services", href: "/terms" },
-      { label: "Privacy Policy", href: "/privacy" },
-      { label: "DPA", href: "/dpa" },
-      { label: "Trust Center", href: "/trust" },
+      {
+        label: "Terms of services",
+        href: "https://agenta.ai/docs/administration/security/terms-of-service",
+        external: true,
+      },
+      {
+        label: "Privacy Policy",
+        href: "https://agenta.ai/docs/administration/security/privacy-policy",
+        external: true,
+      },
+      {
+        label: "DPA",
+        href: "https://agenta.ai/docs/administration/security/dpa",
+        external: true,
+      },
+      { label: "Trust Center", href: "https://trustcenter.agenta.ai/", external: true },
     ],
   },
 ];
@@ -130,7 +150,9 @@ const copyright = "Copyright © 2020 – 2060 Agentatech UG";
     >
     <a
       class="ag-foot-link"
-      href="/privacy"
+      href="https://agenta.ai/docs/administration/security/privacy-policy"
+      target="_blank"
+      rel="noopener"
       style="font:var(--text-caption);color:rgba(255,255,255,0.38);text-decoration:none;"
       >Privacy policy</a
     >

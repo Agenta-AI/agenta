@@ -69,22 +69,28 @@ a {
   }
 }
 
-/* ── nav pill: frosted floating nav on scroll ────────────────────────
-   A rAF loop in SiteNav toggles `.nav-scrolled` on <html> past 24px. The
-   <nav data-pill> is a fixed-geometry sticky SHELL (full width, height 68px,
-   vertical center never moves). Only .ag-nav-inner animates: its width shrinks
-   into a centered pill and its height insets symmetrically (so the vertical
-   center stays put), carrying brand (left) and CTAs (right) inward. The center
-   links are NOT in .ag-nav-inner — they sit in an absolutely-centered layer on
-   the shell, so they hold their exact x/y across both states (measured delta
-   0,0). Class lives on <html> so island re-renders never clobber it. */
-nav[data-pill] {
-  position: sticky;
-  top: 0;
+/* ── nav shell ───────────────────────────────────────────────────────
+   Base geometry for every nav (landing + inner pages): a 68px-tall bar that is
+   a positioning context for the absolutely-centered link layer. `position:
+   relative` here; the pill variant upgrades it to sticky below.
+   The scroll-pill machinery (`.nav-scrolled` styles + the rAF loop) is
+   landing-only: SiteNav renders `data-pill` and runs the rAF loop ONLY when
+   passed `sticky`, so inner pages get the identical bar with no scroll motion. */
+.ag-navshell {
+  position: relative;
   z-index: 50;
   display: flex;
   align-items: center;
   height: 68px;
+}
+/* Pill variant (landing): the shell sticks and the rAF loop toggles
+   `.nav-scrolled` on <html> past 24px. Only .ag-nav-inner animates — it narrows
+   into a centered pill and drops by --nav-pill-inset, carrying brand (left) and
+   CTAs (right) inward. The center links sit in a separate absolutely-centered
+   layer, so they hold x (dx=0) and only ride down (dy=+inset) with the pill. */
+nav[data-pill] {
+  position: sticky;
+  top: 0;
 }
 .ag-nav-inner {
   display: flex;
@@ -547,4 +553,141 @@ html,
   .ag-cta-row {
     gap: 22px !important;
   }
+}
+
+/* ============================================================================
+   Long-form prose (.ag-prose) — dark reading styles for MDX-rendered bodies
+   (blog posts + author bios). These MUST be global, not scoped: the content is
+   rendered from MDX at runtime, so scoped selectors can't match its children.
+   Body is a muted warm white for comfortable reading; headings brighter; links
+   carry the brand accent; code sits on a subtle raised surface.
+============================================================================ */
+.ag-prose {
+  color: rgba(255, 255, 255, 0.72);
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 1.75;
+}
+.ag-prose > :first-child {
+  margin-top: 0;
+}
+.ag-prose p {
+  margin: 0 0 1.15em;
+}
+.ag-prose h2 {
+  margin: 2em 0 0.6em;
+  font: 400 30px/1.2 var(--font-display);
+  color: var(--text-on-dark-heading);
+  text-wrap: pretty;
+}
+.ag-prose h3 {
+  margin: 1.6em 0 0.5em;
+  font: 400 23px/1.3 var(--font-display);
+  color: var(--text-on-dark-heading);
+  text-wrap: pretty;
+}
+.ag-prose h4 {
+  margin: 1.4em 0 0.4em;
+  font: 600 17px/1.4 var(--font-sans);
+  color: var(--text-on-dark-heading);
+}
+.ag-prose a {
+  color: var(--yellow-400);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: rgba(242, 242, 92, 0.4);
+}
+.ag-prose a:hover {
+  text-decoration-color: var(--yellow-400);
+}
+.ag-prose strong {
+  color: var(--text-on-dark-heading);
+  font-weight: 600;
+}
+.ag-prose em {
+  font-style: italic;
+}
+.ag-prose ul,
+.ag-prose ol {
+  margin: 0 0 1.15em;
+  padding-left: 1.4em;
+}
+.ag-prose li {
+  margin: 0.35em 0;
+}
+.ag-prose li::marker {
+  color: rgba(255, 255, 255, 0.4);
+}
+.ag-prose li > ul,
+.ag-prose li > ol {
+  margin: 0.35em 0;
+}
+.ag-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+  padding: 0.12em 0.4em;
+  color: #f7f6f4;
+}
+.ag-prose pre {
+  margin: 0 0 1.4em;
+  padding: 18px 20px;
+  background: #0b0a0c;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  overflow-x: auto;
+  font-size: 14px;
+  line-height: 1.6;
+}
+/* Fenced blocks (and any Shiki-highlighted <pre>) drop the inline-code chrome. */
+.ag-prose pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  color: rgba(255, 255, 255, 0.82);
+}
+.ag-prose blockquote {
+  margin: 1.4em 0;
+  padding: 4px 0 4px 20px;
+  border-left: 2px solid var(--yellow-400);
+  color: rgba(255, 255, 255, 0.6);
+  font-style: italic;
+}
+.ag-prose blockquote p:last-child {
+  margin-bottom: 0;
+}
+.ag-prose hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  margin: 2.4em 0;
+}
+.ag-prose img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+  margin: 1.6em 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+.ag-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 1.4em;
+  font-size: 15px;
+  display: block;
+  overflow-x: auto;
+}
+.ag-prose th,
+.ag-prose td {
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: left;
+}
+.ag-prose th {
+  color: var(--text-on-dark-heading);
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.04);
 }

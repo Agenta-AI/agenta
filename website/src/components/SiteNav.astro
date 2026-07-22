@@ -1,6 +1,13 @@
 ---
-// SiteNav — ported from the dark landing nav.
-// CTA destinations match the live agenta.ai site exactly (see plan.md parity table).
+// SiteNav — the single nav for the whole site (landing + inner pages).
+// `sticky` gates the scroll-pill machinery (rAF loop + .nav-scrolled styles +
+// wordmark clip): the landing passes it; every other page renders the identical
+// bar as a static top bar. CTA + link destinations match live agenta.ai.
+interface Props {
+  sticky?: boolean;
+}
+const { sticky = false } = Astro.props;
+
 const BOOK_DEMO = "https://cal.com/mahmoud-mabrouk-ogzgey/demo?duration=30";
 const GET_STARTED = "https://cloud.agenta.ai/";
 
@@ -29,16 +36,16 @@ const dropdowns: { label: string; items: Item[] }[] = [
   {
     label: "Resources",
     items: [
-      { label: "Tutorial", desc: "Get started with Agenta", href: "/tutorial", icon: icoHelp },
-      { label: "Changelog", desc: "See our latest releases", href: "/changelog", icon: icoHistory },
-      { label: "Roadmap", desc: "See what's coming next", href: "/roadmap", icon: icoRoute },
+      { label: "Tutorial", desc: "Get started with Agenta", href: "https://agenta.ai/docs/tutorials/cookbooks/capture-user-feedback", icon: icoHelp, external: true },
+      { label: "Changelog", desc: "See our latest releases", href: "https://agenta.ai/docs/changelog/main", icon: icoHistory, external: true },
+      { label: "Roadmap", desc: "See what's coming next", href: "https://agenta.ai/docs/roadmap", icon: icoRoute, external: true },
     ],
   },
   {
     label: "Community",
     items: [
       { label: "GitHub", desc: "Star the repository", href: "https://github.com/Agenta-AI/agenta", icon: icoGithub, external: true },
-      { label: "Slack", desc: "Join the conversation", href: "https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA", icon: icoSlack, external: true },
+      { label: "Slack", desc: "Join the conversation", href: "https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw", icon: icoSlack, external: true },
       { label: "X / Twitter", desc: "Follow for updates", href: "https://x.com/agenta_ai", icon: icoX, external: true },
       { label: "LinkedIn", desc: "Follow the company", href: "https://www.linkedin.com/company/agenta-ai", icon: icoLinkedin, external: true },
     ],
@@ -57,7 +64,7 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
      The center links live in a SEPARATE layer absolutely centered on the shell;
      on scroll they ride down by the same inset (dy only, dx stays 0) so they
      never shift horizontally. See the nav-pill block in global.css. -->
-<nav data-pill style="position:sticky;top:0;z-index:50;">
+<nav class="ag-navshell" data-pill={sticky ? "" : undefined}>
   <div class="ag-nav-inner">
     <a class="ag-brand" href="/" aria-label="Agenta home">
       <img
@@ -203,12 +210,12 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
     toggle.setAttribute("aria-expanded", open ? "true" : "false");
   });
 
-  // Nav-pill: toggle `.nav-scrolled` on <html> past 24px so <nav data-pill>
-  // floats into the glass pill (styles live in global.css). Class sits on the
-  // root — outside any island — so re-renders never clobber it. rAF-driven so
-  // it works even where scroll events don't fire.
+  // Nav-pill: landing only. The rAF loop toggles `.nav-scrolled` on <html> past
+  // 24px so the sticky bar floats into the glass pill (styles in global.css). It
+  // runs ONLY when a `nav[data-pill]` is present — inner pages render a static
+  // bar with no pill, so the loop never starts and `.nav-scrolled` never toggles.
   const root = document.documentElement;
-  if (!(window as any).__agNavPill) {
+  if (document.querySelector("nav[data-pill]") && !(window as any).__agNavPill) {
     (window as any).__agNavPill = true;
     const tick = () => {
       const y = window.scrollY || root.scrollTop || 0;
