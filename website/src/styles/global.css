@@ -1,0 +1,693 @@
+@import "./tokens.css";
+@import "./tokens-dark.css";
+
+/* ── base reset (from the design's inline <style>) ──────────── */
+html,
+body {
+  margin: 0;
+  background: var(--ag-d-bg-0);
+}
+* {
+  box-sizing: border-box;
+}
+a {
+  color: inherit;
+}
+
+/* ── keyframes (ported verbatim from the design) ────────────── */
+@keyframes ag-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  70% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes accordion-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* Open-standards marquee tracks (a duplicated strip translated -50%). */
+@keyframes ag-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes ag-marquee-rev {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* ── reduced motion: honor the OS setting (WCAG 2.3.3) ────────
+   Neutralizes the looping play-button pulse, the marquees, and one-shot
+   reveals, and collapses hover transitions to instant. Near-zero (not 0) so
+   animationend/transitionend still fire for any JS that awaits them.
+   Sections with scroll-driven motion (How it works) ship a static fallback. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── nav shell ───────────────────────────────────────────────────────
+   Base geometry for every nav (landing + inner pages): a 68px-tall bar that is
+   a positioning context for the absolutely-centered link layer. `position:
+   relative` here; the pill variant upgrades it to sticky below.
+   The scroll-pill machinery (`.nav-scrolled` styles + the rAF loop) is
+   landing-only: SiteNav renders `data-pill` and runs the rAF loop ONLY when
+   passed `sticky`, so inner pages get the identical bar with no scroll motion. */
+.ag-navshell {
+  position: relative;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  height: 68px;
+}
+/* Pill variant (landing): the shell sticks and the rAF loop toggles
+   `.nav-scrolled` on <html> past 24px. Only .ag-nav-inner animates — it narrows
+   into a centered pill and drops by --nav-pill-inset, carrying brand (left) and
+   CTAs (right) inward. The center links sit in a separate absolutely-centered
+   layer, so they hold x (dx=0) and only ride down (dy=+inset) with the pill. */
+nav[data-pill] {
+  position: sticky;
+  top: 0;
+}
+.ag-nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 68px;
+  padding: 0 var(--nav-pad-x);
+  box-sizing: border-box;
+  width: 100%;
+  margin-inline: auto;
+  background: var(--ag-d-chrome);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 0;
+  transition:
+    background 0.25s ease,
+    box-shadow 0.25s ease,
+    border-radius 0.25s ease,
+    border-color 0.25s ease,
+    width 0.25s ease,
+    transform 0.25s ease;
+}
+.nav-scrolled .ag-nav-inner {
+  /* Float into a centered pill: full height is kept (agenta.ai keeps 68px), the
+     bar narrows and rounds, and translateY drops it clear of the top edge by
+     --nav-pill-inset. margin-inline auto keeps it horizontally centered so the
+     brand/CTAs ride its edges inward symmetrically. */
+  width: min(var(--nav-pill-max), calc(100% - 32px));
+  border-radius: var(--nav-pill-radius);
+  border-color: transparent;
+  transform: translateY(var(--nav-pill-inset));
+  background: var(--ag-d-glass, rgba(18, 16, 15, 0.72));
+  -webkit-backdrop-filter: saturate(1.6) blur(14px);
+  backdrop-filter: saturate(1.6) blur(14px);
+  box-shadow:
+    0 0 0 1px rgba(250, 247, 242, 0.09),
+    0 12px 36px rgba(0, 0, 0, 0.55);
+}
+
+/* Center links: pinned to the shell's exact center in BOTH states. Absolute
+   positioning against the sticky shell (whose box never changes) guarantees a
+   0,0 rect delta between the bar and pill. */
+.ag-navlinks {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  z-index: 1;
+  transition: transform 0.25s ease;
+}
+/* Links ride the pill down by the same inset so they stay centered on it: only
+   the y shifts (dy = +inset), x is untouched (dx = 0), matching agenta.ai. */
+.nav-scrolled .ag-navlinks {
+  transform: translate(-50%, calc(-50% + var(--nav-pill-inset)));
+}
+
+/* ── nav brand: wordmark condenses to the leaf symbol on scroll ──
+   The brand shows the full wordmark at rest; when the nav enters the pill the
+   overflow-hidden container clips the mark left-to-right down to the leaf,
+   leaving only the symbol (matches agenta.ai). Reduced-motion users get the end
+   states instantly via the global prefers-reduced-motion rule above. */
+.ag-brand {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  max-width: 140px;
+  transition: max-width 0.28s ease;
+}
+.nav-scrolled .ag-brand {
+  max-width: 27px;
+}
+
+/* ── scrollbars (ported verbatim) ───────────────────────────── */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.26);
+  background-clip: content-box;
+}
+[data-scroll="dark"]::-webkit-scrollbar {
+  width: 10px;
+}
+html,
+[data-scroll="dark"] {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+/* ── interactive affordances (the .dc.html used DC hover hooks) ─ */
+.ds-btn:hover {
+  filter: brightness(0.97);
+}
+.ag-navlink:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.ag-foot-link:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+.ag-foot-social:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+.ag-oss-chip:hover {
+  color: rgba(255, 255, 255, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+/* ── button hover (matches agenta.ai) ────────────────────────────────
+   Keycaps: the inset top-light glow widens on hover (blur 6→16px), same
+   color — a subtle brighten, no transform. Per-button alpha via --key-alpha.
+   Ghost/outline buttons brighten their fill instead. */
+.ag-key {
+  transition: box-shadow 0.2s ease;
+}
+.ag-key:hover {
+  box-shadow: inset 0 3px 16px rgba(255, 255, 255, var(--key-alpha, 0.85));
+}
+.ag-ghost {
+  transition: background 0.2s ease;
+}
+.ag-ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ── nav dropdowns (Resources / Community) ───────────────────────────
+   Open on hover and on keyboard focus (focus-within). The panel sits flush
+   under the trigger; a transparent bridge (padding-top on the panel wrapper)
+   spans the gap so crossing the cursor never closes it. A short open delay is
+   hover-intent: brushing past doesn't flash the menu open. */
+.ag-navdd {
+  position: relative;
+  display: inline-flex;
+}
+.ag-navdd-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  padding-top: 8px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease,
+    visibility 0.16s ease;
+  transition-delay: 0.12s;
+  z-index: 60;
+}
+.ag-navdd:hover .ag-navdd-panel,
+.ag-navdd:focus-within .ag-navdd-panel {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition-delay: 0s;
+}
+.ag-navdd-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 264px;
+  padding: 8px;
+  border-radius: 14px;
+  background: var(--ag-d-chrome);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 20px 48px rgba(0, 0, 0, 0.55);
+}
+.ag-navdd-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: background 0.16s ease;
+}
+.ag-navdd-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.ag-navdd-ico {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.82);
+}
+.ag-navdd-title {
+  font: var(--text-label);
+  color: #f7f6f4;
+  line-height: 1.25;
+}
+.ag-navdd-desc {
+  font: var(--text-caption);
+  color: rgba(255, 255, 255, 0.45);
+  line-height: 1.25;
+}
+/* Chevron flips when its menu is open, like agenta.ai. */
+.ag-navdd:hover .ag-navdd-chev,
+.ag-navdd:focus-within .ag-navdd-chev {
+  transform: rotate(180deg);
+}
+.ag-navdd-chev {
+  display: inline-flex;
+  transition: transform 0.16s ease;
+}
+
+/* ── mobile menu (replaces the DC sc-if/menuOpen state) ─────── */
+.ag-menu {
+  display: none;
+}
+.ag-mobile-menu {
+  display: none;
+}
+.ag-mobile-menu.is-open {
+  display: flex;
+}
+
+/* ── blog cards ──────────────────────────────────────────────────────────
+   Vertical post cards (featured/grid/related) are flex columns so the card
+   fills its grid cell (grid stretches items) and the meta/date row, which
+   carries margin-top:auto, pins to a consistent bottom baseline regardless of
+   title/excerpt length. Declared as a class (not inline) so the blog index's
+   category-filter rule (#blog-grid[data-filter] > a:not(...)) still wins on
+   specificity and hides non-matching cards, and so the JS "load more" toggle
+   can hide cards without clobbering the card's display. */
+.ag-vcard {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+/* "Load more" pagination hide — !important so it beats both .ag-vcard's flex
+   and any filter rule while a card is beyond the revealed batch. */
+.blog-hidden {
+  display: none !important;
+}
+
+/* ============================================================================
+   Responsive — ported VERBATIM from the design's <style> block.
+   handoff/RESPONSIVE.md standardizes the intent; the design encodes it at
+   1100px (grid collapse) and 860px (mobile: nav → hamburger, single column).
+   QA widths 768 and 390 both fall under 860 → full mobile treatment.
+============================================================================ */
+/* Landing section rhythm steps down with the layout: redefining the token here
+   scales every section that reads var(--section-pad-y) at once (desktop 112 →
+   mobile 64 → phone 56). Sections must reference the token, not hard numbers. */
+@media (max-width: 860px) {
+  :root {
+    --section-pad-y: 64px;
+  }
+}
+@media (max-width: 600px) {
+  :root {
+    --section-pad-y: 56px;
+  }
+}
+/* Footer: the 1440 artboard's 172px side padding + space-between drops the link
+   columns below the brand between ~860px and 1200px, isolating the brand on its
+   own row. Tighten the padding and lay the columns out 2-up through that band so
+   the brand+columns row holds down to the mobile (860px) breakpoint. */
+@media (max-width: 1200px) {
+  .ag-foot-top {
+    padding-left: 56px !important;
+    padding-right: 56px !important;
+  }
+  .ag-foot-bottom {
+    padding-left: 56px !important;
+    padding-right: 56px !important;
+  }
+  /* Three columns (Company / Resources / Legal) stay in one row down to mobile. */
+  .ag-foot-cols {
+    display: grid !important;
+    grid-template-columns: repeat(3, auto);
+    gap: 36px 56px !important;
+  }
+}
+@media (max-width: 1100px) {
+  .ag-oss {
+    grid-template-columns: 1fr !important;
+    gap: 48px !important;
+  }
+  .ag-oss-strip {
+    grid-template-columns: 1fr !important;
+  }
+  .ag-oss-strip > a {
+    border-left: none !important;
+  }
+  .ag-oss-strip > a + a {
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+  }
+  .ag-int {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .ag-rel {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .ag-rel > div:nth-child(3) {
+    border-left: none !important;
+  }
+  .ag-rel > div:nth-child(n + 3) {
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+  }
+}
+@media (max-width: 860px) {
+  .ag-wrap {
+    padding: 0 !important;
+  }
+  .ag-navlinks,
+  .ag-navcta {
+    display: none !important;
+  }
+  .ag-menu {
+    display: inline-flex !important;
+  }
+  .ag-tpl {
+    grid-template-columns: 1fr !important;
+  }
+  .ag-interop {
+    grid-template-columns: 1fr !important;
+    gap: 40px !important;
+  }
+  .ag-tpl-md {
+    border-left: none !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.07) !important;
+  }
+  .ag-tpl-md-scroll {
+    position: static !important;
+    height: 320px !important;
+  }
+  .ag-tpl-tabs {
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    border-radius: 16px !important;
+  }
+  .ag-rel {
+    grid-template-columns: 1fr !important;
+  }
+  .ag-rel > div {
+    border-left: none !important;
+  }
+  .ag-rel > div + div {
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+  }
+  .ag-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 36px !important;
+  }
+  .ag-row > div {
+    flex: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .ag-cta-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 28px !important;
+  }
+  .ag-cta-img {
+    display: none !important;
+  }
+  .ag-int {
+    grid-template-columns: 1fr !important;
+  }
+  .ag-foot-top {
+    padding: 48px 24px 40px !important;
+    flex-direction: column !important;
+    gap: 40px !important;
+  }
+  .ag-foot-bottom {
+    padding: 18px 24px !important;
+  }
+  .ag-foot-cols {
+    grid-template-columns: repeat(2, auto) !important;
+    gap: 32px !important;
+  }
+  .ag-hero {
+    padding-top: 80px !important;
+    padding-bottom: 88px !important;
+  }
+  .ag-h1 {
+    font-size: 38px !important;
+    line-height: 1.08 !important;
+  }
+  .ag-video {
+    height: 240px !important;
+  }
+  .ag-secpad {
+    padding-top: 64px !important;
+    padding-bottom: 64px !important;
+  }
+}
+@media (min-width: 861px) {
+  .ag-mobile-menu {
+    display: none !important;
+  }
+}
+
+/* ============================================================================
+   Phone (<=600px). The <=860 block already gives the full mobile treatment
+   (hamburger nav, single-column grids); this tightens type scale, section
+   padding, and the two components that still crowd at ~412px: the How-it-works
+   files drawer and the Templates spec rows.
+============================================================================ */
+@media (max-width: 600px) {
+  /* Hero: smaller headline, tighter band. */
+  .ag-hero {
+    padding-top: 64px !important;
+    padding-bottom: 64px !important;
+  }
+  .ag-h1 {
+    font-size: 32px !important;
+    line-height: 1.1 !important;
+  }
+  /* Section vertical rhythm. */
+  .ag-secpad {
+    padding-top: 56px !important;
+    padding-bottom: 56px !important;
+  }
+
+  /* How it works: drop the files drawer so the chat story owns the width. */
+  .ag-hiw-files {
+    display: none !important;
+  }
+
+  /* Templates: stack each spec row (label over its chips) so the harness switch
+     and chip rows get the full panel width instead of a 84px-narrowed column. */
+  .ag-tpl-left {
+    padding: 26px 20px 24px !important;
+  }
+  .ag-tpl-grid {
+    grid-template-columns: 1fr !important;
+    column-gap: 0 !important;
+  }
+  .ag-tpl-grid > span {
+    padding: 15px 0 3px !important;
+  }
+  .ag-tpl-grid > div {
+    padding: 2px 0 13px !important;
+    border-top: none !important;
+  }
+
+  /* CTA band: vertical padding follows the section token; tighten the row gap. */
+  .ag-cta-row {
+    gap: 22px !important;
+  }
+}
+
+/* ============================================================================
+   Long-form prose (.ag-prose) — dark reading styles for MDX-rendered bodies
+   (blog posts + author bios). These MUST be global, not scoped: the content is
+   rendered from MDX at runtime, so scoped selectors can't match its children.
+   Body is a muted warm white for comfortable reading; headings brighter; links
+   carry the brand accent; code sits on a subtle raised surface.
+============================================================================ */
+.ag-prose {
+  color: rgba(255, 255, 255, 0.72);
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 1.75;
+}
+.ag-prose > :first-child {
+  margin-top: 0;
+}
+.ag-prose p {
+  margin: 0 0 1.15em;
+}
+.ag-prose h2 {
+  margin: 2em 0 0.6em;
+  font: 400 30px/1.2 var(--font-display);
+  color: var(--text-on-dark-heading);
+  text-wrap: pretty;
+}
+.ag-prose h3 {
+  margin: 1.6em 0 0.5em;
+  font: 400 23px/1.3 var(--font-display);
+  color: var(--text-on-dark-heading);
+  text-wrap: pretty;
+}
+.ag-prose h4 {
+  margin: 1.4em 0 0.4em;
+  font: 600 17px/1.4 var(--font-sans);
+  color: var(--text-on-dark-heading);
+}
+.ag-prose a {
+  color: var(--yellow-400);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: rgba(242, 242, 92, 0.4);
+}
+.ag-prose a:hover {
+  text-decoration-color: var(--yellow-400);
+}
+.ag-prose strong {
+  color: var(--text-on-dark-heading);
+  font-weight: 600;
+}
+.ag-prose em {
+  font-style: italic;
+}
+.ag-prose ul,
+.ag-prose ol {
+  margin: 0 0 1.15em;
+  padding-left: 1.4em;
+}
+.ag-prose li {
+  margin: 0.35em 0;
+}
+.ag-prose li::marker {
+  color: rgba(255, 255, 255, 0.4);
+}
+.ag-prose li > ul,
+.ag-prose li > ol {
+  margin: 0.35em 0;
+}
+.ag-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+  padding: 0.12em 0.4em;
+  color: #f7f6f4;
+}
+.ag-prose pre {
+  margin: 0 0 1.4em;
+  padding: 18px 20px;
+  background: #0b0a0c;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  overflow-x: auto;
+  font-size: 14px;
+  line-height: 1.6;
+}
+/* Fenced blocks (and any Shiki-highlighted <pre>) drop the inline-code chrome. */
+.ag-prose pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  color: rgba(255, 255, 255, 0.82);
+}
+.ag-prose blockquote {
+  margin: 1.4em 0;
+  padding: 4px 0 4px 20px;
+  border-left: 2px solid var(--yellow-400);
+  color: rgba(255, 255, 255, 0.6);
+  font-style: italic;
+}
+.ag-prose blockquote p:last-child {
+  margin-bottom: 0;
+}
+.ag-prose hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  margin: 2.4em 0;
+}
+.ag-prose img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+  margin: 1.6em 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+.ag-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 1.4em;
+  font-size: 15px;
+  display: block;
+  overflow-x: auto;
+}
+.ag-prose th,
+.ag-prose td {
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: left;
+}
+.ag-prose th {
+  color: var(--text-on-dark-heading);
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.04);
+}

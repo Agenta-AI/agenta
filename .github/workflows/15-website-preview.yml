@@ -1,0 +1,106 @@
+name: "15 - website preview"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'website/**'
+      - '.github/workflows/15-website-preview.yml'
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to comment the preview URL on"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: website-preview-${{ github.event.pull_request.number || inputs.pr_number || github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  WRANGLER_VERSION: "4.113.0"
+  R2_FONTS_BUCKET: agenta-brand-fonts
+
+jobs:
+  deploy:
+    name: Build and deploy preview
+    runs-on: ubuntu-latest
+    # Fork PRs get no secrets: skip when the head repo is not this repo.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       !github.event.pull_request.draft)
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: website/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+          cache-dependency-path: website/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: cd website && pnpm install --frozen-lockfile
+
+      - name: Build site
+        env:
+          R2_S3_ENDPOINT: ${{ secrets.R2_S3_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          # Preview deploys are public workers.dev URLs: keep them out of search
+          # indexes (noindex <meta> + disallow-all robots.txt) so they never rank
+          # as duplicate content against production. Production build (workflow 16)
+          # deliberately does NOT set this.
+          PUBLIC_NOINDEX: "true"
+        run: cd website && pnpm run build
+
+      - name: Deploy preview version
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          cd website
+          alias="pr-${PR_NUMBER}"
+          pnpm dlx "wrangler@${WRANGLER_VERSION}" versions upload \
+            --preview-alias "$alias" 2>&1 | tee /tmp/wrangler.log
+          url=$(grep -oiE 'Version Preview Alias URL: https://[a-z0-9.-]+\.workers\.dev' /tmp/wrangler.log | sed 's/.*: //' | head -1)
+          if [ -z "$url" ]; then
+            echo "::error::Could not extract preview alias URL from wrangler output"
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Verify preview serves the site
+        run: |
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "${{ steps.deploy.outputs.url }}/")
+            [ "$code" = "200" ] && exit 0
+            sleep 5
+          done
+          echo "::error::Preview URL did not return 200 (last code: $code)"
+          exit 1
+
+      - name: Comment preview URL
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: website-preview
+          number: ${{ github.event.pull_request.number || inputs.pr_number }}
+          message: |
+            ### Website preview
+
+            Preview URL: ${{ steps.deploy.outputs.url }}
+
+            Built from `${{ github.event.pull_request.head.sha || github.sha }}`. This comment updates in place on every push.

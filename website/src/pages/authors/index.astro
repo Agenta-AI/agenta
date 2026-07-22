@@ -1,0 +1,92 @@
+---
+import Site from "../../layouts/Site.astro";
+import { getCollection } from "astro:content";
+import { authorPosts, socialIcon } from "../../lib/blog";
+
+// Authors index at /authors (no trailing slash — canonical per the live URL map).
+const authors = (await getCollection("authors")).sort((a, b) =>
+  a.data.name.localeCompare(b.data.name),
+);
+const posts = await getCollection("posts");
+// Count includes posts where the author is primary OR a co-author.
+const postCount = (id: string) => authorPosts(id, posts).length;
+
+const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;";
+---
+
+<Site
+  title="Authors — Agenta Blog"
+  description="The people writing on the Agenta blog about prompt management, evaluation, and LLM observability."
+>
+  <!-- Header -->
+  <section
+    class="ag-headpad ag-pad"
+    style={`background:#0E0D0F;${sectionBorder}padding:72px 24px 56px;text-align:center;`}
+  >
+    <div style="display:flex;flex-direction:column;align-items:center;gap:18px;">
+      <span
+        style="font:var(--text-caption);letter-spacing:0.14em;text-transform:uppercase;color:var(--yellow-400);"
+        >Our authors</span
+      >
+      <h1
+        class="ag-h1"
+        style="margin:0;font:var(--text-display-xl);color:#F7F6F4;max-width:760px;text-wrap:pretty;"
+      >
+        The people behind the blog
+      </h1>
+    </div>
+  </section>
+
+  <!-- Authors grid -->
+  <section
+    class="ag-pad"
+    style={`background:#0A0A0B;${sectionBorder}padding:48px 64px 88px;`}
+  >
+    <div
+      class="ag-grid"
+      style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;"
+    >
+      {
+        authors.map((author) => (
+          <a
+            href={`/authors/${author.id}`}
+            class="ag-card"
+            style="text-decoration:none;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;padding:32px 24px;border-radius:14px;background:rgba(255,255,255,0.02);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.07);"
+          >
+            <img
+              src={author.data.avatar}
+              alt={author.data.name}
+              width="88"
+              height="88"
+              loading="lazy"
+              decoding="async"
+              style="width:88px;height:88px;border-radius:50%;object-fit:cover;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.1);"
+            />
+            <span style="font:400 22px/1.2 var(--font-display);color:#F7F6F4;">
+              {author.data.name}
+            </span>
+            <span style="font:var(--text-caption);color:var(--yellow-400);">
+              {author.data.role}
+            </span>
+            <span style="font:var(--text-caption);color:rgba(255,255,255,0.45);">
+              {postCount(author.id)} {postCount(author.id) === 1 ? "post" : "posts"}
+            </span>
+            {author.data.socials && author.data.socials.length > 0 && (
+              <div style="display:flex;gap:8px;margin-top:4px;">
+                {author.data.socials.map((s) => (
+                  <span style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.1);display:inline-flex;align-items:center;justify-content:center;">
+                    <img
+                      src={socialIcon(s.platform)}
+                      alt=""
+                      style="width:15px;height:15px;filter:invert(1) brightness(0.85);"
+                    />
+                  </span>
+                ))}
+              </div>
+            )}
+          </a>
+        ))
+      }
+    </div>
+  </section>
+</Site>

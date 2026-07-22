@@ -1,0 +1,65 @@
+---
+slug: "introducing-ai-model-hub"
+title: "Launch Week Day 1: AI Model Hub"
+description: "Agenta helps you build LLM applications with our playground for prompt engineering and evaluation tools. Now, we're making it possible to use virtually any model you have access to, no matter where it's hosted."
+category: Article
+date: 2025-04-14
+readingTime: "5 min read"
+heroImage: /blog/introducing-ai-model-hub/hero.webp
+ogImage: /blog/introducing-ai-model-hub/hero.webp
+author: mahmoud-mabrouk
+featured: false
+tags: ["Product Updates"]
+---
+
+### The LLM integration challenge
+
+<InlineCTA />
+
+When working with LLMs, comparing different models is essential. Our users face several challenges:
+
+You have fine-tuned models for your specific use cases but couldn't use them in Agenta's playground or evaluations.
+
+Many of you run self-hosted models for privacy, security, or cost reasons – through Ollama or dedicated servers – but couldn't connect them to Agenta.
+
+Enterprise users who rely on Azure OpenAI and AWS Bedrock had to switch between platforms when using Agenta.
+
+And teams had no way to share model access without sharing raw API keys, creating security risks and complicating collaboration.
+
+### Introducing Model Hub: Your central connection point
+
+Model Hub gives you a central place in Agenta to manage all your model connections:
+
+- **Connect any model**: Azure OpenAI, AWS Bedrock, self-hosted models, fine-tuned models – any model with an OpenAI-compatible API.
+- **Configure once, use everywhere**: Set up your models once and use them in playground experiments, evaluations, and deployments.
+- **Secure team sharing**: Give your team access to models without sharing API keys. Control permissions per model.
+- **Consistent experience**: Use the same Agenta interface for all your models.
+
+### How it works
+
+Model Hub is under Configuration in your Agenta interface:
+
+1. Select your provider (OpenAI, Azure, AWS, Ollama, etc.)
+2. Enter your API keys
+3. Connect to your self-hosted models
+4. Share access with teammates
+
+Once configured, your models appear throughout Agenta. Run comparisons in the playground, test performance in evaluations, and deploy with confidence – using models from any provider.
+
+### Security is built-in
+
+When building Model Hub, we prioritized the security of your API keys and credentials:
+
+Your model keys and credentials are encrypted at rest in our database and protected in transit with TLS encryption. We never log these sensitive details, and they're only held in memory for the minimum time needed to process requests.
+
+Currently, access to models is managed at the project level, with all team members working on a project able to use the configured models. Every access to these credentials requires proper authentication with tokens tied to specific users and projects.
+
+For Business and Enterprise customers, Role-Based Access Control (RBAC) provides additional security by letting you control exactly who on your team can view or modify model configurations.
+
+We've designed this system from the ground up with security best practices, ensuring your valuable API keys and model access credentials remain protected.
+
+### What's next?
+
+The AI Model Hub is just the first feature in our Launch Week. Four more announcements are coming in the next few days to improve your LLM development workflow.
+
+Ready to try it? [Log in to Agenta](https://cloud.agenta.ai/) now to set up your Model Hub.

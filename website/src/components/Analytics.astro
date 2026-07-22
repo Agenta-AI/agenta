@@ -1,0 +1,46 @@
+---
+// PostHog analytics — mirrors the live agenta.ai reverse-proxy setup
+// (api_host = alef.agenta.ai). posthog-js is bundled from npm (no CDN snippet)
+// so the page stays self-contained. Included from Base.astro, so it runs on
+// every page. Loads only when a public PostHog key is configured
+// (PUBLIC_POSTHOG_KEY) AND this is a production, indexable build — so local dev,
+// forks, and preview/noindex deploys never emit events to our project (see
+// .env.example). Initialized once, honors Do Not Track. Pure MPA, so PostHog
+// captures a $pageview on each full page load. The key is public by design.
+//
+// Host guard: preview deploys (the team preview worker + per-PR CI previews) can
+// be production, indexable builds too, so the gates above alone would let their
+// traffic reach the real PostHog project. Analytics initializes ONLY on the real
+// site (agenta.ai / www.agenta.ai); every *.workers.dev preview host is skipped.
+const posthogKey = import.meta.env.PUBLIC_POSTHOG_KEY;
+const noindex = import.meta.env.PUBLIC_NOINDEX === "true";
+---
+
+<script define:vars={{ posthogKey, noindex }}>
+  const dnt =
+    navigator.doNotTrack === "1" ||
+    // @ts-expect-error legacy vendor-prefixed flags
+    window.doNotTrack === "1" ||
+    // @ts-expect-error legacy vendor-prefixed flags
+    navigator.msDoNotTrack === "1";
+
+  const host = window.location.hostname;
+  const isRealSite = host === "agenta.ai" || host === "www.agenta.ai";
+
+  // @ts-expect-error one-time guard on window
+  if (posthogKey && !noindex && isRealSite && !dnt && !window.__agPosthogInit) {
+    // @ts-expect-error one-time guard on window
+    window.__agPosthogInit = true;
+    import("posthog-js").then(({ default: posthog }) => {
+      posthog.init(posthogKey, {
+        api_host: "https://alef.agenta.ai",
+        ui_host: "https://us.posthog.com",
+        person_profiles: "identified_only",
+        capture_pageview: true,
+        capture_pageleave: true,
+        autocapture: true,
+        respect_dnt: true,
+      });
+    });
+  }
+</script>

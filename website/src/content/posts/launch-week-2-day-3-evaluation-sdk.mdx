@@ -1,0 +1,67 @@
+---
+slug: "launch-week-2-day-3-evaluation-sdk"
+title: "Launch Week #2 Day 3: Evaluation SDK"
+description: "We're launching the evaluation SDK today. The evaluation SDK allows you to evaluate complex agents and LLM workflows using built-in or custom evaluators."
+category: Article
+date: 2025-11-12
+readingTime: "5 min read"
+heroImage: /blog/launch-week-2-day-3-evaluation-sdk/hero.webp
+ogImage: /blog/launch-week-2-day-3-evaluation-sdk/hero.webp
+author: mahmoud-mabrouk
+featured: false
+tags: ["Product Update"]
+---
+
+<iframe src="https://www.youtube.com/embed/1sZASEjvoOA?iv_load_policy=3&rel=0&modestbranding=1&playsinline=1&autoplay=0&mute=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+Most LLM apps today are complex agents with multiple steps, tool calls, and retrieval flows.
+
+It's hard to evaluate this complexity from the UI alone. You need programmatic control over what you test and how you measure it.
+
+That's why we built the Evaluation SDK.
+
+## Evaluate Complex Agents Programmatically
+
+<InlineCTA />
+
+The Evaluation SDK gives you full control over evaluating your AI agents.
+
+[**Create or fetch test sets**](https://docs.agenta.ai/evaluation/evaluation-from-sdk/managing-testsets)**.** You can create test sets directly in code or fetch existing test sets from Agenta. Test sets can include ground truth data or not, depending on your evaluators.
+
+[**Write custom evaluators**](https://docs.agenta.ai/evaluation/evaluation-from-sdk/configuring-evaluators)**.** Build evaluators in code that match your exact requirements. Check for specific patterns, validate outputs against your rules, or measure domain-specific quality metrics.
+
+[**Use built-in evaluators**](https://docs.agenta.ai/evaluation/evaluation-from-sdk/configuring-evaluators)**.** We provide a library of evaluators including LLM-as-a-judge, semantic similarity, regex matching, and code-based validators. Save evaluator configurations in Agenta to reuse them across runs.
+
+[**Evaluate end to end or specific steps**](https://docs.agenta.ai/evaluation/evaluation-from-sdk/running-evaluations)**.** Test your entire agent flow or measure specific spans. You can evaluate retrieval quality, tool call accuracy, or any individual step in your agent's execution.
+
+[**View results in the dashboard**](https://docs.agenta.ai/evaluation/evaluation-from-ui/viewing-results)**.** Run evaluations from code and get a link to view results in Agenta. You can see the full traces, [compare runs](https://docs.agenta.ai/evaluation/evaluation-from-ui/comparing-runs), and share results with your team.
+
+## Works With Any Framework
+
+The SDK works with any agent framework. [OpenAI Agents SDK](https://docs.agenta.ai/observability/integrations/openai-agents), [LangGraph](https://docs.agenta.ai/observability/integrations/langgraph), [LlamaIndex](https://docs.agenta.ai/observability/integrations/llamaindex), or custom implementations all work the same way.
+
+You instrument your agent once. Then you can evaluate it however you need.
+
+## How It Works
+
+Here's how you use the SDK:
+
+First, you create or fetch your test set. You can define test cases in code or pull an existing test set from Agenta.
+
+Then you set up evaluators. Write custom evaluators in Python or configure built-in ones like [LLM-as-a-judge](https://docs.agenta.ai/evaluation/configure-evaluators/llm-as-a-judge) or [semantic similarity](https://docs.agenta.ai/evaluation/configure-evaluators/semantic-similarity).
+
+You can evaluate specific spans in your agent's execution. For example, check the quality of a retrieval step before the agent generates its final response.
+
+Finally, run the evaluation. The SDK executes your agent on each test case, applies the evaluators, and generates results.
+
+You get a link to the Agenta dashboard. There you can see the overview, inspect individual traces, and compare different runs.
+
+## Get Started
+
+The Evaluation SDK is available now.
+
+[Read the documentation](https://docs.agenta.ai/evaluation/evaluation-from-sdk/quick-start)
+
+[Try it in Agenta Cloud](https://cloud.agenta.ai)
+
+This is day 3 of our launch week. Tomorrow we're announcing the most exciting feature yet.

@@ -1,0 +1,58 @@
+---
+import Site from "../layouts/Site.astro";
+import Button from "../components/Button.astro";
+
+// Custom 404. Cloudflare serves this for any unknown path (wrangler.jsonc sets
+// `not_found_handling: "404-page"`). On-brand dark page reusing the Site chrome
+// (nav + footer) so visitors who hit a dead link still get the full site frame
+// and clear ways back. No CTA band here — the links below are the next action.
+//
+// noindex: a 404 must never be indexed even if a crawler reaches it.
+const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;";
+---
+
+<Site
+  title="Page not found — Agenta"
+  description="The page you were looking for doesn't exist. Head back to the Agenta homepage, blog, or docs."
+  showCta={false}
+>
+  <Fragment slot="head">
+    <meta name="robots" content="noindex, follow" />
+  </Fragment>
+
+  <section
+    class="ag-pad"
+    style={`background:#0E0D0F;${sectionBorder}padding:120px 24px 132px;text-align:center;`}
+  >
+    <div
+      style="max-width:640px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:24px;"
+    >
+      <span
+        style="display:inline-flex;align-items:center;height:24px;padding:0 13px;border-radius:999px;background:rgba(242,242,92,0.12);box-shadow:inset 0 0 0 1px rgba(242,242,92,0.3);font:var(--text-caption);letter-spacing:0.04em;color:var(--yellow-400);"
+        >404</span
+      >
+      <h1
+        class="ag-h1"
+        style="margin:0;font:var(--text-display-xl);color:#F7F6F4;text-wrap:pretty;"
+      >
+        This page ran off.
+      </h1>
+      <p
+        style="margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.6);max-width:480px;text-wrap:pretty;"
+      >
+        The page you were looking for doesn't exist or has moved. Let's get you
+        back on track.
+      </p>
+
+      <div
+        style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:8px;"
+      >
+        <Button href="/" variant="primary" size="lg">Back to home</Button>
+        <Button href="/blog" variant="outline" size="lg">Read the blog</Button>
+        <Button href="https://agenta.ai/docs" variant="dark" size="lg"
+          >Browse the docs</Button
+        >
+      </div>
+    </div>
+  </section>
+</Site>
