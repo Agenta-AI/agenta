@@ -1007,10 +1007,16 @@ const AgentConversation = ({
             const serverAheadByCount = serverMsgs.length > prev.length
             const localTailPaused = getPendingApprovals(prev).length > 0
             const serverTail = serverMsgs[serverMsgs.length - 1] as
-                | {metadata?: {paused?: boolean}}
+                | {role?: string; metadata?: {paused?: boolean}}
                 | undefined
+            // The paused-tail exception adopts a resume that completed elsewhere, so the server must
+            // NOT be behind (>= guards against a lagging snapshot discarding newer local approval
+            // state) and its tail must be a finished assistant turn — not a shorter, older stream.
             const serverTailComplete =
-                !serverTail?.metadata?.paused && getPendingApprovals(serverMsgs).length === 0
+                serverMsgs.length >= prev.length &&
+                serverTail?.role === "assistant" &&
+                !serverTail.metadata?.paused &&
+                getPendingApprovals(serverMsgs).length === 0
             if (!serverAheadByCount && !(localTailPaused && serverTailComplete)) return
             serverMsgs.forEach((m) => {
                 seenIdsRef.current.add(m.id)
