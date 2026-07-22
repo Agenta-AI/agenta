@@ -25,11 +25,15 @@ const VoiceInputButton = ({
     onStartAudio,
     audioSupported,
     audioPending,
+    attachmentsFull,
     disabled,
 }: {
     inputRef: RefObject<RichChatInputHandle | null>
     onStartAudio: () => void
     audioSupported: boolean
+    /** Tray is at its file limit. A voice message attaches like any file, so recording one now
+     * would be rejected on attach — i.e. the take would be destroyed after the fact. */
+    attachmentsFull: boolean
     /** Awaiting the browser's mic prompt — shown here rather than as a composer takeover, since
      * the prompt is the browser's own UI and a page cannot dismiss it. */
     audioPending: boolean
@@ -76,14 +80,19 @@ const VoiceInputButton = ({
 
     const menuItems: MenuProps["items"] = available.map((m) => ({key: m.key, label: m.label}))
 
+    // Dictation writes into the editor, so it is unaffected by the attachment limit.
+    const audioBlocked = effective === "audio" && attachmentsFull
+
     const title = audioPending
         ? "Waiting for your browser's microphone prompt…"
-        : ((effective === "transcribe" ? transcribe.error : null) ??
-          (dictating
-              ? "Stop dictation"
-              : effective === "transcribe"
-                ? "Voice to text"
-                : "Record a voice message"))
+        : audioBlocked
+          ? "Attachment limit reached — remove a file to record a voice message"
+          : ((effective === "transcribe" ? transcribe.error : null) ??
+            (dictating
+                ? "Stop dictation"
+                : effective === "transcribe"
+                  ? "Voice to text"
+                  : "Record a voice message"))
 
     const highlighted = dictating || audioPending
 
@@ -95,7 +104,7 @@ const VoiceInputButton = ({
                     icon={<Microphone size={16} weight={highlighted ? "fill" : "regular"} />}
                     onClick={toggle}
                     // A second press while the prompt is open would only queue another request.
-                    disabled={disabled || audioPending}
+                    disabled={disabled || audioPending || audioBlocked}
                     aria-label={dictating ? "Stop voice input" : title}
                     className={
                         dictating

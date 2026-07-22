@@ -149,7 +149,13 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
                 }
                 streamRef.current = stream
                 const mime = pickMime()
-                const rec = new MediaRecorder(stream, mime ? {mimeType: mime} : undefined)
+                // Pin the bitrate: the default is unspecified, and a full-length take at a high
+                // one lands near the per-file attachment cap — which would reject (and destroy)
+                // the recording at the very end. 64kbps is ample for voice: ~2.4MB at the 5min cap.
+                const rec = new MediaRecorder(stream, {
+                    ...(mime ? {mimeType: mime} : {}),
+                    audioBitsPerSecond: 64_000,
+                })
                 chunksRef.current = []
                 rec.ondataavailable = (e) => {
                     if (e.data.size) chunksRef.current.push(e.data)

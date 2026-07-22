@@ -2280,6 +2280,7 @@ const AgentConversation = ({
                                                         onStartAudio={voiceRecorder.start}
                                                         audioSupported={voiceRecorder.supported}
                                                         audioPending={voiceRecorder.pending}
+                                                        attachmentsFull={atMax}
                                                         disabled={
                                                             onboardingActive
                                                                 ? ideHandoffActive
