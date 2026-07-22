@@ -29,16 +29,21 @@ const icoSlack = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" st
 const icoX = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l16 16M20 4L4 20"/></svg>`;
 const icoLinkedin = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/></svg>`;
 
-// Dropdown menus (open on hover / keyboard focus). Resources mirrors agenta.ai's
-// three-item menu; Community lists the real community channels.
+// Dropdown menus (open on hover / keyboard focus). Resources + Community mirror
+// live agenta.ai. Changelog/Roadmap point at the same docs pages the live site
+// links to and navigate same-tab (like Docs). Tutorial is hidden for now — flip
+// SHOW_TUTORIAL to bring it back with the item intact.
+const SHOW_TUTORIAL = false;
 type Item = { label: string; desc: string; href: string; icon: string; external?: boolean };
 const dropdowns: { label: string; items: Item[] }[] = [
   {
     label: "Resources",
     items: [
-      { label: "Tutorial", desc: "Get started with Agenta", href: "https://agenta.ai/docs/tutorials/cookbooks/capture-user-feedback", icon: icoHelp, external: true },
-      { label: "Changelog", desc: "See our latest releases", href: "https://agenta.ai/docs/changelog/main", icon: icoHistory, external: true },
-      { label: "Roadmap", desc: "See what's coming next", href: "https://agenta.ai/docs/roadmap", icon: icoRoute, external: true },
+      ...(SHOW_TUTORIAL
+        ? [{ label: "Tutorial", desc: "Get started with Agenta", href: "https://agenta.ai/docs/tutorials/cookbooks/capture-user-feedback", icon: icoHelp }]
+        : []),
+      { label: "Changelog", desc: "See our latest releases", href: "https://agenta.ai/docs/changelog/main", icon: icoHistory },
+      { label: "Roadmap", desc: "See what's coming next", href: "https://agenta.ai/docs/roadmap", icon: icoRoute },
     ],
   },
   {
