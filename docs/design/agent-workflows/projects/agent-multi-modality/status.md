@@ -1,65 +1,69 @@
 # Status
 
-Source of truth for where this project stands. Keep it current.
+This file records the project's current state.
 
 ## State
 
-**Design complete, not started.** The problem is verified against code, every design fork is
-resolved, and the plan is phased. No implementation yet. The design lives in
-[proposal.md](proposal.md); the verified current-state audit is in [context.md](context.md).
+The design has one open product decision (D11, what the first release promises) and six open
+implementation questions; see [decisions.md](decisions.md) for the list. The problem is verified
+against code, the research covers the mounts surface, the modality taxonomy, the ACP content model
+read from the two adapters we actually pin, and how other tools handle attachments, and every major
+choice is written as options and a decision. Implementation has not started.
 
-The one-line problem: agent workflows are text-only at the model — attachments travel intact from
-the composer to the runner and are dropped one line before the harness
-([`run-turn.ts:478`](../../../../../services/runner/src/engines/sandbox_agent/run-turn.ts) is
-hard-coded to a single text block). The fix is entirely on **our** side of that line; ACP (Zed's
-external protocol) and the harness already support image and audio.
+The one-line problem: agent workflows are text-only at the model. A file travels intact from the
+chat box to the runner and is dropped at the one call that hands a turn to the harness
+(`services/runner/src/engines/sandbox_agent/run-turn.ts`, the `session.prompt` call, currently near
+line 742). The image fix is entirely on our side of that call, because both pinned adapters deliver
+an image natively. Native audio and native documents are different: neither pinned adapter supports
+them today, so those modalities are blocked on adapter work.
 
-## Phase tracker
+## Reading order
 
-| Phase | Scope | State |
+See [README.md](README.md). In short: [context.md](context.md) for the plain story,
+[research.md](research.md) for the findings, [design.md](design.md) for the design and its options,
+[plan.md](plan.md) for the staged work, [scope.md](scope.md) for in and out, and
+[decisions.md](decisions.md) for the log and open questions.
+
+## Stage tracker
+
+| Stage | Scope | State |
 | --- | --- | --- |
-| 0 | Honest gate — close the paste/drop leak so the parked feature stops silently failing | ☐ not started (optional) |
-| 1 | Storage + reference plumbing — attachments mount, FE upload-first, ref on the wire | ☐ not started |
-| 2 | Runner resolve + prompt (image) — `resolveContentBlocks`, materialize working copy, replace line 478 | ☐ not started |
-| 3 | Audio + documents — add `audio` to Agenta `ContentBlock`, map audio/PDF, capability-derived FE limits | ☐ not started |
-| 4 | Findability polish + GC — "Shared by you" drawer origin, orphan GC, verify edit-in-place flow | ☐ not started |
+| 0 | Close the silent-failure gap: refuse paste and drop while the feature is off | not started (optional) |
+| 1 | First user-visible release: the attachment resource and storage, the record-schema extension, the runner's resolve-materialize-and-deliver seam for images, structured capability errors, and the minimum security and limits work | not started |
+| 2 | Audio and documents: add the `audio` block, map audio and documents, retire the old capability names through an alias rollout, derive front-end limits | blocked on adapter work |
+| 3 | Findability polish and cleanup: "Shared by you" origin, reference-counting cleanup refinement, read-only credential scope, verify the edit-then-find flow | not started |
 
 ## Decisions taken
 
-- **2026-07-21 (scope, with product owner):** audio is in scope (forces inline `AudioContent`);
-  PDFs/documents in scope, FE limits may be reworked (they were arbitrary); **both** intents —
-  model perceives *and* agent operates; whether the agent modifies the file is the user's call
-  per conversation; findability is an explicit product goal.
-- **2026-07-21 (design forks, see [decision log](proposal.md#decision-log) D1–D7):**
-  - Inline base64 at the ACP boundary (the spec requires it; no URL-to-model path). **D1/D2**
-  - A dedicated session-scoped **attachments mount**, deliberately kept **off** the sandbox FUSE
-    set — not the `agent-files` pattern. **D3**
-  - Two objects: immutable original + mutable working copy — so "always findable" and "agent can
-    do anything" are both true, no read-only-vs-read-write policy. **D4**
-  - No first-turn race (FE owns `session_id`; sign is get-or-create). **D5**
-  - Capability gated on ACP `promptCapabilities` — FE (UX) + runner (truth). **D6**
+See the decision log in [decisions.md](decisions.md) (D1 through D11, with D11 still open). In brief:
+deliver inline for perception and on disk for tool use; keep the original in a dedicated session mount
+out of the sandbox; two copies, an unchanging original and a disposable working copy; compute the
+capability as the intersection of transport, adapter fidelity, and model, and gate in the composer and
+the runner; never silently drop, attach an unsupported kind as workspace-only, and fail the turn only
+on a contract violation; enforce immutability through a create-only upload route with no signed
+credentials for the mount; carry an opaque server-issued `attachment_id` on the wire (D10); audio is
+a goal but blocked on adapter work.
 
-## Open questions (blocking specific phases)
+## Open questions
 
-1. **Materialize-per-turn vs persistence** — confirm the runner can address the attachments mount
-   out-of-band (object-store GET with its signing creds) without adding it to the sandbox FUSE
-   set. *(gates Phase 2)*
-2. **Document delivery on Claude** — confirm ACP `EmbeddedResource(blob)` lands as a Claude
-   document block, not just a fetchable resource. Least-confirmed link in the chain; verify
-   against a live harness before committing. *(gates Phase 3)*
-3. **Orphan-upload GC policy** — TTL sweep vs. reference-count against the transcript.
-   *(gates Phase 4)*
-4. **Working-copy path convention** — `cwd/attachments/` (discoverable) vs. hidden/namespaced
-   (less clutter). *(gates Phase 2)*
+See [decisions.md](decisions.md). Three questions are settled by evidence (document delivery, the
+working-copy path, the runner read path); decisions.md records them. The open
+questions are: what the first release promises (D11, the product owner's decision); how native audio is
+delivered at all (blocked on adapter work); the cold-replay budget numbers; when the old capability
+names are removed across independently deployed components; the retention rules when a session is
+archived or deleted; the exact media-type and validation matrix; and the cleanup refinement from a
+time-to-live sweep to reference counting.
 
 ## Next actions
 
-- Decide whether Phase 0 ships standalone or folds into Phase 1 (skip if 1–4 land quickly).
-- Resolve open question 2 against a live Claude harness before Phase 3 is planned in detail.
-- Graduate the diagrams/contracts in [proposal.md](proposal.md) into an implementation plan
-  (`plan.md`) when a phase is picked up.
+- The product owner decides the open product question D11 (what the first release promises) on the PR.
+- Decide whether Stage 0 ships on its own or folds into Stage 1.
+- The runner-rebuilds-context-from-records direction is tracked in
+  [#5443](https://github.com/Agenta-AI/agenta/issues/5443) (the warm-case counterpart is #5384). It
+  stays outside this project's scope.
 
 ## Artifacts
 
-- [README.md](README.md) · [context.md](context.md) · [proposal.md](proposal.md)
-- Branch: `docs/agent-multi-modality` (docs only, uncommitted as of 2026-07-21).
+- [README.md](README.md) · [context.md](context.md) · [research.md](research.md) ·
+  [design.md](design.md) · [plan.md](plan.md) · [scope.md](scope.md) · [decisions.md](decisions.md)
+- Branch: `docs/agent-multi-modality` (docs only).
