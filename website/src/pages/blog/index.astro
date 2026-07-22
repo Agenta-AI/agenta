@@ -199,6 +199,14 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
       display: none;
     }
 
+    /* Load-more pagination (All view only). The scoped script toggles
+       .blog-hidden on grid cards beyond the current limit; this rule hides
+       them. Only applies in the "All" view — filtered views strip
+       .blog-hidden off every card, so it never fights the filter rule above. */
+    #blog-grid > a.blog-hidden {
+      display: none;
+    }
+
     /* Grid + featured collapse mirrors agenta.ai/blog: grid 3 → 2 (≤1024) → 1
        (≤600); the featured row stacks below 1024. */
     @media (max-width: 1024px) {

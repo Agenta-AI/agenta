@@ -56,6 +56,11 @@ The rule: **proprietary/large assets live in the deployed output, never in git.*
 - `pnpm build` produces the static `dist/`. Deploy target is Cloudflare Workers
   Static Assets (see `wrangler.jsonc`). `pnpm deploy:preview` deploys the shared
   team preview manually (needs the Cloudflare creds from `~/.agenta-marketing.env`).
+  **`deploy:preview` sets `PUBLIC_NOINDEX=true` on the build** so the public
+  `workers.dev` preview ships a `noindex` meta + disallow-all `robots.txt` and can
+  never rank as duplicate content against production. Any hand-rolled preview build
+  (`pnpm build && wrangler deploy`) must prefix `PUBLIC_NOINDEX=true` for the same
+  reason. Only the production workflow (`16-website-production.yml`) leaves it unset.
 
 ## CI preview deploys
 

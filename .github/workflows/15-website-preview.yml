@@ -59,6 +59,11 @@ jobs:
           R2_S3_ENDPOINT: ${{ secrets.R2_S3_ENDPOINT }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          # Preview deploys are public workers.dev URLs: keep them out of search
+          # indexes (noindex <meta> + disallow-all robots.txt) so they never rank
+          # as duplicate content against production. Production build (workflow 16)
+          # deliberately does NOT set this.
+          PUBLIC_NOINDEX: "true"
         run: cd website && pnpm run build
 
       - name: Deploy preview version
