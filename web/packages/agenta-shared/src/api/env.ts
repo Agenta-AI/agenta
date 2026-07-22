@@ -39,6 +39,7 @@ export const processEnv = {
     NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED: process.env.NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED,
     NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS:
         process.env.NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS,
+    NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY: process.env.NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY,
 }
 
 /**
@@ -81,6 +82,17 @@ const SANDBOX_LOCAL_TRUTHY = new Set(["true", "1", "t", "y", "yes", "on", "enabl
 
 export const isSandboxLocalEnabled = (): boolean => {
     const raw = getEnv("NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED") || "true"
+    return SANDBOX_LOCAL_TRUTHY.has(raw.trim().toLowerCase())
+}
+
+/**
+ * Send only the trailing user message per agent turn and let the runner rebuild prior history
+ * from the durable record log. Default OFF — enable ONLY where the backend runs with
+ * `AGENTA_SESSIONS_RECONSTRUCT=true` (they must be flipped together), or a cold turn loses its
+ * context.
+ */
+export const isSessionsLastMessageOnlyEnabled = (): boolean => {
+    const raw = getEnv("NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY") || "false"
     return SANDBOX_LOCAL_TRUTHY.has(raw.trim().toLowerCase())
 }
 
