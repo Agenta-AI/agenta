@@ -44,6 +44,9 @@ export interface FilesDrawerProps {
     scope?: DriveScope
     /** Preselect this path on open — and, while open, re-select when it changes (a chat link/tile). */
     initialPath?: string | null
+    /** Files staged by a drop on a recents peek, awaiting a destination — the host owns the list. */
+    stagedFiles?: File[]
+    onStagedChange?: (files: File[]) => void
 }
 
 export function FilesDrawer({
@@ -54,6 +57,8 @@ export function FilesDrawer({
     driveIds,
     scope = "session",
     initialPath,
+    stagedFiles,
+    onStagedChange,
 }: FilesDrawerProps) {
     // Expanded (near-full) width, toggled from the drawer header. Reset on close so every open starts
     // at the normal width.
@@ -88,6 +93,8 @@ export function FilesDrawer({
                 driveIds={driveIds}
                 expanded={expanded}
                 onToggleExpand={() => setExpanded((v) => !v)}
+                stagedFiles={stagedFiles}
+                onStagedChange={onStagedChange}
             />
         </EnhancedDrawer>
     )

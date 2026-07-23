@@ -59,6 +59,7 @@ import {DriveSessionProvider} from "@/oss/components/Drives/driveSessionContext"
 import {
     SessionFilesDrawer,
     filesDrawerOpenAtomFamily,
+    filesDrawerStagedAtomFamily,
 } from "@/oss/components/Drives/SessionFilesDrawer"
 import {
     IDE_INSTALL_COMMAND,
@@ -639,6 +640,7 @@ const AgentConversation = ({
     const quickLookHost = <DriveFileLinkProvider sessionId={sessionId} artifactId={artifactId} />
     const filesWindowHost = <SessionFilesDrawer sessionId={sessionId} />
     const setFilesWindowOpen = useSetAtom(filesDrawerOpenAtomFamily(sessionId))
+    const setFilesStaged = useSetAtom(filesDrawerStagedAtomFamily(sessionId))
 
     // Hybrid history: localStorage holds only the session INDEX; the durable conversation CONTENT
     // lives in the backend record log. Cache-first — when this tab opens with no locally-cached
@@ -2542,6 +2544,7 @@ const AgentConversation = ({
                             busy={busy}
                             hidden={buildMode || inspectorOpen}
                             onOpenFiles={() => setFilesWindowOpen(true)}
+                            onStageFiles={(files) => setFilesStaged(files)}
                         />
                     </div>
                 </RightPanelSplit>

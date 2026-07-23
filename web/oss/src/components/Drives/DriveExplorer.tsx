@@ -202,6 +202,7 @@ const SKELETON_ROW_CAP = 24
 
 // Shared empty set — the "no dir just loaded" sentinel, so a render that reveals nothing allocates none.
 const EMPTY_STR_SET: ReadonlySet<string> = new Set<string>()
+const NO_FILES: File[] = []
 
 // The file-tree pane's default/min/max width, and the collapse/expand tween. The pane is a plain
 // motion.div (NOT an antd Splitter): motion animates its width 0↔width in ONE continuous pass, and the
@@ -737,6 +738,49 @@ const UploadTile = ({
     </div>
 )
 
+/** A file dropped onto a recents peek and awaiting a destination — a GHOST tile (dashed, no progress)
+ * shown in every folder view until the user commits it with "Upload here" or removes it. */
+interface StagedTileItem {
+    id: string
+    name: string
+    file: File
+    /** Object URL for an image preview, else null (icon fallback). Owned by DriveExplorer. */
+    previewUrl: string | null
+}
+
+const StagedTile = ({item, onRemove}: {item: StagedTileItem; onRemove?: (id: string) => void}) => (
+    <div className="relative flex w-full min-w-0 flex-col gap-2 rounded-lg border border-dashed border-colorBorder bg-colorFillQuaternary p-2 opacity-90">
+        {onRemove ? (
+            <button
+                type="button"
+                aria-label={`Remove ${item.name}`}
+                onClick={() => onRemove(item.id)}
+                className="absolute right-1 top-1 z-10 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.45)] text-white hover:bg-[rgba(0,0,0,0.65)]"
+            >
+                <X size={11} weight="bold" />
+            </button>
+        ) : null}
+        <div className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded bg-colorFillTertiary">
+            {item.previewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                    src={item.previewUrl}
+                    alt={item.name}
+                    className="h-full w-full object-cover opacity-60"
+                />
+            ) : (
+                <FileIcon size={40} className="text-colorTextTertiary" />
+            )}
+        </div>
+        <span className="w-full truncate text-center font-mono text-xs" title={item.name}>
+            {item.name}
+        </span>
+        <span className="w-full truncate text-center text-[11px] text-colorTextTertiary">
+            Ready to upload
+        </span>
+    </div>
+)
+
 /** Right pane when a FOLDER is selected: fixed header (clickable breadcrumb + folder name) over a
  * grid of the folder's immediate children — subfolders drill in, files open the preview. Reuses the
  * chat grid's file tile (DriveFileRow). */
@@ -756,6 +800,8 @@ const FolderView = ({
     pendingUploads,
     onRetryUpload,
     onDismissUpload,
+    stagedItems,
+    onRemoveStaged,
 }: {
     folderPath: string
     nodes: DriveTreeNode[]
@@ -768,6 +814,10 @@ const FolderView = ({
     pendingUploads?: MountUploadItem[]
     onRetryUpload?: (id: string) => void
     onDismissUpload?: (id: string) => void
+    /** Files staged (dropped on a recents peek) awaiting a destination — ghost tiles shown in EVERY
+     * folder until committed with "Upload here", regardless of this folder's path. */
+    stagedItems?: StagedTileItem[]
+    onRemoveStaged?: (id: string) => void
     /** This folder's level is still loading (lazy) — show the tile skeleton, not "Empty folder". */
     loading?: boolean
     /** Chrome mode: the drawer's single header owns the breadcrumb/name/repo toggle, so drop this
@@ -806,17 +856,33 @@ const FolderView = ({
             ),
         [pendingUploads],
     )
+    const stagedByPath = useMemo(
+        () =>
+            new Map<string, StagedTileItem>(
+                (stagedItems ?? []).map((it) => [`__staged__/${it.id}`, it]),
+            ),
+        [stagedItems],
+    )
     const entries = useMemo(() => {
-        const uploadNodes: DriveTreeNode[] = (pendingUploads ?? []).map((it) => ({
-            name: it.name,
-            path: `__upload__/${it.id}`,
-            isFolder: false,
-            children: [],
-        }))
-        return [...uploadNodes, ...nodes].sort((a, b) =>
+        // Pending items lead the file group: staged (awaiting destination), then in-flight uploads.
+        const synthetic: DriveTreeNode[] = [
+            ...(stagedItems ?? []).map((it) => ({
+                name: it.name,
+                path: `__staged__/${it.id}`,
+                isFolder: false,
+                children: [],
+            })),
+            ...(pendingUploads ?? []).map((it) => ({
+                name: it.name,
+                path: `__upload__/${it.id}`,
+                isFolder: false,
+                children: [],
+            })),
+        ]
+        return [...synthetic, ...nodes].sort((a, b) =>
             a.isFolder === b.isFolder ? 0 : a.isFolder ? -1 : 1,
         )
-    }, [pendingUploads, nodes])
+    }, [stagedItems, pendingUploads, nodes])
     // Only surface the skeleton if the level is genuinely slow to load (>140ms); a quick load skips
     // straight to the grid so the user never sees a one-frame skeleton flash.
     const showSkeleton = useDelayedTrue(Boolean(loading) && nodes.length === 0, 140)
@@ -958,6 +1024,27 @@ const FolderView = ({
                                 onMetaBack={() => onSelect(parentOf(folderPath))}
                                 getKey={(n) => n.path}
                                 renderTile={(n) => {
+                                    // Staged ghost tile (synthetic node) — awaiting a destination, no
+                                    // progress yet. Fades itself in like the upload tile.
+                                    const stagedItem = stagedByPath.get(n.path)
+                                    if (stagedItem) {
+                                        return (
+                                            <motion.div
+                                                className="min-w-0"
+                                                initial={{opacity: 0, scale: 0.96}}
+                                                animate={{opacity: 1, scale: 1}}
+                                                transition={{
+                                                    duration: 0.18,
+                                                    ease: [0.4, 0, 0.2, 1],
+                                                }}
+                                            >
+                                                <StagedTile
+                                                    item={stagedItem}
+                                                    onRemove={onRemoveStaged}
+                                                />
+                                            </motion.div>
+                                        )
+                                    }
                                     // Optimistic upload tile (synthetic node) — progress, not a real file.
                                     const uploadItem = uploadByPath.get(n.path)
                                     if (uploadItem) {
@@ -1106,12 +1193,18 @@ const DriveHeader = ({
     onRetry,
     retrying,
     onUpload,
+    stagedCount = 0,
+    onUploadStaged,
 }: {
     selectedPath: string | null
     isFolder: boolean
     rootLabel: string
     /** Pick files to upload into the current folder — shown only for a writable mount. */
     onUpload?: () => void
+    /** Count of files staged (dropped on a recents peek) awaiting a destination. >0 → show the
+     * primary "Upload here" action that commits them into the current folder. */
+    stagedCount?: number
+    onUploadStaged?: () => void
     /** Immediate-child count for a non-root folder (null when unknown / at root). */
     itemCount: number | null
     /** Whole-drive file count — the chip at the root, preserving the old "N files". */
@@ -1228,6 +1321,16 @@ const DriveHeader = ({
                 </Tooltip>
             ) : null}
             <div className="flex shrink-0 items-center gap-1">
+                {stagedCount > 0 && onUploadStaged ? (
+                    <Button
+                        type="primary"
+                        icon={<UploadSimple size={15} />}
+                        onClick={onUploadStaged}
+                        className="!h-7"
+                    >
+                        {`Upload ${stagedCount} here`}
+                    </Button>
+                ) : null}
                 {onUpload ? (
                     <Tooltip title="Upload to this folder">
                         <Button
@@ -1325,6 +1428,8 @@ export function DriveExplorer({
     driveIds,
     expanded: drawerExpanded = false,
     onToggleExpand,
+    stagedFiles,
+    onStagedChange,
 }: {
     drive: SessionDriveData
     /** Render this flat list instead of the mount's lazy-loaded tree — the local-file mode used to
@@ -1341,6 +1446,10 @@ export function DriveExplorer({
     /** The host drawer is at expanded (near-full) width — reflected by the header's expand toggle. */
     expanded?: boolean
     onToggleExpand?: () => void
+    /** Files dropped on a recents peek, staged (unwritten) until the user picks a destination folder
+     * and clicks "Upload here" — shown as ghost tiles in the grid. The host owns the list. */
+    stagedFiles?: File[]
+    onStagedChange?: (files: File[]) => void
 }) {
     const rootLabel = driveRootLabel(drive.mount)
     // Restore the last-viewed file on (re)mount: explicit initialPath wins, else the persisted
@@ -1648,6 +1757,43 @@ export function DriveExplorer({
         onUpload: canUpload ? uploadIntoFolder : () => {},
         onNavigate: select,
     })
+
+    // Staged uploads: files dropped on a recents peek, held UNWRITTEN until the user navigates to a
+    // destination and clicks "Upload here" — ghost tiles in the grid meanwhile. Only for writable
+    // mounts (never the local-file preview). Image previews are owned here and revoked on change.
+    const staged = canUpload ? (stagedFiles ?? NO_FILES) : NO_FILES
+    const stagedPreviews = useMemo(() => {
+        const urls = new Map<File, string>()
+        for (const f of staged) if (f.type.startsWith("image/")) urls.set(f, URL.createObjectURL(f))
+        return urls
+    }, [staged])
+    useEffect(
+        () => () => {
+            for (const u of stagedPreviews.values()) URL.revokeObjectURL(u)
+        },
+        [stagedPreviews],
+    )
+    const stagedItems = useMemo<StagedTileItem[]>(
+        () =>
+            staged.map((f, i) => ({
+                id: `${i}-${f.name}`,
+                name: f.name,
+                file: f,
+                previewUrl: stagedPreviews.get(f) ?? null,
+            })),
+        [staged, stagedPreviews],
+    )
+    const commitStaged = useCallback(() => {
+        if (!staged.length) return
+        uploadIntoFolder(staged, currentFolder)
+        onStagedChange?.([])
+    }, [staged, currentFolder, uploadIntoFolder, onStagedChange])
+    const removeStaged = useCallback(
+        (id: string) =>
+            onStagedChange?.(stagedItems.filter((it) => it.id !== id).map((it) => it.file)),
+        [stagedItems, onStagedChange],
+    )
+
     const selected = drive.recents.find((f) => f.path === selectedPath) ?? null
     const showOrigin = driveHasMixedOrigins(drive.recents)
 
@@ -1965,6 +2111,8 @@ export function DriveExplorer({
                     )}
                     onRetryUpload={mountUpload.retry}
                     onDismissUpload={mountUpload.dismiss}
+                    stagedItems={stagedItems}
+                    onRemoveStaged={removeStaged}
                 />
             ) : (
                 <DriveFilePreview
@@ -2187,6 +2335,8 @@ export function DriveExplorer({
                         onRetry={drive.retry}
                         retrying={drive.isFetching}
                         onUpload={canUpload ? () => uploadInputRef.current?.click() : undefined}
+                        stagedCount={staged.length}
+                        onUploadStaged={commitStaged}
                     />
                     <input
                         ref={uploadInputRef}
