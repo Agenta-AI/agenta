@@ -33,3 +33,6 @@ export {devLog} from "./devLog"
 
 // Storage adapters for atomWithStorage
 export {stringStorage} from "./stringStorage"
+
+// Boot-phase idle gate for non-critical bootstrap queries
+export {idleReadyAtom} from "./idleReady"

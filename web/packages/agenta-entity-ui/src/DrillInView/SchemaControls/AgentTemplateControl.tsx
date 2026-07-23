@@ -21,7 +21,7 @@
  * Sections are schema-driven: each renders only when its field exists in the resolved
  * schema, so the panel tracks the backend contract instead of hard-coding fields.
  */
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
 import type {SchemaProperty} from "@agenta/entities/shared"
@@ -134,7 +134,7 @@ const ModelHarnessSectionBody = ({
 // the agent populates them (see `useAutoExpandOnPopulate`).
 const CONTROLLED_SECTION_KEYS = new Set(["tools", "mcp", "skills", "triggers"])
 
-export function AgentTemplateControl({
+export const AgentTemplateControl = memo(function AgentTemplateControl({
     schema,
     value,
     onChange,
@@ -761,6 +761,8 @@ export function AgentTemplateControl({
     }
 
     // Compact "+" for a section header's `extra` slot (stops propagation, so it never toggles open).
+    // The header keeps a uniform height regardless of this button — ConfigAccordionSection collapses
+    // the extra slot's vertical footprint (see its `-my-2`), so no per-button sizing is needed here.
     const headerAddButton = (label: string, onClick: () => void) => (
         <Tooltip title={label}>
             <Button type="text" icon={<Plus size={16} />} onClick={onClick} aria-label={label} />
@@ -1194,4 +1196,4 @@ export function AgentTemplateControl({
             )}
         </div>
     )
-}
+})

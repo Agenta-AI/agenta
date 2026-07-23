@@ -20,6 +20,7 @@
         ".": "./src/index.ts",
         "./api": "./src/api/index.ts",
         "./api/env": "./src/api/env.ts",
+        "./api/persist": "./src/api/persist/index.ts",
         "./state": "./src/state/index.ts",
         "./utils": "./src/utils/index.ts",
         "./hooks": "./src/hooks/index.ts",
@@ -27,8 +28,10 @@
         "./types": "./src/types/index.ts"
     },
     "dependencies": {
+        "@tanstack/query-persist-client-core": "5.100.9",
         "axios": "1.16.0",
         "dayjs": "^1.11.20",
+        "idb-keyval": "^6.3.0",
         "json5": "^2.2.3",
         "jsonrepair": "^3.13.3",
         "uuid": "^11.1.1"
@@ -37,6 +40,7 @@
         "@types/node": "^20.19.20",
         "@types/react": "^19.0.10",
         "@vitest/coverage-v8": "^4.1.4",
+        "fake-indexeddb": "^6.2.5",
         "typescript": "^5.9.3",
         "vitest": "^4.1.4"
     },

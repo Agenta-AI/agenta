@@ -1,5 +1,7 @@
 import {useMemo} from "react"
 
+import {catalogPersister} from "@agenta/shared/api/persist"
+import type {QueryKey} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -18,6 +20,7 @@ export const toolCatalogCategoriesQueryAtom = atomWithQuery<ToolCatalogCategorie
     staleTime: 30 * 60_000,
     refetchOnWindowFocus: false,
     retry: 1,
+    persister: catalogPersister.persisterFn<ToolCatalogCategoriesResponse, QueryKey>,
 }))
 
 export const useToolCatalogCategories = () => {

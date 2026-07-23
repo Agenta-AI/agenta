@@ -417,7 +417,11 @@ export function ConfigAccordionSection({
                         </Text>
                     ) : null}
                     {extra ? (
+                        // `-my-2` keeps a full-height control (e.g. a 32px antd add-button) from
+                        // stretching the header past its text-driven height, so every section row
+                        // stays the same height whether or not it has an `extra` action.
                         <span
+                            className="-my-2 flex items-center"
                             onClick={(e) => e.stopPropagation()}
                             onKeyDown={(e) => e.stopPropagation()}
                             onKeyUp={(e) => e.stopPropagation()}

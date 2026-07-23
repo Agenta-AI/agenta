@@ -16,6 +16,7 @@ export {workflowMolecule, type WorkflowMolecule} from "./molecule"
 
 export {
     harnessCapabilitiesAtomFamily,
+    contextWindowForModel,
     type HarnessCapabilities,
     type HarnessCapabilitiesMap,
     type ModelCatalogEntry,
@@ -53,6 +54,7 @@ export {
     // Variant/Revision list queries (for 3-level hierarchy)
     workflowVariantsQueryAtomFamily,
     workflowVariantsListDataAtomFamily,
+    workflowVariantsCachedListAtomFamily,
     workflowRevisionsQueryAtomFamily,
     workflowRevisionRefsByVariantAtomFamily,
     workflowRevisionsListDataAtomFamily,
@@ -267,5 +269,6 @@ export {
 export {
     agentCreationPrefsAtom,
     applyAgentCreationPrefs,
+    ensureEnabledSandbox,
     type AgentCreationPrefs,
 } from "./agentCreationPrefs"

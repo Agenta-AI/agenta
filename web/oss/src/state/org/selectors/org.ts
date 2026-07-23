@@ -1,4 +1,4 @@
-import {logAtom} from "@agenta/shared/state"
+import {idleReadyAtom, logAtom} from "@agenta/shared/state"
 import type {User} from "@agenta/shared/types"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -10,6 +10,7 @@ import {fetchProject} from "@/oss/services/project"
 import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {sessionExistsAtom} from "@/oss/state/session"
+import {jwtReadyAtom} from "@/oss/state/session/jwt"
 
 const WORKSPACE_ORG_MAP_KEY = "workspaceOrgMap"
 const LAST_USED_WORKSPACE_ID_KEY = "lastUsedWorkspaceId"
@@ -120,6 +121,10 @@ export const resolveWorkspaceIdForOrg = async (
 
 export const orgsQueryAtom = atomWithQuery<Org[]>((get) => {
     const userId = (get(userAtom) as User | null)?.id
+    // Boot resolution needs the list only when the URL carries no workspace id (auth
+    // redirects, /w selection). On workspace-scoped routes it is switcher/settings
+    // chrome, so defer it to the first idle moment instead of the load burst.
+    const neededForBoot = !get(appIdentifiersAtom).workspaceId
     return {
         queryKey: ["orgs", userId || ""],
         queryFn: async () => fetchAllOrgsList(),
@@ -127,7 +132,7 @@ export const orgsQueryAtom = atomWithQuery<Org[]>((get) => {
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         refetchOnMount: false,
-        enabled: !!userId,
+        enabled: !!userId && (neededForBoot || get(idleReadyAtom)),
     }
 })
 
@@ -204,6 +209,12 @@ const normalizeOrgIdentifier = async (
     const {projectId} = get(appIdentifiersAtom)
 
     if (Array.isArray(orgs) && orgs.some((org) => org.id === id)) {
+        return {orgId: id, workspaceId: null}
+    }
+
+    // Pre-idle the deferred list is empty; a cached workspace→org map VALUE still proves
+    // `id` is an org id, keeping the fetchProject fallback off the cold-load path.
+    if (Object.values(readWorkspaceOrgMap()).includes(id)) {
         return {orgId: id, workspaceId: null}
     }
 
@@ -326,19 +337,15 @@ export const selectedOrgQueryAtom = atomWithQuery<OrgDetails | null>((get) => {
     const snapshot = get(appStateSnapshotAtom)
     const queryOrgId = snapshot.query["organization_id"]
     const id = (typeof queryOrgId === "string" && queryOrgId) || get(selectedOrgIdAtom)
-    const userId = (get(userAtom) as User | null)?.id
+    // Gate on a usable JWT, not on the profile response: waiting for `userAtom` serialized
+    // this fetch behind the /profile/ round-trip on every boot (same fix as projectsQueryAtom).
+    const jwtReady = Boolean(get(jwtReadyAtom).data)
     const isWorkspaceRoute =
         snapshot.routeLayer === "workspace" ||
         snapshot.routeLayer === "project" ||
         snapshot.routeLayer === "app"
     const isAcceptRoute = snapshot.pathname.startsWith("/workspaces/accept")
-    const enabled =
-        !!id &&
-        id !== null &&
-        get(sessionExistsAtom) &&
-        !!userId &&
-        isWorkspaceRoute &&
-        !isAcceptRoute
+    const enabled = !!id && get(sessionExistsAtom) && jwtReady && isWorkspaceRoute && !isAcceptRoute
 
     return {
         queryKey: ["selectedOrg", id],

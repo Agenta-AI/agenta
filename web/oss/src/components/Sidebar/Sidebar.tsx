@@ -1,7 +1,6 @@
 import {memo, useCallback, useEffect, useMemo} from "react"
 
-import {useSetAtom} from "jotai"
-import {useRouter} from "next/router"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {
     clearSidebarPopupGroupsAtom,
@@ -9,6 +8,7 @@ import {
     sidebarCollapsedAtom,
     sidebarOpenGroupsAtomFamily,
 } from "@/oss/lib/atoms/sidebar"
+import {appAsPathAtom} from "@/oss/state/appState"
 
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 
@@ -18,7 +18,8 @@ import type {SidebarView} from "./types"
 
 const Sidebar: React.FC<{view: SidebarView}> = ({view}) => {
     const {appTheme} = useAppTheme()
-    const router = useRouter()
+    // Narrow asPath subscription: useRouter() re-renders on every route event
+    const currentPath = useAtomValue(appAsPathAtom)
     const setSidebarPopupGroupOpen = useSetAtom(setSidebarPopupGroupOpenAtom)
     const clearSidebarPopupGroups = useSetAtom(clearSidebarPopupGroupsAtom)
     const scope = useMemo(
@@ -43,7 +44,7 @@ const Sidebar: React.FC<{view: SidebarView}> = ({view}) => {
         <SidebarShell
             key={scope.id}
             collapsedAtom={sidebarCollapsedAtom}
-            currentPath={router.asPath}
+            currentPath={currentPath}
             onPopupOpenChange={handlePopupOpenChange}
             openGroupsAtomFamily={sidebarOpenGroupsAtomFamily}
             scope={scope}

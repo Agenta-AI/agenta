@@ -17,6 +17,8 @@ import {
 } from "@agenta/entities/session"
 import {markTraceAsFresh} from "@agenta/entities/trace"
 import {
+    contextWindowForModel,
+    harnessCapabilitiesAtomFamily,
     invalidateAgentCommittedRevisionCache,
     workflowBuildKitOverlayReadyAtomFamily,
     workflowMolecule,
@@ -99,6 +101,7 @@ import ApprovalDock, {getPendingApprovals} from "./components/ApprovalDock"
 import type {ClientToolOutputHandler} from "./components/clientTools"
 import ComposerAttachments from "./components/ComposerAttachments"
 import ConnectModelBanner from "./components/ConnectModelBanner"
+import ContextBudgetIndicator from "./components/ContextBudgetIndicator"
 import {Inspector} from "./components/Inspector/Inspector"
 import {invalidateSessionInspector} from "./components/Inspector/invalidate"
 import {
@@ -617,6 +620,13 @@ const AgentConversation = ({
 
     const busy = status === "submitted" || status === "streaming"
 
+    // `messages`/`busy` change every token; consumers that must stay referentially stable
+    // (`handleRewind`, the hydration/SWR adoption guards) read them through refs instead.
+    const messagesRef = useRef(messages)
+    messagesRef.current = messages
+    const busyRef = useRef(busy)
+    busyRef.current = busy
+
     // Mid-stream drive signals: settled write-ish tool calls append file-activity entries (and
     // throttle-revalidate the drives) as the turn streams, not just at onFinish.
     useFileActivityDetector({sessionId, messages})
@@ -654,7 +664,23 @@ const AgentConversation = ({
         // StrictMode's mount→unmount→mount cycle re-runs the fetch (the first run is cancelled)
         // instead of latching a ref that leaves the transcript blank.
         let cancelled = false
-        loadSessionMessages(sessionId)
+        // Post-restore revalidation: the first result may be the disk-restored log (paints
+        // instantly); when the guaranteed background refetch lands, adopt it under the same
+        // guards as the SWR effect below — never mid-stream, only when strictly ahead.
+        const adoptRefreshed = (freshMsgs: UIMessage[]) => {
+            if (cancelled || busyRef.current) return
+            if (freshMsgs.length <= messagesRef.current.length) return
+            freshMsgs.forEach((m) => {
+                seenIdsRef.current.add(m.id)
+                restoredIdsRef.current.add(m.id)
+            })
+            armBottomRef.current = true
+            // The restore said "no records" but the server has some — clear the notice.
+            setHydratedEmpty(false)
+            setMessages(freshMsgs)
+            persistMessages({id: sessionId, messages: freshMsgs})
+        }
+        loadSessionMessages(sessionId, adoptRefreshed)
             .then((msgs) => {
                 if (cancelled) return
                 if (!msgs || msgs.length === 0) {
@@ -725,6 +751,14 @@ const AgentConversation = ({
     // composer until connected — see `gateActive` on `useAgentModelKeyStatus` for the full chain.
     const modelKey = useAgentModelKeyStatus(entityId)
     const modelBlocked = modelKey.gateActive
+
+    // Context-window denominator for the token-budget indicator: the SDK model catalog's own
+    // `context_window`, delivered on the (global) harness-capabilities document — never hardcoded.
+    const harnessCapabilities = useAtomValue(harnessCapabilitiesAtomFamily(""))
+    const contextMaxTokens = useMemo(
+        () => contextWindowForModel(harnessCapabilities, modelKey.harness, modelKey.model),
+        [harnessCapabilities, modelKey.harness, modelKey.model],
+    )
 
     // ── Playground-native onboarding ──────────────────────────────────────────
     // This chat panel IS the onboarding surface while the agent is ephemeral: the empty state shows the
@@ -945,14 +979,6 @@ const AgentConversation = ({
     }, [firstRunSeed, entityId, activeSessionId, sessionId, messages.length, setFirstRunSeed])
     const consumedRunNonceRef = useRef<number | null>(null)
 
-    // `handleRewind` is passed to every memo'd `AgentMessage`, so it must stay referentially
-    // stable — a streamed token must not recreate it and re-render the whole list. `messages`/
-    // `busy` change every token, so read them through refs instead of capturing them.
-    const messagesRef = useRef(messages)
-    messagesRef.current = messages
-    const busyRef = useRef(busy)
-    busyRef.current = busy
-
     // SWR revalidate-on-open: a cached session paints instantly from localStorage; in the background
     // we refetch the durable records ONCE (low-priority) and adopt the server transcript ONLY IF it's
     // strictly ahead of what we're showing (a turn finished on another device). We never clobber a
@@ -966,7 +992,7 @@ const AgentConversation = ({
         // As with the hydration effect above: no persistent ref, so StrictMode's double-mount
         // re-runs the revalidation rather than latching it out.
         let cancelled = false
-        loadSessionMessages(sessionId).then((serverMsgs) => {
+        const adopt = (serverMsgs: UIMessage[] | null) => {
             if (cancelled || !serverMsgs || serverMsgs.length === 0) return
             const prev = messagesRef.current
             if (busyRef.current || serverMsgs.length <= prev.length) return
@@ -977,7 +1003,10 @@ const AgentConversation = ({
             armBottomRef.current = true
             setMessages(serverMsgs)
             persistMessages({id: sessionId, messages: serverMsgs})
-        })
+        }
+        // The first result may itself be the disk-restored records log; the callback re-applies
+        // the same guarded adoption when the guaranteed background revalidation lands.
+        loadSessionMessages(sessionId, adopt).then(adopt)
         return () => {
             cancelled = true
         }
@@ -2228,25 +2257,39 @@ const AgentConversation = ({
                                         streaming={busy}
                                         onStop={handleStop}
                                         prefix={
-                                            // Attach button is gated until the agent service is ready for inline
-                                            // file parts (big-agents d4b119af26); paste / drag-to-add still work.
-                                            <Tooltip
-                                                title={
-                                                    atMax
-                                                        ? `Up to ${limits.maxCount} files`
-                                                        : "Attach files coming soon"
-                                                }
-                                            >
-                                                <Button
-                                                    type="text"
-                                                    icon={<Paperclip size={16} />}
-                                                    disabled={true}
-                                                    onClick={() =>
-                                                        setAttachmentsOpen((open) => !open)
+                                            // Left cluster of the composer toolbar: the (gated) attach
+                                            // button + the context token-budget readout, filling the
+                                            // otherwise-empty left space next to the attachments icon.
+                                            <div className="flex items-center gap-2">
+                                                {/* Attach button is gated until the agent service is ready for
+                                                inline file parts (big-agents d4b119af26); paste / drag-to-add
+                                                still work. */}
+                                                <Tooltip
+                                                    title={
+                                                        atMax
+                                                            ? `Up to ${limits.maxCount} files`
+                                                            : "Attach files coming soon"
                                                     }
-                                                    aria-label="Attach files"
-                                                />
-                                            </Tooltip>
+                                                >
+                                                    <Button
+                                                        type="text"
+                                                        icon={<Paperclip size={16} />}
+                                                        disabled={true}
+                                                        onClick={() =>
+                                                            setAttachmentsOpen((open) => !open)
+                                                        }
+                                                        aria-label="Attach files"
+                                                    />
+                                                </Tooltip>
+                                                {/* Only meaningful in a real conversation — hidden during
+                                                onboarding (no turns / no usage yet). */}
+                                                {!onboardingActive ? (
+                                                    <ContextBudgetIndicator
+                                                        messages={messages}
+                                                        maxTokens={contextMaxTokens}
+                                                    />
+                                                ) : null}
+                                            </div>
                                         }
                                         header={
                                             <HeightCollapse
