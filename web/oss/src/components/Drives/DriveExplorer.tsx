@@ -682,6 +682,8 @@ const UploadTile = ({
     onRetry?: (id: string) => void
     onDismiss?: (id: string) => void
 }) => (
+    // Same frame as a real file tile (DriveFileRow "tile") so dropped items sit in the grid uniformly;
+    // status is a small ABSOLUTE overlay (never adds height / shifts the row).
     <div className="flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2">
         <div className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded bg-colorFillTertiary">
             {item.previewUrl ? (
@@ -691,62 +693,59 @@ const UploadTile = ({
                 <img
                     src={item.previewUrl}
                     alt={item.name}
-                    className={`absolute inset-0 h-full w-full object-cover ${item.error ? "opacity-25" : "opacity-80"}`}
+                    className={`absolute inset-0 h-full w-full object-cover ${item.error ? "opacity-40" : ""}`}
                 />
             ) : (
                 <FileIcon size={34} className="text-colorTextTertiary" />
             )}
             {item.error ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-[rgba(0,0,0,0.55)] backdrop-blur-[1px]">
-                    <WarningCircle size={22} weight="fill" className="text-colorError" />
-                    <div className="flex items-center gap-3 text-[11px]">
-                        {onRetry ? (
-                            <button
-                                type="button"
-                                onClick={() => onRetry(item.id)}
-                                className="cursor-pointer rounded border-0 bg-transparent font-medium text-white hover:underline"
-                            >
-                                Retry
-                            </button>
-                        ) : null}
-                        {onDismiss ? (
-                            <button
-                                type="button"
-                                onClick={() => onDismiss(item.id)}
-                                className="cursor-pointer rounded border-0 bg-transparent text-white/70 hover:underline"
-                            >
-                                Dismiss
-                            </button>
-                        ) : null}
-                    </div>
-                </div>
+                <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--ant-color-error-bg)] text-colorError">
+                    <WarningCircle size={13} weight="fill" />
+                </span>
             ) : (
-                <div className="absolute inset-x-2 bottom-2 flex items-center gap-1.5 rounded bg-[rgba(0,0,0,0.35)] px-1.5 py-1">
-                    <div className="h-1 flex-1 overflow-hidden rounded-full bg-[rgba(255,255,255,0.25)]">
-                        <div
-                            className="h-full rounded-full bg-colorPrimary transition-[width] duration-150"
-                            style={{width: `${item.percent}%`}}
-                        />
-                    </div>
-                    <span className="shrink-0 text-[10px] font-medium tabular-nums text-white">
-                        {item.percent}%
-                    </span>
+                <div className="absolute inset-x-0 bottom-0 h-1 bg-[rgba(0,0,0,0.25)]">
+                    <div
+                        className="h-full bg-colorPrimary transition-[width] duration-150"
+                        style={{width: `${item.percent}%`}}
+                    />
                 </div>
             )}
         </div>
         <span className="w-full truncate text-center font-mono text-xs" title={item.name}>
             {item.name}
         </span>
-        <span
-            className={`w-full truncate text-center text-[11px] ${item.error ? "text-colorError" : "text-colorTextTertiary"}`}
-        >
-            {item.error ? "Upload failed" : "Uploading…"}
-        </span>
+        {item.error ? (
+            <span className="flex w-full items-center justify-center gap-2 text-[11px]">
+                <span className="text-colorError">Failed</span>
+                {onRetry ? (
+                    <button
+                        type="button"
+                        onClick={() => onRetry(item.id)}
+                        className="cursor-pointer border-0 bg-transparent p-0 text-colorPrimary hover:underline"
+                    >
+                        Retry
+                    </button>
+                ) : null}
+                {onDismiss ? (
+                    <button
+                        type="button"
+                        onClick={() => onDismiss(item.id)}
+                        className="cursor-pointer border-0 bg-transparent p-0 text-colorTextTertiary hover:underline"
+                    >
+                        Dismiss
+                    </button>
+                ) : null}
+            </span>
+        ) : (
+            <span className="w-full truncate text-center text-[11px] tabular-nums text-colorTextTertiary">
+                Uploading… {item.percent}%
+            </span>
+        )}
     </div>
 )
 
-/** A file dropped onto a recents peek and awaiting a destination — a GHOST tile (dashed, no progress)
- * shown in every folder view until the user commits it with "Upload here" or removes it. */
+/** A file dropped onto a recents peek and awaiting a destination — a real-tile look with a small
+ * "Staged" badge, shown until the user commits it with "Upload here" or removes it. */
 interface StagedTileItem {
     id: string
     name: string
@@ -756,17 +755,7 @@ interface StagedTileItem {
 }
 
 const StagedTile = ({item, onRemove}: {item: StagedTileItem; onRemove?: (id: string) => void}) => (
-    <div className="group relative flex w-full min-w-0 flex-col gap-2 rounded-lg border border-dashed border-[var(--ant-color-primary-border)] bg-[var(--ant-color-primary-bg)] p-2">
-        {onRemove ? (
-            <button
-                type="button"
-                aria-label={`Remove ${item.name}`}
-                onClick={() => onRemove(item.id)}
-                className="absolute right-1 top-1 z-10 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.5)] text-white opacity-0 transition-opacity hover:bg-[rgba(0,0,0,0.7)] group-hover:opacity-100"
-            >
-                <X size={11} weight="bold" />
-            </button>
-        ) : null}
+    <div className="group flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2">
         <div className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded bg-colorFillTertiary">
             {item.previewUrl ? (
                 // Absolute (out of flow) so a full-size object-URL image can't stretch the 4:3 box.
@@ -774,21 +763,30 @@ const StagedTile = ({item, onRemove}: {item: StagedTileItem; onRemove?: (id: str
                 <img
                     src={item.previewUrl}
                     alt={item.name}
-                    className="absolute inset-0 h-full w-full object-cover opacity-55"
+                    className="absolute inset-0 h-full w-full object-cover"
                 />
             ) : (
                 <FileIcon size={34} className="text-colorTextTertiary" />
             )}
-            <div className="absolute inset-0 flex items-center justify-center">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[rgba(0,0,0,0.45)] text-white">
-                    <UploadSimple size={15} />
-                </span>
-            </div>
+            <span className="absolute left-1 top-1 flex items-center gap-1 rounded-full bg-[rgba(0,0,0,0.55)] px-1.5 py-0.5 text-[10px] font-medium text-white">
+                <UploadSimple size={11} />
+                Staged
+            </span>
+            {onRemove ? (
+                <button
+                    type="button"
+                    aria-label={`Remove ${item.name}`}
+                    onClick={() => onRemove(item.id)}
+                    className="absolute right-1 top-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.55)] text-white opacity-0 transition-opacity hover:bg-[rgba(0,0,0,0.75)] group-hover:opacity-100"
+                >
+                    <X size={11} weight="bold" />
+                </button>
+            ) : null}
         </div>
         <span className="w-full truncate text-center font-mono text-xs" title={item.name}>
             {item.name}
         </span>
-        <span className="w-full truncate text-center text-[11px] text-colorPrimary">
+        <span className="w-full truncate text-center text-[11px] text-colorTextTertiary">
             Ready to upload
         </span>
     </div>
@@ -2467,53 +2465,9 @@ export function DriveExplorer({
                             e.target.value = ""
                         }}
                     />
-                    {mountUpload.items.length > 0 ? (
-                        <div className="flex shrink-0 flex-col gap-1.5 border-0 border-b border-solid border-colorBorderSecondary px-3 py-2">
-                            {mountUpload.items.map((it) => (
-                                <div key={it.id} className="flex items-center gap-2 text-xs">
-                                    <span className="min-w-0 flex-1 truncate" title={it.name}>
-                                        {it.name}
-                                    </span>
-                                    {it.error ? (
-                                        <>
-                                            <Tooltip title={it.error}>
-                                                <span className="shrink-0 text-colorError">
-                                                    Failed
-                                                </span>
-                                            </Tooltip>
-                                            <button
-                                                type="button"
-                                                onClick={() => mountUpload.retry(it.id)}
-                                                className="shrink-0 cursor-pointer rounded border-0 bg-transparent text-colorPrimary hover:underline"
-                                            >
-                                                Retry
-                                            </button>
-                                            <button
-                                                type="button"
-                                                aria-label="Dismiss"
-                                                onClick={() => mountUpload.dismiss(it.id)}
-                                                className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-colorTextTertiary hover:text-colorText"
-                                            >
-                                                <X size={11} />
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <div className="h-1 w-24 shrink-0 overflow-hidden rounded-full bg-colorFillTertiary">
-                                                <div
-                                                    className="h-full rounded-full bg-colorPrimary transition-[width] duration-150"
-                                                    style={{width: `${it.percent}%`}}
-                                                />
-                                            </div>
-                                            <span className="shrink-0 tabular-nums text-colorTextTertiary">
-                                                {it.percent}%
-                                            </span>
-                                        </>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    ) : null}
+                    {/* Pending uploads render as tiles in the grid + a pinned group in the tree (both
+                        drawer-global), so no separate header banner here — a banner that mounts/unmounts
+                        shoved the toolbar + panes on every upload state change. */}
                     {/* Shared toolbar — the show/hide tree toggle sits FIRST (left), directly above the
                         tree pane it controls; then search + filters. Search forces the tree of matches
                         (see body), so the toggle is disabled while searching. */}
