@@ -214,8 +214,8 @@ body {
    handle. */
 .playground-splitter-agent > .ant-splitter-bar {
     background: var(--ag-surface-gutter) !important;
-    flex-basis: 12px !important;
-    width: 12px !important;
+    flex-basis: 9px !important;
+    width: 9px !important;
 }
 
 /* ── Agent Playground surface classes ──────────────────────────────────────────────────────────

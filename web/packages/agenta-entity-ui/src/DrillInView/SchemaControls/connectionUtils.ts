@@ -324,6 +324,21 @@ export function buildModelOptionGroups(
 }
 
 /**
+ * The display label for a picked model id, from the harness's curated catalog. Same precedence as
+ * the picker's options, so a summary line reads the way the picker did. Returns null when the id
+ * is not in the catalog, so callers can fall back to whatever they showed before.
+ */
+export function modelLabel(
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+    harness: string | null | undefined,
+    modelId: string | null | undefined,
+): string | null {
+    if (!modelId) return null
+    const hit = capsFor(capabilities, harness)?.model_catalog?.find((e) => e.id === modelId)
+    return hit?.label ?? hit?.name ?? null
+}
+
+/**
  * The provider family that owns a picked model id, derived from the harness's published models
  * (the group the id sits in). Returns null when the id is not in any group (e.g. a stale id under
  * a switched harness). Use this so picking a model sets BOTH provider and model.
