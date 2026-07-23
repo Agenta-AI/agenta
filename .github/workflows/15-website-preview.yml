@@ -2,7 +2,7 @@ name: "15 - website preview"
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'website/**'
       - '.github/workflows/15-website-preview.yml'
@@ -30,10 +30,13 @@ jobs:
     name: Build and deploy preview
     runs-on: ubuntu-latest
     # Fork PRs get no secrets: skip when the head repo is not this repo.
+    # Dependabot PRs run without repository secrets (GitHub policy), so the
+    # deploy could never succeed there; skip them cleanly instead of failing.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.pull_request.head.repo.full_name == github.repository &&
-       !github.event.pull_request.draft)
+       !github.event.pull_request.draft &&
+       github.actor != 'dependabot[bot]')
     env:
       PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
     steps:
