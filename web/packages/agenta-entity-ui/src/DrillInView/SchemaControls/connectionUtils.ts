@@ -324,9 +324,9 @@ export function buildModelOptionGroups(
 }
 
 /**
- * The display label for a picked model id, from the harness's curated catalog. Same precedence as
- * the picker's options, so a summary line reads the way the picker did. Returns null when the id
- * is not in the catalog, so callers can fall back to whatever they showed before.
+ * The catalog's display label for a picked model id (`label`, then `name`). Null when the catalog
+ * has neither, so a caller can try the schema's own title before falling back to the raw id; the
+ * picker has no schema to consult, which is why it ends at `id` instead.
  */
 export function modelLabel(
     capabilities: HarnessCapabilitiesMap | null | undefined,

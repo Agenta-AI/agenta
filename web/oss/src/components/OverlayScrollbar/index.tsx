@@ -105,13 +105,17 @@ const OverlayScrollbar = ({target}: OverlayScrollbarProps) => {
                 const delta = ((moveEvent.clientY - startY) / travel) * scrollable
                 target.scrollTop = startScroll + delta
             }
+            // pointercancel too: a cancelled stream (touch interruption, app switch) never fires
+            // pointerup, which would leave the drag state on and the listeners attached.
             const onUp = () => {
                 setDragging(false)
                 window.removeEventListener("pointermove", onMove)
                 window.removeEventListener("pointerup", onUp)
+                window.removeEventListener("pointercancel", onUp)
             }
             window.addEventListener("pointermove", onMove)
             window.addEventListener("pointerup", onUp)
+            window.addEventListener("pointercancel", onUp)
         },
         [target, metrics],
     )
@@ -127,7 +131,8 @@ const OverlayScrollbar = ({target}: OverlayScrollbarProps) => {
                 role="presentation"
                 onPointerDown={handlePointerDown}
                 className={[
-                    "pointer-events-auto absolute right-0.5 w-1.5 cursor-default rounded-full",
+                    // touch-none so a touch drag moves the thumb instead of scrolling the page.
+                    "pointer-events-auto absolute right-0.5 w-1.5 cursor-default touch-none rounded-full",
                     "opacity-0 transition-opacity duration-150 group-hover:opacity-100",
                     scrolling || dragging ? "!opacity-100" : "",
                 ].join(" ")}
