@@ -22,7 +22,12 @@ export interface PendingTemplate {
     capturedAt: number
 }
 
-export const activeTemplateAtom = atom<string | null>(null)
+interface TemplateClaim extends PendingTemplate {
+    status: "claimed" | "completed"
+    updatedAt: number
+}
+
+export const activeTemplateAtom = atom<PendingTemplate | null>(null)
 
 const validTemplateKeys = new Set(AGENT_TEMPLATES.map((template) => template.key))
 
@@ -40,11 +45,9 @@ export const parseTemplateFromUrl = (url: URL): string | null => {
     return key ? key : null
 }
 
-export const readTemplateFromStorage = (): PendingTemplate | null => {
-    if (!hasWindow()) return null
+const parsePendingTemplate = (raw: string | null): PendingTemplate | null => {
+    if (!raw) return null
     try {
-        const raw = window.localStorage.getItem(TEMPLATE_STORAGE_KEY)
-        if (!raw) return null
         const parsed = JSON.parse(raw)
         if (
             parsed &&
@@ -52,16 +55,52 @@ export const readTemplateFromStorage = (): PendingTemplate | null => {
             parsed.key.trim() &&
             typeof parsed.capturedAt === "number"
         ) {
-            // Expiry is measured from capture time, so a key that outlives its window drops itself.
-            if (Date.now() - parsed.capturedAt > TEMPLATE_TTL_MS) {
-                window.localStorage.removeItem(TEMPLATE_STORAGE_KEY)
-                return null
-            }
             return {key: parsed.key.trim(), capturedAt: parsed.capturedAt}
         }
     } catch (error) {
-        console.error("Failed to read pending template from storage:", error)
+        console.error("Failed to parse pending template from storage:", error)
     }
+    return null
+}
+
+const readStoredTemplateRecord = (): PendingTemplate | null => {
+    if (!hasWindow()) return null
+    try {
+        return parsePendingTemplate(window.localStorage.getItem(TEMPLATE_STORAGE_KEY))
+    } catch (error) {
+        console.error("Failed to read pending template from storage:", error)
+        return null
+    }
+}
+
+const isExpired = (pending: PendingTemplate): boolean =>
+    Date.now() - pending.capturedAt > TEMPLATE_TTL_MS
+
+const samePendingTemplate = (
+    left: PendingTemplate | null,
+    right: PendingTemplate | null,
+): boolean => !!left && !!right && left.key === right.key && left.capturedAt === right.capturedAt
+
+const removeTemplateParamFromCurrentUrl = (expectedKey?: string) => {
+    if (!hasWindow()) return
+    try {
+        const url = new URL(window.location.href)
+        if (expectedKey && parseTemplateFromUrl(url) !== expectedKey) return
+        if (!url.searchParams.has(TEMPLATE_URL_PARAM)) return
+        url.searchParams.delete(TEMPLATE_URL_PARAM)
+        window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash)
+    } catch (error) {
+        console.error("Failed to clear template params from URL:", error)
+    }
+}
+
+export const readTemplateFromStorage = (): PendingTemplate | null => {
+    const pending = readStoredTemplateRecord()
+    if (!pending) return null
+    if (!isExpired(pending)) return pending
+
+    persistTemplateToStorage(null)
+    removeTemplateParamFromCurrentUrl(pending.key)
     return null
 }
 
@@ -88,58 +127,71 @@ export const persistTemplateToStorage = (pending: PendingTemplate | null) => {
 export const captureTemplateFromUrl = (url: URL): string | null => {
     const store = getDefaultStore()
     const urlKey = parseTemplateFromUrl(url)
+    const storedRecord = readStoredTemplateRecord()
+
+    if (storedRecord && isExpired(storedRecord)) {
+        persistTemplateToStorage(null)
+        if (urlKey === storedRecord.key) {
+            removeTemplateParamFromCurrentUrl(storedRecord.key)
+            store.set(activeTemplateAtom, null)
+            return null
+        }
+    }
 
     if (urlKey) {
-        const stored = readTemplateFromStorage()
-        if (!stored || stored.key !== urlKey) {
-            persistTemplateToStorage({key: urlKey, capturedAt: Date.now()})
-        }
-        store.set(activeTemplateAtom, urlKey)
+        const stored = storedRecord && !isExpired(storedRecord) ? storedRecord : null
+        const pending = stored?.key === urlKey ? stored : {key: urlKey, capturedAt: Date.now()}
+        if (!samePendingTemplate(stored, pending)) persistTemplateToStorage(pending)
+        store.set(activeTemplateAtom, pending)
         return urlKey
     }
 
     const stored = readTemplateFromStorage()
-    store.set(activeTemplateAtom, stored?.key ?? null)
+    store.set(activeTemplateAtom, stored)
     return stored?.key ?? null
 }
 
-const TEMPLATE_URL_PARAMS = [TEMPLATE_URL_PARAM]
-
 /**
- * Fully forget a pending template: the atom, storage, the claim flag, and the `template` query
- * param. Stripping the URL param matters for the same reason it does for invites — the capture
- * re-reads the URL on every navigation and would otherwise resurrect the key from a stale param.
+ * Fully forget a pending template and its URL parameter. The completed claim is deliberately
+ * retained for a bounded time so a late tab that captured the same generation cannot recreate it.
+ * Passing the expected generation prevents an older async consumer from clearing a newer visit.
  */
-export const clearTemplate = () => {
+export const clearTemplate = (expected?: PendingTemplate) => {
     const store = getDefaultStore()
-    store.set(activeTemplateAtom, null)
-    persistTemplateToStorage(null)
+    const stored = readStoredTemplateRecord()
+    const shouldClear = !expected || samePendingTemplate(stored, expected)
+    if (shouldClear) persistTemplateToStorage(null)
 
-    if (!hasWindow()) return
+    const active = store.get(activeTemplateAtom)
+    if (!expected || samePendingTemplate(active, expected)) store.set(activeTemplateAtom, null)
+
+    if (shouldClear) removeTemplateParamFromCurrentUrl(expected?.key)
+}
+
+const readTemplateClaim = (): TemplateClaim | null => {
+    if (!hasWindow()) return null
     try {
+        const raw = window.localStorage.getItem(TEMPLATE_CLAIM_KEY)
+        if (!raw) return null
+        const parsed = JSON.parse(raw)
+        if (
+            parsed &&
+            typeof parsed.key === "string" &&
+            typeof parsed.capturedAt === "number" &&
+            (parsed.status === "claimed" || parsed.status === "completed") &&
+            typeof parsed.updatedAt === "number"
+        ) {
+            if (Date.now() - parsed.updatedAt <= TEMPLATE_TTL_MS) return parsed as TemplateClaim
+        }
         window.localStorage.removeItem(TEMPLATE_CLAIM_KEY)
     } catch (error) {
-        console.error("Failed to clear template claim:", error)
+        console.error("Failed to read template claim:", error)
     }
-    try {
-        const url = new URL(window.location.href)
-        let changed = false
-        TEMPLATE_URL_PARAMS.forEach((param) => {
-            if (url.searchParams.has(param)) {
-                url.searchParams.delete(param)
-                changed = true
-            }
-        })
-        if (changed) {
-            window.history.replaceState(
-                window.history.state,
-                "",
-                `${url.pathname}${url.search}${url.hash}`,
-            )
-        }
-    } catch (error) {
-        console.error("Failed to clear template params from URL:", error)
-    }
+    return null
+}
+
+const writeTemplateClaim = (claim: TemplateClaim) => {
+    window.localStorage.setItem(TEMPLATE_CLAIM_KEY, JSON.stringify(claim))
 }
 
 /**
@@ -150,13 +202,18 @@ export const clearTemplate = () => {
  * narrow case the guarantee softens from at-most-once to best-effort. Returns true only for the
  * caller that wins the claim.
  */
-export const claimTemplate = async (key: string): Promise<boolean> => {
+export const claimTemplate = async (pending: PendingTemplate): Promise<boolean> => {
     if (!hasWindow()) return false
 
     const compareAndSet = (): boolean => {
         try {
-            if (window.localStorage.getItem(TEMPLATE_CLAIM_KEY) === key) return false
-            window.localStorage.setItem(TEMPLATE_CLAIM_KEY, key)
+            const currentPending = readStoredTemplateRecord()
+            if (!samePendingTemplate(currentPending, pending) || isExpired(pending)) return false
+
+            const existingClaim = readTemplateClaim()
+            if (samePendingTemplate(existingClaim, pending)) return false
+
+            writeTemplateClaim({...pending, status: "claimed", updatedAt: Date.now()})
             return true
         } catch (error) {
             console.error("Failed to claim pending template:", error)
@@ -167,11 +224,37 @@ export const claimTemplate = async (key: string): Promise<boolean> => {
     const locks = (navigator as Navigator & {locks?: LockManager})?.locks
     if (locks?.request) {
         try {
-            return await locks.request(`pendingTemplate:${key}`, compareAndSet)
+            return await locks.request("pendingTemplate:" + pending.key, compareAndSet)
         } catch (error) {
             console.error("Web Locks claim failed, falling back to best-effort:", error)
             return compareAndSet()
         }
     }
     return compareAndSet()
+}
+
+/** Keep the winning generation visible to late tabs until its bounded claim expires. */
+export const completeTemplateClaim = async (pending: PendingTemplate): Promise<void> => {
+    if (!hasWindow()) return
+
+    const complete = () => {
+        try {
+            const claim = readTemplateClaim()
+            if (!claim || !samePendingTemplate(claim, pending)) return
+            writeTemplateClaim({...claim, status: "completed", updatedAt: Date.now()})
+        } catch (error) {
+            console.error("Failed to complete template claim:", error)
+        }
+    }
+
+    const locks = (navigator as Navigator & {locks?: LockManager})?.locks
+    if (locks?.request) {
+        try {
+            await locks.request("pendingTemplate:" + pending.key, complete)
+            return
+        } catch (error) {
+            console.error("Web Locks completion failed, falling back to best-effort:", error)
+        }
+    }
+    complete()
 }

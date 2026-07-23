@@ -8,6 +8,7 @@ import {
     captureTemplateFromUrl,
     claimTemplate,
     clearTemplate,
+    completeTemplateClaim,
     isValidTemplateKey,
     parseTemplateFromUrl,
     persistTemplateToStorage,
@@ -48,6 +49,13 @@ const installWindow = (href: string, locks?: unknown) => {
     vi.stubGlobal("window", fakeWindow)
     vi.stubGlobal("navigator", locks ? {locks} : {})
     return fakeWindow
+}
+
+const capturePending = (): {key: string; capturedAt: number} => {
+    captureTemplateFromUrl(new URL("https://cloud.agenta.ai/?template=" + KNOWN_KEY))
+    const pending = getDefaultStore().get(activeTemplateAtom)
+    if (!pending) throw new Error("Expected a pending template")
+    return pending
 }
 
 beforeEach(() => {
@@ -109,7 +117,7 @@ describe("captureTemplateFromUrl", () => {
         installWindow(`/?template=${KNOWN_KEY}`)
         const url = new URL(`https://cloud.agenta.ai/?template=${KNOWN_KEY}`)
         expect(captureTemplateFromUrl(url)).toBe(KNOWN_KEY)
-        expect(getDefaultStore().get(activeTemplateAtom)).toBe(KNOWN_KEY)
+        expect(getDefaultStore().get(activeTemplateAtom)?.key).toBe(KNOWN_KEY)
         expect(readTemplateFromStorage()?.key).toBe(KNOWN_KEY)
     })
 
@@ -126,11 +134,25 @@ describe("captureTemplateFromUrl", () => {
         expect(readTemplateFromStorage()?.capturedAt).toBe(first)
     })
 
+    it("does not renew an expired key while the stale parameter remains in the URL", () => {
+        const win = installWindow("/?template=" + KNOWN_KEY)
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date("2026-01-01T00:00:00Z"))
+        const staleUrl = new URL("https://cloud.agenta.ai/?template=" + KNOWN_KEY)
+        captureTemplateFromUrl(staleUrl)
+
+        vi.setSystemTime(new Date("2026-01-01T00:31:00Z"))
+        expect(captureTemplateFromUrl(staleUrl)).toBeNull()
+        expect(readTemplateFromStorage()).toBeNull()
+        expect(getDefaultStore().get(activeTemplateAtom)).toBeNull()
+        expect(win.location.href).not.toContain("template=")
+    })
+
     it("falls back to the stored key when the URL has none (region recapture leaves storage intact)", () => {
         installWindow("/")
         persistTemplateToStorage({key: KNOWN_KEY, capturedAt: Date.now()})
         expect(captureTemplateFromUrl(new URL("https://cloud.agenta.ai/apps"))).toBe(KNOWN_KEY)
-        expect(getDefaultStore().get(activeTemplateAtom)).toBe(KNOWN_KEY)
+        expect(getDefaultStore().get(activeTemplateAtom)?.key).toBe(KNOWN_KEY)
     })
 })
 
@@ -138,7 +160,7 @@ describe("clearTemplate", () => {
     it("removes storage, the atom, and the template URL param so it cannot resurrect", () => {
         const win = installWindow(`/apps?template=${KNOWN_KEY}&other=1`)
         persistTemplateToStorage({key: KNOWN_KEY, capturedAt: Date.now()})
-        getDefaultStore().set(activeTemplateAtom, KNOWN_KEY)
+        getDefaultStore().set(activeTemplateAtom, {key: KNOWN_KEY, capturedAt: Date.now()})
 
         clearTemplate()
 
@@ -154,23 +176,58 @@ describe("clearTemplate", () => {
 describe("claimTemplate (at-most-once)", () => {
     it("best-effort fallback: only the first caller wins when Web Locks is absent", async () => {
         installWindow("/")
-        expect(await claimTemplate(KNOWN_KEY)).toBe(true)
-        expect(await claimTemplate(KNOWN_KEY)).toBe(false)
+        const pending = capturePending()
+        expect(await claimTemplate(pending)).toBe(true)
+        expect(await claimTemplate(pending)).toBe(false)
     })
 
     it("Web Locks path: the lock serialises the claim so only one caller wins", async () => {
         const locks = {
-            request: (_name: string, cb: () => boolean) => Promise.resolve(cb()),
+            request: (_name: string, cb: () => unknown) => Promise.resolve(cb()),
         }
         installWindow("/", locks)
-        expect(await claimTemplate(KNOWN_KEY)).toBe(true)
-        expect(await claimTemplate(KNOWN_KEY)).toBe(false)
+        const pending = capturePending()
+        expect(await claimTemplate(pending)).toBe(true)
+        expect(await claimTemplate(pending)).toBe(false)
     })
 
-    it("a fresh key can be claimed again after the previous template is cleared", async () => {
+    it("keeps a completed generation unavailable to a late tab after pending state clears", async () => {
         installWindow("/")
-        expect(await claimTemplate(KNOWN_KEY)).toBe(true)
-        clearTemplate()
-        expect(await claimTemplate(KNOWN_KEY)).toBe(true)
+        const pending = capturePending()
+        expect(await claimTemplate(pending)).toBe(true)
+        await completeTemplateClaim(pending)
+        clearTemplate(pending)
+
+        expect(await claimTemplate(pending)).toBe(false)
+    })
+
+    it("allows a newly captured generation of the same key", async () => {
+        installWindow("/")
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date("2026-01-01T00:00:00Z"))
+        const first = capturePending()
+        expect(await claimTemplate(first)).toBe(true)
+        await completeTemplateClaim(first)
+        clearTemplate(first)
+
+        vi.setSystemTime(new Date("2026-01-01T00:00:01Z"))
+        const second = capturePending()
+        expect(second.capturedAt).not.toBe(first.capturedAt)
+        expect(await claimTemplate(second)).toBe(true)
+    })
+
+    it("expires an abandoned claim before a later visit with the same key", async () => {
+        const win = installWindow("/?template=" + KNOWN_KEY)
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date("2026-01-01T00:00:00Z"))
+        const first = capturePending()
+        expect(await claimTemplate(first)).toBe(true)
+
+        vi.setSystemTime(new Date("2026-01-01T00:31:00Z"))
+        const staleUrl = new URL(win.location.href)
+        expect(captureTemplateFromUrl(staleUrl)).toBeNull()
+
+        const second = capturePending()
+        expect(await claimTemplate(second)).toBe(true)
     })
 })

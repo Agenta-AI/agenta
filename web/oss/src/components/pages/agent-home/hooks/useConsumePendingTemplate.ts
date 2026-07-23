@@ -8,6 +8,7 @@ import {
     activeTemplateAtom,
     claimTemplate,
     clearTemplate,
+    completeTemplateClaim,
     resolveTemplate,
 } from "@/oss/state/url/template"
 
@@ -29,28 +30,32 @@ import {useCreateAgent} from "./useCreateAgent"
  * seed held behind a Start button (`autoSendSeed: false`).
  */
 export function useConsumePendingTemplate(): boolean {
-    const pendingKey = useAtomValue(activeTemplateAtom)
+    const pending = useAtomValue(activeTemplateAtom)
+    const pendingKey = pending?.key
+    const capturedAt = pending?.capturedAt
     const {workspaceId, projectId} = useAtomValue(appIdentifiersAtom)
     const posthog = usePostHogAg()
     const createAgent = useCreateAgent()
 
-    const startedRef = useRef(false)
-    const [holding, setHolding] = useState<boolean>(() => Boolean(pendingKey))
+    const startedRef = useRef<string | null>(null)
+    const [holding, setHolding] = useState<boolean>(() => Boolean(pending))
 
     useEffect(() => {
-        if (!pendingKey) {
+        if (!pendingKey || capturedAt === undefined) {
+            startedRef.current = null
             setHolding(false)
             return
         }
 
+        const pendingGeneration = {key: pendingKey, capturedAt}
+        const generationId = pendingKey + ":" + capturedAt
         const template = resolveTemplate(pendingKey)
         if (!template) {
-            // Unknown or stale key: ignore, clear, and never fall back to another template.
             captureFirstAgentIntent(posthog, {
                 source: "website_template",
                 properties: {templateId: pendingKey, outcome: "invalid"},
             })
-            clearTemplate()
+            clearTemplate(pendingGeneration)
             setHolding(false)
             return
         }
@@ -58,15 +63,16 @@ export function useConsumePendingTemplate(): boolean {
         setHolding(true)
 
         // Do not create until the workspace and project are real; the effect re-runs when they
-        // resolve. This surface only renders on a project-scoped route, so both are present here.
+        // resolve. Scope the latch to this capture generation so a later template can proceed
+        // while the same page component remains mounted.
         if (!workspaceId || !projectId) return
-        if (startedRef.current) return
-        startedRef.current = true
+        if (startedRef.current === generationId) return
+        startedRef.current = generationId
 
         void (async () => {
-            const won = await claimTemplate(pendingKey)
+            const won = await claimTemplate(pendingGeneration)
             if (!won) {
-                // Another tab won the claim; release so this surface renders normally.
+                if (startedRef.current === generationId) startedRef.current = null
                 setHolding(false)
                 return
             }
@@ -83,14 +89,17 @@ export function useConsumePendingTemplate(): boolean {
             })
 
             try {
-                await createAgent({
+                const created = await createAgent({
                     name: template.name,
                     seedMessage: template.seedMessage,
                     autoSendSeed: false,
                 })
                 captureFirstAgentIntent(posthog, {
                     source: "website_template",
-                    properties: {templateId: template.key, outcome: "created"},
+                    properties: {
+                        templateId: template.key,
+                        outcome: created ? "created" : "failed",
+                    },
                 })
             } catch {
                 captureFirstAgentIntent(posthog, {
@@ -98,11 +107,12 @@ export function useConsumePendingTemplate(): boolean {
                     properties: {templateId: template.key, outcome: "failed"},
                 })
             } finally {
-                // Clear the pending key; createAgent has navigated to the new agent's playground.
-                clearTemplate()
+                await completeTemplateClaim(pendingGeneration)
+                clearTemplate(pendingGeneration)
+                if (startedRef.current === generationId) startedRef.current = null
             }
         })()
-    }, [pendingKey, workspaceId, projectId, posthog, createAgent])
+    }, [pendingKey, capturedAt, workspaceId, projectId, posthog, createAgent])
 
     return holding
 }
