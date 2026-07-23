@@ -767,13 +767,14 @@ async def verify_bearer_token(
 
     except UnauthorizedException as exc:
         _deny("catch_unauthorized", "UnauthorizedException propagated", exc)
-        await set_cache(
-            project_id=query_project_id,
-            user_id=user_id,
-            namespace="verify_bearer_token",
-            key=cache_key,
-            value={"deny": True},
-        )
+        if user_id is not None:
+            await set_cache(
+                project_id=query_project_id,
+                user_id=user_id,
+                namespace="verify_bearer_token",
+                key=cache_key,
+                value={"deny": True},
+            )
 
         raise exc
 
@@ -784,13 +785,14 @@ async def verify_bearer_token(
 
     except Exception as exc:  # pylint: disable=bare-except
         _deny("catch_all", "unexpected exception", exc)
-        await set_cache(
-            project_id=query_project_id,
-            user_id=user_id,
-            namespace="verify_bearer_token",
-            key=cache_key,
-            value={"deny": True},
-        )
+        if user_id is not None:
+            await set_cache(
+                project_id=query_project_id,
+                user_id=user_id,
+                namespace="verify_bearer_token",
+                key=cache_key,
+                value={"deny": True},
+            )
 
         raise UnauthorizedException() from exc
 
