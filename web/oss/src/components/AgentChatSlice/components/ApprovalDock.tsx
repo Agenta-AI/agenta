@@ -1,9 +1,9 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
 import {HeightCollapse} from "@agenta/ui"
-import {ArrowSquareOut, CaretRight, ShieldCheck} from "@phosphor-icons/react"
+import {ArrowSquareOut, CaretRight, ChatText, ShieldCheck} from "@phosphor-icons/react"
 import type {ToolUIPart, UIMessage} from "ai"
-import {Button, Switch, Typography} from "antd"
+import {Button, Input, Popover, Switch, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import {useAlwaysAllowTool} from "@/oss/hooks/useAlwaysAllowTool"
@@ -102,7 +102,7 @@ const PayloadBlock = ({input, label = "Payload"}: {input: unknown; label?: strin
 interface ApprovalDockProps {
     /** Pending gates for the paused turn (index 0 is acted on first). */
     approvals: PendingApproval[]
-    onApprovalResponse: (args: {id: string; approved: boolean}) => void
+    onApprovalResponse: (args: {id: string; approved: boolean; message?: string}) => void
     /** Open the paused turn's trace drawer (full tool input/output). */
     onViewTrace?: () => void
     /** Selected agent revision — enables per-tool friendly bodies (approvals/registry). */
@@ -151,6 +151,9 @@ const ApprovalDock = ({
     // Armed "always allow this tool" intent for the current gate — applied only when the user
     // clicks Approve, never on its own (the switch must not progress the flow).
     const [alwaysAllowArmed, setAlwaysAllowArmed] = useState(false)
+    // Steer: the "Redirect" popover holds an optional instruction sent WITH the denial.
+    const [steerOpen, setSteerOpen] = useState(false)
+    const [steerMessage, setSteerMessage] = useState("")
 
     // The current gate changed (we answered one, the next slid in) — re-enable and disarm. Held
     // during a resolve (current is frozen), so it fires only on a real step or a new batch.
@@ -158,6 +161,8 @@ const ApprovalDock = ({
         setResponding(false)
         setResolveSource(null)
         setAlwaysAllowArmed(false)
+        setSteerOpen(false)
+        setSteerMessage("")
     }, [current?.approvalId])
 
     // Once every gate we fired has settled (left the pending set), drop the latch — the dock then
@@ -190,7 +195,7 @@ const ApprovalDock = ({
     const grantInfo = current ? infoFor(current.toolName) : null
     const canAlwaysAllow = Boolean(grantInfo?.eligible && !grantInfo.alreadyAllowed)
 
-    const respond = (approved: boolean) => {
+    const respond = (approved: boolean, message?: string) => {
         if (responding || !current) return
         setResponding(true)
         setResolveSource("one")
@@ -208,7 +213,11 @@ const ApprovalDock = ({
                 return
             }
         }
-        onApprovalResponse({id: current.approvalId, approved})
+        onApprovalResponse({
+            id: current.approvalId,
+            approved,
+            ...(message?.trim() ? {message: message.trim()} : {}),
+        })
     }
     const approveAll = () => {
         if (responding) return
@@ -337,6 +346,44 @@ const ApprovalDock = ({
                                         Approve all
                                     </Button>
                                 ) : null}
+                                <Popover
+                                    open={steerOpen}
+                                    onOpenChange={(o) => !responding && setSteerOpen(o)}
+                                    trigger="click"
+                                    placement="topRight"
+                                    content={
+                                        <div className="flex w-64 flex-col gap-2">
+                                            <Text type="secondary" className="!text-[11px]">
+                                                Deny and tell the agent what to do instead — your
+                                                note runs as the next message.
+                                            </Text>
+                                            <Input.TextArea
+                                                autoSize={{minRows: 2, maxRows: 5}}
+                                                value={steerMessage}
+                                                onChange={(e) => setSteerMessage(e.target.value)}
+                                                placeholder="e.g. write to staging, not prod"
+                                                disabled={responding}
+                                            />
+                                            <Button
+                                                type="primary"
+                                                block
+                                                disabled={responding || !steerMessage.trim()}
+                                                onClick={() => respond(false, steerMessage)}
+                                            >
+                                                Deny &amp; send
+                                            </Button>
+                                        </div>
+                                    }
+                                >
+                                    <Button
+                                        type="text"
+                                        disabled={responding}
+                                        icon={<ChatText size={14} />}
+                                        className="!text-colorTextSecondary"
+                                    >
+                                        Redirect
+                                    </Button>
+                                </Popover>
                                 <Button disabled={responding} onClick={() => respond(false)}>
                                     Deny
                                 </Button>

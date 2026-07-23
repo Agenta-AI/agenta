@@ -1071,11 +1071,16 @@ const AgentConversation = ({
     // in THIS mount marks the resume as live — a restored approval-requested tail the user answers
     // after a reload genuinely auto-resumes, so the queue's pre-resume hold must apply to it.
     const handleApprovalResponse = useCallback(
-        (args: {id: string; approved: boolean}) => {
+        (args: {id: string; approved: boolean; message?: string}) => {
             liveGateInteractionRef.current = {kind: "approval", id: args.id}
-            addToolApprovalResponse(args)
+            addToolApprovalResponse({id: args.id, approved: args.approved})
+            // Steer: a denial that carries a redirect answers the gate AND sends the instruction as a
+            // follow-up turn, so the agent hears "no — do this instead" rather than a bare refusal.
+            // The queue holds it until the paused turn settles, then it drives the next turn.
+            const steer = args.message?.trim()
+            if (!args.approved && steer) submit({text: steer})
         },
-        [addToolApprovalResponse],
+        [addToolApprovalResponse, submit],
     )
 
     // Pending HITL gates for the paused turn, surfaced in the persistent ApprovalDock above the
