@@ -687,49 +687,52 @@ const UploadTile = ({
     // font-size and would render taller than the caption text, pushing the tile past the grid's snapped
     // height. All actions live as ABSOLUTE overlays on the thumb, which can't affect tile height.
     <div className="group flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2">
-        <div className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded bg-colorFillTertiary">
-            {item.previewUrl ? (
-                // Absolute (out of flow) so a full-size object-URL image can't override the 4:3 box's
-                // aspect-ratio via its intrinsic min-content height (see FileThumb's text note).
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                    src={item.previewUrl}
-                    alt={item.name}
-                    className={`absolute inset-0 h-full w-full object-cover ${item.error ? "opacity-40" : ""}`}
-                />
-            ) : (
-                <FileIcon size={34} className="text-colorTextTertiary" />
-            )}
-            {item.error ? (
-                <>
-                    {onRetry ? (
-                        <button
-                            type="button"
-                            onClick={() => onRetry(item.id)}
-                            className="absolute inset-0 m-auto flex h-7 w-[68px] items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.6)] text-[11px] font-medium text-white hover:bg-[rgba(0,0,0,0.8)]"
-                        >
-                            Retry
-                        </button>
-                    ) : null}
-                    {onDismiss ? (
-                        <button
-                            type="button"
-                            aria-label="Dismiss"
-                            onClick={() => onDismiss(item.id)}
-                            className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.5)] text-white opacity-0 transition-opacity hover:bg-[rgba(0,0,0,0.7)] group-hover:opacity-100"
-                        >
-                            <X size={11} weight="bold" />
-                        </button>
-                    ) : null}
-                </>
-            ) : item.percent < 100 ? (
-                <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[rgba(0,0,0,0.2)]">
-                    <div
-                        className="h-full bg-colorPrimary transition-[width] duration-150"
-                        style={{width: `${item.percent}%`}}
+        {/* Padding-bottom aspect box: height = 75% of width, GUARANTEED, independent of the image —
+            aspect-ratio was being defeated by the full-size object-URL image, blowing the tile up. All
+            content lives in the absolute inner layer, so nothing can change the box height. */}
+        <div className="relative w-full overflow-hidden rounded bg-colorFillTertiary pb-[75%]">
+            <div className="absolute inset-0 flex items-center justify-center">
+                {item.previewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                        src={item.previewUrl}
+                        alt={item.name}
+                        className={`h-full w-full object-cover ${item.error ? "opacity-40" : ""}`}
                     />
-                </div>
-            ) : null}
+                ) : (
+                    <FileIcon size={34} className="text-colorTextTertiary" />
+                )}
+                {item.error ? (
+                    <>
+                        {onRetry ? (
+                            <button
+                                type="button"
+                                onClick={() => onRetry(item.id)}
+                                className="absolute inset-0 m-auto flex h-7 w-[68px] items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.6)] text-[11px] font-medium text-white hover:bg-[rgba(0,0,0,0.8)]"
+                            >
+                                Retry
+                            </button>
+                        ) : null}
+                        {onDismiss ? (
+                            <button
+                                type="button"
+                                aria-label="Dismiss"
+                                onClick={() => onDismiss(item.id)}
+                                className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.5)] text-white opacity-0 transition-opacity hover:bg-[rgba(0,0,0,0.7)] group-hover:opacity-100"
+                            >
+                                <X size={11} weight="bold" />
+                            </button>
+                        ) : null}
+                    </>
+                ) : item.percent < 100 ? (
+                    <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[rgba(0,0,0,0.2)]">
+                        <div
+                            className="h-full bg-colorPrimary transition-[width] duration-150"
+                            style={{width: `${item.percent}%`}}
+                        />
+                    </div>
+                ) : null}
+            </div>
         </div>
         <span className="w-full truncate text-center font-mono text-xs" title={item.name}>
             {item.name}
@@ -754,28 +757,30 @@ interface StagedTileItem {
 
 const StagedTile = ({item, onRemove}: {item: StagedTileItem; onRemove?: (id: string) => void}) => (
     <div className="group flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2">
-        <div className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded bg-colorFillTertiary">
-            {item.previewUrl ? (
-                // Absolute (out of flow) so a full-size object-URL image can't stretch the 4:3 box.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                    src={item.previewUrl}
-                    alt={item.name}
-                    className="absolute inset-0 h-full w-full object-cover"
-                />
-            ) : (
-                <FileIcon size={34} className="text-colorTextTertiary" />
-            )}
-            {onRemove ? (
-                <button
-                    type="button"
-                    aria-label={`Remove ${item.name}`}
-                    onClick={() => onRemove(item.id)}
-                    className="absolute right-1 top-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.5)] text-white opacity-0 transition-opacity hover:bg-[rgba(0,0,0,0.7)] group-hover:opacity-100"
-                >
-                    <X size={11} weight="bold" />
-                </button>
-            ) : null}
+        {/* Padding-bottom aspect box (see UploadTile): 4:3 regardless of the image. */}
+        <div className="relative w-full overflow-hidden rounded bg-colorFillTertiary pb-[75%]">
+            <div className="absolute inset-0 flex items-center justify-center">
+                {item.previewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                        src={item.previewUrl}
+                        alt={item.name}
+                        className="h-full w-full object-cover"
+                    />
+                ) : (
+                    <FileIcon size={34} className="text-colorTextTertiary" />
+                )}
+                {onRemove ? (
+                    <button
+                        type="button"
+                        aria-label={`Remove ${item.name}`}
+                        onClick={() => onRemove(item.id)}
+                        className="absolute right-1 top-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.5)] text-white opacity-0 transition-opacity hover:bg-[rgba(0,0,0,0.7)] group-hover:opacity-100"
+                    >
+                        <X size={11} weight="bold" />
+                    </button>
+                ) : null}
+            </div>
         </div>
         <span className="w-full truncate text-center font-mono text-xs" title={item.name}>
             {item.name}
