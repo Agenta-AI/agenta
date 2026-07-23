@@ -22,6 +22,10 @@ import {useSessionDriveSummary} from "./useSessionDrive"
 // drawer's open state across sessions on a tab switch.
 export const filesDrawerOpenAtomFamily = atomFamily((_sessionId: string) => atom(false))
 
+// Files staged by a drop on the chat rail's Files peek, awaiting a destination in the drawer. Keyed
+// per session like the open flag; setting it (with the drawer opened) shows ghost tiles in the grid.
+export const filesDrawerStagedAtomFamily = atomFamily((_sessionId: string) => atom<File[]>([]))
+
 // A requested path may be a tool-path tail; match it against a full drive path by suffix.
 const matchesTail = (filePath: string, requested: string): boolean =>
     filePath === requested || requested.endsWith(`/${filePath}`)
@@ -29,8 +33,9 @@ const matchesTail = (filePath: string, requested: string): boolean =>
 export function SessionFilesDrawer({sessionId}: {sessionId: string}) {
     const [gridOpen, setGridOpen] = useAtom(filesDrawerOpenAtomFamily(sessionId))
     const [quickLook, setQuickLook] = useAtom(driveQuickLookAtomFamily(sessionId))
+    const [staged, setStaged] = useAtom(filesDrawerStagedAtomFamily(sessionId))
     const artifactId = useDriveArtifactId()
-    const open = gridOpen || quickLook != null
+    const open = gridOpen || quickLook != null || staged.length > 0
 
     // Summary drive (cheap) — DriveExplorer lazy-loads the rest. Gated on open (the agent-mount query
     // keys on artifactId, so a live id while closed would fetch the agent drive before it's shown).
@@ -61,11 +66,14 @@ export function SessionFilesDrawer({sessionId}: {sessionId: string}) {
             onClose={() => {
                 setQuickLook(null)
                 setGridOpen(false)
+                setStaged([])
             }}
             drive={drive}
             driveIds={driveIds}
             scope="session"
             initialPath={initialPath}
+            stagedFiles={staged}
+            onStagedChange={setStaged}
         />
     )
 }

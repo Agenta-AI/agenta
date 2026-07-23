@@ -24,6 +24,7 @@ import {FILE_ITEM_VARIANTS, FILE_SPRING} from "./driveMotion"
 import {humanSize, relativeTime} from "./driveTree"
 import {FilesDrawer} from "./FilesDrawer"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
+import {useStageDrop} from "./useDriveDrop"
 import {driveHasMixedOrigins, type DriveRecentFile} from "./useSessionDrive"
 
 const {Text} = Typography
@@ -78,7 +79,15 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
     // Drawer request is shared with the Files header (which opens it at the root); rows open it
     // preselected on the clicked file.
     const [drawer, setDrawer] = useAtom(configFilesDrawerAtomFamily(revisionId ?? ""))
-    const openDrawer = (initialPath: string | null) => setDrawer({open: true, initialPath})
+    const openDrawer = (initialPath: string | null) =>
+        setDrawer({open: true, initialPath, staged: []})
+    // Drop-to-stage: a file drag over the Files peek opens the drawer with the files staged, so the
+    // destination folder is chosen there (this flat peek has no folder of its own).
+    const {dropActive, dropProps: stageDropProps} = useStageDrop(
+        drive.mount
+            ? (files) => setDrawer({open: true, initialPath: null, staged: files})
+            : undefined,
+    )
     const copyPath = useCopyDrivePath()
     const download = useDriveItemDownload(drive)
     // Raw ids for the drawer header's overflow menu (the drive id + the session it belongs to).
@@ -117,7 +126,10 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
               : "empty"
 
     return (
-        <div className="flex flex-col gap-2">
+        <div
+            className={`flex flex-col gap-2 rounded-md transition-colors ${dropActive ? "bg-[var(--ant-color-primary-bg)]" : ""}`}
+            {...stageDropProps}
+        >
             <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div
                     key={phase}
@@ -228,11 +240,13 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
                 Same component the chat uses; only the open-atom + resolved drive differ. */}
             <FilesDrawer
                 open={drawer.open}
-                onClose={() => setDrawer((prev) => ({...prev, open: false}))}
+                onClose={() => setDrawer((prev) => ({...prev, open: false, staged: []}))}
                 drive={drive}
                 driveIds={driveIds}
                 scope="session"
                 initialPath={drawer.initialPath}
+                stagedFiles={drawer.staged}
+                onStagedChange={(files) => setDrawer((prev) => ({...prev, staged: files}))}
             />
         </div>
     )

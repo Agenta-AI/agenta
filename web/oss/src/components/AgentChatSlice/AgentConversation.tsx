@@ -19,6 +19,7 @@ import {markTraceAsFresh} from "@agenta/entities/trace"
 import {
     contextWindowForModel,
     harnessCapabilitiesAtomFamily,
+    modalitiesForModel,
     invalidateAgentCommittedRevisionCache,
     workflowBuildKitOverlayReadyAtomFamily,
     workflowMolecule,
@@ -58,6 +59,7 @@ import {DriveSessionProvider} from "@/oss/components/Drives/driveSessionContext"
 import {
     SessionFilesDrawer,
     filesDrawerOpenAtomFamily,
+    filesDrawerStagedAtomFamily,
 } from "@/oss/components/Drives/SessionFilesDrawer"
 import {
     IDE_INSTALL_COMMAND,
@@ -86,6 +88,7 @@ import {AgentChatTransport} from "./assets/AgentChatTransport"
 import {
     type AttachmentRejection,
     DEFAULT_ATTACHMENT_LIMITS,
+    describeAccepted,
     validateIncoming,
 } from "./assets/attachments"
 import {doesAgentChatStopKillSession} from "./assets/constants"
@@ -99,6 +102,7 @@ import AgentChatHistoryUnavailable from "./components/AgentChatHistoryUnavailabl
 import {ComposerSkeleton, TranscriptSkeleton} from "./components/AgentChatSkeleton"
 import AgentMessage from "./components/AgentMessage"
 import ApprovalDock, {getPendingApprovals} from "./components/ApprovalDock"
+import AttachmentViewerDrawer from "./components/AttachmentViewerDrawer"
 import type {ClientToolOutputHandler} from "./components/clientTools"
 import ComposerAttachments from "./components/ComposerAttachments"
 import ConnectModelBanner from "./components/ConnectModelBanner"
@@ -118,6 +122,7 @@ import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
 import VoiceInputButton from "./components/VoiceInputButton"
 import {useAgentChatQueue, type QueuedMessage} from "./hooks/useAgentChatQueue"
 import {useAgentModelKeyStatus} from "./hooks/useAgentModelKeyStatus"
+import {useAttachmentUploads} from "./hooks/useAttachmentUploads"
 import {useAudioRecorder} from "./hooks/useAudioRecorder"
 import {useFileActivityDetector} from "./hooks/useFileActivityDetector"
 import {expandedKeysForMessages, pruneExpandedAtom} from "./state/expandState"
@@ -413,6 +418,8 @@ const AgentConversation = ({
     }, [files, sessionId])
     // Files turned away by the guardrails (too big, wrong type, over the count), shown inline.
     const [rejections, setRejections] = useState<AttachmentRejection[]>([])
+    // The attachment currently open in the Files-drawer preview (its uid), or null when closed.
+    const [viewingUid, setViewingUid] = useState<string | null>(null)
     const [attachmentsOpen, setAttachmentsOpen] = useState(false)
     // Single limits object so it can later be swapped for capability-derived limits.
     const limits = DEFAULT_ATTACHMENT_LIMITS
@@ -633,6 +640,7 @@ const AgentConversation = ({
     const quickLookHost = <DriveFileLinkProvider sessionId={sessionId} artifactId={artifactId} />
     const filesWindowHost = <SessionFilesDrawer sessionId={sessionId} />
     const setFilesWindowOpen = useSetAtom(filesDrawerOpenAtomFamily(sessionId))
+    const setFilesStaged = useSetAtom(filesDrawerStagedAtomFamily(sessionId))
 
     // Hybrid history: localStorage holds only the session INDEX; the durable conversation CONTENT
     // lives in the backend record log. Cache-first — when this tab opens with no locally-cached
@@ -762,6 +770,16 @@ const AgentConversation = ({
         () => contextWindowForModel(harnessCapabilities, modelKey.harness, modelKey.model),
         [harnessCapabilities, modelKey.harness, modelKey.model],
     )
+
+    /**
+     * Whether the selected model can actually take audio in. `null` means the catalog does not
+     * say — treated as unknown, never as "no", so a missing field can't quietly demote voice.
+     * Drives which voice mode leads; it never refuses an attachment (design decision D6).
+     */
+    const audioPerceivable = useMemo(() => {
+        const modalities = modalitiesForModel(harnessCapabilities, modelKey.harness, modelKey.model)
+        return modalities ? modalities.includes("audio") : null
+    }, [harnessCapabilities, modelKey.harness, modelKey.model])
 
     // ── Playground-native onboarding ──────────────────────────────────────────
     // This chat panel IS the onboarding surface while the agent is ephemeral: the empty state shows the
@@ -1625,14 +1643,26 @@ const AgentConversation = ({
         originFileObj: file as UploadFile["originFileObj"],
     })
 
+    // Upload lifecycle for the tray (progress / error / retry). The transport is not wired yet, so
+    // no uploader is passed — files stay "done" and enqueue is a no-op. When upload lands, provide
+    // an uploader here and the whole flow runs; the tray already renders every state.
+    const uploads = useAttachmentUploads(files, setFiles, undefined)
+    // A staged attachment blocks send only once uploads exist: while any is uploading or has failed,
+    // the message isn't ready. All-"done" today, so this is inert until the transport is wired.
+    const attachmentsSettled = !files.some((f) => f.status === "uploading" || f.status === "error")
+
     /** Add files from paste / programmatic sources through the guardrails. */
-    const addFiles = (incoming: File[]) => {
-        const {accepted, rejections: rej} = validateIncoming(incoming, files.length, limits)
+    const addFiles = (incoming: File[], extraRejections: AttachmentRejection[] = []) => {
+        const {accepted, rejections} = validateIncoming(incoming, files.length, limits)
+        const allRejections = [...extraRejections, ...rejections]
         if (accepted.length) {
             setFiles((prev) => [...prev, ...accepted.map(toUploadFile)])
-            setAttachmentsOpen(true)
+            uploads.enqueue(accepted.map((f) => `${f.name}-${f.lastModified}-${f.size}`))
         }
-        setRejections(rej)
+        setRejections(allRejections)
+        // Open for rejections too. Otherwise dropping something unsupported writes a message into
+        // a closed panel and reads as nothing having happened at all.
+        if (accepted.length || allRejections.length) setAttachmentsOpen(true)
     }
 
     const removeFile = (uid: string) => setFiles((prev) => prev.filter((f) => f.uid !== uid))
@@ -1675,16 +1705,30 @@ const AgentConversation = ({
     // now could take the last tray slot — which would reject (and destroy) the recording on
     // attach. Guarded at the entry points, not in `addFiles`, because the recorder's own
     // completion goes straight there and must always get through.
-    const attachmentsBusy = () => voiceRecorder.active
+    /**
+     * Attachments are refused while a take is in flight (the composer is covered, and a late drop
+     * could steal the tray slot the recording needs) and while the composer itself is disabled —
+     * accepting files into an input you cannot send from is a dead end.
+     */
+    const composerDisabled = onboardingActive ? ideHandoffActive : modelBlocked
+    const attachmentsBlocked = () => voiceRecorder.active || composerDisabled
 
+    // The panel is ALWAYS a drop target for file drags — preventDefault on enter/over/drop even when
+    // blocked. Otherwise the browser's default action for a file drop is to navigate to it, which
+    // unloads the SPA and discards the whole conversation. Whether we ACCEPT the files is signalled
+    // separately (the overlay + the drop cursor), not by declining to be a drop target.
     const onDragEnter = (e: React.DragEvent) => {
-        if (attachmentsBusy()) return
         if (!isFileDrag(e)) return
+        e.preventDefault()
+        if (attachmentsBlocked()) return
         dragDepthRef.current += 1
         setIsDragging(true)
     }
     const onDragOver = (e: React.DragEvent) => {
-        if (isFileDrag(e)) e.preventDefault()
+        if (!isFileDrag(e)) return
+        e.preventDefault()
+        // Honest cursor: "no drop" while blocked — but we stay a target so the drop is still swallowed.
+        e.dataTransfer.dropEffect = attachmentsBlocked() ? "none" : "copy"
     }
     const onDragLeave = (e: React.DragEvent) => {
         if (!isFileDrag(e)) return
@@ -1695,16 +1739,29 @@ const AgentConversation = ({
         }
     }
     const onDrop = (e: React.DragEvent) => {
-        if (attachmentsBusy()) return
         if (!isFileDrag(e)) return
         e.preventDefault()
         dragDepthRef.current = 0
         setIsDragging(false)
-        const dropped = Array.from(e.dataTransfer.files)
-        if (dropped.length) {
-            addFiles(dropped)
-            setAttachmentsOpen(true)
-        }
+        if (attachmentsBlocked()) return
+
+        // A dropped folder still arrives in `files` — as a typeless, zero-byte entry that the
+        // guardrails would reject as "not a supported file type", which is misleading. Name it.
+        // `webkitGetAsEntry` is only valid synchronously, during this event.
+        const folderNames = Array.from(e.dataTransfer.items ?? [])
+            .map((item) => (item.kind === "file" ? item.webkitGetAsEntry() : null))
+            .filter((entry): entry is FileSystemEntry => !!entry?.isDirectory)
+            .map((entry) => entry.name)
+
+        const dropped = Array.from(e.dataTransfer.files).filter(
+            (f) => !folderNames.includes(f.name),
+        )
+        const folderRejections = folderNames.map((name) => ({
+            name,
+            reason: "is a folder — drop the files inside it",
+        }))
+
+        if (dropped.length || folderRejections.length) addFiles(dropped, folderRejections)
     }
 
     const handleSubmit = async (text: string, extraFiles: File[] = []) => {
@@ -1716,6 +1773,7 @@ const AgentConversation = ({
             ...extraFiles,
         ]
         if (!trimmed && fileObjs.length === 0) return
+        if (!attachmentsSettled) return
         const fileParts = fileObjs.length ? await filesToParts(fileObjs) : undefined
         // Glide to the bottom; the min-h-full active turn makes that show the new question at the top
         // with the answer streaming below. Park during the glide, follow again on settle. Clear any
@@ -1975,6 +2033,11 @@ const AgentConversation = ({
                 {modalContextHolder}
                 {quickLookHost}
                 {filesWindowHost}
+                <AttachmentViewerDrawer
+                    uploads={files}
+                    openUid={viewingUid}
+                    onClose={() => setViewingUid(null)}
+                />
                 {/* Resizable [chat | right panel] split. The panel (turn inspector OR session content)
                 pushes the chat aside rather than overlaying it, and collapses to 0 when closed. */}
                 <RightPanelSplit
@@ -1996,15 +2059,31 @@ const AgentConversation = ({
                             beside it keeps a fixed top and doesn't ride the transition upward.
                             box-border so the padding fits inside h-full (preflight is off). */}
                         <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col gap-3 box-border pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
+                            {/* At the limit the overlay says so rather than inviting a drop it is
+                            about to reject wholesale. */}
                             {isDragging && (
-                                <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-colorPrimary bg-[var(--ant-color-primary-bg)]">
-                                    <UploadSimple size={26} className="text-colorPrimary" />
-                                    <span className="text-sm font-medium text-colorPrimary">
-                                        Drop files here
+                                <div
+                                    className={`pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed ${
+                                        atMax
+                                            ? "border-colorError bg-[var(--ant-color-error-bg)]"
+                                            : "border-colorPrimary bg-[var(--ant-color-primary-bg)]"
+                                    }`}
+                                >
+                                    <UploadSimple
+                                        size={26}
+                                        className={atMax ? "text-colorError" : "text-colorPrimary"}
+                                    />
+                                    <span
+                                        className={`text-sm font-medium ${
+                                            atMax ? "text-colorError" : "text-colorPrimary"
+                                        }`}
+                                    >
+                                        {atMax ? "Attachment limit reached" : "Drop files here"}
                                     </span>
                                     <span className="text-xs text-colorTextSecondary">
-                                        {limits.label} · up to {limits.maxCount},{" "}
-                                        {Math.round(limits.maxBytes / 1024 / 1024)} MB each
+                                        {atMax
+                                            ? `Remove one to add another (${limits.maxCount} max)`
+                                            : `${describeAccepted(limits)} · up to ${limits.maxCount} files`}
                                     </span>
                                 </div>
                             )}
@@ -2306,9 +2385,12 @@ const AgentConversation = ({
                                             initialMarkdown={initialDraft}
                                             onChange={handleComposerChange}
                                             onPasteFile={(pasted) => {
-                                                if (!attachmentsBusy()) addFiles(Array.from(pasted))
+                                                if (!attachmentsBlocked())
+                                                    addFiles(Array.from(pasted))
                                             }}
-                                            sendForceEnabled={files.length > 0}
+                                            sendForceEnabled={
+                                                files.length > 0 && attachmentsSettled
+                                            }
                                             streaming={busy}
                                             onStop={handleStop}
                                             prefix={
@@ -2330,6 +2412,7 @@ const AgentConversation = ({
                                                             voiceRecorder.supported
                                                         }
                                                         audioPending={voiceRecorder.pending}
+                                                        audioPerceivable={audioPerceivable}
                                                         attachmentsFull={atMax}
                                                         onDictationError={setDictationError}
                                                         onDictatingChange={setDictating}
@@ -2346,13 +2429,17 @@ const AgentConversation = ({
                                                         title={
                                                             atMax
                                                                 ? `Up to ${limits.maxCount} files`
-                                                                : "Attach files coming soon"
+                                                                : "Attach files"
                                                         }
                                                     >
                                                         <Button
                                                             type="text"
                                                             icon={<Paperclip size={16} />}
-                                                            disabled={true}
+                                                            // Paste, drop and voice all attach
+                                                            // already; leaving the obvious control
+                                                            // dead was the odd one out. Gated with
+                                                            // them on the composer being usable.
+                                                            disabled={composerDisabled}
                                                             onClick={() =>
                                                                 setAttachmentsOpen((open) => !open)
                                                             }
@@ -2377,11 +2464,14 @@ const AgentConversation = ({
                                                         files={files}
                                                         rejections={rejections}
                                                         limits={limits}
+                                                        audioPerceivable={audioPerceivable}
                                                         onAdd={addFiles}
                                                         onRemove={removeFile}
                                                         onDismissRejections={() =>
                                                             setRejections([])
                                                         }
+                                                        onView={setViewingUid}
+                                                        onRetry={uploads.retry}
                                                     />
                                                 </HeightCollapse>
                                             }
@@ -2461,6 +2551,7 @@ const AgentConversation = ({
                             busy={busy}
                             hidden={buildMode || inspectorOpen}
                             onOpenFiles={() => setFilesWindowOpen(true)}
+                            onStageFiles={(files) => setFilesStaged(files)}
                         />
                     </div>
                 </RightPanelSplit>
