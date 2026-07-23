@@ -756,6 +756,9 @@ const AgentConversation = ({
         () => contextWindowForModel(harnessCapabilities, modelKey.harness, modelKey.model),
         [harnessCapabilities, modelKey.harness, modelKey.model],
     )
+    // Feature flag: the context-budget meter is hidden from the composer for now. The
+    // component and its logic stay wired up; flip this to `true` to bring the UI back.
+    const showContextBudget: boolean = false
 
     // ── Playground-native onboarding ──────────────────────────────────────────
     // This chat panel IS the onboarding surface while the agent is ephemeral: the empty state shows the
@@ -2278,9 +2281,11 @@ const AgentConversation = ({
                                                         aria-label="Attach files"
                                                     />
                                                 </Tooltip>
-                                                {/* Only meaningful in a real conversation — hidden during
+                                                {/* Context-budget meter temporarily hidden from the UI.
+                                                Logic is retained — flip `showContextBudget` to re-enable.
+                                                Only meaningful in a real conversation, so still gated on
                                                 onboarding (no turns / no usage yet). */}
-                                                {!onboardingActive ? (
+                                                {showContextBudget && !onboardingActive ? (
                                                     <ContextBudgetIndicator
                                                         messages={messages}
                                                         maxTokens={contextMaxTokens}
