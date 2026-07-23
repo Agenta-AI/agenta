@@ -1,27 +1,13 @@
 import type {Key, ReactNode} from "react"
 
+import type {ExtendedColumn} from "@agenta/ui/table"
 import type {ColumnsType, ColumnType} from "antd/es/table"
 
 /**
- * antd column extended with the custom props the InfiniteVirtualTable layer
- * consumes at runtime (column visibility menu, smart resizing, export).
+ * Alias of the canonical extended column in @agenta/ui/table. This local copy
+ * of InfiniteVirtualTable is being retired; consumers should move to the package.
  */
-export type ExtendedColumnType<RecordType> = ColumnsType<RecordType>[number] & {
-    key?: Key
-    children?: ExtendedColumnType<RecordType>[]
-    /** Custom node shown for this column in the visibility menu */
-    columnVisibilityTitle?: ReactNode
-    /** Label shown for this column in the visibility menu */
-    columnVisibilityLabel?: string
-    /** Lock column from being hidden via the visibility menu */
-    columnVisibilityLocked?: boolean
-    /** Hide the column by default (until toggled visible) */
-    defaultHidden?: boolean
-    /** Max width constraint consumed by smart resizable columns */
-    maxWidth?: number
-    /** Include the column in table export */
-    exportEnabled?: boolean
-}
+export type ExtendedColumnType<RecordType> = ExtendedColumn<RecordType>
 
 export interface TableColumnCell<Row extends object> {
     render: (row: Row, rowIndex: number) => ReactNode
