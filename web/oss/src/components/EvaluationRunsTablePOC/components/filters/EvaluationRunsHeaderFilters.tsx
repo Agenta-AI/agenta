@@ -1,10 +1,10 @@
 import {MouseEvent, useMemo, useState, useCallback} from "react"
 
+import {FiltersPopoverTrigger} from "@agenta/ui/table"
 import {Input, Tag, Tooltip, Typography, type PopoverProps} from "antd"
 import clsx from "clsx"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 
-import {FiltersPopoverTrigger} from "@/oss/components/InfiniteVirtualTable"
 import {
     getReferenceToneColors,
     type ReferenceTone,

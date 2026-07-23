@@ -21,14 +21,10 @@
  * ```
  */
 
+import type {BaseTableMeta, InfiniteTableFetchResult, InfiniteTableRowBase} from "@agenta/ui/table"
 import {atom, getDefaultStore, type Atom} from "jotai"
 import {atomWithStorage} from "jotai/vanilla/utils"
 
-import type {BaseTableMeta} from "@/oss/components/InfiniteVirtualTable/helpers/createSimpleTableStore"
-import type {
-    InfiniteTableFetchResult,
-    InfiniteTableRowBase,
-} from "@/oss/components/InfiniteVirtualTable/types"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import type {ExportFileType} from "@/oss/services/testsets/api"

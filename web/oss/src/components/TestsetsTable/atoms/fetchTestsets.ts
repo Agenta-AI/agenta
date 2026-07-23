@@ -1,4 +1,5 @@
-import type {WindowingState} from "@/oss/components/InfiniteVirtualTable/types"
+import type {WindowingState} from "@agenta/ui/table"
+
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 
