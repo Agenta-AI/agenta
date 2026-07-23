@@ -827,7 +827,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                       bodyClassName: "",
                       content: (
                           <HeightCollapse open={needsProviderKeyInline} fade>
-                              <div className="flex flex-col gap-3 pb-4 pt-3">
+                              <div className="flex flex-col gap-3 pb-4 pt-1">
                                   <SectionQuickAction
                                       onOpenDetails={() => openSectionDrawer("model-harness")}
                                       disabled={disabled}
