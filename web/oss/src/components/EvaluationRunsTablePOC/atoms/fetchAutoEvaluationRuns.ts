@@ -1,6 +1,6 @@
 import {hasResolvableSubject, isSubjectRun} from "@agenta/entities/evaluationRun/etl"
+import type {WindowingState} from "@agenta/ui/table"
 
-import type {WindowingState} from "@/oss/components/InfiniteVirtualTable/types"
 import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 
 import type {QueryWindowingPayload} from "../../../services/onlineEvaluations/api"

@@ -1,12 +1,13 @@
 import {useEffect, useMemo, useCallback, useRef} from "react"
 import type {ReactNode} from "react"
 
+import {
+    ColumnVisibilityMenuTrigger,
+    type ColumnTreeNode,
+    type ColumnVisibilityNodeMeta,
+} from "@agenta/ui/table"
 import {Typography} from "antd"
 
-import type {ColumnTreeNode} from "@/oss/components/InfiniteVirtualTable"
-import ColumnVisibilityMenuTrigger, {
-    type ColumnVisibilityNodeMeta,
-} from "@/oss/components/InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityMenuTrigger"
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
 import {

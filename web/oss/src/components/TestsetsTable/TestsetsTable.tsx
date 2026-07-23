@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {testsetMolecule} from "@agenta/entities/testset"
 import {message} from "@agenta/ui/app-message"
+import {InfiniteVirtualTableFeatureShell, useTableManager, useTableActions} from "@agenta/ui/table"
 import {PlusOutlined} from "@ant-design/icons"
 import {ArchiveIcon, CaretDown, DownloadSimple} from "@phosphor-icons/react"
 import {Button, Dropdown, Space} from "antd"
@@ -10,11 +11,6 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
-import {
-    InfiniteVirtualTableFeatureShell,
-    useTableManager,
-    useTableActions,
-} from "@/oss/components/InfiniteVirtualTable"
 import TestsetsHeaderFilters from "@/oss/components/TestsetsTable/components/TestsetsHeaderFilters"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import useURL from "@/oss/hooks/useURL"
@@ -368,7 +364,8 @@ const TestsetsTable = ({
 
     // Table manager - consolidates pagination, selection, row handlers, export, delete buttons
     const table = useTableManager<TestsetTableRow>({
-        datasetStore: tableState.paginatedStore.store,
+        // Store generic is invariant on ApiRow; matches DeploymentsTable's cast.
+        datasetStore: tableState.paginatedStore.store as never,
         scopeId: isArchivedView ? "archived-testsets-page" : scopeId,
         pageSize: 50,
         rowHeight: 48,
