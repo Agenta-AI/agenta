@@ -685,24 +685,26 @@ const UploadTile = ({
     <div className="flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2">
         <div className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded bg-colorFillTertiary">
             {item.previewUrl ? (
+                // Absolute (out of flow) so a full-size object-URL image can't override the 4:3 box's
+                // aspect-ratio via its intrinsic min-content height (see FileThumb's text note).
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                     src={item.previewUrl}
                     alt={item.name}
-                    className={`h-full w-full object-cover ${item.error ? "opacity-40" : "opacity-70"}`}
+                    className={`absolute inset-0 h-full w-full object-cover ${item.error ? "opacity-25" : "opacity-80"}`}
                 />
             ) : (
-                <FileIcon size={40} className="text-colorTextTertiary" />
+                <FileIcon size={34} className="text-colorTextTertiary" />
             )}
             {item.error ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-[var(--ant-color-error-bg)]">
-                    <WarningCircle size={20} weight="fill" className="text-colorError" />
-                    <div className="flex items-center gap-2">
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-[rgba(0,0,0,0.55)] backdrop-blur-[1px]">
+                    <WarningCircle size={22} weight="fill" className="text-colorError" />
+                    <div className="flex items-center gap-3 text-[11px]">
                         {onRetry ? (
                             <button
                                 type="button"
                                 onClick={() => onRetry(item.id)}
-                                className="cursor-pointer rounded border-0 bg-transparent text-[11px] text-colorPrimary hover:underline"
+                                className="cursor-pointer rounded border-0 bg-transparent font-medium text-white hover:underline"
                             >
                                 Retry
                             </button>
@@ -711,7 +713,7 @@ const UploadTile = ({
                             <button
                                 type="button"
                                 onClick={() => onDismiss(item.id)}
-                                className="cursor-pointer rounded border-0 bg-transparent text-[11px] text-colorTextTertiary hover:underline"
+                                className="cursor-pointer rounded border-0 bg-transparent text-white/70 hover:underline"
                             >
                                 Dismiss
                             </button>
@@ -719,21 +721,26 @@ const UploadTile = ({
                     </div>
                 </div>
             ) : (
-                <div className="absolute inset-x-2 bottom-2">
-                    <div className="h-1 w-full overflow-hidden rounded-full bg-[rgba(0,0,0,0.25)]">
+                <div className="absolute inset-x-2 bottom-2 flex items-center gap-1.5 rounded bg-[rgba(0,0,0,0.35)] px-1.5 py-1">
+                    <div className="h-1 flex-1 overflow-hidden rounded-full bg-[rgba(255,255,255,0.25)]">
                         <div
                             className="h-full rounded-full bg-colorPrimary transition-[width] duration-150"
                             style={{width: `${item.percent}%`}}
                         />
                     </div>
+                    <span className="shrink-0 text-[10px] font-medium tabular-nums text-white">
+                        {item.percent}%
+                    </span>
                 </div>
             )}
         </div>
         <span className="w-full truncate text-center font-mono text-xs" title={item.name}>
             {item.name}
         </span>
-        <span className="w-full truncate text-center text-[11px] text-colorTextTertiary">
-            {item.error ? "Upload failed" : `Uploading… ${item.percent}%`}
+        <span
+            className={`w-full truncate text-center text-[11px] ${item.error ? "text-colorError" : "text-colorTextTertiary"}`}
+        >
+            {item.error ? "Upload failed" : "Uploading…"}
         </span>
     </div>
 )
@@ -749,35 +756,118 @@ interface StagedTileItem {
 }
 
 const StagedTile = ({item, onRemove}: {item: StagedTileItem; onRemove?: (id: string) => void}) => (
-    <div className="relative flex w-full min-w-0 flex-col gap-2 rounded-lg border border-dashed border-colorBorder bg-colorFillQuaternary p-2 opacity-90">
+    <div className="group relative flex w-full min-w-0 flex-col gap-2 rounded-lg border border-dashed border-[var(--ant-color-primary-border)] bg-[var(--ant-color-primary-bg)] p-2">
         {onRemove ? (
             <button
                 type="button"
                 aria-label={`Remove ${item.name}`}
                 onClick={() => onRemove(item.id)}
-                className="absolute right-1 top-1 z-10 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.45)] text-white hover:bg-[rgba(0,0,0,0.65)]"
+                className="absolute right-1 top-1 z-10 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.5)] text-white opacity-0 transition-opacity hover:bg-[rgba(0,0,0,0.7)] group-hover:opacity-100"
             >
                 <X size={11} weight="bold" />
             </button>
         ) : null}
         <div className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded bg-colorFillTertiary">
             {item.previewUrl ? (
+                // Absolute (out of flow) so a full-size object-URL image can't stretch the 4:3 box.
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                     src={item.previewUrl}
                     alt={item.name}
-                    className="h-full w-full object-cover opacity-60"
+                    className="absolute inset-0 h-full w-full object-cover opacity-55"
                 />
             ) : (
-                <FileIcon size={40} className="text-colorTextTertiary" />
+                <FileIcon size={34} className="text-colorTextTertiary" />
             )}
+            <div className="absolute inset-0 flex items-center justify-center">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[rgba(0,0,0,0.45)] text-white">
+                    <UploadSimple size={15} />
+                </span>
+            </div>
         </div>
         <span className="w-full truncate text-center font-mono text-xs" title={item.name}>
             {item.name}
         </span>
-        <span className="w-full truncate text-center text-[11px] text-colorTextTertiary">
+        <span className="w-full truncate text-center text-[11px] text-colorPrimary">
             Ready to upload
         </span>
+    </div>
+)
+
+/** A staged or in-flight upload as it appears in the TREE — a compact pinned row, so dropped items
+ * are visible in the tree too (not only the grid), regardless of which folder is open. */
+interface PendingRow {
+    kind: "staged" | "upload"
+    id: string
+    name: string
+    percent?: number
+    error?: string | null
+}
+
+const PendingTreeRow = ({
+    row,
+    onRemove,
+    onRetry,
+    onDismiss,
+}: {
+    row: PendingRow
+    onRemove?: (id: string) => void
+    onRetry?: (id: string) => void
+    onDismiss?: (id: string) => void
+}) => (
+    <div className="group flex items-center gap-1.5 rounded px-1 py-1">
+        <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+            {row.kind === "staged" ? (
+                <UploadSimple size={13} className="text-colorPrimary" />
+            ) : row.error ? (
+                <WarningCircle size={13} weight="fill" className="text-colorError" />
+            ) : (
+                <CircleNotch size={13} className="animate-spin text-colorTextTertiary" />
+            )}
+        </span>
+        <span className="min-w-0 flex-1 truncate font-mono text-[11px]" title={row.name}>
+            {row.name}
+        </span>
+        {row.kind === "staged" ? (
+            <span className="flex shrink-0 items-center gap-1.5 text-[10px]">
+                <span className="text-colorPrimary">Ready</span>
+                {onRemove ? (
+                    <button
+                        type="button"
+                        aria-label={`Remove ${row.name}`}
+                        onClick={() => onRemove(row.id)}
+                        className="cursor-pointer rounded border-0 bg-transparent text-colorTextTertiary opacity-0 hover:text-colorText group-hover:opacity-100"
+                    >
+                        <X size={11} weight="bold" />
+                    </button>
+                ) : null}
+            </span>
+        ) : row.error ? (
+            <span className="flex shrink-0 items-center gap-2 text-[10px]">
+                {onRetry ? (
+                    <button
+                        type="button"
+                        onClick={() => onRetry(row.id)}
+                        className="cursor-pointer rounded border-0 bg-transparent font-medium text-colorPrimary hover:underline"
+                    >
+                        Retry
+                    </button>
+                ) : null}
+                {onDismiss ? (
+                    <button
+                        type="button"
+                        onClick={() => onDismiss(row.id)}
+                        className="cursor-pointer rounded border-0 bg-transparent text-colorTextTertiary hover:underline"
+                    >
+                        Dismiss
+                    </button>
+                ) : null}
+            </span>
+        ) : (
+            <span className="shrink-0 text-[10px] tabular-nums text-colorTextTertiary">
+                {row.percent ?? 0}%
+            </span>
+        )}
     </div>
 )
 
@@ -1793,6 +1883,21 @@ export function DriveExplorer({
             onStagedChange?.(stagedItems.filter((it) => it.id !== id).map((it) => it.file)),
         [stagedItems, onStagedChange],
     )
+    // Pending items (staged + in-flight) also pin to the top of the TREE, so a dropped file is visible
+    // in both surfaces regardless of which folder is open.
+    const pendingTreeRows = useMemo<PendingRow[]>(
+        () => [
+            ...stagedItems.map((it) => ({kind: "staged" as const, id: it.id, name: it.name})),
+            ...mountUpload.items.map((it) => ({
+                kind: "upload" as const,
+                id: it.id,
+                name: it.name,
+                percent: it.percent,
+                error: it.error,
+            })),
+        ],
+        [stagedItems, mountUpload.items],
+    )
 
     const selected = drive.recents.find((f) => f.path === selectedPath) ?? null
     const showOrigin = driveHasMixedOrigins(drive.recents)
@@ -2106,9 +2211,9 @@ export function DriveExplorer({
                     anticipateShift={treeShift}
                     onSelect={select}
                     drop={canUpload ? drop : undefined}
-                    pendingUploads={mountUpload.itemsFor(
-                        drive.resolveMount(selectedPath ?? "")?.path ?? selectedPath ?? "",
-                    )}
+                    // Global (all in-flight), not just this folder's — a dropped file stays visible in
+                    // the grid regardless of which folder is open, matching the tree's pinned group.
+                    pendingUploads={mountUpload.items}
                     onRetryUpload={mountUpload.retry}
                     onDismissUpload={mountUpload.dismiss}
                     stagedItems={stagedItems}
@@ -2160,6 +2265,19 @@ export function DriveExplorer({
                             onKeyDown={onTreeKeyDown}
                             {...(canUpload ? drop.containerDropProps(currentFolder) : {})}
                         >
+                            {pendingTreeRows.length > 0 ? (
+                                <div className="mb-1 flex flex-col gap-0.5 border-0 border-b border-solid border-colorBorderSecondary pb-1">
+                                    {pendingTreeRows.map((row) => (
+                                        <PendingTreeRow
+                                            key={`${row.kind}-${row.id}`}
+                                            row={row}
+                                            onRemove={removeStaged}
+                                            onRetry={mountUpload.retry}
+                                            onDismiss={mountUpload.dismiss}
+                                        />
+                                    ))}
+                                </div>
+                            ) : null}
                             {flatRows.length === 0 ? (
                                 <Text type="secondary" className="px-1 !text-[11px]">
                                     {lazyTree.searchLoading
