@@ -819,16 +819,20 @@ export function useModelHarness({
         </>
     )
 
-    const modelHarnessDrawerBody = capabilities ? (
-        <div className="flex h-full min-h-0 gap-6">
-            <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
-                {modelHarnessControls}
+    // The two-panel layout (controls + version-history aside) is DRAWER chrome. Under a focus filter
+    // this same body renders INLINE in the config panel (the "what changed" view), where the version
+    // history and its fixed-width aside don't belong — drop to a single column of the narrowed controls.
+    const modelHarnessDrawerBody =
+        capabilities && !focus.active ? (
+            <div className="flex h-full min-h-0 gap-6">
+                <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+                    {modelHarnessControls}
+                </div>
+                <div className="w-[240px] shrink-0 overflow-y-auto">{versionHistorySkeleton}</div>
             </div>
-            <div className="w-[240px] shrink-0 overflow-y-auto">{versionHistorySkeleton}</div>
-        </div>
-    ) : (
-        <div className="flex h-full flex-col gap-3 overflow-y-auto">{modelHarnessControls}</div>
-    )
+        ) : (
+            <div className="flex h-full flex-col gap-3 overflow-y-auto">{modelHarnessControls}</div>
+        )
 
     // Advanced header summary: sandbox only now — mode UI moved to the Provider credentials section.
     const advancedSummary = sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined
@@ -1035,7 +1039,13 @@ export function useModelHarness({
 
     // The stacked sections carry their own dividers; drop the trailing one on whichever section
     // renders last (they're conditional, so target the last child rather than a fixed section).
-    const advancedDrawerBody = (
+    // Same as Model & harness: the version-history aside is drawer chrome; under a focus filter this
+    // body renders inline in the panel, so drop to a single column of the narrowed controls.
+    const advancedDrawerBody = focus.active ? (
+        <div className="flex h-full flex-col overflow-y-auto [&>*:last-child]:!border-b-0">
+            {advancedControls}
+        </div>
+    ) : (
         <div className="flex h-full min-h-0 gap-6">
             <div className="flex min-w-0 flex-1 flex-col overflow-y-auto pr-1 [&>*:last-child]:!border-b-0">
                 {advancedControls}
