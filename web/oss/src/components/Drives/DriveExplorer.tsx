@@ -1369,17 +1369,21 @@ const DriveHeader = ({
                 </Tooltip>
             ) : null}
             <div className="flex shrink-0 items-center gap-1">
+                {/* ONE upload button, context-dependent: with files staged it commits them into this
+                    folder (primary-tinted); otherwise it opens the file picker (neutral). */}
                 {stagedCount > 0 && onUploadStaged ? (
-                    <Button
-                        type="primary"
-                        icon={<UploadSimple size={15} />}
-                        onClick={onUploadStaged}
-                        className="!h-7"
+                    <Tooltip
+                        title={`Upload ${stagedCount} file${stagedCount === 1 ? "" : "s"} here`}
                     >
-                        {`Upload ${stagedCount} here`}
-                    </Button>
-                ) : null}
-                {onUpload ? (
+                        <Button
+                            type="text"
+                            aria-label={`Upload ${stagedCount} staged file${stagedCount === 1 ? "" : "s"} to this folder`}
+                            icon={<UploadSimple size={16} weight="bold" />}
+                            onClick={onUploadStaged}
+                            className="!h-7 !w-7 !p-0 !bg-[var(--ant-color-primary-bg)] !text-colorPrimary hover:!text-colorPrimary"
+                        />
+                    </Tooltip>
+                ) : onUpload ? (
                     <Tooltip title="Upload to this folder">
                         <Button
                             type="text"
