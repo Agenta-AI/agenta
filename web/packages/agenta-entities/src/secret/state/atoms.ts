@@ -327,17 +327,38 @@ export const createCustomNamedSecretAtom = atom(null, async (get, set, secret: N
 
 /**
  * Atom for deleting vault secrets.
+ *
+ * Standard providers are shown as one row in the UI (`standardSecretsAtom`
+ * uses `.find()`), but the vault can contain duplicate `provider_key`
+ * rows for the same provider. Deleting only `provider.id` leaves ghosts
+ * that still make agent credential resolution ambiguous (#5255 / AGE-3945).
  */
 export const deleteSecretAtom = atom(null, async (get, set, provider: LlmProvider) => {
     const deleteMutation = get(deleteVaultSecretMutationAtom)
     const projectId = get(projectIdAtom)
+    const vaultQuery = get(vaultSecretsQueryAtom)
+    const vaultSecrets = vaultQuery.data || []
+
     if (!projectId) {
         throw new Error("[vault] Missing projectId for deleteSecret")
     }
 
     try {
-        if (provider.id) {
-            await deleteMutation.mutateAsync({projectId, secret_id: provider.id})
+        const matchingIds = provider.name
+            ? vaultSecrets
+                  .filter((secret: LlmProvider) => secret.name === provider.name && !!secret.id)
+                  .map((secret: LlmProvider) => secret.id as string)
+            : []
+
+        const secretIds =
+            matchingIds.length > 0
+                ? Array.from(new Set(matchingIds))
+                : provider.id
+                  ? [provider.id]
+                  : []
+
+        for (const secret_id of secretIds) {
+            await deleteMutation.mutateAsync({projectId, secret_id})
         }
     } catch (error) {
         console.error("Failed to delete secret:", error)
