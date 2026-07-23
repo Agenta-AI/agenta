@@ -6,7 +6,7 @@ import {queryClientAtom} from "jotai-tanstack-query"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-import {SIMULATE_UPLOAD, uploadMountFile} from "./driveMedia"
+import {uploadMountFile} from "./driveMedia"
 import {useImagePreviews} from "./useImagePreviews"
 
 /**
@@ -96,14 +96,8 @@ export function useMountUpload(): MountUpload {
                 .then(() => {
                     if (controller.signal.aborted) return
                     controllers.current.delete(id)
-                    // TEMP(test): with the transport stubbed no real file arrives from a refetch, so
-                    // removing the optimistic tile just made the drop "disappear". Keep it as a done
-                    // tile instead. Remove with the SIMULATE_UPLOAD stub.
-                    if (SIMULATE_UPLOAD) {
-                        patch(id, {percent: 100})
-                        return
-                    }
-                    // Dropping the item removes its file from the list → useImagePreviews revokes the URL.
+                    // On success the real file arrives via the listing refetch, so drop the optimistic
+                    // item — removing its file from the list also lets useImagePreviews revoke the URL.
                     sources.current.delete(id)
                     setItems((prev) => prev.filter((it) => it.id !== id))
                     refreshListing()
