@@ -326,16 +326,21 @@ const HTML_NAV_INTERCEPTOR =
  */
 async function inlineHtmlAssets(
     html: string,
-    mountId: string,
+    mountId: string | null,
     dir: string,
-    projectId: string,
+    projectId: string | null,
 ): Promise<string> {
     try {
         const doc = new DOMParser().parseFromString(html, "text/html")
 
-        await Promise.all(
-            Array.from(doc.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet"][href]')).map(
-                async (link) => {
+        // Inline relative stylesheets/images from the mount. Skipped for a LOCAL preview (a composer
+        // attachment has no mount) — the sanitize + interceptor pipeline below still runs, so the
+        // Preview tab assembles instead of loading forever.
+        if (mountId && projectId) {
+            await Promise.all(
+                Array.from(
+                    doc.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet"][href]'),
+                ).map(async (link) => {
                     const href = link.getAttribute("href") ?? ""
                     if (!href || isExternalUrl(href)) return
                     const css = await fetchMountText(mountId, projectId, resolveRel(dir, href))
@@ -343,18 +348,18 @@ async function inlineHtmlAssets(
                     const style = doc.createElement("style")
                     style.textContent = css
                     link.replaceWith(style)
-                },
-            ),
-        )
+                }),
+            )
 
-        await Promise.all(
-            Array.from(doc.querySelectorAll<HTMLImageElement>("img[src]")).map(async (img) => {
-                const src = img.getAttribute("src") ?? ""
-                if (!src || isExternalUrl(src) || src.startsWith("data:")) return
-                const uri = await fetchMountDataUri(mountId, projectId, resolveRel(dir, src))
-                if (uri) img.setAttribute("src", uri)
-            }),
-        )
+            await Promise.all(
+                Array.from(doc.querySelectorAll<HTMLImageElement>("img[src]")).map(async (img) => {
+                    const src = img.getAttribute("src") ?? ""
+                    if (!src || isExternalUrl(src) || src.startsWith("data:")) return
+                    const uri = await fetchMountDataUri(mountId, projectId, resolveRel(dir, src))
+                    if (uri) img.setAttribute("src", uri)
+                }),
+            )
+        }
 
         // Strip every agent-authored script vector so allow-scripts only runs our interceptor.
         doc.querySelectorAll("script").forEach((s) => s.remove())
@@ -402,13 +407,15 @@ const HtmlBody = ({
     const [assembled, setAssembled] = useState<string | null>(null)
     const frameRef = useRef<HTMLIFrameElement>(null)
 
-    // Assemble the self-contained preview document once the source lands.
+    // Assemble the self-contained preview document once the source lands. Works for a local composer
+    // attachment too (mount === null): inlineHtmlAssets skips mount-asset fetches but still sanitizes
+    // + injects the interceptor, so the Preview tab assembles instead of loading forever.
     useEffect(() => {
         setAssembled(null)
-        if (typeof content !== "string" || !mount?.id || !projectId) return
+        if (typeof content !== "string") return
         let alive = true
         const dir = path.includes("/") ? path.split("/").slice(0, -1).join("/") : ""
-        void inlineHtmlAssets(content, mount.id, dir, projectId).then((html) => {
+        void inlineHtmlAssets(content, mount?.id ?? null, dir, projectId || null).then((html) => {
             if (alive) setAssembled(html)
         })
         return () => {
