@@ -682,8 +682,10 @@ const UploadTile = ({
     onRetry?: (id: string) => void
     onDismiss?: (id: string) => void
 }) => (
-    // Identical frame to a real file tile (DriveFileRow "tile") — clean thumb, name, one caption line.
-    // Status is a thin ABSOLUTE overlay + the caption; a hover corner action mirrors the staged tile.
+    // Identical frame to a real file tile (DriveFileRow "tile"). CRITICAL: the caption is a PLAIN text
+    // span like every other tile's — no <button> in it. Preflight is off, so a button doesn't inherit
+    // font-size and would render taller than the caption text, pushing the tile past the grid's snapped
+    // height. All actions live as ABSOLUTE overlays on the thumb, which can't affect tile height.
     <div className="group flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2">
         <div className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded bg-colorFillTertiary">
             {item.previewUrl ? (
@@ -698,47 +700,45 @@ const UploadTile = ({
             ) : (
                 <FileIcon size={34} className="text-colorTextTertiary" />
             )}
-            {item.error
-                ? onDismiss && (
-                      <button
-                          type="button"
-                          aria-label="Dismiss"
-                          onClick={() => onDismiss(item.id)}
-                          className="absolute right-1 top-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.5)] text-white opacity-0 transition-opacity hover:bg-[rgba(0,0,0,0.7)] group-hover:opacity-100"
-                      >
-                          <X size={11} weight="bold" />
-                      </button>
-                  )
-                : item.percent < 100 && (
-                      <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[rgba(0,0,0,0.2)]">
-                          <div
-                              className="h-full bg-colorPrimary transition-[width] duration-150"
-                              style={{width: `${item.percent}%`}}
-                          />
-                      </div>
-                  )}
+            {item.error ? (
+                <>
+                    {onRetry ? (
+                        <button
+                            type="button"
+                            onClick={() => onRetry(item.id)}
+                            className="absolute inset-0 m-auto flex h-7 w-[68px] items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.6)] text-[11px] font-medium text-white hover:bg-[rgba(0,0,0,0.8)]"
+                        >
+                            Retry
+                        </button>
+                    ) : null}
+                    {onDismiss ? (
+                        <button
+                            type="button"
+                            aria-label="Dismiss"
+                            onClick={() => onDismiss(item.id)}
+                            className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.5)] text-white opacity-0 transition-opacity hover:bg-[rgba(0,0,0,0.7)] group-hover:opacity-100"
+                        >
+                            <X size={11} weight="bold" />
+                        </button>
+                    ) : null}
+                </>
+            ) : item.percent < 100 ? (
+                <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[rgba(0,0,0,0.2)]">
+                    <div
+                        className="h-full bg-colorPrimary transition-[width] duration-150"
+                        style={{width: `${item.percent}%`}}
+                    />
+                </div>
+            ) : null}
         </div>
         <span className="w-full truncate text-center font-mono text-xs" title={item.name}>
             {item.name}
         </span>
-        {item.error ? (
-            <span className="flex w-full items-center justify-center gap-1.5 text-[11px]">
-                <span className="text-colorError">Failed</span>
-                {onRetry ? (
-                    <button
-                        type="button"
-                        onClick={() => onRetry(item.id)}
-                        className="cursor-pointer border-0 bg-transparent p-0 text-colorPrimary hover:underline"
-                    >
-                        Retry
-                    </button>
-                ) : null}
-            </span>
-        ) : (
-            <span className="w-full truncate text-center text-[11px] tabular-nums text-colorTextTertiary">
-                Uploading {item.percent}%
-            </span>
-        )}
+        <span
+            className={`w-full truncate text-center text-[11px] tabular-nums ${item.error ? "text-colorError" : "text-colorTextTertiary"}`}
+        >
+            {item.error ? "Upload failed" : `Uploading ${item.percent}%`}
+        </span>
     </div>
 )
 
@@ -780,8 +780,9 @@ const StagedTile = ({item, onRemove}: {item: StagedTileItem; onRemove?: (id: str
         <span className="w-full truncate text-center font-mono text-xs" title={item.name}>
             {item.name}
         </span>
-        <span className="flex w-full items-center justify-center gap-1 text-[11px] text-colorTextTertiary">
-            <UploadSimple size={11} />
+        {/* Plain text span (no icon/flex) so the caption line is the exact height of every other
+            tile's caption — see UploadTile's note on preflight-off font metrics. */}
+        <span className="w-full truncate text-center text-[11px] text-colorTextTertiary">
             Ready to upload
         </span>
     </div>
