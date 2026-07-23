@@ -2319,7 +2319,16 @@ const AgentConversation = ({
                                                     <VoiceInputButton
                                                         inputRef={richInputRef}
                                                         onStartAudio={startVoiceMessage}
-                                                        audioSupported={voiceRecorder.supported}
+                                                        // During onboarding the composer commits the
+                                                        // ephemeral via handleCreateAgent, but a voice
+                                                        // MESSAGE routes through handleSubmit → submit,
+                                                        // bypassing that commit. So offer dictation
+                                                        // only (it just fills the description text) —
+                                                        // voice-message returns once the agent exists.
+                                                        audioSupported={
+                                                            !onboardingActive &&
+                                                            voiceRecorder.supported
+                                                        }
                                                         audioPending={voiceRecorder.pending}
                                                         attachmentsFull={atMax}
                                                         onDictationError={setDictationError}
