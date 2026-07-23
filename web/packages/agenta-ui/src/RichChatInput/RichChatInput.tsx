@@ -21,6 +21,7 @@ import {chatInputTheme} from "./assets/theme"
 import {CHAT_TRANSFORMERS} from "./assets/transformers"
 import {CharacterCountPlugin} from "./plugins/CharacterCountPlugin"
 import {CodeFencePlugin} from "./plugins/CodeFencePlugin"
+import {beginDictation, type DictationSession} from "./plugins/dictation"
 import {EditableSyncPlugin} from "./plugins/EditableSyncPlugin"
 import {EditorRefBridge} from "./plugins/EditorRefBridge"
 import {FocusStatePlugin} from "./plugins/FocusStatePlugin"
@@ -35,6 +36,12 @@ export interface RichChatInputHandle {
     setMarkdown: (markdown: string) => void
     /** Read the current content as markdown without submitting (e.g. non-Enter actions). */
     getMarkdown: () => string
+    /** Open a dictation session at the end of the document (see `plugins/dictation`). */
+    beginDictation: () => void
+    /** Push the recogniser's committed text and its provisional tail into that session. */
+    updateDictation: (finalText: string, interimText: string) => void
+    /** Settle the session — provisional words are kept, styled as normal text. */
+    endDictation: () => void
 }
 
 export interface RichChatInputProps {
@@ -43,6 +50,9 @@ export interface RichChatInputProps {
     placeholder?: string
     /** Disables editing entirely. For streaming chats prefer leaving editable + routing to a queue. */
     disabled?: boolean
+    /** Speech is being dictated in. Locks editing for the duration so typing cannot interleave with
+     * the incoming transcript and corrupt it. */
+    dictating?: boolean
     autoFocus?: boolean
     className?: string
     /** Leading slot in the footer (e.g. an attach-files button). */
@@ -107,6 +117,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             onSubmit,
             placeholder = "Type a message…",
             disabled = false,
+            dictating = false,
             autoFocus = false,
             className,
             prefix,
@@ -129,6 +140,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         ref,
     ) {
         const editorRef = useRef<LexicalEditor | null>(null)
+        const dictationRef = useRef<DictationSession | null>(null)
         const [focused, setFocused] = useState(false)
         const [modKey, setModKey] = useState("⌘")
 
@@ -170,11 +182,22 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                     editorRef.current
                         ?.getEditorState()
                         .read(() => $convertToMarkdownString(CHAT_TRANSFORMERS)) ?? "",
+                beginDictation: () => {
+                    const editor = editorRef.current
+                    if (editor) dictationRef.current = beginDictation(editor)
+                },
+                updateDictation: (finalText: string, interimText: string) =>
+                    dictationRef.current?.update(finalText, interimText),
+                endDictation: () => {
+                    dictationRef.current?.end()
+                    dictationRef.current = null
+                },
             }),
             [],
         )
 
         const comfortable = size === "comfortable"
+        const hintsVisible = focused && !dictating
 
         return (
             <LexicalExtensionComposer extension={chatInputExtension} contentEditable={null}>
@@ -236,14 +259,16 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         {hideShortcutHints ? null : (
                             // The format hints are a focus-only aid: kept mounted (so their space
                             // never reflows the row) and faded in when the editor takes focus.
+                            // Dictation hides them the same way — editing is locked while speech
+                            // comes in, so every shortcut they advertise is inert.
                             <div
                                 className={clsx(
                                     "flex flex-wrap items-center gap-2.5 transition-[opacity,transform] duration-200 ease-out",
-                                    focused
+                                    hintsVisible
                                         ? "translate-y-0 opacity-100"
                                         : "pointer-events-none translate-y-0.5 opacity-0",
                                 )}
-                                aria-hidden={!focused}
+                                aria-hidden={!hintsVisible}
                             >
                                 <ShortcutHint keys={`${modKey} B`} label="Bold" />
                                 <ShortcutHint keys={`${modKey} I`} label="Italic" />
@@ -269,7 +294,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
 
                     {autoFocus ? <AutoFocusPlugin /> : null}
                     <EditorRefBridge editorRef={editorRef} />
-                    <EditableSyncPlugin editable={!disabled} />
+                    <EditableSyncPlugin editable={!disabled && !dictating} />
                     <ListPlugin />
                     {/* Tab / Shift+Tab indents + outdents list items (nesting). */}
                     <TabIndentationPlugin />

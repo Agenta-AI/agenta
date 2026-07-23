@@ -25,10 +25,10 @@ export interface AttachmentLimits {
 export const DEFAULT_ATTACHMENT_LIMITS: AttachmentLimits = {
     maxCount: 5,
     maxBytes: 5 * 1024 * 1024,
-    accept: ["image/", "application/pdf", "text/", "application/json"],
+    accept: ["image/", "audio/", "application/pdf", "text/", "application/json"],
     acceptAttr:
-        "image/*,application/pdf,text/plain,text/markdown,text/csv,.md,.csv,application/json",
-    label: "Images and documents",
+        "image/*,audio/*,application/pdf,text/plain,text/markdown,text/csv,.md,.csv,application/json",
+    label: "Images, audio, and documents",
 }
 
 /** Whether a media type is allowed under the limits (prefix or exact match). */
