@@ -1887,6 +1887,15 @@ export function DriveExplorer({
             onStagedChange?.(stagedItems.filter((it) => it.id !== id).map((it) => it.file)),
         [stagedItems, onStagedChange],
     )
+    // Single source of truth: a file that is in-flight (uploading OR failed) must never ALSO remain
+    // staged. Reconcile the staged inbox against in-flight keys on every change, so re-staging a file
+    // that already failed — or any race the one-shot prune misses — can't render the same file twice.
+    useEffect(() => {
+        if (!onStagedChange || !stagedFiles?.length) return
+        const inFlight = new Set(mountUpload.items.map((it) => it.key))
+        const remaining = stagedFiles.filter((f) => !inFlight.has(fileKey(f)))
+        if (remaining.length !== stagedFiles.length) onStagedChange(remaining)
+    }, [stagedFiles, mountUpload.items, onStagedChange])
     // Pending items (staged + in-flight) also pin to the top of the TREE, so a dropped file is visible
     // in both surfaces regardless of which folder is open.
     const pendingTreeRows = useMemo<PendingRow[]>(

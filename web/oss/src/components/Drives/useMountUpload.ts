@@ -23,6 +23,8 @@ export const fileKey = (f: File): string => `${f.name}::${f.size}::${f.lastModif
 
 export interface MountUploadItem {
     id: string
+    /** Stable file identity (see fileKey) — lets a host reconcile staged files against in-flight ones. */
+    key: string
     name: string
     percent: number
     /** Failure message, or null while pending. */
@@ -122,6 +124,7 @@ export function useMountUpload(): MountUpload {
                 sources.current.set(id, {file, target})
                 started.push({
                     id,
+                    key: fileKey(file),
                     name: file.name,
                     percent: 0,
                     error: null,
