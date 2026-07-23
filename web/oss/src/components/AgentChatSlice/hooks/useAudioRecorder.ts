@@ -99,6 +99,9 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
     const analyserRef = useRef<AnalyserNode | null>(null)
     const audioCtxRef = useRef<AudioContext | null>(null)
     const cancelledRef = useRef(false)
+    // The spec fires `stop` AFTER `error`. Set on error so the trailing `onstop` skips its normal
+    // path — otherwise it would flip status error→idle and emit a File from the partial chunks.
+    const erroredRef = useRef(false)
     const onCompleteRef = useRef(onComplete)
     onCompleteRef.current = onComplete
 
@@ -136,6 +139,7 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
         if (!supported || recRef.current) return
         setError(null)
         cancelledRef.current = false
+        erroredRef.current = false
         setStatus("requesting")
         navigator.mediaDevices
             .getUserMedia({audio: true})
@@ -161,11 +165,15 @@ export function useAudioRecorder(onComplete: (file: File) => void): AudioRecorde
                     if (e.data.size) chunksRef.current.push(e.data)
                 }
                 rec.onerror = () => {
+                    erroredRef.current = true
                     teardown()
                     setStatus("error")
                     setError("Recording error")
                 }
                 rec.onstop = () => {
+                    // Errored take: onerror already tore down and set the error status. Leave both as-is
+                    // and never emit the partial chunks.
+                    if (erroredRef.current) return
                     const type = rec.mimeType || mime || "audio/webm"
                     const discard = cancelledRef.current
                     const tooShort = Date.now() - startedAtRef.current < MIN_RECORDING_MS
