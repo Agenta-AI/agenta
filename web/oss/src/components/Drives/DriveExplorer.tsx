@@ -320,7 +320,10 @@ const TreeRow = ({
             className={`w-full cursor-pointer overflow-hidden rounded transition-colors ${
                 selected
                     ? "bg-colorFillSecondary shadow-[inset_0_0_0_1px_var(--ag-colorPrimary)]"
-                    : "hover:bg-colorFillTertiary"
+                    : pending
+                      ? // Subtle primary tint marks a pending upload row, matching the grid tile.
+                        "bg-[var(--ant-color-primary-bg)]"
+                      : "hover:bg-colorFillTertiary"
             } ${hidden ? "opacity-60" : ""}`}
         >
             <div
@@ -730,7 +733,8 @@ const UploadTile = ({
     // so without it the padding+border widen the box past the cell and pb-[75%] then computes a taller
     // thumb — the tile overflows the grid's snapped row. Caption is PLAIN text (no <button>, which
     // wouldn't inherit font-size); all actions are absolute overlays that can't change tile height.
-    <div className="group box-border flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2">
+    // Subtle primary tint marks it as a pending upload — glanceably distinct from a committed file.
+    <div className="group box-border flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-[var(--ant-color-primary-border)] bg-[var(--ant-color-primary-bg)] p-2">
         {/* Padding-bottom aspect box: height = 75% of width, GUARANTEED, independent of the image —
             aspect-ratio was being defeated by the full-size object-URL image, blowing the tile up. All
             content lives in the absolute inner layer, so nothing can change the box height. */}
@@ -805,7 +809,8 @@ interface StagedTileItem {
 
 const StagedTile = ({item, onRemove}: {item: StagedTileItem; onRemove?: (id: string) => void}) => (
     // box-border: this is a <div>, not a <button> like the real tiles — see UploadTile's note.
-    <div className="group box-border flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2">
+    // Same subtle primary tint as the upload tile — marks it as pending, not a committed file.
+    <div className="group box-border flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-[var(--ant-color-primary-border)] bg-[var(--ant-color-primary-bg)] p-2">
         {/* Padding-bottom aspect box (see UploadTile): 4:3 regardless of the image. */}
         <div className="relative w-full overflow-hidden rounded bg-colorFillTertiary pb-[75%]">
             <div className="absolute inset-0 flex items-center justify-center">
