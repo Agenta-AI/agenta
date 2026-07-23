@@ -13,7 +13,8 @@ const body = `# Agenta
 
 ## About
 
-- Design and version prompts, evaluate quality, and monitor production.
+- Build agents through chat: describe the job, give the agent context and tools, and improve it through real work and feedback.
+- Share agents with your team, and run them on a schedule or when an event happens in a connected app.
 - Consequential actions can wait for human approval before they run.
 - Prompts, skills, and tools are versioned like code, so you can roll back to any revision.
 - MIT-licensed and yours to run: self-host on your own infrastructure to keep your agents and data with you.
