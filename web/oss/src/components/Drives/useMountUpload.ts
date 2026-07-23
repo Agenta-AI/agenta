@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {type Mount} from "@agenta/entities/session"
 import {useAtomValue} from "jotai"
@@ -7,6 +7,7 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {SIMULATE_UPLOAD, uploadMountFile} from "./driveMedia"
+import {useImagePreviews} from "./useImagePreviews"
 
 /**
  * Uploads files INTO a mount from the Files drawer (writing to the agent's working files), with
@@ -27,6 +28,8 @@ export interface MountUploadItem {
     key: string
     name: string
     size: number
+    /** The picked file — drives the image preview (via useImagePreviews). */
+    file: File
     percent: number
     /** Failure message, or null while pending. */
     error: string | null
@@ -34,9 +37,7 @@ export interface MountUploadItem {
     destFolder: string
     /** Drive-root-relative destination folder ("" = root) — where the item slots into the tree/grid. */
     presentedFolder: string
-    /** The file's media type, for the optimistic tile's icon/thumbnail. */
-    mediaType: string
-    /** Object URL for an in-flight image, so the optimistic tile can preview it. Revoked on settle. */
+    /** Object URL for an image preview (derived from `file`), else null. */
     previewUrl: string | null
 }
 
@@ -51,8 +52,6 @@ export interface MountUploadTarget {
 
 export interface MountUpload {
     items: MountUploadItem[]
-    /** In-flight items destined for this mount-relative folder — for optimistic in-folder tiles. */
-    itemsFor: (destFolder: string) => MountUploadItem[]
     upload: (files: File[], target: MountUploadTarget) => void
     retry: (id: string) => void
     dismiss: (id: string) => void
@@ -104,12 +103,9 @@ export function useMountUpload(): MountUpload {
                         patch(id, {percent: 100})
                         return
                     }
+                    // Dropping the item removes its file from the list → useImagePreviews revokes the URL.
                     sources.current.delete(id)
-                    setItems((prev) => {
-                        prev.find((it) => it.id === id)?.previewUrl &&
-                            URL.revokeObjectURL(prev.find((it) => it.id === id)!.previewUrl!)
-                        return prev.filter((it) => it.id !== id)
-                    })
+                    setItems((prev) => prev.filter((it) => it.id !== id))
                     refreshListing()
                 })
                 .catch((e: unknown) => {
@@ -139,12 +135,12 @@ export function useMountUpload(): MountUpload {
                     key: fileKey(file),
                     name: file.name,
                     size: file.size,
+                    file,
                     percent: 0,
                     error: null,
                     destFolder: target.destFolder,
                     presentedFolder: target.presentedFolder,
-                    mediaType: file.type || "",
-                    previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
+                    previewUrl: null, // derived below via useImagePreviews
                 })
             })
             setItems((prev) => [...prev, ...started])
@@ -158,22 +154,22 @@ export function useMountUpload(): MountUpload {
         controllers.current.get(id)?.abort()
         controllers.current.delete(id)
         sources.current.delete(id)
-        setItems((prev) => {
-            const url = prev.find((it) => it.id === id)?.previewUrl
-            if (url) URL.revokeObjectURL(url)
-            return prev.filter((it) => it.id !== id)
-        })
+        // Removing the item frees its file from the preview list → useImagePreviews revokes the URL.
+        setItems((prev) => prev.filter((it) => it.id !== id))
     }, [])
-
-    const itemsFor = useCallback(
-        (destFolder: string) => items.filter((it) => it.destFolder === destFolder),
-        [items],
-    )
 
     useEffect(() => {
         const map = controllers.current
         return () => map.forEach((c) => c.abort())
     }, [])
 
-    return {items, itemsFor, upload, retry, dismiss}
+    // Image previews are owned by the shared hook (created lazily, revoked when a file leaves / unmount);
+    // the returned items carry the derived URL so consumers keep reading `item.previewUrl`.
+    const previews = useImagePreviews(useMemo(() => items.map((it) => it.file), [items]))
+    const itemsWithPreviews = useMemo(
+        () => items.map((it) => ({...it, previewUrl: previews.get(it.file) ?? null})),
+        [items, previews],
+    )
+
+    return {items: itemsWithPreviews, upload, retry, dismiss}
 }

@@ -89,6 +89,7 @@ import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
 import {DriveFileBody} from "./renderers"
 import {DriveRepoMetaList} from "./repoMeta"
 import {type DriveDrop, useDriveDrop} from "./useDriveDrop"
+import {useImagePreviews} from "./useImagePreviews"
 import {useLazyDriveTree} from "./useLazyDriveTree"
 import {fileKey, type MountUploadItem, useMountUpload} from "./useMountUpload"
 import {
@@ -1855,19 +1856,9 @@ export function DriveExplorer({
 
     // Staged uploads: files dropped on a recents peek, held UNWRITTEN until the user navigates to a
     // destination and clicks "Upload here" — ghost tiles in the grid meanwhile. Only for writable
-    // mounts (never the local-file preview). Image previews are owned here and revoked on change.
+    // mounts (never the local-file preview). Image previews come from the shared hook.
     const staged = canUpload ? (stagedFiles ?? NO_FILES) : NO_FILES
-    const stagedPreviews = useMemo(() => {
-        const urls = new Map<File, string>()
-        for (const f of staged) if (f.type.startsWith("image/")) urls.set(f, URL.createObjectURL(f))
-        return urls
-    }, [staged])
-    useEffect(
-        () => () => {
-            for (const u of stagedPreviews.values()) URL.revokeObjectURL(u)
-        },
-        [stagedPreviews],
-    )
+    const stagedPreviews = useImagePreviews(staged)
     const stagedItems = useMemo<StagedTileItem[]>(
         () =>
             staged.map((f, i) => ({
