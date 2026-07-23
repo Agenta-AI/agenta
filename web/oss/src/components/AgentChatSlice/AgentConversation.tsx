@@ -758,7 +758,7 @@ const AgentConversation = ({
     )
     // Feature flag: the context-budget meter is hidden from the composer for now. The
     // component and its logic stay wired up; flip this to `true` to bring the UI back.
-    const showContextBudget: boolean = false
+    const showContextBudget = false
 
     // ── Playground-native onboarding ──────────────────────────────────────────
     // This chat panel IS the onboarding surface while the agent is ephemeral: the empty state shows the
