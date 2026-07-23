@@ -155,25 +155,11 @@ body {
     opacity: 0.4 !important;
 }
 
-/* Agent playground: the divider between Config and Chat is a hairline in the app's frame colour,
-   so both panels butt straight against it and their headers read as one row. The bar itself stays
-   1px; the dragger overhangs it to give a comfortable grab zone without widening the seam. */
-.playground-splitter-agent > .ant-splitter-bar {
-    background: var(--ag-shell-line) !important;
-    flex-basis: 1px !important;
-    width: 1px !important;
-    overflow: visible !important;
-}
-.playground-splitter-agent .ant-splitter-bar-dragger {
-    position: absolute !important;
-    left: 50% !important;
-    right: auto !important;
-    width: 11px !important;
-    transform: translateX(-50%) !important;
-    background: transparent !important;
-}
-/* Rest: the seam is just the bar. Hover and drag brighten it and float a short grip on it, so the
-   resize affordance shows up exactly when the pointer is there and stays invisible otherwise. */
+/* Agent playground: the collapse pill is disabled (Build/Chat switch lives in the header), so the
+   drag handle is the ONLY resize affordance and must be discoverable on its own. Render a persistent
+   centered grip on the divider — neutral at rest, then an accent TINT + taller on hover/drag — so it
+   reads as a draggable handle without turning into a loud bar. Geometry is fully specified so it
+   doesn't depend on antd's default pseudo-element placement. */
 .playground-splitter-agent .ant-splitter-bar-dragger::before {
     content: "" !important;
     position: absolute !important;
@@ -181,12 +167,11 @@ body {
     bottom: 0 !important;
     left: 50% !important;
     right: auto !important;
-    width: 1px !important;
+    width: 2px !important;
     height: auto !important;
     border-radius: 0 !important;
     transform: translateX(-50%) !important;
-    background: transparent !important;
-    transition: background 150ms ease;
+    background: var(--ag-colorBorderSecondary) !important;
 }
 .playground-splitter-agent .ant-splitter-bar-dragger::after {
     content: "" !important;
@@ -195,16 +180,22 @@ body {
     bottom: auto !important;
     left: 50% !important;
     right: auto !important;
-    width: 3px !important;
-    height: 28px !important;
+    width: 4px !important;
+    height: 24px !important;
     border-radius: 9999px !important;
     transform: translate(-50%, -50%) !important;
     background: var(--ag-colorTextTertiary) !important;
-    opacity: 0 !important;
     transition:
+        background 150ms ease,
         opacity 150ms ease,
-        background 150ms ease;
+        height 150ms ease;
 }
+/* Hover + active: the full-height DIVIDER only strengthens to a neutral border tone — a long line in
+   the accent colour reads as too loud. The small GRIP takes the accent (`colorPrimary`), softened to a
+   TINT via opacity so it stays a clear-but-quiet handle in both themes (the tinted-primary border
+   token blended into the dark divider; the full colour was too strong). `:not(-active)` mirrors the
+   base `.playground-splitter` hover rule's specificity so we win the tie by source order — otherwise
+   that base rule would swap the divider to a faint fill on hover (the fade). */
 .playground-splitter-agent
     .ant-splitter-bar-dragger:hover:not(.ant-splitter-bar-dragger-active)::before,
 .playground-splitter-agent .ant-splitter-bar-dragger-active::before {
@@ -213,10 +204,18 @@ body {
 .playground-splitter-agent
     .ant-splitter-bar-dragger:hover:not(.ant-splitter-bar-dragger-active)::after,
 .playground-splitter-agent .ant-splitter-bar-dragger-active::after {
-    opacity: 1 !important;
-}
-.playground-splitter-agent .ant-splitter-bar-dragger-active::after {
+    height: 36px !important;
     background: var(--ag-colorPrimary) !important;
+    opacity: 0.7 !important;
+}
+/* Agent playground: the divider is the GUTTER between the raised Config panel and the recessed
+   Chat canvas — a real ~12px channel (not a hairline) that says "two workspaces". Widen the bar and
+   tint it the near-black/soft-grey gutter tone; the grip pseudo-elements above still read as the
+   handle. */
+.playground-splitter-agent > .ant-splitter-bar {
+    background: var(--ag-surface-gutter) !important;
+    flex-basis: 12px !important;
+    width: 12px !important;
 }
 
 /* ── Agent Playground surface classes ──────────────────────────────────────────────────────────
@@ -950,46 +949,4 @@ body {
 .ag-scroll-bleed > * {
     width: calc(100% + var(--ag-scroll-gutter, 0px));
     margin-inline-end: calc(-1 * var(--ag-scroll-gutter, 0px));
-}
-
-/* Narrow agent config panel. The `config` container is declared on the config pane
-   (`@container/config` in MainLayout), so these rules only fire for the panel and never for
-   the same components elsewhere. Below 320px the panel drops every label it can spare and
-   keeps the icons and the values, so it stays readable while the user drags it small. */
-.ag-config-title-short {
-    display: none;
-}
-
-@container config (max-width: 320px) {
-    .ag-config-title-long {
-        display: none;
-    }
-
-    .ag-config-title-short {
-        display: inline;
-    }
-
-    /* Section rows keep the leading icon and the right-hand summary (the harness and model
-       stay visible); only the title drops out. */
-    .ag-section-title {
-        display: none;
-    }
-
-    /* Deploy and Commit become icon buttons. antd renders the label as a bare text node next
-       to the icon span, so zeroing the button's font size is the only way to drop the text
-       without changing every call site. The accessible name stays in the DOM. */
-    .ag-config-actions .ant-btn {
-        gap: 0;
-        font-size: 0;
-    }
-
-    .ag-config-actions .ant-btn .ant-btn-icon {
-        font-size: 14px;
-    }
-
-    /* List rows (tools, MCP servers) drop their second line and their transport tag, so the
-       name itself survives instead of truncating to two characters. */
-    .ag-row-secondary {
-        display: none;
-    }
 }

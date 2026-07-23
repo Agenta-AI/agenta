@@ -367,10 +367,7 @@ const PlaygroundMainView = ({
                     <SplitterPanel
                         defaultSize={configDefaultSize}
                         size={configCollapsed ? 0 : undefined}
-                        // Agent config collapses to icon + summary rows below 320px (see the
-                        // `config` container query in globals.css), so it can go much narrower
-                        // than the percentage floor the prompt playground needs.
-                        min={isAgentConfig ? 240 : "20%"}
+                        min="20%"
                         max={configMaxSize}
                         className="!h-full"
                         collapsible={splitCollapsible}
@@ -380,13 +377,10 @@ const PlaygroundMainView = ({
                             The notice lives OUTSIDE the scroller, so it sits at the pane's bottom
                             edge regardless of content height or scroll position. */}
                         <div
-                            className={clsx(
-                                "@container/config flex h-full min-h-0 w-full flex-col",
-                                {
-                                    // Config = the raised authoring surface (covers the notice too).
-                                    "ag-panel-raised": isAgentConfig,
-                                },
-                            )}
+                            className={clsx("flex h-full min-h-0 w-full flex-col", {
+                                // Config = the raised authoring surface (covers the notice too).
+                                "ag-panel-raised": isAgentConfig,
+                            })}
                         >
                             <section
                                 ref={setConfigPanelRef}
