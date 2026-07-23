@@ -368,7 +368,9 @@ const PlaygroundMainView = ({
                         size={configCollapsed ? 0 : undefined}
                         min="20%"
                         max={configMaxSize}
-                        className="!h-full"
+                        // antd panels default to overflow:auto; the section inside owns scrolling, and
+                        // a transient overflow leaves Chrome's thin panel scrollbar stuck full-height.
+                        className="!h-full !overflow-hidden"
                         collapsible={splitCollapsible}
                         key={`${splitterKey}-splitter-panel-config`}
                     >
@@ -450,6 +452,8 @@ const PlaygroundMainView = ({
                     <SplitterPanel
                         className={clsx("!h-full @container min-w-0", {
                             "!overflow-y-hidden flex flex-col": isComparisonView,
+                            // Same stuck-scrollbar guard as the config panel (chat section scrolls itself).
+                            "!overflow-hidden": !isComparisonView,
                         })}
                         collapsible={splitCollapsible}
                         defaultSize={runsDefaultSize}
