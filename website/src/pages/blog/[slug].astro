@@ -13,7 +13,7 @@ export const getStaticPaths = (async () => {
 }) satisfies GetStaticPaths;
 
 const { post } = Astro.props;
-const { title, description, category, date, heroImage, ogImage, readingTime } =
+const { title, description, date, heroImage, ogImage, readingTime } =
   post.data;
 
 // Resolve every contributor (primary first, then co-authors) for the byline.
@@ -87,8 +87,8 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
   <article style={`background:#0E0D0F;${sectionBorder}padding:0 0 24px;`}>
     <!-- header -->
     <div
-      class="ag-pad"
-      style="max-width:760px;margin:0 auto;padding:56px 24px 36px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:20px;"
+      class="ag-pad ag-post-head"
+      style="max-width:760px;margin:0 auto;padding:56px 24px 44px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:20px;"
     >
       <a
         href="/blog"
@@ -103,10 +103,6 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
             stroke-linejoin="round"></path></svg
         >All blogs
       </a>
-      <span
-        style="display:inline-flex;align-items:center;height:24px;padding:0 13px;border-radius:999px;background:rgba(242,242,92,0.12);box-shadow:inset 0 0 0 1px rgba(242,242,92,0.3);font:var(--text-caption);letter-spacing:0.04em;color:var(--yellow-400);"
-        >{category}</span
-      >
       <h1
         class="ag-h1"
         style="margin:0;font:300 52px/1.08 var(--font-display);color:#F7F6F4;text-wrap:pretty;"
@@ -114,63 +110,61 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
         {title}
       </h1>
       <p
-        style="margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.6);max-width:600px;text-wrap:pretty;"
+        style="margin:0;font:400 19px/1.5 var(--font-sans);letter-spacing:-0.011em;color:rgba(255,255,255,0.62);max-width:600px;text-wrap:pretty;"
       >
         {description}
       </p>
 
-      <!-- byline: stacked avatars · author name(s) · role · date · reading time -->
+      <!-- date · reading time: quiet single line directly below the subtitle -->
+      <div
+        style="display:flex;align-items:center;justify-content:center;gap:9px;margin-top:-8px;font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.45);"
+      >
+        <span>{dateLabel}</span>
+        {readingTime && (
+          <>
+            <span style="width:3px;height:3px;border-radius:50%;background:rgba(255,255,255,0.3);" />
+            <span>{readingTime}</span>
+          </>
+        )}
+      </div>
+
+      <!-- byline: stacked avatars · author name(s), vertically centered -->
       {
         primaryAuthor && (
           <div
             class="ag-author"
-            style="display:flex;align-items:center;justify-content:center;gap:14px;margin-top:4px;"
+            style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:4px;"
           >
             <div style="flex:0 0 auto;display:flex;align-items:center;">
               {authors.map((a, i) => (
                 <a
                   href={`/authors/${a.id}`}
                   aria-label={a.data.name}
-                  style={`display:block;${i > 0 ? "margin-left:-14px;" : ""}`}
+                  style={`display:block;${i > 0 ? "margin-left:-12px;" : ""}`}
                 >
                   <img
                     src={a.data.avatar}
                     alt={a.data.name}
-                    width="56"
-                    height="56"
-                    style="display:block;width:56px;height:56px;border-radius:50%;object-fit:cover;box-shadow:inset 0 0 0 2px #0E0D0F,inset 0 0 0 3px rgba(255,255,255,0.1);"
+                    width="40"
+                    height="40"
+                    style="display:block;width:40px;height:40px;border-radius:50%;object-fit:cover;box-shadow:inset 0 0 0 2px #0E0D0F,inset 0 0 0 3px rgba(255,255,255,0.1);"
                   />
                 </a>
               ))}
             </div>
-            <div style="display:flex;flex-direction:column;gap:3px;text-align:left;">
-              <span style="font:var(--text-label);color:#F7F6F4;">
-                {authors.map((a, i) => (
-                  <>
-                    {i > 0 && <span style="color:rgba(255,255,255,0.45);"> & </span>}
-                    <a
-                      href={`/authors/${a.id}`}
-                      style="color:#F7F6F4;text-decoration:none;"
-                    >
-                      {a.data.name}
-                    </a>
-                  </>
-                ))}
-              </span>
-              <div
-                style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.45);"
-              >
-                <span>{primaryAuthor.data.role}</span>
-                <span style="width:3px;height:3px;border-radius:50%;background:rgba(255,255,255,0.3);" />
-                <span>{dateLabel}</span>
-                {readingTime && (
-                  <>
-                    <span style="width:3px;height:3px;border-radius:50%;background:rgba(255,255,255,0.3);" />
-                    <span>{readingTime}</span>
-                  </>
-                )}
-              </div>
-            </div>
+            <span style="font:var(--text-label);color:#F7F6F4;">
+              {authors.map((a, i) => (
+                <>
+                  {i > 0 && <span style="color:rgba(255,255,255,0.45);"> & </span>}
+                  <a
+                    href={`/authors/${a.id}`}
+                    style="color:#F7F6F4;text-decoration:none;"
+                  >
+                    {a.data.name}
+                  </a>
+                </>
+              ))}
+            </span>
           </div>
         )
       }
@@ -200,7 +194,7 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
 
     <!-- body -->
     <div
-      class="ag-prose ag-pad"
+      class="ag-prose ag-pad ag-post-body"
       style="max-width:720px;margin:0 auto;padding:48px 24px 8px;"
     >
       <Content components={{ InlineCTA, img: BlogImage }} />
@@ -266,6 +260,14 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
       .ag-pad {
         padding-left: 20px !important;
         padding-right: 20px !important;
+      }
+      /* Hero image breathes proportionally less on phones. */
+      .ag-post-head {
+        padding-top: 44px !important;
+        padding-bottom: 30px !important;
+      }
+      .ag-post-body {
+        padding-top: 32px !important;
       }
     }
   </style>
