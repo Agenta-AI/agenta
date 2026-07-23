@@ -689,7 +689,8 @@ export const computeMetricDistribution = (
         computed = agg[tmpKey]
     }
     if (!computed?.distribution || !computed.distribution.length) {
-        return computed
+        // typed as-is: this path has always returned the raw stats (no distribution/binSize)
+        return computed as MetricDistribution | undefined
     }
     let binSize = computed.binSize
     if (binSize === undefined) {

@@ -143,7 +143,10 @@ const _projectBelongsToWorkspace = (project: ProjectsResponse, workspaceId: stri
     return false
 }
 
-const projectMatchesWorkspace = (project: ProjectsResponse, workspaceId: string) => {
+const projectMatchesWorkspace = (
+    project: ProjectsResponse,
+    workspaceId: string | null | undefined,
+) => {
     if (!workspaceId) return false
     if (project.workspace_id && project.workspace_id === workspaceId) return true
     if (project.organization_id && project.organization_id === workspaceId) return true

@@ -24,7 +24,7 @@ const arraysEqual = (a?: string[] | null, b?: string[] | null) => {
     return true
 }
 
-const toPatchValue = (value: QueryValue): string | string[] | undefined => {
+const toPatchValue = (value: QueryValue | null): string | string[] | undefined => {
     if (value === null || value === undefined) return undefined
     if (Array.isArray(value)) return value
     return String(value)
@@ -110,7 +110,8 @@ export const useQueryParamState = (
 ): readonly [
     QueryValue,
     (
-        value: QueryValue | ((prev: QueryValue) => QueryValue),
+        // `null` clears the param (toPatchValue maps it to undefined)
+        value: QueryValue | null | ((prev: QueryValue) => QueryValue | null),
         options?: QueryNavigationOptions,
     ) => void,
 ] => {
@@ -122,7 +123,7 @@ export const useQueryParamState = (
 
     const setValue = useCallback(
         (
-            value: QueryValue | ((prev: QueryValue) => QueryValue),
+            value: QueryValue | null | ((prev: QueryValue) => QueryValue | null),
             options?: QueryNavigationOptions,
         ) => {
             const resolved = typeof value === "function" ? (value as any)(currentValue) : value

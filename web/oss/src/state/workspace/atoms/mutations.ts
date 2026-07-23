@@ -23,7 +23,8 @@ export const updateWorkspaceNameAtom = atomWithMutation<
         // Update both workspace and organization in parallel
         await Promise.all([
             updateWorkspace({organizationId, workspaceId, name}),
-            updateOrganization(organizationId, name),
+            // typed as-is (latent bug): sends the bare name string, not {name}, as the PATCH body
+            updateOrganization(organizationId, name as unknown as {name: string}),
         ])
     },
     onSuccess: (_, {name, organizationId}) => {

@@ -196,7 +196,7 @@ export const verifyOrganizationDomain = async (domainId: string): Promise<Organi
         },
         {
             _ignoreError: true,
-        },
+        } as any,
     )
     return response.data
 }

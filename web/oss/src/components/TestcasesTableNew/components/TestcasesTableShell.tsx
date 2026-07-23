@@ -18,6 +18,7 @@ import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
+import type {ExtendedColumnType} from "@/oss/components/InfiniteVirtualTable"
 import {extractTestcaseUserData, testcaseEntityAtomFamily} from "@/oss/state/entities/testcase"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
 import {objectColumnSubKeysAtom} from "@/oss/state/entities/testcase/columnState"
@@ -670,7 +671,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         }
 
         // Custom actions column with Add Column button in header
-        const actionsColumn: ColumnsType<TestcaseTableRow> = [
+        const actionsColumn: ExtendedColumnType<TestcaseTableRow>[] = [
             {
                 title: (
                     <div className="flex items-center gap-1 justify-end">
@@ -694,8 +695,8 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                 width: 56,
                 fixed: "right",
                 align: "center",
-                columnVisibilityLocked: true as any,
-                exportEnabled: false as any, // Exclude from client-side CSV export
+                columnVisibilityLocked: true,
+                exportEnabled: false, // Exclude from client-side CSV export
                 onCell: () => ({className: "ag-table-actions-cell"}),
                 render: (_, record) => {
                     if (record.__isSkeleton || isShowingSkeleton) return null

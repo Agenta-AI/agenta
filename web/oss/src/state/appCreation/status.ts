@@ -52,7 +52,8 @@ const messagesAtom = atomWithImmer<Record<string, AppCreationMessage>>({})
 
 export type AppCreationMessagesUpdate =
     | Record<string, AppCreationMessage>
-    | ((prev: Record<string, AppCreationMessage>) => Record<string, AppCreationMessage>)
+    // updater may mutate the immer draft in place (void) or return the next record
+    | ((prev: Record<string, AppCreationMessage>) => Record<string, AppCreationMessage> | void)
 
 export const appCreationMessagesAtom = atom(
     (get) => get(messagesAtom),

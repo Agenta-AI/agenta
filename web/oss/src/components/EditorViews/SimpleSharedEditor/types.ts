@@ -15,7 +15,13 @@ export interface SimpleSharedEditorProps extends SharedEditorProps {
     formatDropdownProps?: DropdownProps
     copyButtonProps?: EnhancedButtonProps
     minimizeButtonProps?: EnhancedButtonProps
-    disableFormatItems?: {text?: boolean; markdown?: boolean; json?: boolean; yaml?: boolean}
+    disableFormatItems?: {
+        text?: boolean
+        markdown?: boolean
+        json?: boolean
+        yaml?: boolean
+        html?: boolean
+    }
     minimizedHeight?: number
     showTextToMdOutside?: boolean
     defaultMinimized?: boolean

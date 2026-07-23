@@ -69,7 +69,7 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
                 }
 
                 if (project) {
-                    finalWorkspaceId = project.workspace_id
+                    finalWorkspaceId = project.workspace_id ?? ""
                 }
             } catch (e) {
                 console.error("Failed to fetch projects manually", e)

@@ -156,6 +156,7 @@ export const WebhookLogsTab = ({subscriptionId}: {subscriptionId: string}) => {
                     <div className="flex h-full min-h-0 flex-1 overflow-hidden p-3">
                         <SimpleSharedEditor
                             headerName="Delivery JSON"
+                            initialValue={deliveryJson}
                             value={deliveryJson}
                             disabled
                             isJSON

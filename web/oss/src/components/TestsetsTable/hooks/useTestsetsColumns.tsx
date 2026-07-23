@@ -111,7 +111,8 @@ export const useTestsetsColumns = ({
                                         icon: <Copy size={16} />,
                                         onClick: (e) => {
                                             e.domEvent.stopPropagation()
-                                            copyToClipboard(record._id)
+                                            // Latent bug kept as-is: `_id` is not a typed TestsetTableRow field (row id is `id`)
+                                            copyToClipboard(String(record._id ?? ""))
                                         },
                                     },
                                     ...(record.slug
