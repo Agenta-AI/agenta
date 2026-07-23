@@ -39,7 +39,7 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@vitest/coverage-v8": "^4.1.4",
-    "esbuild": "0.23.1",
+    "esbuild": "0.28.1",
     "tsx": "4.19.2",
     "typescript": "^5.9.3",
     "vitest": "^4.1.4"
