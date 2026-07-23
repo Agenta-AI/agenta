@@ -47,6 +47,7 @@ export const evaluationRunStepReferenceSchema = z.object({
     slug: z.string().nullable().optional(),
     version: z.coerce.number().nullable().optional(),
 })
+export type EvaluationRunStepReference = z.infer<typeof evaluationRunStepReferenceSchema>
 
 export const evaluationRunDataStepSchema = z.object({
     key: z.string(),
