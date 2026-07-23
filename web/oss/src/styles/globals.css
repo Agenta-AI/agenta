@@ -937,16 +937,15 @@ body {
     background-color: var(--ag-scroll-thumb-hover);
 }
 
-/* Full-bleed rows inside a quiet scroller. Sticky headers must span the panel edge to edge,
-   but the reserved gutter cuts them short, so let the scroller's children stretch across it
-   and have the thumb overlay them. The gutter width is measured (it is platform-dependent,
-   and zero on overlay-scrollbar systems) and published as --ag-scroll-gutter by
-   useScrollbarGutterVar. */
-.ag-scroll-bleed {
-    overflow-x: hidden;
+/* Scrollers whose sticky headers have to reach the panel edge. A reserved gutter would cut
+   every header short by the scrollbar's width, and the content box is the only place the
+   browser will paint, so this panel keeps no scrollbar at all: full-width rows, and no shift
+   when the content grows past the viewport. */
+.ag-scroll-no-bar {
+    scrollbar-width: none;
 }
 
-.ag-scroll-bleed > * {
-    width: calc(100% + var(--ag-scroll-gutter, 0px));
-    margin-inline-end: calc(-1 * var(--ag-scroll-gutter, 0px));
+.ag-scroll-no-bar::-webkit-scrollbar {
+    width: 0;
+    height: 0;
 }

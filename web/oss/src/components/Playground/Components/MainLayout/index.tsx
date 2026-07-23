@@ -22,7 +22,6 @@ import {chatPanelMaximizedAtom} from "@/oss/components/AgentChatSlice/state/pane
 // Direct file import — the SessionInspector barrel would statically pull the (dynamic,
 // open-on-demand) inspector drawer back into this chunk.
 import PanelSessionInspectorButton from "@/oss/components/SessionInspector/PanelSessionInspectorButton"
-import {useScrollbarGutterVar} from "@/oss/hooks/useScrollbarGutterVar"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
@@ -269,10 +268,9 @@ const PlaygroundMainView = ({
     const animateSplit = justToggled || holdAnimate
 
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])
-    const {configPanelRef, setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
+    const {setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
         enabled: isComparisonView,
     })
-    useScrollbarGutterVar(configPanelRef)
 
     const handleAddRunnable = useCallback(async () => {
         const selection = await openEntitySelector({
@@ -386,7 +384,7 @@ const PlaygroundMainView = ({
                                 ref={setConfigPanelRef}
                                 className={clsx([
                                     {
-                                        "ag-scroll-quiet ag-scroll-bleed grow w-full min-h-0 overflow-y-auto":
+                                        "ag-scroll-no-bar grow w-full min-h-0 overflow-y-auto":
                                             !isComparisonView,
                                         "grow w-full min-h-0 overflow-x-auto flex [&::-webkit-scrollbar]:w-0":
                                             isComparisonView,
