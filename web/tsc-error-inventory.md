@@ -5,10 +5,10 @@ Generated 2026-07-22 from `pnpm --filter @agenta/oss exec tsc --noEmit` and
 
 ## Headline numbers
 
-| App | Baseline | Quick wins | EvalRunDetails pass | Parallel area pass (final 2026-07-22) |
-| --- | --- | --- | --- | --- |
-| OSS | 591 | 422 | 347 | **105** |
-| EE  | 525 | 391 | — | **115** |
+| App | Baseline | Quick wins | EvalRunDetails | Area pass | Wave 1 | Wave 2 (final 2026-07-24) |
+| --- | --- | --- | --- | --- | --- | --- |
+| OSS | 591 | 422 | 347 | 105 | 82 | **0** |
+| EE  | 525 | 391 | — | 115 | — | **0** |
 
 ## Final-tail inventory (105 OSS + 11 EE-only) — wave plan for parallel agents
 
