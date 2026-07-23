@@ -6,7 +6,7 @@ import {queryClientAtom} from "jotai-tanstack-query"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-import {uploadMountFile} from "./driveMedia"
+import {SIMULATE_UPLOAD, uploadMountFile} from "./driveMedia"
 
 /**
  * Uploads files INTO a mount from the Files drawer (writing to the agent's working files), with
@@ -26,11 +26,14 @@ export interface MountUploadItem {
     /** Stable file identity (see fileKey) — lets a host reconcile staged files against in-flight ones. */
     key: string
     name: string
+    size: number
     percent: number
     /** Failure message, or null while pending. */
     error: string | null
-    /** Mount-relative destination folder, so a view can show the item inline in that folder. */
+    /** Mount-relative destination folder (transport). */
     destFolder: string
+    /** Drive-root-relative destination folder ("" = root) — where the item slots into the tree/grid. */
+    presentedFolder: string
     /** The file's media type, for the optimistic tile's icon/thumbnail. */
     mediaType: string
     /** Object URL for an in-flight image, so the optimistic tile can preview it. Revoked on settle. */
@@ -40,8 +43,10 @@ export interface MountUploadItem {
 /** Where an upload lands: the resolved mount (cwd or the folded agent-files mount) + folder. */
 export interface MountUploadTarget {
     mount: Mount
-    /** Mount-relative folder ("" = root). */
+    /** Mount-relative folder ("" = root) — the transport path. */
     destFolder: string
+    /** Drive-root-relative folder the user chose — for placing the item in the tree/grid. */
+    presentedFolder: string
 }
 
 export interface MountUpload {
@@ -92,6 +97,13 @@ export function useMountUpload(): MountUpload {
                 .then(() => {
                     if (controller.signal.aborted) return
                     controllers.current.delete(id)
+                    // TEMP(test): with the transport stubbed no real file arrives from a refetch, so
+                    // removing the optimistic tile just made the drop "disappear". Keep it as a done
+                    // tile instead. Remove with the SIMULATE_UPLOAD stub.
+                    if (SIMULATE_UPLOAD) {
+                        patch(id, {percent: 100})
+                        return
+                    }
                     sources.current.delete(id)
                     setItems((prev) => {
                         prev.find((it) => it.id === id)?.previewUrl &&
@@ -126,9 +138,11 @@ export function useMountUpload(): MountUpload {
                     id,
                     key: fileKey(file),
                     name: file.name,
+                    size: file.size,
                     percent: 0,
                     error: null,
                     destFolder: target.destFolder,
+                    presentedFolder: target.presentedFolder,
                     mediaType: file.type || "",
                     previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
                 })
