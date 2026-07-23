@@ -1713,15 +1713,22 @@ const AgentConversation = ({
     const composerDisabled = onboardingActive ? ideHandoffActive : modelBlocked
     const attachmentsBlocked = () => voiceRecorder.active || composerDisabled
 
+    // The panel is ALWAYS a drop target for file drags — preventDefault on enter/over/drop even when
+    // blocked. Otherwise the browser's default action for a file drop is to navigate to it, which
+    // unloads the SPA and discards the whole conversation. Whether we ACCEPT the files is signalled
+    // separately (the overlay + the drop cursor), not by declining to be a drop target.
     const onDragEnter = (e: React.DragEvent) => {
-        if (attachmentsBlocked()) return
         if (!isFileDrag(e)) return
+        e.preventDefault()
+        if (attachmentsBlocked()) return
         dragDepthRef.current += 1
         setIsDragging(true)
     }
     const onDragOver = (e: React.DragEvent) => {
-        // Only claim the drop when we would actually take it, so the cursor stays honest.
-        if (!attachmentsBlocked() && isFileDrag(e)) e.preventDefault()
+        if (!isFileDrag(e)) return
+        e.preventDefault()
+        // Honest cursor: "no drop" while blocked — but we stay a target so the drop is still swallowed.
+        e.dataTransfer.dropEffect = attachmentsBlocked() ? "none" : "copy"
     }
     const onDragLeave = (e: React.DragEvent) => {
         if (!isFileDrag(e)) return
@@ -1732,11 +1739,11 @@ const AgentConversation = ({
         }
     }
     const onDrop = (e: React.DragEvent) => {
-        if (attachmentsBlocked()) return
         if (!isFileDrag(e)) return
         e.preventDefault()
         dragDepthRef.current = 0
         setIsDragging(false)
+        if (attachmentsBlocked()) return
 
         // A dropped folder still arrives in `files` — as a typeless, zero-byte entry that the
         // guardrails would reject as "not a supported file type", which is misleading. Name it.
