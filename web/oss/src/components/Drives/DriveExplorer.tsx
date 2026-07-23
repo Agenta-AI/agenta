@@ -762,11 +762,13 @@ const UploadTile = ({
                             </button>
                         ) : null}
                         {onDismiss ? (
+                            // Always visible on failure (not hover-gated) — a failed item needs a clear
+                            // way to remove it.
                             <button
                                 type="button"
                                 aria-label="Dismiss"
                                 onClick={() => onDismiss(item.id)}
-                                className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.5)] text-white opacity-0 transition-opacity hover:bg-[rgba(0,0,0,0.7)] group-hover:opacity-100"
+                                className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.5)] text-white transition-colors hover:bg-[rgba(0,0,0,0.7)]"
                             >
                                 <X size={11} weight="bold" />
                             </button>
