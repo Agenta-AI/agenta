@@ -127,7 +127,9 @@ interface PreviewEvaluationsQueryState {
     error: unknown
 }
 import {searchQueryAtom} from "./states/queryFilterAtoms"
-import {EnrichedEvaluationRun, EvaluationRun} from "./types"
+import type {EvaluationRun} from "@agenta/entities/evaluationRun"
+
+import {EnrichedEvaluationRun} from "./types"
 
 const SCENARIOS_ENDPOINT = "/evaluations/scenarios/"
 
