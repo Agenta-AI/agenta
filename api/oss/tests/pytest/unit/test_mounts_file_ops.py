@@ -12,12 +12,17 @@ SeaweedFS coverage lands in the acceptance suite against the docker-compose
 stack.
 """
 
+import io
+import zipfile
 from typing import List, Tuple
 from uuid import UUID, uuid4
 
 import pytest
 
-from oss.src.apis.fastapi.mounts.utils import _content_disposition_attachment
+from oss.src.apis.fastapi.mounts.utils import (
+    _content_disposition_attachment,
+    stream_mounts_archive,
+)
 from oss.src.core.mounts import service as mounts_service_module
 from oss.src.core.mounts.dtos import Mount, MountArchiveSource, MountFile
 from oss.src.core.mounts.service import (
@@ -195,11 +200,17 @@ class FakeMountStorage:
     def __init__(self):
         # {bucket: {key: bytes}}
         self._store: dict[str, dict[str, bytes]] = {}
+        # {bucket: {key: epoch-ms}}; opt-in, only set where a test needs a realistic mtime.
+        self._mtimes: dict[str, dict[str, int]] = {}
+
+    def set_mtime(self, bucket: str, key: str, mtime: int) -> None:
+        self._mtimes.setdefault(bucket, {})[key] = mtime
 
     async def list_objects_v2(self, *, bucket: str, prefix: str) -> List[StoreObject]:
         b = self._store.get(bucket, {})
+        m = self._mtimes.get(bucket, {})
         return [
-            StoreObject(key=k, size=len(v))
+            StoreObject(key=k, size=len(v), mtime=m.get(k))
             for k, v in b.items()
             if k.startswith(prefix)
         ]
@@ -375,6 +386,47 @@ class TestArchiveZipSlip:
 
         zip_paths = [zip_path for zip_path, *_rest in work]
         assert zip_paths == ["a/report.txt"]
+
+
+@pytest.mark.asyncio
+class TestArchiveMtimeRegression:
+    async def test_export_survives_epoch_millisecond_mtime(self):
+        # Pins the bug fixed in #5400/#5411: StoreObject.mtime is epoch MILLISECONDS, but
+        # stream_mounts_archive builds a zip member's `datetime` from it. Without dividing by
+        # 1000 first, a realistic ms-scale value overflows datetime.fromtimestamp mid-stream —
+        # AFTER the 200 response headers are already on the wire — truncating the download to a
+        # broken/empty zip while the client still sees a success status.
+        mount = _make_mount()
+        storage = FakeMountStorage()
+        service = MountsService(
+            mounts_dao=_StubDAO(mount),
+            mounts_store=storage,
+            bucket=_BUCKET,
+        )
+        pid, mid = mount.project_id, mount.id
+
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="report.txt", content=b"hello world"
+        )
+        key = f"mounts/{pid}/{mid}/report.txt"
+        storage.set_mtime(
+            _BUCKET, key, 1_700_000_000_000
+        )  # realistic epoch-ms LastModified
+
+        response = await stream_mounts_archive(
+            mounts_service=service,
+            project_id=pid,
+            mounts=[MountArchiveSource(mount_id=mid)],
+        )
+
+        zip_bytes = b"".join(
+            [chunk async for chunk in response.body_iterator]  # type: ignore[union-attr]
+        )
+
+        assert len(zip_bytes) > 0
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+            assert zf.namelist() == ["report.txt"]
+            assert zf.read("report.txt") == b"hello world"
 
 
 # ---------------------------------------------------------------------------
