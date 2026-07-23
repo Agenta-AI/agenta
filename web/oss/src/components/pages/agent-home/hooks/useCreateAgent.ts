@@ -59,7 +59,7 @@ export function useCreateAgent() {
             onCommitted,
             autoSendSeed,
         }: CreateAgentParams = {}) => {
-            if (inFlightRef.current) return
+            if (inFlightRef.current) return false
             inFlightRef.current = true
             try {
                 const agentName = name?.trim() || "New agent"
@@ -71,7 +71,7 @@ export function useCreateAgent() {
                     }))
                 if (!ephemeralId) {
                     message.error("Couldn't start agent creation — please retry")
-                    return
+                    return false
                 }
 
                 // Slug must be unique per project — the drawer used to collect a user-typed name, so
@@ -87,7 +87,7 @@ export function useCreateAgent() {
                 })
                 if (!result.success) {
                     message.error(extractApiErrorMessage(result.error))
-                    return
+                    return false
                 }
 
                 const appId = result.workflow?.workflow_id ?? result.workflow?.id
@@ -96,7 +96,7 @@ export function useCreateAgent() {
                     message.error(
                         "Agent created, but couldn't open its playground — find it under Agents",
                     )
-                    return
+                    return false
                 }
 
                 if (seedMessage?.trim()) {
@@ -113,8 +113,10 @@ export function useCreateAgent() {
                 } else {
                     void router.push(`${baseAppURL}/${appId}/playground?revisions=${revisionId}`)
                 }
+                return true
             } catch (error) {
                 message.error(extractApiErrorMessage(error))
+                return false
             } finally {
                 inFlightRef.current = false
             }
