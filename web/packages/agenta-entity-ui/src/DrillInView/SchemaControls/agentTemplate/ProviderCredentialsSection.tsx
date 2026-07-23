@@ -547,7 +547,7 @@ export function ProviderCredentialsSection({
     // below. Suits the narrow inline column, where a side rail leaves the key form cramped. Reuses
     // the shared `activeKey`/`setManualKey`/`providerDetail` so selection stays consistent.
     const topRail = (
-        <div className="overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)]">
+        <div className="min-w-0 overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)]">
             <div className="flex items-center gap-1.5 overflow-x-auto border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] p-2.5 [scrollbar-width:thin] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--ag-colorFillSecondary)] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:h-1.5">
                 {visibleStandardSecrets.map((secret) => (
                     <RailChip
@@ -615,7 +615,7 @@ export function ProviderCredentialsSection({
     // section owns those.
     if (bare) {
         return (
-            <div className="flex flex-col gap-3">
+            <div className="flex min-w-0 flex-col gap-3">
                 {/* Header: model picker takes the remaining width, mode toggle sits right. */}
                 {modelControl || toggle ? (
                     <div className="flex items-center gap-3">
