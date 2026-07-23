@@ -1,4 +1,3 @@
-import type {TraceSpanNode as EntityTraceSpanNode} from "@agenta/entities/trace"
 import type {OpenFromTraceResult} from "@agenta/playground"
 import {playgroundController} from "@agenta/playground"
 import {atom} from "jotai"
@@ -19,11 +18,6 @@ export type {OpenFromTraceResult}
 export const openTraceInPlaygroundAtom = atom(
     null,
     async (_get, set, activeSpan: TraceSpanNode): Promise<OpenFromTraceResult> => {
-        // OSS TraceSpanNode is the same backend span shape as the entities-package type
-        // the controller expects; align at the boundary, no data is converted.
-        return set(
-            playgroundController.actions.openFromTrace,
-            activeSpan as unknown as EntityTraceSpanNode,
-        )
+        return set(playgroundController.actions.openFromTrace, activeSpan)
     },
 )

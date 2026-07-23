@@ -3,11 +3,12 @@ import {
     traceEntityAtomFamily,
     transformTracesResponseToTree,
 } from "@agenta/entities/trace"
+import type {TracesResponse} from "@agenta/entities/trace"
 import {uuidToTraceId} from "@agenta/shared/utils"
 import {atomFamily, selectAtom} from "jotai/utils"
 
 import type {TraceData, TraceNode, TraceTree} from "@/oss/lib/evaluations"
-import type {TraceSpanNode, TracesResponse} from "@/oss/services/tracing/types"
+import type {TraceSpanNode} from "@/oss/services/tracing/types"
 
 import {resolveInvocationTraceValue} from "../utils/traceValue"
 
@@ -160,22 +161,14 @@ const buildTraceDataFromEntry = (
         },
     }
 
-    // OSS TracesResponse is the same backend payload shape the entities-package
-    // transform expects; align at the boundary, no data is converted.
-    const spanNodes = transformTracesResponseToTree(
-        scopedResponse as unknown as Parameters<typeof transformTracesResponseToTree>[0],
-    )
+    const spanNodes = transformTracesResponseToTree(scopedResponse)
     if (!spanNodes.length) return null
 
     const flat: TraceNode[] = []
     spanNodes.forEach((span) => {
         const inferredTraceId =
             span.trace_id ?? traceId ?? (span.span_id ? `${span.span_id}-trace` : "trace")
-        // `transformTracesResponseToTree` yields the entities-package TraceSpanNode, while
-        // `convertSpanNodeToTraceNode` is written against the structurally-equivalent OSS
-        // TraceSpanNode (same backend span shape). Align the annotation at the boundary; no
-        // data is converted.
-        convertSpanNodeToTraceNode(span as unknown as TraceSpanNode, inferredTraceId, flat)
+        convertSpanNodeToTraceNode(span, inferredTraceId, flat)
     })
 
     const treeEntry: TraceTree = {

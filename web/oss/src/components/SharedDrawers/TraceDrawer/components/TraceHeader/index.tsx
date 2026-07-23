@@ -188,20 +188,12 @@ const TraceHeader = ({
                 })
                 let candidates: TraceSpanNode[] = []
 
-                // entities-package TraceSpanNode is the same backend span shape as the
-                // OSS type; align the annotation at the boundary, no data is converted.
                 if (isTracesResponse(response)) {
-                    candidates = transformTracingResponse(
-                        transformTracesResponseToTree(response),
-                    ) as unknown as TraceSpanNode[]
+                    candidates = transformTracingResponse(transformTracesResponseToTree(response))
                 } else if (isSpansResponse(response)) {
-                    candidates = transformTracingResponse(
-                        response.spans,
-                    ) as unknown as TraceSpanNode[]
+                    candidates = transformTracingResponse(response.spans)
                 } else if (Array.isArray((response as any)?.spans)) {
-                    candidates = transformTracingResponse(
-                        (response as any).spans,
-                    ) as unknown as TraceSpanNode[]
+                    candidates = transformTracingResponse((response as any).spans)
                 }
 
                 if (!candidates.length) return null

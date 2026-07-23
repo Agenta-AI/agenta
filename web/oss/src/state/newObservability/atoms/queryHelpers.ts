@@ -364,16 +364,10 @@ export const executeTraceQuery = async ({
 
     // transform to tree
     const transformed: TraceSpanNode[] = []
-    // entities-package TraceSpanNode is the same backend span shape as the OSS type;
-    // align the annotation at the boundary, no data is converted.
     if (isTracesResponse(data)) {
-        transformed.push(
-            ...(transformTracingResponse(
-                transformTracesResponseToTree(data),
-            ) as unknown as TraceSpanNode[]),
-        )
+        transformed.push(...transformTracingResponse(transformTracesResponseToTree(data)))
     } else if (isSpansResponse(data)) {
-        transformed.push(...(transformTracingResponse(data.spans) as unknown as TraceSpanNode[]))
+        transformed.push(...transformTracingResponse(data.spans))
     }
 
     // cursor

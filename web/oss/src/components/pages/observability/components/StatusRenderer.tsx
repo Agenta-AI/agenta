@@ -1,11 +1,10 @@
+import type {StatusCode} from "@agenta/entities/trace"
 import {CheckCircleOutlined, CloseCircleOutlined, InfoCircleOutlined} from "@ant-design/icons"
 import {Space, Tag, TagProps, Tooltip} from "antd"
 
-import {StatusCode} from "@/oss/services/tracing/types"
-
 export const statusMapper = (status: StatusCode) => {
     switch (status) {
-        case StatusCode.STATUS_CODE_ERROR:
+        case "STATUS_CODE_ERROR":
             return {
                 label: "failure",
                 color: "error",
@@ -26,13 +25,13 @@ const StatusRenderer = ({
     showMore = false,
     tagProps,
 }: {
-    status?: StatusCode
-    message?: string
+    status?: StatusCode | null
+    message?: string | null
     showMore?: boolean
     tagProps?: TagProps
 }) => {
-    const {label, color, icon} = statusMapper(status || StatusCode.STATUS_CODE_UNSET)
-    const errorMsg = status === StatusCode.STATUS_CODE_ERROR ? message : null
+    const {label, color, icon} = statusMapper(status || "STATUS_CODE_UNSET")
+    const errorMsg = status === "STATUS_CODE_ERROR" ? message : null
 
     const {bordered, variant, ...restTagProps} = tagProps || {}
     const resolvedVariant = variant ?? (bordered === false ? "filled" : undefined)
