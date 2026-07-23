@@ -28,6 +28,9 @@ const AudioPlayer = ({src, name, className}: {src: string; name: string; classNa
     useEffect(() => {
         const el = audioRef.current
         if (!el) return
+        // A new source voids any probe from the previous one. Without this reset, a src swap mid-probe
+        // leaves probingRef stuck true, which gates off onTimeUpdate below and freezes the timer.
+        probingRef.current = false
 
         const onPlay = () => setPlaying(true)
         const onPause = () => setPlaying(false)
