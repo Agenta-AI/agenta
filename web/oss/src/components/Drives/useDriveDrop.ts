@@ -149,3 +149,42 @@ export function useDriveDrop({
 
     return {dragging, hoverPath, folderDropProps, containerDropProps}
 }
+
+/** Handler props for a drop target — the shape both drop hooks hand to a host element. */
+export type FileDropProps = Pick<
+    React.HTMLAttributes<HTMLElement>,
+    "onDragOver" | "onDragLeave" | "onDrop"
+>
+
+/**
+ * Drop-to-STAGE: the lighter sibling of {@link useDriveDrop} for the recents peeks (chat ContextRail /
+ * config StorageSection), which have no folder of their own. A file drag anywhere over the target
+ * highlights it, and a drop hands the files to `onFiles` (which stages them + opens the drawer where a
+ * destination is chosen). Pass a falsy `onFiles` to disable (e.g. no writable mount) — then `dropProps`
+ * is empty and nothing highlights.
+ */
+export function useStageDrop(onFiles: ((files: File[]) => void) | false | null | undefined): {
+    dropActive: boolean
+    dropProps: FileDropProps
+} {
+    const [dropActive, setDropActive] = useState(false)
+    if (!onFiles) return {dropActive: false, dropProps: {}}
+    return {
+        dropActive,
+        dropProps: {
+            onDragOver: (e) => {
+                if (!isFileDrag(e)) return
+                e.preventDefault()
+                setDropActive(true)
+            },
+            onDragLeave: () => setDropActive(false),
+            onDrop: (e) => {
+                if (!isFileDrag(e)) return
+                e.preventDefault()
+                setDropActive(false)
+                const files = Array.from(e.dataTransfer.files)
+                if (files.length) onFiles(files)
+            },
+        },
+    }
+}

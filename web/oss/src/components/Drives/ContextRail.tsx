@@ -5,8 +5,6 @@
  * fetch). Uses the same elevated dark surface as the build-mode Inspector so the right dock reads
  * as one panel across modes. A file row opens Quick Look; "View all files" opens the Files drawer.
  */
-import {useState} from "react"
-
 import {CircleNotch, FolderOpen, FolderSimple, Sidebar} from "@phosphor-icons/react"
 import {Button, Tag, Tooltip, Typography} from "antd"
 import {useAtom, useSetAtom} from "jotai"
@@ -29,7 +27,7 @@ import {useDriveArtifactId} from "./driveSessionContext"
 import {relativeTime} from "./driveTree"
 import {driveQuickLookAtomFamily} from "./quickLook"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
-import {isFileDrag} from "./useDriveDrop"
+import {type FileDropProps, useStageDrop} from "./useDriveDrop"
 import {driveHasMixedOrigins, useSessionDriveSummary} from "./useSessionDrive"
 
 const {Text} = Typography
@@ -72,27 +70,14 @@ export function ContextRail({
     const [open, setOpen] = useAtom(contextRailOpenAtom)
     // Drop-to-stage: a file drag over the rail (strip or expanded) opens the drawer with the files
     // staged, so the destination is chosen there (recents has no folder of its own).
-    const [dropActive, setDropActive] = useState(false)
-    const stageDropProps = onStageFiles
-        ? {
-              onDragOver: (e: React.DragEvent) => {
-                  if (!isFileDrag(e)) return
-                  e.preventDefault()
-                  setDropActive(true)
-              },
-              onDragLeave: () => setDropActive(false),
-              onDrop: (e: React.DragEvent) => {
-                  if (!isFileDrag(e)) return
-                  e.preventDefault()
-                  setDropActive(false)
-                  const files = Array.from(e.dataTransfer.files)
-                  if (files.length) {
-                      setOpen(true)
-                      onStageFiles(files)
-                  }
-              },
-          }
-        : {}
+    const {dropActive, dropProps: stageDropProps} = useStageDrop(
+        onStageFiles
+            ? (files) => {
+                  setOpen(true)
+                  onStageFiles(files)
+              }
+            : undefined,
+    )
     // A brand-new never-run tab has no server data — hold the queries off until its first run.
     const artifactId = useDriveArtifactId()
     const drive = useSessionDriveSummary(
@@ -196,7 +181,7 @@ const ExpandedRail = ({
     onCollapse: () => void
     onQuickLook: (path: string) => void
     /** Drop-to-stage handlers + highlight, forwarded from ContextRail (shared with the strip). */
-    dropProps?: Pick<React.HTMLAttributes<HTMLElement>, "onDragOver" | "onDragLeave" | "onDrop">
+    dropProps?: FileDropProps
     dropActive?: boolean
 }) => {
     const now = useRecentChangeClock(drive.lastTouchedAt)

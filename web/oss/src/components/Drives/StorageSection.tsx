@@ -8,7 +8,7 @@
  * folder is a subfolder of this working folder, so it needs no separate drive here. Lives in the
  * app layer because it reads the chat slice's session state.
  */
-import {useMemo, useState} from "react"
+import {useMemo} from "react"
 
 import {CircleNotch} from "@phosphor-icons/react"
 import {Typography} from "antd"
@@ -24,7 +24,7 @@ import {FILE_ITEM_VARIANTS, FILE_SPRING} from "./driveMotion"
 import {humanSize, relativeTime} from "./driveTree"
 import {FilesDrawer} from "./FilesDrawer"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
-import {isFileDrag} from "./useDriveDrop"
+import {useStageDrop} from "./useDriveDrop"
 import {driveHasMixedOrigins, type DriveRecentFile} from "./useSessionDrive"
 
 const {Text} = Typography
@@ -83,25 +83,11 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
         setDrawer({open: true, initialPath, staged: []})
     // Drop-to-stage: a file drag over the Files peek opens the drawer with the files staged, so the
     // destination folder is chosen there (this flat peek has no folder of its own).
-    const [dropActive, setDropActive] = useState(false)
-    const canStage = Boolean(drive.mount)
-    const stageDropProps = canStage
-        ? {
-              onDragOver: (e: React.DragEvent) => {
-                  if (!isFileDrag(e)) return
-                  e.preventDefault()
-                  setDropActive(true)
-              },
-              onDragLeave: () => setDropActive(false),
-              onDrop: (e: React.DragEvent) => {
-                  if (!isFileDrag(e)) return
-                  e.preventDefault()
-                  setDropActive(false)
-                  const files = Array.from(e.dataTransfer.files)
-                  if (files.length) setDrawer({open: true, initialPath: null, staged: files})
-              },
-          }
-        : {}
+    const {dropActive, dropProps: stageDropProps} = useStageDrop(
+        drive.mount
+            ? (files) => setDrawer({open: true, initialPath: null, staged: files})
+            : undefined,
+    )
     const copyPath = useCopyDrivePath()
     const download = useDriveItemDownload(drive)
     // Raw ids for the drawer header's overflow menu (the drive id + the session it belongs to).

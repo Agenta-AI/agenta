@@ -717,8 +717,96 @@ export const FolderTile = ({node, onOpen}: {node: DriveTreeNode; onOpen: () => v
     )
 }
 
-/** An in-flight upload as a grid tile — same 4:3 shape as a file tile, with a progress bar (image
- * preview when available) or a retry on failure. */
+/** The ONE grid tile for a pending item (staged or in-flight upload) — a real-file-tile look with a
+ * subtle primary tint. `UploadTile`/`StagedTile` are thin adapters that map their item to this. */
+type PendingTileState = "staged" | "uploading" | "error" | "done"
+
+const PendingTile = ({
+    name,
+    previewUrl,
+    state,
+    percent = 0,
+    caption,
+    captionTone = "muted",
+    onRetry,
+    onRemove,
+}: {
+    name: string
+    previewUrl: string | null
+    state: PendingTileState
+    percent?: number
+    caption: string
+    captionTone?: "muted" | "error"
+    /** Retry action — error state only (a centered pill over the dimmed thumb). */
+    onRetry?: () => void
+    /** Remove/dismiss — a corner ✕: hover-revealed while staged, always visible on error. */
+    onRemove?: () => void
+}) => (
+    // box-border is REQUIRED: the real file tiles are <button>s (border-box by UA default even with
+    // preflight off), but this is a <div> (content-box) — without it the padding+border widen the box
+    // past the cell and pb-[75%] computes a taller thumb, overflowing the grid's snapped row. Caption
+    // is PLAIN text (a <button> wouldn't inherit font-size); all actions are absolute overlays that
+    // can't change tile height. Subtle primary tint marks it as pending vs a committed file.
+    <div className="group box-border flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-[var(--ant-color-primary-border)] bg-[var(--ant-color-primary-bg)] p-2">
+        {/* Padding-bottom aspect box: height = 75% of width, GUARANTEED, independent of the image
+            (aspect-ratio was defeated by the full-size object-URL image). Content is absolute-inner. */}
+        <div className="relative w-full overflow-hidden rounded bg-colorFillTertiary pb-[75%]">
+            <div className="absolute inset-0 flex items-center justify-center">
+                {previewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                        src={previewUrl}
+                        alt={name}
+                        className={`h-full w-full object-cover ${state === "error" ? "opacity-40" : ""}`}
+                    />
+                ) : (
+                    <FileIcon size={34} className="text-colorTextTertiary" />
+                )}
+                {state === "error" && onRetry ? (
+                    <button
+                        type="button"
+                        onClick={onRetry}
+                        className="absolute inset-0 m-auto flex h-7 w-[68px] items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.6)] text-[11px] font-medium text-white hover:bg-[rgba(0,0,0,0.8)]"
+                    >
+                        Retry
+                    </button>
+                ) : null}
+                {state === "uploading" && percent < 100 ? (
+                    <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[rgba(0,0,0,0.2)]">
+                        <div
+                            className="h-full bg-colorPrimary transition-[width] duration-150"
+                            style={{width: `${percent}%`}}
+                        />
+                    </div>
+                ) : null}
+                {onRemove ? (
+                    <button
+                        type="button"
+                        aria-label={`Remove ${name}`}
+                        onClick={onRemove}
+                        className={`absolute right-1 top-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.5)] text-white hover:bg-[rgba(0,0,0,0.7)] ${
+                            state === "error"
+                                ? "transition-colors"
+                                : "opacity-0 transition-opacity group-hover:opacity-100"
+                        }`}
+                    >
+                        <X size={11} weight="bold" />
+                    </button>
+                ) : null}
+            </div>
+        </div>
+        <span className="w-full truncate text-center font-mono text-xs" title={name}>
+            {name}
+        </span>
+        <span
+            className={`w-full truncate text-center text-[11px] tabular-nums ${captionTone === "error" ? "text-colorError" : "text-colorTextTertiary"}`}
+        >
+            {caption}
+        </span>
+    </div>
+)
+
+/** In-flight upload tile: maps the upload item to PendingTile (progress / done / retry-on-failure). */
 const UploadTile = ({
     item,
     onRetry,
@@ -728,79 +816,26 @@ const UploadTile = ({
     onRetry?: (id: string) => void
     onDismiss?: (id: string) => void
 }) => (
-    // Same frame as a real file tile (DriveFileRow "tile"). box-border is REQUIRED: the real tiles are
-    // <button>s (border-box by UA default even with preflight off), but this is a <div> (content-box),
-    // so without it the padding+border widen the box past the cell and pb-[75%] then computes a taller
-    // thumb — the tile overflows the grid's snapped row. Caption is PLAIN text (no <button>, which
-    // wouldn't inherit font-size); all actions are absolute overlays that can't change tile height.
-    // Subtle primary tint marks it as a pending upload — glanceably distinct from a committed file.
-    <div className="group box-border flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-[var(--ant-color-primary-border)] bg-[var(--ant-color-primary-bg)] p-2">
-        {/* Padding-bottom aspect box: height = 75% of width, GUARANTEED, independent of the image —
-            aspect-ratio was being defeated by the full-size object-URL image, blowing the tile up. All
-            content lives in the absolute inner layer, so nothing can change the box height. */}
-        <div className="relative w-full overflow-hidden rounded bg-colorFillTertiary pb-[75%]">
-            <div className="absolute inset-0 flex items-center justify-center">
-                {item.previewUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                        src={item.previewUrl}
-                        alt={item.name}
-                        className={`h-full w-full object-cover ${item.error ? "opacity-40" : ""}`}
-                    />
-                ) : (
-                    <FileIcon size={34} className="text-colorTextTertiary" />
-                )}
-                {item.error ? (
-                    <>
-                        {onRetry ? (
-                            <button
-                                type="button"
-                                onClick={() => onRetry(item.id)}
-                                className="absolute inset-0 m-auto flex h-7 w-[68px] items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.6)] text-[11px] font-medium text-white hover:bg-[rgba(0,0,0,0.8)]"
-                            >
-                                Retry
-                            </button>
-                        ) : null}
-                        {onDismiss ? (
-                            // Always visible on failure (not hover-gated) — a failed item needs a clear
-                            // way to remove it.
-                            <button
-                                type="button"
-                                aria-label="Dismiss"
-                                onClick={() => onDismiss(item.id)}
-                                className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.5)] text-white transition-colors hover:bg-[rgba(0,0,0,0.7)]"
-                            >
-                                <X size={11} weight="bold" />
-                            </button>
-                        ) : null}
-                    </>
-                ) : item.percent < 100 ? (
-                    <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[rgba(0,0,0,0.2)]">
-                        <div
-                            className="h-full bg-colorPrimary transition-[width] duration-150"
-                            style={{width: `${item.percent}%`}}
-                        />
-                    </div>
-                ) : null}
-            </div>
-        </div>
-        <span className="w-full truncate text-center font-mono text-xs" title={item.name}>
-            {item.name}
-        </span>
-        <span
-            className={`w-full truncate text-center text-[11px] tabular-nums ${item.error ? "text-colorError" : "text-colorTextTertiary"}`}
-        >
-            {item.error
+    <PendingTile
+        name={item.name}
+        previewUrl={item.previewUrl}
+        state={item.error ? "error" : item.percent >= 100 ? "done" : "uploading"}
+        percent={item.percent}
+        caption={
+            item.error
                 ? "Upload failed"
                 : item.percent >= 100
                   ? "Uploaded"
-                  : `Uploading ${item.percent}%`}
-        </span>
-    </div>
+                  : `Uploading ${item.percent}%`
+        }
+        captionTone={item.error ? "error" : "muted"}
+        onRetry={onRetry ? () => onRetry(item.id) : undefined}
+        onRemove={onDismiss && item.error ? () => onDismiss(item.id) : undefined}
+    />
 )
 
-/** A file dropped onto a recents peek and awaiting a destination — a plain file-tile look with a
- * subtle "pending" caption, shown until the user commits it with "Upload here" or removes it. */
+/** A file dropped onto a recents peek and awaiting a destination — shown until it's committed with
+ * "Upload here" or removed. */
 interface StagedTileItem {
     id: string
     name: string
@@ -810,43 +845,13 @@ interface StagedTileItem {
 }
 
 const StagedTile = ({item, onRemove}: {item: StagedTileItem; onRemove?: (id: string) => void}) => (
-    // box-border: this is a <div>, not a <button> like the real tiles — see UploadTile's note.
-    // Same subtle primary tint as the upload tile — marks it as pending, not a committed file.
-    <div className="group box-border flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-[var(--ant-color-primary-border)] bg-[var(--ant-color-primary-bg)] p-2">
-        {/* Padding-bottom aspect box (see UploadTile): 4:3 regardless of the image. */}
-        <div className="relative w-full overflow-hidden rounded bg-colorFillTertiary pb-[75%]">
-            <div className="absolute inset-0 flex items-center justify-center">
-                {item.previewUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                        src={item.previewUrl}
-                        alt={item.name}
-                        className="h-full w-full object-cover"
-                    />
-                ) : (
-                    <FileIcon size={34} className="text-colorTextTertiary" />
-                )}
-                {onRemove ? (
-                    <button
-                        type="button"
-                        aria-label={`Remove ${item.name}`}
-                        onClick={() => onRemove(item.id)}
-                        className="absolute right-1 top-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.5)] text-white opacity-0 transition-opacity hover:bg-[rgba(0,0,0,0.7)] group-hover:opacity-100"
-                    >
-                        <X size={11} weight="bold" />
-                    </button>
-                ) : null}
-            </div>
-        </div>
-        <span className="w-full truncate text-center font-mono text-xs" title={item.name}>
-            {item.name}
-        </span>
-        {/* Plain text span (no icon/flex) so the caption line is the exact height of every other
-            tile's caption — see UploadTile's note on preflight-off font metrics. */}
-        <span className="w-full truncate text-center text-[11px] text-colorTextTertiary">
-            Ready to upload
-        </span>
-    </div>
+    <PendingTile
+        name={item.name}
+        previewUrl={item.previewUrl}
+        state="staged"
+        caption="Ready to upload"
+        onRemove={onRemove ? () => onRemove(item.id) : undefined}
+    />
 )
 
 /** Right pane when a FOLDER is selected: fixed header (clickable breadcrumb + folder name) over a
