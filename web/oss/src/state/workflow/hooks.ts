@@ -82,6 +82,7 @@ export const useWorkflowsData = () => {
             currentWorkflow: currentWorkflow ?? null,
             workflowKind: ctx.workflowKind,
             isApp: ctx.workflowKind === "app",
+            isAgent: ctx.workflowKind === "app" && currentWorkflow?.flags?.is_agent === true,
             isEvaluator: ctx.workflowKind === "evaluator",
             isSnippet: ctx.workflowKind === "snippet",
             // Terminal states (mutually exclusive).
