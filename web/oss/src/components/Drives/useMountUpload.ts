@@ -17,6 +17,10 @@ import {uploadMountFile} from "./driveMedia"
  * so it refreshes the open directory whether the host is a session or the config panel).
  */
 
+/** Stable identity for a picked File — so a re-drop, or staging then dropping the same file, is
+ * recognised as the SAME upload and never duplicated. */
+export const fileKey = (f: File): string => `${f.name}::${f.size}::${f.lastModified}`
+
 export interface MountUploadItem {
     id: string
     name: string
@@ -105,8 +109,15 @@ export function useMountUpload(): MountUpload {
 
     const upload = useCallback(
         (files: File[], target: MountUploadTarget) => {
+            // Skip files already in flight (same key) so a re-drop, or a drop of a file that's also
+            // staged, can't create a second upload item for the same file.
+            const inFlight = new Set(
+                Array.from(sources.current.values()).map((s) => fileKey(s.file)),
+            )
+            const fresh = files.filter((f) => !inFlight.has(fileKey(f)))
+            if (!fresh.length) return
             const started: MountUploadItem[] = []
-            files.forEach((file, i) => {
+            fresh.forEach((file, i) => {
                 const id = `${Date.now()}-${i}-${file.name}`
                 sources.current.set(id, {file, target})
                 started.push({

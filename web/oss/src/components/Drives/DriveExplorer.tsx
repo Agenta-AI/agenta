@@ -90,7 +90,7 @@ import {DriveFileBody} from "./renderers"
 import {DriveRepoMetaList} from "./repoMeta"
 import {type DriveDrop, useDriveDrop} from "./useDriveDrop"
 import {useLazyDriveTree} from "./useLazyDriveTree"
-import {type MountUploadItem, useMountUpload} from "./useMountUpload"
+import {fileKey, type MountUploadItem, useMountUpload} from "./useMountUpload"
 import {
     AGENT_FILES_DIR,
     driveHasMixedOrigins,
@@ -1833,11 +1833,17 @@ export function DriveExplorer({
     const uploadIntoFolder = useCallback(
         (picked: File[], folder: string) => {
             const resolved = drive.resolveMount(folder)
-            if (resolved) {
-                mountUpload.upload(picked, {mount: resolved.mount, destFolder: resolved.path})
+            if (!resolved) return
+            mountUpload.upload(picked, {mount: resolved.mount, destFolder: resolved.path})
+            // A file that was staged and is now uploading must not show as BOTH — drop any staged
+            // copy (same key) from the inbox so the two flows never duplicate an item.
+            if (onStagedChange && stagedFiles?.length) {
+                const keys = new Set(picked.map(fileKey))
+                const remaining = stagedFiles.filter((f) => !keys.has(fileKey(f)))
+                if (remaining.length !== stagedFiles.length) onStagedChange(remaining)
             }
         },
-        [drive, mountUpload],
+        [drive, mountUpload, stagedFiles, onStagedChange],
     )
     // Drag-and-drop uploads: highlight + spring-load into folders, drop to upload. Disabled in the
     // local-file preview (no mount to write to).
