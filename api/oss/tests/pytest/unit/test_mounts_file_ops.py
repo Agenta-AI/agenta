@@ -268,6 +268,7 @@ class FakeMountStorage:
         for k in keys:
             if k in b:
                 del b[k]
+                self._mtimes.get(bucket, {}).pop(k, None)
                 n += 1
         return n
 
@@ -426,6 +427,10 @@ class TestArchiveMtimeRegression:
         assert len(zip_bytes) > 0
         with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
             assert zf.namelist() == ["report.txt"]
+            # Not just "didn't crash" — the member's timestamp must be the CONVERTED value
+            # (1_700_000_000_000 ms -> 2023-11-14 22:13:20 UTC), so a regression that silently
+            # falls back to datetime.now() instead of the real mtime still fails this test.
+            assert zf.getinfo("report.txt").date_time == (2023, 11, 14, 22, 13, 20)
             assert zf.read("report.txt") == b"hello world"
 
 
