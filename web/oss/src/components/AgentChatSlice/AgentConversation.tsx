@@ -11,6 +11,7 @@ import {
 } from "react"
 
 import {
+    commandSessionStream,
     killSession,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
@@ -1232,11 +1233,10 @@ const AgentConversation = ({
 
     const handleStop = useCallback(() => {
         markStopped()
-        stop()
-        // Default Stop only aborts the client stream; the runner survives and keeps billing. When the
-        // NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION flag is set, also kill the session so the sandbox
-        // tears down and server-side compute halts. Kill ends the whole session (resume is #5197).
-        if (doesAgentChatStopKillSession() && projectId && sessionId) {
+        stop() // abort the client stream immediately
+        if (!projectId || !sessionId) return
+        // Opt-in hard kill (NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION): tear the whole session down.
+        if (doesAgentChatStopKillSession()) {
             killSession({sessionId, projectId})
                 .then((ok) => {
                     if (ok) {
@@ -1247,7 +1247,13 @@ const AgentConversation = ({
                     }
                 })
                 .catch(() => {})
+            return
         }
+        // Default Stop: cooperatively cancel the CURRENT TURN. The control-plane `cancel` command
+        // (no inputs, no force) drops the alive lock; the runner closes the turn as interrupted and
+        // the session STAYS OPEN so a follow-up prompt resumes it — instead of the old behaviour where
+        // the client stream aborted but the runner kept running and billing.
+        commandSessionStream({sessionId, projectId}).catch(() => {})
     }, [markStopped, stop, projectId, sessionId, queryClient])
 
     // ── D9 teardown: abort the in-flight stream on unmount (tab close / revision swap) ──

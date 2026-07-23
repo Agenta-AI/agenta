@@ -68,6 +68,13 @@ export const TOOL_NOT_EXECUTED_PAUSED = `${DEFERRED_NOT_EXECUTED_PREFIX}: paused
 export const APPROVED_EXECUTION_RESULT_UNKNOWN =
   "APPROVED_EXECUTION_RESULT_UNKNOWN: the approved call started but its result was not observed before the pause ended the turn; do not assume it failed and do not retry a side-effecting call.";
 
+/** Terminal result stamped on every open tool call when the USER stops (cancels) the turn. Unlike
+ *  the pause sentinels this is a deliberate human halt, not a scheduling artifact: the call was cut
+ *  off and may or may not have run, so the model must not silently retry it. Steer (stop + a new
+ *  instruction) surfaces the user's guidance separately as the next turn's prompt. */
+export const INTERRUPTED_BY_USER =
+  "INTERRUPTED_BY_USER: the user stopped the turn before this call finished; it may not have completed. Do not retry it unless the user asks again.";
+
 // ---------------------------------------------------------------------------
 // Shared, process-wide tracing infrastructure
 // ---------------------------------------------------------------------------
