@@ -682,9 +682,9 @@ const UploadTile = ({
     onRetry?: (id: string) => void
     onDismiss?: (id: string) => void
 }) => (
-    // Same frame as a real file tile (DriveFileRow "tile") so dropped items sit in the grid uniformly;
-    // status is a small ABSOLUTE overlay (never adds height / shifts the row).
-    <div className="flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2">
+    // Identical frame to a real file tile (DriveFileRow "tile") — clean thumb, name, one caption line.
+    // Status is a thin ABSOLUTE overlay + the caption; a hover corner action mirrors the staged tile.
+    <div className="group flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2">
         <div className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded bg-colorFillTertiary">
             {item.previewUrl ? (
                 // Absolute (out of flow) so a full-size object-URL image can't override the 4:3 box's
@@ -698,24 +698,31 @@ const UploadTile = ({
             ) : (
                 <FileIcon size={34} className="text-colorTextTertiary" />
             )}
-            {item.error ? (
-                <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--ant-color-error-bg)] text-colorError">
-                    <WarningCircle size={13} weight="fill" />
-                </span>
-            ) : (
-                <div className="absolute inset-x-0 bottom-0 h-1 bg-[rgba(0,0,0,0.25)]">
-                    <div
-                        className="h-full bg-colorPrimary transition-[width] duration-150"
-                        style={{width: `${item.percent}%`}}
-                    />
-                </div>
-            )}
+            {item.error
+                ? onDismiss && (
+                      <button
+                          type="button"
+                          aria-label="Dismiss"
+                          onClick={() => onDismiss(item.id)}
+                          className="absolute right-1 top-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.5)] text-white opacity-0 transition-opacity hover:bg-[rgba(0,0,0,0.7)] group-hover:opacity-100"
+                      >
+                          <X size={11} weight="bold" />
+                      </button>
+                  )
+                : item.percent < 100 && (
+                      <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[rgba(0,0,0,0.2)]">
+                          <div
+                              className="h-full bg-colorPrimary transition-[width] duration-150"
+                              style={{width: `${item.percent}%`}}
+                          />
+                      </div>
+                  )}
         </div>
         <span className="w-full truncate text-center font-mono text-xs" title={item.name}>
             {item.name}
         </span>
         {item.error ? (
-            <span className="flex w-full items-center justify-center gap-2 text-[11px]">
+            <span className="flex w-full items-center justify-center gap-1.5 text-[11px]">
                 <span className="text-colorError">Failed</span>
                 {onRetry ? (
                     <button
@@ -726,26 +733,17 @@ const UploadTile = ({
                         Retry
                     </button>
                 ) : null}
-                {onDismiss ? (
-                    <button
-                        type="button"
-                        onClick={() => onDismiss(item.id)}
-                        className="cursor-pointer border-0 bg-transparent p-0 text-colorTextTertiary hover:underline"
-                    >
-                        Dismiss
-                    </button>
-                ) : null}
             </span>
         ) : (
             <span className="w-full truncate text-center text-[11px] tabular-nums text-colorTextTertiary">
-                Uploading… {item.percent}%
+                Uploading {item.percent}%
             </span>
         )}
     </div>
 )
 
-/** A file dropped onto a recents peek and awaiting a destination — a real-tile look with a small
- * "Staged" badge, shown until the user commits it with "Upload here" or removes it. */
+/** A file dropped onto a recents peek and awaiting a destination — a plain file-tile look with a
+ * subtle "pending" caption, shown until the user commits it with "Upload here" or removes it. */
 interface StagedTileItem {
     id: string
     name: string
@@ -768,16 +766,12 @@ const StagedTile = ({item, onRemove}: {item: StagedTileItem; onRemove?: (id: str
             ) : (
                 <FileIcon size={34} className="text-colorTextTertiary" />
             )}
-            <span className="absolute left-1 top-1 flex items-center gap-1 rounded-full bg-[rgba(0,0,0,0.55)] px-1.5 py-0.5 text-[10px] font-medium text-white">
-                <UploadSimple size={11} />
-                Staged
-            </span>
             {onRemove ? (
                 <button
                     type="button"
                     aria-label={`Remove ${item.name}`}
                     onClick={() => onRemove(item.id)}
-                    className="absolute right-1 top-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.55)] text-white opacity-0 transition-opacity hover:bg-[rgba(0,0,0,0.75)] group-hover:opacity-100"
+                    className="absolute right-1 top-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.5)] text-white opacity-0 transition-opacity hover:bg-[rgba(0,0,0,0.7)] group-hover:opacity-100"
                 >
                     <X size={11} weight="bold" />
                 </button>
@@ -786,7 +780,8 @@ const StagedTile = ({item, onRemove}: {item: StagedTileItem; onRemove?: (id: str
         <span className="w-full truncate text-center font-mono text-xs" title={item.name}>
             {item.name}
         </span>
-        <span className="w-full truncate text-center text-[11px] text-colorTextTertiary">
+        <span className="flex w-full items-center justify-center gap-1 text-[11px] text-colorTextTertiary">
+            <UploadSimple size={11} />
             Ready to upload
         </span>
     </div>
