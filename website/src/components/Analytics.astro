@@ -49,4 +49,26 @@
       respect_dnt: true,
     });
   }
+
+  // GA4 continuity with the pre-pivot site (same property; the measurement ID
+  // is public by design). Same gates as PostHog: real domain, indexable
+  // production build, DNT honored.
+  const gaId = import.meta.env.PUBLIC_GA_ID;
+  // @ts-expect-error one-time guard on window
+  if (gaId && !noindex && isRealSite && !dnt && !window.__agGaInit) {
+    // @ts-expect-error one-time guard on window
+    window.__agGaInit = true;
+    const s = document.createElement("script");
+    s.async = true;
+    s.src = `https://www.googletagmanager.com/gtag/js?id=${gaId}`;
+    document.head.appendChild(s);
+    // @ts-expect-error gtag bootstrap
+    window.dataLayer = window.dataLayer || [];
+    // @ts-expect-error gtag bootstrap
+    function gtag() { window.dataLayer.push(arguments); }
+    // @ts-expect-error gtag bootstrap
+    gtag("js", new Date());
+    // @ts-expect-error gtag bootstrap
+    gtag("config", gaId);
+  }
 </script>
