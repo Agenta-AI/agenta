@@ -1,7 +1,5 @@
 import {useMemo} from "react"
 
-import {Divider} from "antd"
-
 import SidebarBackButton from "../components/SidebarBackButton"
 import WorkflowPicker from "../components/WorkflowPicker"
 import type {SidebarScope, SidebarSection, SidebarSlotContext} from "../engine/types"
@@ -14,21 +12,27 @@ interface WorkflowScopeOptions {
     lastPath?: string
 }
 
+// The two header rows are 45px tall so the rail's lines land on the same y as the
+// breadcrumb bar's and the playground header's, and read as one line across the app.
 const WorkflowSidebarHeader = ({collapsed, lastPath}: SidebarSlotContext) => (
     <>
         <div
             className={[
-                "w-full h-[48px] flex items-center",
-                collapsed ? "justify-center" : "mx-1.5",
+                "w-full h-[45px] shrink-0 flex items-center border-0 border-b border-solid border-[var(--ag-shell-line)]",
+                collapsed ? "justify-center" : "px-1.5",
             ].join(" ")}
         >
             <SidebarBackButton collapsed={collapsed} lastPath={lastPath} />
         </div>
 
-        <div className={collapsed ? "flex w-full justify-center p-2" : "px-2 pt-1 pb-2"}>
+        <div
+            className={[
+                "flex h-[45px] shrink-0 items-center border-0 border-b border-solid border-[var(--ag-shell-line)]",
+                collapsed ? "w-full justify-center" : "px-2",
+            ].join(" ")}
+        >
             <WorkflowPicker collapsed={collapsed} />
         </div>
-        <Divider className="mb-1 mt-0" />
     </>
 )
 

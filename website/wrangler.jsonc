@@ -1,0 +1,20 @@
+{
+  // Cloudflare Workers Static Assets config for the marketing site.
+  // The site is pure static (Astro `output: 'static'`); these settings let a
+  // Worker serve the prebuilt ./dist as plain assets. This config powers the
+  // shareable team preview (a *.workers.dev URL) via `pnpm deploy:preview`.
+  // Production later moves to Cloudflare Workers Builds (git push -> build ->
+  // deploy with per-PR previews). Pages is in maintenance mode; use Workers.
+  "name": "agenta-website-preview",
+  "compatibility_date": "2026-07-01",
+  // Per-PR CI previews use `wrangler versions upload --preview-alias pr-<n>`, which
+  // needs version preview URLs enabled on this worker.
+  "preview_urls": true,
+  "assets": {
+    "directory": "./dist",
+    // Serve /about for both /about and /about/ ; canonicalize to no trailing slash.
+    "html_handling": "drop-trailing-slash",
+    // Unknown paths render the generated 404 page.
+    "not_found_handling": "404-page"
+  }
+}

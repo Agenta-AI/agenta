@@ -1,0 +1,38 @@
+---
+/**
+ * BlogImage.astro
+ *
+ * Custom <img> component used for MDX body images in blog posts.
+ * Passed via components={{ img: BlogImage }} in [slug].astro.
+ *
+ * Adds:
+ *  - loading="lazy" + decoding="async" on every body image.
+ *  - Preserves the markdown alt text exactly (falls back to empty string for
+ *    purely decorative images — authors deliberately write ![](url) for those).
+ *  - display:block so images don't sit inline with text.
+ */
+
+interface Props {
+  src?: string;
+  alt?: string;
+  width?: string | number;
+  height?: string | number;
+  class?: string;
+  style?: string;
+  [key: string]: unknown;
+}
+
+const { src, alt, width, height, class: cls, style, ...rest } = Astro.props;
+---
+
+<img
+  src={src}
+  alt={alt ?? ""}
+  width={width}
+  height={height}
+  loading="lazy"
+  decoding="async"
+  class={cls}
+  style={`display:block;max-width:100%;height:auto;border-radius:8px;margin:0 auto;${style ?? ""}`}
+  {...rest}
+/>

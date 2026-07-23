@@ -1,0 +1,164 @@
+---
+import Site from "../layouts/Site.astro";
+
+// Contact page — the live site has no standalone /contact (returns 404; footer
+// "Contact" links to /imprint instead). This page consolidates contact details
+// from the Impressum and adds the Book-a-demo CTA so users landing here get a
+// clear next action without needing to parse legal text.
+
+const DEMO_URL =
+  "https://cal.com/mahmoud-mabrouk-ogzgey/demo?duration=30";
+---
+
+<Site
+  title="Contact — Agenta"
+  description="Get in touch with the Agenta team. Book a 30-minute demo, email us, or join the community on GitHub, Slack, and LinkedIn."
+  showCta={false}
+  cta={{
+    title: "Ready to see Agenta in action?",
+    body: "Book a 30-minute demo and we'll walk you through the platform.",
+    primaryLabel: "Book a demo",
+    primaryHref: DEMO_URL,
+    secondaryLabel: "Get started free",
+    secondaryHref: "https://cloud.agenta.ai/",
+  }}
+>
+  <!-- ══ HERO ══════════════════════════════════════════════════════════ -->
+  <section
+    style="background:#0E0D0F;border-bottom:1px solid rgba(255,255,255,0.07);"
+  >
+    <div
+      style="max-width:860px;margin:0 auto;padding:96px 32px 80px;"
+    >
+      <span
+        style="display:inline-flex;align-items:center;height:24px;padding:0 13px;border-radius:999px;background:rgba(255,255,255,0.06);box-shadow:0 0 0 1px rgba(255,255,255,0.14);font:var(--text-caption);letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.7);margin-bottom:24px;"
+        >Contact</span
+      >
+      <h1
+        style="margin:0 0 16px;font:var(--text-display-lg);color:#F7F6F4;text-wrap:pretty;"
+      >
+        Get in touch
+      </h1>
+      <p
+        style="margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.6);max-width:540px;text-wrap:pretty;"
+      >
+        Book a demo, reach us by email, or find us on the channels below.
+      </p>
+    </div>
+  </section>
+
+  <!-- ══ CONTENT ═══════════════════════════════════════════════════════ -->
+  <section style="background:#0A0A0B;padding:64px 32px 96px;">
+    <div
+      style="max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:32px;"
+    >
+
+      <!-- Book a demo panel -->
+      <div
+        style="border:1px solid rgba(255,255,255,0.07);padding:40px 40px 40px;background:#100F11;display:flex;flex-direction:column;gap:20px;"
+      >
+        <div>
+          <h2
+            style="margin:0 0 8px;font:300 28px/1.15 var(--font-display,'GT Alpina',serif);color:#F7F6F4;"
+          >
+            Book a demo
+          </h2>
+          <p style="margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.6);">
+            30 minutes. We'll show you how Agenta fits your LLM workflow and answer
+            any questions you have.
+          </p>
+        </div>
+
+        <a
+          href={DEMO_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          style="display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 24px;width:fit-content;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);text-decoration:none;cursor:pointer;"
+        >
+          Book a 30-minute demo
+        </a>
+      </div>
+
+      <!-- Direct contact panel -->
+      <div
+        style="border:1px solid rgba(255,255,255,0.07);padding:40px 40px 36px;background:#100F11;"
+      >
+        <h2
+          style="margin:0 0 24px;font:300 28px/1.15 var(--font-display,'GT Alpina',serif);color:#F7F6F4;"
+        >
+          Direct contact
+        </h2>
+
+        <dl
+          style="display:grid;grid-template-columns:160px 1fr;gap:12px 24px;font:var(--text-body-md);color:rgba(255,255,255,0.6);margin:0;"
+        >
+          <dt style="color:rgba(255,255,255,0.38);font:var(--text-label);">Email</dt>
+          <dd style="margin:0;overflow-wrap:anywhere;">
+            <a
+              href="mailto:team@agenta.ai"
+              style="color:rgba(255,255,255,0.6);text-decoration:none;"
+            >
+              team@agenta.ai
+            </a>
+          </dd>
+
+          <dt style="color:rgba(255,255,255,0.38);font:var(--text-label);">Phone</dt>
+          <dd style="margin:0;overflow-wrap:anywhere;">
+            <a
+              href="tel:+4915231036519"
+              style="color:rgba(255,255,255,0.6);text-decoration:none;"
+            >
+              +49-(0)-152-31036519
+            </a>
+          </dd>
+
+          <dt style="color:rgba(255,255,255,0.38);font:var(--text-label);">Address</dt>
+          <dd style="margin:0;overflow-wrap:anywhere;">
+            Agentatech UG (haftungsbeschränkt)<br />
+            c/o betahaus, Rudi-Dutschke-Straße 23<br />
+            10969 Berlin, Germany
+          </dd>
+        </dl>
+      </div>
+
+      <!-- Community channels panel -->
+      <div
+        style="border:1px solid rgba(255,255,255,0.07);padding:40px 40px 36px;background:#100F11;"
+      >
+        <h2
+          style="margin:0 0 24px;font:300 28px/1.15 var(--font-display,'GT Alpina',serif);color:#F7F6F4;"
+        >
+          Community
+        </h2>
+
+        <div style="display:flex;flex-wrap:wrap;gap:12px;">
+          <a
+            href="https://github.com/Agenta-AI/agenta"
+            target="_blank"
+            rel="noopener noreferrer"
+            style="display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 18px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.7);font:var(--text-label);text-decoration:none;cursor:pointer;"
+          >
+            GitHub
+          </a>
+          <a
+            href="https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw"
+            target="_blank"
+            rel="noopener noreferrer"
+            style="display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 18px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.7);font:var(--text-label);text-decoration:none;cursor:pointer;"
+          >
+            Slack Community
+          </a>
+          <a
+            href="https://www.linkedin.com/company/agenta-ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            style="display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 18px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.7);font:var(--text-label);text-decoration:none;cursor:pointer;"
+          >
+            LinkedIn
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </section>
+</Site>

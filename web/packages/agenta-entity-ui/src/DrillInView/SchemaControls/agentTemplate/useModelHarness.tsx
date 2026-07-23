@@ -42,6 +42,7 @@ import {
     harnessAllowsModel,
     harnessSupportsUserMcp,
     modelIdFromConfig,
+    modelLabel,
     providerForModel,
     vaultModelGroups,
     vaultPickedProviderFamily,
@@ -365,8 +366,13 @@ export function useModelHarness({
         [harness, setSection],
     )
 
+    // Prefer the harness catalog's label ("Sonnet") over the stored id ("sonnet"), so the summary
+    // names the model the way the picker did.
     const modelSummary =
-        [enumLabel(harnessProps.kind, harness.kind), enumLabel(props.llm, modelId)]
+        [
+            enumLabel(harnessProps.kind, harness.kind),
+            modelLabel(capabilities, harnessValue, modelId) ?? enumLabel(props.llm, modelId),
+        ]
             .filter(Boolean)
             .join(" · ") || undefined
 

@@ -442,6 +442,16 @@ export const templateStrip = {
     },
 } satisfies Record<string, Pair>
 
+// App shell — the navigation rail and the frame lines that separate it and the top
+// bars from the content. The rail sits one step darker (light: greyer) than the
+// content beside it, and every frame line shares one colour so they read as one frame.
+export const shell = {
+    railBg: {light: "#ffffff", dark: "#121316"},
+    line: {light: "#e3e5e9", dark: "#2b2d32"},
+    scrollThumb: {light: "rgba(15, 23, 42, 0.22)", dark: "rgba(255, 255, 255, 0.20)"},
+    scrollThumbHover: {light: "rgba(15, 23, 42, 0.38)", dark: "rgba(255, 255, 255, 0.34)"},
+} satisfies Record<string, Pair>
+
 export const palette = {
     surface,
     text,
@@ -464,6 +474,7 @@ export const palette = {
     appVariantCell,
     editorChip,
     templateStrip,
+    shell,
 }
 
 export default palette

@@ -1,0 +1,162 @@
+---
+import type { GetStaticPaths } from "astro";
+import Site from "../../layouts/Site.astro";
+import PostCard from "../../components/PostCard.astro";
+import { getCollection } from "astro:content";
+import { authorPosts, socialIcon } from "../../lib/blog";
+
+// Author profile pages live at /authors/<slug>/ to match the live agenta.ai URL
+// map (trailing-slash canonical — see
+// docs/design/marketing-website/research/live-url-link-map.md). Astro's default
+// directory build format emits /authors/<slug>/index.html, so the URL resolves
+// with the trailing slash. A post appears here when the author is the PRIMARY
+// author OR a co-author (authorPosts handles the union).
+export const getStaticPaths = (async () => {
+  const authors = await getCollection("authors");
+  const posts = await getCollection("posts");
+  return authors.map((author) => ({
+    params: { slug: author.id },
+    props: {
+      author,
+      posts: authorPosts(author.id, posts),
+    },
+  }));
+}) satisfies GetStaticPaths;
+
+const { author, posts } = Astro.props;
+const { name, role, avatar, bio, socials } = author.data;
+
+const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;";
+---
+
+<Site
+  title={`${name} — Agenta Blog`}
+  description={bio ?? `${name} — ${role}. Posts on the Agenta blog.`}
+>
+  <!-- Author hero -->
+  <section
+    class="ag-pad"
+    style={`background:#0E0D0F;${sectionBorder}padding:64px 24px 48px;`}
+  >
+    <div
+      style="max-width:760px;margin:0 auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:20px;"
+    >
+      <a
+        href="/blog"
+        style="align-self:flex-start;display:inline-flex;align-items:center;gap:7px;font:var(--text-label);color:rgba(255,255,255,0.55);text-decoration:none;"
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
+          ><path
+            d="M8.5 3.5 5 7l3.5 3.5"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"></path></svg
+        >All blogs
+      </a>
+      <img
+        src={avatar}
+        alt={name}
+        width="128"
+        height="128"
+        loading="eager"
+        fetchpriority="high"
+        decoding="async"
+        style="width:128px;height:128px;border-radius:50%;object-fit:cover;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.12),0 8px 32px rgba(0,0,0,0.4);"
+      />
+      <h1
+        class="ag-h1"
+        style="margin:0;font:300 52px/1.06 var(--font-display);color:#F7F6F4;"
+      >
+        {name}
+      </h1>
+      <span style="font:var(--text-body-md);color:var(--yellow-400);">{role}</span>
+      {
+        socials && socials.length > 0 && (
+          <div style="display:flex;gap:10px;margin-top:4px;">
+            {socials.map((s) => (
+              <a
+                href={s.url}
+                target="_blank"
+                rel="noopener"
+                aria-label={s.platform}
+                style="width:38px;height:38px;border-radius:9px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.12);display:inline-flex;align-items:center;justify-content:center;"
+              >
+                <img
+                  src={socialIcon(s.platform)}
+                  alt=""
+                  style="width:18px;height:18px;filter:invert(1) brightness(0.85);"
+                />
+              </a>
+            ))}
+          </div>
+        )
+      }
+    </div>
+  </section>
+
+  <!-- Bio -->
+  {
+    bio && (
+      <section
+        class="ag-prose ag-pad"
+        style={`background:#0A0A0B;${sectionBorder}padding:48px 24px;`}
+      >
+        <div style="max-width:720px;margin:0 auto;">
+          <p style="margin:0;font:400 19px/1.7 var(--font-sans);color:rgba(255,255,255,0.74);">
+            {bio}
+          </p>
+        </div>
+      </section>
+    )
+  }
+
+  <!-- Posts from the author -->
+  <section
+    class="ag-pad"
+    style={`background:#0A0A0B;${sectionBorder}padding:24px 64px 88px;`}
+  >
+    <div
+      style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:32px;flex-wrap:wrap;"
+    >
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <h2 class="ag-dlg" style="margin:0;font:var(--text-display-lg);color:#F7F6F4;">
+          Blogs from the author
+        </h2>
+        <p style="margin:0;font:var(--text-body-sm);color:rgba(255,255,255,0.55);">
+          The latest updates and insights from Agenta
+        </p>
+      </div>
+      <a
+        href="/blog"
+        style="display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 18px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);text-decoration:none;"
+      >
+        View all blogs
+        <svg width="13" height="13" viewBox="0 0 12 12" fill="none">
+          <path
+            d="M3 2.5 6.5 6 3 9.5"
+            stroke="currentColor"
+            stroke-width="1.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"></path>
+        </svg>
+      </a>
+    </div>
+    {
+      posts.length > 0 ? (
+        <div
+          class="ag-grid"
+          style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;"
+        >
+          {posts.map((p) => (
+            <PostCard post={p} variant="grid" />
+          ))}
+        </div>
+      ) : (
+        <p style="margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.5);">
+          No posts yet from {name}.
+        </p>
+      )
+    }
+  </section>
+</Site>

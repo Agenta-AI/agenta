@@ -633,7 +633,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         <>
             <div
                 className={clsx(
-                    "flex items-center justify-between gap-4 px-2.5 py-2 bg-[var(--ag-surface-raised)] border-0 border-b border-solid border-[var(--ag-surface-divider)]",
+                    "flex items-center justify-between gap-4 px-2.5 py-2 bg-[var(--ag-surface-raised)] border-0 border-b border-solid border-[var(--ag-shell-line)]",
                     className,
                 )}
                 {...divProps}

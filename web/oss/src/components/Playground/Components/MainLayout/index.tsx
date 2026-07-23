@@ -21,6 +21,7 @@ import AgentChatSkeleton from "@/oss/components/AgentChatSlice/components/AgentC
 import {chatPanelMaximizedAtom} from "@/oss/components/AgentChatSlice/state/panelLayout"
 // Direct file import — the SessionInspector barrel would statically pull the (dynamic,
 // open-on-demand) inspector drawer back into this chunk.
+import OverlayScrollbar from "@/oss/components/OverlayScrollbar"
 import PanelSessionInspectorButton from "@/oss/components/SessionInspector/PanelSessionInspectorButton"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
@@ -270,7 +271,7 @@ const PlaygroundMainView = ({
     const animateSplit = justToggled || holdAnimate
 
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])
-    const {setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
+    const {configPanelRef, setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
         enabled: isComparisonView,
     })
 
@@ -369,7 +370,9 @@ const PlaygroundMainView = ({
                         size={configCollapsed ? 0 : undefined}
                         min="20%"
                         max={configMaxSize}
-                        className="!h-full"
+                        // antd panels default to overflow:auto; the section inside owns scrolling, and
+                        // a transient overflow leaves Chrome's thin panel scrollbar stuck full-height.
+                        className="!h-full !overflow-hidden"
                         collapsible={splitCollapsible}
                         key={`${splitterKey}-splitter-panel-config`}
                     >
@@ -377,7 +380,7 @@ const PlaygroundMainView = ({
                             The notice lives OUTSIDE the scroller, so it sits at the pane's bottom
                             edge regardless of content height or scroll position. */}
                         <div
-                            className={clsx("flex h-full min-h-0 w-full flex-col", {
+                            className={clsx("group relative flex h-full min-h-0 w-full flex-col", {
                                 // Config = the raised authoring surface (covers the notice too).
                                 "ag-panel-raised": isAgentConfig,
                             })}
@@ -386,7 +389,8 @@ const PlaygroundMainView = ({
                                 ref={setConfigPanelRef}
                                 className={clsx([
                                     {
-                                        "grow w-full min-h-0 overflow-y-auto": !isComparisonView,
+                                        "ag-scroll-no-bar grow w-full min-h-0 overflow-y-auto":
+                                            !isComparisonView,
                                         "grow w-full min-h-0 overflow-x-auto flex [&::-webkit-scrollbar]:w-0":
                                             isComparisonView,
                                     },
@@ -438,6 +442,9 @@ const PlaygroundMainView = ({
                                     )}
                                 </>
                             </section>
+                            {!isComparisonView ? (
+                                <OverlayScrollbar target={configPanelRef} />
+                            ) : null}
                             {!isComparisonView && isAgentConfig && primaryConfigId ? (
                                 <>
                                     <ProviderKeyNotice revisionId={primaryConfigId} />
@@ -451,6 +458,8 @@ const PlaygroundMainView = ({
                     <SplitterPanel
                         className={clsx("!h-full @container min-w-0", {
                             "!overflow-y-hidden flex flex-col": isComparisonView,
+                            // Same stuck-scrollbar guard as the config panel (chat section scrolls itself).
+                            "!overflow-hidden": !isComparisonView,
                         })}
                         collapsible={splitCollapsible}
                         defaultSize={runsDefaultSize}
@@ -462,7 +471,7 @@ const PlaygroundMainView = ({
                             className={clsx([
                                 "playground-generation",
                                 {
-                                    "grow w-full h-full overflow-y-auto overflow-x-hidden":
+                                    "ag-scroll-quiet grow w-full h-full overflow-y-auto overflow-x-hidden":
                                         !isComparisonView,
                                     "grow w-full h-full overflow-auto [&::-webkit-scrollbar]:w-0":
                                         isComparisonView,

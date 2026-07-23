@@ -1,0 +1,157 @@
+---
+// SiteFooter — dark footer. Content + links from the design's content/site.json
+// (inlined to keep the website package self-contained). External links are real;
+// internal routes point at their intended path (some 404 until those pages ship).
+const blurb = "Fast-tracking LLM apps to production.";
+
+const socials = [
+  { platform: "x", url: "https://x.com/agenta_ai", icon: "/icons/social-1.svg" },
+  {
+    platform: "linkedin",
+    url: "https://www.linkedin.com/company/agenta-ai",
+    icon: "/icons/social-2.svg",
+  },
+  {
+    platform: "github",
+    url: "https://github.com/Agenta-AI/agenta",
+    icon: "/icons/social-3.svg",
+  },
+  {
+    platform: "slack",
+    url: "https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw",
+    icon: "/icons/social-4.svg",
+  },
+];
+
+type Link = { label: string; href: string; external?: boolean };
+// Product column removed — those product pages no longer exist. The remaining
+// three columns hold Company / Resources / Legal.
+const columns: { heading: string; links: Link[] }[] = [
+  {
+    heading: "Company",
+    links: [
+      { label: "Home", href: "/" },
+      { label: "Pricing", href: "/pricing" },
+      { label: "Contact", href: "/contact" },
+    ],
+  },
+  {
+    heading: "Resources",
+    // Tutorial is hidden for now (Mahmoud). Changelog + Roadmap point at the same
+    // docs pages the live agenta.ai site links to and navigate same-tab.
+    links: [
+      { label: "Docs", href: "https://docs.agenta.ai/", external: true },
+      { label: "Changelog", href: "https://agenta.ai/docs/changelog/main" },
+      { label: "Roadmap", href: "https://agenta.ai/docs/roadmap" },
+      { label: "Blog", href: "/blog" },
+      { label: "Status", href: "https://status.agenta.ai", external: true },
+    ],
+  },
+  {
+    heading: "Legal",
+    links: [
+      { label: "Imprint", href: "/imprint" },
+      {
+        label: "Terms of services",
+        href: "https://agenta.ai/docs/administration/security/terms-of-service",
+        external: true,
+      },
+      {
+        label: "Privacy Policy",
+        href: "https://agenta.ai/docs/administration/security/privacy-policy",
+        external: true,
+      },
+      {
+        label: "DPA",
+        href: "https://agenta.ai/docs/administration/security/dpa",
+        external: true,
+      },
+      { label: "Trust Center", href: "https://trustcenter.agenta.ai/", external: true },
+    ],
+  },
+];
+
+const copyright = `Copyright © 2020 – ${new Date().getFullYear()} Agentatech UG`;
+---
+
+<footer
+  style="background:var(--ag-d-chrome);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;box-sizing:border-box;"
+>
+  <div
+    class="ag-foot-top"
+    style="display:flex;justify-content:space-between;gap:64px;padding:80px 172px 96px;flex-wrap:wrap;"
+  >
+    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:18px;max-width:240px;">
+      <img
+        src="/logos/Agenta-logo-full-dark.svg"
+        alt="Agenta"
+        style="height:23px;width:fit-content;display:block;"
+      />
+      <span
+        style="font:var(--text-body-sm);line-height:1.5;color:rgba(255,255,255,0.55);text-wrap:pretty;"
+        >{blurb}</span
+      >
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        {
+          socials.map((s) => (
+            <a
+              href={s.url}
+              target="_blank"
+              rel="noopener"
+              aria-label={s.platform}
+              class="ag-foot-social"
+              style="width:34px;height:34px;border-radius:8px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);display:inline-flex;align-items:center;justify-content:center;"
+            >
+              <img
+                src={s.icon}
+                alt=""
+                style="width:20px;height:20px;display:block;filter:invert(1) brightness(0.8);"
+              />
+            </a>
+          ))
+        }
+      </div>
+    </div>
+    <div
+      class="ag-foot-cols"
+      style="display:flex;gap:64px;flex-wrap:wrap;"
+    >
+      {
+        columns.map((col) => (
+          <div style="display:flex;flex-direction:column;gap:12px;min-width:120px;">
+            <span style="font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.38);">
+              {col.heading}
+            </span>
+            {col.links.map((link) => (
+              <a
+                class="ag-foot-link"
+                href={link.href}
+                target={link.external ? "_blank" : undefined}
+                rel={link.external ? "noopener" : undefined}
+                style="font:var(--text-label);color:rgba(255,255,255,0.62);cursor:pointer;text-decoration:none;"
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+        ))
+      }
+    </div>
+  </div>
+  <div
+    class="ag-foot-bottom"
+    style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:20px 172px;border-top:1px solid rgba(255,255,255,0.07);"
+  >
+    <span style="font:var(--text-caption);color:rgba(255,255,255,0.38);"
+      >{copyright}</span
+    >
+    <a
+      class="ag-foot-link"
+      href="https://agenta.ai/docs/administration/security/privacy-policy"
+      target="_blank"
+      rel="noopener"
+      style="font:var(--text-caption);color:rgba(255,255,255,0.38);text-decoration:none;"
+      >Privacy policy</a
+    >
+  </div>
+</footer>

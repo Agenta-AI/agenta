@@ -1,0 +1,80 @@
+name: "16 - website production"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - '.github/workflows/16-website-production.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: website-production
+  cancel-in-progress: false
+
+env:
+  WRANGLER_VERSION: "4.113.0"
+  R2_FONTS_BUCKET: agenta-brand-fonts
+
+jobs:
+  deploy:
+    name: Build and deploy production
+    runs-on: ubuntu-latest
+    # Only deploy from this repo (skip forks/mirrors that lack the secrets).
+    if: github.repository == 'Agenta-AI/agenta'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: website/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+          cache-dependency-path: website/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: cd website && pnpm install --frozen-lockfile
+
+      - name: Build site
+        env:
+          R2_S3_ENDPOINT: ${{ secrets.R2_S3_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          # PostHog project key: public by design (ingest-only); analytics also
+          # requires the runtime agenta.ai host guard, so previews stay silent.
+          PUBLIC_POSTHOG_KEY: phc_cFT4a4081mXuKxYIrhIt6cmDwSjAO8zQlw9CFE05oSI
+        run: cd website && pnpm run build
+
+      - name: Deploy production
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          cd website
+          pnpm dlx "wrangler@${WRANGLER_VERSION}" deploy \
+            --config wrangler.production.jsonc 2>&1 | tee /tmp/wrangler.log
+          url=$(grep -oiE 'https://[a-z0-9.-]+\.workers\.dev' /tmp/wrangler.log | head -1)
+          if [ -z "$url" ]; then
+            echo "::error::Could not extract deployed URL from wrangler output"
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Verify production serves the site
+        run: |
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "${{ steps.deploy.outputs.url }}/")
+            [ "$code" = "200" ] && exit 0
+            sleep 5
+          done
+          echo "::error::Production URL did not return 200 (last code: $code)"
+          exit 1
