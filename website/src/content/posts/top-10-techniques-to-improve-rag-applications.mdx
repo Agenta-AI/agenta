@@ -1,0 +1,514 @@
+---
+slug: "top-10-techniques-to-improve-rag-applications"
+title: "Top 10 Techniques to Improve RAG Applications"
+description: "A practical guide to RAG architectures, chunking strategies, reranking, and evaluation—improve your RAG system's accuracy and performance."
+category: Article
+date: 2025-07-09
+readingTime: "15 min read"
+heroImage: /blog/top-10-techniques-to-improve-rag-applications/hero.webp
+ogImage: /blog/top-10-techniques-to-improve-rag-applications/hero.webp
+author: mahmoud-mabrouk
+coAuthors: [ilyes-rezgui]
+featured: false
+tags: ["Article"]
+---
+
+## Introduction
+
+<InlineCTA />
+
+Retrieval-Augmented Generation (RAG) enhances large language models by connecting them to external data sources at inference time. This allows models to generate more accurate, current, and domain-specific responses without retraining.
+
+RAG's effectiveness varies significantly based on implementation. Small changes in data preparation, chunking strategies, or retrieval methods can dramatically impact accuracy. This guide covers practical techniques to improve RAG performance, from foundational data quality to advanced retrieval approaches.
+
+## RAG pipeline
+
+A Retrieval-Augmented Generation (RAG) pipeline consists of three core stages: **Indexing**, **Retrieval**, and **Generation**.
+
+![Illustration showing RAG](/blog/top-10-techniques-to-improve-rag-applications/img-1.webp)
+
+#### 1. Indexing
+
+This stage involves preparing and structuring the knowledge base. Raw data from diverse formats such as PDF documents, Word files, web pages, or databases is first extracted and cleaned. The cleaned content is then segmented into manageable chunks (often called "documents" or "passages"). Each chunk is converted into a vector representation using an embedding model, and the resulting vectors are stored in a vector database (e.g., FAISS, Pinecone). Efficient indexing is critical for enabling fast and relevant information retrieval in the next stage.
+
+#### 2. Retrieval
+
+Given a user query, the retrieval component searches the vector database for the most relevant documents based on a similarity metric. Instead of relying on traditional keyword matching, this stage uses embedding-based retrieval methods to find contextually relevant passages. The retrieved results serve as the external knowledge source to augment the LLM’s response generation.
+
+#### 3. Generation
+
+In the final stage, the LLM receives both the user query and the retrieved documents as input. It integrates this external knowledge with its internal capabilities to generate a coherent, informed, and contextually accurate response. This augmentation enables the model to answer questions it might otherwise lack sufficient training data for, reducing hallucinations and increasing factual reliability.
+
+## Enhancing RAG applications
+
+The next sections cover eight techniques to improve your RAG application, plus several advanced methods. We'll then discuss how to decide which techniques to use and find the right approach for your use case.
+
+Before diving into specific techniques, let's think about the core problem.
+
+### The Context Engineering Framework
+
+Optimizing your RAG application comes down to finding the right context and providing it in a way the LLM can use effectively. This is often called "[**context engineering**](https://x.com/tobi/status/1935533422589399127)"—the most important problem in AI engineering.
+
+![A tweet discussing context engineering](/blog/top-10-techniques-to-improve-rag-applications/img-2.webp)
+
+Every technique in this guide addresses some aspect of context engineering. Understanding this helps you approach each method strategically.
+
+Your goal is finding the right context for the LLM. This breaks down into several areas:
+
+**Improve the chunks themselves**: Better chunking strategies ensure retrieved pieces contain complete, useful information.
+
+**Fix the underlying data**: The information needed must exist in your knowledge base in the first place.
+
+**Optimize embeddings and retrieval**: The system must retrieve the right information from what's available.
+
+**Engineer better prompts**: The LLM needs clear instructions on how to use the provided context.
+
+At each step, ask yourself: What's the current status of my LLM app? Where is it failing? Which context is missing or insufficient?
+
+- If context exists but isn't being retrieved, look at embeddings or retrieval strategy
+- If context gets cut short, work on chunking approaches
+- If context lacks key details, add metadata or improve data structure
+- If context is retrieved but poorly used, focus on prompt engineering
+
+This diagnostic approach helps you identify which techniques will have the biggest impact on your specific problems.
+
+### 1. Start with Data Quality:
+
+RAG systems are only as good as the data they retrieve from. Disorganized, conflicting, or poorly structured information confuses the retriever, leading to irrelevant results that degrade LLM performance.
+
+If your RAG system isn't performing well, audit your input data first:
+
+**Coverage**: Does the data contain answers to your users' questions? If users ask about pricing but your data only covers features, no amount of optimization will help.
+
+**Structure**: Is the data processed to support information retrieval? Look at how prompts will appear with context filled in. Can the LLM answer questions based on the chunks it receives?
+
+For example, a coding assistant that chunks functions without class or file context will struggle. Code snippets chunked randomly create even worse problems. The retriever can't determine the right answer when context is missing.
+
+### **2.** Improve Chunking Strategies
+
+Chunking involves splitting documents into smaller, manageable units for indexing and retrieval. The right chunking method significantly influences the quality and relevance of retrieved content.
+
+#### Common Chunking Approaches
+
+##### Fixed-Size Chunking
+
+This is the simplest and most widely used method. It involves dividing text into chunks based on a predefined number of tokens, with optional overlap to preserve semantic continuity. It's computationally efficient and easy to implement, making it a practical default in many scenarios. Overlapping chunks help ensure context isn't lost at boundaries.
+
+##### Recursive Chunking
+
+This method uses a hierarchy of separators (e.g., paragraphs, sentences) to iteratively split text. If the initial split doesn’t yield chunks of the desired size, the method recursively applies finer-grained separators. While resulting chunk sizes may vary, they aim to be consistent and contextually meaningful. Recursive chunking blends the benefits of fixed-size chunks with structural awareness.
+
+##### Document-Specific Chunking
+
+Instead of relying on token counts or recursive logic, this strategy respects the inherent structure of the document such as headings, paragraphs, or sections. It aligns chunks with logical divisions, preserving the original flow and coherence. This approach is particularly effective for structured formats like Markdown or HTML, where semantic structure is explicit.
+
+#### Advanced Chunking Techniques
+
+Beyond traditional methods, more advanced chunking techniques offer nuanced control and robustness for specific use cases. These approaches leverage statistical analysis or cumulative processing to create more contextually stable or semantically coherent chunks.
+
+For the examples below, we are going to use the library `<a href="https://github.com/aurelio-labs/semantic-chunkers">semantic-chunkers</a>`
+
+Let us start with setting the environment and installing the necessary tools.
+
+```python
+# Install required libraries
+# - semantic-chunkers: for semantic-aware text chunking
+# - datasets==2.19.1: Hugging Face's library for datasets
+!pip install -qU \\\\
+    semantic-chunkers \\\\
+    datasets==2.19.1
+
+# Load a dataset of AI research papers from the Hugging Face Hub
+from datasets import load_dataset
+data = load_dataset("jamescalam/ai-arxiv2", split="train")
+
+# Extract and print the first 1000 characters of the 4th document
+content = data[3]["content"]
+print(content[:1000])
+
+# Limit the content to the first 20,000 characters for manageable input
+content = content[:20_000]
+
+# Set up the OpenAI encoder
+import os
+from getpass import getpass
+from semantic_router.encoders import OpenAIEncoder
+
+# Load your OpenAI API key securely (interactive prompt if not already set)
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY") or getpass(
+    "OpenAI API key: "
+)
+
+# Initialize the encoder with the selected embedding model
+encoder = OpenAIEncoder(name="text-embedding-3-small")
+```
+
+##### Statistical Chunking
+
+Statistical chunking is one of the most robust strategies available. It dynamically identifies optimal split points in a document by evaluating local similarity using varying thresholds. This approach adapts to the content, making the resulting chunks contextually rich and well-balanced. The `StatisticalChunker` often requires minimal manual tuning, as it can automatically determine suitable threshold values. However, it is limited to text-based documents and cannot be used for multimodal inputs (unlike the `ConsecutiveChunker`). The following code showcases the implementation of the statistical chunking:
+
+```python
+# Import the StatisticalChunker from semantic_chunkers
+from semantic_chunkers import StatisticalChunker
+
+# Initialize the chunker with the previously created OpenAI encoder
+chunker = StatisticalChunker(encoder=encoder)
+
+# Apply the chunker to the list of documents (in this case, one truncated document)
+chunks = chunker(docs=[content])
+
+# Print the first chunk to inspect the result
+chunker.print(chunks[0])
+```
+
+![Screenshot showing statistical chunking results](/blog/top-10-techniques-to-improve-rag-applications/img-3.webp)
+
+##### Consecutive Chunking
+
+Consecutive chunking is a lightweight version of semantic chunking. It splits text into chunks in a straightforward, linear manner while preserving semantic flow. Though simpler, it still provides meaningful divisions based on content structure and can be useful in low-compute scenarios or as a baseline semantic chunking method. The code is shown below to implement the consecutive chunking in Python :
+
+```python
+# Import the ConsecutiveChunker from semantic_chunkers
+from semantic_chunkers import ConsecutiveChunker
+
+# Initialize the chunker with:
+# - encoder: the OpenAI embedding model previously set up
+# - score_threshold: similarity threshold to control chunk splitting
+chunker = ConsecutiveChunker(encoder=encoder, score_threshold=0.3)
+
+# Apply the chunker to the document (as a list)
+chunks = chunker(docs=[content])
+
+# Print the first resulting chunk to inspect the output
+chunker.print(chunks[0])
+```
+
+![Screeshot showing the results of consecutive chunking](/blog/top-10-techniques-to-improve-rag-applications/img-4.webp)
+
+##### Cumulative Chunking
+
+Cumulative chunking builds chunks progressively by accumulating content until a threshold of semantic or contextual completeness is reached. While this method tends to produce highly stable and noise-resistant chunks, it is computationally expensive both in terms of processing time and, if using paid APIs, financial cost. It is best suited for high-stakes use cases where chunk quality is paramount. The implementation in Python is shown below:
+
+```python
+# Import the CumulativeChunker from semantic_chunkers
+from semantic_chunkers import CumulativeChunker
+
+# Initialize the chunker with:
+# - encoder: the OpenAI embedding model used for similarity scoring
+# - score_threshold: determines when to break a chunk based on semantic change
+chunker = CumulativeChunker(encoder=encoder, score_threshold=0.3)
+
+# Apply the chunker to the content (provided as a list of one document)
+chunks = chunker(docs=[content])
+
+# Print the first chunk to inspect how the content was segmented
+chunker.print(chunks[0])
+```
+
+![Screenshot showing the results of cummulative chunking](/blog/top-10-techniques-to-improve-rag-applications/img-5.webp)
+
+### 3. Iterate on the Prompts:
+
+Prompt engineering is critical for enhancing RAG system performance. Well-crafted prompts guide the language model to interpret context accurately and generate high-quality outputs.
+
+Frameworks like [LlamaIndex](https://www.llamaindex.ai/framework) come with pre-built RAG prompt templates. These work well for getting started, but you should improve them for your specific use case. Iterating on prompts and models is one of the few low-effort, high-value optimizations you can make.
+
+**Effective**[**prompting techniques**](https://www.promptingguide.ai/techniques)**include:**
+
+- [Few-shot prompting](https://www.promptingguide.ai/techniques/fewshot) with curated examples that show the desired output format
+- [Reusable prompt templates](https://docs.agenta.ai/prompt-engineering/quick-start) with variables for different scenarios
+- Clear instructions on how to use retrieved context
+- Explicit guidance on when to say "I don't know" if context is insufficient
+
+**Use the right tools to speed up iteration.** The ideal prompt engineering tool should let you quickly test different models from multiple providers, compare outputs side-by-side, and load test sets for systematic evaluation.
+
+[Agenta Playground](https://docs.agenta.ai/prompt-engineering/playground/using-the-playground) streamlines this process. It supports [multiple models](https://docs.agenta.ai/prompt-engineering/playground/adding-custom-providers) (OpenAI, Claude, Gemini, Mistral, DeepSeek, OpenRouter) and integrates with frameworks like [LangChain](https://docs.agenta.ai/observability/integrations/langchain), [LlamaIndex](https://docs.agenta.ai/observability/integrations/llamaindex), and CrewAI. You can tune parameters (temperature, top-k, frequency penalties), compare models side-by-side, and [manage prompt](https://docs.agenta.ai/prompt-engineering/prompt-management/prompt-management-sdk) versions for [systematic testing](https://docs.agenta.ai/evaluation/overview).
+
+### 4. Metadata Filters + Auto-Retrieval:
+
+This structured retrieval method significantly improves RAG accuracy by enhancing retrieved document relevance. Unlike naive RAG pipelines that simply retrieve top-k documents based on embedding similarity, this approach tags documents with structured metadata (author, topic, date, source). At query time, auto-retrieval models infer and apply appropriate metadata filters based on the semantic meaning of user queries. This dual filtering process narrows candidates to documents that are both topically aligned and semantically relevant.
+
+A possible implementation of this approach is detailed here :
+
+```python
+# 1. Validate that the schema "LlamaIndex" exists in Weaviate
+class_schema = client.schema.get("LlamaIndex")
+display(class_schema)  # Display the schema details for confirmation
+```
+
+This block queries the [Weaviate](https://weaviate.io/) client to fetch the schema information for the class named "LlamaIndex". By displaying this schema, you verify that the structure you expect for your vector store exists and is properly configured. This is an important initial check to avoid schema conflicts or errors when inserting or querying data later.
+
+```python
+# 2. Create a VectorStoreIndex with optional preprocessing and callbacks
+index = VectorStoreIndex(
+    [],  # Start empty, documents added later
+    storage_context=storage_context,  # Connect to Weaviate vector store
+    transformations=[splitter],       # Optional: split documents into chunks
+    callback_manager=callback_manager, # Optional: track process callbacks
+)
+```
+
+Here, an empty `VectorStoreIndex` is created. It connects to the Weaviate-backed storage context, allowing you to store and retrieve vectors in that service. The `transformations` argument includes a splitter function which can break documents into smaller chunks to improve indexing and retrieval quality. The `callback_manager` optionally enables logging or progress tracking during index operations.
+
+```python
+# 3. Insert documents into the index
+for wiki_title in wiki_titles:
+    index.insert(docs_dict[wiki_title])
+```
+
+This loop iterates through the list of document titles (`wiki_titles`) and inserts each corresponding document from the `docs_dict` dictionary into the vector index. This step populates the index with actual data, making it ready for semantic retrieval based on the embedded document contents.
+
+```python
+# 4. Setup metadata definitions for structured auto-retrieval
+from llama_index.core.retrievers import VectorIndexAutoRetriever
+from llama_index.core.vector_stores.types import MetadataInfo, VectorStoreInfo
+
+vector_store_info = VectorStoreInfo(
+    content_info="brief biography of celebrities",
+    metadata_info=[
+        MetadataInfo(
+            name="category",
+            type="str",
+            description=(
+                "Category of the celebrity, one of [Sports, Entertainment, Business, Music]"
+            ),
+        ),
+        MetadataInfo(
+            name="country",
+            type="str",
+            description=(
+                "Country of the celebrity, one of [United States, Barbados, Portugal]"
+            ),
+        ),
+    ],
+)
+```
+
+This block defines the metadata schema that enriches the vector store. It describes additional structured information stored alongside the documents, such as the celebrity’s category and country. By specifying the data types and descriptions, it enables the retrieval system to filter or prioritize results based on these metadata fields, leading to more accurate and contextually relevant search results.
+
+```python
+# 5. Initialize the auto-retriever for semantic + metadata-based search
+retriever = VectorIndexAutoRetriever(
+    index,
+    vector_store_info=vector_store_info,
+    llm=llm,
+    callback_manager=callback_manager,
+    max_top_k=10000,  # Workaround to retrieve a large number of results
+)
+```
+
+This section creates the `VectorIndexAutoRetriever`, which combines the vector index, metadata schema, and a large language model (`llm`) to perform intelligent retrievals. The retriever uses metadata filters and semantic understanding to fetch the most relevant document chunks. The `max_top_k` parameter is set high as a temporary workaround to return a large set of results, since unlimited fetching is not yet supported.
+
+```python
+# 6. Retrieve and display results for example queries
+
+nodes = retriever.retrieve(
+    "Tell me about a celebrity from the United States, set top k to 10000"
+)
+print(f"Number of nodes: {len(nodes)}")
+for node in nodes[:10]:
+    print(node.node.get_content())
+```
+
+This code runs an example query asking for celebrities from the United States. It retrieves up to 10,000 nodes (chunks) that match the query, then prints out the content of the first 10. This demonstrates how the retriever returns structured and semantically relevant data filtered by metadata criteria. The output of this request is shown here:
+
+![Output of the request](/blog/top-10-techniques-to-improve-rag-applications/img-6.webp)
+
+```python
+nodes = retriever.retrieve(
+    "Tell me about the childhood of a popular sports celebrity in the United States"
+)
+for node in nodes:
+    print(node.node.get_content())
+```
+
+A second query targets childhood information about popular sports celebrities specifically from the United States. The retriever uses its semantic understanding and metadata filters to find and return the most relevant document parts, which are then printed as it is shown here:
+
+![Output of the request with the most relevant documents](/blog/top-10-techniques-to-improve-rag-applications/img-7.webp)
+
+### 5. Use Recursive Retrieval for Large Document Collections:
+
+Recursive Retrieval is a structured approach to information retrieval where the system first retrieves high-level summaries or indexes, then recursively drills down into more detailed content only when needed. Instead of searching through all raw data chunks directly (which can be huge and noisy), recursive retrieval narrows the scope step-by-step:
+
+1. Retrieve summaries or high-level overviews relevant to the query.
+2. Based on these summaries, retrieve the associated detailed chunks.
+3. Combine or refine results for a final answer.
+
+This hierarchical retrieval reduces noise, improves relevance, and scales better with large document collections, and it can be implemented as follows:
+
+```python
+from llama_index.core.schema import IndexNode
+
+# Define containers for nodes, query engines, and retrievers
+nodes = []
+vector_query_engines = {}
+vector_retrievers = {}
+```
+
+This initializes empty lists and dictionaries to hold the top-level index nodes (summaries), per-document query engines, and vector retrievers for later use.
+
+```python
+for wiki_title in wiki_titles:
+    # Build a vector index for each document, with optional text splitting and callbacks
+    vector_index = VectorStoreIndex.from_documents(
+        [docs_dict[wiki_title]],
+        transformations=[splitter],
+        callback_manager=callback_manager,
+    )
+    # Create a query engine and retriever from the index and store them keyed by title
+    vector_query_engine = vector_index.as_query_engine(llm=llm)
+    vector_query_engines[wiki_title] = vector_query_engine
+    vector_retrievers[wiki_title] = vector_index.as_retriever()
+```
+
+For each wiki article, this block builds a vector index from the document, creates query engines and retrievers tied to that index, and stores them keyed by the document title for easy access.
+
+```python
+    # Save or load summaries for each document
+    out_path = Path("summaries") / f"{wiki_title}.txt"
+    if not out_path.exists():
+        # Generate summary with an LLM if not already saved
+        summary_index = SummaryIndex.from_documents(
+            [docs_dict[wiki_title]], callback_manager=callback_manager
+        )
+        summarizer = summary_index.as_query_engine(
+            response_mode="tree_summarize", llm=llm
+        )
+        response = await summarizer.aquery(f"Give me a summary of {wiki_title}")
+        wiki_summary = response.response
+        Path("summaries").mkdir(exist_ok=True)
+        with open(out_path, "w") as fp:
+            fp.write(wiki_summary)
+    else:
+        with open(out_path, "r") as fp:
+            wiki_summary = fp.read()
+```
+
+This code checks if a summary file for the wiki article exists. If not, it uses an LLM-based summarizer to create and save a summary. Otherwise, it loads the existing summary from disk to avoid recomputing.
+
+```python
+    print(f"**Summary for {wiki_title}: {wiki_summary}")
+    node = IndexNode(text=wiki_summary, index_id=wiki_title)
+    nodes.append(node)
+```
+
+Prints the summary and creates a top-level index node holding the summary text with an ID. Each summary node is appended to the `nodes` list to be used for the top-level index.
+
+```python
+# Create a top-level vector index from the summary nodes
+top_vector_index = VectorStoreIndex(
+    nodes, transformations=[splitter], callback_manager=callback_manager
+)
+# Create a retriever from the top-level index, limiting results to the closest match
+top_vector_retriever = top_vector_index.as_retriever(similarity_top_k=1)
+```
+
+Builds a new vector index from the summary nodes, which acts as the top-level overview index. A retriever is created to fetch the most relevant summary node per query.
+
+```python
+from llama_index.core.retrievers import RecursiveRetriever
+
+# Combine all retrievers (top-level and per-document) into a RecursiveRetriever
+recursive_retriever = RecursiveRetriever(
+    "vector",
+    retriever_dict={"vector": top_vector_retriever, **vector_retrievers},
+    # query_engine_dict=vector_query_engines,  # Optional: can be enabled if query engines needed
+    verbose=True,
+)
+```
+
+This initializes a `RecursiveRetriever` that first queries the top-level summaries to find relevant documents, then recursively uses the specific document retrievers to fetch detailed content. The verbose flag enables logging for debug.
+
+```python
+# Use the recursive retriever to answer queries, printing results
+nodes = recursive_retriever.retrieve("Tell me about a celebrity from the United States")
+for node in nodes:
+    print(node.node.get_content())
+```
+
+Runs a recursive retrieval query about U.S. celebrities, printing content from the most relevant detailed nodes after drilling down from the summary level. The output is shown here:
+
+![Output of a recursive retrieval query about US celebrities](/blog/top-10-techniques-to-improve-rag-applications/img-8.webp)
+
+```python
+nodes = recursive_retriever.retrieve(
+    "Tell me about the childhood of a billionaire who started at company at the age of 16"
+)
+for node in nodes:
+    print(node.node.get_content())
+```
+
+Performs another recursive retrieval for a complex query about a billionaire’s childhood and entrepreneurship, again printing detailed content fetched through recursive steps. A screenshot of the output is shown here:
+
+![Output of the request with complex query about billionaire childhood](/blog/top-10-techniques-to-improve-rag-applications/img-9.webp)
+
+### 6. Optimize Embedding Quality
+
+Embeddings are dense vector representations that capture semantic meaning in continuous, lower-dimensional space. Unlike keyword-based approaches, embeddings position similar meanings close together in vector space, even when surface-level language differs. In RAG pipelines, embeddings encode both user queries and document chunks for similarity search through vector databases. This directly impacts generated output quality, as LLMs rely on retrieved documents to ground their responses. High-quality embeddings enable retrieval of conceptually aligned information, not just textually similar content. This enhances retrieval accuracy and ensures responses are based on meaningful content, leading to more contextually relevant, precise, and less hallucinated answers.
+
+### 7. Fine-tune Embedding Models for Domain Adaptation:
+
+Fine-tuning involves taking a pre-trained embedding model and further training it on domain-specific data to better align it with the unique vocabulary, semantics, and structure of a given field. This process offers several key benefits for improving Retrieval-Augmented Generation (RAG) systems. First, it enhances **performance** by allowing the model to internalize the nuances and recurring patterns of your data, resulting in more precise semantic representations. Second, it supports **domain adaptation** different fields like law, medicine, or engineering use language in specialized ways, and fine-tuning helps the embedding model better understand and represent this specialized vocabulary and context. Third, fine-tuning is **resource-efficient**; instead of training a new model from scratch (which demands large datasets and computational power), you build upon the strengths of an existing pre-trained model, saving both time and cost. In the context of RAG, this translates to improved document retrieval, better query-to-context matching, and ultimately, more accurate and context-aware generated responses. The fine tuning process in a nutshell is shown in the following figure:
+
+![Illustartion showing the finetuning process](/blog/top-10-techniques-to-improve-rag-applications/img-10.webp)
+
+If you're looking to fine-tune embedding models for your specific use case, here are some great resources to help you get started:
+
+- [**Hugging Face: Train Sentence Transformers**](https://huggingface.co/blog/train-sentence-transformers) A comprehensive guide that walks you through the process of training sentence-transformer models using the Hugging Face ecosystem.
+- [**LlamaIndex: Fine-Tune Embeddings**](https://docs.llamaindex.ai/en/stable/examples/finetuning/embeddings/finetune_embedding/) Learn how to fine-tune embedding models within the LlamaIndex framework with practical, step-by-step examples.
+
+These resources are ideal for anyone looking to customize embeddings for improved semantic search, retrieval-augmented generation, or other NLP applications.
+
+### 8. Other advanced techniques:
+
+Several advanced techniques can push RAG system accuracy to production-ready levels:
+
+[**Activeloop Deep Memory**](https://python.langchain.com/docs/integrations/retrievers/activeloop/): Enables memory-optimized retrieval through streaming data pipelines, allowing RAG systems to scale efficiently while maintaining high-performance access to large datasets.
+
+[**Reranking**](https://developer.nvidia.com/blog/enhancing-rag-pipelines-with-re-ranking/): Plays a critical role post-retrieval by reordering candidate documents based on relevance, ensuring only the most contextually appropriate chunks feed into the language model.
+
+[**Query Transformation**](https://docs.llamaindex.ai/en/stable/examples/query_transformations/query_transform_cookbook/): Enhances retrieval effectiveness by reformulating user queries into semantically richer or better-aligned forms, bridging the gap between user intent and document structure.
+
+[**Vector Stores with Compute Disaggregated from Storage**](https://milvus.io/docs/four_layers.md): Introduces architectural optimizations that decouple storage and computation, enabling faster retrieval, greater scalability, and significant cost savings in production deployments.
+
+## Which Technique Should You Start With:
+
+This section evaluates the eight techniques covered in this guide, comparing their implementation difficulty and impact. Use this to prioritize which improvements to tackle first based on your team's capabilities and needs.
+
+<table><tbody><tr><th>Approach</th><th>Difficulty</th><th>Comments</th></tr><tr><td>Quality of Data</td><td>Easy to Moderate</td><td>This step primarily involves data cleaning, normalization, deduplication, and structural formatting. Ensuring coverage and relevance may require domain expertise. It's a foundational step poor data quality affects all downstream RAG components.</td></tr><tr><td>Statistical Chunking</td><td>Hard</td><td>Requires semantic encoder and custom logic for identifying split points using similarity metrics; yields contextually rich chunks but limited to text-based documents.</td></tr><tr><td>Consecutive Chunking</td><td>Moderate</td><td>Easier than statistical; offers semantic continuity without recursive structure; good balance of quality and simplicity.</td></tr><tr><td>Cumulative Chunking</td><td>Hard</td><td>Involves accumulating content with continuous similarity checks; delivers high-quality chunks but is computationally intensive and more complex to implement.</td></tr><tr><td>Prompt Engineering</td><td>Easy to Moderate</td><td>Designing basic prompts or templates is easy; effective few-shot prompting and template abstraction require thoughtful examples and domain understanding. Tools like <strong>Agenta</strong> simplify development, testing, and version control. It’s a high-leverage step for improving model outputs without retraining or infrastructure changes.</td></tr><tr><td>Metadata Filters + Auto-Retrieval</td><td>Moderate to Hard</td><td>Requires a well-structured metadata schema and integration with a vector store . Enhances retrieval accuracy by combining semantic similarity with metadata-based filtering. Auto-retrieval using LLMs adds complexity but leads to highly precise and context-aware results, especially for structured datasets. Strong improvement for factual grounding in RAG systems.</td></tr><tr><td>Recursive Retrieval</td><td>Moderate to Hard</td><td>Involves hierarchical indexing (summaries + full documents), asynchronous summarization, and managing multiple retrievers. Significantly improves relevance and scalability in large corpora, but adds engineering complexity. Best suited for large knowledge bases where a flat retrieval would be too noisy or inefficient.</td></tr><tr><td>Quality of Embeddings</td><td>Easy to Moderate</td><td>Using pretrained embedding models is straightforward (e.g., OpenAI, Hugging Face). Performance improves significantly with high-quality or domain-specific embeddings. Tools like <strong>Agenta</strong> help evaluate embedding effectiveness via semantic similarity.</td></tr><tr><td>Fine-tuning embedding models</td><td>Moderate to Hard</td><td>Fine-tuning embeddings adds complexity but provides major gains in niche applications. Crucial for semantic relevance and robustness in RAG systems.</td></tr></tbody></table>
+
+## How to Choose the Right Strategy
+
+Should you use this chunking strategy or that one, should you use this embedding model or that one? There's no formula for selecting a strategy. Like everything in AI engineering, the right approach is experimental.
+
+**Start by examining your data.** Look at the data created and evaluate whether they're consistently comprehensive. For instance, if you are working on the chunking strategy, look at the chunks generated. Can they be understood standalone to allow the LLM to answer correctly? This manual inspection reveals patterns that automated metrics miss.
+
+**Create multiple experiments.** Build databases with different chunking techniques, or different embedding. If your data is large, create a representative subset and test cases that cover the most general scenarios. This allows you to test different approaches at low cost before scaling up.
+
+**Trace everything.** For each test, examine three components:
+
+- **Retrieved context**: Is it comprehensive and relevant?
+- **LLM prompt with context**: Is it clear enough for the LLM to answer? Does it provide the required context?
+- **Final answer**: Is the output good? (Note: this is a secondary data point since it includes LLM stochasticity)
+
+**Iterate systematically.** Test different strategies and parameters on your small set. When you identify the top 2-3 performers, run the complete evaluation.
+
+**Avoid premature automation.** Don't jump to automated RAG metrics like RAGAS immediately. You need to look at the data and annotate it yourself first. Understanding your data beats black-box metrics for initial optimization.
+
+**Set up the right tools.** You'll need two key capabilities:
+
+**Observability**: Set up tracing so you can debug requests and see retrieved context, complete prompts, and answers. Without visibility into the pipeline, optimization becomes guesswork.
+
+**Annotation system**: Have a way to quickly annotate the results and evaluate them. Set up at least two metrics—one for context retrieval quality and one for final output quality. This lets you compare experiments systematically.
+
+Agenta provides an end-to-end workflow to trace requests and debug them (with integrations for LlamaIndex, LangChain, and OpenAI), plus annotation capabilities for systematic evaluation.
+
+## Building Production-Ready RAG Systems:
+
+Effective RAG systems require thoughtful integration of techniques across data preparation, retrieval, and generation stages. Start with data quality and basic chunking, then progressively add sophisticated retrieval methods based on your specific needs and constraints. Make sure that you systematically evaluate each experiment (check out [our blog post about best practices for RAG evaluation](/blog/top-10-techniques-to-improve-rag-applications))
+
+Tools like Agenta, [an open-source LLMOps platform](https://github.com/agenta-ai/agenta), streamline this process by supporting prompt versioning, semantic evaluation, and multi-model testing. By combining best practices with powerful tooling, teams can build scalable, accurate, and user-aligned RAG systems that effectively leverage the full capabilities of large language models.
+
+The key is systematic improvement: measure current performance, identify bottlenecks, apply appropriate techniques, and validate improvements before moving to the next optimization. This methodical approach ensures each enhancement actually improves user experience rather than just adding complexity.
+
+[Get started with Agenta](https://cloud.agenta.ai)

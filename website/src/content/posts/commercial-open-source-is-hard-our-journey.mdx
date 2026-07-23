@@ -1,0 +1,208 @@
+---
+slug: "commercial-open-source-is-hard-our-journey"
+title: "Commercial Open Source Is Hard: Our Journey"
+description: "Today we're open-sourcing most of our product. Here's what we learned after three failed attempts."
+category: Article
+date: 2025-11-13
+readingTime: "8 min read"
+heroImage: /blog/commercial-open-source-is-hard-our-journey/hero.webp
+ogImage: /blog/commercial-open-source-is-hard-our-journey/hero.webp
+author: mahmoud-mabrouk
+featured: false
+tags: ["Essay"]
+---
+
+Today we are open-sourcing the core of our product: evaluation.
+
+Concretely, we're making all functional features of Agenta open source (MIT license). We're keeping only advanced enterprise collaboration features closed source under a separate license. We also moved our development back into the public repository.
+
+This post is a write-up of how we got here after trying three different open-core models. I'll explain what broke in each one and why we think this new approach fits us better.
+
+We haven't "solved" commercial open source. But we've at least learned what doesn't work for us.
+
+## What Agenta is (and why evals matter)
+
+<InlineCTA />
+
+Agenta is a platform for building reliable LLM applications. It includes:
+
+- Prompt management to organize and experiment on your prompts
+- Evaluation to test your AI apps pre- and in production
+- Observability and tracing for LLM calls
+
+Evaluation is the core of our product (the feedback loop in LLM engineering). That's why this decision matters. Until now, evaluation was the part we kept closed.
+
+## Why we cared about open source from day one
+
+Before Agenta, I (a co-founder) built a small open-source tool right after ChatGPT came out.
+
+At that time there was no official API. I hacked together a library using Puppeteer that let you use ChatGPT from the API. As a demo, I created a minimal command line interface to chat with ChatGPT.
+
+A few things happened:
+
+- A community formed around it much faster than I expected. I got lots of PRs and issues.
+- Quickly people started using the CLI and pushing the project in that direction.
+- The project eventually continued under another maintainer and different name (you can check it out here; imo the best AI CLI out there).
+
+That experience sold me on open source as a way to build and iterate quickly, not just as a distribution strategy.
+
+When we started Agenta, it felt obvious: we should build it as open source. The question was how.
+
+Commercial open source has a few common patterns:
+
+- **Dual products**: An OSS library plus a separate closed-source SaaS. Vercel/[Next.js](https://nextjs.org) is a great example.
+- **Open core**: A subset of the product is OSS, advanced features are closed. PostHog is a great example. Another is dbt.
+- **Fully OSS + hosted cloud**: Like [Sentry](https://sentry.io/). Code is open, the business is convenience, scale, and support.
+- **Support/consulting-driven**: Closer to the classic [Red Hat](https://redhat.com) model.
+
+We decided to go with open core. We use lots of open-core tools ([cal.com](http://cal.com/), [PostHog](https://posthog.com) which we are big fans of). We like that we can self-host them in theory. And we like that there's a sustainable company behind them in practice.
+
+However, the question was: what to open source and what to close source?
+
+Here is what we tried and what we learned:
+
+## Attempt #1: Single user open source, teams closed
+
+Our first model was simple in theory:
+
+- Open source if you're a single user
+- Closed source if you're a team (multiple users, org features, etc.)
+
+Basically, we shipped the open-source version without any authentication layer at all.
+
+Our hope:
+
+- Hobbyists and early adopters would use the OSS version
+- Teams would graduate into the cloud version when they needed collaboration and governance
+
+What actually happened:
+
+- Our ideal customer profile (professional teams) looked at the open-source version and bounced. No auth means no basic security.
+- The people who did try it were often hobbyists, and their feedback wasn't always aligned with our vision.
+
+However, we were able to build a nice community in this short period, with lots of contributors.
+
+### The lesson from attempt #1:
+
+If you're doing open core, your open-source product still has to match your real ICP's minimum bar. Otherwise you're optimizing for a different persona entirely.
+
+## Attempt #2: Pre-production open, observability closed
+
+We went back to the drawing board and tried a more "strategic" split.
+
+New idea:
+
+- Keep pre-production iteration open source (playground, prompt iteration, basic evaluation)
+- Keep production observability closed source (traces, advanced monitoring, post-deployment insights)
+
+The logic was:
+
+- "You only pay once you go to production"
+- Observability is critical once you're live, so teams might be more willing to pay there
+
+What we didn't anticipate was how teams were actually working:
+
+- Many teams start vibe prompting from day one and move quickly to production
+- In that world, observability is not a "later" thing; it's where iteration happens from day one
+
+On top of that, there were already several open-source observability platforms for LLMs.
+
+So we ended up in an awkward position where the OSS offering was missing an important part of the workflow.
+
+### The lesson from attempt #2:
+
+The OSS offering needs to solve a job to be done from A to Z.
+
+## Attempt #3: Closing evaluation and moving dev to a private repo
+
+At this point it was clear that the current split was wrong. We made the following decision:
+
+- We closed-source evaluation, which we saw as our biggest differentiator, and open-sourced prompt management and observability
+- We moved development to the closed repository and started treating the open-source repo as a release mirror
+
+The second point was very important. Until this point we were developing in two repositories in parallel. Whenever we needed to make a change to EE, it was done there. Whenever we were developing in OSS, we were doing it there.
+
+Our speed of development was slowing down with the complexity of the project.
+
+Moving to a single repo solved the problem. Our dev speed increased by a lot.
+
+The split also worked. Prompt management + observability was a complete solution for a subset of our users. Our adoption increased.
+
+In practice, we lost one important thing: community and feedback.
+
+We weren't building in public anymore. As a result, our users started using us transactionally:
+
+- Contributors disappeared
+- Issues with rich context became rarer
+- Very little feedback in public channels; most went to Slack or came from paying customers
+
+This was the opposite of what we wanted when we chose open source in the first place.
+
+### The lesson from attempt #3:
+
+If your core value is closed and development happens in private, your "open source" project will drift toward being a demo, not a community.
+
+That hurt enough that we decided to change course.
+
+## What we're doing now: Everything functional is open
+
+Today's decision comes after countless internal discussions. We decided, as a young commercial open source business, to optimize for two things:
+
+### Feedback and community:
+
+Our success is related to our speed of iteration and how quickly we listen to our users and market. Open source is a big asset here. We want to leverage it by being transparent. We are moving all our development to the open-source project (keeping enterprise features in an ee/ folder with a different license). We also published our roadmap and make sure to sync all the issues we are working on and our priorities.
+
+### Value and adoption:
+
+We are a developer platform. We succeed when we bring value to AI teams and are adopted everywhere. Dev platforms succeed with word of mouth.
+
+So here's the model we're switching to now:
+
+**1. All functional features are open source**
+
+Everything you need to use Agenta as a serious LLM evaluation and observability platform lives in the public repo:
+
+- Evaluation (including LLM-as-a-judge, test sets, workflows)
+- Prompt playground and configuration
+- Observability and traces
+- The core workflows that connect these pieces
+
+We moved our development back to the open repo. This is now the real codebase, not a mirror.
+
+**2. Enterprise features live in an ee/ folder with a different license**
+
+We do keep some things closed source, under an enterprise license:
+
+- Advanced collaboration
+- Org-level features (RBAC, SSO/SAML/SCIM, audit logs, etc.)
+- Compliance and enterprise governance features
+
+## Why we think this won't cannibalize our revenue
+
+If you're thinking "doesn't this cannibalize your revenue?", that's what we asked ourselves too.
+
+Our view (which might be wrong, and we're open to being proven wrong):
+
+**1. Teams who truly want to self-host from day one are a different segment**
+
+They usually have strong security or data residency requirements. They have infra teams that can maintain the stack. If they're large enough, their needs go beyond the OSS version anyway (compliance, SSO, support, SLAs).
+
+**2. Most teams actually want a managed service**
+
+We see this in how we use other tools: Sentry, PostHog, cal.com, etc. We like that they are open source. It gives us confidence and an exit option. But we almost never self-host them. The total cost (setup, maintenance, upgrades) is higher than paying the SaaS bill.
+
+In summary, we see the open-source adopter a distinct segment than the cloud adopter. Having OSS is an offering to target that segment.
+
+We might be wrong on the details. But we're comfortable with the tradeoff:
+
+We'd rather maximize adoption and community around the core than protect it behind a wall and end up with a weaker project.
+
+## What we still don't know (and would love feedback on)
+
+We're not presenting this as "the" template for commercial open source. There are still open questions we're thinking through.
+
+If you're running (or have run) a commercial open-source company, we'd genuinely love to hear:
+
+- How you decided what to keep closed?
+- What you regretted later?
+- What worked surprisingly well?

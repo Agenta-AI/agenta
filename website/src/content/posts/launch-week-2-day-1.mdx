@@ -1,0 +1,67 @@
+---
+slug: "launch-week-2-day-1"
+title: "Launch Week #2 Day 1: New Evaluation Dashboard "
+description: "Launch Week Day 1: Redesigned evaluation dashboard with side-by-side comparison, detailed debugging, and customizable LLM-as-a-judge evaluators."
+category: Article
+date: 2025-11-10
+readingTime: "5 min read"
+heroImage: /blog/launch-week-2-day-1/hero.webp
+ogImage: /blog/launch-week-2-day-1/hero.webp
+author: mahmoud-mabrouk
+featured: false
+tags: ["Product Updates"]
+---
+
+<iframe src="https://www.youtube.com/embed/gcYGRcNOJOg?iv_load_policy=3&rel=0&modestbranding=1&playsinline=1&autoplay=0&mute=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+Building reliable LLM apps is hard.
+
+You change a prompt to fix one input. It looks better. Then you discover it broke something else.
+
+Most teams spend months going in circles. They make changes but have no way to measure if they're actually improving.
+
+Evals solve this. They give you a measurable way to improve prompts and workflows systematically.
+
+That's why we spent months rebuilding evaluations from the ground up.
+
+## Evaluation Dashboard
+
+<InlineCTA />
+
+![Evaluation Dashboard](/blog/launch-week-2-day-1/img-1.webp)
+
+We redesigned the evaluation dashboard to give you a clear view of your prompts' performance.
+
+The new dashboard lets you:
+
+**Get a quick overview.** See how your prompts score across different metrics at a glance. No more digging through results to understand performance.
+
+**Dive into details.** Jump into individual test cases and view results clearly. See the full input, output, and evaluation scores in one place.
+
+**Debug with traces.** View the complete traces used to generate each output. Understand exactly what happened and why.
+
+**Catch regressions fast.** Compare prompt versions side by side. See how changes affect results across all your test cases. Spot regressions before they reach production.
+
+**Keep context.** View overview results, detailed results, and prompt configuration in one place. No more context switching between multiple tabs.
+
+## Evaluator Configuration
+
+![Evaluator Configuration](/blog/launch-week-2-day-1/img-2.gif)
+
+We also improved how you configure and test evaluators.
+
+**Test before you run.** Use the improved evaluator playground to configure and test any built-in evaluator with real data. See how LLM-as-a-judge or code evaluators perform before running a full evaluation.
+
+**Browse all evaluators.** The new evaluator registry shows all available evaluators in one place. Both automatic evaluators and human evaluation workflows.
+
+**Customize LLM-as-a-judge.** Create multiple feedback outputs per evaluator with custom schemas. Return a binary score plus detailed reasoning. Or any structure you need. The LLM-as-a-judge evaluator now supports any output schema you define.
+
+## Get Started
+
+Ready to try the new evaluation workflow?
+
+[**Read the documentation →**](https://docs.agenta.ai/evaluation/evaluation-from-ui/quick-start)
+
+[**Start evaluating in Agenta Cloud →**](https://cloud.agenta.ai/)
+
+This is day 1 of our [launch week](/launch-week-2). Check back tomorrow for the next announcement.
