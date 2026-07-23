@@ -215,6 +215,25 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
     toggle.setAttribute("aria-expanded", open ? "true" : "false");
   });
 
+  // Hover/focus dropdowns open purely via CSS (:hover / :focus-within on
+  // .ag-navdd). The trigger's aria-expanded must track that open state for AT,
+  // so mirror the same two conditions onto it here. Semantic only — no visual
+  // change (the CSS still drives what's actually shown).
+  document.querySelectorAll<HTMLElement>(".ag-navdd").forEach((dd) => {
+    const trigger = dd.querySelector<HTMLButtonElement>(":scope > button");
+    if (!trigger) return;
+    const sync = (open: boolean) =>
+      trigger.setAttribute("aria-expanded", open ? "true" : "false");
+    dd.addEventListener("mouseenter", () => sync(true));
+    dd.addEventListener("mouseleave", () => sync(false));
+    dd.addEventListener("focusin", () => sync(true));
+    dd.addEventListener("focusout", () => {
+      // focusout fires before focus lands on the next target; defer so we can
+      // read whether focus is still inside this dropdown.
+      requestAnimationFrame(() => sync(dd.contains(document.activeElement)));
+    });
+  });
+
   // Nav-pill: landing only. The rAF loop toggles `.nav-scrolled` on <html> past
   // 24px so the sticky bar floats into the glass pill (styles in global.css). It
   // runs ONLY when a `nav[data-pill]` is present — inner pages render a static
