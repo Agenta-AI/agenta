@@ -88,4 +88,49 @@ describe("reconstructHistoryIfNeeded", () => {
     // Other request fields are preserved.
     assert.equal((out as { harness?: string }).harness, "pi");
   });
+
+  it("no-op when the request carries no messages at all", async () => {
+    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
+    const req = { messages: [] } as never;
+    const out = await reconstructHistoryIfNeeded(req, "sess-1", auth);
+    assert.equal(out, null);
+    assert.equal(fetchCalls, 0);
+  });
+
+  it("no-op when the single inbound message is not a fresh user turn", async () => {
+    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
+    const req = { messages: [{ role: "assistant", content: "a1" }] } as never;
+    const out = await reconstructHistoryIfNeeded(req, "sess-1", auth);
+    assert.equal(out, null);
+    assert.equal(fetchCalls, 0);
+  });
+
+  it("drops the current turn's own records so the prompt is not replayed twice", async () => {
+    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
+    // The runner persists the inbound prompt BEFORE the engine starts, so by the time this
+    // runs the log already holds turn-2's own user record.
+    recordsToReturn = [
+      { turn_id: "turn-1", record_source: "user", attributes: { type: "message", text: "q1" } },
+      { turn_id: "turn-1", record_source: "agent", attributes: { type: "message", text: "a1" } },
+      { turn_id: "turn-2", record_source: "user", attributes: { type: "message", text: "hi again" } },
+    ];
+    const req = { messages: [userTurn], turnId: "turn-2" } as never;
+    const out = await reconstructHistoryIfNeeded(req, "sess-1", auth);
+    assert.ok(out);
+    assert.deepEqual(out!.messages, [
+      { role: "user", content: "q1" },
+      { role: "assistant", content: "a1" },
+      userTurn,
+    ]);
+  });
+
+  it("no-op when the only records belong to the current turn (first turn of a session)", async () => {
+    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
+    recordsToReturn = [
+      { turn_id: "turn-1", record_source: "user", attributes: { type: "message", text: "hi again" } },
+    ];
+    const req = { messages: [userTurn], turnId: "turn-1" } as never;
+    const out = await reconstructHistoryIfNeeded(req, "sess-1", auth);
+    assert.equal(out, null);
+  });
 });
