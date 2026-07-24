@@ -569,6 +569,34 @@ export const renameSessionAtomFamily = atomFamily((key: string) =>
     }),
 )
 
+/** Longest auto-title persisted from a first message; the row label truncates further for display. */
+const AUTO_TITLE_MAX_CHARS = 60
+
+/**
+ * Auto-name a session from its first user message the FIRST time one appears, persisted to the
+ * durable header so the list is labeled everywhere — cross-tab / cross-device — BEFORE the session
+ * is opened (an adopted session has no local messages to derive a label from). No-op once the
+ * session already carries a title (auto OR an explicit rename), so it never clobbers a user's name
+ * and fires at most once per session.
+ */
+export const autoTitleSessionAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, {id, text}: {id: string; text: string}) => {
+        const trimmed = text.trim()
+        if (!trimmed) return
+        const all = get(sessionsByAppAtom)
+        const session = (all[key] ?? []).find((s) => s.id === id)
+        if (!session || session.title?.trim()) return
+        const title = trimmed.slice(0, AUTO_TITLE_MAX_CHARS)
+        set(sessionsByAppAtom, {
+            ...all,
+            [key]: (all[key] ?? []).map((s) => (s.id === id ? {...s, title} : s)),
+        })
+        // Sync to the durable header so other devices/tabs see the label (mirrors rename).
+        const projectId = get(projectIdAtom)
+        if (projectId) void setSessionHeader({sessionId: id, projectId, name: title})
+    }),
+)
+
 export const setActiveSessionAtomFamily = atomFamily((key: string) =>
     atom(null, (get, set, id: string) => {
         set(activeByAppAtom, {...get(activeByAppAtom), [key]: id})
