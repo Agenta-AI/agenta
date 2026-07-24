@@ -32,6 +32,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+from ..tools.models import PermissionMode
+
 # Where the rendered configuration lands, relative to the session cwd. ``CODEX_HOME`` points at
 # ``<cwd>/.codex``.
 SETTINGS_PATH = ".codex/config.toml"
@@ -83,7 +85,7 @@ def build_codex_settings_files(
     sandbox_permission: Any = None,
     mcp_servers: Any = None,
     tool_specs: Any = None,
-    permission_default: Any = "allow_reads",
+    permission_default: PermissionMode = "allow_reads",
 ) -> List[Dict[str, str]]:
     """Build the Codex ``config.toml`` as one generic ``harnessFiles`` entry, or ``[]`` if none.
 

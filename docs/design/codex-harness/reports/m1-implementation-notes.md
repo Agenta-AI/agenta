@@ -239,3 +239,63 @@ questions block Milestone 1. Informational notes carried forward:
 - **Platform default posture (D-008):** deferred to Milestone 3 per the P2 correction.
 - **TS wire-contract cross-check of the codex golden:** the runner side already loads and asserts
   `run_request.codex.json` (added in this milestone); no further deferral.
+
+## Desloppify pass (proper run)
+
+Ran the `desloppify-code` skill workflow (scan -> blind review -> triage -> execute -> rescan)
+scoped to the milestone's touched files: `sdks/python/agenta/sdk/agents/**` and
+`services/runner/src/engines/sandbox_agent/**` (merge-base `7b971d8c10`). Judgment context
+applied per the pass brief: Claude-harness style parity is a goal (not slop), comments state
+invariants only, forward-structure reserved for Milestone 3 is intentional, and cross-harness
+generalization (e.g. deduplicating Claude/Codex `wire_tools`) is out of scope.
+
+### Scan and review findings
+
+The milestone code scans clean. Mechanical scan across the new production files found zero
+slop signals: no `TODO`/`FIXME`, no debug `console.log`/`print`, no `any`/`as any`/`@ts-ignore`,
+no bare `except`/`noqa`, no empty catches, no swallowed errors, no hardcoded secrets, no
+copy-paste marker comments. Every new symbol is wired and reachable (`CodexHarness` in the
+harness registry; `CodexAgentTemplate.wire_harness_files` -> `build_codex_settings_files`; the
+codex model-catalog loaders via `model_catalog_entries`; `configureCodexHome` /
+`writeCodexManagedAuthFile` from the environment setup/acquire path; `CODEX_SUBSCRIPTION_UNSUPPORTED_MESSAGE`
+from `buildRunPlan`) — no dead exports. Data consistency holds: `data/codex_models.curated.json`
+ids match `CODEX_MODELS` in `capabilities.py` exactly, and the golden `run_request.codex.json`
+is asserted on both wire sides. New tests are genuine (real assertions, no skips/xfail,
+tautologies, or placeholder bodies). Blind review scored the slice high across the dimensions
+(contracts, type safety, design coherence, naming, logic clarity, AI-debt): the code is a
+faithful, heavily-invariant-documented mirror of the Claude sibling.
+
+### Fixed
+
+One finding, applied:
+
+- **Type-annotation parity drift** in `adapters/codex_settings.py`: `build_codex_settings_files`
+  typed its reserved `permission_default` parameter as `Any`, while the sibling
+  `build_claude_settings_files` types the same parameter `PermissionMode`. Since style parity
+  with the Claude adapter is an explicit goal and Claude is the reference, aligned it: imported
+  `PermissionMode` from `..tools.models` (the same top-level import `claude_settings.py` already
+  uses) and changed the annotation. Near-zero risk (the parameter is reserved/unused in
+  Milestone 1) and it strengthens the type for when Milestone 3 wires it. No behavior change.
+
+### Consciously skipped
+
+- **Reserved Milestone 3 forward-structure** — `build_codex_settings_files`'s unused
+  `sandbox_permission` / `mcp_servers` / `tool_specs` / `permission_default` parameters, the
+  `INTERNAL_TOOL_MCP_SERVER` constant, and the Layer-2/Layer-3 hooks in `codex_settings.py`.
+  Explicitly reserved and documented for the permissions milestone; kept per the brief.
+- **Claude/Codex parity duplication** — near-identical `wire_tools`, the `custom_tools` property,
+  and the `CodexHarness`/`ClaudeHarness` bodies. Intentional mirror; deduplicating across
+  harnesses is out of scope.
+- **Prettier-reformatted unrelated import blocks** in `environment.ts`, `environment-setup.ts`,
+  and `runtime-contracts.ts` (multi-line imports collapsed). Correct repo formatting, not slop;
+  reverting would fail the prettier hook.
+- **Double `isManagedCodexRun` guard** across `configureCodexHome` and `writeCodexManagedAuthFile`.
+  Each is a separate public entry point that must guard itself; not redundant.
+
+### Final suite results
+
+- `sdks/python`: `ruff format --check` — 70 files already formatted; `ruff check` — all checks
+  passed; `pytest oss/tests/pytest/unit/agents` — 680 passed.
+- `services/runner`: `pnpm test` — 78 files, 1218 passed.
+
+All green. The single fix is committed as one local checkpoint commit.
