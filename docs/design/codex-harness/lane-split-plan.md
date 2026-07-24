@@ -37,7 +37,7 @@ Build one linear stack in dependency order and set each PR's base to the branch 
 | 1 | `codex-sdk` | `sdks/python/**` (21) | `main` | nothing |
 | 2 | `codex-runner` | `services/runner/**` (34) | `codex-sdk` | the SDK golden wire fixture + harness values |
 | 3 | `codex-web` | `web/**` (1) | `codex-runner` | SDK capabilities (harness list); disjoint from the runner |
-| 4 | `codex-docs` | `docs/**`, `.agents/skills/**`, `.gitignore` (25) | `codex-web` | describes all of the above; no code dependency |
+| 4 | `codex-docs` | `docs/**`, `.agents/skills/**`, `.gitignore` (46) | `codex-web` | describes all of the above; no code dependency |
 
 Dependency order rationale:
 
@@ -100,8 +100,10 @@ tests.
 **Lane 3 `codex-web`** (`web/**`): `agenta-entity-ui/.../SchemaControls/HarnessSelectControl.tsx`.
 
 **Lane 4 `codex-docs`** (`docs/**`, `.agents/skills/**`, `.gitignore`): the codex-harness design
-workspace (`docs/design/codex-harness/**`, 13 files including this plan, the decision register, the
-per-milestone reports and MP4s, and the spike QA drivers), the agent-workflows interface-inventory
+workspace (`docs/design/codex-harness/**`, ~35 tracked files including this plan, the decision
+register, context/design/plan/research, the per-milestone reports and the tracked MP4, the spike
+findings and QA drivers; plus the four untracked artifacts flagged below), the agent-workflows
+interface-inventory
 and ground-truth updates (5 files), the user-facing self-host page
 (`docs/docs/self-host/agents/01-use-your-own-subscription.mdx`), the `add-harness` playbook skill
 (`.agents/skills/add-harness/{SKILL.md,resources/LESSONS.md}`) with its `.gitignore` allowlist line,
@@ -148,3 +150,11 @@ history) with `git show <lane>:<file>` before pushing.
 - The runner image pin (D-005) is verified by the throwaway `install-agent` test and the live Daytona
   run; a full runner-image rebuild is the final confirmation and belongs in the runner lane's CI.
 - Do not commit `.desloppify-skill/state.json` or any QA run output; they are local-only.
+- **Four workspace artifacts are intentionally left UNTRACKED and must be reviewed before the docs
+  lane ships them:** `reports/m1-playground-qa.mp4`, `reports/m3-approvals-qa.mp4`,
+  `spike/scenarios-derisk/`, and `spike/transcripts/` (~1.7 MB total). The design-record text
+  (context/design/plan/research, all milestone report `.md` files, spike findings and scripts) is
+  already committed. The two MP4s are the M1/M3 QA recordings (the M4 MP4 is already tracked); the
+  spike transcripts and scenarios are raw derisk byproducts that may contain captured auth payloads,
+  so scan them for secrets before `git add`. Decide per artifact whether it belongs in the public
+  repo at all.
