@@ -19,6 +19,7 @@ import {
   codexSqliteHomeDir,
   configureCodexHome,
   isManagedCodexRun,
+  isSubscriptionCodexRun,
   writeCodexManagedAuthFile,
 } from "../../src/engines/sandbox_agent/codex-assets.ts";
 
@@ -82,8 +83,10 @@ describe("Codex managed-credential assets", () => {
     assert.equal(env.CODEX_SQLITE_HOME, undefined);
   });
 
-  it("configureCodexHome is a no-op for a codex runtime_provided run", () => {
-    const env: Record<string, string> = {};
+  it("configureCodexHome for a subscription codex run sets CODEX_SQLITE_HOME but leaves CODEX_HOME (the mount) untouched", () => {
+    const env: Record<string, string> = {
+      CODEX_HOME: "/mnt/operator-codex",
+    };
     const plan = {
       acpAgent: "codex",
       credentialMode: "runtime_provided",
@@ -93,9 +96,10 @@ describe("Codex managed-credential assets", () => {
       legacyHarnessApiKeyVar: "OPENAI_API_KEY",
     } as any;
 
-    assert.equal(configureCodexHome(plan, env), undefined);
-    assert.equal(env.CODEX_HOME, undefined);
-    assert.equal(env.CODEX_SQLITE_HOME, undefined);
+    assert.equal(configureCodexHome(plan, env), codexSqliteHomeDir(cwd));
+    assert.equal(env.CODEX_HOME, "/mnt/operator-codex");
+    assert.equal(env.CODEX_SQLITE_HOME, codexSqliteHomeDir(cwd));
+    assert.equal(existsSync(codexSqliteHomeDir(cwd)), true);
   });
 
   it("configureCodexHome is a no-op for a Daytona codex run", () => {
@@ -234,6 +238,30 @@ describe("Codex managed-credential assets", () => {
       isManagedCodexRun({
         acpAgent: "claude",
         credentialMode: "env",
+      } as any),
+      false,
+    );
+  });
+
+  it("isSubscriptionCodexRun identifies only subscription Codex runs", () => {
+    assert.equal(
+      isSubscriptionCodexRun({
+        acpAgent: "codex",
+        credentialMode: "runtime_provided",
+      } as any),
+      true,
+    );
+    assert.equal(
+      isSubscriptionCodexRun({
+        acpAgent: "codex",
+        credentialMode: "env",
+      } as any),
+      false,
+    );
+    assert.equal(
+      isSubscriptionCodexRun({
+        acpAgent: "claude",
+        credentialMode: "runtime_provided",
       } as any),
       false,
     );

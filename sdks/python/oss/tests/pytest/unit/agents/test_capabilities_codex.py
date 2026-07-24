@@ -1,4 +1,4 @@
-"""Codex Milestone 1 capabilities allow managed OpenAI direct connections only."""
+"""Codex capabilities allow managed and subscription OpenAI direct connections."""
 
 from __future__ import annotations
 
@@ -13,11 +13,11 @@ from agenta.sdk.agents.model_catalog import model_catalog_entries
 from agenta.sdk.agents.utils.wire import request_to_wire
 
 
-def test_codex_milestone_one_connection_capabilities() -> None:
+def test_codex_connection_capabilities() -> None:
     assert harness_allows_provider("codex", "openai") is True
     assert harness_allows_provider("codex", "anthropic") is False
     assert harness_allows_mode("codex", "agenta") is True
-    assert harness_allows_mode("codex", "self_managed") is False
+    assert harness_allows_mode("codex", "self_managed") is True
     assert harness_allows_deployment("codex", "direct") is True
     assert harness_allows_deployment("codex", "custom") is False
 

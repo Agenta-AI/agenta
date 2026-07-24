@@ -64,12 +64,10 @@ def test_unknown_harness_is_closed():
 
 def test_two_modes_supported_on_all_known_harnesses():
     for harness in HARNESS_CONNECTION_CAPABILITIES:
-        # Every harness supports the managed `agenta` mode. Codex is managed-key only in Milestone
-        # 1, so it does NOT yet advertise `self_managed` (subscription lands in a later milestone);
-        # every other harness advertises both.
+        # Every harness supports the managed `agenta` mode and the `self_managed` subscription mode
+        # (Codex reaches its ChatGPT/Codex subscription OAuth via the mounted CODEX_HOME login).
         assert harness_allows_mode(harness, "agenta") is True
-        expected_self_managed = harness != "codex"
-        assert harness_allows_mode(harness, "self_managed") is expected_self_managed
+        assert harness_allows_mode(harness, "self_managed") is True
         # The removed `default` mode is no longer supported.
         assert harness_allows_mode(harness, "default") is False
     assert harness_allows_mode("pi_core", "bogus") is False

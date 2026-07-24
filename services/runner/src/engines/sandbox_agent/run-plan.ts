@@ -89,17 +89,7 @@ export const DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE =
  */
 export const LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE =
   "runtime_provided local run requires a mounted subscription: set PI_CODING_AGENT_DIR " +
-  "(Pi) or CLAUDE_CONFIG_DIR (Claude) to a read-write mount of your harness login.";
-
-/**
- * Milestone 1 ships managed-key Codex only. A runtime_provided Codex run is refused up front
- * (before any sandbox side effect), rather than falling through to the Pi/Claude subscription
- * mount branch and demanding the wrong config-dir variable.
- */
-export const CODEX_SUBSCRIPTION_UNSUPPORTED_MESSAGE =
-  "Codex subscription (runtime_provided) authentication is not supported yet: the CODEX_HOME " +
-  "mount for a personal ChatGPT/Codex login lands in a later milestone. Use a managed API key " +
-  "(credentialMode 'env') on the Codex harness for now.";
+  "(Pi), CLAUDE_CONFIG_DIR (Claude), or CODEX_HOME (Codex) to a read-write mount of your harness login.";
 
 export interface RunPlan {
   harness: string;
@@ -345,17 +335,17 @@ export function buildRunPlan(
     return { ok: false, error: DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE };
   }
 
-  // A local runtime_provided run authenticates from an explicitly mounted subscription. If the
-  // harness config var is unset there is no mount to read, so fail up front with an actionable
-  // message rather than letting the harness fall back to discovering the runner's own home dir
-  // (interface.md section 6). Managed ("env") / "none" runs are unaffected.
+  // A local runtime_provided run authenticates from an explicitly mounted subscription; Codex
+  // reads its login from the CODEX_HOME mount too. If the harness config var is unset there is no
+  // mount to read, so fail up front rather than discovering the runner's own home (interface.md
+  // section 6). Managed ("env") / "none" runs are unaffected.
   if (!isDaytona && request.credentialMode === "runtime_provided") {
-    // Codex subscription is not wired in Milestone 1.
-    if (acpAgent === "codex") {
-      return { ok: false, error: CODEX_SUBSCRIPTION_UNSUPPORTED_MESSAGE };
-    }
     const subscriptionEnvVar =
-      acpAgent === "claude" ? "CLAUDE_CONFIG_DIR" : "PI_CODING_AGENT_DIR";
+      acpAgent === "claude"
+        ? "CLAUDE_CONFIG_DIR"
+        : acpAgent === "codex"
+          ? "CODEX_HOME"
+          : "PI_CODING_AGENT_DIR";
     if (!process.env[subscriptionEnvVar]) {
       return { ok: false, error: LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE };
     }

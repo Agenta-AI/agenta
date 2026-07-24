@@ -9,7 +9,6 @@ import assert from "node:assert/strict";
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import {
   buildRunPlan,
-  CODEX_SUBSCRIPTION_UNSUPPORTED_MESSAGE,
   DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE,
   LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE,
 } from "../../src/engines/sandbox_agent/run-plan.ts";
@@ -1165,17 +1164,35 @@ describe("buildRunPlan runtime_provided (subscription) gates", () => {
     assert.equal(created, false);
   });
 
-  it("rejects a local Codex runtime_provided run (subscription lands later)", () => {
-    const result = buildRunPlan({
-      harness: "codex",
-      sandbox: "local",
-      messages: [{ role: "user", content: "hello" }],
-      credentialMode: "runtime_provided",
-    });
+  it("rejects a local Codex runtime_provided run when CODEX_HOME is unset", () => {
+    withEnv({ CODEX_HOME: undefined }, () => {
+      const result = buildRunPlan({
+        harness: "codex",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        credentialMode: "runtime_provided",
+      });
 
-    assert.equal(result.ok, false);
-    if (result.ok) return;
-    assert.equal(result.error, CODEX_SUBSCRIPTION_UNSUPPORTED_MESSAGE);
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.equal(result.error, LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE);
+    });
+  });
+
+  it("accepts a local Codex runtime_provided run when CODEX_HOME names a mount", () => {
+    withEnv({ CODEX_HOME: "/agenta/harness/codex" }, () => {
+      const result = buildRunPlan({
+        harness: "codex",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        credentialMode: "runtime_provided",
+      });
+
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.equal(result.plan.credentialMode, "runtime_provided");
+      assert.equal(result.plan.acpAgent, "codex");
+    });
   });
 
   it("rejects a Daytona Codex runtime_provided run", () => {

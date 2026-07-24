@@ -1,9 +1,8 @@
 /**
- * Codex managed credentials live in a runner-written auth.json. The file must be written AFTER
- * the durable cwd mount is applied because writing it before the mount would be shadowed. Unlike
- * pi-assets, this step is invoked from the post-mount workspace step. Cleanup rides session
- * teardown: the caller's destroy backstop deletes only the file created for this run, mirroring
- * the otlpAuthFilePath pattern.
+ * Managed Codex credentials live in a runner-written auth.json; subscription credentials stay in
+ * the operator-owned CODEX_HOME mount. Managed auth must be written AFTER the durable cwd mount is
+ * applied because writing it before the mount would be shadowed. Cleanup rides session teardown:
+ * the destroy backstop deletes only the managed file created for this run.
  */
 
 // Standing invariant: NEVER deliver Codex sandbox_mode through a CODEX_CONFIG environment JSON.
@@ -39,8 +38,8 @@ export function codexSqliteHomeDir(cwd: string): string {
 
 /**
  * A managed Codex run authenticates from a runner-written auth.json (credentialMode "env" or
- * "none"). A "runtime_provided" (subscription) run owns its own login mount and is rejected in
- * Milestone 1 (see run-plan.ts), so it is excluded here.
+ * "none"). A "runtime_provided" subscription run owns its login mount, so managed auth writing
+ * must exclude it.
  */
 export function isManagedCodexRun(
   plan: Pick<RunPlan, "acpAgent" | "credentialMode">,
@@ -50,22 +49,32 @@ export function isManagedCodexRun(
   );
 }
 
+export function isSubscriptionCodexRun(
+  plan: Pick<RunPlan, "acpAgent" | "credentialMode">,
+): boolean {
+  return (
+    plan.acpAgent === "codex" && plan.credentialMode === "runtime_provided"
+  );
+}
+
 /**
- * Set the CODEX_HOME path and point CODEX_SQLITE_HOME at a local off-mount directory, which this
- * creates before the daemon starts. Creating the SQLite directory before the durable cwd mount is
- * safe because it is not under cwd. Returns the SQLite directory for best-effort teardown cleanup.
- *
- * CODEX_HOME is still just a path whose directory the workspace and auth step creates after the
- * mount. The SQLite directory is created here because Codex writes to it at session start.
- * Daytona managed Codex is a later milestone.
+ * Configure local Codex home state before the daemon starts. Managed runs use a runner-owned home;
+ * subscription runs keep the inherited operator mount. Both redirect SQLite to local disk and
+ * return that directory for best-effort teardown cleanup.
  */
 export function configureCodexHome(
   plan: Pick<RunPlan, "acpAgent" | "credentialMode" | "isDaytona" | "cwd">,
   env: Record<string, string>,
 ): string | undefined {
-  if (!isManagedCodexRun(plan) || plan.isDaytona) return undefined;
-  const home = codexHomeDir(plan.cwd);
-  env.CODEX_HOME = home;
+  // Local codex only (managed or subscription). Daytona and non-codex runs are no-ops.
+  if (plan.acpAgent !== "codex" || plan.isDaytona) return undefined;
+  // Managed homes are runner-owned; subscription keeps the inherited operator mount so token
+  // refresh lands in the real login.
+  if (isManagedCodexRun(plan)) {
+    env.CODEX_HOME = codexHomeDir(plan.cwd);
+  }
+  // Both modes redirect SQLite off the home so neither geesefs nor the operator mount accumulates
+  // per-run WAL SQLite.
   const sqliteHome = codexSqliteHomeDir(plan.cwd);
   mkdirSync(sqliteHome, { recursive: true });
   env.CODEX_SQLITE_HOME = sqliteHome;

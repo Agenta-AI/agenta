@@ -28,7 +28,7 @@ The provider lists are the REAL harness facts, derived from
 - **Claude** reaches anthropic only, direct, via a custom gateway, or through Anthropic on
   Bedrock/Vertex. The runner passes the selected model id through to Claude Code and lets the
   configured backend fail loudly if it rejects it.
-- **Codex** reaches openai only, direct, with a managed key only in this milestone.
+- **Codex** reaches openai only, direct, through managed keys or subscription OAuth.
 - **pi_agenta** is Pi under the hood (Pi with Agenta's forced opinion), so it shares
   ``pi_core``'s reach.
 
@@ -256,12 +256,12 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
             user_servers=UserMCPServerCapabilities(),
         ),
     ),
-    # Codex reaches OpenAI through managed direct connections.
-    # Codex accepts user HTTP MCP servers like Claude.
+    # Codex reaches OpenAI through managed direct connections and self_managed subscription OAuth
+    # via the mounted CODEX_HOME login. It accepts user HTTP MCP servers like Claude.
     "codex": HarnessConnectionCapabilities(
         providers=["openai"],
         deployments=["direct"],
-        connection_modes=["agenta"],
+        connection_modes=list(_ALL_MODES),
         model_selection="provider/id",
         models={"openai": list(CODEX_MODELS)},
         model_catalog=_model_catalog("codex"),
