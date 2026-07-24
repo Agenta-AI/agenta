@@ -16,7 +16,7 @@ import {useLocalStorage} from "usehooks-ts"
 import CustomTreeComponent from "@/oss/components/CustomUIs/CustomTreeComponent"
 import {filterTree} from "@/oss/components/pages/observability/assets/utils"
 import AvatarTreeContent from "@/oss/components/pages/observability/components/AvatarTreeContent"
-import {StatusCode, TraceSpanNode} from "@/oss/services/tracing/types"
+import type {TraceSpanNode} from "@/oss/services/tracing/types"
 import {
     formattedSpanCostAtomFamily,
     formattedSpanLatencyAtomFamily,
@@ -50,7 +50,7 @@ export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: 
                 <Tooltip title={span_name} mouseEnterDelay={0.25}>
                     <Typography.Text
                         className={
-                            status_code === StatusCode.STATUS_CODE_ERROR
+                            status_code === "STATUS_CODE_ERROR"
                                 ? `${treeTitleClass} text-[var(--ag-c-D61010)] font-[500]`
                                 : treeTitleClass
                         }

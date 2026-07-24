@@ -33,11 +33,11 @@ import {
  * and `children` here.
  */
 export interface ScannedExportRow {
-    trace_id?: string
-    span_id?: string
-    parent_id?: string
-    start_time?: string | number
-    children?: readonly ScannedExportRow[]
+    trace_id?: string | null
+    span_id?: string | null
+    parent_id?: string | null
+    start_time?: string | number | null
+    children?: readonly ScannedExportRow[] | null
 }
 
 /** One page of root traces matching the filter. */

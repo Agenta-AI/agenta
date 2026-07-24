@@ -6,6 +6,7 @@ import {
     transformTracesResponseToTree,
     transformTracingResponse,
 } from "@agenta/entities/trace"
+import type {SpanLink, TracesResponse} from "@agenta/entities/trace"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 // import {atomWithImmer} from "jotai-immer" // Not using immer for now to keep it simple or use it if complexity grows
@@ -18,7 +19,7 @@ import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {getNodeById, observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
 import {queryAllAnnotations} from "@/oss/services/annotations/api"
 import {AgentaTreeDTO, TracesWithAnnotations} from "@/oss/services/observability/types"
-import {SpanLink, TraceSpanNode, TracesResponse} from "@/oss/services/tracing/types"
+import type {TraceSpanNode} from "@/oss/services/tracing/types"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {getOrgValues} from "@/oss/state/org"
 import {projectIdAtom} from "@/oss/state/project"
@@ -135,16 +136,10 @@ export const sessionTracesAtom = atom<TraceSpanNode[]>((get) => {
     if (!data) return []
 
     const transformed: TraceSpanNode[] = []
-    // entities-package TraceSpanNode is the same backend span shape as the OSS type;
-    // align the annotation at the boundary, no data is converted.
     if (isTracesResponse(data)) {
-        transformed.push(
-            ...(transformTracingResponse(
-                transformTracesResponseToTree(data),
-            ) as unknown as TraceSpanNode[]),
-        )
+        transformed.push(...transformTracingResponse(transformTracesResponseToTree(data)))
     } else if (isSpansResponse(data)) {
-        transformed.push(...(transformTracingResponse(data.spans) as unknown as TraceSpanNode[]))
+        transformed.push(...transformTracingResponse(data.spans))
     }
 
     const filtred = transformed.filter((node) => node.trace_type !== "annotation")
