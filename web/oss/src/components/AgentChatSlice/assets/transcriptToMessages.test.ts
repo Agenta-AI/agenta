@@ -235,7 +235,11 @@ describe("transcriptToMessages approval hydration", () => {
                 kind: "user_approval",
                 payload: {toolCallId: "tool-1"},
             }),
-            record("r-done-paused", {type: "done", stopReason: "paused"}),
+            record("r-done-paused", {
+                type: "done",
+                stopReason: "paused",
+                traceId: "trace-paused",
+            }),
             // resume turn: re-emits the SAME call id, then settles it and finishes.
             record("r-call-reemit", {
                 type: "tool_call",
@@ -252,7 +256,7 @@ describe("transcriptToMessages approval hydration", () => {
             record("r-result", {type: "tool_result", id: "tool-1", output: "written"}),
             record("r-thought-2", {type: "thought", text: "done"}),
             record("r-msg", {type: "message", text: "Done!"}),
-            record("r-done", {type: "done"}),
+            record("r-done", {type: "done", traceId: "trace-resume"}),
         ])
 
         expect(messages).not.toBeNull()
@@ -272,6 +276,12 @@ describe("transcriptToMessages approval hydration", () => {
         expect(
             (assistant as unknown as {metadata?: {paused?: boolean}}).metadata?.paused,
         ).toBeFalsy()
+
+        // "View full trace" on the merged turn links to the RESUME trace (where the tool ran),
+        // not the paused turn's trace.
+        expect(
+            (assistant as unknown as {metadata?: {traceId?: string}}).metadata?.traceId,
+        ).toBe("trace-resume")
     })
 })
 

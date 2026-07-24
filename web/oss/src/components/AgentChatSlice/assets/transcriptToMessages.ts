@@ -52,12 +52,11 @@ const roleOf = (sender?: string | null): "user" | "assistant" =>
     sender === "user" ? "user" : "assistant"
 
 /**
- * Best-effort trace id for a replayed turn. The durable session records DON'T carry a trace link
- * today, so on reload the trace-hover actions stay dark (the id only exists on the live stream via
- * `message.metadata.traceId`). This reads the shapes the backend is most likely to add it in — a
- * `trace_id` column on the record row, a `trace_id`/`traceId` on the event payload, or a
- * `data-trace` part — so the moment the runner starts stamping one, replayed turns light up with
- * the SAME `metadata.traceId` `getMessageTraceId` already reads. A pure no-op until then.
+ * Trace id for a replayed turn. The runner stamps the turn's `traceId` on the durable `done` event
+ * (records also carry a `span_id`), so on reload this reads it back and replayed turns get the SAME
+ * `metadata.traceId` `getMessageTraceId` reads on the live stream. Trace/duration hover lights up on
+ * reload and cross-device. Reads a `trace_id`/`traceId` on the row or event payload, or a
+ * `data-trace` part; returns undefined for a turn that carries none (older records / no trace).
  */
 function extractTraceId(row: SessionRecord, p: Record<string, unknown>): string | undefined {
     const asStr = (v: unknown): string | undefined =>
@@ -290,7 +289,10 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
         // this every turn folds into one assistant bubble; closing the draft here starts a
         // fresh message per turn.
         if (row.session_update === "done" || p.type === "done") {
-            if (current && traceId && !current.traceId) current.traceId = traceId
+            // Last-wins: a paused turn folds into its resume (below), and that turn has two `done`s
+            // with two traceIds — prefer the RESUME trace, where the approved tool actually executed.
+            // A normal turn has a single `done`, so this is unchanged for it.
+            if (current && traceId) current.traceId = traceId
             if (current && p.stopReason === "paused") {
                 // Paused mid-approval: the resume turn's records (the re-emitted call, its result,
                 // the follow-up text) belong to the SAME assistant turn the user saw live, so keep
