@@ -224,6 +224,33 @@ def run_ask():
         print("NOTE: model did not call the tool; cannot test resume.")
         return
     call = t1["tool_calls"][-1]
+    # 2b forced-cold: evict the warm daemon by restarting the runner before resuming, so the
+    # resume cold-starts and replays the transcript instead of reusing a pooled daemon.
+    if os.environ.get("M3_COLD") == "1":
+        import subprocess
+        import time
+
+        print(">>> M3_COLD: restarting runner to force a cold resume...")
+        subprocess.run(
+            ["docker", "restart", "agenta-ee-dev-codex-harness-runner-1"],
+            check=False,
+            capture_output=True,
+        )
+        time.sleep(25)
+        # Warm the fresh runner with a real TOOL run: the first MCP-tool session after a runner
+        # restart is flaky (the codex daemon re-establishes its MCP connection), so absorb that on
+        # a throwaway allow-tool call rather than the resume-under-test.
+        print(">>> M3_COLD: warming the fresh runner (tool path)...")
+        for _ in range(2):
+            w = invoke(
+                str(uuid.uuid4()),
+                [user_msg("List my connections using the tool.")],
+                "allow",
+            )
+            if w["tool_calls"] and not w["errors"]:
+                break
+            time.sleep(5)
+        time.sleep(2)
     # Resume: fold the approval into history and re-invoke (same session for warm-ish path).
     resume_msgs = approval_resume_messages(
         turn1 + " After the tool runs, tell me the codeword.",

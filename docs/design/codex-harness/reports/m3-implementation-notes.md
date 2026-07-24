@@ -81,7 +81,54 @@ approval (the turn pauses; you approve; the next turn completes the call), not l
 in-turn park. Claude's keep-alive live park remains for real ACP gates under authored `agent` mode
 (slice C).
 
-## Live QA blocker (STOP-and-report)
+## Live QA — PASSED at the wire level (after the Slice D fix + a resume-key fix)
+
+Root cause of the earlier "blocker" was NOT a deployment regression (my control was invalid — the
+SDK, which renders config.toml, is bind-mounted into the SERVICES container, so reverting the
+runner never reverted Slice D). It was Slice D rendering transport-less `[mcp_servers.*]` tables,
+which codex 0.145 rejects at `session/new`. Fixed (see the D-008 amendment + the earlier evidence
+below). A second bug then surfaced live: the runner-side ask gate keyed the stored decision on
+codex's MCP-wrapped args `{server,tool,arguments}` while the gate keyed on the bare `{}`, so an
+approval re-parked instead of resuming — fixed by unwrapping the wrapper symmetrically in
+`storedDecisionKeyShape` (`permission-plan.ts`, committed `0c925cb3`).
+
+QA driver: `spike/scripts/m3-qa.py` (self-contained `list_connections` platform tool, no Composio).
+All scenarios verified on the worktree deployment (:8180, project 019f93b7…), harness codex, default
+`agent-full-access`:
+
+- **Scenario 1 (allow)** — PASS. The tool ran with no pause: `tool-input-available` →
+  `tool-output-available` ("No connections found"), `finish=stop`, no approval frame.
+- **Scenario 3 (deny)** — PASS. `tool-output-error`, the model replied "I couldn't list connections
+  because the tool was denied by policy", the turn continued to `finish=stop`.
+- **Scenario 2 (ask) park** — PASS. `tool-approval-request` surfaced, `finish=other`
+  ("Conversation interrupted"), the codeword FLAMINGO-42 was acknowledged, no tool output.
+- **Scenario 2 warm approve-resume (2a)** — PASS. The follow-up turn cold-replayed
+  (`create_session mode=create`), consumed the normalized decision `list_connections#{}`, executed
+  the tool, and the reply carried "Codeword: FLAMINGO-42" (context survived).
+- **Scenario 2 reject-resume** — PASS. "The tool call was rejected and not executed", no execution.
+- **Cold resume (2b) context check** — PASS via the natural cold-replay: the MCP-seam pause tears
+  the session down, so EVERY resume is a cold `create_session mode=create` on the owning replica
+  (proven in the runner logs alongside the normalized decision + tool execution + codeword). The
+  additional runner-KILL variant is inapplicable to LOCAL sandboxes by design: a killed runner gets
+  a new replica id and the single-owner guard correctly refuses to move a local session
+  (`local sandbox requires a single runner ... Refusing to cold-start on the wrong host`). A
+  cross-replica cold resume is a Daytona concern (M5), not a local-M3 one. So the cold-resume
+  CONTEXT check succeeds; there is nothing to STOP-and-report.
+- **Agent-mode wire sanity** — PASS. With authored `mode=agent` the runner logs
+  `[codex-mode] applied mode=agent`, then a Codex ACP gate classifies (Slice C recovers
+  `anchor=list_connections` from the `kind:"execute"` MCP frame, `argKeys=undefined`) and parks
+  (`permission=ask outcome=pendingApproval`), surfacing a `tool-approval-request`.
+
+Outstanding: the chrome-devtools MP4 (`m3-approvals-qa.mp4`) is not yet recorded (budget). The
+wire-level SSE evidence above fully validates the behavior; the UI recording is the watchable
+proof and remains the one open QA deliverable. The driver is ready to drive it.
+
+Multi-session note: the M4 orchestrator is concurrently active on this stack and restarted the
+runner mid-QA more than once (each restart errored an in-flight resume). QA batches were re-run in
+stable windows. A concurrent git operation also reverted this session's uncommitted resume-key fix
+once; it is now committed (`0c925cb3`), so a runner restart reloads it correctly.
+
+## Live QA blocker (historical — root cause corrected above)
 
 The three recorded scenarios (allow/ask/deny) + the coordinator's warm/cold codeword resume + the
 MP4 could NOT be produced. Every Codex run that includes an MCP server (the internal `agenta-tools`
