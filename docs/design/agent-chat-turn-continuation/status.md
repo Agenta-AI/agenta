@@ -1,51 +1,54 @@
 # Status
 
-Last update: 2026-07-06 (design session, no code changed)
+Last update: 2026-07-24 (design re-audit, no product code changed)
 
 ## Where things stand
 
-- Research DONE. Every claim from the original findings doc verified against source,
-  with two precision corrections (see `research.md` section 8).
-- Design DONE. Recommendation: option A, server echoes the continuation id. See
-  `fix-options.md`.
-- Implementation of the messageId fix IN PROGRESS (PR #5088).
-- Follow-up DESIGNED, decision pending: trace-context propagation so one turn = one
-  trace (fixes the multi-trace footer/Inspect trade-off v1 accepts). See
-  `trace-continuation.md`; Mahmoud decides whether it becomes an issue or a PR.
+- Original message-identity research DONE. See `research.md` and `fix-options.md`.
+- Message identity fix MERGED in PR #5088 and present on `main`.
+- Trace-continuation follow-up RE-AUDITED against current `main`. The current
+  recommendation is in `trace-continuation-v2.md`; the exact scope and revised
+  Medium estimate are in `trace-continuation-complexity.md`.
+- Implementation remains OPEN in issue #5097. This workspace changes design docs only.
 
-## Key decisions
+## Decisions already shipped in #5088
 
-1. Fix lives in SDK routing (`routing.py`), not the adapter, frontend, or runner.
-   The adapter already accepts `message_id` (`stream.py:254-260`); routing just never
-   passes it.
-2. Continuation detection = "inbound last message has role assistant", mirroring the
-   AI SDK's own server helper (`ai/dist/index.js:4199-4208`). Not approval-specific,
-   so client-tool resumes are covered too.
-3. v1 accepts last-request `traceId`/`usage` on the merged turn (metadata merge,
-   `ai/dist/index.js:4563-4573`). Aggregated per-turn metrics are a parked follow-up.
-4. Batch channel gets the same rule as a second slice
-   (`_make_vercel_json_response`).
-5. The wrong usage numbers on resumes (`0/0/~62k`) are a runner bug
-   (`otel.ts:1185-1197`), filed separately, not fixed here.
+1. Assistant message identity lives in SDK routing, not the frontend or runner.
+2. Continuation detection is "the inbound last message has role assistant", matching
+   the AI SDK behavior. Approvals and client tools share it.
+3. The batch channel follows the same stable-message-id rule.
 
-## Blockers
+## Follow-up decisions
 
-None.
+1. `spanId` and `traceparent` are per-request protocol context owned by
+   `AgentChatTransport`, not persistent UI-message metadata.
+2. The transport keeps the latest trace/span context by stable assistant message id,
+   so sequential resumes form a causal chain in one trace.
+3. The UI message keeps stable `traceId` plus cumulative turn usage.
+4. A growing trace needs scoped, bounded cache refresh; one immediate invalidation can
+   race ingestion and cache a partial trace.
+5. The wrong resumed-turn usage (`0/0/~62k`) remains a runner bug. The frontend total
+   guard prevents that context-size number from corrupting the turn aggregate.
+
+## Product decision before implementation
+
+Confirm whether release acceptance requires one trace across a page reload. The
+recommended first slice guarantees one trace for approvals and client tools handled
+by the same mounted session transport. A reload intentionally starts a new transport
+and therefore a new trace epoch.
+
+Guaranteed reload continuity is a separate Medium slice: persist explicit trace/span
+context in session records and restore the latest completed context into the new
+transport.
 
 ## Next steps
 
-1. Mahmoud reviews this workspace (start with `research.md`, then `fix-options.md`).
-2. On approval, implement slice 1 per `plan.md` (implement-feature flow), then the
-   tests, then the manual playground scenario.
-3. File the runner usage issue and the root-cause-2 (phantom tool failure) issue.
+1. Review `trace-continuation-v2.md`, then `trace-continuation-complexity.md`.
+2. Decide the reload boundary above.
+3. Implement the slices in the order listed in `trace-continuation-complexity.md`.
 
 ## Deferred
 
-- Batch intra-response id-collision corner: an echoed continuation id can collide
-  with a positional `msg-{i}` id assigned to another message inside the same raw
-  batch JSON. Accepted for v1: the frontend replay only ever extracts one message,
-  so this is not client-visible.
-- Runner usage bug (resumes report `0/0/~62k`, `otel.ts:1185-1197`) still needs its
-  own issue filed; not fixed by this PR.
-- Manual playground click-through of the approval-resume scenario (`plan.md`
-  "Manual playground scenario") is still pending.
+- Runner usage extraction for resumed ACP turns.
+- Recomputing root-span cumulative metrics after late span ingestion.
+- Manual playground QA from the delivery plan.
