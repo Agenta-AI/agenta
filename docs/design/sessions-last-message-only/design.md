@@ -6,19 +6,32 @@ Shrink request/trace payloads by sending only the newest user message per turn a
 reconstructing prior conversation server-side from durable session **records**.
 
 ## Decisions (locked)
-- **Reconstruction lives in the runner (TS)** — at the `buildTurnText`/`priorMessages` seam,
-  reusing the runner's records client + session plumbing; a TS↔TS port of the FE
-  `transcriptToMessages.ts` folding. (Shared infra with JP/Mahmoud — keep additive/flagged.)
+- **Reconstruction lives in the runner (TS)** — reusing the runner's records client + session
+  plumbing; a TS↔TS port of the FE `transcriptToMessages.ts` folding. (Shared infra with
+  JP/Mahmoud — keep additive/flagged.) It runs in the session-owned run handler, BEFORE the turn's
+  prompt is persisted and before the keep-alive history fingerprint — both read `request.messages`,
+  so rebuilding afterwards double-counted the prompt and mismatched the warm fingerprint (fixed in
+  the stacked QA PR).
 - **Harden records durability FIRST**, before the FE trusts reconstruction — so reconstructed
   history is authoritative, not lossy.
 
 ## Current architecture (verified FE / SDK / runner / api)
-Two continuity paths already exist in the runner:
+Continuity in the runner has three cases, not two:
 - **Warm** (pool hit / same harness authored last turn): harness native `resumeSession()`
-  supplies history; `sendLastMessageOnly` is ALREADY true (`runtime-contracts.ts:168`).
-- **Cold** (evicted / different harness / cross-device): runner rebuilds the full transcript
-  from inbound `request.messages` (`transcript.ts:buildTurnText`/`priorMessages`; selected at
-  `run-turn.ts:134`).
+  supplies the model's context; `sendLastMessageOnly` is ALREADY true
+  (`runtime-contracts.ts:168`). The turn only needs the new user text.
+- **Cold, not evicted** (a parked sandbox is reused after a short gap): same as warm — native
+  resume still has the history.
+- **Cold-evicted** (the sandbox was torn down / different harness / cross-device): there is no
+  native session to resume, so the runner must rebuild the full transcript. Today it rebuilds
+  from inbound `request.messages` (`transcript.ts:buildTurnText`/`priorMessages`); with
+  last-message-only that history is no longer sent, so reconstruction from **records** is what
+  fills the gap. This is the only case where records-based reconstruction supplies model context.
+
+Reconstruction still runs on warm turns too, but only to realign the keep-alive history
+fingerprint (the FE sent one message, so the fingerprint's prior-conversation must be rebuilt to
+match what the previous park predicted). The model context on a warm turn still comes from native
+resume, not from records.
 
 The FE always sends full history (`agentRequest.ts:401`) because it can't predict warm/cold.
 Records are **write-only** from the run's perspective: the runner persists every event
