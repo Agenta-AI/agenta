@@ -1075,8 +1075,13 @@ const AgentConversation = ({
             liveGateInteractionRef.current = {kind: "approval", id: args.id}
             addToolApprovalResponse({id: args.id, approved: args.approved})
             // Steer: a denial that carries a redirect answers the gate AND sends the instruction as a
-            // follow-up turn, so the agent hears "no — do this instead" rather than a bare refusal.
-            // The queue holds it until the paused turn settles, then it drives the next turn.
+            // follow-up turn. It must be its OWN turn, not bundled into the deny-resume: resuming a
+            // parked gate calls `respondPermission(reject)`, which makes the harness CONTINUE the
+            // original prompt (run-turn.ts) — so a note fused into that resume gets subordinated to
+            // the original intent and ignored. As a separate turn it reliably drives the redirect.
+            // (The model still reasons about the bare denial first — the "flail" — because the
+            // harness owns the reject continuation and exposes no reject-with-feedback seam; killing
+            // that flail needs an upstream ACP change, not an FE one.)
             const steer = args.message?.trim()
             if (!args.approved && steer) submit({text: steer})
         },
