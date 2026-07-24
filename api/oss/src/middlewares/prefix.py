@@ -1,81 +1,78 @@
-from urllib.parse import urlsplit, urlunsplit
+from collections.abc import Callable, Sequence
 
-from starlette.datastructures import MutableHeaders
+from starlette.routing import BaseRoute, Match
 
 API_PREFIX = "/api"
 
-# Starlette builds its trailing-slash redirect from the post-strip path, so a stripped request
-# would otherwise be answered with a Location outside the prefix — landing on whatever serves
-# the root (the web UI) instead of the API, as an HTML 404.
-_REDIRECT_STATUSES = frozenset({307, 308})
-
 
 class ApiPrefixStripMiddleware:
-    """Strip leading `/api` prefixes so hops that don't strip it (e.g. an ALB) still route.
+    """Normalize the request path so every hop shape routes, without ever issuing a redirect.
 
-    Local traefik forwards `/api` intact; a direct container hop has no prefix; an AWS
-    ALB forwards the public `/api/...` path verbatim. Routes live at root (`root_path="/api"`
-    is docs metadata), so accepting both shapes here makes every topology work with one URL.
-    Strips in a loop, not once: a double-prefixed caller (`/api/api/...`) still routes.
+    Two normalizations, both inbound:
 
-    Redirects are re-prefixed on the way out so they stay inside the API — see
-    `_restore_prefix`.
+    `/api` prefixes are stripped, because hops disagree about them. Local traefik forwards
+    `/api` intact, a direct container hop has no prefix, and an AWS ALB forwards the public
+    path verbatim. Routes live at root (`root_path="/api"` is docs metadata). Strips in a
+    loop, so a double-prefixed caller (`/api/api/...`) still routes.
+
+    The trailing slash is then matched to whatever the route actually declares. This replaces
+    Starlette's `redirect_slashes`, which is disabled in the composition root. That redirect
+    was built from the post-strip path, so behind a path-prefixed proxy its `Location` lost
+    the prefix and pointed at whatever serves the root (the web UI), turning an API call into
+    an HTML 404. Correcting the `Location` instead would trade that for a redirect loop
+    against any client holding a cached slash-normalizing 308. Resolving the path here means
+    no `Location` is ever emitted, so neither failure exists.
     """
 
-    def __init__(self, app):
+    def __init__(
+        self,
+        app,
+        routes: Callable[[], Sequence[BaseRoute]] | None = None,
+    ):
         self.app = app
+        self._routes = routes
 
     async def __call__(self, scope, receive, send):
         if scope["type"] in ("http", "websocket"):
-            path = scope.get("path", "")
-            raw = scope.get("raw_path")
-            stripped = False
-            while path == API_PREFIX or path.startswith(API_PREFIX + "/"):
-                path = path[len(API_PREFIX) :] or "/"
-                if (
-                    isinstance(raw, (bytes, bytearray))
-                    and raw[: len(API_PREFIX)] == b"/api"
-                ):
-                    raw = bytes(raw)[len(API_PREFIX) :] or b"/"
-                stripped = True
-            if stripped:
-                scope = dict(scope)
-                scope["path"] = path
-                scope["raw_path"] = raw
-                if scope["type"] == "http":
-                    send = _prefixing_send(send)
+            scope = self._normalize(scope)
         await self.app(scope, receive, send)
 
+    def _normalize(self, scope):
+        path = scope.get("path", "")
+        raw = scope.get("raw_path")
+        changed = False
 
-def _prefixing_send(send):
-    async def wrapped(message):
-        if (
-            message["type"] == "http.response.start"
-            and message["status"] in _REDIRECT_STATUSES
-        ):
-            headers = MutableHeaders(raw=message["headers"])
-            location = headers.get("location")
-            if location:
-                restored = _restore_prefix(location)
-                if restored != location:
-                    headers["location"] = restored
-        await send(message)
+        while path == API_PREFIX or path.startswith(API_PREFIX + "/"):
+            path = path[len(API_PREFIX) :] or "/"
+            if (
+                isinstance(raw, (bytes, bytearray))
+                and raw[: len(API_PREFIX)] == b"/api"
+            ):
+                raw = bytes(raw)[len(API_PREFIX) :] or b"/"
+            changed = True
 
-    return wrapped
+        alternate = path[:-1] if path.endswith("/") and path != "/" else path + "/"
+        if alternate and not self._known(scope, path) and self._known(scope, alternate):
+            if isinstance(raw, (bytes, bytearray)):
+                raw = alternate.encode("ascii", "ignore")
+            path = alternate
+            changed = True
 
+        if changed:
+            scope = dict(scope)
+            scope["path"] = path
+            scope["raw_path"] = raw
+        return scope
 
-def _restore_prefix(location: str) -> str:
-    """Put `/api` back on a redirect target the router built from the stripped path.
-
-    Only touches root-relative paths that don't already carry the prefix, so absolute
-    off-host redirects (e.g. the SuperTokens callback) are left alone.
-    """
-    parts = urlsplit(location)
-    path = parts.path
-    if not path.startswith("/"):
-        return location
-    if path == API_PREFIX or path.startswith(API_PREFIX + "/"):
-        return location
-    return urlunsplit(
-        (parts.scheme, parts.netloc, API_PREFIX + path, parts.query, parts.fragment)
-    )
+    def _known(self, scope, path) -> bool:
+        """Whether any route claims `path`. A method mismatch still counts: 405 is the honest
+        answer there, and rewriting the slash would hide it behind a 404."""
+        if self._routes is None:
+            return False
+        probe = dict(scope)
+        probe["path"] = path
+        for route in self._routes():
+            match, _ = route.matches(probe)
+            if match is not Match.NONE:
+                return True
+        return False
