@@ -905,7 +905,9 @@ class LLMConfig(BaseModel):
     openai: str = os.getenv("OPENAI_API_KEY", "")
     openrouter: str = os.getenv("OPENROUTER_API_KEY", "")
     perplexityai: str = os.getenv("PERPLEXITYAI_API_KEY", "")
-    togetherai: str = os.getenv("TOGETHERAI_API_KEY", "")
+    togetherai: str = os.getenv("TOGETHER_API_KEY") or os.getenv(
+        "TOGETHERAI_API_KEY", ""
+    )
     minimax: str = os.getenv("MINIMAX_API_KEY", "")
 
     model_config = ConfigDict(extra="ignore")
