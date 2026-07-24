@@ -127,8 +127,56 @@ check_with_repair() {
     return 1
 }
 
+check_runner_from_services() {
+    local attempt=1
+    local started now elapsed
+
+    started="$(date +%s)"
+
+    while true; do
+        if railway ssh --service services --environment "$ENV_NAME" \
+            python -c "import os, urllib.request; url = os.environ.get(\"AGENTA_RUNNER_INTERNAL_URL\", \"\").rstrip(\"/\") + \"/health\"; response = urllib.request.urlopen(url, timeout=5); raise SystemExit(0 if response.status == 200 else 1)" \
+            >/dev/null; then
+            printf "OK: services -> runner /health\n"
+            return 0
+        fi
+
+        now="$(date +%s)"
+        elapsed=$((now - started))
+        if [ "$elapsed" -ge "$MAX_WAIT_SECONDS" ]; then
+            printf "FAILED: services -> runner /health after %ss\n" "$elapsed" >&2
+            return 1
+        fi
+
+        printf "Retry %d (%ds/%ds) for services -> runner /health\n" \
+            "$attempt" "$elapsed" "$MAX_WAIT_SECONDS"
+        sleep "$SLEEP_SECONDS"
+        attempt=$((attempt + 1))
+    done
+}
+
+check_runner_with_repair() {
+    if check_runner_from_services; then
+        return 0
+    fi
+
+    if [ "$AUTO_REPAIR" != "true" ]; then
+        return 1
+    fi
+
+    railway service runner >/dev/null &&
+        railway redeploy --service runner --environment "$ENV_NAME" --yes >/dev/null
+    railway service services >/dev/null &&
+        railway redeploy --service services --environment "$ENV_NAME" --yes >/dev/null
+    sleep 20
+
+    printf "Retesting after repair: services -> runner /health\n"
+    check_runner_from_services
+}
+
 check_with_repair "/w"
 check_with_repair "/api/health"
 check_with_repair "/services/health"
+check_runner_with_repair
 
 printf "Smoke checks passed for %s\n" "$BASE"

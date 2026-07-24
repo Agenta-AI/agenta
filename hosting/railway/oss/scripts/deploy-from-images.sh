@@ -153,6 +153,7 @@ render_runner_wrapper() {
     cat > "$dir/Dockerfile" <<EOF
 FROM ${AGENTA_RUNNER_IMAGE}
 
+ENV AGENTA_RUNNER_HOST=0.0.0.0
 ENV AGENTA_RUNNER_PORT=8765
 
 CMD ["node_modules/.bin/tsx", "src/server.ts"]
