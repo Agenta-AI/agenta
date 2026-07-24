@@ -47,6 +47,23 @@ describe("reconstructHistoryIfNeeded", () => {
     assert.equal(fetchCalls, 0);
   });
 
+  it("no-op when the inbound has no messages (never queries)", async () => {
+    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
+    const req = { messages: [] } as never;
+    const out = await reconstructHistoryIfNeeded(req, "sess-1", auth);
+    assert.equal(out, null);
+    assert.equal(fetchCalls, 0);
+  });
+
+  it("no-op when the only inbound message is not a user turn (approval resume)", async () => {
+    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
+    // A resume's tail is a tool_result envelope; rebuilding here could replay a historical prompt.
+    const req = { messages: [{ role: "assistant", content: "..." }] } as never;
+    const out = await reconstructHistoryIfNeeded(req, "sess-1", auth);
+    assert.equal(out, null);
+    assert.equal(fetchCalls, 0);
+  });
+
   it("no-op when there is no session id", async () => {
     vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     const req = { messages: [userTurn] } as never;

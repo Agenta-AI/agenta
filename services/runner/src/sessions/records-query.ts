@@ -11,6 +11,14 @@ function log(msg: string): void {
   process.stderr.write(`[sessions/records-query] ${msg}\n`);
 }
 
+/** Bound the reconstruction fetch: it sits on the turn's critical path (the prompt waits on it),
+ * so a stalled query must fail fast to the inbound-history fallback rather than hang on Undici's
+ * long request-level timeout. Env-overridable for ops tuning. */
+function queryTimeoutMs(): number {
+  const n = Number(process.env.AGENTA_SESSIONS_RECORDS_QUERY_TIMEOUT_MS);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 5000;
+}
+
 /**
  * Fetch a session's durable record log, ordered for reconstruction (the endpoint returns records
  * by ingest time, then per-turn `record_index`). Returns `null` on failure so the caller can fall
@@ -29,6 +37,7 @@ export async function fetchSessionRecords(
         authorization: auth(),
       },
       body: JSON.stringify({ session_id: sessionId }),
+      signal: AbortSignal.timeout(queryTimeoutMs()),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const body = (await res.json()) as { records?: SessionRecordRow[] };

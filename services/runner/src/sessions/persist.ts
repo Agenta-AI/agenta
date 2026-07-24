@@ -392,10 +392,20 @@ export function buildPersistingEmitter(
     );
   };
 
-  const flush = (): Promise<void> => {
+  const flush = async (): Promise<void> => {
     // A paused call ends the turn with its slot still open — persist it before draining.
     flushOpenTool();
-    return drainPersist(sessionId);
+    await drainPersist(sessionId);
+    // Consume the drop signal at the turn-end drain: records that exhausted retries mean the durable
+    // log is incomplete, so next turn's reconstruction may be missing context. Reading here also
+    // clears the per-session counter so it can't accumulate unread. (Only ever non-zero in durable
+    // mode.)
+    const dropped = takePersistFailures(sessionId);
+    if (dropped > 0) {
+      log(
+        `WARN session=${sessionId} durable log incomplete: ${dropped} record(s) dropped this turn; reconstruction may lack context`,
+      );
+    }
   };
 
   return { emit, persist, flush };
