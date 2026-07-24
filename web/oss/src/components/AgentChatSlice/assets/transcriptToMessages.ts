@@ -38,6 +38,9 @@ interface DraftMessage {
     traceId?: string
     /** Token/cost totals from the turn's persisted `usage` event, in the raw stream shape. */
     usage?: {input?: number; output?: number; total?: number; cost?: number}
+    /** The turn's terminal `done` carried `stopReason:"paused"` — it ended mid-approval, not at a
+     *  real boundary. Surfaced on the message so a cold reload's adoption heuristic can compare state. */
+    paused?: boolean
 }
 
 interface TranscriptIndex {
@@ -49,12 +52,11 @@ const roleOf = (sender?: string | null): "user" | "assistant" =>
     sender === "user" ? "user" : "assistant"
 
 /**
- * Best-effort trace id for a replayed turn. The durable session records DON'T carry a trace link
- * today, so on reload the trace-hover actions stay dark (the id only exists on the live stream via
- * `message.metadata.traceId`). This reads the shapes the backend is most likely to add it in — a
- * `trace_id` column on the record row, a `trace_id`/`traceId` on the event payload, or a
- * `data-trace` part — so the moment the runner starts stamping one, replayed turns light up with
- * the SAME `metadata.traceId` `getMessageTraceId` already reads. A pure no-op until then.
+ * Trace id for a replayed turn. The runner stamps the turn's `traceId` on the durable `done` event
+ * (records also carry a `span_id`), so on reload this reads it back and replayed turns get the SAME
+ * `metadata.traceId` `getMessageTraceId` reads on the live stream. Trace/duration hover lights up on
+ * reload and cross-device. Reads a `trace_id`/`traceId` on the row or event payload, or a
+ * `data-trace` part; returns undefined for a turn that carries none (older records / no trace).
  */
 function extractTraceId(row: SessionRecord, p: Record<string, unknown>): string | undefined {
     const asStr = (v: unknown): string | undefined =>
@@ -140,6 +142,14 @@ function applyEvent(
         }
         case "tool_call": {
             const toolCallId = str(payload.id)
+            const existing = index.tools.get(toolCallId)
+            if (existing) {
+                // A resume re-emits the approved call with the same toolCallId. Update the existing
+                // part (kept across the pause boundary) in place instead of rendering a duplicate;
+                // its tool_result then settles that one part to a single ✓.
+                if (payload.input !== undefined) existing.input = payload.input
+                return
+            }
             const part: Part = {
                 type: toolPartType(payload.name as string),
                 toolCallId,
@@ -279,7 +289,22 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
         // this every turn folds into one assistant bubble; closing the draft here starts a
         // fresh message per turn.
         if (row.session_update === "done" || p.type === "done") {
-            if (current && traceId && !current.traceId) current.traceId = traceId
+            // Last-wins: a paused turn folds into its resume (below), and that turn has two `done`s
+            // with two traceIds — prefer the RESUME trace, where the approved tool actually executed.
+            // A normal turn has a single `done`, so this is unchanged for it.
+            if (current && traceId) current.traceId = traceId
+            if (current && p.stopReason === "paused") {
+                // Paused mid-approval: the resume turn's records (the re-emitted call, its result,
+                // the follow-up text) belong to the SAME assistant turn the user saw live, so keep
+                // the draft OPEN and let them fold into it instead of splitting into a dangling
+                // "awaiting approval" bubble + a resumed bubble. A paused turn blocks the session,
+                // so it's always followed by its own resume or is the last (abandoned) turn. Mark it
+                // paused for the adoption heuristic; the normal `done` below clears it on resume.
+                current.paused = true
+                continue
+            }
+            // A resumed-then-completed turn is no longer paused.
+            if (current) current.paused = false
             current = null
             continue
         }
@@ -301,6 +326,7 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
             const metadata: Record<string, unknown> = {}
             if (d.traceId) metadata.traceId = d.traceId
             if (d.usage) metadata.usage = d.usage
+            if (d.paused) metadata.paused = true
             return {
                 id: d.id,
                 role: d.role,
