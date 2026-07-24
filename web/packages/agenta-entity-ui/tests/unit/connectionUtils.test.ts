@@ -256,6 +256,46 @@ describe("connectionUtils: harness-filtered model picker", () => {
         expect(harnessAllowsModel(CAPABILITIES, "future-harness", "anything")).toBe(true)
         expect(harnessAllowsModel(CAPABILITIES, "pi_core", null)).toBe(true)
     })
+
+    it("supports custom-provider vault models with non-standard ID shapes when reachable by harness", () => {
+        const secrets = [
+            {
+                name: "my-bedrock",
+                provider: "bedrock",
+                models: ["custom-bedrock-model-id-123"],
+            },
+        ]
+        // claude harness consumes bedrock -> returns true even with non-standard model ID shape
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "custom-bedrock-model-id-123",
+                secrets,
+                "my-bedrock",
+            ),
+        ).toBe(true)
+        // pi_core harness does not consume bedrock -> returns false
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "pi_core",
+                "custom-bedrock-model-id-123",
+                secrets,
+                "my-bedrock",
+            ),
+        ).toBe(false)
+        // bogus model id not in secrets or catalog -> returns false
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "bogus-model-id",
+                secrets,
+                "my-bedrock",
+            ),
+        ).toBe(false)
+    })
 })
 
 describe("connectionUtils: model_catalog is preferred when published", () => {
