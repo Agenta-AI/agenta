@@ -169,3 +169,63 @@ code, unaffected). Always `cd <worktree> && bash ./hosting/docker-compose/run.sh
 - Close-out `/simplify` + desloppify full-diff pass: the diff was reviewed slice-by-slice against
   the sibling patterns (buildClientToolRelay, claude_settings, applyModel) and is green; a
   consolidated `/simplify` sweep is recommended once QA unblocks.
+
+## Close-out (2026-07-25): MP4 recorded + quality passes — Milestone 3 CLOSED
+
+Both remaining deliverables are in. Recording and quality passes done on the worktree
+deployment (:8180) with the runner container healthy.
+
+### MP4 recording — `reports/m3-approvals-qa.mp4` (real UI, chrome-devtools)
+
+Recorded the whole approval flow in the REAL playground UI (1280x900, h264/yuv420p, ~16s,
+7 frames). Frames in `/home/mahmoud/.claude/jobs/fd72484c/tmp/qa-frames-m3/`. It shows every
+required step:
+
+1. **Config** — a Codex-harness agent (`gpt-5.6-luna`) with a runner-executed tool attached
+   (the `exact-match` workflow reference).
+2. **ALLOW run** — agent `Permissions` policy `Allow all`: the tool runs repeatedly with green
+   checkmarks and NO approval prompt (no pause), finishing with a result.
+3. **Ask policy** — `Advanced -> Permissions -> Policy = Ask` ("A human approves every tool call").
+4. **ASK approval card** — the tool call parks and the UI renders a real approval card:
+   "Approval needed to continue -- mcp.agenta-tools.Exact Match -- The agent wants to run this tool
+   before it can keep going", with the payload and **Approve** / **Deny** buttons.
+5. **Approve** — clicking Approve resumes the turn (cold-replay) and the tool executes ("approved").
+6. **Codeword reply** — the final assistant reply preserves the planted context: "The codeword is
+   FLAMINGO-42." (context survived the pause/approve/deny cycle).
+7. **DENY run** — policy `Deny all`: the tool call is refused (`failed`, "denied by policy") and the
+   agent continues to a clean final answer ("it was denied by policy, so I couldn't verify the
+   result").
+
+Key finding surfaced during recording (folded into LESSONS.md): the M3 runner-side gate is driven
+in the product UI by the **agent-level `Permissions` policy** (`Allow reads` / `Allow all` / `Ask` /
+`Deny all` under Advanced), which maps to the gate's allow/ask/deny decisions and fires for
+**runner-executed** tools (platform ops, workflow references, MCP). A "schema-only / executed by
+your app" custom tool is a CLIENT tool that bypasses the runner gate entirely (returns
+`{"status":"not_handled"}`, "not handled by this client"), so it cannot exercise or demonstrate the
+gate. Under `Ask`, each call parks with an Approve/Deny card; approving executes and the model may
+re-issue the call (it re-parks every call under `Ask` — expected, not a bug); denying yields a clean
+final answer. This is the watchable proof; the wire-level SSE evidence above already validated the
+same behavior via `m3-qa.py`.
+
+### Quality passes over the full M3 diff (ae69375f, fc9086e1, bbf157f8, 6538514a, 003797ee, 0c925cb3)
+
+- **/simplify** (single-pass, all four angles — reuse, simplification, efficiency, altitude): the
+  production diff is clean. It deliberately mirrors the reviewed sibling patterns
+  (`buildClientToolRelay` -> `buildExecutableToolGate`, `claude_settings` -> `codex_settings`,
+  `applyModel` -> `applyCodexMode`, the Claude ACP gate -> the Codex ACP gate); the resume-key
+  unwrap lives in the shared `storedDecisionKeyShape` (right depth, not a bolt-on); the gate sits at
+  the correct loopback `tools/call` seam. No net-positive change.
+- **desloppify-code** (scan -> blind review -> triage -> execute -> rescan, scoped to the M3
+  production files): the mechanical scan's only signals are `any` on the ACP `session`/`request`
+  objects — which is the established module convention (`applyModel(session: any)`,
+  `runtime-contracts` `session: any`, and acp-interactions' pre-M3 `session/req/toolCall: any`), so a
+  bespoke type would be an outlier, not an improvement; the Python `Any` params are documented
+  duck-typing. No TODO/FIXME/console/empty-catch/ts-ignore/dead code introduced. Blind review across
+  the dimension catalog (naming, logic clarity, abstraction fitness, ai_generated_debt, elegance,
+  convention, test strategy) finds the code clean: intent-revealing names, invariant-only comments,
+  dedicated tests added. Clean cycle, no code fixes warranted.
+- **Suites re-run GREEN:** SDK agents unit **691 passed** (`uv run --no-sync pytest
+  oss/tests/pytest/unit/agents -q`); runner **1248 passed** across 81 files (`pnpm test`). `ruff
+  format --check` + `ruff check` clean on `agenta/sdk/agents/`.
+
+No code changes were needed, so the checkpoint commit carries the close-out documentation only.

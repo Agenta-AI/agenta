@@ -27,7 +27,26 @@ Last updated: 2026-07-25 (Milestone 4 COMPLETE; subscription auth GREEN incl. it
   survived; (d) subscription + TOOLS on the product path (`m4-tool-qa.py`) — `list_connections` ran,
   no pause, no error. `/simplify` pass done; both suites green (runner 1248, SDK agents 691).
 
-## Now (Milestone 3)
+## Milestone 3 — CLOSED (2026-07-25)
+
+- Milestone 3 is CLOSED: code complete + green, live wire QA green, the watchable MP4 recorded, and
+  both close-out quality passes done. Both remaining deliverables are in.
+- **MP4:** `reports/m3-approvals-qa.mp4` (real playground UI via chrome-devtools, 1280x900, ~16s).
+  Shows: Codex agent + runner-executed tool configured; `Allow all` run executes with no pause;
+  `Ask` policy renders a real Approve/Deny approval card; Approve resumes + executes; the reply
+  preserves the planted codeword FLAMINGO-42; `Deny all` refuses cleanly. Frames in
+  `~/.claude/jobs/fd72484c/tmp/qa-frames-m3/`.
+- UI finding: the runner-side gate is driven in-product by the agent `Permissions` policy (Advanced
+  -> Permissions: Allow reads / Allow all / Ask / Deny all) for RUNNER-executed tools (platform
+  ops, workflow refs, MCP). A "schema-only / executed by your app" custom tool is a CLIENT tool that
+  bypasses the gate (`not_handled`) — do not use it to QA the gate. Folded into LESSONS.md.
+- **Quality passes:** `/simplify` (4 angles) and desloppify-code (scan/review/triage/execute) both
+  find the M3 production diff clean — deliberate sibling-pattern parity, invariant-only comments,
+  resume-key unwrap in the shared `storedDecisionKeyShape`, `any` on ACP session/request is module
+  convention. No code fixes warranted. Suites re-run GREEN: SDK agents 691, runner 1248 (81 files);
+  ruff clean. Checkpoint commit carries the close-out docs only.
+
+## Milestone 3 — implementation detail (kept for reference)
 
 - Milestone 3 CODE COMPLETE and green. Notes: `reports/m3-implementation-notes.md`. Six commits
   (local only, not pushed): A default ACP mode `agent-full-access` + per-agent `harnessMode`
@@ -42,8 +61,9 @@ Last updated: 2026-07-25 (Milestone 4 COMPLETE; subscription auth GREEN incl. it
   resume preserves context (the pause tears the session down so every resume cold-creates on the
   owner); agent-mode wire sanity classifies + parks a Codex ACP gate. The runner-KILL cold variant
   is inapplicable to LOCAL sandboxes (single-owner guard, by design; cross-replica cold = Daytona/M5).
-- OUTSTANDING: the chrome-devtools MP4 (`m3-approvals-qa.mp4`) is not yet recorded (budget). Wire
-  evidence in the notes fully validates behavior; the driver is ready.
+- DONE (2026-07-25): the chrome-devtools MP4 (`m3-approvals-qa.mp4`) is recorded in the real
+  playground UI (see the CLOSED section at the top). Wire evidence in the notes already validated the
+  same behavior via `m3-qa.py`.
 - Root-cause correction: the earlier "deployment regression" was WRONG — it was Slice D's
   transport-less `[mcp_servers.*]` tables (the SDK is bind-mounted into the SERVICES container, so
   the M2-runner-rollback control never reverted Slice D). Fixed. Two design items approved by the
