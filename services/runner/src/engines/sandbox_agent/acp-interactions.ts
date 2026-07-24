@@ -548,6 +548,13 @@ function serverPermissionFor(
   toolName: string | undefined,
   serverPermissions: ReadonlyMap<string, ToolPermission>,
 ): ToolPermission | undefined {
+  // Codex uses mcp.<server>.<tool>; Claude uses mcp__<server>__<tool>.
+  if (toolName?.startsWith("mcp.")) {
+    const rest = toolName.slice("mcp.".length);
+    const separator = rest.indexOf(".");
+    if (separator <= 0) return undefined;
+    return serverPermissions.get(rest.slice(0, separator));
+  }
   if (!toolName?.startsWith("mcp__")) return undefined;
   const rest = toolName.slice("mcp__".length);
   const separator = rest.indexOf("__");

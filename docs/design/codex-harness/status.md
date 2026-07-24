@@ -1,8 +1,26 @@
 # Status
 
-Last updated: 2026-07-24 (Checkpoint 1 done, derisk probes and Milestone 1 running)
+Last updated: 2026-07-24 (Milestone 2 closed)
 
-## Now (Milestone 1 COMPLETE and green)
+## Now
+
+- Milestone 2 CLOSED. Notes: `reports/m2-implementation-notes.md`. Agenta tools deliver and
+  execute on Codex over the internal `agenta-tools` loopback MCP channel (proven live: a
+  `discover_tools` call delivered as `mcp.agenta-tools.discover_tools`, relayed server-side,
+  tool_call + tool_result traced). Run cost renders non-zero after the real fix (emit
+  `gen_ai.response.model` on the Codex LLM span) — the M1 "curated catalog needs pricing"
+  diagnosis was WRONG (run cost uses litellm keyed by the span model, not the catalog). Curated
+  pricing added anyway (feeds the picker tooltip). Codex MCP dot naming (`mcp.<server>.<tool>`)
+  handled on the execution path (`bareToolName`, `serverPermissionFor`). Codex user-MCP capability
+  block + picker avatar added. One live tool run pinned as an offline replay test
+  (`test_codex_tool_replay`). Suites: SDK agents unit 681, integration cost_free 8, runner 1222.
+- OPEN (surfaced, not baked): D-008's approved `agent-full-access` default mode is NOT wired;
+  tools work today under the default `agent` mode via runner auto-allow. Wiring it is intertwined
+  with M3's runner-side gate + per-agent mode override, so it was kept in M3. Mahmoud to decide
+  whether to pull it forward.
+- Milestone 1 CLOSED. Report: `reports/m1-report.md`; recording `reports/m1-playground-qa.mp4`.
+
+## Milestone 1 detail (closed)
 
 - Milestone 1 (managed key, text only) implemented by Codex, reviewed by Opus. SDK +
   runner done; SDK agents unit suite 680 green, full runner suite 1218 green.
@@ -45,16 +63,15 @@ Last updated: 2026-07-24 (Checkpoint 1 done, derisk probes and Milestone 1 runni
 - QA account, project, and API key created through the UI; credentials in the
   worktree `.env` (gitignored) together with the OpenAI experiment key.
 
-## Next (after Checkpoint 1)
+## Next
 
-- Milestone 1: managed-key text-only vertical slice (SDK skeleton, runner wiring,
-  contract tests, live playground run). Early in it: verify per-run scoping of the
-  adapter's `CODEX_CONFIG` environment channel (needed by D-002's subscription
-  option).
+- Milestone 2 finishes (tools + pricing), then Milestone 3 (runner-side tool gate
+  per D-008), Milestone 4 (subscription), Milestone 5 (Daytona, docs, release gate,
+  PR train).
 
 ## Blockers
 
-- Checkpoint 1 rulings (see above). Nothing else.
+- None. All rulings in; all probes answered.
 
 ## Checkpoint log
 

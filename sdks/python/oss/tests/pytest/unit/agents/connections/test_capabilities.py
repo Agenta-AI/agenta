@@ -140,6 +140,12 @@ def test_capabilities_document_shape():
             "credentials": ["none", "header_secret_refs"],
         }
     }
+    assert doc["codex"]["mcp"] == {
+        "user_servers": {
+            "connection_types": ["http"],
+            "credentials": ["none", "header_secret_refs"],
+        }
+    }
     assert "mcp" not in doc["pi_core"]
     assert "mcp" not in doc["pi_agenta"]
 

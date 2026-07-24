@@ -256,11 +256,8 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
             user_servers=UserMCPServerCapabilities(),
         ),
     ),
-    # Milestone 1 is managed key only, so ``connection_modes`` is ``["agenta"]``.
-    # ``self_managed`` and subscription are added in the subscription milestone.
-    # ``deployments`` is ``["direct"]`` for OpenAI direct. There is no ``mcp`` block yet because
-    # Milestone 1 delivers no tools and offers no user MCP servers. That lands with the tools
-    # milestone. Codex reaches the ``openai`` family only.
+    # Codex reaches OpenAI through managed direct connections.
+    # Codex accepts user HTTP MCP servers like Claude.
     "codex": HarnessConnectionCapabilities(
         providers=["openai"],
         deployments=["direct"],
@@ -268,6 +265,9 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
         model_selection="provider/id",
         models={"openai": list(CODEX_MODELS)},
         model_catalog=_model_catalog("codex"),
+        mcp=HarnessMCPCapabilities(
+            user_servers=UserMCPServerCapabilities(),
+        ),
     ),
 }
 

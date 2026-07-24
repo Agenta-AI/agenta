@@ -32,3 +32,13 @@ def test_codex_milestone_one_model_sets() -> None:
         model_id.startswith("gpt-5.1-codex") for model_id in capability_models
     )
     assert not any(model_id.startswith("gpt-5.1-codex") for model_id in catalog_models)
+
+
+def test_codex_model_catalog_carries_pricing() -> None:
+    catalog_entries = model_catalog_entries("codex")
+    luna = next(entry for entry in catalog_entries if entry["id"] == "gpt-5.6-luna")
+
+    assert luna["pricing"]["input_per_mtok"] == 1.0
+    assert luna["pricing"]["output_per_mtok"] == 6.0
+    assert luna["context_window"] == 1050000
+    assert all(entry["pricing"] is not None for entry in catalog_entries)

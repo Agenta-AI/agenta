@@ -668,6 +668,26 @@ describe("attachPermissionResponder", () => {
 
     assert.equal(seen.permission?.[0].gate.serverPermission, "deny");
   });
+
+  it("passes server-level MCP permissions into Codex dot-form harness gates", async () => {
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      latch: new PendingApprovalLatch(),
+      serverPermissions: new Map([["github", "deny"]]),
+    });
+    emit({
+      id: "perm-1",
+      toolCall: { toolCallId: "tool-1", name: "mcp.github.search" },
+    });
+    await flushPromises();
+
+    assert.equal(seen.permission?.[0].gate.serverPermission, "deny");
+  });
 });
 
 // -------------------------------------------------------------------------- //
