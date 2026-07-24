@@ -208,7 +208,7 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
             }}
           >
             2m ago{" "}·{" "}5.3s{" "}·{" "}28.3K tokens
-            {" "}·{" "}$0.00
+            {" "}·{" "}$0.14
           </span>
         </div>
       );
@@ -360,7 +360,7 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
             }}
           >
             Mon 09:02{" "}·{" "}41s{" "}·{" "}12.1K tokens
-            {" "}·{" "}$0.00
+            {" "}·{" "}$0.06
           </span>
         </div>
       );
