@@ -10,7 +10,7 @@ import {
  * HowItWorks — "Do the work in chat. Then automate it."
  * Ported 1:1 from the dark landing DC (hiw* scroll logic + markup).
  *
- * Desktop + motion allowed: a 500vh section with a position:sticky, 100vh inner
+ * Desktop + motion allowed: a tall (SECTION_VH) section with a position:sticky, 100vh inner
  * stage. Scroll progress across the section maps to 6 stages (0..5) of ONE chat
  * thread. Reduced motion OR viewport <=860px: NO sticky scroll — two stacked
  * static panels ("Work in chat" / "Automate"), each showing its slice of the
@@ -23,6 +23,12 @@ import {
 
 const GEIST = "'Geist',var(--font-sans)";
 const AGENTA_SYMBOL = "/logos/Agenta-symbol-dark-accent.svg";
+
+// Scroll length of the pinned stage. The 6 stages are mapped across
+// (SECTION_VH − 100vh) of scroll, so each beat advances every
+// (SECTION_VH − 100) / 6 vh. Smaller = snappier (less scrolling per beat).
+// Was 500 (~67vh/beat); 320 is ~37vh/beat — tune here if beats fly by / drag.
+const SECTION_VH = 320;
 
 // Stage at which each of the 7 message blocks first appears (dc: revealAt).
 const REVEAL_AT = [0, 1, 2, 3, 4, 5, 5];
@@ -208,7 +214,7 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
             }}
           >
             2m ago{" "}·{" "}5.3s{" "}·{" "}28.3K tokens
-            {" "}·{" "}$0.00
+            {" "}·{" "}$0.14
           </span>
         </div>
       );
@@ -360,7 +366,7 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
             }}
           >
             Mon 09:02{" "}·{" "}41s{" "}·{" "}12.1K tokens
-            {" "}·{" "}$0.00
+            {" "}·{" "}$0.06
           </span>
         </div>
       );
@@ -634,6 +640,13 @@ function ChatCard({
   height: string;
   justify: CSSProperties["justifyContent"];
 }) {
+  // Scroll layout only: the thread is bottom-anchored (justify:flex-end) and
+  // grows upward as stages reveal, so it overflows the top. Clip it here and
+  // fade the top edge so messages dissolve into the card instead of being cut
+  // by a hard overflow slice. The static layout (auto height, flex-start) has
+  // no overflow, so it needs no mask.
+  const scrolled = justify === "flex-end";
+  const TOP_FADE = "linear-gradient(to bottom, transparent 0, #000 52px)";
   return (
     <div
       style={{
@@ -660,6 +673,13 @@ function ChatCard({
             gap: 14,
             padding: "20px 24px",
             textAlign: "left",
+            ...(scrolled
+              ? {
+                  overflow: "hidden",
+                  WebkitMaskImage: TOP_FADE,
+                  maskImage: TOP_FADE,
+                }
+              : {}),
           }}
         >
           {blocks}
@@ -788,9 +808,15 @@ export default function HowItWorks() {
   }, []);
 
   // Scroll → stage, only while the sticky-scroll layout is active.
+  // Scroll/resize events fire faster than the display refreshes; we coalesce a
+  // burst into a single rAF so the one layout read (getBoundingClientRect) and
+  // stage check happen at most once per frame. That keeps the main thread free
+  // during fast scrolls instead of forcing a reflow on every raw event.
   useEffect(() => {
     if (!scroll) return;
-    const onScroll = () => {
+    let raf = 0;
+    const measure = () => {
+      raf = 0;
       const el = sectionRef.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
@@ -799,14 +825,21 @@ export default function HowItWorks() {
       const next = Math.min(5, Math.floor(p * 6));
       setStage((prev) => (prev !== next ? next : prev));
     };
-    const onResize = () => setShortViewport(window.innerHeight < 700);
-    window.addEventListener("scroll", onScroll, { passive: true });
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(measure);
+    };
+    const onResize = () => {
+      setShortViewport(window.innerHeight < 700);
+      schedule();
+    };
+    window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", onResize);
-    onScroll();
+    measure();
     onResize();
     return () => {
-      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", onResize);
+      if (raf) cancelAnimationFrame(raf);
     };
   }, [scroll]);
 
@@ -893,7 +926,10 @@ export default function HowItWorks() {
   const beatActive = [stage <= 2, stage >= 3];
 
   return (
-    <div ref={sectionRef} style={{ height: "500vh", boxSizing: "border-box" }}>
+    <div
+      ref={sectionRef}
+      style={{ height: `${SECTION_VH}vh`, boxSizing: "border-box" }}
+    >
       <div
         style={{
           position: "sticky",

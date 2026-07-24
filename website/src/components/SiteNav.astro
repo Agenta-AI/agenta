@@ -215,21 +215,30 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
     toggle.setAttribute("aria-expanded", open ? "true" : "false");
   });
 
-  // Nav-pill: landing only. The rAF loop toggles `.nav-scrolled` on <html> past
-  // 24px so the sticky bar floats into the glass pill (styles in global.css). It
-  // runs ONLY when a `nav[data-pill]` is present — inner pages render a static
-  // bar with no pill, so the loop never starts and `.nav-scrolled` never toggles.
+  // Nav-pill: landing only. Toggles `.nav-scrolled` on <html> past 24px so the
+  // sticky bar floats into the glass pill (styles in global.css). Wired ONLY when
+  // a `nav[data-pill]` is present — inner pages render a static bar with no pill,
+  // so nothing runs and `.nav-scrolled` never toggles.
+  // Driven by a passive scroll listener (not an always-on rAF loop), so it does
+  // no work while the page is idle; each scroll burst coalesces into one read per
+  // frame via rAF, with the state check gated on an actual crossing of the 24px
+  // threshold to avoid redundant classList writes.
   const root = document.documentElement;
   if (document.querySelector("nav[data-pill]") && !(window as any).__agNavPill) {
     (window as any).__agNavPill = true;
-    const tick = () => {
-      const y = window.scrollY || root.scrollTop || 0;
-      const on = y > 24;
+    let raf = 0;
+    const measure = () => {
+      raf = 0;
+      const on = (window.scrollY || root.scrollTop || 0) > 24;
       if (on !== root.classList.contains("nav-scrolled")) {
         root.classList.toggle("nav-scrolled", on);
       }
-      requestAnimationFrame(tick);
     };
-    requestAnimationFrame(tick);
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(measure);
+    };
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule, { passive: true });
+    measure();
   }
 </script>
