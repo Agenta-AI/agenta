@@ -78,7 +78,24 @@ EXPOSE 8765
 # not the only safeguard.
 RUN mkdir -p /pi-agent && chown node:node /pi-agent
 
+# Pin HOME so the sandbox-agent daemon's per-agent install dir ($HOME/.local/share/sandbox-agent)
+# is the same at build time (the pin RUN below) and at runtime (buildDaemonEnv copies HOME into the
+# daemon env). Without a fixed HOME an arbitrary runtime uid would miss the baked pin and reinstall.
+ENV HOME=/home/node
+
 USER node
+
+# Pin the Codex ACP adapter (decision D-005). The sandbox-agent daemon otherwise installs
+# @agentclientprotocol/codex-acp from the npm registry with a FLOATING `^1.1.7` range at first Codex
+# use, so a later registry release would drift protocol behavior (gate shapes, config channels)
+# under us. `install-agent codex --agent-process-version 1.1.7` pre-installs it here, generating a
+# lockfile (package-lock.json, lockfileVersion 3) that pins codex-acp 1.1.7 exactly (with its
+# bundled @openai/codex 0.145.0). The daemon finds the adapter already present at runtime and skips
+# the floating fetch. Codex (codex-acp + @openai/codex) is Apache-2.0, so baking it is licensing-
+# clean, unlike proprietary Claude Code. Pinned versions recorded next to the sandbox-agent pin in
+# package.json. Runs as `node` so the install lands in the runtime user's HOME.
+# PIN: @agentclientprotocol/codex-acp 1.1.7 (bundles @openai/codex 0.145.0).
+RUN node_modules/.bin/sandbox-agent install-agent codex --agent-process-version 1.1.7 -n
 
 # Call the local tsx binary directly to avoid pnpm/corepack HOME writes when the
 # container runs as a non-root host uid.
