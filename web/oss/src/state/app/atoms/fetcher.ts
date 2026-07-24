@@ -60,7 +60,7 @@ export const appSwitchHrefAtom = atom((get) => {
         })
             ? ["evaluations"]
             : rest
-        return nextRest.length ? `${base}/${nextRest.join("/")}` : `${base}/overview`
+        return nextRest.length ? `${base}/${nextRest.join("/")}` : `${base}/playground`
     }
 })
 
