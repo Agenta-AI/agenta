@@ -1,9 +1,9 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
 import {HeightCollapse} from "@agenta/ui"
-import {ArrowSquareOut, CaretRight, ShieldCheck} from "@phosphor-icons/react"
+import {ArrowSquareOut, CaretDown, CaretRight, ShieldCheck} from "@phosphor-icons/react"
 import type {ToolUIPart, UIMessage} from "ai"
-import {Button, Switch, Typography} from "antd"
+import {Button, Dropdown, Switch, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import {useAlwaysAllowTool} from "@/oss/hooks/useAlwaysAllowTool"
@@ -56,6 +56,13 @@ const formatInput = (input: unknown): string => {
     } catch {
         return String(input)
     }
+}
+
+/** One-line, whitespace-collapsed payload preview for the batch peek — so "Approve all" can be
+ * an informed click without expanding every gate. Truncated; the full payload stays in the card. */
+const inputPreview = (input: unknown): string => {
+    const s = formatInput(input).replace(/\s+/g, " ").trim()
+    return s.length > 140 ? `${s.slice(0, 140)}…` : s
 }
 
 /** Collapsible exact-payload viewer — the generic approval body, and the fallback (plus the
@@ -135,7 +142,7 @@ const ApprovalDock = ({
     // pending we FREEZE the shown set so the card holds steady and the dock closes in one step (or,
     // if only some gates were covered, then steps to the uncovered remainder).
     const [resolvingIds, setResolvingIds] = useState<readonly string[] | null>(null)
-    const [resolveSource, setResolveSource] = useState<"all" | "one" | null>(null)
+    const [resolveSource, setResolveSource] = useState<"all" | "deny-all" | "one" | null>(null)
     const resolving =
         resolvingIds !== null && approvals.some((a) => resolvingIds.includes(a.approvalId))
     // Latch the last non-empty set so the card stays visible while the dock animates closed (a leave
@@ -219,6 +226,16 @@ const ApprovalDock = ({
         // holds "1 of N" and closes once all are answered (see `resolvingIds`).
         setResolvingIds(shown.map((a) => a.approvalId))
         shown.forEach((a) => onApprovalResponse({id: a.approvalId, approved: true}))
+    }
+    // The explicit turn-level reject — the deny counterpart to "Approve all", never inferred from a
+    // per-card Deny. Answers every open gate as a warm reject via resume (no teardown); the card
+    // freezes and the dock closes in one step. No always-allow grant is ever applied on a deny.
+    const denyAll = () => {
+        if (responding) return
+        setResponding(true)
+        setResolveSource("deny-all")
+        setResolvingIds(shown.map((a) => a.approvalId))
+        shown.forEach((a) => onApprovalResponse({id: a.approvalId, approved: false}))
     }
 
     // Always mounted; enter + leave animate via the shared HeightCollapse (CSS height + fade,
@@ -329,13 +346,65 @@ const ApprovalDock = ({
                             ) : null}
                             <div className="ml-auto flex items-center gap-1.5">
                                 {count > 1 ? (
-                                    <Button
-                                        loading={responding && resolveSource === "all"}
+                                    // Split button: the primary click approves the whole batch; the
+                                    // caret opens a peek listing every pending action (so "Approve
+                                    // all" is informed, not blind) and the explicit turn-level
+                                    // "Deny all". Per-card Deny/Approve below stay for stepping one
+                                    // at a time.
+                                    <Dropdown.Button
                                         disabled={responding}
+                                        loading={responding && resolveSource === "all"}
+                                        icon={<CaretDown size={12} />}
                                         onClick={approveAll}
+                                        menu={{
+                                            items: [
+                                                {key: "deny-all", danger: true, label: "Deny all"},
+                                            ],
+                                            onClick: denyAll,
+                                        }}
+                                        popupRender={(menu) => (
+                                            <div className="ag-surface-chat box-border flex max-w-[320px] flex-col gap-1.5 rounded-lg border border-solid border-colorBorderSecondary p-2 shadow-md">
+                                                <Text
+                                                    type="secondary"
+                                                    className="!text-[11px] px-1"
+                                                >
+                                                    Approving all runs these {count} actions:
+                                                </Text>
+                                                <div className="flex max-h-56 flex-col gap-1 overflow-auto">
+                                                    {shown.map((a) => {
+                                                        const preview = inputPreview(a.input)
+                                                        const label =
+                                                            resolveToolDisplay(a.toolName)?.label ??
+                                                            a.toolName
+                                                        return (
+                                                            <div
+                                                                key={a.approvalId}
+                                                                className="ag-surface-inset box-border rounded px-2 py-1.5"
+                                                            >
+                                                                <Text
+                                                                    className="!text-xs !font-medium block truncate"
+                                                                    title={a.toolName}
+                                                                >
+                                                                    {label}
+                                                                </Text>
+                                                                {preview ? (
+                                                                    <Text
+                                                                        type="secondary"
+                                                                        className="!text-[11px] block truncate font-mono"
+                                                                    >
+                                                                        {preview}
+                                                                    </Text>
+                                                                ) : null}
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                                {menu}
+                                            </div>
+                                        )}
                                     >
                                         Approve all
-                                    </Button>
+                                    </Dropdown.Button>
                                 ) : null}
                                 <Button disabled={responding} onClick={() => respond(false)}>
                                     Deny
