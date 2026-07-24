@@ -6,6 +6,7 @@ import {
 } from "../../protocol.ts";
 import { type Responder } from "../../responder.ts";
 import type { ClientToolRelay } from "../../tools/client-tool-relay.ts";
+import type { ExecutableToolGate } from "../../tools/executable-tool-gate.ts";
 import {
   localRelayHost,
   sandboxRelayHost,
@@ -213,6 +214,8 @@ export interface SessionEnvironment {
   toolCallIndex: ReturnType<typeof createToolCallCorrelationIndex>;
   /** The current turn's client-tool relay, read by the deferred ref baked into the MCP server. */
   clientToolRelayRef: { current?: ClientToolRelay };
+  /** The current turn's executable-tool gate, read by the loopback MCP server. */
+  executableToolGateRef: { current?: ExecutableToolGate };
   mcpAbort: AbortController;
   runAgentDir: string | undefined;
   otlpAuthFilePath: string | undefined;

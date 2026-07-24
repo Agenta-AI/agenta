@@ -258,6 +258,7 @@ export async function acquireEnvironment(
     artifactId,
     binaryPath,
     deferredClientToolRelay,
+    deferredExecutableToolGate,
     env,
     environment,
     localBuiltinGatingUnenforceable,
@@ -920,6 +921,8 @@ export async function acquireEnvironment(
       userMcpServers: request.mcpServers,
       relayDir: plan.relayDir,
       clientToolRelay: deferredClientToolRelay,
+      executableToolGate:
+        !plan.isPi && !plan.isDaytona ? deferredExecutableToolGate : undefined,
       signal: mcpAbort.signal,
       // The uploaded in-sandbox stdio MCP shim assets, set only on Daytona + non-Pi +
       // executable-tools; advertises the gateway tools the loopback channel cannot reach

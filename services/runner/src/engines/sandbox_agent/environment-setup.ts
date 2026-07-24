@@ -5,6 +5,10 @@ import { apiBase } from "../../apiBase.ts";
 import { resolveRunSessionId, type AgentRunRequest } from "../../protocol.ts";
 import { type ClientToolOutcome } from "../../responder.ts";
 import type { ClientToolRelay } from "../../tools/client-tool-relay.ts";
+import type {
+  ExecutableToolGate,
+  ExecutableToolVerdict,
+} from "../../tools/executable-tool-gate.ts";
 import { agentMountPath, signAgentMountCredentials } from "./agent-mount.ts";
 import { createToolCallCorrelationIndex } from "./client-tools.ts";
 import { configureCodexHome } from "./codex-assets.ts";
@@ -302,8 +306,19 @@ export async function prepareEnvironmentSetup(
         : Promise.resolve("deny" as ClientToolOutcome),
     onPause: (req) => clientToolRelayRef.current?.onPause?.(req),
   };
+  const executableToolGateRef: { current?: ExecutableToolGate } = {};
+  const deferredExecutableToolGate: ExecutableToolGate = {
+    onExecutableTool: (req) =>
+      executableToolGateRef.current
+        ? executableToolGateRef.current.onExecutableTool(req)
+        : Promise.resolve({
+            kind: "deny",
+            reason: `Tool '${req.toolName}' was denied by policy.`,
+          } satisfies ExecutableToolVerdict),
+    onPause: () => executableToolGateRef.current?.onPause?.(),
+  };
 
-  // Aborts any in-flight loopback `tools/call` (a paused Claude client tool) on pause/teardown,
+  // Aborts any in-flight loopback `tools/call` on pause/teardown,
   // so its handler is torn down deterministically and cannot write a result after the turn ends.
   const mcpAbort = new AbortController();
 
@@ -319,6 +334,7 @@ export async function prepareEnvironmentSetup(
     strictModel,
     toolCallIndex: createToolCallCorrelationIndex(),
     clientToolRelayRef,
+    executableToolGateRef,
     mcpAbort,
     runAgentDir,
     otlpAuthFilePath,
@@ -364,6 +380,7 @@ export async function prepareEnvironmentSetup(
     artifactId,
     binaryPath,
     deferredClientToolRelay,
+    deferredExecutableToolGate,
     env,
     environment,
     localBuiltinGatingUnenforceable,

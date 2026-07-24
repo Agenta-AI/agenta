@@ -38,18 +38,13 @@ import {
   buildClientToolRelay,
   relayWritesPausedAnswer,
 } from "./client-tools.ts";
+import { buildExecutableToolGate } from "./executable-tools.ts";
 import { invalidateContinuity } from "./environment.ts";
 import { conciseError } from "./errors.ts";
-import {
-  PAUSED,
-  PendingApprovalPauseController,
-} from "./pause.ts";
+import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
 import { findSwallowedPiError } from "./pi-error.ts";
 import { buildRelayExecutionGuard } from "./relay-guard.ts";
-import {
-  createRunLimits,
-  resolveRunLimits,
-} from "./run-limits.ts";
+import { createRunLimits, resolveRunLimits } from "./run-limits.ts";
 import {
   RUN_LIMIT_TRIPPED,
   sendLastMessageOnly,
@@ -63,9 +58,7 @@ import {
   serverPermissionsFromRequest,
   shouldSuppressPausedToolCallUpdate,
 } from "./runtime-policy.ts";
-import {
-  syncHarnessSessionDurable,
-} from "./session-continuity-durable.ts";
+import { syncHarnessSessionDurable } from "./session-continuity-durable.ts";
 import { sessionContinuityStore } from "./session-continuity.ts";
 import { priorMessages } from "./transcript.ts";
 import { resolveRunUsage } from "./usage.ts";
@@ -371,8 +364,7 @@ export async function runTurn(
         : undefined,
     });
 
-    // Resolve the ONE client-tool seam both delivery paths share. The correlation index is wired
-    // for Claude only — Pi's relay toolCallId is already exact.
+    // Non-Pi loopback tools use the correlation index; Pi's relay toolCallId is already exact.
     env.clientToolRelayRef.current = buildClientToolRelay({
       responder,
       run,
@@ -382,16 +374,21 @@ export async function runTurn(
       toolCallIndex: plan.isPi ? undefined : env.toolCallIndex,
       log: logger,
     });
+    env.executableToolGateRef.current =
+      !plan.isPi && !plan.isDaytona
+        ? buildExecutableToolGate({
+            responder,
+            run,
+            pause,
+            recordPendingInteraction,
+            toolCallIndex: env.toolCallIndex,
+            log: logger,
+          })
+        : undefined;
 
-    // EVERY harness gets the guard: the relay dir is sandbox-writable, so a forged
-    // `<id>.req.json` proves nothing about any dialog having run, and this runner-side
-    // re-check is the only enforcement of the hard deny boundary against forged files.
-    // `allow` passes and `deny` refuses identically everywhere; `ask` splits by harness —
-    // Pi consumes a dialog-recorded execution grant (fail-closed parity with the in-sandbox
-    // confirm), while a non-Pi MCP harness (Claude) passes `ask` because its own harness
-    // enforces the ask dialog (the rendered `mcp__agenta-tools__<tool>` ask rules + the ACP
-    // permission flow) before a call reaches the shim. See buildRelayExecutionGuard for the
-    // stated residual (a forged file can still trigger an ask-tool without a dialog there).
+    // The relay dir is sandbox-writable, so every harness rechecks the hard deny boundary
+    // against forged files. `ask` consumes a Pi grant but passes for non-Pi after the local
+    // loopback gate or Claude's Daytona ACP gate; Codex Daytona remains outside this slice.
     const relayGuard: RelayExecutionGuard = buildRelayExecutionGuard({
       isPi: plan.isPi,
       permissionPlan,
