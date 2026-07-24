@@ -84,6 +84,7 @@ services/runner/tests/results/
 .agents/*
 !.agents/skills/
 .agents/skills/*
+!.agents/skills/add-harness/
 !.agents/skills/agent-release-gate/
 !.agents/skills/write-template-playbooks/
 !.claude/
