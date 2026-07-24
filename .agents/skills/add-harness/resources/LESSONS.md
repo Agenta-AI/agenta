@@ -311,3 +311,44 @@ procedure, this file holds the raw experience that justifies it.
   snapshot to get the current input uid immediately before filling. (2) `take_screenshot filePath`
   only writes inside the workspace root — capture into the worktree, then copy to any external
   jobs/tmp frames dir.
+- 2026-07-25 · **Daytona: the daemon env is FIXED at sandbox creation.** Config-dir env vars
+  (`CODEX_HOME`, `CODEX_SQLITE_HOME`, the Claude/Pi equivalents) must be set BEFORE the provider is
+  built, into the env object that becomes the sandbox's `envVars` (the runner threads them through
+  `piExtEnv`, which doubles as the Daytona daemon-env carrier for non-Pi harnesses). You cannot
+  change the daemon env after the sandbox exists. The credential FILE, by contrast, is written AFTER
+  the sandbox starts, through the sandbox filesystem API (`mkdirFs` + `writeFsFile`), not host `fs`.
+- 2026-07-25 · **Daytona: put the managed credential home IN-VM, never on the durable cwd.** The
+  Daytona cwd is a geesefs mount of durable S3, and teardown pauses or destroys the sandbox before
+  any per-run file backstop could delete a key written under the cwd, so a key on the cwd can outlive
+  the run in the store (and a parked sandbox keeps it). Writing the home to an in-VM path
+  (`/home/sandbox/agenta/...`, a sibling of the relay/tool-MCP dirs) makes it reaped with the sandbox
+  by construction — the strongest form of "delete the key at session end." This also removes the need
+  for a separate off-mount SQLite redirect on Daytona (the in-VM home already keeps SQLite off the
+  mount), though keeping the explicit redirect for parity with the local path is harmless.
+- 2026-07-25 · **The Daytona snapshot ships its own harness version, independent of the runner-image
+  pin.** A managed Daytona run failed the model check with an OLDER model list than the local runner
+  offered: the snapshot's bundled harness CLI predates the runner-pinned adapter. The image pin
+  (`install-agent <harness> --agent-process-version`) covers the RUNNER image only; the sandbox
+  snapshot is a separate image built elsewhere and needs the same pin applied to its recipe. Expect
+  the local and Daytona model catalogs to diverge until both are pinned.
+- 2026-07-25 · **`install-agent <harness> --agent-process-version <v>` pins via the generated
+  lockfile, not the manifest.** The daemon still writes a caret range (`^<v>`) into `package.json`;
+  the real pin is the `package-lock.json` (lockfileVersion 3) it generates with the exact version and
+  integrity hash. Bake the install into the image as the RUNTIME user so the install dir
+  (`$HOME/.local/share/sandbox-agent/bin/agent_processes/<harness>`) matches at run time; pin `HOME`
+  so an arbitrary uid cannot miss the baked pin. An open-source harness CLI is bakeable; a
+  proprietary one (Claude Code) must stay a runtime install by its vendor.
+- 2026-07-25 · **Release gate: SKIP the harness-shaped probes that do not fit, do not FAIL them.**
+  The gate's `approve`/`deny` drive a builtin `bash` command with `ask`; a harness whose default mode
+  runs shell gateless and enforces tool approvals runner-side (the `agenta-tools` pause seam) never
+  fires a native `tool-approval-request`, so those journeys must SKIP with a reason, not FAIL. The
+  `mount` probe reads its token from a builtin-shell `tool-output-available` payload; a harness that
+  runs shell through native exec frames lands its output in a different field, so that probe also
+  SKIPs (a harness-shaped mount probe is the follow-up). Mirror the existing Claude-only `mcp` SKIP.
+- 2026-07-25 · **Managed connection resolver: an explicit-slug lookup can fail while slug-None
+  works.** A managed connection `{mode: agenta, slug: "<name>"}` returned "connection '<name>' not
+  found for provider '<provider>'" while the default `{mode: agenta, slug: None}` path (which the
+  release-gate probe uses) resolved fine. The vault secret existed. This is a deployment/EE
+  connection-resolution trap, harness-independent, not runner code — verify the product path with a
+  slug-None managed cell before assuming your harness broke it, and drive the runner `/run` directly
+  (key in `secrets`, `credentialMode=env`) to isolate the harness code from the resolver.

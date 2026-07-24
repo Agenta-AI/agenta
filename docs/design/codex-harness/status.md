@@ -1,6 +1,39 @@
 # Status
 
-Last updated: 2026-07-25 (Milestone 4 COMPLETE; subscription auth GREEN incl. item C fix)
+Last updated: 2026-07-25 (Milestone 5 COMPLETE — ALL milestones closed; awaiting lane split + Mahmoud review)
+
+## Project state: COMPLETE, awaiting lane split + review
+
+All five milestones are code-complete and green on `worktree-codex-harness` (local commits only,
+nothing pushed, nothing merged). The remaining work is Mahmoud's: ratify the D-002 M5 amendment,
+choose the lane split (area vs concern, `lane-split-plan.md`), and execute the stacked PRs in the
+main checkout. Do-not-merge stands.
+
+## Now (Milestone 5 — Daytona, pin, release gate, docs, sweep, lane plan) — CLOSED
+
+- Notes: `reports/m5-implementation-notes.md`. Final suites: runner **1252**, SDK agents unit
+  **691**, ruff + typecheck clean; web untouched by M5.
+- **A. Daytona managed-key Codex GREEN.** In-VM `CODEX_HOME` (D-002 M5 amendment, proposed): the key
+  lives only in the sandbox VM, never on durable S3. Live via direct runner `/run`:
+  `codex auth.json written (Daytona, in-VM)`, `stopReason=end_turn`, reply `DAYTONA-OK` on `gpt-5.4`.
+  QA sandboxes deleted (0 remaining). Product-path Daytona TOOL run is blocked by a
+  harness-independent managed-connection-resolver failure (explicit-slug "not found"); documented and
+  STOPPED per brief. Daytona snapshot ships an OLDER codex than the runner pin (model-set mismatch) —
+  follow-up: pin the snapshot recipe too.
+- **B. Release-gate cell X1 GREEN** (codex/local/managed). chat/tool/commit/warm PASS;
+  mcp/approve/deny/mount SKIP with codex reasons (D-008 + probe-shape). Added to the tracked
+  `agent-release-gate` skill (`qa_product.py`, `coverage.md`).
+- **C. Adapter pin (D-005) landed** in both runner Dockerfiles (`install-agent codex
+  --agent-process-version 1.1.7`); versions recorded in `services/runner/package.json`. Full
+  image-rebuild confirmation belongs in the runner lane's CI.
+- **D. Docs synced**: self-host subscription page (`CODEX_HOME` mount), agent-workflows ground-truth
+  + interface inventory (codex harness rows).
+- **E. Sweep clean**: `/simplify` (single-pass, no Agent fan-out) + focused desloppify over M4/M5;
+  no actionable slop, no code changes.
+- **F. Lane plan**: `lane-split-plan.md` (recommended area split, disjoint; concern-split
+  alternative with hard-case files named).
+
+## Milestone 4 — CLOSED (2026-07-25)
 
 ## Now (Milestone 4 — subscription auth)
 
