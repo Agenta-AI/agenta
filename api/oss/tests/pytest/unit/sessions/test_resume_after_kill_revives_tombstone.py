@@ -1,12 +1,16 @@
-"""A resume after a STOP_KILLS_SESSION kill (or archive) must re-nest the durable row.
+"""Durable-row revival on resume: two hidden states, two mechanisms.
 
-Kill/archive soft-deletes the `session_streams` row (`deleted_at`). The unique constraint on
-`(project_id, session_id)` is full, so the tombstone keeps occupying the slot: on the next turn
-`_start_turn` reads `None` (get filters `deleted_at IS NULL`), `create` hits the unique slot ->
-`SessionStreamAlreadyExists`, and the follow-up `update` (also `deleted_at IS NULL`) matches
-nothing -> no-op. Without a revive, Redis goes alive but the durable row stays a dead tombstone,
-so the session vanishes from the list and `fetch`/`heartbeat` return `None`. `_start_turn` must
-detect the no-match update and revive that same row (clear `deleted_at`) so resume re-nests it.
+A STOP_KILLS_SESSION kill soft-deletes the `session_streams` row (`deleted_at`). The unique
+constraint on `(project_id, session_id)` is full, so the tombstone keeps occupying the slot: on
+the next turn `_start_turn` reads `None` (get filters `deleted_at IS NULL`), `create` hits the
+unique slot -> `SessionStreamAlreadyExists`, and the follow-up `update` (also `deleted_at IS NULL`)
+matches nothing -> no-op. Without a revive, Redis goes alive but the durable row stays a dead
+tombstone, so the session vanishes from the list and `fetch`/`heartbeat` return `None`. `_start_turn`
+must detect the no-match update and revive that same row (clear `deleted_at`) so resume re-nests it.
+
+Archive is the OTHER hidden state and a separate mechanism: it sets `archived_at` (never
+`deleted_at`), so the row stays live for `get`/`update` and only hides from the default list. New
+activity clears `archived_at` without touching the tombstone path above.
 """
 
 from datetime import datetime, timezone

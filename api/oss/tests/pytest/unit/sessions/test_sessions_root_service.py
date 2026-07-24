@@ -7,13 +7,14 @@ DAO-level integration coverage, e.g. test_turns_dao.py). Covers:
   - delete_session: exact fan-out order and calls (turns, interactions, mounts,
     then the hard stream delete) — records are never touched.
   - archive_session / unarchive_session: soft fan-out including bound mounts,
-    round-trips deleted_at.
+    round-trips archived_at (distinct from delete's hard stream removal).
   - query_sessions: reference filter joins turns -> session_ids, then filters
     the stream query; windowed pass-through; no-match short-circuits to [].
   - fan-out keys off session_id, never stream_id (asserted via the fakes'
     captured call kwargs).
 """
 
+from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import uuid4
 
@@ -29,6 +30,9 @@ from oss.src.core.shared.dtos import Reference, Windowing
 _PROJECT = uuid4()
 _USER = uuid4()
 _SESSION = "session-wp5-root"
+# Both deleted_at and archived_at are Optional[datetime]; model_copy(update=...) does not
+# re-validate, so the fakes must use real datetimes to stay type-faithful to the DAO.
+_TS = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
 def _stream(session_id: str = _SESSION, deleted: bool = False) -> SessionStream:
@@ -36,7 +40,7 @@ def _stream(session_id: str = _SESSION, deleted: bool = False) -> SessionStream:
         id=uuid4(),
         project_id=_PROJECT,
         session_id=session_id,
-        deleted_at="2026-01-01T00:00:00Z" if deleted else None,
+        deleted_at=_TS if deleted else None,
     )
 
 
@@ -89,9 +93,7 @@ class _FakeStreamsService:
             {"project_id": project_id, "user_id": user_id, "session_id": session_id}
         )
         if self.row is not None:
-            self.row = self.row.model_copy(
-                update={"archived_at": "2026-01-01T00:00:00Z"}
-            )
+            self.row = self.row.model_copy(update={"archived_at": _TS})
         return self.row
 
     async def unarchive(self, *, project_id, user_id, session_id):
