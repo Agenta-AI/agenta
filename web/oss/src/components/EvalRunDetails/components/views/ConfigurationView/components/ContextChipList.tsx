@@ -4,6 +4,7 @@ import {useAtomValue} from "jotai"
 
 import {TestsetChipList, VariantReferenceChip} from "@/oss/components/References"
 
+import {effectiveProjectIdAtom} from "../../../../atoms/run"
 import {runInvocationRefsAtomFamily, runTestsetIdsAtomFamily} from "../../../../atoms/runDerived"
 import {toIdString} from "../utils"
 
@@ -12,6 +13,7 @@ export interface ContextChipListProps {
 }
 
 const ContextChipList = ({runId}: ContextChipListProps) => {
+    const projectId = useAtomValue(effectiveProjectIdAtom)
     const variantRefs = useAtomValue(useMemo(() => runInvocationRefsAtomFamily(runId), [runId]))
     const variantId = useMemo(
         () => toIdString(variantRefs.variantId ?? variantRefs.applicationVariantId ?? null),
@@ -25,8 +27,10 @@ const ContextChipList = ({runId}: ContextChipListProps) => {
 
     return (
         <div className="mb-4 flex flex-wrap items-center gap-2">
-            {variantId ? <VariantReferenceChip variantId={variantId} /> : null}
-            <TestsetChipList ids={testsetIds} />
+            {variantId ? (
+                <VariantReferenceChip revisionId={variantId} projectId={projectId} />
+            ) : null}
+            <TestsetChipList ids={testsetIds} projectId={projectId} />
         </div>
     )
 }

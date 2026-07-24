@@ -234,7 +234,8 @@ const RunMetricCellContent = memo(
                 : formatEvaluatorMetricValue(stats, metricPathForSelection)
 
         let highlight: ReactNode = display
-        let fallback: ReactNode = stats ?? display
+        // MetricValueWithPopover's fallbackValue prop is `unknown` (accepts raw stats).
+        let fallback: unknown = stats ?? display
         let customChildren: ReactNode | undefined
 
         if (descriptor.kind === "evaluator") {

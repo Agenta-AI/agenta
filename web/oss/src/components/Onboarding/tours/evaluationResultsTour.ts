@@ -28,7 +28,7 @@ const evaluationResultsTour: OnboardingTour = {
             content:
                 "The Overview tab shows aggregated metrics and summary statistics for your entire evaluation run.",
             selector: ".ant-tabs-nav .ant-tabs-tab:first-child", // Target the Overview tab
-            side: "right-end", // Position to the right, aligned to bottom
+            side: "right-bottom", // Position to the right, aligned to bottom
             showControls: true,
             showSkip: true,
             selectorRetryAttempts: 10,
@@ -40,7 +40,7 @@ const evaluationResultsTour: OnboardingTour = {
             content:
                 "The Scenarios tab shows detailed results for each test case. Click on any row to see inputs, outputs, and individual metric scores.",
             selector: ".ant-tabs-nav .ant-tabs-tab:nth-child(2)", // Target the Scenarios tab
-            side: "right-end", // Position to the right, aligned to bottom
+            side: "right-bottom", // Position to the right, aligned to bottom
             showControls: true,
             showSkip: true,
             selectorRetryAttempts: 10,

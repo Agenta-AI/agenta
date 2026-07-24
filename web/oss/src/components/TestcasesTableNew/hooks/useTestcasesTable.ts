@@ -205,11 +205,12 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     // 1. flags.has_testcases - explicit boolean from backend
     // 2. data.testcases array - inline testcases (when include_testcases=true)
     // 3. data.testcase_ids array - list of testcase references
-    const revisionHasColumnData =
+    const revisionHasColumnData = Boolean(
         revisionData &&
         (revisionData.flags?.has_testcases === true ||
             (revisionData.data?.testcases && revisionData.data.testcases.length > 0) ||
-            (revisionData.data?.testcase_ids && revisionData.data.testcase_ids.length > 0))
+            (revisionData.data?.testcase_ids && revisionData.data.testcase_ids.length > 0)),
+    )
     const stillDerivingColumns = columns.length === 0 && revisionHasColumnData
 
     // Combined loading state - true when any data source is still loading

@@ -57,6 +57,8 @@ interface MetricStripEntry {
 const getMainEvaluatorSeries = (entries: MetricStripEntry[]) =>
     entries.find((entry) => entry.isMain) ?? entries[0]
 
+const BAR_RADIUS: [number, number, number, number] = [8, 8, 0, 0]
+
 const computeDeltaPercent = (current: number | null, baseline: number | null) => {
     if (typeof current !== "number" || typeof baseline !== "number") return null
     if (!Number.isFinite(current) || !Number.isFinite(baseline) || baseline === 0) return null
@@ -315,7 +317,7 @@ const EvaluatorMetricsChart = ({
             deltaTone: "neutral",
         }
 
-        const comparisonEntries = comparisonSeries.map((entry) => {
+        const comparisonEntries = comparisonSeries.map((entry): MetricStripEntry => {
             const statsValue = entry.stats
             if (!statsValue) {
                 return {
@@ -414,13 +416,13 @@ const EvaluatorMetricsChart = ({
                 key: baseSeriesKey,
                 name: resolvedRunName,
                 color: resolvedBaseColor,
-                barProps: {radius: [8, 8, 0, 0], minPointSize: 2},
+                barProps: {radius: BAR_RADIUS, minPointSize: 2},
             },
             ...comparisonSeries.map((entry) => ({
                 key: entry.runId,
                 name: entry.runName,
                 color: entry.color,
-                barProps: {radius: [8, 8, 0, 0], minPointSize: 2},
+                barProps: {radius: BAR_RADIUS, minPointSize: 2},
             })),
         ],
         [baseSeriesKey, comparisonSeries, resolvedBaseColor, resolvedRunName],
@@ -496,13 +498,13 @@ const EvaluatorMetricsChart = ({
                     key: baseSeriesKey,
                     name: resolvedRunName,
                     color: resolvedBaseColor,
-                    barProps: {radius: [8, 8, 0, 0], minPointSize: 2},
+                    barProps: {radius: BAR_RADIUS, minPointSize: 2},
                 },
                 ...comparisonBooleanHistograms.map((entry) => ({
                     key: entry.runId,
                     name: entry.runName,
                     color: entry.color,
-                    barProps: {radius: [8, 8, 0, 0], minPointSize: 2},
+                    barProps: {radius: BAR_RADIUS, minPointSize: 2},
                 })),
             ]
 
@@ -582,13 +584,13 @@ const EvaluatorMetricsChart = ({
                     key: baseSeriesKey,
                     name: resolvedRunName,
                     color: resolvedBaseColor,
-                    barProps: {radius: [8, 8, 0, 0], minPointSize: 2},
+                    barProps: {radius: BAR_RADIUS, minPointSize: 2},
                 },
                 ...comparisonMaps.map((entry) => ({
                     key: entry.runId,
                     name: entry.runName,
                     color: entry.color,
-                    barProps: {radius: [8, 8, 0, 0], minPointSize: 2},
+                    barProps: {radius: BAR_RADIUS, minPointSize: 2},
                 })),
             ]
 

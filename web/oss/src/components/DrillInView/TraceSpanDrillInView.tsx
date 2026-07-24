@@ -1,4 +1,5 @@
 import {
+    type ComponentProps,
     memo,
     type ReactNode,
     useCallback,
@@ -664,7 +665,13 @@ export const TraceSpanDrillInView = memo(
         return (
             <EntityDrillInView
                 entityId={spanId}
-                entity={entityWithDrillIn}
+                // trace molecule's controller state lacks serverData/isNew declared by
+                // EntityAPI; the view tolerates their absence — typed as-is.
+                entity={
+                    entityWithDrillIn as unknown as ComponentProps<
+                        typeof EntityDrillInView
+                    >["entity"]
+                }
                 // Trace-specific defaults
                 rootTitle={title}
                 editable={editable}

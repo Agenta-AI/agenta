@@ -263,6 +263,16 @@ const buildGroupedMetrics = (
     return grouped
 }
 
+// NOTE (latent runtime bug, typed as-is per WP-4e-2a): `applyAggregatesToRaw` is
+// referenced below but is not defined or imported anywhere in the codebase. At runtime
+// this throws a ReferenceError whenever `buildRunLevelMetricData` is invoked. We declare
+// it (emits no JS) to make the type-check faithful WITHOUT altering the runtime behavior.
+// Do not "fix" by adding an implementation — that would change behavior. See QA flag.
+declare const applyAggregatesToRaw: (
+    raw: Record<string, any>,
+    aggregates: ReturnType<typeof computeAggregatedMetrics>,
+) => Record<string, any>
+
 const buildRunLevelMetricData = (rawMetrics: any[]): RunLevelMetricData => {
     const rawAccumulator: Record<string, any> = {}
     const entries: EvaluationMetricEntry[] = []

@@ -14,7 +14,8 @@ export const statusMap: Record<string, {badge: string}> = {
 }
 
 const EnvironmentStatus: FC<{
-    variant: Pick<VariantStatusInfo, "deployedIn" | "id">
+    /** `id` is optional — without it the revision-deployment fallback lookup is skipped */
+    variant: Pick<VariantStatusInfo, "deployedIn"> & Partial<Pick<VariantStatusInfo, "id">>
     className?: string
 }> = ({variant, className}) => {
     // Fallback to environment entity if deployedIn is not embedded on the variant

@@ -166,7 +166,7 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                     name: run.name || "Untitled run",
                     status: run.status,
                     description: (run as any)?.description ?? (run as any)?.summary ?? null,
-                    createdAt: run.createdAt ?? run.created_at,
+                    createdAt: run.createdAt ?? (run as any)?.created_at,
                     testsetNames: Array.isArray(run.testsets)
                         ? run.testsets.map((t) => t?.name || "Unnamed testset")
                         : [],

@@ -150,7 +150,7 @@ const Organization: FC = () => {
                 const updated = await updateOrganization(selectedOrg.id, payload, ignoreAxiosError)
                 if (updated) {
                     queryClient.setQueryData(["selectedOrg", selectedOrg.id], updated)
-                    queryClient.setQueriesData(["orgs"], (old: any) => {
+                    queryClient.setQueriesData({queryKey: ["orgs"]}, (old: any) => {
                         if (!Array.isArray(old)) return old
                         return old.map((org) =>
                             org.id === updated.id ? {...org, ...updated} : org,
@@ -362,7 +362,6 @@ const Organization: FC = () => {
         onError: (error: any) => {
             message.error(error?.response?.data?.detail || "Failed to add SSO provider")
         },
-        useErrorBoundary: false,
         throwOnError: false,
     })
 
@@ -379,7 +378,6 @@ const Organization: FC = () => {
         onError: (error: any) => {
             message.error(error?.response?.data?.detail || "Failed to update SSO provider")
         },
-        useErrorBoundary: false,
         throwOnError: false,
     })
 
@@ -392,7 +390,6 @@ const Organization: FC = () => {
         onError: (error: any) => {
             message.error(error?.response?.data?.detail || "SSO provider connection test failed")
         },
-        useErrorBoundary: false,
         throwOnError: false,
     })
 
@@ -405,7 +402,6 @@ const Organization: FC = () => {
         onError: (error: any) => {
             message.error(error?.response?.data?.detail || "Failed to delete SSO provider")
         },
-        useErrorBoundary: false,
         throwOnError: false,
     })
 

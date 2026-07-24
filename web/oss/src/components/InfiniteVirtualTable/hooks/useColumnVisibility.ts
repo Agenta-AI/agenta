@@ -6,6 +6,7 @@ import {useAtomValue} from "jotai"
 import {LOW_PRIORITY, useSetAtomWithSchedule} from "jotai-scheduler"
 
 import {getColumnHiddenKeysAtom} from "../atoms/columnHiddenKeys"
+import type {ExtendedColumnType} from "../columns/types"
 
 type Key = string
 
@@ -14,13 +15,7 @@ interface Options {
     defaultHiddenKeys?: Key[]
 }
 
-type ColumnLike<RecordType> = ColumnsType<RecordType>[number] & {
-    key?: React.Key
-    children?: ColumnLike<RecordType>[]
-    columnVisibilityTitle?: ReactNode
-    columnVisibilityLabel?: string
-    columnVisibilityLocked?: boolean
-}
+type ColumnLike<RecordType> = ExtendedColumnType<RecordType>
 
 const isColumnLocked = <RecordType>(column: ColumnLike<RecordType> | null | undefined) =>
     Boolean(column?.columnVisibilityLocked)

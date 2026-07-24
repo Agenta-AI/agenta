@@ -328,7 +328,8 @@ const Auth = () => {
             }
         } catch (err) {
             const isCanceled =
-                axios.isCancel?.(err) ||
+                // typed as-is: `isCancel` is a module static absent on this axios instance, so this is always undefined
+                (axios as {isCancel?: (value: unknown) => boolean}).isCancel?.(err) ||
                 (err as {code?: string}).code === "ERR_CANCELED" ||
                 (err instanceof Error &&
                     (err.name === "AbortError" ||

@@ -8,6 +8,8 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"
 import {
     InfiniteVirtualTableFeatureShell,
+    type ColumnVisibilityMenuRendererContext,
+    type ColumnVisibilityState,
     type TableFeaturePagination,
     type TableScopeConfig,
     useInfiniteTablePagination,
@@ -1056,9 +1058,9 @@ const EvalRunDetailsTable = ({
                         useSettingsDropdown
                         settingsDropdownMenuItems={rowHeightMenuItems}
                         columnVisibilityMenuRenderer={(
-                            controls,
-                            close,
-                            {scopeId, onExport, isExporting},
+                            controls: ColumnVisibilityState<TableRowData>,
+                            close: () => void,
+                            {scopeId, onExport, isExporting}: ColumnVisibilityMenuRendererContext,
                         ) => (
                             <ScenarioColumnVisibilityPopoverContent
                                 controls={controls}

@@ -16,6 +16,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {AnnotateDrawerSteps} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/enum"
+import type {CreateEvaluatorProps} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/types"
 
 import {
     closeHumanEvaluatorDrawerAtom,
@@ -82,7 +83,11 @@ const HumanEvaluatorDrawer = () => {
     const createEvaluatorProps = useMemo(
         () => ({
             mode,
-            evaluator: mode === "edit" ? evaluatorWorkflow || undefined : undefined,
+            // Workflow-revision shape passed where EvaluatorPreviewDto is expected (typed as-is)
+            evaluator:
+                mode === "edit"
+                    ? ((evaluatorWorkflow || undefined) as CreateEvaluatorProps["evaluator"])
+                    : undefined,
             onSuccess: handleSuccess,
             skipPostCreateStepChange: mode === "create",
         }),

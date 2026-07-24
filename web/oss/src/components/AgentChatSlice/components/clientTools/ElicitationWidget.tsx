@@ -166,9 +166,15 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
             // storage unavailable — drafts are best-effort
         }
     }
-    const settleAndClear: typeof settle = (args: Parameters<typeof settle>[0]) => {
+    const settleAndClear: typeof settle = (
+        args: {output: Record<string, unknown>} | {errorText: string},
+    ) => {
         clearDraft()
-        settle(args as {output: Record<string, unknown>})
+        if ("errorText" in args) {
+            settle(args)
+        } else {
+            settle(args)
+        }
     }
     const restoredRef = useRef(false)
     useEffect(() => {

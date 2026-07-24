@@ -91,7 +91,9 @@ export const evaluationTestcaseBatcherFamily = atomFamily(({runId}: {runId?: str
     }),
 )
 
-export const evaluationTestcaseBatcherAtom = atom((get) => get(evaluationTestcaseBatcherFamily()))
+export const evaluationTestcaseBatcherAtom = atom((get) =>
+    get(evaluationTestcaseBatcherFamily(undefined)),
+)
 
 export const evaluationTestcaseQueryAtomFamily = atomFamily(
     ({testcaseId, runId}: {testcaseId: string; runId?: string | null}) =>

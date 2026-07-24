@@ -1,6 +1,6 @@
 import {useCallback, useMemo} from "react"
 
-import {getDefaultStore, useSetAtom} from "jotai"
+import {getDefaultStore, useSetAtom, type Atom} from "jotai"
 import {useRouter} from "next/router"
 import Session, {signOut} from "supertokens-auth-react/recipe/session"
 import {useLocalStorage} from "usehooks-ts"

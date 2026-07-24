@@ -6,9 +6,9 @@
  */
 
 import {createPaginatedEntityStore} from "@agenta/entities/shared"
-import type {InfiniteTableFetchResult, WindowingState} from "@agenta/entities/shared"
+import type {InfiniteTableFetchResult} from "@agenta/entities/shared"
 import {queryWorkflowRevisionsByWorkflow, queryWorkflowVariants} from "@agenta/entities/workflow"
-import type {Workflow} from "@agenta/entities/workflow"
+import type {Workflow, WorkflowRevisionWindowing} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 
@@ -170,7 +170,7 @@ export const registryPaginatedStore = createPaginatedEntityStore<
             _variantNameCache = {workflowId: meta.workflowId, map}
         }
 
-        const windowing: WindowingState = {
+        const windowing: WorkflowRevisionWindowing = {
             next: cursor,
             limit,
             order: "descending",

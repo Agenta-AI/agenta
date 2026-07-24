@@ -218,7 +218,8 @@ export const searchQueryAtom = atom(
 
 export const traceTabsAtom = atom(
     (get) => get(traceTabsAtomFamily(get(observabilityTabAtom))),
-    (get, set, value: TraceTabTypes) => set(traceTabsAtomFamily(get(observabilityTabAtom)), value),
+    (get, set, value: TraceTabTypes | ((prev: TraceTabTypes) => TraceTabTypes)) =>
+        set(traceTabsAtomFamily(get(observabilityTabAtom)), value),
 )
 
 export const limitAtom = atom(
@@ -382,7 +383,8 @@ export const filtersAtomFamily = atomFamily((tab: ObservabilityTabInfo) =>
 // Proxy filters atom
 export const filtersAtom = atom(
     (get) => get(filtersAtomFamily(get(observabilityTabAtom))),
-    (get, set, update: Filter[]) => set(filtersAtomFamily(get(observabilityTabAtom)), update),
+    (get, set, update: Filter[] | ((prev: Filter[]) => Filter[])) =>
+        set(filtersAtomFamily(get(observabilityTabAtom)), update),
 )
 
 // Table/UI controls -----------------------------------------------------------

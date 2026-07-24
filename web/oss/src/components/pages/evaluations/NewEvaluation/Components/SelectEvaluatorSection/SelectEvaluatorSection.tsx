@@ -52,7 +52,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
     const setCategory = useSetAtom(evaluatorCategoryAtom)
     const setStoreSearchTerm = useSetAtom(evaluatorSearchTermAtom)
     const [searchTerm, setSearchTerm] = useState("")
-    const prevSelectedAppIdRef = useRef<string | undefined>()
+    const prevSelectedAppIdRef = useRef<string | undefined>(undefined)
 
     const category = preview ? "human" : "automatic"
 

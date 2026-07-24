@@ -1,6 +1,6 @@
 import {DrawerProps} from "antd"
 
-import {TooltipButtonProps} from "@/oss/components/EnhancedUIs/Button"
+import {EnhancedButtonProps} from "@/oss/components/EnhancedUIs/Button/types"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {EvaluatorPreviewDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
@@ -20,8 +20,8 @@ export interface UpdatedMetricType {
 }
 export type UpdatedMetricsType = Record<string, Record<string, UpdatedMetricType>>
 export interface AnnotateDrawerIdsType {
-    traceId: string
-    spanId: string
+    traceId?: string
+    spanId?: string
 }
 export interface AnnotateDrawerProps extends DrawerProps {
     data?: AnnotationDto[]
@@ -48,7 +48,7 @@ export interface AnnotateDrawerTitleProps {
     createEvaluatorMode?: "create" | "edit"
 }
 
-export interface AnnotateDrawerButtonProps extends TooltipButtonProps {
+export interface AnnotateDrawerButtonProps extends EnhancedButtonProps {
     children?: React.ReactNode
     label?: React.ReactNode
     data?: AnnotationDto[]

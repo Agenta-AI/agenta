@@ -174,11 +174,13 @@ const normalizePromptText = (
         if (Array.isArray(list)) {
             list.forEach((item: any, index) => {
                 if (item && typeof item === "object" && typeof item.url === "string") {
+                    // Runtime shape carries `id` and omits `type`; renderers read only
+                    // url/alt — typed as-is per WP-4e-2a.
                     attachments.push({
                         id: (item.id ?? `${index}`) as string,
                         url: item.url,
                         alt: typeof item.alt === "string" ? item.alt : undefined,
-                    })
+                    } as unknown as PromptPreviewAttachment)
                 }
             })
         }
@@ -298,7 +300,7 @@ export const extractPromptSectionsFromVariantParams = (
     }
 
     return messages
-        .map((message, index) => {
+        .map((message, index): PromptPreviewSection | null => {
             const label = capitalize(message?.role) || `Message ${index + 1}`
             const {text, attachments} = normalizePromptText(message?.content ?? message)
             const trimmed = text.trim()

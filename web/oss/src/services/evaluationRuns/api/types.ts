@@ -6,6 +6,12 @@ import type {Testset as BaseTestset} from "@/oss/lib/Types"
 export interface Testset extends BaseTestset {
     variantId?: string
     revisionId?: string
+    slug?: string
+    // Populated by revision hydration in usePreviewEvaluations.createNewRun.
+    data?: {
+        testcaseIds?: string[]
+        testcases?: {id: string; data?: Record<string, unknown>}[]
+    }
 }
 
 export interface CreateEvaluationRunInput {

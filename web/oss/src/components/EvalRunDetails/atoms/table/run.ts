@@ -2,6 +2,7 @@ import {fetchWorkflowsBatch} from "@agenta/entities/workflow"
 import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
+import axios from "@/oss/lib/api/assets/axiosConfig"
 import {buildRunIndex} from "@/oss/lib/evaluations/buildRunIndex"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 import {
@@ -47,7 +48,10 @@ type EnsureEvaluatorRevisionsReason =
 interface EnsureEvaluatorRevisionsResult {
     run: EvaluationRun
     patched: boolean
-    reason: EnsureEvaluatorRevisionsReason
+    // Optional: the post-patch success path and the catch (error) path return without a
+    // `reason` at runtime (see lines below). Typed optional to match actual behavior; no
+    // consumer reads `reason`, so this is behavior-preserving.
+    reason?: EnsureEvaluatorRevisionsReason
 }
 
 const applyResolvedEvaluatorRefs = ({
@@ -330,7 +334,9 @@ export const evaluationRunQueryAtomFamily = atomFamily((runId: string | null) =>
                     rawRun,
                 })
 
-                const camelRun = snakeToCamelCaseKeys(normalizedRun)
+                const camelRun = snakeToCamelCaseKeys(
+                    normalizedRun as unknown as Record<string, unknown>,
+                )
                 const runIndex = buildRunIndex(camelRun)
                 return {rawRun, camelRun, runIndex}
             },
@@ -376,7 +382,9 @@ export const evaluationRunWithProjectQueryAtomFamily = atomFamily(
                         rawRun,
                     })
 
-                    const camelRun = snakeToCamelCaseKeys(normalizedRun)
+                    const camelRun = snakeToCamelCaseKeys(
+                        normalizedRun as unknown as Record<string, unknown>,
+                    )
                     const runIndex = buildRunIndex(camelRun)
                     return {rawRun, camelRun, runIndex}
                 },

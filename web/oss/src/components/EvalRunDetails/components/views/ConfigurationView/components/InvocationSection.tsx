@@ -96,7 +96,9 @@ const InvocationSection = ({
     const variantDisplayId = variantResolved?.id ?? variantId ?? undefined
     const variantVersion =
         variantResolved?.revision ??
-        variantResolved?.version ??
+        // VariantReference carries the version in `revision`; `version` is never set at
+        // runtime (dead fallback) — typed as-is per WP-4e-2a.
+        (variantResolved as any)?.version ??
         applicationRevisionRef?.version ??
         applicationRevisionRef?.revision ??
         applicationVariantRef?.version ??
@@ -112,10 +114,12 @@ const InvocationSection = ({
     // Use revisionId for the prompt config card (specific revision's params)
     const promptVariantKey = useMemo(() => {
         const configVariantRef = variantConfig?.variant_ref ?? {}
+        // variant_ref is declared as {id, slug, version, name}; the snake/camel variant-id
+        // fallbacks are for untyped raw payload keys — typed as-is per WP-4e-2a.
         const refId = toIdString(
             configVariantRef?.id ??
-                configVariantRef?.variant_id ??
-                configVariantRef?.variantId ??
+                (configVariantRef as any)?.variant_id ??
+                (configVariantRef as any)?.variantId ??
                 null,
         )
         if (refId) return refId

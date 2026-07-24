@@ -4,7 +4,8 @@ import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 interface EvaluatorDefinitionLike {
     id?: string | null
     slug?: string | null
-    metrics?: {path?: string | null; name?: string | null}[]
+    name?: string | null
+    metrics?: {path?: string | null; name?: string | null; metricType?: string}[]
 }
 
 interface EvaluatorStepMeta {
@@ -71,7 +72,7 @@ export const buildEvaluatorMetricEntries = (
     statsMap: Record<string, unknown> | null | undefined,
     evaluatorSteps: EvaluatorStepMeta[],
     fallbackMetricsByStep?: Record<string, EvaluatorMetricDefinition[]>,
-    evaluatorDefinitions?: EvaluatorDefinitionLike[],
+    evaluatorDefinitions?: readonly EvaluatorDefinitionLike[],
 ): EvaluatorMetricEntry[] => {
     if (!evaluatorSteps.length) {
         return []
@@ -170,7 +171,7 @@ const normalizeMetricPath = (path: string) => {
 
 export const buildEvaluatorFallbackMetricsByStep = (
     runIndex: RunIndex | null | undefined,
-    evaluatorDefinitions: EvaluatorDefinitionLike[],
+    evaluatorDefinitions: readonly EvaluatorDefinitionLike[],
 ): Record<string, EvaluatorMetricDefinition[]> => {
     if (!runIndex || !evaluatorDefinitions.length) return {}
 
@@ -210,7 +211,7 @@ export const buildEvaluatorFallbackMetricsByStep = (
             (evaluatorRef.id && metricsById.get(evaluatorRef.id)) ||
             []
         if (!candidates.length) return
-        result[stepKey] = candidates.map((metric) => ({
+        result[stepKey] = candidates.map((metric: EvaluatorMetricDefinition) => ({
             canonicalKey: metric.canonicalKey,
             rawKey: metric.rawKey,
             fullKey: metric.fullKey.startsWith(`${stepKey}.`)
