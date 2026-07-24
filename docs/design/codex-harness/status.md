@@ -1,8 +1,27 @@
 # Status
 
-Last updated: 2026-07-24 (Milestone 2 closed)
+Last updated: 2026-07-24 (Milestone 3 code complete; live QA blocked)
 
-## Now
+## Now (Milestone 3)
+
+- Milestone 3 CODE COMPLETE and unit-green. Notes: `reports/m3-implementation-notes.md`. Four
+  slices committed (local only, not pushed): A default ACP mode `agent-full-access` + per-agent
+  `harnessMode` override; B runner-side executable-tool gate at the `agenta-tools` loopback MCP
+  pause seam (allow/deny/ask-park, cold-replay resume); C Codex ACP gate classification (exec + MCP
+  frames, toolCallId join, keep-alive park under authored `agent` mode); D `codex_settings.py`
+  Layers 2/3. Item E (poison-combo) holds by construction (no CODEX_CONFIG in M1-M3). Suites:
+  runner 1240, SDK agents 696, typecheck + ruff clean, golden byte-identical.
+- BLOCKER: live QA (3 recorded scenarios + warm/cold codeword resume + MP4) could NOT run. The
+  codex daemon returns "Internal error" on any MCP-tool session, before any tool_call. PROVEN
+  independent of M3 code: M2's own runner code (commit 378d527, documented passing this QA earlier
+  today) fails identically; disabling slice A and slice B still fails; a full rebuild does not fix
+  it; baseline codex chat works. This is a deployment-level codex-tool regression (codex daemon vs
+  the internal loopback HTTP MCP server), STOP-and-report per the coordinator. QA driver ready:
+  `spike/scripts/m3-qa.py`. Coordinator's cold-resume-context check is consequently unexercised.
+- Two design items surfaced and APPROVED by the coordinator: cold-replay resume for the runner-side
+  gate (the existing client-tool pattern); the dedicated typed `harnessMode` wire field.
+
+## Earlier
 
 - Milestone 2 CLOSED. Notes: `reports/m2-implementation-notes.md`. Agenta tools deliver and
   execute on Codex over the internal `agenta-tools` loopback MCP channel (proven live: a
