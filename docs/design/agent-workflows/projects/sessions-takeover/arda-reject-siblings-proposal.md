@@ -151,3 +151,42 @@ test for the true-cancel upgrade.
 
 Happy to spec the dock interaction (where Stop sits relative to the cards, the ≥2 gate, the
 carried-forward "1 of N still needs you" state) once you're aligned on the model.
+
+## 8. Implementation findings (update — 2026-07-24)
+
+Built during task 5. Two claims above are now resolved by real code; one is revised. PRs:
+warm Stop + steer UI (`#5477`), batch surfacing (`#5470`).
+
+- **Stop — §5 settled *positive*.** Warm Stop is built and live-verified: a turn-level
+  `session/cancel` that does **not** tear down the daemon ends the turn cleanly and the session
+  accepts the next `session/prompt` on the same process. The §5 acceptance test passes. Open
+  tool calls settle with an `INTERRUPTED_BY_USER` sentinel; continuity treats the cancel like a
+  pause (invalidate, don't advance the ledger). Hard-kill stays opt-in behind
+  `NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION`.
+- **Steer — §3 revised: "message as model feedback" is NOT reachable pure-FE (or runner-as-is).**
+  On **both** harnesses (Claude *and* pi), a reject makes the model **continue the original
+  turn** and react to a bare "permission denied" first — retrying the blocked action (a new gate
+  that *traps* the note) or reasoning around it — *before* the note lands. Root cause, verified
+  at each hop: the ACP permission reply is a **closed outcome** (`selected`/`cancelled`) with no
+  text field, and `claude-agent-acp` hard-codes the model-facing denial text
+  (`{behavior:"deny", message:"User refused permission to run tool"}`) precisely because ACP
+  hands it nothing to put there. So a pure-FE steer can only send the note as a **follow-up
+  turn**, which flails. The redirect needs one of:
+  - **A — runner reject-and-redirect (ours):** reject + suppress the original-prompt
+    continuation (reuse the Stop cancel infra) + a fresh turn on the note; the rejected call
+    stays in history. No vendored changes; slightly weaker binding (fresh turn, not in-turn).
+  - **C — carry the note as the harness deny `message`:** the Claude SDK deny result *already*
+    accepts an arbitrary `message` — the text channel exists at the bottom of the stack, only
+    the ACP/sandbox-agent wire in the middle is closed. We already `patchedDependencies`
+    sandbox-agent / acp-http-client / pi-acp, so extending the wire is patch-viable (local
+    immediately; Daytona needs a snapshot rebake), plus a per-harness adapter patch
+    (`claude-agent-acp` for Claude, `pi-acp` + the sandbox extension for pi). Better semantics:
+    the model reads "no — do X instead because Z" in-turn, no flail.
+
+  Both share the same FE→runner note-plumbing (the note is currently dropped at 4 hops). The
+  **steer UI is complete and shipped flag-gated** (`NEXT_PUBLIC_AGENT_CHAT_STEER`, off) in
+  `#5477`; **A-vs-C is the open call.**
+- **Batch (≥2 cards) — a small runner change, not blocked by #5391.** Surfacing parked siblings
+  as live gates is a runner-policy change (hold them instead of force-deferring all but the
+  first to `DEFERRED_NOT_EXECUTED`); it composes with per-card resume and needs no #5391 adapter
+  work. FE built in `#5470`; the runner change is parked on the collect-window ruling.
