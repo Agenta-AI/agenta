@@ -1,5 +1,11 @@
 # Config leakage under the mounted CODEX_HOME (Milestone 4, item C)
 
+> **RESOLVED (2026-07-25, D-002 amendment):** ruled to implement the **symlink assembly** (option 1
+> below, P4-backed). The subscription daemon's `CODEX_HOME` is now a runner-owned `<cwd>/.codex`
+> whose `auth.json` is a SYMLINK to the operator's mounted login; the operator's `config.toml`/
+> `plugins`/`apps` never load. Inverted probe below now PASSES (the dummy `[mcp_servers.*]` does NOT
+> spawn). The original leak evidence is kept for the record.
+
 Date: 2026-07-24. Method: the same `sandbox-agent` daemon driver the derisk probes use
 (`scripts/drive.mjs`), a mount-shaped test home at `/tmp/codex-sub-spike/home-leak` carrying a
 `config.toml` with a stdio MCP server `[mcp_servers.leaksrv]` plus adversarial scalars, and the
@@ -67,5 +73,18 @@ status:
    servers running in their own sessions is low-harm on their own box. Document it; fix before any
    broader exposure. Cheapest; leaves a documented sharp edge.
 
-No neutralization is implemented in this milestone pending the ruling; the mount currently carries
-the operator's full config (leak present, as option 3).
+## Resolution (implemented)
+
+Option 1 was ruled and shipped (`codex-assets.ts` `configureCodexHome` +
+`symlinkCodexSubscriptionAuthFile`, `environment.ts`): the subscription daemon's `CODEX_HOME` is the
+runner-owned `<cwd>/.codex`, `auth.json` there is a symlink to `$CODEX_HOME/auth.json` (the mount),
+and a `CODEX_CONFIG={"cli_auth_credentials_store":"file"}` store-mode pin protects the login from a
+keyring/auto delete. Verified:
+
+- **Inverted probe (`transcripts/leak-INV.jsonl`)**: session home = a runner-owned dir with only a
+  symlinked `auth.json` (target dir carries `config.toml` `[mcp_servers.leaksrv]`). `leaksrv` did
+  **NOT** spawn (log absent) — the operator config is not loaded. Leak CLOSED.
+- **Product path**: a `self_managed` codex tool run (`scripts/m4-tool-qa.py`) executed
+  `mcp.agenta-tools.list_connections` with no pause/error under subscription auth.
+- **Refresh safety**: the symlink survived the run (still a symlink → mount); the mount's `auth.json`
+  hash was unchanged across all runs.

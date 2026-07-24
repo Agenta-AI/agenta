@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-07-24 (Milestone 4 code complete; subscription auth GREEN; item C blocks ship)
+Last updated: 2026-07-25 (Milestone 4 COMPLETE; subscription auth GREEN incl. item C fix)
 
 ## Now (Milestone 4 — subscription auth)
 
@@ -17,15 +17,15 @@ Last updated: 2026-07-24 (Milestone 4 code complete; subscription auth GREEN; it
   key) → `{"ok":true,"output":"I'm running and ready."}`; container `OPENAI_API_KEY` empty; session
   uses ChatGPT auth; run SQLite lands off-mount; `~/.codex/auth.json` md5 UNCHANGED (no corruption).
   MP4: `reports/m4-subscription-qa.mp4`.
-- **BLOCKER (item C, product exposure — needs Mahmoud's ruling):** the mount carries the operator's
-  whole `config.toml`; its `[mcp_servers.*]` (and `[plugins.*]`/`[apps.*]`) LEAK into product
-  sessions and CANNOT be neutralized via `CODEX_CONFIG` (it deep-merges, additive only). Proof +
-  options in `spike/config-leakage-findings.md` (recommended fix: mount only `auth.json`, runner
-  owns `config.toml`). No neutralization shipped pending the ruling.
-- Subscription + TOOLS run: the MCP-tool path fix landed (slice-D drop `003797ee`, resume-key
-  `0c925cb3`); a subscription+tools validation on the product path is the recommended next check
-  (deferred to avoid colliding with the concurrent MCP-regression debug work; a runner restart
-  picks up the resume-key fix).
+- **Item C RESOLVED (D-002 symlink-assembly amendment).** The subscription daemon's `CODEX_HOME` is
+  now the runner-owned `<cwd>/.codex` (both modes); `auth.json` there is a SYMLINK to the mounted
+  login, so refresh lands in the real login (P4) but the operator's `config.toml`/`plugins`/`apps`
+  never load. Store-mode pin `CODEX_CONFIG={cli_auth_credentials_store:file}` for subscription
+  daemons (single scalar, never sandbox_mode). Commit `4fb6483`.
+- RE-QA all GREEN: (a) subscription chat `SYMLINK_OK`; (b) inverted leakage probe — the dummy
+  `[mcp_servers.*]` does NOT spawn (leak closed); (c) `auth.json` md5 UNCHANGED + the symlink
+  survived; (d) subscription + TOOLS on the product path (`m4-tool-qa.py`) — `list_connections` ran,
+  no pause, no error. `/simplify` pass done; both suites green (runner 1248, SDK agents 691).
 
 ## Now (Milestone 3)
 
