@@ -2,6 +2,8 @@ import {
     fetchWorkflowCatalogTemplates,
     type WorkflowCatalogTemplate,
 } from "@agenta/entities/workflow"
+import {catalogPersister} from "@agenta/shared/api/persist"
+import type {QueryKey} from "@tanstack/react-query"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -31,6 +33,7 @@ export const templatesQueryAtom = atomWithQuery<WorkflowCatalogTemplate[]>((get)
             }
             return failureCount < 3
         },
+        persister: catalogPersister.persisterFn<WorkflowCatalogTemplate[], QueryKey>,
     }
 })
 

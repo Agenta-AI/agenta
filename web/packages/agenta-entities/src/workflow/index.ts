@@ -54,6 +54,7 @@ export {
 // Per-harness capability map from the `/inspect` response `meta` (agent playground picker).
 export {
     harnessCapabilitiesAtomFamily,
+    contextWindowForModel,
     type HarnessCapabilities,
     type HarnessCapabilitiesMap,
     type ModelCatalogEntry,
@@ -230,6 +231,7 @@ export {
     // Variant/Revision list queries
     workflowVariantsQueryAtomFamily,
     workflowVariantsListDataAtomFamily,
+    workflowVariantsCachedListAtomFamily,
     workflowRevisionsQueryAtomFamily,
     workflowRevisionRefsByVariantAtomFamily,
     workflowRevisionsListDataAtomFamily,
@@ -381,6 +383,7 @@ export {
     // Agent creation preferences (last-used harness/model/connection default)
     agentCreationPrefsAtom,
     applyAgentCreationPrefs,
+    ensureEnabledSandbox,
     type AgentCreationPrefs,
 } from "./state"
 

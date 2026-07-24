@@ -305,7 +305,11 @@ const FEATURES: [string, FVal][] = [
     ["strip-card-border", pairOf(pf.templateStrip.cardBorder)],
     ["strip-card-border-hover", pairOf(pf.templateStrip.cardBorderHover)],
     ["strip-card-hover-shadow", pairOf(pf.templateStrip.cardHoverShadow)],
-    ["sidebar-bg", {light: "var(--ag-surface-raised)", dark: "var(--ag-surface-raised)"}],
+    ["shell-rail-bg", pairOf(pf.shell.railBg)],
+    ["shell-line", pairOf(pf.shell.line)],
+    ["scroll-thumb", pairOf(pf.shell.scrollThumb)],
+    ["scroll-thumb-hover", pairOf(pf.shell.scrollThumbHover)],
+    ["sidebar-bg", {light: "var(--ag-shell-rail-bg)", dark: "var(--ag-shell-rail-bg)"}],
 ]
 
 // Emit feature vars. A constant token (light === dark, e.g. surface-accent) is

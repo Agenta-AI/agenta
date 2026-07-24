@@ -14,7 +14,7 @@ const SidebarSkeletonLoader = () => {
             className={clsx(
                 "flex flex-col justify-between h-screen border border-r border-solid border-gray-100",
                 {
-                    "w-[80px] items-center": collapsed,
+                    "w-[48px] items-center": collapsed,
                     "w-[236px]": !collapsed,
                 },
             )}

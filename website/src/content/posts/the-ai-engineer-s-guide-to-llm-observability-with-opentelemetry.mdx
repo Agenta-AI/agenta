@@ -1,0 +1,450 @@
+---
+slug: "the-ai-engineer-s-guide-to-llm-observability-with-opentelemetry"
+title: "The AI Engineer's Guide to LLM Observability with OpenTelemetry"
+description: "Learn why LLM observability is critical for production AI. This guide covers traces, OpenTelemetry (OTel), and the LLMOps workflows you need to build reliable apps"
+category: Article
+date: 2025-08-27
+readingTime: "20 min read"
+heroImage: /blog/the-ai-engineer-s-guide-to-llm-observability-with-opentelemetry/hero.webp
+ogImage: /blog/the-ai-engineer-s-guide-to-llm-observability-with-opentelemetry/hero.webp
+author: mahmoud-mabrouk
+featured: true
+featuredRank: 2
+tags: ["Article"]
+---
+
+## Introduction
+
+<InlineCTA />
+
+Building an LLM application is one thing. Getting it to work reliably in the real world is another challenge entirely. LLM applications fail in ways traditional software does not. To create performant, cost-effective LLM applications, you must instrument your application for observability.
+
+**Who This Guide Is For**
+
+Most AI engineers come from ML, data science, or full-stack backgrounds and have never set up observability themselves. A DevOps team usually handled it.
+
+If you are building LLM applications and want to understand observability from the ground up, this guide is for you.
+
+**What we will cover**
+
+We cover everything you need to understand LLM observability. We start with why LLMs present unique challenges. Then we explain the technical details of OpenTelemetry, the open-source standard for observability. Finally, we show you how to put it into practice.
+
+## Why LLM Applications Are Different
+
+You need LLM observability for the same reasons you need traditional observability: to understand your system in production, measure request latency, find bugs, debug issues, and identify their sources.
+
+However, LLM apps create unique challenges because they are stochastic, complex, and expensive.
+
+### They Are Unpredictable
+
+LLMs are **stochastic**, meaning they are non-deterministic. An LLM can answer the same question differently each time. It might provide the correct answer once and a wrong answer the next, or call the right tool first and the wrong one later. You cannot predict the result of a prompt or how your system will behave in real scenarios.
+
+![An illustration showing that LLMs are non-deterministic](/blog/the-ai-engineer-s-guide-to-llm-observability-with-opentelemetry/img-1.webp)
+
+This makes traditional testing inadequate. When you test traditional software, you can be confident after QA that it will work for 95% of cases. The system is constrained. A dashboard has a limited number of interaction patterns (i.e. buttons you click, forms you fill). An AI chatbot faces infinite possible messages. You cannot know with high certainty how it will behave in production before putting it there.
+
+To solve this challenge, you need to monitor the system in production. This helps you map the real distribution of data. By instrumenting the system and watching it in production, you learn how users actually interact with your chatbot, which often differs greatly from pre-production test data. This data shows you where your prompts and models fail and provides insights to improve them.
+
+![An illustration showing the difference between production and test data](/blog/the-ai-engineer-s-guide-to-llm-observability-with-opentelemetry/img-2.webp)
+
+### They Are Complex to Debug
+
+The unpredictability of LLMs makes debugging complex applications nearly impossible without proper tools. If you build an AI agent or RAG application, knowing that it failed tells you nothing. You must know *why*.
+
+Consider a RAG application that gives a bad answer. Was retrieval the issue? Did you retrieve the wrong context? If so, was chunking to blame? Did a sentence break at a critical point? Without knowing what went wrong, you cannot decide where to focus: prompting, improving search, or changing tools.
+
+Observability provides trace data: detailed records of all function calls within your application, including their inputs and outputs. This allows you to see each step in your RAG application's flow, find the source of errors, and identify optimization opportunities.
+
+### They Are Expensive
+
+LLMs are expensive. You must know how much you spend and what each user or feature costs. Observability allows you to track these costs and understand the financial impact of changes, like switching to a new model.
+
+LLMs cost money with every API call. You must know how much you spend and what each user or feature costs. Observability allows you to track these costs and understand the financial impact of changes, like switching to a new model.
+
+### Summary
+
+Observability is essential for complex LLM applications. You need it to:
+
+- Debug and improve your application
+- Find errors and identify their sources
+- Understand how users interact with your application and map real data distribution
+- Track application costs and optimize spending
+
+## Observability Foundations: Why Traces Matter Most
+
+Traditional observability rests on [three pillars: **logs**, **metrics**, and **traces**.](https://www.dash0.com/knowledge/logs-metrics-and-traces-observability) For LLM applications, traces matter most.
+
+### The Three Pillars of Observability
+
+**Metrics** compute system state over time. Examples include CPU usage, request counts, and memory consumption. They help identify bottlenecks in distributed systems. For LLM applications, metrics provide limited value since most LLM apps do minimal computing. You typically call external APIs instead of running intensive local processes.
+
+**Logs** are time-stamped string messages from your programs. You create these when debugging with `print()` statements or `log.error()` calls. If you built AI applications manually, you probably started with print statements to see what happens inside your agent; viewing context or prompts sent to LLMs. Frameworks like LangChain provide verbose modes showing internal operations.
+
+Logs help debug systems, but they cannot visualize the complete execution flow of complex applications. You see individual events but miss the bigger picture of how components interact.
+
+**Traces** solve this problem. Traces are the foundation of LLM observability.
+
+### Why Traces Are Critical for LLM Applications
+
+LLM applications involve complex chains of operations: retrieving context, calling multiple LLMs, using tools, processing results. Understanding these chains requires more than individual log entries.
+
+A trace captures the entire execution flow as a tree structure. It shows which functions were called, in what order, and how they relate to each other. For a RAG application, a trace reveals the complete journey: query processing → document retrieval → context preparation → LLM call → response formatting.
+
+Without traces, debugging means piecing together scattered log entries. With traces, you see the complete story of what your application did.
+
+### Anatomy of a Trace
+
+**What Is a Trace?**
+
+At its core, a trace is simple: it's just a unique identifier that links related operations together. When your LLM application processes a user request, that request gets assigned a trace ID. Every operation that happens as part of processing that request gets tagged with the same trace ID.
+
+This simple concept is powerful. By sharing the same trace ID, all these operations become connected, even if they happen across different services or time periods. The trace ID acts like a thread that weaves through your entire application.
+
+**How Spans Work**
+
+A trace consists of **spans**. Each span represents a single operation in your application, like a function call, an API request, or a processing step.
+
+Unlike logs that capture a moment in time, spans capture a duration. They have:
+
+- **Start time**: When the operation began
+- **End time**: When it completed
+- **Duration**: How long it took
+- **Status**: Success, error, or other outcomes
+
+Spans organize into a tree where each span (except the root) has a parent and can have multiple children. This tree shows your application's execution flow.
+
+Example trace for a RAG query:
+
+```jsx
+Root Span: "Process User Query"
+├── Child: "Retrieve Documents"
+│   ├── "Query Vector Database"
+│   └── "Rank Results"
+├── Child: "Generate Response"
+│   ├── "Prepare Context"
+│   └── "Call LLM"
+└── Child: "Format Output"
+```
+
+All spans in a trace share the same **trace ID**, linking them together even across different services or processes.
+
+**What Goes in Spans**
+
+Spans contain **attributes**. These are metadata describing what happened. In traditional observability, attributes stay minimal to save storage space. LLM observability works differently.
+
+For LLM applications, attributes typically include:
+
+- **Inputs**: The prompt, context, or data sent to each component
+- **Outputs**: The response, generated text, or processed results
+- **Costs**: Token usage and API costs for LLM calls
+- **Model information**: Which model was used, temperature settings, etc.
+
+This detailed information is essential for debugging LLM applications. When a RAG system gives a wrong answer, you need to see the retrieved context, the exact prompt, and the LLM's response to understand what went wrong.
+
+**Events**
+
+**Events** mark specific moments within a span's duration. These can be errors, warnings, or important state changes. Some libraries/[semantic conventions save LLM inputs and outputs as events rather than attributes](https://opentelemetry.io/docs/specs/semconv/gen-ai/).
+
+## The Standard Solution: OpenTelemetry (OTel)
+
+Before [OpenTelemetry](https://opentelemetry.io/), observability was fragmented. Different vendors used different formats for traces, metrics, and logs. [Zipkin](https://zipkin.io/), [Jaeger](https://www.jaegertracing.io/), and vendor-specific formats all competed. Each vendor had their own agents, collectors, and data formats. If you chose Datadog, you were locked into their entire ecosystem. OpenTelemetry solved this problem. It's a free, open-source project that provides a single, standardized way to handle observability data. You write instrumentation code once using the vendor-neutral [OpenTelemetry SDK](https://opentelemetry.io/docs/languages/). All major observability vendors accept OpenTelemetry data. You can change backends with a few configuration lines.
+
+OpenTelemetry gives you:
+
+- **Standardized instrumentation**: Write instrumentation code once using the vendor-neutral OTel SDK.
+- **Universal compatibility**: All major observability vendors accept OpenTelemetry data.
+- **Easy vendor switching**: Change backends with a few configuration lines.
+- [**W3C standard formats**](https://www.w3.org/TR/trace-context/): Industry-standard trace and span formats.
+
+The key insight is to separate data collection from data storage. You instrument your code once with OpenTelemetry, then send that data to any backend you choose.
+
+### The OpenTelemetry Components
+
+OpenTelemetry provides four main components that work together to collect and export observability data.
+
+**1. The SDK: Creating Traces**
+
+The **OpenTelemetry SDK** provides APIs and tools to create telemetry data in your code. It does not decide where to put spans. You do that.
+
+The SDK handles:
+
+- Creating traces and spans
+- Managing trace context
+- Formatting data correctly
+- Passing data to exporters
+
+The same SDK works across all supported languages: [Python](https://opentelemetry.io/docs/languages/python/), [Java](https://opentelemetry.io/docs/languages/java/), [Go](https://opentelemetry.io/docs/languages/go/), [JavaScript](https://opentelemetry.io/docs/languages/js/), and more.
+
+**2. Instrumentation: Two Approaches**
+
+You can instrument your code in two ways:
+
+**Manual Instrumentation**
+
+You decide exactly what to record and when. You call the SDK API to start traces, create spans, add attributes, and end spans.
+
+```python
+from opentelemetry import trace
+
+tracer = trace.get_tracer(__name__)
+
+with tracer.start_as_current_span("llm_call") as span:
+    span.set_attribute("llm.model", "gpt-4")
+    span.set_attribute("llm.prompt", prompt_text)
+    response = call_llm(prompt_text)
+    span.set_attribute("llm.response", response)
+```
+
+**Auto-Instrumentation**
+
+Auto-instrumentation hooks into libraries you already use and creates spans automatically.
+
+In Python, it uses monkey patching. This means replacing functions at runtime with wrapped versions that create spans, call the original function, then end spans. In Java and .NET, it modifies bytecode during class loading.
+
+For LLM applications, you might:
+
+1. Use auto-instrumentation for libraries like [LangChain](https://github.com/langchain-ai/langchain) or the [OpenAI SDK](https://github.com/openai/openai-python)
+2. Add manual spans for specific steps you want to track
+
+**3. Exporters: Sending Data Out**
+
+Once the SDK creates spans, **exporters** send them to their destination. Common exporters include:
+
+- **OTLP** (gRPC or HTTP): The OpenTelemetry standard protocol
+- **Jaeger exporter**: Sends directly to Jaeger
+- **Vendor exporters**: Datadog, Honeycomb, New Relic, etc.
+- **Console exporter**: For local debugging
+
+**4. The Collector: Processing and Routing**
+
+The [**OpenTelemetry Collector**](https://opentelemetry.io/docs/collector/) is an (optional) standalone service that acts as a telemetry router and processor. It sits between your application and your observability backend.
+
+A Collector has three types of components:
+
+- **Receivers**: How it ingests data (OTLP, Jaeger, Zipkin, etc.)
+- **Processors**: How it processes data (batching, sampling, filtering, etc.)
+- **Exporters**: How it sends data to backends
+
+Why use a Collector?
+
+- **Centralized configuration**: Change exporters, sampling, or processing without touching application code
+- **Multi-backend support**: Send the same data to multiple observability platforms
+- **Reliability**: Buffer and retry if a backend is down
+- **Security**: Keep backend credentials out of application code
+- **Format conversion**: Convert between different trace formats
+- **Performance Isolation:** Offloads the work of batching and exporting data from your application's process. This reduces resource consumption in your main application, which can be critical under high load.
+
+The data flow looks like:
+
+```jsx
+Your App + SDK → Collector → Backend(s)
+```
+
+You can run Collectors as:
+
+- **Gateway**: Central service that all apps send to
+- **Agent**: Sidecar or daemon next to each app
+- **Hybrid**: Combination of both approaches
+
+### Semantic Conventions Matter
+
+OpenTelemetry data is only useful if observability tools understand it. This is where **semantic conventions** come in.
+
+Semantic conventions define standard names for attributes and span types. They ensure that when you set an attribute called `llm.model`, every platform knows this represents the language model being used (and shows it accordingly).
+
+In Agenta, we use our [own semantic conventions](https://docs.agenta.ai/observability/otel-semconv), but are also compatible with the semconvs from the most used libraries like [PydanticAI](https://ai.pydantic.dev/) (which uses [GenAI SemConvs](https://opentelemetry.io/docs/specs/semconv/gen-ai/)under the hood), [Openinference](https://arize.com/docs/ax/observe/tracing/tracing-concepts/openinference-semantic-conventions) and others.
+
+OpenTelemetry has a working group developing standard [GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/), but they're still evolving. Most vendors currently use their own conventions while maintaining OpenTelemetry compatibility.
+
+### Getting Started
+
+The basic flow for implementing OpenTelemetry:
+
+1. **Choose your instrumentation approach**: Manual, auto-instrumentation, or hybrid
+2. **Add the SDK** to your application
+3. **Configure an exporter** to send data where you want it
+4. **Optionally set up a Collector** for processing and routing
+5. **Follow semantic conventions** for your chosen observability platform
+
+For most LLM applications, auto-instrumentation provides the fastest path to getting observability data. You can always add manual instrumentation later for specific insights you need.
+
+Agenta offers very [quick start with LLM Observability](https://docs.agenta.ai/observability/quickstart) with compatibility with most auto-instrumentation libraries and frameworks, and an easy to use SDK to add manual instrumentations (using decorators, redacting sensitive data…), you can get started with Agenta's Observability [here](https://docs.agenta.ai/observability/overview).
+
+### Summary
+
+OpenTelemetry provides the standard solution for observability instrumentation. It separates data collection from data storage, preventing vendor lock-in while giving you powerful tools to understand your LLM applications in production.
+
+The toolkit (SDK, instrumentation, exporters, and Collector) works together to capture detailed traces from your application and route them to any observability backend you choose. Semantic conventions ensure different tools can understand your data consistently.
+
+## Beyond Traces: Why You Need LLMOps
+
+Observability is necessary for LLM applications, but not sufficient. You need more than just traces to build reliable LLM systems in production.
+
+Traditional observability helps you monitor system health, track performance, and debug infrastructure issues. LLM applications require fundamentally different capabilities.
+
+### Different Data Needs
+
+Traditional observability avoids storing detailed inputs and outputs because they consume storage space without providing much value for typical applications. LLM observability requires this detailed content because debugging depends on content. You cannot fix prompt issues without seeing the actual prompts and responses.
+
+Cost tracking needs details. Token usage and model selection directly impact costs. A single prompt change can double your API bills if it increases output length. Quality assessment requires context. Understanding whether an LLM response is good requires seeing what it was responding to.
+
+### Different Workflow Requirements
+
+LLM applications need capabilities that traditional observability doesn't provide. You need to [version prompts](/blog/the-definitive-guide-to-prompt-management-systems), [run evaluations](https://docs.agenta.ai/evaluation/overview), [collect human feedback](https://docs.agenta.ai/tutorials/cookbooks/capture-user-feedback), and continuously improve model performance.
+
+Traditional observability tools can't help you answer questions like:
+
+- Is the new prompt version better than the old one?
+- Which examples should we add to our few-shot prompts?
+- Are users satisfied with the AI responses?
+- How do we prevent regressions when we update prompts?
+
+### What LLMOps Provides
+
+LLMOps addresses how to productionize LLM-powered applications. It helps take weekend proof-of-concepts to thousands of users without hallucination risks, with consistent quality and high value.
+
+LLMOps includes several interconnected capabilities:
+
+[**Prompt Management**](/blog/the-definitive-guide-to-prompt-management-systems)
+
+Version control for prompts, similar to Git for code. You need to track changes, test different versions, and roll back when updates perform poorly.
+
+[**Evaluation Systems**](https://docs.agenta.ai/evaluation/overview)
+
+Automated and human evaluation of LLM outputs. This includes accuracy metrics, safety checks, and quality assessments that run continuously as your application evolves.
+
+[**Data Annotation and Feedback**](https://docs.agenta.ai/tutorials/cookbooks/capture-user-feedback)
+
+Tools to collect human feedback on LLM responses, annotate training data, and create test sets from real user interactions.
+
+**Continuous Improvement**
+
+Workflows that connect evaluation results back to prompt updates, model selection, and system optimization.
+
+### Traces as the Central Artifact
+
+LLM observability, specifically traces, forms the foundation that connects all these LLMOps capabilities.
+
+Consider this workflow:
+
+1. **Production traces** capture real user interactions with your LLM application
+2. **Evaluation systems** run over these traces to identify poor responses
+3. **Annotation tools** let human reviewers examine failing traces and provide feedback
+4. **Prompt management** systems use this feedback to update prompts
+5. **New traces** validate that prompt changes actually improve performance
+
+Each step depends on the detailed trace data that shows exactly what happened during each user interaction.
+
+### Why Integration Matters
+
+Using a standard vendor for tracing while running evaluations in a separate LLMOps platform creates problems. When evaluations fail, you want to see traces of the calls that didn't work. You want to see traces of your evaluator calls too.
+
+You need online evaluation. This means automatic evaluators running over traces to find problematic responses. You want these displayed in dashboards to detect issues quickly and filter results for test set creation. You want to connect traces with prompt and model changes to see if new releases worsen performance metrics.
+
+Just as traditional observability keeps logs and traces in the same platform, LLMOps keeps traces within the complete workflow. You can send traces to multiple platforms simultaneously, for instance using [Sentry](https://sentry.io/) for infrastructure debugging and Agenta for LLMOps workflows, but the core LLMOps loop needs integrated access to trace data.
+
+### Concrete Example
+
+Imagine your RAG application starts giving poor answers about a specific topic:
+
+1. **Observability** shows you that response quality scores dropped
+2. **Trace analysis** reveals the retrieval component is finding irrelevant documents
+3. **Human annotation** confirms the retrieved context is indeed poor
+4. **Prompt management** lets you test updated retrieval prompts
+5. **Evaluation systems** validate that the new prompts improve performance
+6. **Continuous monitoring** ensures the fix doesn't break other use cases
+
+Each step requires detailed trace data, but traditional observability tools can't support the evaluation, annotation, and prompt management steps.
+
+### Making the Right Choice
+
+For simple LLM applications, traditional observability plus manual prompt management might suffice. For production systems serving real users, you need the full LLMOps workflow.
+
+The key insight: LLM applications require fundamentally different development and maintenance practices. Observability provides the foundation, but building reliable LLM systems requires integrated tools for prompt management, evaluation, and continuous improvement.
+
+Traces connect everything together, making them the central artifact in successful LLM operations. Choose tools that understand this connection and support the complete workflow, not just data collection.
+
+## Putting It Into Practice
+
+**The Simple Path: Integrated Platforms**
+
+Setting up LLM observability sounds complex, but modern LLMOps platforms handle this complexity for you. Platforms like [Agenta](https://cloud.agenta.ai) automatically map data from various instrumentation libraries to a unified view while remaining OpenTelemetry compliant.
+
+Agenta is [OpenTelemetry compliant](https://docs.agenta.ai/observability/otel-semconv) and works with most auto-instrumentation libraries. More importantly, it handles the translation between different semantic conventions so you do not have to worry about whether your [LangChain](https://docs.agenta.ai/observability/integrations/langchain) traces will display properly alongside your custom instrumentation.
+
+**A Practical Example**
+
+Here's how simple it is to instrument a [LangChain](https://docs.agenta.ai/observability/integrations/langchain) application with full observability:
+
+```python
+import os
+import agenta as ag
+from openinference.instrumentation.langchain import LangChainInstrumentor
+from langchain.chains import RetrievalQA
+from langchain.llms import OpenAI
+
+# Set up environment
+os.environ["AGENTA_API_KEY"] = "your_agenta_api_key"
+os.environ["AGENTA_HOST"] = "<https://cloud.agenta.ai>"
+os.environ["OPENAI_API_KEY"] = "your_openai_api_key"
+
+# Initialize Agenta and instrumentation
+ag.init()
+LangChainInstrumentor().instrument()
+
+# Your existing LangChain code works unchanged
+llm = OpenAI(temperature=0)
+qa_chain = RetrievalQA.from_chain_type(
+    llm=llm,
+    retriever=your_retriever,
+    return_source_documents=True
+)
+
+# This call now generates complete traces automatically
+result = qa_chain("What are the benefits of using RAG?")
+```
+
+That's it. No complex configuration files, no manual span creation, no semantic convention mapping. The instrumentation captures every step: document retrieval, context preparation, LLM calls, and response formatting.
+
+The `agenta.init()` call automatically configures the necessary OTel SDK components and exporters based on your environment variables. This abstracts away the boilerplate code, letting you focus on your application logic
+
+### What You Get
+
+When you run this code, Agenta captures a complete trace showing:
+
+- **The user query** and how it was processed
+- **Document retrieval steps** including search queries and returned documents
+- **Context preparation** showing what information was sent to the LLM
+- **LLM API calls** with exact prompts, responses, token usage, and costs
+- **Response formatting** and final output
+
+In the Agenta dashboard, this appears as an interactive trace tree. You can expand each span to see inputs, outputs, and metadata. When something goes wrong, you can drill down to the exact step that failed and see why.
+
+For a RAG application that gives a wrong answer, you might discover that the retrieval step found irrelevant documents, or that the context was truncated, or that the LLM misinterpreted the prompt. Without this visibility, you'd be guessing.
+
+### Beyond Basic Observability
+
+Once you have traces flowing into Agenta, you unlock the full LLMOps workflow we discussed:
+
+- [**Automatic evaluation**](https://docs.agenta.ai/evaluation/no-code-evaluation) runs over your traces to identify quality issues
+- [**Human annotation tools**](https://docs.agenta.ai/evaluation/human_evaluation)let your team review and rate responses
+- [**Prompt management**](https://docs.agenta.ai/prompt-engineering/quick-start) helps you test and deploy prompt improvements
+- [**Cost tracking**](https://docs.agenta.ai/observability/quickstart) breaks down expenses by user, feature, and model
+
+All of this connects back to the trace data, creating a complete feedback loop for improving your LLM application.
+
+## Conclusion
+
+LLM applications present unique challenges that traditional software development practices can't address. They're unpredictable, expensive, and fail in ways that are difficult to debug.
+
+Traces provide the solution. By capturing the complete execution flow of your LLM application, traces give you the visibility needed to build reliable systems. OpenTelemetry offers the standard approach for collecting this data. But observability alone isn't enough. You need the full LLMOps workflow.
+
+The most successful teams integrate these capabilities rather than using separate tools. When your observability platform connects directly to your evaluation and prompt management workflows, you can debug faster, iterate more effectively, and build more reliable LLM applications.
+
+**Ready to Move Beyond Print Statements?**
+
+Stop debugging LLM applications with print statements. Start building with confidence using proper observability and LLMOps workflows.
+
+Stop debugging LLM applications with print statements and start building with confidence.
+
+[**Get started with Agenta's free cloud tier**](https://cloud.agenta.ai/) and gain instant visibility into your LLM applications. Or [**explore our documentation**](https://docs.agenta.ai/) to see more advanced examples and integrations.

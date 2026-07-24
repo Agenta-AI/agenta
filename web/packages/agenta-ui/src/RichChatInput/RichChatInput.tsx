@@ -290,3 +290,4 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         )
     },
 )
+RichChatInput.displayName = "RichChatInput"

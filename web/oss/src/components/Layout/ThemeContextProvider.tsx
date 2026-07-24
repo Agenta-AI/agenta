@@ -1,4 +1,12 @@
-import {PropsWithChildren, createContext, useState, useContext, useEffect, useMemo} from "react"
+import {
+    PropsWithChildren,
+    createContext,
+    useState,
+    useContext,
+    useCallback,
+    useEffect,
+    useMemo,
+} from "react"
 
 import {ConfigProvider, theme} from "antd"
 import {Inter} from "next/font/google"
@@ -148,14 +156,19 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         }
     }, [isDark])
 
+    const toggleAppTheme = useCallback(
+        (themeType: ThemeModeType) => setThemeMode(themeType as ThemeMode),
+        [setThemeMode],
+    )
+
+    // Stable value so useAppTheme consumers only re-render on actual theme changes
+    const contextValue = useMemo(
+        () => ({appTheme, toggleAppTheme, themeMode}),
+        [appTheme, toggleAppTheme, themeMode],
+    )
+
     return (
-        <ThemeContext.Provider
-            value={{
-                appTheme,
-                toggleAppTheme: (themeType) => setThemeMode(themeType as ThemeMode),
-                themeMode,
-            }}
-        >
+        <ThemeContext.Provider value={contextValue}>
             <ConfigProvider theme={themeConfig}>{children}</ConfigProvider>
         </ThemeContext.Provider>
     )

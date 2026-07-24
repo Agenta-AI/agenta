@@ -1,4 +1,7 @@
+import {useEffect} from "react"
+
 import {configureAgentaSdk} from "@agenta/sdk/config"
+import {schedulePersistedQueryGc} from "@agenta/shared/api/persist"
 import {default as AppContextComponent} from "@agenta/ui/app-message"
 import {QueryClientProvider} from "@tanstack/react-query"
 import {App as AppComponent} from "antd"
@@ -39,7 +42,11 @@ const NoMobilePageWrapper = dynamic(
     },
 )
 const CustomPosthogProvider = dynamic(() => import("@/oss/lib/helpers/analytics/AgPosthogProvider"))
-const Layout = dynamic(() => import("@/oss/components/Layout/Layout"), {
+const loadLayout = () => import("@/oss/components/Layout/Layout")
+// Warm the Layout chunk during hydration — it otherwise downloads only after the
+// SuperTokens init gate releases, adding a serial round-trip before any chrome paints.
+if (typeof window !== "undefined") void loadLayout()
+const Layout = dynamic(loadLayout, {
     ssr: false,
 })
 
@@ -52,6 +59,11 @@ const PreloadQueries = () => {
     useAtomValue(selectedOrgIdAtom)
     useUser()
     useProjectData()
+
+    // One idle-time sweep of expired/stale-version persisted query entries.
+    useEffect(() => {
+        schedulePersistedQueryGc()
+    }, [])
 
     return null
 }

@@ -1,0 +1,46 @@
+---
+slug: "launch-week-2-day-2-online-evaluation"
+title: "Launch Week #2 Day 2: Online Evaluation"
+description: "Today we're launching online evaluation. With online evaluation each request is automatically evaluated. This allows you to monitor things in production."
+category: Article
+date: 2025-11-11
+readingTime: "5 min read"
+heroImage: /blog/launch-week-2-day-2-online-evaluation/hero.webp
+ogImage: /blog/launch-week-2-day-2-online-evaluation/hero.webp
+author: mahmoud-mabrouk
+featured: false
+tags: ["Product Update"]
+---
+
+Did your customer support agent ever mention a competitor?
+
+<InlineCTA />
+
+That would be awful.
+
+And if you build AI apps for health or finance, it could be worse. One wrong answer can change someone’s life.
+
+Pre-production evals can’t catch everything. You will never know exactly how users will interact with your app. You will never see all the edge cases of real-world data until you’re in production.
+
+<iframe src="https://www.youtube.com/embed/rP3CiRmu3io?iv_load_policy=3&rel=0&modestbranding=1&playsinline=1&autoplay=0&mute=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+Today we're launching **Online Evaluation**. This feature closes the LLMOps feedback loop and solves this problem.
+
+With Online Evaluation, every AI request gets evaluated in real time. You can spot hallucinations, off-brand answers, and subtle regressions as they happen.
+
+With Online Evaluation, you get:
+
+- A live view of the reliability of your system in production
+- Confidence that your outputs meet your quality standards
+- A way to find edge cases and add them to your test cases to improve your AI system
+- Clear insight into how prompt changes behave in production
+
+How it works:
+
+- Pick an evaluator (use an [LLM-as-a-judge](https://docs.agenta.ai/evaluation/configure-evaluators/llm-as-a-judge) or write your own evaluator logic in Python)
+- Provide filters to target the right spans and set the sampling rate to control your cost and coverage
+- Measure changes against live traffic, spot regressions, and add them to your test set
+
+You can set up online evaluation in a couple of minutes: Add one line to instrument your application. Then set up online evaluation with a few clicks.
+
+Check out our docs to [get started](https://cloud.agenta.ai).
