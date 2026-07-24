@@ -3,9 +3,13 @@
  * trusting a full inbound history — the server side of "client sends only the last message".
  *
  * Flag-gated (`AGENTA_SESSIONS_RECONSTRUCT`) and a strict no-op until BOTH the flag is on AND the
- * client actually sent a minimal history: when the client still sends the whole conversation
- * (`messages.length > 1`), reconstruction is skipped and behaviour is unchanged. Best-effort — any
- * miss (no session, no records, fetch failure) leaves the inbound history untouched.
+ * client sent exactly its trailing user message: a full inbound history (more than one message, or
+ * a non-user tail) is left untouched. Best-effort — any miss (no session, no records, fetch
+ * failure) leaves the inbound history untouched.
+ *
+ * Called from the server handler BEFORE the turn's prompt is persisted and before the keep-alive
+ * history fingerprint, so the record log holds only prior turns (no self-duplication) and the
+ * fingerprint sees the same full history a full-history client would have sent.
  */
 
 import type { AgentRunRequest } from "../../protocol.ts";
@@ -33,8 +37,11 @@ export async function reconstructHistoryIfNeeded(
 ): Promise<AgentRunRequest | null> {
   if (!reconstructEnabled() || !sessionId) return null;
   const inbound = request.messages ?? [];
-  // The client already sent the conversation — nothing to rebuild.
-  if (inbound.length > 1) return null;
+  // Reconstruct only for a fresh turn that is exactly its trailing user message. A full inbound
+  // history (client sent the conversation) needs no rebuild; an empty or assistant-only inbound
+  // (e.g. an approval resume) must not be rebuilt, or `resolvePromptText` could replay a historical
+  // prompt as the current turn.
+  if (inbound.length !== 1 || inbound[0]?.role !== "user") return null;
 
   const records = await fetchSessionRecords(sessionId, auth);
   if (!records || records.length === 0) return null;

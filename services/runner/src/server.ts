@@ -43,6 +43,7 @@ import {
   type SessionEnvironment,
 } from "./engines/sandbox_agent.ts";
 import type { MountCredentials } from "./engines/sandbox_agent/mount.ts";
+import { reconstructHistoryIfNeeded } from "./engines/sandbox_agent/reconstruct-history.ts";
 import type { TeardownReason } from "./engines/sandbox_agent/teardown.ts";
 import {
   approvalDecisionForToolCall,
@@ -960,6 +961,21 @@ async function runAndStreamWithApiBaseResolved(
   let aliveWatchdog: { release: () => Promise<void> } | undefined;
 
   if (sessionOwned) {
+    // Rebuild prior turns from the durable record log BEFORE this turn's prompt is persisted and
+    // BEFORE the keep-alive history fingerprint runs — both read `request.messages`. Reconstructing
+    // here (not inside runTurn) is what keeps last-message-only equivalent to a full-history client:
+    // at this point the record log holds only PRIOR turns, so the rebuilt history plus the inbound
+    // tail is the full conversation exactly once (no self-duplicated prompt), and the warm-
+    // continuation fingerprint sees the same full history it predicted at the previous park (no
+    // spurious evict to cold). Flag-gated and a no-op unless the client sent a minimal history.
+    const reconstructed = await reconstructHistoryIfNeeded(
+      request,
+      sessionId,
+      () => runCredential(request),
+      (msg) => process.stderr.write(`${msg}\n`),
+    );
+    if (reconstructed) request = reconstructed;
+
     // The request's api base (if any) is already scoped for this call via
     // runWithRequestApiBase in the outer runAndStream — apiBase() below sees it.
     // The runner authenticates session calls AS the invoke caller (the run credential),

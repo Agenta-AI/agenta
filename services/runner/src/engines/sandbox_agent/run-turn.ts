@@ -75,8 +75,7 @@ import {
   nextTurnIndex,
   sessionContinuityStore,
 } from "./session-continuity.ts";
-import { reconstructHistoryIfNeeded } from "./reconstruct-history.ts";
-import { buildTurnText, priorMessages } from "./transcript.ts";
+import { priorMessages } from "./transcript.ts";
 import { resolveRunUsage } from "./usage.ts";
 
 /**
@@ -84,7 +83,7 @@ import { resolveRunUsage } from "./usage.ts";
  * controller / decisions / responder into `env.currentTurn`, restart the tool relay,
  * send the prompt, resolve usage, and finish + flush the trace. It does NOT tear down the
  * environment (the caller owns `env.destroy`). On a continuation the prompt is only the new user
- * text (`buildTurnText` does not run); on a cold turn it is `plan.turnText`, exactly as before.
+ * text; on a cold turn it is `plan.turnText`, exactly as before.
  */
 export async function runTurn(
   env: SessionEnvironment,
@@ -145,28 +144,12 @@ export async function runTurn(
   });
 
   try {
-    // Server-side history reconstruction (flag-gated, no-op by default): when the client sent a
-    // minimal history, rebuild prior turns from the durable record log so a cold turn still has
-    // full context. Runs before the current user turn is persisted, so records hold only prior
-    // turns. Reassigns `request` so every downstream reader (turnText, priorMessages, responder,
-    // otel) sees the same reconstructed history.
-    const reconstructed = await reconstructHistoryIfNeeded(
-      request,
-      sessionId,
-      () => runCredential(request),
-      logger,
-    );
-    if (reconstructed) request = reconstructed;
-
+    // History reconstruction (last-message-only) happens upstream in the server handler, BEFORE the
+    // prompt is persisted and the keep-alive fingerprint runs, so `request` already carries the full
+    // conversation here and `plan` (built during acquireEnvironment) reflects it.
     const promptText = resolvePromptText(request);
-    // Cold: replay the full transcript. Continuation or loaded: send only new text. When history
-    // was rebuilt from records, recompute the transcript from it — the prebuilt plan.turnText
-    // predates the reconstruction.
-    const turnText = sendLastMessageOnly(opts)
-      ? promptText
-      : reconstructed
-        ? buildTurnText(request, logger)
-        : plan.turnText;
+    // Cold: replay the full transcript (`plan.turnText`). Continuation or loaded: send only new text.
+    const turnText = sendLastMessageOnly(opts) ? promptText : plan.turnText;
 
     const run = (deps.createOtel ?? createSandboxAgentOtel)({
       harness: plan.harness,
