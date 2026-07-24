@@ -1,4 +1,4 @@
-import {lazy, Suspense, useEffect, useRef, useState, type CSSProperties} from "react"
+import {lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties} from "react"
 
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {Splitter, Tabs} from "antd"
@@ -67,8 +67,20 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const closeSession = useSetAtom(closeSessionAtomFamily(scope))
     const renameSession = useSetAtom(renameSessionAtomFamily(scope))
     const setActiveSession = useSetAtom(setActiveSessionAtomFamily(scope))
+    // Stable identity: the tag bar forwards this straight to each memo'd chip.
+    const handleRename = useCallback(
+        (id: string, title: string) => renameSession({id, title}),
+        [renameSession],
+    )
     const pruneSessionHusks = useSetAtom(pruneSessionHusksAtomFamily(scope))
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
+    // The rail pane is `size={0}` + `inert` until maximized, so mounting it on boot renders the
+    // whole session list (rows, dots, hover actions) into a zero-width panel. Latch it on first
+    // open and keep it mounted after, so toggling back and forth doesn't remount or lose scroll.
+    const [railMounted, setRailMounted] = useState(chatMaximized)
+    useEffect(() => {
+        if (chatMaximized) setRailMounted(true)
+    }, [chatMaximized])
     // Shared entrance latch: the composer's Reveal plays for the first conversation this
     // panel mounts; every additional session pane skips it (no per-switch flash).
     const composerRevealPlayedRef = useRef(false)
@@ -158,13 +170,15 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                     {/* Rail pane is width-0 unless maximized, so no visible fallback is needed. */}
                     <Suspense fallback={null}>
                         {/* min-w matches RAIL_MIN_WIDTH (Tailwind needs the literal). */}
-                        <MountFade className="flex min-h-0 w-full flex-1 flex-col">
-                            <SessionRail
-                                activeId={activeId}
-                                addDisabled={addLocked}
-                                className="min-h-0 w-full min-w-[240px] flex-1"
-                            />
-                        </MountFade>
+                        {railMounted && (
+                            <MountFade className="flex min-h-0 w-full flex-1 flex-col">
+                                <SessionRail
+                                    activeId={activeId}
+                                    addDisabled={addLocked}
+                                    className="min-h-0 w-full min-w-[240px] flex-1"
+                                />
+                            </MountFade>
+                        )}
                     </Suspense>
                 </div>
             </Splitter.Panel>
@@ -211,7 +225,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                                         onAdd={addSession}
                                         addDisabled={addLocked}
                                         onClose={closeSession}
-                                        onRename={(id, title) => renameSession({id, title})}
+                                        onRename={handleRename}
                                         showSessions={!chatMaximized}
                                         extra={
                                             chatMaximized ? undefined : (

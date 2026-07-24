@@ -19,7 +19,7 @@ import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {Check, Cube, Lightbulb, ShieldCheck, Sparkle, Warning} from "@phosphor-icons/react"
 import {Select, Typography} from "antd"
-import {useAtomValue} from "jotai"
+import {atom, useAtomValue} from "jotai"
 
 import {RailField, railInfoLabel} from "../../../drawers/shared/RailField"
 import {SectionRail} from "../../../drawers/shared/SectionRail"
@@ -32,6 +32,7 @@ import {
     harnessAllowsModel,
     harnessSupportsUserMcp,
     modelIdFromConfig,
+    modelLabel,
     providerForModel,
     vaultModelGroups,
     vaultPickedProviderFamily,
@@ -46,6 +47,11 @@ import {SandboxPermissionControl} from "../SandboxPermissionControl"
 import {enumLabel} from "./agentTemplateUtils"
 import ProviderCredentialsSection from "./ProviderCredentialsSection"
 import {useBuildKit} from "./useBuildKit"
+
+// Only assert "needs a key" once the vault query has resolved (an array). While it's pending,
+// `standardSecretsAtom` returns the static provider catalog with empty keys, so a reload would
+// flash a false "Connect key" warning on the section, rail item, and config-panel row.
+const vaultLoadedAtom = atom((get) => Array.isArray(get(vaultSecretsQueryAtom).data))
 
 type PermissionPolicy = "allow_reads" | "allow" | "ask" | "deny"
 
@@ -182,10 +188,9 @@ export function useModelHarness({
     const capabilities = harnessRefKey ? capabilitiesFromCatalog : null
     const mcpSupported = harnessSupportsUserMcp(capabilities, harnessValue)
 
-    // The vault query backs `vaultLoaded` below (gates the "needs a key" flag) and the custom_provider
-    // model groups (`vaultModelGroups`); connections themselves are always the project default now,
-    // so there is no named-connection list here.
-    const vaultQuery = useAtomValue(vaultSecretsQueryAtom)
+    // Narrowed to the loaded flag (all this hook reads) — the raw query atom churns identity on
+    // every fetch-state flip during boot.
+    const vaultLoaded = useAtomValue(vaultLoadedAtom)
 
     const modeOptions = useMemo(
         () => allowedConnectionModes(capabilities, harnessValue),
@@ -215,10 +220,6 @@ export function useModelHarness({
             ) ?? null
         )
     }, [standardSecrets, selectedProviderFamily])
-    // Only assert "needs a key" once the vault query has resolved (an array). While it's pending,
-    // `standardSecretsAtom` returns the static provider catalog with empty keys, so a reload would
-    // flash a false "Connect key" warning on the section, rail item, and config-panel row.
-    const vaultLoaded = Array.isArray(vaultQuery.data)
     // Self-managed agents never need a vault key — the harness signs itself in. Neither does a
     // named custom-provider connection (agenta mode with a slug): it carries its own credentials,
     // so a missing STANDARD vault key for the family is not this connection's problem.
@@ -354,8 +355,13 @@ export function useModelHarness({
         [harness, setSection],
     )
 
+    // Prefer the harness catalog's label ("Sonnet") over the stored id ("sonnet"), so the summary
+    // names the model the way the picker did.
     const modelSummary =
-        [enumLabel(harnessProps.kind, harness.kind), enumLabel(props.llm, modelId)]
+        [
+            enumLabel(harnessProps.kind, harness.kind),
+            modelLabel(capabilities, harnessValue, modelId) ?? enumLabel(props.llm, modelId),
+        ]
             .filter(Boolean)
             .join(" · ") || undefined
 

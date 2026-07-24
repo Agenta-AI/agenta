@@ -1,0 +1,14 @@
+---
+import HowItWorks from "./HowItWorks.tsx";
+---
+
+{/* padding:0 lets the desktop 500vh scroll layout own its spacing; the
+    .ag-secpad media query restores vertical padding at <=860px, where the
+    island renders the static two-panel fallback. */}
+<section
+  data-screen-label="How it works"
+  class="ag-secpad"
+  style="background:var(--ag-d-bg-1);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:0;"
+>
+  <HowItWorks client:visible />
+</section>

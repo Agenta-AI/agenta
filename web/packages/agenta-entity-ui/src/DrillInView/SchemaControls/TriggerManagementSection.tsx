@@ -56,7 +56,7 @@ import {
 import {Button, Dropdown, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
-import {atomWithStorage} from "jotai/utils"
+import {atomWithStorage, selectAtom} from "jotai/utils"
 
 import {AddItemMenu, type AddItemGroup} from "../../drawers/shared/AddItemMenu"
 import {loadRecentSamples, waitForNewDelivery} from "../../gatewayTrigger/drawers/shared/deliveries"
@@ -305,17 +305,36 @@ function referencesMatch(
 export function useAgentTriggers(entityId: string | null) {
     // The drill-in entity only carries `parameters`; read the parent ids straight from
     // the workflow molecule (keyed by the revision id, which is the entityId).
-    const revision = useAtomValue(
-        useMemo(() => workflowMolecule.selectors.resolvedData(entityId ?? ""), [entityId]),
+    // Narrowed to the four fields used — a whole-resolvedData subscription re-renders the
+    // config panel on every boot-time data resolution.
+    const revisionMeta = useAtomValue(
+        useMemo(
+            () =>
+                selectAtom(
+                    workflowMolecule.selectors.resolvedData(entityId ?? ""),
+                    (revision) => ({
+                        appId: revision?.workflow_id ?? null,
+                        variantId: revision?.workflow_variant_id ?? revision?.variant_id ?? null,
+                        appSlug: (revision as {slug?: string} | null)?.slug ?? null,
+                        name: (revision as {name?: string} | null)?.name ?? null,
+                    }),
+                    (a, b) =>
+                        a.appId === b.appId &&
+                        a.variantId === b.variantId &&
+                        a.appSlug === b.appSlug &&
+                        a.name === b.name,
+                ),
+            [entityId],
+        ),
     )
-    const appId = revision?.workflow_id ?? null
-    const variantId = revision?.workflow_variant_id ?? revision?.variant_id ?? null
+    const appId = revisionMeta.appId
+    const variantId = revisionMeta.variantId
     // The app slug — needed for "By environment" binding, which resolves via the
     // application slug + environment (see triggers/service.py `_normalize_references`).
-    const appSlug = (revision as {slug?: string} | null)?.slug ?? null
+    const appSlug = revisionMeta.appSlug
     // Readable label for the default binding so the drawer's bound-workflow field
     // shows the agent's name instead of a raw id. Falls back when the name is unresolved.
-    const defaultBoundLabel = (revision as {name?: string} | null)?.name ?? "Current agent"
+    const defaultBoundLabel = revisionMeta.name ?? "Current agent"
 
     const agentIds = useMemo(() => {
         const ids = new Set<string>()

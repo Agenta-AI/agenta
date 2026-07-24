@@ -1,0 +1,46 @@
+---
+// Ported 1:1 from the design system: components/marketing/SectionTitle.jsx
+import Badge from "./Badge.astro";
+
+interface Props {
+  badge?: string;
+  title: string;
+  subtitle?: string;
+  dark?: boolean;
+  align?: "center" | "left";
+  size?: "lg" | "xl";
+  width?: string; // maps to the DC hint-size width (677px center, 392px left)
+}
+const {
+  badge,
+  title,
+  subtitle,
+  dark = false,
+  align = "center",
+  size = "lg",
+  width = "677px",
+} = Astro.props;
+
+const titleFont =
+  size === "xl" ? "var(--text-display-xl)" : "var(--text-display-lg)";
+---
+
+<header
+  style={`display:flex;flex-direction:column;gap:8px;align-items:${align === "center" ? "center" : "flex-start"};text-align:${align};max-width:${width};`}
+>
+  {badge && <Badge variant={dark ? "dark" : "default"}>{badge}</Badge>}
+  <h2
+    style={`margin:0;font:${titleFont};color:${dark ? "#FFFFFF" : "var(--text-heading)"};text-wrap:pretty;`}
+  >
+    {title}
+  </h2>
+  {
+    subtitle && (
+      <p
+        style={`margin:0;font:var(--text-body-md);color:${dark ? "var(--text-on-dark-muted)" : "var(--text-muted)"};text-wrap:pretty;`}
+      >
+        {subtitle}
+      </p>
+    )
+  }
+</header>

@@ -12,6 +12,14 @@ const {Sider} = Layout
 const MENU_CLASS_NAME =
     "border-r-0 overflow-y-auto relative [&_.ant-menu-item-selected]:font-medium"
 
+// The menu paints its own container background, which would break the rail into two
+// shades. Transparent lets the rail colour run edge to edge.
+const MENU_SURFACE_CLASS_NAME = "!bg-transparent"
+
+// antd hardcodes a 80px width on collapsed inline menus; the rail is narrower than that,
+// so let the menu fill the rail and keep antd's own centering math working off that width.
+const COLLAPSED_MENU_CLASS_NAME = "[&.ant-menu-inline-collapsed]:!w-full"
+
 class SidebarErrorBoundary extends React.Component<React.PropsWithChildren, {hasError: boolean}> {
     state = {hasError: false}
 
@@ -247,7 +255,13 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                 {renderSlot(section.before, collapsed)}
                 <SidebarMenu
                     menuProps={{
-                        className: isBottomSection ? "" : MENU_CLASS_NAME,
+                        className: [
+                            isBottomSection ? "" : MENU_CLASS_NAME,
+                            MENU_SURFACE_CLASS_NAME,
+                            COLLAPSED_MENU_CLASS_NAME,
+                        ]
+                            .filter(Boolean)
+                            .join(" "),
                         selectedKeys,
                         ...(isInlineSection
                             ? {
@@ -280,18 +294,18 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     const bottomSections = visibleSections.filter((section) => section.placement === "bottom")
 
     return (
-        <div className="border-0 border-r border-solid border-[var(--ag-surface-divider)]">
+        <div className="border-0 border-r border-solid border-[var(--ag-shell-line)]">
             <Sider
                 theme={theme}
                 className="sticky top-0 bottom-0 h-screen bg-[var(--ag-sidebar-bg)]"
                 collapsible
-                width={collapsed ? 80 : 236}
+                width={collapsed ? 48 : 236}
                 trigger={null}
             >
                 <div
                     className={[
                         "flex flex-col h-full transition-all duration-300",
-                        collapsed ? "w-[80px]" : "w-[236px]",
+                        collapsed ? "w-[48px]" : "w-[236px]",
                     ].join(" ")}
                 >
                     {renderSlot(scope.header, collapsed, scope.lastPath)}
