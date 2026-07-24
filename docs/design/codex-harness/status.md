@@ -1,6 +1,31 @@
 # Status
 
-Last updated: 2026-07-24 (Milestone 3 code complete; live QA green at the wire level; MP4 pending)
+Last updated: 2026-07-24 (Milestone 4 code complete; subscription auth GREEN; item C blocks ship)
+
+## Now (Milestone 4 — subscription auth)
+
+- CODE COMPLETE and green. Notes: `reports/m4-implementation-notes.md`. Codex now authenticates
+  from the operator's ChatGPT/Codex subscription: `~/.codex` is mounted read-write as `CODEX_HOME`
+  (gitignored `hosting/.../docker-compose.dev.codex-sub.local.yml`); a local `runtime_provided`
+  codex run requires that mount (run-plan mirrors the Claude `CLAUDE_CONFIG_DIR` branch);
+  `CODEX_SQLITE_HOME` is redirected off the home in BOTH modes; managed auth-writing stays
+  managed-only so the delete-backstop never touches the mount; the SDK `codex` harness now
+  advertises `self_managed`. NO `CODEX_CONFIG` emitted (poison-combo invariant intact). Commit
+  `e926a32` (+ the `test_capabilities.py` two-mode fix). Suites: runner 1242, SDK agents 691 +
+  capabilities, typecheck + ruff clean.
+- LIVE QA GREEN at the wire level: `POST /run` harness=codex credentialMode=runtime_provided (no
+  key) → `{"ok":true,"output":"I'm running and ready."}`; container `OPENAI_API_KEY` empty; session
+  uses ChatGPT auth; run SQLite lands off-mount; `~/.codex/auth.json` md5 UNCHANGED (no corruption).
+  MP4: `reports/m4-subscription-qa.mp4`.
+- **BLOCKER (item C, product exposure — needs Mahmoud's ruling):** the mount carries the operator's
+  whole `config.toml`; its `[mcp_servers.*]` (and `[plugins.*]`/`[apps.*]`) LEAK into product
+  sessions and CANNOT be neutralized via `CODEX_CONFIG` (it deep-merges, additive only). Proof +
+  options in `spike/config-leakage-findings.md` (recommended fix: mount only `auth.json`, runner
+  owns `config.toml`). No neutralization shipped pending the ruling.
+- Subscription + TOOLS run: the MCP-tool path fix landed (slice-D drop `003797ee`, resume-key
+  `0c925cb3`); a subscription+tools validation on the product path is the recommended next check
+  (deferred to avoid colliding with the concurrent MCP-regression debug work; a runner restart
+  picks up the resume-key fix).
 
 ## Now (Milestone 3)
 
