@@ -248,10 +248,10 @@ export async function prepareEnvironmentSetup(
   });
   let runAgentDir = localPiAssets.dir;
   // Local managed Codex authenticates from `<cwd>/.codex/auth.json`; point CODEX_HOME at that
-  // directory now (a path only, safe before the durable cwd mount). The auth.json file itself is
-  // written after the mount, right after prepareWorkspace (see environment.ts). Non-Codex runs
-  // and Daytona are no-ops.
-  configureCodexHome(plan, env);
+  // directory now (a path only, safe before the durable cwd mount), and point CODEX_SQLITE_HOME
+  // at a local off-mount directory. The auth.json file itself is written after the mount, right
+  // after prepareWorkspace (see environment.ts). Non-Codex runs and Daytona are no-ops.
+  const codexSqliteHome = configureCodexHome(plan, env);
   // Fail closed (Decision 6): a local managed custom run whose models.json could not be written
   // must stop rather than run on a default provider. Recorded here (the write ran above) and
   // thrown inside the try below, like the permission-extension gate.
@@ -323,6 +323,7 @@ export async function prepareEnvironmentSetup(
     runAgentDir,
     otlpAuthFilePath,
     codexAuthFilePath: undefined,
+    codexSqliteHome,
     mountCreds,
     agentMountCreds,
     mountProjectId: mountCreds?.projectId,

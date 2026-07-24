@@ -10,7 +10,8 @@
 // That poison combination silently disables all approval gates. Milestone 1 uses no CODEX_CONFIG.
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { basename, join } from "node:path";
 
 import type { RunPlan } from "./run-plan.ts";
 
@@ -21,6 +22,19 @@ export const CODEX_HOME_DIRNAME = ".codex";
 
 export function codexHomeDir(cwd: string): string {
   return join(cwd, CODEX_HOME_DIRNAME);
+}
+
+/**
+ * Codex's SQLite state uses hardcoded WAL mode and must live on local container disk, never the
+ * geesefs cwd mount, which cannot support WAL and caused the Milestone 1 blocker. This is an
+ * ephemeral sibling of the relay and tool-MCP directories.
+ *
+ * The path is derived from basename(cwd), so it is per-session-stable like relayDir. It stays
+ * constant across a session's turns and is NOT a config-fingerprint input, preserving warm daemon
+ * reuse.
+ */
+export function codexSqliteHomeDir(cwd: string): string {
+  return join(tmpdir(), "agenta", "codex-sqlite", basename(cwd));
 }
 
 /**
@@ -37,8 +51,12 @@ export function isManagedCodexRun(
 }
 
 /**
- * Set only the CODEX_HOME path, which is safe before the durable cwd mount is applied. The
- * auth.json file itself is written later, after the mount, by writeCodexManagedAuthFile.
+ * Set the CODEX_HOME path and point CODEX_SQLITE_HOME at a local off-mount directory, which this
+ * creates before the daemon starts. Creating the SQLite directory before the durable cwd mount is
+ * safe because it is not under cwd. Returns the SQLite directory for best-effort teardown cleanup.
+ *
+ * CODEX_HOME is still just a path whose directory the workspace and auth step creates after the
+ * mount. The SQLite directory is created here because Codex writes to it at session start.
  * Daytona managed Codex is a later milestone.
  */
 export function configureCodexHome(
@@ -48,7 +66,10 @@ export function configureCodexHome(
   if (!isManagedCodexRun(plan) || plan.isDaytona) return undefined;
   const home = codexHomeDir(plan.cwd);
   env.CODEX_HOME = home;
-  return home;
+  const sqliteHome = codexSqliteHomeDir(plan.cwd);
+  mkdirSync(sqliteHome, { recursive: true });
+  env.CODEX_SQLITE_HOME = sqliteHome;
+  return sqliteHome;
 }
 
 export interface WriteCodexAuthResult {

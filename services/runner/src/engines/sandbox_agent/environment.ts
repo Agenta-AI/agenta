@@ -361,6 +361,11 @@ export async function acquireEnvironment(
     // the resolved key never lingers on the session workspace. Mirrors the otlpAuthFilePath line.
     if (environment.codexAuthFilePath)
       rmSync(environment.codexAuthFilePath, { force: true });
+    // Best-effort: remove the local off-mount CODEX_SQLITE_HOME dir. The SQLite state is
+    // disposable (native resume rides the sessions/ rollouts on CODEX_HOME), so a failure here is
+    // harmless.
+    if (environment.codexSqliteHome)
+      rmSync(environment.codexSqliteHome, { recursive: true, force: true });
     // Remove the per-run skills temp root the materializer created (success or error).
     plan.skillsCleanup();
   };

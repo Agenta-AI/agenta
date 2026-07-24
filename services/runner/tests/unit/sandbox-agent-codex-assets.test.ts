@@ -11,11 +11,12 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import {
   CODEX_HOME_DIRNAME,
   codexHomeDir,
+  codexSqliteHomeDir,
   configureCodexHome,
   isManagedCodexRun,
   writeCodexManagedAuthFile,
@@ -28,11 +29,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  rmSync(codexSqliteHomeDir(cwd), { recursive: true, force: true });
   rmSync(cwd, { recursive: true, force: true });
 });
 
 describe("Codex managed-credential assets", () => {
-  it("configureCodexHome sets CODEX_HOME to <cwd>/.codex for a local managed codex run", () => {
+  it("configureCodexHome sets CODEX_HOME and local CODEX_SQLITE_HOME for a managed codex run", () => {
     const env: Record<string, string> = {};
     const plan = {
       acpAgent: "codex",
@@ -43,12 +45,25 @@ describe("Codex managed-credential assets", () => {
       legacyHarnessApiKeyVar: "OPENAI_API_KEY",
     } as any;
 
-    const home = configureCodexHome(plan, env);
+    const sqliteHome = configureCodexHome(plan, env);
 
-    assert.equal(home, codexHomeDir(cwd));
+    assert.equal(sqliteHome, codexSqliteHomeDir(cwd));
     assert.equal(codexHomeDir(cwd), join(cwd, CODEX_HOME_DIRNAME));
     assert.equal(codexHomeDir(cwd), join(cwd, ".codex"));
     assert.equal(env.CODEX_HOME, codexHomeDir(cwd));
+    assert.equal(env.CODEX_SQLITE_HOME, codexSqliteHomeDir(cwd));
+    assert.equal(existsSync(codexSqliteHomeDir(cwd)), true);
+    assert.ok(!codexSqliteHomeDir(cwd).startsWith(cwd));
+  });
+
+  it("codexSqliteHomeDir is a per-session-stable sibling under tmpdir, not the cwd", () => {
+    const first = codexSqliteHomeDir(cwd);
+    const second = codexSqliteHomeDir(cwd);
+
+    assert.ok(first.startsWith(join(tmpdir(), "agenta", "codex-sqlite")));
+    assert.ok(first.endsWith(basename(cwd)));
+    assert.equal(first, second);
+    assert.ok(!first.startsWith(cwd));
   });
 
   it("configureCodexHome is a no-op for a non-codex run", () => {
@@ -64,6 +79,7 @@ describe("Codex managed-credential assets", () => {
 
     assert.equal(configureCodexHome(plan, env), undefined);
     assert.equal(env.CODEX_HOME, undefined);
+    assert.equal(env.CODEX_SQLITE_HOME, undefined);
   });
 
   it("configureCodexHome is a no-op for a codex runtime_provided run", () => {
@@ -79,6 +95,7 @@ describe("Codex managed-credential assets", () => {
 
     assert.equal(configureCodexHome(plan, env), undefined);
     assert.equal(env.CODEX_HOME, undefined);
+    assert.equal(env.CODEX_SQLITE_HOME, undefined);
   });
 
   it("configureCodexHome is a no-op for a Daytona codex run", () => {
@@ -94,6 +111,7 @@ describe("Codex managed-credential assets", () => {
 
     assert.equal(configureCodexHome(plan, env), undefined);
     assert.equal(env.CODEX_HOME, undefined);
+    assert.equal(env.CODEX_SQLITE_HOME, undefined);
   });
 
   it("writeCodexManagedAuthFile writes auth.json 0600 with the OPENAI_API_KEY field and returns the created path", () => {

@@ -220,6 +220,13 @@ export interface SessionEnvironment {
    * mirroring `otlpAuthFilePath`, so a resolved key never lingers on the session workspace.
    */
   codexAuthFilePath: string | undefined;
+  /**
+   * The local off-mount directory this run pointed CODEX_SQLITE_HOME at (Codex's SQLite state,
+   * which cannot live on the geesefs cwd mount). Removed best-effort by `destroy`; the state is
+   * disposable because native resume rides the `sessions/` rollout files on CODEX_HOME, not the
+   * SQLite. Undefined when not a local managed Codex run.
+   */
+  codexSqliteHome: string | undefined;
   mountCreds: MountCredentials | null;
   agentMountCreds?: MountCredentials | null;
   /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is
