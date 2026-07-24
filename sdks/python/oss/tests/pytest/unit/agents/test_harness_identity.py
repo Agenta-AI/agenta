@@ -31,7 +31,7 @@ def test_identity_value_is_the_bare_harness_string():
     # The identity's `value` is the bare HarnessType value (the runtime/wire selector), NOT the
     # slug — so the wire/runner contract is unchanged.
     values = {identity.value for identity in HARNESS_IDENTITIES}
-    assert values == {"pi_core", "pi_agenta", "claude"}
+    assert values == {"pi_core", "pi_agenta", "claude", "codex"}
 
 
 def _harness_kind_field():

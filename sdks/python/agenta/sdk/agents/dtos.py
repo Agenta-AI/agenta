@@ -52,6 +52,7 @@ class HarnessType(str, Enum):
     PI = "pi_core"
     CLAUDE = "claude"
     AGENTA = "pi_agenta"
+    CODEX = "codex"
 
     @classmethod
     def coerce(cls, value: "HarnessType | str") -> "HarnessType":
@@ -104,6 +105,11 @@ HARNESS_IDENTITIES: List[HarnessIdentity] = [
         value=HarnessType.CLAUDE.value,
         slug=f"agenta:harness:{HarnessType.CLAUDE.value}:v0",
         name="Claude Code",
+    ),
+    HarnessIdentity(
+        value=HarnessType.CODEX.value,
+        slug=f"agenta:harness:{HarnessType.CODEX.value}:v0",
+        name="Codex",
     ),
 ]
 
@@ -942,6 +948,63 @@ class ClaudeAgentTemplate(HarnessAgentTemplate):
         from .adapters.claude_settings import build_claude_settings_files
 
         files = build_claude_settings_files(
+            self.harness_permissions,
+            self.sandbox_permission,
+            self.mcp_servers,
+            self.tool_specs,
+            self.permission_default,
+        )
+        if not files:
+            return {}
+        return {"harnessFiles": files}
+
+
+class CodexAgentTemplate(HarnessAgentTemplate):
+    """Codex's config. No Pi built-ins; tools are delivered over MCP."""
+
+    harness: ClassVar[HarnessType] = HarnessType.CODEX
+
+    tool_specs: List[ToolSpec] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("tool_specs", "custom_tools"),
+    )
+
+    @field_validator("tool_specs", mode="before")
+    @classmethod
+    def _coerce_tool_specs(cls, value: Any) -> List[ToolSpec]:
+        return [coerce_tool_spec(item) for item in value or []]
+
+    @property
+    def custom_tools(self) -> List[Dict[str, Any]]:
+        return [tool_spec.to_wire() for tool_spec in self.tool_specs]
+
+    def wire_tools(self) -> Dict[str, Any]:
+        return {
+            "tools": [],  # Codex has no Pi built-in tools
+            "customTools": [tool_spec.to_wire() for tool_spec in self.tool_specs],
+            "toolCallback": self.tool_callback.to_wire()
+            if self.tool_callback
+            else None,
+            **self.wire_permissions(),
+        }
+
+    def wire_harness_files(self) -> Dict[str, Any]:
+        """Render the Codex harness's configuration into a ``.codex/config.toml`` file the runner
+        drops in the cwd (``CODEX_HOME`` points at ``<cwd>/.codex``). This is the Codex adapter
+        (Layer 1 translation), done in Python: parse the author's first-class ``harness_permissions``
+        slice, carrying Codex's native ``approval_policy`` and ``sandbox_mode`` options verbatim.
+        Omitted when Codex has nothing authored to write, so a text-only Codex run is byte-identical
+        to before (the golden wire contract) and Codex runs under the ACP adapter's default mode.
+        Layer 2 and Layer 3 rule derivation, and the platform default posture (decision D-008),
+        land in the permissions milestone; no defaults are baked here (the ``codex-acp`` bridge
+        overrides a config-file ``sandbox_mode`` with its per-turn ACP mode preset anyway, per
+        ``spike/derisk-findings.md`` P2)."""
+        # Lazy import: ``adapters.codex_settings`` is light, but importing it at module top would
+        # run ``adapters/__init__`` (which imports the harness adapters, which import this module),
+        # so it is imported here to keep ``dtos`` free of that cycle.
+        from .adapters.codex_settings import build_codex_settings_files
+
+        files = build_codex_settings_files(
             self.harness_permissions,
             self.sandbox_permission,
             self.mcp_servers,

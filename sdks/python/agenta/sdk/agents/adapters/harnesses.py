@@ -26,6 +26,7 @@ from agenta.sdk.utils.logging import get_module_logger
 from ..dtos import (
     AgentaAgentTemplate,
     ClaudeAgentTemplate,
+    CodexAgentTemplate,
     HarnessType,
     PiAgentTemplate,
     SessionConfig,
@@ -116,6 +117,37 @@ class ClaudeHarness(Harness):
         )
 
 
+class CodexHarness(Harness):
+    harness_type = HarnessType.CODEX
+
+    def _to_harness_config(self, config: SessionConfig) -> CodexAgentTemplate:
+        # Codex has no Pi built-in tools; drop them rather than ship a name Codex cannot
+        # honor. Tools go over MCP, and the shared permission plan is carried through.
+        if config.builtin_names:
+            log.warning(
+                "CodexHarness ignores %d built-in tool(s); built-ins are a Pi concept",
+                len(config.builtin_names),
+            )
+        # Skills stay on the harness config (carried for parity with Claude); wiring them into
+        # Codex is a later milestone, so a Milestone 1 text-only run carries none.
+        # The harness's first-class `permissions` slice (plus sandbox_permission + mcp_servers) is
+        # threaded onto the CodexAgentTemplate; the config's `wire_harness_files` (the Python codex
+        # adapter) renders `.codex/config.toml` as a generic `harnessFiles` entry. No
+        # codex-specific parsing happens here; the runner just writes the files into the cwd.
+        return CodexAgentTemplate(
+            agents_md=config.agent.instructions,
+            model=config.agent.model,
+            resolved_connection=config.resolved_connection,
+            tool_specs=list(config.tool_specs),
+            tool_callback=config.tool_callback,
+            mcp_servers=list(config.mcp_servers),
+            skills=list(config.agent.skills),
+            sandbox_permission=config.agent.sandbox_permission,
+            permission_default=config.permission_default,
+            harness_permissions=config.agent.harness_permissions,
+        )
+
+
 class AgentaHarness(Harness):
     """Pi with an Agenta opinion. Same engine as :class:`PiHarness`, but every run carries the
     forced Agenta extras (see :mod:`.agenta_builtins`): a base AGENTS.md preamble the author's
@@ -156,6 +188,7 @@ class AgentaHarness(Harness):
 _HARNESSES: Dict[HarnessType, Type[Harness]] = {
     HarnessType.PI: PiHarness,
     HarnessType.CLAUDE: ClaudeHarness,
+    HarnessType.CODEX: CodexHarness,
     HarnessType.AGENTA: AgentaHarness,
 }
 

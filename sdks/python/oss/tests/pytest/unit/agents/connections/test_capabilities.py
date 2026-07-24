@@ -64,8 +64,12 @@ def test_unknown_harness_is_closed():
 
 def test_two_modes_supported_on_all_known_harnesses():
     for harness in HARNESS_CONNECTION_CAPABILITIES:
-        for mode in ("agenta", "self_managed"):
-            assert harness_allows_mode(harness, mode) is True
+        # Every harness supports the managed `agenta` mode. Codex is managed-key only in Milestone
+        # 1, so it does NOT yet advertise `self_managed` (subscription lands in a later milestone);
+        # every other harness advertises both.
+        assert harness_allows_mode(harness, "agenta") is True
+        expected_self_managed = harness != "codex"
+        assert harness_allows_mode(harness, "self_managed") is expected_self_managed
         # The removed `default` mode is no longer supported.
         assert harness_allows_mode(harness, "default") is False
     assert harness_allows_mode("pi_core", "bogus") is False
@@ -115,7 +119,7 @@ def test_claude_consumes_custom_gateway_bedrock_and_vertex():
 
 def test_capabilities_document_shape():
     doc = harness_capabilities_document()
-    assert set(doc) == {"pi_core", "pi_agenta", "claude"}
+    assert set(doc) == {"pi_core", "pi_agenta", "claude", "codex"}
     assert doc["claude"]["providers"] == ["anthropic"]
     assert doc["claude"]["model_selection"] == "alias"
     assert doc["pi_core"]["providers"] == list(PI_VAULT_PROVIDERS) + list(

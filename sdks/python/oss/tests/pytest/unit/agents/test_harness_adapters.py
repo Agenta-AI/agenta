@@ -19,6 +19,8 @@ from agenta.sdk.agents import (
     ClaudeAgentTemplate,
     ClaudeHarness,
     ClientToolSpec,
+    CodexAgentTemplate,
+    CodexHarness,
     HarnessType,
     PiAgentTemplate,
     PiHarness,
@@ -363,6 +365,54 @@ def test_claude_without_permissions_renders_no_files(make_env):
     assert result.wire_harness_files() == {}
 
 
+# -------------------------------------------------------------------------- Codex
+
+
+def test_codex_drops_builtins_and_warns(make_env, monkeypatch):
+    recorded = []
+    monkeypatch.setattr(
+        harnesses,
+        "log",
+        type("L", (), {"warning": lambda self, *a, **k: recorded.append(a)})(),
+    )
+    harness = CodexHarness(make_env(supported=[HarnessType.CODEX]))
+    config = _session_config(
+        builtin_tools=["read"],
+        custom_tools=[{"name": "t", "callRef": "ref"}],
+        permission_default="deny",
+    )
+
+    result = harness._to_harness_config(config)
+
+    assert isinstance(result, CodexAgentTemplate)
+    assert not hasattr(result, "builtin_tools")  # Codex has no built-in tools at all
+    assert result.custom_tools[0]["name"] == "t"
+    assert result.permission_default == "deny"
+    assert recorded, "expected a warning when built-ins are dropped"
+
+
+def test_codex_no_warning_without_builtins(make_env, monkeypatch):
+    recorded = []
+    monkeypatch.setattr(
+        harnesses,
+        "log",
+        type("L", (), {"warning": lambda self, *a, **k: recorded.append(a)})(),
+    )
+    harness = CodexHarness(make_env(supported=[HarnessType.CODEX]))
+
+    harness._to_harness_config(_session_config(permission_default="allow_reads"))
+
+    assert recorded == []
+
+
+def test_codex_renders_no_files_without_authored_options(make_env):
+    harness = CodexHarness(make_env(supported=[HarnessType.CODEX]))
+
+    result = harness._to_harness_config(_session_config())
+
+    assert result.wire_harness_files() == {}
+
+
 # --------------------------------------------------------------- _normalize_tool_specs
 
 
@@ -413,13 +463,22 @@ def test_opt_str_keeps_only_nonempty_strings():
 
 
 def test_make_harness_maps_string_to_class(make_env):
-    env = make_env(supported=[HarnessType.PI, HarnessType.CLAUDE, HarnessType.AGENTA])
+    env = make_env(
+        supported=[
+            HarnessType.PI,
+            HarnessType.CLAUDE,
+            HarnessType.CODEX,
+            HarnessType.AGENTA,
+        ]
+    )
     assert isinstance(make_harness("pi_core", env), PiHarness)
     assert isinstance(
         make_harness("PI_CORE", env), PiHarness
     )  # coerced, case-insensitive
     assert isinstance(make_harness("claude", env), ClaudeHarness)
     assert isinstance(make_harness(HarnessType.CLAUDE, env), ClaudeHarness)
+    assert isinstance(make_harness("codex", env), CodexHarness)
+    assert isinstance(make_harness(HarnessType.CODEX, env), CodexHarness)
     assert isinstance(make_harness("pi_agenta", env), AgentaHarness)
     assert isinstance(make_harness(HarnessType.AGENTA, env), AgentaHarness)
 

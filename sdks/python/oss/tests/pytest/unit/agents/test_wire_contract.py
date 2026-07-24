@@ -22,6 +22,7 @@ import pytest
 from agenta.sdk.agents import (
     AgentaAgentTemplate,
     ClaudeAgentTemplate,
+    CodexAgentTemplate,
     Endpoint,
     HarnessType,
     Message,
@@ -184,6 +185,23 @@ def _claude_payload():
         config=config,
         messages=[Message(role="user", content="hi")],
         secrets={"ANTHROPIC_API_KEY": "sk-ant"},
+        trace=None,
+        run_context=RunContext(run=RunContextRun(kind="test")),
+        session_id=None,
+    )
+
+
+def _codex_payload():
+    config = CodexAgentTemplate(
+        agents_md="You are a helpful assistant.",
+        model="gpt-5.6-luna",
+    )
+    return request_to_wire(
+        harness=HarnessType.CODEX,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+        secrets={"OPENAI_API_KEY": "sk-openai"},
         trace=None,
         run_context=RunContext(run=RunContextRun(kind="test")),
         session_id=None,
@@ -433,6 +451,50 @@ def test_request_to_wire_claude_matches_golden(golden):
     ]
 
 
+def test_request_to_wire_codex_matches_golden(golden):
+    payload = _codex_payload()
+    assert payload == golden("run_request.codex.json")
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert payload["harness"] == "codex"
+    assert payload["tools"] == []  # Codex has no Pi built-ins
+    assert payload["model"] == "gpt-5.6-luna"
+    assert payload["permissions"] == {"default": "allow_reads"}
+    assert "permissionPolicy" not in payload
+    assert "systemPrompt" not in payload  # Codex exposes no prompt overrides
+    assert "appendSystemPrompt" not in payload
+    # Codex renders no config.toml when the author sets no Codex-native options
+    # (approval_policy or sandbox_mode), which is the Milestone 1 default.
+    assert "harnessFiles" not in payload
+    assert payload["secrets"] == {"OPENAI_API_KEY": "sk-openai"}
+    assert payload["context"] is None
+    assert payload["telemetry"] is None
+    assert "trace" not in payload
+
+
+def test_request_to_wire_codex_renders_config_toml_from_authored_options():
+    # The Milestone 1 authoring schema does not yet carry these keys. That support lands in the
+    # permissions milestone, so this test drives the pass-through directly to pin the rendering.
+    config = CodexAgentTemplate(
+        harness_permissions={
+            "approval_policy": "untrusted",
+            "sandbox_mode": "read-only",
+        }
+    )
+    payload = request_to_wire(
+        harness=HarnessType.CODEX,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+
+    assert payload["harnessFiles"] == [
+        {
+            "path": ".codex/config.toml",
+            "content": 'approval_policy = "untrusted"\nsandbox_mode = "read-only"\n',
+        }
+    ]
+
+
 def test_author_permission_rules_exclude_mcp_from_wire_but_keep_settings():
     config = ClaudeAgentTemplate(
         harness_permissions={
@@ -483,8 +545,10 @@ def test_request_to_wire_has_no_prompt_key():
 def test_request_to_wire_emits_only_known_keys():
     pi = _pi_payload()
     claude = _claude_payload()
+    codex = _codex_payload()
     assert set(pi) <= KNOWN_REQUEST_KEYS
     assert set(claude) <= KNOWN_REQUEST_KEYS
+    assert set(codex) <= KNOWN_REQUEST_KEYS
     # The Pi case must actually exercise the prompt-override keys, otherwise this guard would
     # silently stop covering them.
     assert {"systemPrompt", "appendSystemPrompt"} <= set(pi)
