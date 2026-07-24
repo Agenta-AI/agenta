@@ -92,7 +92,11 @@ import {
   type ClaudeSystemPromptMeta,
 } from "./agent-mount-guidance.ts";
 import { claudeThinkingMeta } from "./claude-thinking.ts";
-import { writeCodexManagedAuthFile } from "./codex-assets.ts";
+import {
+  isSubscriptionCodexRun,
+  symlinkCodexSubscriptionAuthFile,
+  writeCodexManagedAuthFile,
+} from "./codex-assets.ts";
 import {
   routePermissionRequestToActiveTurn,
   routeSessionEventToActiveTurn,
@@ -359,8 +363,10 @@ export async function acquireEnvironment(
     // started (or crashed before reading it), so the bearer never lingers.
     if (environment.otlpAuthFilePath)
       rmSync(environment.otlpAuthFilePath, { force: true });
-    // Backstop: delete the managed Codex auth.json this run created (delete-only-if-created), so
-    // the resolved key never lingers on the session workspace. Mirrors the otlpAuthFilePath line.
+    // Backstop: delete the Codex auth.json this run created (delete-only-if-created). For a managed
+    // run this is the file holding the resolved key; for a subscription run it is the SYMLINK to the
+    // operator's mounted login — `rmSync` unlinks the link, never the mount target. Mirrors the
+    // otlpAuthFilePath line.
     if (environment.codexAuthFilePath)
       rmSync(environment.codexAuthFilePath, { force: true });
     // Best-effort: remove the local off-mount CODEX_SQLITE_HOME dir. The SQLite state is
@@ -861,13 +867,15 @@ export async function acquireEnvironment(
       timingLog("prepare_workspace", prepareWorkspaceStartedAt);
     }
 
-    // Managed Codex authenticates from `<cwd>/.codex/auth.json`. Write it now, after the durable
-    // cwd mount and workspace preparation (writing it before the mount would be shadowed). The
-    // created file is deleted by `destroy` (below), mirroring `otlpAuthFilePath`. Non-Codex runs
-    // and Daytona are no-ops inside the helper.
-    environment.codexAuthFilePath = writeCodexManagedAuthFile(
-      plan,
-      logger,
+    // Codex authenticates from `<cwd>/.codex/auth.json`. Write/link it now, after the durable cwd
+    // mount and workspace preparation (doing it before the mount would be shadowed). Managed writes
+    // the resolved key; subscription SYMLINKS it to the operator's mounted login so refresh lands in
+    // the real login (the modes are mutually exclusive). The created file/link is removed by
+    // `destroy` (below), mirroring `otlpAuthFilePath`. Non-Codex runs and Daytona are no-ops.
+    environment.codexAuthFilePath = (
+      isSubscriptionCodexRun(plan)
+        ? symlinkCodexSubscriptionAuthFile(plan, logger)
+        : writeCodexManagedAuthFile(plan, logger)
     ).authFilePath;
 
     // Pi native transcripts belong to the conversation workspace, not the temporary agent
