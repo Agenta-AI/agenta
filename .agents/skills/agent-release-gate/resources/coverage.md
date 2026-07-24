@@ -17,7 +17,19 @@ cells would test the same code twice.
 | C4 | `pi_core` | `daytona` | `gpt-5.6-luna` | vault key (OpenAI) | Pi in a cloud sandbox; the remote-mount path that surfaced the silent file-loss finding (F-7). |
 | P1 | `pi_core` | `local` | `openrouter/deepseek/deepseek-v4-flash` | vault key (OpenRouter) | OpenRouter as a first-class native provider. |
 | S1 | `pi_core` | `local` | `gpt-5.6-luna` | subscription (Codex OAuth) | The ChatGPT/Codex subscription path via the sidecar, independent of any vault key. |
+| X1 | `codex` | `local` | `gpt-5.6-luna` | vault key (OpenAI) | The native Codex harness with a managed key: the runner writes `auth.json` into `<cwd>/.codex` and codex authenticates from it. Codex gates tools runner-side, not with a codex-native ACP frame (D-008), so `approve`/`deny`/`mount` do not apply (see below). |
 | P2 | `pi_core` | `local` | `deepseek/deepseek-v4-flash` | custom OpenAI-compatible provider | OpenRouter reached as a custom OpenAI-compatible endpoint — the path every self-hoster with a proxy or local vLLM uses, and the least-travelled one. Needs a `custom_provider` vault slug; pass `--custom-slug`. |
+
+The Codex cell (`X1`) runs `chat`, `tool`, `commit`, and `warm`; `mcp` SKIPs (Claude-only) and
+three journeys SKIP with a codex-specific reason because their probes are Pi/Claude-shaped:
+
+- `approve` / `deny` drive a builtin `bash` command with `ask`. Codex's default mode is
+  `agent-full-access`, which runs raw shell with no approval (decision D-008); codex tool approvals
+  are enforced runner-side at the `agenta-tools` pause seam (a client-tool-shaped park + re-invoke),
+  verified in the codex-harness Milestone 3 QA, not by a codex-native `tool-approval-request` frame.
+- `mount` reads its token from a builtin-shell `tool-output-available` payload. Codex runs shell
+  through native ACP exec frames whose output is not in that payload field, so the probe cannot
+  extract the token even when the file persisted. A codex-shaped mount probe is a follow-up.
 
 The pinned models and connection modes are the gate's **fixtures**: each is chosen for a reason
 (alias vs full id on Claude, subscription vs vault where the sandbox forces it, a healthy provider

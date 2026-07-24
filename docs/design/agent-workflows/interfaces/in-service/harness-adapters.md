@@ -28,6 +28,15 @@ Each adapter implements `_to_harness_config(...)` and emits a different `/run` w
 - **`AgentaHarness`** runs on the same Pi engine but forces Agenta's opinion: it composes the
   base instructions over the author's, forces the Agenta tool set, and layers the Agenta
   persona into `append_system`.
+- **`CodexHarness`** drives the `codex` ACP agent. It delivers custom tools over the internal
+  `agenta-tools` MCP channel (like Claude) and renders `.codex/config.toml` from authored options
+  only (`codex_settings.py`). Codex's default runtime mode is `agent-full-access`, so tool
+  approvals are enforced runner-side at the `agenta-tools` pause seam rather than by a codex-native
+  ACP gate (decision D-008); authors can override the mode with the typed `harnessMode` wire field.
+  The runner writes the credential into `CODEX_HOME` (`auth.json`): managed writes the resolved key;
+  local subscription symlinks the operator's mounted login. Codex SQLite state is redirected off the
+  durable mount via `CODEX_SQLITE_HOME`. On Daytona the managed home is in-VM so the key never lands
+  on durable storage (codex-harness decision D-002).
 
 The wire shapes, side by side:
 
@@ -42,7 +51,7 @@ The wire shapes, side by side:
 
 ## Owned by
 
-- `sdks/python/agenta/sdk/agents/adapters/harnesses.py`: the three adapters.
+- `sdks/python/agenta/sdk/agents/adapters/harnesses.py`: the four adapters.
 - `sdks/python/agenta/sdk/agents/dtos.py`: the `PiAgentConfig`/`ClaudeAgentConfig`/
   `AgentaAgentConfig` wire emitters.
 
