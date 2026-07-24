@@ -1,4 +1,10 @@
-"""Codex ``config.toml`` rendering for permission Layers 1 through 3."""
+"""Codex ``config.toml`` rendering for permission Layers 1 and 2.
+
+Per the D-008 amendment (2026-07-24) no ``[mcp_servers.*]`` approval tables are rendered (codex
+0.145 rejects a transport-less server entry at ``session/new``; the runner-side gate is the
+tool-permission authority). These tests pin that only flat Layer-1/2 scalars are written and that
+a run whose only permission content would have been per-server/per-tool tables writes NO file.
+"""
 
 from __future__ import annotations
 
@@ -6,17 +12,9 @@ import tomllib
 
 import pytest
 
-from agenta.sdk.agents.adapters.codex_settings import (
-    INTERNAL_TOOL_MCP_SERVER,
-    build_codex_settings_files,
-)
+from agenta.sdk.agents.adapters.codex_settings import build_codex_settings_files
 from agenta.sdk.agents.dtos import SandboxPermission
 from agenta.sdk.agents.mcp import MCPPolicy, MCPToolPolicy, ResolvedMCPServer
-from agenta.sdk.agents.tools.models import (
-    CallbackToolSpec,
-    ClientToolSpec,
-    CodeToolSpec,
-)
 
 
 def _config(files):
@@ -39,6 +37,20 @@ def _mcp(name: str, permission=None, tool_names=None) -> ResolvedMCPServer:
     )
 
 
+# Layer 1: author's Codex-native scalars pass through verbatim.
+def test_layer1_scalars_pass_through():
+    content, config = _config(
+        build_codex_settings_files(
+            {"approval_policy": "on-request", "sandbox_mode": "workspace-write"}
+        )
+    )
+
+    assert config["approval_policy"] == "on-request"
+    assert config["sandbox_mode"] == "workspace-write"
+    assert "[mcp_servers" not in content
+
+
+# Layer 2: a read-only/off filesystem reinforces sandbox_mode; nothing else.
 @pytest.mark.parametrize("filesystem", ["readonly", "off"])
 def test_filesystem_boundary_derives_read_only_sandbox_mode(filesystem):
     content, config = _config(
@@ -70,166 +82,68 @@ def test_network_restriction_renders_nothing_when_not_expressible(network_mode):
     assert build_codex_settings_files(None, SandboxPermission(network=network)) == []
 
 
-def test_mcp_allow_and_ask_render_server_approval_modes():
-    content, config = _config(
-        build_codex_settings_files(
-            None,
-            None,
-            [_mcp("filesystem", "allow"), _mcp("github", "ask")],
-        )
+# Regression (D-008 amendment): a tool-bearing run WITH permission rules never renders an
+# [mcp_servers.*] table. A transport-less server entry crashes codex at session/new; the
+# runner-side gate is the tool-permission authority.
+def test_permission_rules_render_no_mcp_servers_tables():
+    files = build_codex_settings_files(
+        {"approval_policy": "untrusted"},  # a Layer-1 scalar keeps the file non-empty
+        None,
+        [
+            _mcp("github", permission="ask"),
+            _mcp("filesystem", permission="allow"),
+            _mcp("blocked", permission="deny", tool_names=["a", "b"]),
+        ],
+        [
+            {
+                "kind": "callback",
+                "name": "capital_lookup",
+                "description": "d",
+                "callRef": "workflow.x",
+                "permission": "allow",
+            },
+            {
+                "kind": "callback",
+                "name": "danger",
+                "description": "d",
+                "callRef": "workflow.y",
+                "permission": "deny",
+            },
+        ],
     )
+    content, config = _config(files)
 
-    assert "[mcp_servers.filesystem]" in content
-    assert 'default_tools_approval_mode = "approve"' in content
-    assert "[mcp_servers.github]" in content
-    assert 'default_tools_approval_mode = "prompt"' in content
+    # Only the Layer-1 scalar survives; no server/tool tables at all.
+    assert content == 'approval_policy = "untrusted"\n'
+    assert "mcp_servers" not in config
+    assert "[mcp_servers" not in content
+    assert "approval_mode" not in content
+    assert "default_tools_approval_mode" not in content
+    assert "disabled_tools" not in content
+
+
+def test_permission_only_run_writes_no_file():
+    # No Layer-1/2 scalar authored/derived: the tables that WOULD have been the only content are
+    # no longer rendered, so nothing is written at all.
     assert (
-        config["mcp_servers"]["filesystem"]["default_tools_approval_mode"] == "approve"
-    )
-    assert config["mcp_servers"]["github"]["default_tools_approval_mode"] == "prompt"
-
-
-def test_mcp_deny_disables_every_known_included_tool():
-    content, config = _config(
         build_codex_settings_files(
             None,
             None,
-            [_mcp("github", "deny", ["create_issue", "delete_issue"])],
-        )
-    )
-
-    assert "[mcp_servers.github]" in content
-    assert 'disabled_tools = ["create_issue", "delete_issue"]' in content
-    assert config["mcp_servers"]["github"]["disabled_tools"] == [
-        "create_issue",
-        "delete_issue",
-    ]
-
-
-def test_whole_server_deny_without_known_tools_is_omitted():
-    assert build_codex_settings_files(None, None, [_mcp("github", "deny")]) == []
-
-
-def test_reserved_internal_server_rule_is_skipped():
-    server = _mcp(INTERNAL_TOOL_MCP_SERVER, "ask")
-    tool = CallbackToolSpec(
-        name="get_user",
-        description="d",
-        call_ref="workflow.x",
-        permission="allow",
-    )
-    _, config = _config(build_codex_settings_files(None, None, [server], [tool]))
-
-    internal = config["mcp_servers"][INTERNAL_TOOL_MCP_SERVER]
-    assert "default_tools_approval_mode" not in internal
-    assert internal["tools"]["get_user"]["approval_mode"] == "approve"
-
-
-def test_tool_allow_ask_and_deny_render_nested_rules():
-    allow_tool = CallbackToolSpec(
-        name="capital_lookup",
-        description="d",
-        call_ref="workflow.x",
-        permission="allow",
-    )
-    ask_tool = CodeToolSpec(
-        name="writer",
-        description="d",
-        code="print('write')",
-        permission="ask",
-    )
-    deny_tool = CallbackToolSpec(
-        name="danger",
-        description="d",
-        call_ref="workflow.y",
-        permission="deny",
-    )
-
-    content, config = _config(
-        build_codex_settings_files(None, None, None, [allow_tool, ask_tool, deny_tool])
-    )
-
-    assert "[mcp_servers.agenta-tools]" in content
-    assert 'disabled_tools = ["danger"]' in content
-    assert "[mcp_servers.agenta-tools.tools.capital_lookup]" in content
-    assert "[mcp_servers.agenta-tools.tools.writer]" in content
-    internal = config["mcp_servers"][INTERNAL_TOOL_MCP_SERVER]
-    assert internal["disabled_tools"] == ["danger"]
-    assert internal["tools"]["capital_lookup"]["approval_mode"] == "approve"
-    assert internal["tools"]["writer"]["approval_mode"] == "prompt"
-
-
-def test_tool_rules_follow_effective_permission_ladder():
-    read_tool = CallbackToolSpec(
-        name="reader",
-        description="d",
-        call_ref="workflow.read",
-        read_only=True,
-    )
-    unset_write_tool = CallbackToolSpec(
-        name="writer",
-        description="d",
-        call_ref="workflow.write",
-        read_only=False,
-    )
-    _, config = _config(
-        build_codex_settings_files(None, None, None, [read_tool, unset_write_tool])
-    )
-
-    tools = config["mcp_servers"][INTERNAL_TOOL_MCP_SERVER]["tools"]
-    assert tools["reader"]["approval_mode"] == "approve"
-    assert tools["writer"]["approval_mode"] == "prompt"
-
-    _, deny_config = _config(
-        build_codex_settings_files(
-            None, None, None, [unset_write_tool], permission_default="deny"
-        )
-    )
-    assert deny_config["mcp_servers"][INTERNAL_TOOL_MCP_SERVER]["disabled_tools"] == [
-        "writer"
-    ]
-
-
-def test_client_tool_permissions_use_the_direct_codex_mapping():
-    ask_tool = ClientToolSpec(name="ui_pick", description="d", permission="ask")
-    deny_tool = ClientToolSpec(name="ui_delete", description="d", permission="deny")
-    _, config = _config(
-        build_codex_settings_files(None, None, None, [ask_tool, deny_tool])
-    )
-
-    internal = config["mcp_servers"][INTERNAL_TOOL_MCP_SERVER]
-    assert internal["tools"]["ui_pick"]["approval_mode"] == "prompt"
-    assert internal["disabled_tools"] == ["ui_delete"]
-
-
-def test_dynamic_table_names_are_valid_toml_key_segments():
-    content, config = _config(
-        build_codex_settings_files(
-            None,
-            None,
-            [{"name": "github.v2", "policy": {"permission": "allow"}}],
+            [
+                _mcp("github", permission="ask"),
+                _mcp("blocked", permission="deny", tool_names=["a"]),
+            ],
             [
                 {
                     "kind": "callback",
-                    "name": "read.item",
+                    "name": "writer",
                     "description": "d",
                     "callRef": "workflow.x",
-                    "permission": "ask",
+                    "permission": "deny",
                 }
             ],
         )
-    )
-
-    assert '[mcp_servers."github.v2"]' in content
-    assert '[mcp_servers.agenta-tools.tools."read.item"]' in content
-    assert (
-        config["mcp_servers"]["github.v2"]["default_tools_approval_mode"] == "approve"
-    )
-    assert (
-        config["mcp_servers"][INTERNAL_TOOL_MCP_SERVER]["tools"]["read.item"][
-            "approval_mode"
-        ]
-        == "prompt"
+        == []
     )
 
 
