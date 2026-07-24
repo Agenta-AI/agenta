@@ -37,6 +37,7 @@ const KNOWN_REQUEST_KEYS = [
   "sessionId",
   "agentsMd",
   "model",
+  "harnessMode",
   "provider",
   "connection",
   "deployment",
@@ -231,6 +232,7 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(req.harness, "codex");
     assert.deepEqual(req.tools, []);
     assert.equal(req.model, "gpt-5.6-luna");
+    assert.equal(req.harnessMode, undefined);
     assert.deepEqual(req.permissions, { default: "allow_reads" });
     assert.equal(req.systemPrompt, undefined);
     assert.equal(req.appendSystemPrompt, undefined);

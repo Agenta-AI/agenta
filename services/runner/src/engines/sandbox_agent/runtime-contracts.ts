@@ -19,6 +19,7 @@ import { probeCapabilities } from "./capabilities.ts";
 import { createToolCallCorrelationIndex } from "./client-tools.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./daemon.ts";
 import { createCookieFetch, prepareDaytonaPiAssets } from "./daytona.ts";
+import { applyCodexMode } from "./codex-mode.ts";
 import { applyModel } from "./model.ts";
 import {
   discoverTunnelEndpoint,
@@ -63,6 +64,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   uploadToolMcpAssets?: typeof uploadToolMcpAssets;
   probeCapabilities?: typeof probeCapabilities;
   applyModel?: typeof applyModel;
+  applyCodexMode?: typeof applyCodexMode;
   startToolRelay?: typeof startToolRelay;
   localRelayHost?: typeof localRelayHost;
   sandboxRelayHost?: typeof sandboxRelayHost;

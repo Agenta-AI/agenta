@@ -53,6 +53,7 @@ KNOWN_REQUEST_KEYS = {
     "sessionId",
     "agentsMd",
     "model",
+    "harnessMode",
     "provider",
     "connection",
     "deployment",
@@ -458,6 +459,7 @@ def test_request_to_wire_codex_matches_golden(golden):
     assert payload["harness"] == "codex"
     assert payload["tools"] == []  # Codex has no Pi built-ins
     assert payload["model"] == "gpt-5.6-luna"
+    assert "harnessMode" not in payload
     assert payload["permissions"] == {"default": "allow_reads"}
     assert "permissionPolicy" not in payload
     assert "systemPrompt" not in payload  # Codex exposes no prompt overrides

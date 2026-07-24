@@ -801,6 +801,10 @@ class HarnessAgentTemplate(BaseModel):
         no harness knowledge."""
         return {}
 
+    def wire_harness_mode(self) -> Dict[str, Any]:
+        """The harness-specific ACP session mode override for the ``/run`` payload."""
+        return {}
+
     def wire_model_ref(self) -> Dict[str, Any]:
         """The non-secret provider/connection fields for the ``/run`` payload.
 
@@ -987,6 +991,21 @@ class CodexAgentTemplate(HarnessAgentTemplate):
             else None,
             **self.wire_permissions(),
         }
+
+    def wire_harness_mode(self) -> Dict[str, Any]:
+        """The author's Codex ACP session-mode override, from the ``permissions.mode`` option.
+
+        One of ``agent`` / ``read-only`` / ``agent-full-access``; absent means the platform default
+        ``agent-full-access`` (D-008), where Codex raises no gate and tool HITL is enforced
+        runner-side. Texture caveat for ``agent`` mode: Codex's own bubblewrap sandbox fails to
+        initialize in our containers, so shell-command approvals under ``agent`` are noisy and
+        nondeterministic (a gate phrased "the sandbox failed, may I rerun?", sometimes the bwrap
+        error returned instead of a prompt). Tool-level approvals are unaffected. An invalid value
+        emits nothing (byte-identical wire; the golden contract)."""
+        mode = self.harness_permissions.get("mode")
+        if mode not in {"agent", "read-only", "agent-full-access"}:
+            return {}
+        return {"harnessMode": mode}
 
     def wire_harness_files(self) -> Dict[str, Any]:
         """Render the Codex harness's configuration into a ``.codex/config.toml`` file the runner

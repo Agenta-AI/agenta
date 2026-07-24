@@ -8,7 +8,9 @@ from agenta.sdk.agents.capabilities import (
     harness_allows_mode,
     harness_allows_provider,
 )
+from agenta.sdk.agents.dtos import CodexAgentTemplate, HarnessType
 from agenta.sdk.agents.model_catalog import model_catalog_entries
+from agenta.sdk.agents.utils.wire import request_to_wire
 
 
 def test_codex_milestone_one_connection_capabilities() -> None:
@@ -42,3 +44,19 @@ def test_codex_model_catalog_carries_pricing() -> None:
     assert luna["pricing"]["output_per_mtok"] == 6.0
     assert luna["context_window"] == 1050000
     assert all(entry["pricing"] is not None for entry in catalog_entries)
+
+
+def test_codex_mode_wire() -> None:
+    def serialize(harness_permissions=None):
+        return request_to_wire(
+            harness=HarnessType.CODEX,
+            sandbox="local",
+            config=CodexAgentTemplate(
+                harness_permissions=harness_permissions or {},
+            ),
+            messages=[],
+        )
+
+    assert serialize({"mode": "agent"})["harnessMode"] == "agent"
+    assert "harnessMode" not in serialize()
+    assert "harnessMode" not in serialize({"mode": "invalid"})

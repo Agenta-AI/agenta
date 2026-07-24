@@ -55,6 +55,7 @@ import {
   DAYTONA_PI_DIR,
   prepareDaytonaPiAssets,
 } from "./daytona.ts";
+import { applyCodexMode, resolveCodexMode } from "./codex-mode.ts";
 import { conciseError } from "./errors.ts";
 import { buildSessionMcpServers } from "./mcp.ts";
 import { applyModel } from "./model.ts";
@@ -1081,6 +1082,14 @@ export async function acquireEnvironment(
       logger,
       { strict: strictModel },
     );
+    if (plan.acpAgent === "codex") {
+      const mode = resolveCodexMode(request.harnessMode);
+      await (deps.applyCodexMode ?? applyCodexMode)(
+        environment.session,
+        mode,
+        logger,
+      );
+    }
 
     // Session-lifetime listeners: attach ONCE, each demuxing into the active turn's sink. They
     // outlive any single turn, so the routing lives in dedicated non-throwing helpers below.
