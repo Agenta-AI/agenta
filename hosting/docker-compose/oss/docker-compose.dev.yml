@@ -392,6 +392,12 @@ services:
             # default of `127.0.0.1` (same-host only) is unreachable cross-container.
             AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
             PI_CODING_AGENT_DIR: /pi-agent
+            # Sessions: last-message-only + server-side history reconstruction. The runner reads
+            # these from process.env; because this service has no env_file, they must be forwarded
+            # explicitly here or the feature is a silent no-op. All default OFF (empty → disabled).
+            AGENTA_RECORDS_DURABLE: ${AGENTA_RECORDS_DURABLE:-}
+            AGENTA_SESSIONS_RECONSTRUCT: ${AGENTA_SESSIONS_RECONSTRUCT:-}
+            AGENTA_RECORDS_INGEST_MAX_RETRIES: ${AGENTA_RECORDS_INGEST_MAX_RETRIES:-}
             # API as reached FROM this container: the compose service name over the network
             # (http://api:8000, as the workers use), NOT the public http://localhost/api
             # which does not resolve inside a container. Used by the OTLP tracing-export
