@@ -93,9 +93,13 @@ const TraceTypeHeader = ({
             }
         }
 
-        const agData = extractAgData(activeTrace)
+        // OSS TraceSpanNode is the same backend span shape as the entities-package type
+        // these helpers expect; align at the boundary, no data is converted.
+        const agData = extractAgData(activeTrace as unknown as Parameters<typeof extractAgData>[0])
         const hasExtractableData = Boolean(agData?.inputs || agData?.parameters)
-        const hasApp = hasAppReference(activeTrace)
+        const hasApp = hasAppReference(
+            activeTrace as unknown as Parameters<typeof hasAppReference>[0],
+        )
         const isInvocation = INVOCATION_SPAN_TYPES.has(spanType)
 
         // Invocation spans (workflow, task, agent, chain) represent the unit

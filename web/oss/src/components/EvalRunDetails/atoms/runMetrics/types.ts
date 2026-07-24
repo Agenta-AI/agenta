@@ -42,6 +42,7 @@ export interface ScenarioRefreshDetailResult {
     oldMetricIds: string[]
     newMetricIds: string[]
     reusedMetricIds: string[]
+    staleMetricIds: string[]
     returnedCount: number
     attempts: string[]
 }
@@ -51,6 +52,7 @@ export interface RunRefreshDetailResult {
     oldMetricIds: string[]
     newMetricIds: string[]
     reusedMetricIds: string[]
+    staleMetricIds: string[]
     returnedCount: number
 }
 

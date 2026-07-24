@@ -113,7 +113,9 @@ export function getFilterParams(type: CellDataType) {
     }
 }
 
-export const calcEvalDuration = (evaluation: _Evaluation) => {
+export const calcEvalDuration = (
+    evaluation: Pick<_Evaluation, "status" | "created_at" | "updated_at">,
+) => {
     return dayjs(
         runningStatuses.includes(evaluation.status.value) ? Date.now() : evaluation.updated_at,
     ).diff(dayjs(evaluation.created_at), "milliseconds")

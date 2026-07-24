@@ -23,6 +23,7 @@
     "include": ["next-env.d.ts", "**/*.d.ts", "**/*.ts", "**/*.tsx"],
     "exclude": [
         "node_modules",
+        "tests",
         "src/components/OldPlayground/**/*.tsx",
         "src/**/*.test.ts",
         "src/**/*.test.tsx"

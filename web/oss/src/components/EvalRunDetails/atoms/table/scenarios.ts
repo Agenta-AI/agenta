@@ -271,7 +271,9 @@ export const tableScenarioRowsQueryAtomFamily = atomFamily(
                     const _requestId = `${runId}:${cursor ?? "root"}:${queryRequestCounter++}`
 
                     const result = await fetchEvaluationScenarioWindow({
-                        projectId,
+                        // `enabled` gates this queryFn on a truthy projectId, so it is
+                        // non-null whenever this runs (mirrors the `!runId` guard above).
+                        projectId: projectId!,
                         runId,
                         cursor,
                         limit,

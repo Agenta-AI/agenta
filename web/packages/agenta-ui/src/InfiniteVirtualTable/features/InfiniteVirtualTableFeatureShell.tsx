@@ -105,7 +105,8 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
      * Dataset store for pagination. Required when pagination prop is not provided.
      * When pagination is provided directly, datasetStore is optional (not used for pagination).
      */
-    datasetStore?: InfiniteDatasetStore<Row, unknown, unknown> | null
+    // Only `hooks` is consumed here, so ApiRow/Meta stay free for callers (invariant otherwise)
+    datasetStore?: Pick<InfiniteDatasetStore<Row, unknown, unknown>, "hooks"> | null
     tableScope: TableScopeConfig
     columns: InfiniteVirtualTableProps<Row>["columns"]
     rowKey: InfiniteVirtualTableProps<Row>["rowKey"]
@@ -138,6 +139,11 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
     fallbackControlsHeight?: number
     fallbackHeaderHeight?: number
     resizableColumns?: InfiniteVirtualTableProps<Row>["resizableColumns"]
+    /**
+     * NOTE (typed as-is): accepted for compatibility but NOT forwarded to the inner
+     * table — custom empty text passed here never renders today. Flagged for follow-up.
+     */
+    locale?: {emptyText?: ReactNode}
     tableProps?: InfiniteVirtualTableProps<Row>["tableProps"]
     beforeTable?: ReactNode
     afterTable?: ReactNode

@@ -32,8 +32,9 @@ const config = {
             "@agenta/annotation-ui",
         ],
     },
+    // Type errors fail the build (tsc reached 0 on ts-chore/fix-tsc-issues; keep it there)
     typescript: {
-        ignoreBuildErrors: true,
+        ignoreBuildErrors: false,
     },
     webpack: (webpackConfig: any, options: any) => {
         const baseConfig =

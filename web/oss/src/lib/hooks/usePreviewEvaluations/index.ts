@@ -376,7 +376,7 @@ const usePreviewEvaluations = ({
                     data: tc.data ?? {},
                 }))
 
-                const hydratedTestset: Testset = {
+                const hydratedTestset: NonNullable<CreateEvaluationRunInput["testset"]> = {
                     ...(rawTestset as Testset),
                     id: revision.testset_id,
                     // Prefer explicit name from caller, then revision name, then fallback
@@ -417,7 +417,14 @@ const usePreviewEvaluations = ({
                 throw new Error("Testset is required to create scenarios")
             }
             // 4. Creates the scenarios
-            const scenarioIds = await createScenarios(runId, paramInputs.testset)
+            // Latent: a testset without hydrated `data` would throw inside createScenarios
+            // at runtime — typed as-is per WP-4e-2a.
+            const scenarioIds = await createScenarios(
+                runId,
+                paramInputs.testset as Testset & {
+                    data: {testcaseIds?: string[]; testcases?: {id: string}[]}
+                },
+            )
 
             // Fire off input, invocation, and annotation steps together in one request (non-blocking)
             try {
@@ -440,16 +447,29 @@ const usePreviewEvaluations = ({
                       )
                     : "invocation"
 
-                const scenarioStepsData = scenarioIds.map((scenarioId, index) => {
-                    const hashId = uuidv4()
-                    return {
-                        testcaseId:
-                            paramInputs.testset?.data?.testcaseIds?.[index] ??
-                            paramInputs.testset?.data?.testcases?.[index]?.id,
+                // repeatId/retryIdInput are never set (see the commented-out uuids above),
+                // so they are undefined at the destructure below — typed as-is per WP-4e-2a.
+                const scenarioStepsData = scenarioIds.map(
+                    (
                         scenarioId,
-                        hashId,
-                    }
-                })
+                        index,
+                    ): {
+                        testcaseId?: string
+                        scenarioId: string
+                        hashId: string
+                        repeatId?: string
+                        retryIdInput?: string
+                    } => {
+                        const hashId = uuidv4()
+                        return {
+                            testcaseId:
+                                paramInputs.testset?.data?.testcaseIds?.[index] ??
+                                paramInputs.testset?.data?.testcases?.[index]?.id,
+                            scenarioId,
+                            hashId,
+                        }
+                    },
+                )
 
                 // 6. Build a single steps array combining input, invocation, and evaluator steps
                 const allSteps = scenarioStepsData.flatMap(

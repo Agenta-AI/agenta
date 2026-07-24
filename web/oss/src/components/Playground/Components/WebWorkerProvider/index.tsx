@@ -52,7 +52,8 @@ export const WebWorkerProvider = ({children}: WebWorkerProviderProps) => {
     // Inject worker bridge into playground state
     useEffect(() => {
         setExecutionWorkerBridge({
-            postMessageToWorker,
+            // Bridge accepts unknown; the worker hook narrows to WorkerMessage internally
+            postMessageToWorker: postMessageToWorker as (message: unknown) => void,
             createWorkerMessage,
         })
 

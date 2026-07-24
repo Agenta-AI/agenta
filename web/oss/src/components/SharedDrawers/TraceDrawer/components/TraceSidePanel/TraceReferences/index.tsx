@@ -85,7 +85,7 @@ const TraceReferences = () => {
             case "testset":
                 return (
                     <TestsetTag
-                        testsetId={id}
+                        testsetId={id as string}
                         revisionId={testsetRevisionReference?.id}
                         projectId={projectId}
                         projectURL={projectURL}

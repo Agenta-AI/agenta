@@ -14,6 +14,7 @@ import {
 
 import {capitalize} from "@/oss/lib/helpers/utils"
 import {isDemo} from "@/oss/lib/helpers/utils"
+import type {Evaluator} from "@/oss/lib/Types"
 
 import type {EvaluatorPreview} from "./types"
 
@@ -129,9 +130,7 @@ export const getEvaluatorTagColor = (item: FilterableEvaluator): string | undefi
  * Uses `flags.is_recommended` from the catalog when available.
  * Falls back to the legacy ENABLED_EVALUATORS allowlist + !archived check.
  */
-export const filterEnabledEvaluators = <T extends Record<string, unknown>>(
-    evaluators: T[],
-): T[] => {
+export const filterEnabledEvaluators = <T extends object>(evaluators: T[]): T[] => {
     return evaluators.filter((item) => {
         const key = (item as any)?.key as string | undefined
         if (!key) return false

@@ -22,7 +22,7 @@ export interface PricingPlan {
 
 export interface PricingCardProps {
     plan: BillingPlan
-    currentPlan: SubscriptionType | null
+    currentPlan: SubscriptionType | null | undefined
     onOptionClick: (plan: BillingPlan) => void
     isLoading: string | null
 }

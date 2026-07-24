@@ -9,6 +9,7 @@ import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
+import type {DeleteEvaluationKind} from "@/oss/components/DeleteEvaluationModal/types"
 import {activePreviewProjectIdAtom} from "@/oss/components/EvalRunDetails/atoms/run"
 import {clearAllMetricStatsCaches} from "@/oss/components/EvalRunDetails/atoms/runMetrics"
 import {
@@ -315,7 +316,8 @@ const EvaluationRunsTableActive = ({
     const deletionConfig = useMemo(() => {
         if (!selectionSnapshot.hasSelection) return undefined
         return {
-            evaluationKind: deleteContext.evaluationKind,
+            // EvaluationRunKind includes "all"; delete contexts only carry concrete kinds.
+            evaluationKind: deleteContext.evaluationKind as DeleteEvaluationKind,
             projectId: deleteContext.projectId,
             previewRunIds: selectionSnapshot.previewRunIds,
             invalidateQueryKeys: [EVALUATION_RUNS_QUERY_KEY_ROOT],
@@ -546,7 +548,8 @@ const EvaluationRunsTableActive = ({
 
     const resolveColumnLabel = useCallback(
         ({column}: TableExportColumnContext<EvaluationRunTableRow>) => {
-            const metadata = column?.exportMetadata as
+            // exportMetadata is stamped onto antd columns by createTableColumns (untyped).
+            const metadata = (column as {exportMetadata?: unknown})?.exportMetadata as
                 | EvaluationRunsColumnExportMetadata
                 | undefined
             if (!metadata || metadata.type !== "metric") {

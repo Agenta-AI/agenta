@@ -1,3 +1,6 @@
+import type {FilterItem} from "@/oss/components/Filters/types"
+import type {Filter} from "@/oss/lib/Types"
+
 export const parseNumericString = (raw: string) => {
     const trimmed = raw.trim()
     if (!trimmed) return raw

@@ -22,7 +22,7 @@ const DeploymentConfirmationModalWrapper = () => {
             actionType={state.actionType}
             variant={state.variant}
             note={state.note}
-            setNote={(n) => setNote(n)}
+            setNote={(n) => setNote(typeof n === "function" ? n(state.note) : n)}
             okButtonProps={{loading: state.okLoading}}
             onOk={() => confirm()}
         />

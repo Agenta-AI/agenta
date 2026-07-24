@@ -99,7 +99,7 @@ const CustomAreaChart: React.FC<CustomAreaChartProps> = ({
                         }}
                         itemStyle={{color: token.colorText}}
                         labelStyle={{color: token.colorTextSecondary, marginBottom: 8}}
-                        formatter={(value: number) => [valueFormatter(value), ""]}
+                        formatter={(value) => [valueFormatter(value as number), ""]}
                     />
                     {categories.map((category, idx) => {
                         const colorKey = colors[idx % colors.length]

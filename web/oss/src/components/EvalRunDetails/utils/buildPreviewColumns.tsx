@@ -5,6 +5,7 @@ import type {ColumnsType, ColumnType} from "antd/es/table"
 import clsx from "clsx"
 
 import {ColumnVisibilityHeader} from "@/oss/components/InfiniteVirtualTable"
+import type {ExtendedColumnType} from "@/oss/components/InfiniteVirtualTable"
 
 import type {
     EvaluationTableColumn,
@@ -119,6 +120,9 @@ export interface BuildPreviewColumnsResult<RowType> {
     columns: ColumnsType<RowType>
 }
 
+/** antd column extended with the visibility-menu label consumed by useColumnVisibility */
+type VisibilityColumn<RowType> = ExtendedColumnType<RowType>
+
 const createStaticMetricColumns = <RowType,>(
     groupId: string,
     metrics: MetricColumnDefinition[],
@@ -126,7 +130,7 @@ const createStaticMetricColumns = <RowType,>(
         isSkeletonRow?: (record: RowType) => boolean
         getSkeletonContent: (context: SkeletonRenderContext<RowType>) => React.ReactNode
     },
-): ColumnType<RowType>[] =>
+): VisibilityColumn<RowType>[] =>
     metrics.map((metric) => {
         const pseudoColumn: EvaluationTableColumn = {
             id: `${groupId}::${metric.path}`,
@@ -245,7 +249,7 @@ export function buildPreviewColumns<RowType>({
         }
     }
 
-    const buildLeafColumn = (column: EvaluationTableColumn): ColumnType<RowType> | null => {
+    const buildLeafColumn = (column: EvaluationTableColumn): VisibilityColumn<RowType> | null => {
         const widthByStepType: Record<string, number> = {
             meta: 80,
             input: COLUMN_WIDTHS.input,
@@ -454,7 +458,7 @@ export function buildPreviewColumns<RowType>({
 
     const orderedGroups = [...groups].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 
-    const builtColumns: ColumnsType<RowType> = []
+    const builtColumns: VisibilityColumn<RowType>[] = []
     const renderedColumnIds = new Set<string>()
 
     // Include scenarioIndexStatus and timestamp columns as leading meta columns

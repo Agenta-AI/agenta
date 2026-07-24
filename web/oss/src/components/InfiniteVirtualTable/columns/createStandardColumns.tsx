@@ -11,6 +11,8 @@ import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import ColumnVisibilityMenuTrigger from "../components/columnVisibility/ColumnVisibilityMenuTrigger"
 import type {InfiniteTableRowBase} from "../types"
 
+import type {ExtendedColumnType} from "./types"
+
 export interface TextColumnDef {
     type: "text"
     key: string
@@ -125,7 +127,7 @@ export function createStandardColumns<T extends InfiniteTableRowBase>(
     })
 }
 
-function createTextColumn<T>(def: TextColumnDef): ColumnType<T> {
+function createTextColumn<T>(def: TextColumnDef): ExtendedColumnType<T> {
     return {
         title: def.title,
         dataIndex: def.key,
@@ -138,7 +140,7 @@ function createTextColumn<T>(def: TextColumnDef): ColumnType<T> {
         onHeaderCell: () => ({
             style: {minWidth: def.width || 220},
         }),
-    } as ColumnType<T>
+    }
 }
 
 const formatDateCell = (value?: string | null) => {
@@ -174,7 +176,7 @@ function createDateColumn<T>(def: DateColumnDef): ColumnType<T> {
 
 function createActionsColumn<T extends InfiniteTableRowBase>(
     def: ActionsColumnDef<T>,
-): ColumnType<T> {
+): ExtendedColumnType<T> {
     const {
         items,
         width = 56, // TODO: try 61px here
@@ -202,7 +204,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
         fixed: "right",
         align: "center",
         // Lock actions column from being toggled in visibility menu
-        columnVisibilityLocked: true as any,
+        columnVisibilityLocked: true,
         onCell: () => ({className: "ag-table-actions-cell"}),
         render: (_, record) => {
             if (record.__isSkeleton) return null

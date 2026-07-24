@@ -1,4 +1,10 @@
 import {EvaluationStatus, SnakeToCamelCaseKeys} from "@/oss/lib/Types"
+import type {
+    computeRunMetrics,
+    createScenarioMetrics,
+    updateMetric,
+    updateMetrics,
+} from "@/oss/services/runMetrics/api"
 
 // Raw API response type for one metric (snake_case)
 export interface MetricResponse {
@@ -40,36 +46,9 @@ export interface UseEvaluationRunMetricsResult {
         any
     >
     mutate: () => Promise<any>
-    createScenarioMetrics: (
-        apiUrl: string,
-        jwt: string,
-        runId: string,
-        entries: {
-            scenarioId: string
-            data: Record<string, number>
-        }[],
-    ) => Promise<any>
-    updateMetric: (
-        apiUrl: string,
-        jwt: string,
-        metricId: string,
-        changes: {
-            data?: Record<string, unknown>
-            status?: string
-            tags?: Record<string, unknown>
-            meta?: Record<string, unknown>
-        },
-    ) => Promise<any>
-    updateMetrics: (
-        apiUrl: string,
-        jwt: string,
-        metrics: {
-            id: string
-            data?: Record<string, unknown>
-            status?: string
-            tags?: Record<string, unknown>
-            meta?: Record<string, unknown>
-        }[],
-    ) => Promise<any>
-    computeRunMetrics: (metrics: {data: Record<string, number>}[]) => Record<string, number>
+    // Mirror the actual service signatures (the hook re-exports them verbatim).
+    createScenarioMetrics: typeof createScenarioMetrics
+    updateMetric: typeof updateMetric
+    updateMetrics: typeof updateMetrics
+    computeRunMetrics: typeof computeRunMetrics
 }
