@@ -1,5 +1,11 @@
 # Trace continuation: one logical turn, one trace
 
+> Historical proposal, verified on 2026-07-06. The current implementation design is
+> `trace-continuation-v2.md`; the re-audit and revised estimate are in
+> `trace-continuation-complexity.md`. This file remains useful for the original
+> propagation and ingest research, but its ephemeral-store recommendation, flat trace
+> shape, and Small estimate are superseded.
+
 Follow-up design to the v1 messageId fix (`plan.md`). Design only, no code changed.
 Every claim below was verified against source on 2026-07-06, with file:line references.
 
