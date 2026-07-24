@@ -184,6 +184,24 @@ export function takePersistFailures(sessionId: string): number {
   return n;
 }
 
+/** Sessions whose record log is known to have lost at least one record. */
+const incompleteSessions = new Set<string>();
+
+/**
+ * Mark a session's record log as incomplete, permanently for this process. Once a record is
+ * dropped the log no longer represents the conversation, so it must never be used to rebuild
+ * model context: the turn would silently run with a hole in its history. Set at the turn-end
+ * drain; read by the reconstruction seam, which fails the turn instead of reconstructing.
+ */
+export function noteRecordsIncomplete(sessionId: string): void {
+  incompleteSessions.add(sessionId);
+}
+
+/** Whether this session has lost a record and can no longer be reconstructed from. */
+export function recordsIncomplete(sessionId: string): boolean {
+  return incompleteSessions.has(sessionId);
+}
+
 /**
  * A tool call streams as many `tool_call` events with a growing partial-args snapshot for
  * one id. Idle window after which an open, un-closed tool call is flushed as-is — the
