@@ -5,8 +5,11 @@ interface Props {
   variant?: "primary" | "outline" | "dark" | "ghost";
   size?: "sm" | "md" | "lg";
   href?: string;
+  // Opens the link in a new tab (for destinations that leave the marketing site,
+  // e.g. the docs). No effect when rendered as a <button> (no href).
+  external?: boolean;
 }
-const { variant = "primary", size = "md", href } = Astro.props;
+const { variant = "primary", size = "md", href, external = false } = Astro.props;
 
 const sizes: Record<string, string> = {
   sm: "height:30px;padding:0 12px;",
@@ -26,4 +29,9 @@ const style = `display:inline-flex;align-items:center;justify-content:center;gap
 const Tag = href ? "a" : "button";
 ---
 
-<Tag class="ds-btn" href={href} style={style}><slot /></Tag>
+<Tag
+  class="ds-btn"
+  href={href}
+  target={href && external ? "_blank" : undefined}
+  rel={href && external ? "noopener" : undefined}
+  style={style}><slot /></Tag>

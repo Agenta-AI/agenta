@@ -40,12 +40,12 @@ const columns: { heading: string; links: Link[] }[] = [
   },
   {
     heading: "Resources",
-    // Tutorial is hidden for now (Mahmoud). Changelog + Roadmap point at the same
-    // docs pages the live agenta.ai site links to and navigate same-tab.
+    // Tutorial is hidden for now (Mahmoud). Docs/Changelog/Roadmap point at the
+    // docs site, so they open in a new tab (external) like the live agenta.ai.
     links: [
       { label: "Docs", href: "https://docs.agenta.ai/", external: true },
-      { label: "Changelog", href: "https://agenta.ai/docs/changelog/main" },
-      { label: "Roadmap", href: "https://agenta.ai/docs/roadmap" },
+      { label: "Changelog", href: "https://agenta.ai/docs/changelog/main", external: true },
+      { label: "Roadmap", href: "https://agenta.ai/docs/roadmap", external: true },
       { label: "Blog", href: "/blog" },
       { label: "Status", href: "https://status.agenta.ai", external: true },
     ],
