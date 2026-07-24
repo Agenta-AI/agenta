@@ -3,7 +3,6 @@ import {memo} from "react"
 import {detectFileActivity, type FileActivity} from "@agenta/entities/session"
 import {HeightCollapse} from "@agenta/ui"
 import {
-    ArrowSquareOut,
     CaretRight,
     CheckCircle,
     Clock,
@@ -267,8 +266,6 @@ interface ToolActivityProps {
     /** Build mode: render the full step log (per-tool input + output/error inline), instead of the
      * calm collapsed "Used N tools" summary Chat mode shows. */
     detailed?: boolean
-    /** Open the turn's trace drawer (full input/output). Absent if the turn has no trace yet. */
-    onViewTrace?: () => void
 }
 
 /**
@@ -282,12 +279,7 @@ interface ToolActivityProps {
  * An `approval-requested` tool is marked "Awaiting approval" in every mode; the Approve/Deny action
  * lives in the persistent ApprovalDock. The FE only renders tool calls — it never executes them.
  */
-const ToolActivity = ({
-    parts,
-    isStreaming = false,
-    detailed = false,
-    onViewTrace,
-}: ToolActivityProps) => {
+const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivityProps) => {
     const anyUnsettled = parts.some((p) => !isSettled(p.state as string))
     const live = isStreaming && anyUnsettled
     const approvalPending = parts.some((p) => (p.state as string) === "approval-requested")
@@ -332,16 +324,6 @@ const ToolActivity = ({
                             <DriveFileCard key={a.path} path={a.path} op={a.op} />
                         ))}
                     </div>
-                ) : null}
-                {detailed && onViewTrace ? (
-                    <button
-                        type="button"
-                        onClick={onViewTrace}
-                        className="mt-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-0 py-0.5 text-xs text-colorPrimary transition-colors hover:underline"
-                    >
-                        <ArrowSquareOut size={12} />
-                        View full trace
-                    </button>
                 ) : null}
             </div>
         )
@@ -402,16 +384,6 @@ const ToolActivity = ({
                             live={false}
                         />
                     ))}
-                    {onViewTrace && (
-                        <button
-                            type="button"
-                            onClick={onViewTrace}
-                            className="mt-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-0 py-0.5 text-xs text-colorPrimary transition-colors hover:underline"
-                        >
-                            <ArrowSquareOut size={12} />
-                            View full trace
-                        </button>
-                    )}
                 </div>
             </HeightCollapse>
         </div>
