@@ -18,6 +18,15 @@ def _size(obj) -> int:
     return len(dumps(obj))
 
 
+def test_smart_truncation_flag_is_wired_into_agenta_config():
+    """The publish path reads `env.agenta.sessions.records.smart_truncation`. If `SessionsConfig`
+    is not attached to `AgentaConfig` this raises AttributeError inside the publish try/except and
+    silently drops the record — regression guard for that wiring."""
+    from oss.src.utils.env import env
+
+    assert isinstance(env.agenta.sessions.records.smart_truncation, bool)
+
+
 def test_under_budget_returns_unchanged():
     attrs = {"type": "message", "text": "hi"}
     out = _truncate_attributes(attrs, MAX_ATTRIBUTES_BYTES, _size(attrs))
