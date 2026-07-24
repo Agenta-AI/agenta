@@ -20,9 +20,13 @@ import {
   codexHomeDir,
   codexSqliteHomeDir,
   configureCodexHome,
+  configureDaytonaCodexEnv,
+  codexDaytonaHomeDir,
+  codexDaytonaSqliteHomeDir,
   isManagedCodexRun,
   isSubscriptionCodexRun,
   symlinkCodexSubscriptionAuthFile,
+  writeCodexDaytonaManagedAuthFile,
   writeCodexManagedAuthFile,
 } from "../../src/engines/sandbox_agent/codex-assets.ts";
 
@@ -378,6 +382,132 @@ describe("Codex managed-credential assets", () => {
         );
       }
       assert.equal(existsSync(join(codexHomeDir(cwd), "auth.json")), false);
+    });
+  });
+
+  describe("Codex managed Daytona assets", () => {
+    it("configureDaytonaCodexEnv sets in-VM CODEX_HOME + CODEX_SQLITE_HOME for a managed Daytona codex run", () => {
+      const env: Record<string, string> = {};
+      const plan = {
+        acpAgent: "codex",
+        credentialMode: "env",
+        isDaytona: true,
+        cwd,
+      } as any;
+
+      configureDaytonaCodexEnv(plan, env);
+
+      assert.equal(env.CODEX_HOME, codexDaytonaHomeDir(cwd));
+      assert.equal(env.CODEX_SQLITE_HOME, codexDaytonaSqliteHomeDir(cwd));
+      // In-VM base, never the durable geesefs cwd.
+      assert.ok(env.CODEX_HOME.startsWith("/home/sandbox/agenta/"));
+      assert.ok(!env.CODEX_HOME.startsWith(cwd));
+      assert.equal(basename(env.CODEX_HOME), basename(cwd));
+    });
+
+    it("configureDaytonaCodexEnv is a no-op for local, subscription, and non-codex Daytona runs", () => {
+      const plans = [
+        { acpAgent: "codex", credentialMode: "env", isDaytona: false, cwd },
+        {
+          acpAgent: "codex",
+          credentialMode: "runtime_provided",
+          isDaytona: true,
+          cwd,
+        },
+        { acpAgent: "claude", credentialMode: "env", isDaytona: true, cwd },
+        { acpAgent: "pi", credentialMode: "env", isDaytona: true, cwd },
+      ] as any[];
+      for (const plan of plans) {
+        const env: Record<string, string> = {};
+        configureDaytonaCodexEnv(plan, env);
+        assert.deepEqual(env, {});
+      }
+    });
+
+    it("writeCodexDaytonaManagedAuthFile writes {OPENAI_API_KEY} into the in-VM home via the sandbox FS API", async () => {
+      const writes: Array<{ path: string; contents: string }> = [];
+      const mkdirs: string[] = [];
+      const sandbox = {
+        mkdirFs: async ({ path }: { path: string }) => {
+          mkdirs.push(path);
+        },
+        writeFsFile: async ({ path }: { path: string }, contents: string) => {
+          writes.push({ path, contents });
+        },
+      };
+      const plan = {
+        acpAgent: "codex",
+        credentialMode: "env",
+        isDaytona: true,
+        cwd,
+        secrets: { OPENAI_API_KEY: "sk-placeholder-or-live" },
+        legacyHarnessApiKeyVar: "OPENAI_API_KEY",
+      } as any;
+
+      await writeCodexDaytonaManagedAuthFile(sandbox, plan);
+
+      const home = codexDaytonaHomeDir(cwd);
+      assert.deepEqual(mkdirs, [home]);
+      assert.equal(writes.length, 1);
+      assert.equal(writes[0].path, join(home, "auth.json"));
+      // The key is written opaquely (no parsing/reformatting) — Daytona-Secrets #5277 placeholder compat.
+      assert.deepEqual(JSON.parse(writes[0].contents), {
+        OPENAI_API_KEY: "sk-placeholder-or-live",
+      });
+    });
+
+    it("writeCodexDaytonaManagedAuthFile no-ops without a key, and for local / subscription / non-codex runs", async () => {
+      const calls: string[] = [];
+      const sandbox = {
+        mkdirFs: async ({ path }: { path: string }) => {
+          calls.push(`mkdir:${path}`);
+        },
+        writeFsFile: async ({ path }: { path: string }) => {
+          calls.push(`write:${path}`);
+        },
+      };
+      const plans = [
+        // Managed Daytona codex but NO resolved key.
+        {
+          acpAgent: "codex",
+          credentialMode: "env",
+          isDaytona: true,
+          cwd,
+          secrets: {},
+          legacyHarnessApiKeyVar: "OPENAI_API_KEY",
+        },
+        // Local codex (handled by writeCodexManagedAuthFile, not this Daytona writer).
+        {
+          acpAgent: "codex",
+          credentialMode: "env",
+          isDaytona: false,
+          cwd,
+          secrets: { OPENAI_API_KEY: "sk" },
+          legacyHarnessApiKeyVar: "OPENAI_API_KEY",
+        },
+        // Subscription Daytona (rejected up front in run-plan anyway).
+        {
+          acpAgent: "codex",
+          credentialMode: "runtime_provided",
+          isDaytona: true,
+          cwd,
+          secrets: { OPENAI_API_KEY: "sk" },
+          legacyHarnessApiKeyVar: "OPENAI_API_KEY",
+        },
+        // Non-codex Daytona.
+        {
+          acpAgent: "claude",
+          credentialMode: "env",
+          isDaytona: true,
+          cwd,
+          secrets: { ANTHROPIC_API_KEY: "sk" },
+          legacyHarnessApiKeyVar: "ANTHROPIC_API_KEY",
+        },
+      ] as any[];
+      for (const plan of plans) {
+        await writeCodexDaytonaManagedAuthFile(sandbox, plan);
+      }
+      assert.deepEqual(calls, []);
     });
   });
 });

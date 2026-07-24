@@ -95,6 +95,7 @@ import { claudeThinkingMeta } from "./claude-thinking.ts";
 import {
   isSubscriptionCodexRun,
   symlinkCodexSubscriptionAuthFile,
+  writeCodexDaytonaManagedAuthFile,
   writeCodexManagedAuthFile,
 } from "./codex-assets.ts";
 import {
@@ -731,6 +732,11 @@ export async function acquireEnvironment(
           logger,
         );
       }
+      // Managed Codex authenticates from auth.json in its in-VM CODEX_HOME (set in the daemon env
+      // by configureDaytonaCodexEnv). Write it now that the sandbox is up; the file lives in the VM
+      // (off the durable cwd) so no per-run teardown delete into the store is needed. Subscription
+      // Daytona is rejected in run-plan; non-codex runs are no-ops.
+      await writeCodexDaytonaManagedAuthFile(environment.sandbox, plan, logger);
     }
 
     // Durable cwd: mount BEFORE createSession (so the session opens inside it) and BEFORE

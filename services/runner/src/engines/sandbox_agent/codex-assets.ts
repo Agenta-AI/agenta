@@ -103,6 +103,95 @@ export function configureCodexHome(
   return sqliteHome;
 }
 
+// The in-VM Daytona base for Codex home + SQLite state: a sibling of the relay / tool-MCP dirs
+// (run-plan.ts), always on the sandbox's own container disk, NEVER the geesefs-mounted durable cwd.
+// Managed Daytona keeps the resolved key OFF durable storage this way (see codexDaytonaHomeDir).
+const DAYTONA_CODEX_BASE = "/home/sandbox/agenta";
+
+/**
+ * A managed Daytona Codex run's CODEX_HOME, in the sandbox VM (not the durable cwd). auth.json holds
+ * the resolved key, so it must never land on the geesefs-mounted cwd, which is durable S3 storage:
+ * the destroy path pauses or destroys the sandbox before any per-run file backstop could delete it
+ * (environment.ts), so a key on the durable cwd could outlive the run. An in-VM home is reaped with
+ * the sandbox and is reliably deleted at session end by construction — the strongest form of the
+ * D-002 "reliably delete the key at session end" requirement (amendment recorded in decisions.md).
+ * An authored `.codex/config.toml` still applies: prepareWorkspace writes it under the cwd and codex
+ * reads it as the workspace config layer (D-007), independent of CODEX_HOME. Per-session-stable via
+ * basename(cwd), like relayDir, so it is not a config-fingerprint input and warm reuse is preserved.
+ */
+export function codexDaytonaHomeDir(cwd: string): string {
+  return join(DAYTONA_CODEX_BASE, "codex-home", basename(cwd));
+}
+
+/** A managed Daytona Codex run's in-VM CODEX_SQLITE_HOME (off the geesefs mount, per the P8 lesson). */
+export function codexDaytonaSqliteHomeDir(cwd: string): string {
+  return join(DAYTONA_CODEX_BASE, "codex-sqlite", basename(cwd));
+}
+
+/**
+ * Configure a managed Daytona Codex daemon's env. The Daytona daemon env is FIXED at sandbox
+ * creation (environment.ts), so these paths must be set here, before the provider is built, into the
+ * env object that becomes the sandbox's `envVars` (daytonaEnvVars). CODEX_HOME and CODEX_SQLITE_HOME
+ * both point at in-VM paths so no credential and no WAL SQLite ever touch the durable cwd. Subscription
+ * Daytona is rejected up front (run-plan.ts); local runs and non-codex runs are no-ops.
+ */
+export function configureDaytonaCodexEnv(
+  plan: Pick<RunPlan, "acpAgent" | "credentialMode" | "isDaytona" | "cwd">,
+  daytonaEnv: Record<string, string>,
+): void {
+  if (!plan.isDaytona || !isManagedCodexRun(plan)) return;
+  daytonaEnv.CODEX_HOME = codexDaytonaHomeDir(plan.cwd);
+  daytonaEnv.CODEX_SQLITE_HOME = codexDaytonaSqliteHomeDir(plan.cwd);
+}
+
+/**
+ * Write a managed Daytona Codex run's auth.json into the in-VM CODEX_HOME after the sandbox starts.
+ * Uses the sandbox filesystem API (the file lives in the remote VM, not on the runner host). Written
+ * every acquire (idempotent): a fresh VM has no file, and a warm-reused VM is refreshed to the current
+ * key. The dir is in-VM and reaped with the sandbox, so no cross-mount teardown delete is needed.
+ *
+ * INVARIANT (Daytona-Secrets #5277 compat): the key value is written OPAQUELY. Under the placeholder
+ * design the runner receives a placeholder here, not the real key, and Daytona's egress proxy
+ * substitutes it in flight; P3 proved codex copies the credential byte-exact into request headers with
+ * no client-side validation, so this writer must never inspect, parse, or reformat the string.
+ */
+export async function writeCodexDaytonaManagedAuthFile(
+  sandbox: {
+    mkdirFs: (arg: { path: string }) => Promise<unknown>;
+    writeFsFile: (arg: { path: string }, contents: string) => Promise<unknown>;
+  },
+  plan: Pick<
+    RunPlan,
+    | "acpAgent"
+    | "credentialMode"
+    | "isDaytona"
+    | "cwd"
+    | "secrets"
+    | "legacyHarnessApiKeyVar"
+  >,
+  log: Log = () => {},
+): Promise<void> {
+  if (!plan.isDaytona || !isManagedCodexRun(plan)) return;
+
+  const key = plan.secrets[plan.legacyHarnessApiKeyVar];
+  if (!key) {
+    log(
+      `codex managed Daytona run has no resolved API key under ${plan.legacyHarnessApiKeyVar}; ` +
+        "auth.json not written",
+    );
+    return;
+  }
+
+  const home = codexDaytonaHomeDir(plan.cwd);
+  await sandbox.mkdirFs({ path: home });
+  // The auth.json field is always OPENAI_API_KEY regardless of the source variable.
+  await sandbox.writeFsFile(
+    { path: join(home, "auth.json") },
+    JSON.stringify({ OPENAI_API_KEY: key }),
+  );
+  log(`codex auth.json written (Daytona, in-VM) home=${home}`);
+}
+
 export interface WriteCodexAuthResult {
   /**
    * The file this run created. Undefined means there is nothing for the caller to delete, so a

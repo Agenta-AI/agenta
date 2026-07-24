@@ -11,7 +11,10 @@ import type {
 } from "../../tools/executable-tool-gate.ts";
 import { agentMountPath, signAgentMountCredentials } from "./agent-mount.ts";
 import { createToolCallCorrelationIndex } from "./client-tools.ts";
-import { configureCodexHome } from "./codex-assets.ts";
+import {
+  configureCodexHome,
+  configureDaytonaCodexEnv,
+} from "./codex-assets.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./daemon.ts";
 import { conciseError } from "./errors.ts";
 import { signSessionMountCredentials, type MountCredentials } from "./mount.ts";
@@ -204,6 +207,11 @@ export async function prepareEnvironmentSetup(
   // regardless of provider.
   if (piSessionDir) piExtEnv.PI_CODING_AGENT_SESSION_DIR = piSessionDir;
   configurePiSkillSnapshot(piSkillSnapshot, piExtEnv);
+  // Managed Daytona Codex: set CODEX_HOME + CODEX_SQLITE_HOME (both in-VM, off the durable cwd) here,
+  // because the Daytona daemon env is fixed at sandbox creation and is built from piExtEnv. auth.json
+  // itself is written into the sandbox after it starts (see environment.ts). Non-Daytona / non-codex
+  // runs are no-ops; local Codex uses configureCodexHome below instead.
+  configureDaytonaCodexEnv(plan, piExtEnv);
   Object.assign(env, piExtEnv); // local daemon inherits it; daytona gets it via envVars
   logger(
     `tools=${plan.toolSpecs.length} executableTools=${plan.executableToolSpecs.length} ` +
