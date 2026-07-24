@@ -9,7 +9,11 @@ import {writeLastAuthMethod} from "@/oss/components/pages/auth/assets/lastAuthMe
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {filterOrgsByAuthMethod} from "@/oss/lib/helpers/authMethodFilter"
 import {isEE} from "@/oss/lib/helpers/isEE"
-import {isNewUserAtom, onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
+import {
+    isNewUserAtom,
+    navSimplifiedDefaultAtom,
+    onboardingStorageUserIdAtom,
+} from "@/oss/lib/onboarding/atoms"
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
 import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {orgsAtom, useOrgData} from "@/oss/state/org"
@@ -54,6 +58,7 @@ const usePostAuthRedirect = () => {
     const authUpgradeOrgKey = "authUpgradeOrgId"
     const lastSsoOrgSlugKey = "lastSsoOrgSlug"
     const setIsNewUser = useSetAtom(isNewUserAtom)
+    const setNavSimplifiedDefault = useSetAtom(navSimplifiedDefaultAtom)
     const setOnboardingStorageUserId = useSetAtom(onboardingStorageUserIdAtom)
 
     const hasInviteFromQuery = useMemo(() => {
@@ -134,6 +139,7 @@ const usePostAuthRedirect = () => {
                     writePostSignupPending()
                     await resetAuthState()
                     setIsNewUser(true)
+                    setNavSimplifiedDefault(true)
                     await router.push("/post-signup")
                     return
                 } else {
@@ -145,6 +151,7 @@ const usePostAuthRedirect = () => {
                     )
                     await resetAuthState()
                     setIsNewUser(true)
+                    setNavSimplifiedDefault(true)
                 }
             }
 

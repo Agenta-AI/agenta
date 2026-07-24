@@ -71,6 +71,13 @@ Already consumed the same way by observability onboarding
 (`components/pages/observability/components/{ObservabilityTable,SessionsTable}/index.tsx`) and
 the onboarding widget, so `useAtomValue(isNewUserAtom)` inside a hook is an established pattern.
 
+**Decision (do not reuse this atom):** because `isNewUser` is sticky-true for everyone who has
+ever signed up (including existing users), deriving the sidebar from it would strip advanced nav
+from current users. Phase 1 instead adds a **fresh** per-user key
+`agenta:onboarding:<userId>:nav-simplified` (`navSimplifiedDefaultAtom`), written only on signups
+going forward — seeded next to `setIsNewUser(true)` in `usePostAuthRedirect`. It shares this
+file's per-user scoping infra but is a distinct value.
+
 ## 4. One interaction, not a current blocker
 
 `components/Onboarding/tours/firstEvaluationTour.ts:188` targets
@@ -115,13 +122,15 @@ Team-wide enforcement would require a workspace-level flag (backend), which is d
 
 ## Seams to pin in the plan
 
-1. A per-user preference atom `simplifiedNavOverrideAtom` (`boolean | null`, localStorage) plus
-   a derived `isNavSimplifiedAtom = override ?? isNewUser`. One value, two consumers.
+1. A per-user preference atom `simplifiedNavOverrideAtom` (`boolean | null`, localStorage, Phase
+   2) plus a derived `advancedNavHiddenAtom = override ?? navSimplifiedDefault`, homed in
+   `state/onboarding/selectors.ts` next to `deadEndNavDisabledAtom`. The default is a **fresh**
+   forward-only key (`nav-simplified`), NOT `isNewUserAtom` — see §3. One value, two consumers.
 2. `projectItems`: Prompts and evaluation-group need a new `isHidden` bound to
-   `isNavSimplifiedAtom`.
+   `advancedNavHiddenAtom`.
 3. `appItems`: Overview, Registry, Evaluations need `isHidden` **OR-ed** with the existing
    app-context `isHidden`, not replaced.
-4. The condition must reach the sidebar through a single hook/selector so it lives in one place.
+4. The condition must reach the sidebar through a single selector so it lives in one place.
 5. Non-targets (Home, Agents, Observability, Playground) must remain untouched.
 6. The Settings → Account switch reads and writes the same preference, so the sidebar and the
    switch never disagree.

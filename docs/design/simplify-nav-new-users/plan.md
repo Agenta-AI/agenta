@@ -8,23 +8,31 @@ one derived atom.
 ## Scope
 
 - Nav-only. No route guards, no in-app link changes. No backend. No team-wide enforcement.
-- **Phase 1:** new signups (`isNewUser`) get the simplified sidebar; everyone else is
-  unaffected. No way to switch yet — a genuinely-new solo user stays simplified until Phase 2.
-  (Invited teammates already read `isNewUser === false`, so they keep the full nav — see
-  research.md §7.)
+- **Phase 1:** new signups (flagged by the fresh `nav-simplified` key) get the simplified
+  sidebar; everyone else — including all existing users — is unaffected. No way to switch yet, so
+  a genuinely-new solo user stays simplified until Phase 2. (Invited teammates are never flagged,
+  so they keep the full nav — see research.md §7.)
 - **Phase 2:** a per-user localStorage override + a switch in Settings → Account, so anyone can
   force simplified or full.
 
 ## The stable seam
 
-One derived atom is the sole dependency of the sidebar hook, so the sidebar edits are written
-once (Phase 1) and never touched again:
+One derived atom is the sole nav-simplify dependency the sidebar reads, so the sidebar edits are
+written once (Phase 1) and never touched again. It lives in `state/onboarding/selectors.ts`
+alongside the other onboarding-driven nav gates (`deadEndNavDisabledAtom`, `homeNavInertAtom`):
 
-- **Phase 1:** `isNavSimplifiedAtom = isNewUser` (thin passthrough).
-- **Phase 2:** `isNavSimplifiedAtom = override ?? isNewUser` (add the override; same name, same
-  consumers).
+- **Phase 1:** `advancedNavHiddenAtom = navSimplifiedDefault` (thin passthrough over a fresh,
+  forward-only per-user key).
+- **Phase 2:** `advancedNavHiddenAtom = override ?? navSimplifiedDefault` (add the override; same
+  name, same consumers).
 
-The hook `useHideAdvancedNav` reads `isNavSimplifiedAtom` in both phases and never changes.
+**Why not reuse `isNewUserAtom`:** it is sticky-true for everyone who ever signed up (including
+existing users), so deriving from it would strip the advanced nav from current users. Phase 1
+instead introduces a new per-user key `agenta:onboarding:<userId>:nav-simplified`
+(`navSimplifiedDefaultAtom`, default `false`) written only on signups going forward.
+
+The sidebar reads `advancedNavHiddenAtom` with a bare `useAtomValue` (matching its sibling nav
+gates); only the atom's body changes between phases.
 
 ---
 
@@ -38,41 +46,60 @@ The hook `useHideAdvancedNav` reads `isNavSimplifiedAtom` in both phases and nev
 
 **Exit:** a passing test capturing the pre-change sidebar (targets + non-targets visible).
 
-## Slice 1 — The derived atom + hook
+## Slice 1 — The forward-only default + the derived seam atom
 
-1. Add `web/oss/src/state/navPreference/atoms.ts`:
-
-   ```ts
-   import {isNewUserAtom} from "@/oss/lib/onboarding"
-   import {atom} from "jotai"
-
-   // Phase 1: simplified nav follows new-signup status. Phase 2 adds a user override here.
-   export const isNavSimplifiedAtom = atom((get) => get(isNewUserAtom))
-   ```
-
-2. Add `web/oss/src/components/Sidebar/hooks/useHideAdvancedNav.ts`:
+1. Add the durable per-user default in `web/oss/src/lib/onboarding/atoms.ts` (reuses the
+   existing per-user scoping infra — `onboardingStorageUserIdAtom`, `createScopedStorageKey`):
 
    ```ts
-   import {useAtomValue} from "jotai"
-   import {isNavSimplifiedAtom} from "@/oss/state/navPreference/atoms"
+   const navSimplifiedDefaultAtomFamily = atomFamily((userId: string) =>
+       atomWithStorage<boolean>(createScopedStorageKey(userId, "nav-simplified"), false),
+   )
 
-   /** Advanced sidebar areas are hidden while the simplified view is active. */
-   export const useHideAdvancedNav = (): boolean => useAtomValue(isNavSimplifiedAtom)
+   export const navSimplifiedDefaultAtom = atom(
+       (get) => {
+           const userId = get(onboardingStorageUserIdAtom)
+           return userId ? get(navSimplifiedDefaultAtomFamily(userId)) : false
+       },
+       (get, set, next: boolean) => {
+           const userId = get(onboardingStorageUserIdAtom)
+           if (userId) set(navSimplifiedDefaultAtomFamily(userId), next)
+       },
+   )
    ```
 
-**Exit:** `isNavSimplifiedAtom` returns `isNewUser`; hook compiles and is unit-referenced.
+   Export it from the `lib/onboarding` barrel.
+
+2. Seed it at signup in `web/oss/src/hooks/usePostAuthRedirect.ts`: call
+   `setNavSimplifiedDefault(true)` next to each `setIsNewUser(true)` (EE and OSS non-invited
+   branches). Invited users `return` before this, so they stay on full nav.
+
+3. Add the derived seam atom to `web/oss/src/state/onboarding/selectors.ts`, next to
+   `deadEndNavDisabledAtom` (imports `navSimplifiedDefaultAtom` from `@/oss/lib/onboarding/atoms`):
+
+   ```ts
+   // Phase 1: follows the signup-era default. Phase 2 adds a user override here.
+   export const advancedNavHiddenAtom = atom((get) => get(navSimplifiedDefaultAtom))
+   ```
+
+   No new module or wrapper hook — consumers read it with a bare `useAtomValue`, like the
+   sibling nav gates.
+
+**Exit:** `advancedNavHiddenAtom` returns the new per-user default (not `isNewUser`); a signup
+sets `nav-simplified` true; both editions compile.
 
 ## Slice 2 — Hide the two project-scope items
 
 Edit `web/oss/src/components/Sidebar/hooks/useSidebarConfig/index.tsx`.
 
-1. `const hideAdvancedNav = useHideAdvancedNav()` near the top.
+1. `const hideAdvancedNav = useAtomValue(advancedNavHiddenAtom)` near the top (import the atom
+   from the existing `@/oss/state/onboarding` barrel).
 2. Prompts (`PROMPTS_SIDEBAR_KEY`, `:72`): add `isHidden: hideAdvancedNav`.
 3. Evaluation group (`evaluation-group`, `:88`): add `isHidden: hideAdvancedNav`.
 4. Add `hideAdvancedNav` to the `projectItems` `useMemo` deps.
 
-**Exit:** with `isNewUser` true, `projectItems` (post `filterVisibleItems`) has no Prompts and
-no `evaluation-group`; with it false, both present. Non-targets unchanged.
+**Exit:** with the simplified default true, `projectItems` (post `filterVisibleItems`) has no
+Prompts and no `evaluation-group`; with it false, both present. Non-targets unchanged.
 
 ## Slice 3 — Hide the three app-scope items
 
@@ -82,17 +109,17 @@ Same file, `appItems` memo (`:144`).
    `isHidden: isHidden || hideAdvancedNav`. Do **not** touch Playground or app Observability.
 2. Add `hideAdvancedNav` to the `appItems` `useMemo` deps.
 
-**Exit:** with `isNewUser` true, `appItems` (post `filterVisibleItems`) has no Overview,
-Registry, or Evaluations, and still has Playground + Observability when the app-context gate
-allows. With it false, all five behave exactly as before.
+**Exit:** with the simplified default true, `appItems` (post `filterVisibleItems`) has no
+Overview, Registry, or Evaluations, and still has Playground + Observability when the app-context
+gate allows. With it false, all five behave exactly as before.
 
 ## Slice 4 — Manual QA (Phase 1)
 
 1. Run the local stack (OSS + dev per root `AGENTS.md`).
 2. New user: set `agenta:onboarding:active-user-id` to the user id and
-   `agenta:onboarding:<id>:is-new-user` to `true`, reload → simplified sidebar. Confirm the
+   `agenta:onboarding:<id>:nav-simplified` to `true`, reload → simplified sidebar. Confirm the
    five items gone, Home/Agents/Observability/Playground remain.
-3. Set `is-new-user` to `false`, reload → full sidebar returns.
+3. Set `nav-simplified` to `false` (or remove the key), reload → full sidebar returns.
 4. Check both the main (project) and workflow (app) sidebars.
 5. Confirm no empty section header / stray divider where the Evaluation group was
    (`filterVisibleSections` drops empty sections — verify visually).
@@ -103,11 +130,12 @@ allows. With it false, all five behave exactly as before.
 
 # Phase 2 — Settings → Account toggle (follow-up)
 
-Additive. Nothing from Phase 1 changes except the body of `isNavSimplifiedAtom`.
+Additive. Nothing from Phase 1 changes except the body of `advancedNavHiddenAtom`.
 
 ## Slice 5 — The override state
 
-Edit `web/oss/src/state/navPreference/atoms.ts`:
+Add the override atom (near `navSimplifiedDefaultAtom`) and extend `advancedNavHiddenAtom` in
+`web/oss/src/state/onboarding/selectors.ts`:
 
 ```ts
 import {atomWithStorage} from "jotai/utils"
@@ -118,14 +146,14 @@ export const simplifiedNavOverrideAtom = atomWithStorage<boolean | null>(
     null,
 )
 
-// Phase 2: explicit choice wins; else fall back to new-signup default.
-export const isNavSimplifiedAtom = atom((get) => {
+// Phase 2: explicit choice wins; else fall back to the signup-era default.
+export const advancedNavHiddenAtom = atom((get) => {
     const override = get(simplifiedNavOverrideAtom)
-    return override ?? get(isNewUserAtom)
+    return override ?? get(navSimplifiedDefaultAtom)
 })
 ```
 
-Unit test: override `null` → `isNewUser`; override `true`/`false` → that value.
+Unit test: override `null` → `navSimplifiedDefault`; override `true`/`false` → that value.
 
 **Exit:** derived atom follows the table in `context.md`, proven by the test. Sidebar behavior
 from Phase 1 is unchanged when no override is set.
@@ -135,7 +163,7 @@ from Phase 1 is unchanged when no override is set.
 1. Add `web/oss/src/components/pages/settings/Account/NavigationPreference.tsx`: an antd `Switch`
    labeled "Simplified navigation" with a one-line description ("Hide advanced features —
    Prompts, Evaluations, Registry — for a focused agent workspace"). `checked` reads
-   `isNavSimplifiedAtom`; `onChange` writes the boolean to `simplifiedNavOverrideAtom`.
+   `advancedNavHiddenAtom`; `onChange` writes the boolean to `simplifiedNavOverrideAtom`.
 2. Render it in the Account tab, above `DeleteAccount`, at
    `pages/w/[workspace_id]/p/[project_id]/settings/index.tsx:171` (`case "account"`).
 
@@ -148,24 +176,27 @@ reveal everything.
 ## Files touched
 
 **Phase 1**
-- `web/oss/src/state/navPreference/atoms.ts` — new, `isNavSimplifiedAtom` (passthrough).
-- `web/oss/src/components/Sidebar/hooks/useHideAdvancedNav.ts` — new, ~4 lines.
+- `web/oss/src/lib/onboarding/atoms.ts` — new `navSimplifiedDefaultAtom` + family + storage key.
+- `web/oss/src/lib/onboarding/index.ts` — export `navSimplifiedDefaultAtom` from the barrel.
+- `web/oss/src/hooks/usePostAuthRedirect.ts` — seed the default at signup (two call sites).
+- `web/oss/src/state/onboarding/selectors.ts` — new `advancedNavHiddenAtom` (passthrough seam),
+  next to `deadEndNavDisabledAtom`.
 - `web/oss/src/components/Sidebar/hooks/useSidebarConfig/index.tsx` — five `isHidden` edits +
-  hook call + two dep-array entries.
-- Sidebar visibility test (new or extended).
+  `useAtomValue(advancedNavHiddenAtom)` + two dep-array entries.
 
 **Phase 2**
-- `web/oss/src/state/navPreference/atoms.ts` — add `simplifiedNavOverrideAtom`, extend the
-  derived atom.
+- `web/oss/src/state/onboarding/selectors.ts` — add `simplifiedNavOverrideAtom`, extend
+  `advancedNavHiddenAtom`.
 - `web/oss/src/components/pages/settings/Account/NavigationPreference.tsx` — new switch.
 - `web/oss/src/pages/w/[workspace_id]/p/[project_id]/settings/index.tsx` — render the switch in
   the `account` case.
 
-No changes to `engine/`, `scopes/`, `lib/onboarding/`, or any EE file, in either phase.
+No changes to `engine/` or `scopes/`, or any EE file, in either phase.
 
 ## Rollback
 
-Phase 1: delete the two new files, the hook call, and the five `isHidden` edits — pure code
-revert, no data migration, no server state. Phase 2: delete the switch + settings render and
-revert the derived atom to the passthrough; the harmless `agenta:nav:simplified-override`
-localStorage key can be left.
+Phase 1: revert `advancedNavHiddenAtom`, `navSimplifiedDefaultAtom` + signup seed, the sidebar
+`useAtomValue` read, and the five `isHidden` edits — pure code revert, no data migration, no
+server state. The harmless `agenta:onboarding:<userId>:nav-simplified` localStorage key can be
+left. Phase 2: delete the switch + settings render and revert `advancedNavHiddenAtom` to the
+passthrough; the harmless `agenta:nav:simplified-override` localStorage key can be left.
