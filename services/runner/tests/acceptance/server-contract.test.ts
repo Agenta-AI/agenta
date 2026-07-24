@@ -41,8 +41,12 @@ const AUTH = { authorization: `Bearer ${TEST_TOKEN}` };
 
 async function listen(
   run: RunAgent,
+  token: string | null = TEST_TOKEN,
 ): Promise<{ url: string; close: () => Promise<void> }> {
-  if (!process.env[TOKEN_ENV]) process.env[TOKEN_ENV] = TEST_TOKEN;
+  // Force the configured token unconditionally (`null` = leave the env as the test set it,
+  // for the pre-set-secret / tokenless cases). A loaded dev env sets AGENTA_RUNNER_TOKEN=replace-me;
+  // a "set only if unset" guard would let that leak in and 401 every default-token request.
+  if (token !== null) process.env[TOKEN_ENV] = token;
   const server = createAgentServer(run);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
@@ -84,7 +88,7 @@ describe("GET /health contract", () => {
 
   it("is reachable without a bearer token even when AGENTA_RUNNER_TOKEN is set", async () => {
     process.env[TOKEN_ENV] = "health-gate-test";
-    const s = await listen(okRun);
+    const s = await listen(okRun, null);
     try {
       const res = await fetch(`${s.url}/health`);
       assert.equal(res.status, 200);
@@ -112,7 +116,7 @@ describe("POST /run auth contract", () => {
 
   it("token configured, no header → 401 {ok:false, error:/Unauthorized/}", async () => {
     process.env[TOKEN_ENV] = "tok-abc";
-    const s = await listen(okRun);
+    const s = await listen(okRun, null);
     try {
       const res = await fetch(`${s.url}/run`, { method: "POST", body: "{}" });
       assert.equal(res.status, 401);
@@ -126,7 +130,7 @@ describe("POST /run auth contract", () => {
 
   it("token configured, wrong bearer → 401", async () => {
     process.env[TOKEN_ENV] = "tok-abc";
-    const s = await listen(okRun);
+    const s = await listen(okRun, null);
     try {
       const res = await fetch(`${s.url}/run`, {
         method: "POST",
@@ -141,7 +145,7 @@ describe("POST /run auth contract", () => {
 
   it("token configured, correct Authorization: Bearer → 200", async () => {
     process.env[TOKEN_ENV] = "tok-abc";
-    const s = await listen(okRun);
+    const s = await listen(okRun, null);
     try {
       const res = await fetch(`${s.url}/run`, {
         method: "POST",
@@ -156,7 +160,7 @@ describe("POST /run auth contract", () => {
 
   it("token configured, correct X-Agenta-Runner-Token → 200", async () => {
     process.env[TOKEN_ENV] = "tok-abc";
-    const s = await listen(okRun);
+    const s = await listen(okRun, null);
     try {
       const res = await fetch(`${s.url}/run`, {
         method: "POST",
@@ -337,7 +341,7 @@ describe("POST /kill contract", () => {
 
   it("returns 401 when token is set and no bearer supplied", async () => {
     process.env[TOKEN_ENV] = "kill-tok";
-    const s = await listen(okRun);
+    const s = await listen(okRun, null);
     try {
       const res = await fetch(`${s.url}/kill`, {
         method: "POST",

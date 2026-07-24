@@ -125,6 +125,10 @@ services:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+            # kill's direct runner hop (W7.3, sandbox teardown) — same compose-network
+            # address + shared token as the `services` container's runner_url().
+            AGENTA_RUNNER_INTERNAL_URL: ${AGENTA_RUNNER_INTERNAL_URL:-http://runner:8765}
+            AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
         # === NETWORK ============================================== #
         networks:
             - agenta-network

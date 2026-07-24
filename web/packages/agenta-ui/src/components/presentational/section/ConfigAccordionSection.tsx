@@ -26,15 +26,38 @@
  * </ConfigAccordionSection>
  * ```
  */
-import {type ReactNode, useCallback, useEffect, useRef, useState} from "react"
+import {
+    createContext,
+    type ReactNode,
+    useCallback,
+    useContext,
+    useEffect,
+    useRef,
+    useState,
+} from "react"
 
 import {CaretDown, CaretRight, Lock} from "@phosphor-icons/react"
 import {Tooltip, Typography} from "antd"
+import {motion} from "motion/react"
 
 import {cn} from "../../../utils/styles"
 import {HeightCollapse} from "../../HeightCollapse"
 
 const {Text} = Typography
+
+/**
+ * Whether the enclosing accordion section is currently expanded. Because the body stays MOUNTED while
+ * collapsed (height-0 via {@link HeightCollapse}), a child can't rely on mount to know it just became
+ * visible — an `autoFocus` fires while hidden and never again. Read this instead to (re)act on open,
+ * e.g. focus a field when its section unfolds. Defaults to `true` outside a section, so a child used
+ * elsewhere behaves as always-open.
+ */
+const SectionOpenContext = createContext<boolean>(true)
+
+/** Read whether the enclosing {@link ConfigAccordionSection} is expanded. See {@link SectionOpenContext}. */
+export function useAccordionSectionOpen(): boolean {
+    return useContext(SectionOpenContext)
+}
 
 export type SectionIndicatorTone = "draft" | "invalid" | "incomplete" | "agent"
 
@@ -105,9 +128,11 @@ export interface ConfigAccordionSectionProps {
      * Change/validation indicator for the leading icon: tints the icon, adds a status dot,
      * and (with `tooltip`) explains it on hover. Takes precedence over `status`. Used by the
      * agent config panel to flag sections with unsaved edits (`"draft"`), a blocking problem
-     * (`"invalid"`), or an optional gap (`"incomplete"`).
+     * (`"invalid"`), or an optional gap (`"incomplete"`). `pulse` plays a one-shot attention
+     * ring behind the dot (e.g. a change made from another pane); the caller owns how long it
+     * stays true (see `useRecentFlag`).
      */
-    indicator?: {tone: SectionIndicatorTone; tooltip?: ReactNode}
+    indicator?: {tone: SectionIndicatorTone; tooltip?: ReactNode; pulse?: boolean}
     /** Only show `summary` while the section is collapsed. @default false (always). */
     summaryCollapsedOnly?: boolean
     /**
@@ -117,6 +142,17 @@ export interface ConfigAccordionSectionProps {
     titleBadge?: ReactNode
     /** Additional CSS class for the section wrapper. */
     className?: string
+    /**
+     * Opt in to the expanded-header "band" — a faint fill + bottom divider while the section is open,
+     * so the header reads as a header rather than blending into its content.
+     *
+     * The value is the BLEED class the host needs to pull the fill out to its own edges while the
+     * header text stays aligned with the content below, e.g. `"-mx-4 px-4"` inside a `px-4` container.
+     * It has to come from the host because this primitive is used in containers with different
+     * padding (config panel, drawers, nested sections) and a hardcoded bleed would overflow or
+     * under-fill in the others. Omit for no band (the default — every existing usage is unchanged).
+     */
+    headerBand?: string
     /**
      * Fade + subtle rise the section in on mount (opacity/transform only — no layout impact). Off by
      * default so existing usages are unchanged; the agent config panel opts in (staggered via
@@ -132,6 +168,13 @@ export interface ConfigAccordionSectionProps {
      * collapsible, `defaultOpen` sections only — a no-op everywhere else.
      */
     animateInitialOpen?: boolean
+    /**
+     * Override the body wrapper classes (the padded flex column around `children`). Defaults to
+     * `"flex flex-col gap-3 pb-4 pt-3"`. Pass a padding-free value when the body owns its own spacing
+     * — e.g. content that must collapse to zero height with no residual padding for an exit
+     * transition.
+     */
+    bodyClassName?: string
     /** Section body. */
     children?: ReactNode
 }
@@ -158,9 +201,11 @@ export function ConfigAccordionSection({
     summaryCollapsedOnly = false,
     titleBadge,
     className,
+    headerBand,
     revealOnMount = false,
     revealDelayMs = 0,
     animateInitialOpen = false,
+    bodyClassName = "flex flex-col gap-3 pb-4 pt-3",
     children,
 }: ConfigAccordionSectionProps) {
     // Height (0→auto via the grid `0fr`→`1fr` trick) + opacity reveal on mount (opt-in). `revealed`
@@ -209,6 +254,9 @@ export function ConfigAccordionSection({
         !opensDrawer && !locked && (collapsible ? (isControlled ? open : internalOpen) : true)
     const canToggle = !opensDrawer && collapsible && !locked
     const headerActs = canToggle || opensDrawer
+    // Whether the expanded-header band (fill + bottom divider) is currently shown. `isOpen` is already
+    // false when the section opens a drawer or is locked.
+    const banded = isOpen && !!headerBand
 
     const activate = useCallback(() => {
         if (opensDrawer) {
@@ -225,7 +273,32 @@ export function ConfigAccordionSection({
         <div
             className={cn(
                 "flex flex-col",
-                !noDivider && "border-0 border-b border-solid border-[var(--ag-c-EAEFF5,#eaeff5)]",
+                // Expanded-section band (opt-in via `headerBand`): the whole expanded section shares a
+                // subtle bleeding fill so it reads as one grouped, active region set apart from the flat
+                // collapsed headers, using fill rather than a border. This `bg` is the BODY/content
+                // shade; the header layers a second fill on top (below) so it reads a touch stronger —
+                // the header/content contrast is what keeps two stacked expanded sections from blending
+                // into one block (no corner rounding — flush-stacked fills read cleaner than notched
+                // rounded blocks). Only COLORS change between states (the bleed is always applied; the
+                // fill + row divider fade via `transition-colors` in step with the body's height
+                // collapse) — nothing layout-affecting toggles, so the header never shifts and
+                // opening/closing stays jump-free. The banded section drops the row divider (its fill
+                // separates it); collapsed rows keep it.
+                headerBand
+                    ? cn(
+                          headerBand,
+                          "border-0 border-b border-solid transition-colors duration-300 ease-out",
+                          banded
+                              ? "border-transparent bg-[var(--ag-colorFillQuaternary)]"
+                              : cn(
+                                    "bg-transparent",
+                                    noDivider
+                                        ? "border-transparent"
+                                        : "border-[var(--ag-c-EAEFF5,#eaeff5)]",
+                                ),
+                      )
+                    : !noDivider &&
+                          "border-0 border-b border-solid border-[var(--ag-c-EAEFF5,#eaeff5)]",
                 className,
             )}
         >
@@ -246,6 +319,14 @@ export function ConfigAccordionSection({
                     "flex items-center justify-between gap-2 py-3 select-none",
                     locked && "cursor-not-allowed opacity-60",
                     headerActs && "cursor-pointer",
+                    // Header fill: bled to the section edges and layered over the section's body fill so
+                    // the header reads a touch stronger than the content beneath it. Fades with the band.
+                    headerBand &&
+                        cn(
+                            headerBand,
+                            "transition-colors duration-300 ease-out",
+                            banded ? "bg-[var(--ag-colorFillQuaternary)]" : "bg-transparent",
+                        ),
                 )}
             >
                 <div className="flex min-w-0 items-center gap-2">
@@ -256,6 +337,23 @@ export function ConfigAccordionSection({
                                 style={{color: iconColor}}
                             >
                                 {icon}
+                                {/* Attention ripple: expands + fades out from behind the dot,
+                                    repeating while the caller holds `pulse` true (e.g. a change
+                                    from another pane). Uses `motion` so it animates reliably. */}
+                                {indicator?.pulse ? (
+                                    <motion.span
+                                        className="absolute -right-1 -top-0.5 h-2 w-2 rounded-full"
+                                        style={{background: dotColor ?? undefined}}
+                                        initial={{opacity: 0, scale: 1}}
+                                        animate={{opacity: [0, 0.5, 0], scale: [1, 2, 3]}}
+                                        transition={{
+                                            duration: 1.8,
+                                            ease: "easeOut",
+                                            repeat: 1,
+                                            times: [0, 0.25, 1],
+                                        }}
+                                    />
+                                ) : null}
                                 {/* Always mounted: state changes play as scale/opacity/color
                                     transitions instead of the dot popping in and out. */}
                                 <span
@@ -269,14 +367,43 @@ export function ConfigAccordionSection({
                             </span>
                         </Tooltip>
                     ) : null}
-                    <Text
-                        className={cn(
-                            "min-w-0 truncate font-medium",
-                            size === "compact" ? "text-xs" : "text-sm",
-                        )}
-                    >
-                        {title}
-                    </Text>
+                    {/* Title. The base text stays fully opaque/crisp; while `pulse` holds, a blue
+                        DUPLICATE laid exactly on top is revealed through a moving mask, so a glint
+                        sweeps across the letters (in cadence with the dot ripple) without ever
+                        fading the real text. Sweep = the `config-shimmer` CSS keyframe (motion is
+                        unreliable at animating mask/background position). */}
+                    <span className="relative flex min-w-0">
+                        <Text
+                            className={cn(
+                                "min-w-0 truncate font-medium",
+                                size === "compact" ? "text-xs" : "text-sm",
+                            )}
+                        >
+                            {title}
+                        </Text>
+                        {indicator?.pulse ? (
+                            <span
+                                aria-hidden
+                                className={cn(
+                                    "animate-config-shimmer pointer-events-none absolute inset-0 truncate font-medium",
+                                    size === "compact" ? "text-xs" : "text-sm",
+                                )}
+                                style={{
+                                    color: dotColor ?? undefined,
+                                    WebkitMaskImage:
+                                        "linear-gradient(100deg, transparent 8%, #000 50%, transparent 92%)",
+                                    maskImage:
+                                        "linear-gradient(100deg, transparent 8%, #000 50%, transparent 92%)",
+                                    WebkitMaskSize: "220% 100%",
+                                    maskSize: "220% 100%",
+                                    WebkitMaskRepeat: "no-repeat",
+                                    maskRepeat: "no-repeat",
+                                }}
+                            >
+                                {title}
+                            </span>
+                        ) : null}
+                    </span>
                     {titleBadge ? <span className="shrink-0">{titleBadge}</span> : null}
                 </div>
 
@@ -320,7 +447,13 @@ export function ConfigAccordionSection({
 
             {opensDrawer ? null : (
                 <HeightCollapse open={isOpen}>
-                    <div className="flex flex-col gap-3 pb-4">{children}</div>
+                    {/* Top padding gives the body room below the header band (which carries the
+                        fill + bottom divider), so it reads as content, not a header continuation. */}
+                    <div className={bodyClassName}>
+                        <SectionOpenContext.Provider value={isOpen}>
+                            {children}
+                        </SectionOpenContext.Provider>
+                    </div>
                 </HeightCollapse>
             )}
         </div>

@@ -86,17 +86,25 @@ def mint_session_slug(*, session_id: str, name: str) -> str:
     return f"{_RESERVED_SLUG_PREFIX}session__{uuid5(_MOUNTS_NAMESPACE, session_id)}__{slugify_mount_name(name)}"
 
 
+def mint_agent_id(*, artifact_id: str) -> str:
+    """Canonicalize an artifact id: UUID-parsed, rendered lowercase.
+
+    Shared by `mint_agent_slug` (the slug's id segment) and the mount's queryable
+    `agent_id` column, so both derive byte-identically from the same artifact id.
+    """
+    try:
+        return str(UUID(str(artifact_id)))
+    except (ValueError, TypeError, AttributeError) as e:
+        raise MountArtifactIdInvalid(str(artifact_id)) from e
+
+
 def mint_agent_slug(*, artifact_id: str, name: str) -> str:
     """Mint the deterministic reserved slug for an artifact mount.
 
     Artifact IDs are UUID-parsed and rendered lowercase. Sign and query must use
     this same derivation byte-identically so they address the same mount.
     """
-    try:
-        canonical_artifact_id = UUID(str(artifact_id))
-    except (ValueError, TypeError, AttributeError) as e:
-        raise MountArtifactIdInvalid(str(artifact_id)) from e
-
+    canonical_artifact_id = mint_agent_id(artifact_id=artifact_id)
     slug_name = slugify_mount_name(name)
     return f"{_RESERVED_SLUG_PREFIX}agent__{canonical_artifact_id}__{slug_name}"
 
@@ -466,9 +474,11 @@ class MountsService:
         )
 
         slug_name = slugify_mount_name(name)
+        canonical_artifact_id = mint_agent_id(artifact_id=artifact_id)
         mount_create = MountCreate(
             slug=mint_agent_slug(artifact_id=artifact_id, name=name),
             name=slug_name,
+            agent_id=canonical_artifact_id,
         )
         return await self.mounts_dao.upsert_mount(
             project_id=project_id,
@@ -581,6 +591,78 @@ class MountsService:
             mount_query=mount_query,
             windowing=windowing,
         )
+
+    async def delete_session_mounts(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> List[Mount]:
+        """Hard-delete every mount bound to a session, tearing down each mount's
+        object-store prefix. Explicit + session-aware (S7/F1, WP5): mounts are
+        semi-independent (optional `session_id`, can outlive a session), so this
+        is a targeted fan-out, never a blind cascade."""
+        mounts = await self.mounts_dao.delete_by_session_id(
+            project_id=project_id,
+            session_id=session_id,
+        )
+        if self.mounts_store is not None and self.bucket:
+            for mount in mounts:
+                prefix = self._storage_key(project_id=project_id, mount=mount)
+                await self.mounts_store.delete_prefix(
+                    bucket=self.bucket,
+                    prefix=prefix,
+                )
+        return mounts
+
+    async def archive_session_mounts(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        session_id: str,
+    ) -> List[Mount]:
+        """Soft-archive every mount bound to a session (reversible; folders
+        untouched). Session archive fan-out (S7/F2, WP5)."""
+        mounts = await self.mounts_dao.query_mounts(
+            project_id=project_id,
+            mount_query=MountQuery(session_id=session_id, include_archived=False),
+        )
+        archived: List[Mount] = []
+        for mount in mounts:
+            result = await self.mounts_dao.archive_mount(
+                project_id=project_id,
+                user_id=user_id,
+                mount_id=mount.id,
+            )
+            if result is not None:
+                archived.append(result)
+        return archived
+
+    async def unarchive_session_mounts(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        session_id: str,
+    ) -> List[Mount]:
+        """Reverse of `archive_session_mounts`."""
+        mounts = await self.mounts_dao.query_mounts(
+            project_id=project_id,
+            mount_query=MountQuery(session_id=session_id, include_archived=True),
+        )
+        unarchived: List[Mount] = []
+        for mount in mounts:
+            if mount.deleted_at is None:
+                continue
+            result = await self.mounts_dao.unarchive_mount(
+                project_id=project_id,
+                user_id=user_id,
+                mount_id=mount.id,
+            )
+            if result is not None:
+                unarchived.append(result)
+        return unarchived
 
     # --- File ops (durable store contents) --------------------------------- #
 

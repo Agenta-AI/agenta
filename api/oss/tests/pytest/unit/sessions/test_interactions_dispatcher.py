@@ -5,6 +5,9 @@ from uuid import uuid4
 
 from unittest.mock import AsyncMock, MagicMock
 
+from oss.src.apis.fastapi.sessions.models import SessionInteractionCreateRequest
+from oss.src.core.sessions.interactions.dtos import SessionInteractionKind
+
 from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
     InteractionsDispatcher,
 )
@@ -29,6 +32,19 @@ def _make_interaction(*, with_refs=True):
         status=SessionInteractionStatus.pending,
         data=SessionInteractionData(references=refs, selector=None),
     )
+
+
+def test_create_request_accepts_omitted_workflow_references():
+    request = SessionInteractionCreateRequest(
+        session_id="sess-no-refs",
+        turn_id="turn-no-refs",
+        token="token-no-refs",
+        kind=SessionInteractionKind.user_approval,
+        data={"request": {"tool": "bash", "args": {"command": "pwd"}}},
+    )
+
+    assert request.data is not None
+    assert request.data.references is None
 
 
 async def test_respond_fallback_calls_invoke_when_no_dispatch_fn():
@@ -58,6 +74,35 @@ async def test_respond_fallback_calls_invoke_when_no_dispatch_fn():
     invoke_kwargs = workflows_service.invoke_workflow.await_args.kwargs
     assert invoke_kwargs["project_id"] == project_id
     assert invoke_kwargs["user_id"] == user_id
+
+
+async def test_respond_without_references_builds_a_safe_reference_less_request():
+    interaction = _make_interaction(with_refs=False)
+    project_id = uuid4()
+    user_id = uuid4()
+
+    interactions_service = MagicMock()
+    interactions_service.fetch_interaction = AsyncMock(return_value=interaction)
+
+    workflows_service = MagicMock()
+    workflows_service.invoke_workflow = AsyncMock(return_value=SimpleNamespace())
+
+    worker = InteractionsDispatcher(
+        workflows_service=workflows_service,
+        interactions_service=interactions_service,
+    )
+
+    await worker.respond(
+        project_id=project_id,
+        user_id=user_id,
+        interaction_id=interaction.id,
+        answer={"approved": True},
+    )
+
+    workflows_service.invoke_workflow.assert_awaited_once()
+    invoke_request = workflows_service.invoke_workflow.await_args.kwargs["request"]
+    assert invoke_request.references is None
+    assert invoke_request.session_id == interaction.session_id
 
 
 async def test_respond_detached_calls_dispatch_fn_not_invoke():

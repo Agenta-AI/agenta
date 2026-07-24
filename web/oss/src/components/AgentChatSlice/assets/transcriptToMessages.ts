@@ -18,6 +18,15 @@ import type {UIMessage} from "ai"
 
 type Part = Record<string, unknown>
 
+// Mirrors services/runner/src/tracing/otel.ts; park sentinels report skipped or unobserved work, not final results.
+export const DEFERRED_NOT_EXECUTED_PREFIX = "DEFERRED_NOT_EXECUTED"
+export const APPROVED_EXECUTION_RESULT_UNKNOWN =
+    "APPROVED_EXECUTION_RESULT_UNKNOWN: the approved call started but its result was not observed before the pause ended the turn; do not assume it failed and do not retry a side-effecting call."
+export const APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX = APPROVED_EXECUTION_RESULT_UNKNOWN.slice(
+    0,
+    APPROVED_EXECUTION_RESULT_UNKNOWN.indexOf(":"),
+)
+
 interface DraftMessage {
     id: string
     role: "user" | "assistant"
@@ -25,12 +34,15 @@ interface DraftMessage {
     /** Open streamed text/reasoning parts keyed by event id, for delta accumulation. */
     text: Map<string, Part>
     reasoning: Map<string, Part>
-    /** Tool parts keyed by toolCallId so results/approvals attach to the right call. */
-    tools: Map<string, Part>
     /** The turn's observability trace id, if the durable record carries one (see below). */
     traceId?: string
     /** Token/cost totals from the turn's persisted `usage` event, in the raw stream shape. */
     usage?: {input?: number; output?: number; total?: number; cost?: number}
+}
+
+interface TranscriptIndex {
+    tools: Map<string, Part>
+    approvals: Map<string, Part>
 }
 
 const roleOf = (sender?: string | null): "user" | "assistant" =>
@@ -74,13 +86,24 @@ const newDraft = (id: string, role: "user" | "assistant"): DraftMessage => ({
     parts: [],
     text: new Map(),
     reasoning: new Map(),
-    tools: new Map(),
 })
 
 const toolPartType = (name?: string | null): string => (name ? `tool-${name}` : "dynamic-tool")
 
+const isRunnerSentinelError = (part: Part): boolean => {
+    const errorText = typeof part.errorText === "string" ? part.errorText : ""
+    return (
+        errorText.startsWith(DEFERRED_NOT_EXECUTED_PREFIX) ||
+        errorText === APPROVED_EXECUTION_RESULT_UNKNOWN
+    )
+}
+
 /** Apply one transcript event's payload onto the current assistant/user draft message. */
-function applyEvent(draft: DraftMessage, payload: Record<string, unknown>): void {
+function applyEvent(
+    draft: DraftMessage,
+    payload: Record<string, unknown>,
+    index: TranscriptIndex,
+): void {
     const type = payload.type as string | undefined
     const str = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v))
 
@@ -124,11 +147,11 @@ function applyEvent(draft: DraftMessage, payload: Record<string, unknown>): void
                 input: payload.input,
             }
             draft.parts.push(part)
-            draft.tools.set(toolCallId, part)
+            index.tools.set(toolCallId, part)
             return
         }
         case "tool_result": {
-            const part = draft.tools.get(str(payload.id))
+            const part = index.tools.get(str(payload.id))
             if (!part) return
             if (payload.denied) {
                 part.state = "output-denied"
@@ -151,7 +174,7 @@ function applyEvent(draft: DraftMessage, payload: Record<string, unknown>): void
             const toolCallId = str(
                 reqPayload.toolCallId ?? toolCall.id ?? toolCall.toolCallId ?? payload.id,
             )
-            let part = draft.tools.get(toolCallId)
+            let part = index.tools.get(toolCallId)
             if (!part) {
                 // The runner parked without first surfacing the tool call — synthesize one.
                 part = {
@@ -165,13 +188,37 @@ function applyEvent(draft: DraftMessage, payload: Record<string, unknown>): void
                     input: toolCall.rawInput ?? toolCall.input,
                 }
                 draft.parts.push(part)
-                draft.tools.set(toolCallId, part)
+                index.tools.set(toolCallId, part)
             }
-            // Only park if still unsettled — a later `tool_result` overwrites this.
-            if (part.state === "input-available") {
+            index.approvals.set(str(payload.id), part)
+            const canRequestApproval =
+                part.state === "input-available" ||
+                (part.state === "output-error" && isRunnerSentinelError(part))
+            if (canRequestApproval) {
+                delete part.errorText
+                delete part.output
                 part.state = "approval-requested"
                 part.approval = {id: str(payload.id)}
             }
+            return
+        }
+        case "interaction_response": {
+            if (payload.kind !== "user_approval") return
+            const responsePayload = (payload.payload ?? {}) as Record<string, unknown>
+            const responseId = str(payload.id)
+            const toolCallId = str(responsePayload.toolCallId)
+            const part =
+                (toolCallId ? index.tools.get(toolCallId) : undefined) ??
+                index.approvals.get(responseId)
+            if (
+                !part ||
+                part.state !== "approval-requested" ||
+                typeof responsePayload.approved !== "boolean"
+            ) {
+                return
+            }
+            part.state = "approval-responded"
+            part.approval = {id: responseId, approved: responsePayload.approved}
             return
         }
         case "file": {
@@ -218,6 +265,8 @@ function applyEvent(draft: DraftMessage, payload: Record<string, unknown>): void
 export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | null {
     const drafts: DraftMessage[] = []
     let current: DraftMessage | null = null
+    // Paused resumes close the draft, but later answers and results still target its tool part.
+    const index: TranscriptIndex = {tools: new Map(), approvals: new Map()}
 
     for (const row of records) {
         const payload = row.payload
@@ -240,7 +289,7 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
             drafts.push(current)
         }
         if (traceId && !current.traceId) current.traceId = traceId
-        applyEvent(current, p)
+        applyEvent(current, p, index)
     }
 
     const messages = drafts

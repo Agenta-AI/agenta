@@ -2,7 +2,8 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import func, select, update as sa_update
+from sqlalchemy import cast, delete as sa_delete, func, select, update as sa_update
+from sqlalchemy.dialects.postgresql import JSON, JSONB, array
 from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.sessions.interactions.dtos import (
@@ -97,6 +98,24 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
             # Only non-terminal interactions transition: pending (responded|resolved|
             # cancelled) and responded (resolved, when the runner consumes an API-plane
             # answer). resolved/cancelled are terminal.
+            transition_values = {
+                "status": transition.status.value,
+                "updated_at": datetime.now(timezone.utc),
+            }
+            if transition.resolution is not None:
+                # Preserve request/references while atomically adding the answer under the guard.
+                transition_values["data"] = cast(
+                    func.jsonb_set(
+                        func.coalesce(
+                            cast(SessionInteractionDBE.data, JSONB),
+                            cast({}, JSONB),
+                        ),
+                        array(["resolution"]),
+                        cast(transition.resolution, JSONB),
+                        True,
+                    ),
+                    JSON,
+                )
             stmt = (
                 sa_update(SessionInteractionDBE)
                 .where(
@@ -105,10 +124,7 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
                     SessionInteractionDBE.token == transition.token,
                     SessionInteractionDBE.status.in_(("pending", "responded")),
                 )
-                .values(
-                    status=transition.status.value,
-                    updated_at=datetime.now(timezone.utc),
-                )
+                .values(**transition_values)
                 .returning(SessionInteractionDBE)
             )
             result = await session.execute(stmt)
@@ -208,3 +224,20 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
 
             result = await session.execute(stmt)
             return [map_interaction_dbe_to_dto(dbe) for dbe in result.scalars().all()]
+
+    async def delete_by_session_id(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> int:
+        """Hard delete — no soft-delete for interactions today (session-scoped
+        fan-out, WP5)."""
+        async with self.engine.session() as session:
+            stmt = sa_delete(SessionInteractionDBE).where(
+                SessionInteractionDBE.project_id == project_id,
+                SessionInteractionDBE.session_id == session_id,
+            )
+            result = await session.execute(stmt)
+            await session.commit()
+            return result.rowcount or 0

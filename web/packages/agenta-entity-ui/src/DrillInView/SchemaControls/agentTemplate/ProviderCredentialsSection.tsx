@@ -73,6 +73,25 @@ export interface ProviderCredentialsSectionProps {
 
     // presentation
     disabled?: boolean
+    /**
+     * Compact/inline variant: no `ConfigAccordionSection` wrapper (no "Provider credentials" header
+     * or badge — the host section already owns those) and no provider rail (the selected model
+     * already fixes the provider). Just the mode toggle over the selected provider's key form or the
+     * self-managed card. Used when the pane is embedded inline under another section's header.
+     */
+    bare?: boolean
+    /** Bare variant only: the model picker node, rendered in the header row to the left of the mode
+     * toggle (`[ model select ⋯ API key | Subscription ]`). */
+    modelControl?: ReactNode
+    /** The displayed revision, threaded to the key form so a save can raise the "API key added"
+     * config-pane banner scoped to it. */
+    revisionId?: string | null
+
+    /** Uncommitted-change indicator for the section header (drawer / change surfaces) — mirrors the
+     * Harness/Model sections. Ignored in the `bare` variant (it renders no section header). */
+    indicator?: {tone: "draft" | "invalid" | "incomplete" | "agent"; tooltip?: ReactNode}
+    /** Section-scoped revert control, rendered in the header beside the mode toggle. */
+    revertControl?: ReactNode
 }
 
 const STANDARD_PREFIX = "std:"
@@ -180,6 +199,49 @@ function RailRow({
     )
 }
 
+/** The same rail entry laid out horizontally — a chip for the top-rail (rotated) layout. `dashed`
+ * marks an "add" action (opens the Configure drawer) vs a selectable provider. */
+function RailChip({
+    active,
+    dashed,
+    disabled,
+    onClick,
+    tile,
+    label,
+    trailing,
+}: {
+    active?: boolean
+    dashed?: boolean
+    disabled?: boolean
+    onClick: () => void
+    tile: ReactNode
+    label: string
+    trailing?: ReactNode
+}) {
+    return (
+        <button
+            type="button"
+            disabled={disabled}
+            onClick={onClick}
+            className={cn(
+                "flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-solid px-2 text-[13px] transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                active
+                    ? "border-[var(--ag-colorBorder)] bg-[var(--ag-colorFillSecondary)] font-medium text-[var(--ag-colorText)]"
+                    : cn(
+                          "bg-transparent text-[var(--ag-colorTextSecondary)] hover:bg-[var(--ag-colorFillTertiary)] hover:text-[var(--ag-colorText)]",
+                          dashed
+                              ? "border-dashed border-[var(--ag-colorBorder)]"
+                              : "border-[var(--ag-colorBorderSecondary)]",
+                      ),
+            )}
+        >
+            {tile}
+            <span className="truncate">{label}</span>
+            {trailing}
+        </button>
+    )
+}
+
 export function ProviderCredentialsSection({
     mode,
     onModeChange,
@@ -191,6 +253,11 @@ export function ProviderCredentialsSection({
     providerNeedsKey,
     openConfigureProvider,
     disabled,
+    bare,
+    modelControl,
+    revisionId,
+    indicator,
+    revertControl,
 }: ProviderCredentialsSectionProps) {
     const standardSecrets = useAtomValue(standardSecretsAtom)
     const customSecrets = useAtomValue(customSecretsAtom)
@@ -276,9 +343,9 @@ export function ProviderCredentialsSection({
     const toggleOptions = useMemo(
         () =>
             [
-                modeOptions.includes("agenta") ? {label: "Use API key", value: "agenta"} : null,
+                modeOptions.includes("agenta") ? {label: "API key", value: "agenta"} : null,
                 modeOptions.includes("self_managed")
-                    ? {label: "Use subscription", value: "self_managed"}
+                    ? {label: "Subscription", value: "self_managed"}
                     : null,
             ].filter((option): option is {label: string; value: ConnectionMode} => option !== null),
         [modeOptions],
@@ -287,12 +354,287 @@ export function ProviderCredentialsSection({
     const showToggle = toggleOptions.length > 1
     const guideUrl = selfHostingGuideUrl || DEFAULT_SELF_HOSTING_GUIDE_URL
 
+    // Shared segmented styling: a subtle elevated track (not a stark black rectangle on the near-black
+    // panel) with a theme-inverted selected fill (antd's default thumb resolves near-white in light
+    // mode, so the active segment would be invisible). Reused by the mode + provider-type toggles.
+    const segmentedClassName = cn(
+        "rounded-md border border-solid border-[var(--ag-colorBorder)] !bg-[var(--ag-colorFillTertiary)]",
+        "[&_.ant-segmented-item-selected]:!bg-[var(--ag-colorText)] [&_.ant-segmented-item-selected]:!text-[var(--ag-colorBgContainer)] [&_.ant-segmented-item-selected]:!shadow-none",
+        "[&_.ant-segmented-thumb]:!bg-[var(--ag-colorText)] [&_.ant-segmented-thumb]:!shadow-none",
+    )
+
+    const toggle = showToggle ? (
+        <Segmented
+            size="small"
+            value={mode}
+            disabled={disabled}
+            onChange={(value) => onModeChange(value as ConnectionMode)}
+            options={toggleOptions}
+            className={segmentedClassName}
+        />
+    ) : null
+
+    const selfManagedCard = (
+        <div className="flex flex-col items-start gap-3 rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] p-4">
+            <div className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)]">
+                <Terminal size={18} className="text-[var(--ag-colorTextSecondary)]" />
+            </div>
+            <div className="flex flex-col gap-1">
+                <Typography.Text className="!text-[14.5px] !font-semibold">
+                    Self-managed
+                </Typography.Text>
+                <ul className="m-0 flex list-disc flex-col gap-0.5 pl-4">
+                    <li>
+                        <Typography.Text type="secondary" className="!text-xs !leading-relaxed">
+                            Use a Claude Code or Codex subscription, or any credential the harness
+                            reads from its own environment (env vars, prior logins).
+                        </Typography.Text>
+                    </li>
+                    <li>
+                        <Typography.Text type="secondary" className="!text-xs !leading-relaxed">
+                            Agenta stores and injects no key.
+                        </Typography.Text>
+                    </li>
+                    <li>
+                        <Typography.Text
+                            type="secondary"
+                            className="!text-xs !font-semibold !leading-relaxed"
+                        >
+                            Requires a self-hosted Agenta deployment.
+                        </Typography.Text>
+                    </li>
+                </ul>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+                <a
+                    href={guideUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-md border border-solid border-[var(--ag-colorBorder)] px-2.5 py-1 text-xs font-medium text-[var(--ag-colorText)] no-underline hover:bg-[var(--ag-colorFillTertiary)]"
+                >
+                    Read the self-hosting guide →
+                </a>
+                {isCloud ? (
+                    // fallback until colorErrorBg token lands
+                    <span className="rounded-full border border-solid border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg,rgba(255,77,79,0.12))] px-2 py-0.5 text-[11px] text-[var(--ag-colorErrorText)]">
+                        Unavailable in the cloud
+                    </span>
+                ) : null}
+            </div>
+        </div>
+    )
+
+    // Read-only summary for a configured custom connection (its key edit lives in Settings → Secrets).
+    const renderCustomSummary = (secret: LlmProvider) => (
+        <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-0.5">
+                <Typography.Text className="!text-[14.5px] !font-semibold">
+                    {secret.name}
+                </Typography.Text>
+                <Typography.Text type="secondary" className="!text-xs !leading-snug">
+                    {PROVIDER_LABELS[secret.provider ?? ""] ?? secret.provider}
+                    {" · manage this connection in Settings → Secrets."}
+                </Typography.Text>
+            </div>
+            {secret.models?.length ? (
+                <div className="flex flex-col gap-0.5">
+                    <span className="text-[11px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                        Models
+                    </span>
+                    <span className="text-xs leading-relaxed text-[var(--ag-colorTextSecondary)]">
+                        {secret.models.join(" · ")}
+                    </span>
+                </div>
+            ) : null}
+        </div>
+    )
+
+    // The selected provider's key form (or a read-only custom-provider summary / empty note). Shared
+    // by the section's master-detail pane and the bare inline variant.
+    const providerDetail = selectedStandardSecret ? (
+        // Keyed by provider name: ProviderKeyField's internal draft-key useState otherwise survives a
+        // rail switch, letting provider A's half-typed key get saved under provider B. In the bare
+        // (compact) view the selected chip already names the provider, so drop the detail header.
+        <ProviderKeyField
+            key={selectedStandardSecret.name}
+            provider={selectedStandardSecret}
+            disabled={disabled}
+            hideHeader={bare}
+            revisionId={revisionId}
+        />
+    ) : selectedCustomProvider ? (
+        renderCustomSummary(selectedCustomProvider)
+    ) : (
+        <Typography.Text type="secondary" className="!text-xs !leading-snug">
+            No provider configured for this model yet — add one from the list.
+        </Typography.Text>
+    )
+
+    // Custom-provider "Use custom provider" rows (open the Configure drawer), shared by rail + compact.
+    const addProviderRows =
+        openConfigureProvider && visibleAddRows.length
+            ? visibleAddRows.map((row) => (
+                  <RailRow
+                      key={row.kind}
+                      disabled={disabled}
+                      onClick={() => openConfigureProvider(row.kind)}
+                      tile={<ProviderTile family={row.kind} label={row.label} />}
+                      label={row.label}
+                      trailing={
+                          <Plus size={12} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
+                      }
+                  />
+              ))
+            : null
+
+    const railDetail = (
+        <div className="flex min-h-[236px] overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)]">
+            <div className="flex w-[190px] shrink-0 flex-col gap-0.5 overflow-y-auto border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] p-2">
+                {visibleStandardSecrets.map((secret) => (
+                    <RailRow
+                        key={secret.name}
+                        active={activeKey === `${STANDARD_PREFIX}${secret.name}`}
+                        disabled={disabled}
+                        onClick={() => setManualKey(`${STANDARD_PREFIX}${secret.name}`)}
+                        tile={
+                            <ProviderTile
+                                family={standardSecretFamily(secret)}
+                                label={secret.title ?? secret.name ?? "?"}
+                            />
+                        }
+                        label={secret.title ?? secret.name ?? "Provider"}
+                        trailing={
+                            secret.key ? (
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
+                            ) : undefined
+                        }
+                    />
+                ))}
+                {visibleCustomSecrets.map((secret) => (
+                    <RailRow
+                        key={secret.id ?? secret.name}
+                        active={activeKey === `${CUSTOM_PREFIX}${secret.name}`}
+                        disabled={disabled}
+                        onClick={() => setManualKey(`${CUSTOM_PREFIX}${secret.name}`)}
+                        tile={
+                            <ProviderTile
+                                family={(secret.provider ?? "").toLowerCase()}
+                                label={secret.name ?? "?"}
+                            />
+                        }
+                        label={secret.name ?? "Custom provider"}
+                        trailing={
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
+                        }
+                    />
+                ))}
+                {addProviderRows ? (
+                    <div className="mt-1.5 flex flex-col gap-0.5 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] pt-1.5">
+                        <span className="px-2.5 pb-0.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                            Use custom provider
+                        </span>
+                        {addProviderRows}
+                    </div>
+                ) : null}
+            </div>
+
+            <div className="flex min-w-0 flex-1 flex-col p-4">{providerDetail}</div>
+        </div>
+    )
+
+    // Top-rail (rotated master-detail): the same provider list as `railDetail`, but the rail runs
+    // horizontally across the top and the detail (the OpenAI heading + key form) fills the width
+    // below. Suits the narrow inline column, where a side rail leaves the key form cramped. Reuses
+    // the shared `activeKey`/`setManualKey`/`providerDetail` so selection stays consistent.
+    const topRail = (
+        <div className="min-w-0 overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)]">
+            <div className="flex items-center gap-1.5 overflow-x-auto border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] p-2.5 [scrollbar-width:thin] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--ag-colorFillSecondary)] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:h-1.5">
+                {visibleStandardSecrets.map((secret) => (
+                    <RailChip
+                        key={secret.name}
+                        active={activeKey === `${STANDARD_PREFIX}${secret.name}`}
+                        disabled={disabled}
+                        onClick={() => setManualKey(`${STANDARD_PREFIX}${secret.name}`)}
+                        tile={
+                            <ProviderTile
+                                family={standardSecretFamily(secret)}
+                                label={secret.title ?? secret.name ?? "?"}
+                            />
+                        }
+                        label={secret.title ?? secret.name ?? "Provider"}
+                        trailing={
+                            secret.key ? (
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
+                            ) : undefined
+                        }
+                    />
+                ))}
+                {visibleCustomSecrets.map((secret) => (
+                    <RailChip
+                        key={secret.id ?? secret.name}
+                        active={activeKey === `${CUSTOM_PREFIX}${secret.name}`}
+                        disabled={disabled}
+                        onClick={() => setManualKey(`${CUSTOM_PREFIX}${secret.name}`)}
+                        tile={
+                            <ProviderTile
+                                family={(secret.provider ?? "").toLowerCase()}
+                                label={secret.name ?? "?"}
+                            />
+                        }
+                        label={secret.name ?? "Custom provider"}
+                        trailing={
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
+                        }
+                    />
+                ))}
+                {openConfigureProvider && visibleAddRows.length
+                    ? visibleAddRows.map((row) => (
+                          <RailChip
+                              key={row.kind}
+                              dashed
+                              disabled={disabled}
+                              onClick={() => openConfigureProvider(row.kind)}
+                              tile={<ProviderTile family={row.kind} label={row.label} />}
+                              label={row.label}
+                              trailing={
+                                  <Plus
+                                      size={12}
+                                      className="shrink-0 text-[var(--ag-colorTextTertiary)]"
+                                  />
+                              }
+                          />
+                      ))
+                    : null}
+            </div>
+            <div className="p-4">{providerDetail}</div>
+        </div>
+    )
+
+    // Compact inline variant: a `[ model select ⋯ API key | Subscription ]` header row over the
+    // top-rail provider strip (or the self-managed card) — no accordion header/badge; the host
+    // section owns those.
+    if (bare) {
+        return (
+            <div className="flex min-w-0 flex-col gap-3">
+                {/* Header: model picker takes the remaining width, mode toggle sits right. */}
+                {modelControl || toggle ? (
+                    <div className="flex items-center gap-3">
+                        <div className="min-w-0 flex-1">{modelControl}</div>
+                        {toggle}
+                    </div>
+                ) : null}
+                {mode === "self_managed" ? selfManagedCard : topRail}
+            </div>
+        )
+    }
+
     return (
         <ConfigAccordionSection
             size="compact"
             icon={<Key size={15} />}
             title="Provider credentials"
             status={providerNeedsKey ? "warning" : "complete"}
+            indicator={indicator}
             titleBadge={
                 providerNeedsKey ? (
                     <span className="rounded-full border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--ag-colorWarningText)]">
@@ -304,189 +646,15 @@ export function ProviderCredentialsSection({
             summaryCollapsedOnly
             noDivider
             extra={
-                showToggle ? (
-                    <Segmented
-                        size="small"
-                        value={mode}
-                        disabled={disabled}
-                        onChange={(value) => onModeChange(value as ConnectionMode)}
-                        options={toggleOptions}
-                        className={cn(
-                            "rounded-md border border-solid border-[var(--ag-colorBorder)]",
-                            // antd's default selected-thumb bg/track bg both resolve to
-                            // near-white in light mode, so the "active" segment is invisible —
-                            // force a strong, theme-inverted fill instead (dark-navy-on-white
-                            // in light mode, near-white-on-near-black in dark mode).
-                            "[&_.ant-segmented-item-selected]:!bg-[var(--ag-colorText)] [&_.ant-segmented-item-selected]:!text-[var(--ag-colorBgContainer)] [&_.ant-segmented-item-selected]:!shadow-none",
-                            "[&_.ant-segmented-thumb]:!bg-[var(--ag-colorText)] [&_.ant-segmented-thumb]:!shadow-none",
-                        )}
-                    />
+                revertControl || toggle ? (
+                    <div className="flex items-center gap-1">
+                        {revertControl}
+                        {toggle}
+                    </div>
                 ) : undefined
             }
         >
-            {mode === "self_managed" ? (
-                <div className="flex flex-col items-start gap-3 rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] p-4">
-                    <div className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)]">
-                        <Terminal size={18} className="text-[var(--ag-colorTextSecondary)]" />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                        <Typography.Text className="!text-[14.5px] !font-semibold">
-                            Self-managed
-                        </Typography.Text>
-                        <ul className="m-0 flex list-disc flex-col gap-0.5 pl-4">
-                            <li>
-                                <Typography.Text
-                                    type="secondary"
-                                    className="!text-xs !leading-relaxed"
-                                >
-                                    Use a Claude Code or Codex subscription, or any credential the
-                                    harness reads from its own environment (env vars, prior logins).
-                                </Typography.Text>
-                            </li>
-                            <li>
-                                <Typography.Text
-                                    type="secondary"
-                                    className="!text-xs !leading-relaxed"
-                                >
-                                    Agenta stores and injects no key.
-                                </Typography.Text>
-                            </li>
-                            <li>
-                                <Typography.Text
-                                    type="secondary"
-                                    className="!text-xs !font-semibold !leading-relaxed"
-                                >
-                                    Requires a self-hosted Agenta deployment.
-                                </Typography.Text>
-                            </li>
-                        </ul>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <a
-                            href={guideUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="rounded-md border border-solid border-[var(--ag-colorBorder)] px-2.5 py-1 text-xs font-medium text-[var(--ag-colorText)] no-underline hover:bg-[var(--ag-colorFillTertiary)]"
-                        >
-                            Read the self-hosting guide →
-                        </a>
-                        {isCloud ? (
-                            // fallback until colorErrorBg token lands
-                            <span className="rounded-full border border-solid border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg,rgba(255,77,79,0.12))] px-2 py-0.5 text-[11px] text-[var(--ag-colorErrorText)]">
-                                Unavailable in the cloud
-                            </span>
-                        ) : null}
-                    </div>
-                </div>
-            ) : (
-                <div className="flex min-h-[236px] overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)]">
-                    <div className="flex w-[190px] shrink-0 flex-col gap-0.5 overflow-y-auto border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] p-2">
-                        {visibleStandardSecrets.map((secret) => (
-                            <RailRow
-                                key={secret.name}
-                                active={activeKey === `${STANDARD_PREFIX}${secret.name}`}
-                                disabled={disabled}
-                                onClick={() => setManualKey(`${STANDARD_PREFIX}${secret.name}`)}
-                                tile={
-                                    <ProviderTile
-                                        family={standardSecretFamily(secret)}
-                                        label={secret.title ?? secret.name ?? "?"}
-                                    />
-                                }
-                                label={secret.title ?? secret.name ?? "Provider"}
-                                trailing={
-                                    secret.key ? (
-                                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
-                                    ) : undefined
-                                }
-                            />
-                        ))}
-                        {visibleCustomSecrets.map((secret) => (
-                            <RailRow
-                                key={secret.id ?? secret.name}
-                                active={activeKey === `${CUSTOM_PREFIX}${secret.name}`}
-                                disabled={disabled}
-                                onClick={() => setManualKey(`${CUSTOM_PREFIX}${secret.name}`)}
-                                tile={
-                                    <ProviderTile
-                                        family={(secret.provider ?? "").toLowerCase()}
-                                        label={secret.name ?? "?"}
-                                    />
-                                }
-                                label={secret.name ?? "OpenAI-compatible endpoint"}
-                                trailing={
-                                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
-                                }
-                            />
-                        ))}
-                        {openConfigureProvider && visibleAddRows.length ? (
-                            <div className="mt-1.5 flex flex-col gap-0.5 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] pt-1.5">
-                                <span className="px-2.5 pb-0.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                                    Add custom provider
-                                </span>
-                                {visibleAddRows.map((row) => (
-                                    <RailRow
-                                        key={row.kind}
-                                        disabled={disabled}
-                                        onClick={() => openConfigureProvider(row.kind)}
-                                        tile={<ProviderTile family={row.kind} label={row.label} />}
-                                        label={row.label}
-                                        trailing={
-                                            <Plus
-                                                size={12}
-                                                className="shrink-0 text-[var(--ag-colorTextTertiary)]"
-                                            />
-                                        }
-                                    />
-                                ))}
-                            </div>
-                        ) : null}
-                    </div>
-
-                    <div className="flex min-w-0 flex-1 flex-col p-4">
-                        {selectedStandardSecret ? (
-                            // Keyed by provider name: ProviderKeyField's internal draft-key
-                            // useState otherwise survives a rail switch, letting provider A's
-                            // half-typed key get saved under provider B.
-                            <ProviderKeyField
-                                key={selectedStandardSecret.name}
-                                provider={selectedStandardSecret}
-                                disabled={disabled}
-                            />
-                        ) : selectedCustomProvider ? (
-                            <div className="flex flex-col gap-3">
-                                <div className="flex flex-col gap-0.5">
-                                    <Typography.Text className="!text-[14.5px] !font-semibold">
-                                        {selectedCustomProvider.name}
-                                    </Typography.Text>
-                                    <Typography.Text
-                                        type="secondary"
-                                        className="!text-xs !leading-snug"
-                                    >
-                                        {PROVIDER_LABELS[selectedCustomProvider.provider ?? ""] ??
-                                            selectedCustomProvider.provider}
-                                        {" · manage this connection in Settings → Secrets."}
-                                    </Typography.Text>
-                                </div>
-                                {selectedCustomProvider.models?.length ? (
-                                    <div className="flex flex-col gap-0.5">
-                                        <span className="text-[11px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                                            Models
-                                        </span>
-                                        <span className="text-xs leading-relaxed text-[var(--ag-colorTextSecondary)]">
-                                            {selectedCustomProvider.models.join(" · ")}
-                                        </span>
-                                    </div>
-                                ) : null}
-                            </div>
-                        ) : (
-                            <Typography.Text type="secondary" className="!text-xs !leading-snug">
-                                No provider configured for this model yet — add one from the list.
-                            </Typography.Text>
-                        )}
-                    </div>
-                </div>
-            )}
+            {mode === "self_managed" ? selfManagedCard : railDetail}
         </ConfigAccordionSection>
     )
 }

@@ -36,8 +36,11 @@ export async function fetchRecords(sessionId: string, projectId?: string | null)
 }
 
 export async function fetchState(sessionId: string, projectId?: string | null) {
-    const res = await getSessionsClient().getState({session_id: sessionId}, scope(projectId))
-    return res.session_state ?? null
+    const res = await getSessionsClient().fetchSessionStream(
+        {session_id: sessionId},
+        scope(projectId),
+    )
+    return res.stream ?? null
 }
 
 export async function fetchMounts(sessionId: string, projectId?: string | null) {

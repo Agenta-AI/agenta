@@ -51,6 +51,9 @@ interface FakeEnv {
   destroyed: number;
   turnsCleared: number;
   lastTurnToolCallIds: string[];
+  parkedApprovals: Map<string, unknown>;
+  approvalGateCount: number;
+  nonParkablePauseCount: number;
   clearTurn: () => void;
   /** Replaceable body so a test can slow the teardown down; `destroy` stays a stable closure. */
   destroyImpl: () => Promise<void>;
@@ -78,6 +81,9 @@ function makeEngine(options: EngineOptions = {}) {
       destroyed: 0,
       turnsCleared: 0,
       lastTurnToolCallIds: [],
+      parkedApprovals: new Map(),
+      approvalGateCount: 0,
+      nonParkablePauseCount: 0,
       clearTurn: () => {
         env.turnsCleared += 1;
       },
@@ -210,6 +216,23 @@ function turn2(
 }
 
 describe("runWithKeepalive: park + hit", () => {
+  it("mints an execution turnId when the request omits one, before the engine runs", async () => {
+    const made = makeEngine({});
+    const seen: Array<string | undefined> = [];
+    const inner = made.engine.runTurn;
+    made.engine.runTurn = async (env, req, emit, signal, opts) => {
+      seen.push(req.turnId);
+      return inner(env, req, emit, signal, opts);
+    };
+    const req = turn1("turnid-session");
+    delete (req as Record<string, unknown>)["turnId"];
+    await runWithKeepalive(req, undefined, undefined, makeCtx(made.engine));
+    assert.equal(seen.length, 1);
+    // The ledger append and interaction rows read request.turnId; a run without one would
+    // write NULL execution ids (the live-verification defect this pins).
+    assert.ok(typeof seen[0] === "string" && seen[0].length > 0);
+  });
+
   it("calls the live-park hook once for Daytona, never for local", async () => {
     const daytona = makeEngine({ onParkedLive: true });
     const daytonaContext = makeCtx(daytona.engine);

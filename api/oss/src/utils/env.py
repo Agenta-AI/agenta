@@ -1047,6 +1047,14 @@ class RunnerConfig(BaseModel):
         default_factory=_default_sandbox_provider_default
     )
 
+    # Direct API -> runner hop for `kill` (W7.3): the same base URL and shared-secret token
+    # the Python agent service (services/oss/src/agent/config.py's `runner_url()`) already
+    # uses to reach the runner's HTTP surface. None/blank means kill only edits the Redis
+    # nest + row (best-effort; the runner's own orphan sweep/TTL expiry still reclaims the
+    # sandbox eventually, just not immediately).
+    internal_url: Optional[str] = os.getenv("AGENTA_RUNNER_INTERNAL_URL") or None
+    token: Optional[str] = os.getenv("AGENTA_RUNNER_TOKEN") or None
+
     model_config = ConfigDict(extra="ignore")
 
     @model_validator(mode="after")

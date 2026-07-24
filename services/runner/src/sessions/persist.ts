@@ -43,6 +43,8 @@ async function postEvent(
   eventIndex: number,
   sender: string,
   recordId?: string,
+  turnId?: string,
+  spanId?: string,
 ): Promise<void> {
   const url = `${apiBase()}/sessions/records/ingest`;
   let lastErr: unknown;
@@ -64,6 +66,10 @@ async function postEvent(
           record_source: sender,
           record_type: event.type,
           attributes: event,
+          // Tags the record for turn-grouping; span_id bridges to observability when
+          // the run has one in scope (both forward-fill only, absent is expected).
+          ...(turnId ? { turn_id: turnId } : {}),
+          ...(spanId ? { span_id: spanId } : {}),
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -94,12 +100,23 @@ export function persistEvent(
   sender: string = "agent",
   recordId?: string,
   redactor?: Redactor,
+  turnId?: string,
+  spanId?: string,
 ): void {
   // Redact at the sink: the durable copy is scrubbed; the live/in-memory event the harness
   // and the client stream still hold is untouched.
   const durable = redactor ? redactor.redactJson(event, "records") : event;
   const tail = (persistChains.get(sessionId) ?? Promise.resolve()).then(() =>
-    postEvent(sessionId, auth, durable, eventIndex, sender, recordId),
+    postEvent(
+      sessionId,
+      auth,
+      durable,
+      eventIndex,
+      sender,
+      recordId,
+      turnId,
+      spanId,
+    ),
   );
   persistChains.set(sessionId, tail);
 }
@@ -137,14 +154,16 @@ const OPEN_TOOL_TTL_MS = Number(process.env.AGENTA_RECORD_TOOL_TTL_MS ?? 3000);
  *  - message_start/delta/end and thought_* accumulate text, persisted once on *_end.
  *  - tool_call snapshots for one id accumulate (latest args win) into a single open slot,
  *    persisted once when a non-continuation event arrives, the TTL fires, or the turn
- *    drains. The record carries a stable uuid5 id so a re-sent snapshot (or a resume)
- *    upserts the same row rather than appending.
+ *    drains. The record carries a turn-scoped stable uuid5 id so retries upsert within
+ *    one execution without overwriting the same tool call from another execution.
  */
 export function buildPersistingEmitter(
   sessionId: string,
   auth: () => string,
   liveEmit?: (event: AgentEvent) => void,
   redactor?: Redactor,
+  turnId?: string,
+  spanId?: string,
 ): {
   emit: (event: AgentEvent) => void;
   /** Persist an out-of-band record (e.g. the inbound user turn) through the same
@@ -177,8 +196,10 @@ export function buildPersistingEmitter(
       event,
       index,
       "agent",
-      stableRecordId(sessionId, id, "tool_call"),
+      stableRecordId(sessionId, id, "tool_call", turnId),
       redactor,
+      turnId,
+      spanId,
     );
   };
 
@@ -234,6 +255,8 @@ export function buildPersistingEmitter(
           "agent",
           undefined,
           redactor,
+          turnId,
+          spanId,
         );
         return;
       }
@@ -262,15 +285,19 @@ export function buildPersistingEmitter(
           "agent",
           undefined,
           redactor,
+          turnId,
+          spanId,
         );
         return;
       }
     }
 
-    // A tool_result / interaction_request carries the same tool-call id as its tool_call;
-    // give it its own stable id (keyed on the record type) so it lands on a distinct row.
+    // Related tool and interaction events share correlation ids but need distinct, retry-stable
+    // rows, so the record type remains part of the stable id.
     if (
-      (event.type === "tool_result" || event.type === "interaction_request") &&
+      (event.type === "tool_result" ||
+        event.type === "interaction_request" ||
+        event.type === "interaction_response") &&
       event.id
     ) {
       persistEvent(
@@ -279,8 +306,10 @@ export function buildPersistingEmitter(
         event,
         eventIndex++,
         "agent",
-        stableRecordId(sessionId, event.id, event.type),
+        stableRecordId(sessionId, event.id, event.type, turnId),
         redactor,
+        turnId,
+        spanId,
       );
       return;
     }
@@ -294,6 +323,8 @@ export function buildPersistingEmitter(
       "agent",
       undefined,
       redactor,
+      turnId,
+      spanId,
     );
   };
 
@@ -308,6 +339,8 @@ export function buildPersistingEmitter(
       sender,
       undefined,
       redactor,
+      turnId,
+      spanId,
     );
   };
 

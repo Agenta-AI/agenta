@@ -26,7 +26,7 @@ import agenta as ag
 from agenta.sdk.agents import (
     AgentTemplate,
     Environment,
-    HarnessType,
+    HarnessKind,
     Message,
     PiHarness,
     SessionConfig,
@@ -55,7 +55,7 @@ def _pi_wire(env: Environment, agent: AgentTemplate) -> dict:
     harness = PiHarness(env)
     pi_config = harness._to_harness_config(SessionConfig(agent=agent))
     return request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=pi_config,
         messages=[Message(role="user", content="ship it")],
@@ -66,7 +66,7 @@ def _pi_wire(env: Environment, agent: AgentTemplate) -> dict:
 
 
 def test_inline_skill_materializes_on_the_wire(make_env):
-    env = make_env(supported=[HarnessType.PI])
+    env = make_env(supported=[HarnessKind.PI])
     agent = AgentTemplate(instructions="hi", model="gpt-5.5", skills=[_INLINE_SKILL])
 
     wire = _pi_wire(env, agent)
@@ -92,7 +92,7 @@ def test_inline_skill_materializes_on_the_wire(make_env):
 
 
 def test_minimal_inline_skill_omits_optional_flags_on_the_wire(make_env):
-    env = make_env(supported=[HarnessType.PI])
+    env = make_env(supported=[HarnessKind.PI])
     agent = AgentTemplate(
         instructions="hi",
         model="gpt-5.5",
@@ -193,7 +193,7 @@ async def test_embed_skill_resolves_to_a_concrete_package_on_the_wire(make_env):
 
     # Now carry the resolved params the rest of the way, exactly as the handler does: build the
     # AgentTemplate from them, translate through the harness, and serialize the wire.
-    env = make_env(supported=[HarnessType.PI])
+    env = make_env(supported=[HarnessKind.PI])
     agent = AgentTemplate.from_params(request.data.parameters)
     wire = _pi_wire(env, agent)
 

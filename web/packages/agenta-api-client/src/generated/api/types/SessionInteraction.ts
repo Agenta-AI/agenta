@@ -3,13 +3,13 @@
 import type * as AgentaApi from "../index.js";
 
 export interface SessionInteraction {
-    id?: (string | null) | undefined;
-    created_at?: (unknown | null) | undefined;
-    updated_at?: (unknown | null) | undefined;
-    deleted_at?: (unknown | null) | undefined;
+    created_at?: (string | null) | undefined;
+    updated_at?: (string | null) | undefined;
+    deleted_at?: (string | null) | undefined;
     created_by_id?: (string | null) | undefined;
     updated_by_id?: (string | null) | undefined;
     deleted_by_id?: (string | null) | undefined;
+    id?: (string | null) | undefined;
     project_id?: (string | null) | undefined;
     session_id: string;
     turn_id?: (string | null) | undefined;

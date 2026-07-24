@@ -100,3 +100,99 @@ async def test_record_ingest_rejects_without_permission():
             await router.ingest_record_event(request=request, body=body)
 
     assert exc_info.value.status_code == 403
+
+
+async def test_record_ingest_threads_turn_id_and_span_id():
+    records_service = AsyncMock()
+    router = RecordsRouter(records_service=records_service)
+
+    project_id = uuid4()
+    user_id = uuid4()
+    organization_id = uuid4()
+    session_id = uuid4()
+    # The runner posts a 16-hex OTel span id, NOT a UUID (regression: it was typed as UUID
+    # and every ingest 422'd — see FINDING-record-ingest-422.md).
+    span_id = uuid4().hex[:16]
+
+    body = SessionRecordIngestRequest(
+        session_id=str(session_id),
+        record_index=0,
+        record_source="agent",
+        attributes={"type": "message"},
+        turn_id="turn-abc",
+        span_id=span_id,
+    )
+
+    app = FastAPI()
+    request = _make_authed_request(app, project_id, user_id, organization_id)
+
+    with (
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.publish_record",
+            new_callable=AsyncMock,
+            return_value=True,
+        ) as mock_publish,
+    ):
+        await router.ingest_record_event(request=request, body=body)
+
+    event = mock_publish.await_args.kwargs["record_event"]
+    assert event.turn_id == "turn-abc"
+    assert event.span_id == span_id
+
+
+async def test_record_ingest_defaults_turn_id_and_span_id_to_none():
+    records_service = AsyncMock()
+    router = RecordsRouter(records_service=records_service)
+
+    project_id = uuid4()
+    user_id = uuid4()
+    organization_id = uuid4()
+    session_id = uuid4()
+
+    body = SessionRecordIngestRequest(session_id=str(session_id))
+
+    app = FastAPI()
+    request = _make_authed_request(app, project_id, user_id, organization_id)
+
+    with (
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.publish_record",
+            new_callable=AsyncMock,
+            return_value=True,
+        ) as mock_publish,
+    ):
+        await router.ingest_record_event(request=request, body=body)
+
+    event = mock_publish.await_args.kwargs["record_event"]
+    assert event.turn_id is None
+    assert event.span_id is None
+
+
+def test_ingest_model_accepts_otel_span_id_and_rejects_uuid():
+    """Contract pin for the 422 regression: the ingest model accepts the 16-hex OTel span id
+    the runner actually sends, and rejects a 32-hex UUID (which is what the field used to be
+    typed as — that mistyping made pydantic reject every real ingest with a 422)."""
+    from pydantic import ValidationError
+
+    session_id = str(uuid4())
+
+    # The real runner shape: a 16-hex span id validates.
+    body = SessionRecordIngestRequest(
+        session_id=session_id,
+        span_id="a1b2c3d4e5f6a7b8",
+    )
+    assert body.span_id == "a1b2c3d4e5f6a7b8"
+
+    # A 32-hex UUID string is NOT a span id and must be rejected.
+    with pytest.raises(ValidationError):
+        SessionRecordIngestRequest(session_id=session_id, span_id=uuid4().hex)

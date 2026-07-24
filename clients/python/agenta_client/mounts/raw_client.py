@@ -77,11 +77,13 @@ class RawMountsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def query_mounts(self, *, session_id: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, mount: typing.Optional[MountQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[MountsResponse]:
+    def query_mounts(self, *, session_id: typing.Optional[str] = None, agent_id: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, mount: typing.Optional[MountQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[MountsResponse]:
         """
         Parameters
         ----------
         session_id : typing.Optional[str]
+        
+        agent_id : typing.Optional[str]
         
         include_archived : typing.Optional[bool]
         
@@ -99,7 +101,7 @@ class RawMountsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "mounts/query",method="POST",
-            params={"session_id": session_id, "include_archived": include_archived, }
+            params={"session_id": session_id, "agent_id": agent_id, "include_archived": include_archived, }
             ,
             json={
                 "mount": convert_and_respect_annotation_metadata(object_=mount, annotation=typing.Optional[MountQuery], direction="write"),
@@ -768,11 +770,13 @@ class AsyncRawMountsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def query_mounts(self, *, session_id: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, mount: typing.Optional[MountQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[MountsResponse]:
+    async def query_mounts(self, *, session_id: typing.Optional[str] = None, agent_id: typing.Optional[str] = None, include_archived: typing.Optional[bool] = None, mount: typing.Optional[MountQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[MountsResponse]:
         """
         Parameters
         ----------
         session_id : typing.Optional[str]
+        
+        agent_id : typing.Optional[str]
         
         include_archived : typing.Optional[bool]
         
@@ -790,7 +794,7 @@ class AsyncRawMountsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "mounts/query",method="POST",
-            params={"session_id": session_id, "include_archived": include_archived, }
+            params={"session_id": session_id, "agent_id": agent_id, "include_archived": include_archived, }
             ,
             json={
                 "mount": convert_and_respect_annotation_metadata(object_=mount, annotation=typing.Optional[MountQuery], direction="write"),

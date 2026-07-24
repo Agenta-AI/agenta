@@ -23,6 +23,8 @@ def map_record_event_to_dbe(
         record_type=event.record_type,
         record_source=event.record_source,
         attributes=event.attributes,
+        turn_id=event.turn_id,
+        span_id=event.span_id,
     )
 
 
@@ -36,5 +38,7 @@ def map_record_dbe_to_dto(*, dbe: RecordDBE) -> SessionRecord:
         record_type=dbe.record_type,
         record_source=dbe.record_source,
         attributes=dbe.attributes,
+        turn_id=dbe.turn_id,
+        span_id=dbe.span_id,
         created_at=dbe.created_at,
     )

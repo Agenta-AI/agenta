@@ -6,9 +6,11 @@ import typing
 from .. import core
 from ..core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from ..core.request_options import RequestOptions
+from ..types.harness_kind import HarnessKind
 from ..types.mount_credentials_response import MountCredentialsResponse
 from ..types.mount_file_written_response import MountFileWrittenResponse
-from ..types.session_heartbeat_response_model import SessionHeartbeatResponseModel
+from ..types.reference import Reference
+from ..types.session_heartbeat_result import SessionHeartbeatResult
 from ..types.session_interaction_data import SessionInteractionData
 from ..types.session_interaction_flags import SessionInteractionFlags
 from ..types.session_interaction_kind import SessionInteractionKind
@@ -20,12 +22,16 @@ from ..types.session_mount_query import SessionMountQuery
 from ..types.session_mounts_response import SessionMountsResponse
 from ..types.session_record_response import SessionRecordResponse
 from ..types.session_records_query_response import SessionRecordsQueryResponse
-from ..types.session_state_data import SessionStateData
-from ..types.session_state_response import SessionStateResponse
-from ..types.session_stream_command_response_model import SessionStreamCommandResponseModel
-from ..types.session_stream_response_model import SessionStreamResponseModel
-from ..types.session_streams_response_model import SessionStreamsResponseModel
+from ..types.session_response import SessionResponse
+from ..types.session_stream_command_response import SessionStreamCommandResponse
+from ..types.session_stream_response import SessionStreamResponse
+from ..types.session_streams_response import SessionStreamsResponse
+from ..types.session_turn_query import SessionTurnQuery
+from ..types.session_turn_response import SessionTurnResponse
+from ..types.session_turns_response import SessionTurnsResponse
+from ..types.sessions_response import SessionsResponse
 from ..types.windowing import Windowing
+from ..types.workflow_request_data import WorkflowRequestData
 from .raw_client import AsyncRawSessionsClient, RawSessionsClient
 
 # this is used as the default value for optional parameters
@@ -45,7 +51,7 @@ class SessionsClient:
         """
         return self._raw_client
     
-    def fetch_session_stream(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamResponseModel:
+    def fetch_session_stream(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamResponse:
         """
         Parameters
         ----------
@@ -56,7 +62,7 @@ class SessionsClient:
         
         Returns
         -------
-        SessionStreamResponseModel
+        SessionStreamResponse
             Successful Response
         
         Examples
@@ -73,13 +79,13 @@ class SessionsClient:
         _response = self._raw_client.fetch_session_stream(session_id=session_id, request_options=request_options)
         return _response.data
     
-    def set_session_stream(self, *, session_id: str, prompt: typing.Optional[str] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamCommandResponseModel:
+    def set_session_stream(self, *, session_id: str, data: typing.Optional[WorkflowRequestData] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamCommandResponse:
         """
         Parameters
         ----------
         session_id : str
         
-        prompt : typing.Optional[str]
+        data : typing.Optional[WorkflowRequestData]
         
         force : typing.Optional[bool]
         
@@ -90,7 +96,7 @@ class SessionsClient:
         
         Returns
         -------
-        SessionStreamCommandResponseModel
+        SessionStreamCommandResponse
             Successful Response
         
         Examples
@@ -104,7 +110,7 @@ class SessionsClient:
             session_id="session_id",
         )
         """
-        _response = self._raw_client.set_session_stream(session_id=session_id, prompt=prompt, force=force, detached=detached, request_options=request_options)
+        _response = self._raw_client.set_session_stream(session_id=session_id, data=data, force=force, detached=detached, request_options=request_options)
         return _response.data
     
     def delete_session_stream(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
@@ -135,7 +141,7 @@ class SessionsClient:
         _response = self._raw_client.delete_session_stream(session_id=session_id, request_options=request_options)
         return _response.data
     
-    def query_session_streams(self, *, session_id: typing.Optional[str] = OMIT, is_alive: typing.Optional[bool] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamsResponseModel:
+    def query_session_streams(self, *, session_id: typing.Optional[str] = OMIT, is_alive: typing.Optional[bool] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamsResponse:
         """
         Parameters
         ----------
@@ -150,7 +156,7 @@ class SessionsClient:
         
         Returns
         -------
-        SessionStreamsResponseModel
+        SessionStreamsResponse
             Successful Response
         
         Examples
@@ -196,7 +202,7 @@ class SessionsClient:
         _response = self._raw_client.detach_session_stream(session_id=session_id, watcher_id=watcher_id, request_options=request_options)
         return _response.data
     
-    def heartbeat_session_stream(self, *, session_id: str, replica_id: str, turn_id: typing.Optional[str] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionHeartbeatResponseModel:
+    def heartbeat_session_stream(self, *, session_id: str, replica_id: str, turn_id: typing.Optional[str] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionHeartbeatResult:
         """
         Parameters
         ----------
@@ -213,7 +219,7 @@ class SessionsClient:
         
         Returns
         -------
-        SessionHeartbeatResponseModel
+        SessionHeartbeatResult
             Successful Response
         
         Examples
@@ -229,6 +235,38 @@ class SessionsClient:
         )
         """
         _response = self._raw_client.heartbeat_session_stream(session_id=session_id, replica_id=replica_id, turn_id=turn_id, is_running=is_running, request_options=request_options)
+        return _response.data
+    
+    def set_session_stream_header(self, *, session_id: str, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamResponse:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        name : typing.Optional[str]
+        
+        description : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SessionStreamResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.sessions.set_session_stream_header(
+            session_id="session_id",
+        )
+        """
+        _response = self._raw_client.set_session_stream_header(session_id=session_id, name=name, description=description, request_options=request_options)
         return _response.data
     
     def create_interaction(self, *, session_id: str, token: str, kind: SessionInteractionKind, turn_id: typing.Optional[str] = OMIT, data: typing.Optional[SessionInteractionData] = OMIT, flags: typing.Optional[SessionInteractionFlags] = OMIT, tags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, meta: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionResponse:
@@ -641,7 +679,7 @@ class SessionsClient:
         _response = self._raw_client.get_record_event(record_id, request_options=request_options)
         return _response.data
     
-    def ingest_record(self, *, session_id: str, record_id: typing.Optional[str] = OMIT, record_index: typing.Optional[int] = OMIT, timestamp: typing.Optional[dt.datetime] = OMIT, record_type: typing.Optional[str] = OMIT, record_source: typing.Optional[str] = OMIT, attributes: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
+    def ingest_record(self, *, session_id: str, record_id: typing.Optional[str] = OMIT, record_index: typing.Optional[int] = OMIT, timestamp: typing.Optional[dt.datetime] = OMIT, record_type: typing.Optional[str] = OMIT, record_source: typing.Optional[str] = OMIT, attributes: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, turn_id: typing.Optional[str] = OMIT, span_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
         """
         Parameters
         ----------
@@ -658,6 +696,10 @@ class SessionsClient:
         record_source : typing.Optional[str]
         
         attributes : typing.Optional[typing.Dict[str, typing.Any]]
+        
+        turn_id : typing.Optional[str]
+        
+        span_id : typing.Optional[str]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -678,58 +720,41 @@ class SessionsClient:
             session_id="session_id",
         )
         """
-        _response = self._raw_client.ingest_record(session_id=session_id, record_id=record_id, record_index=record_index, timestamp=timestamp, record_type=record_type, record_source=record_source, attributes=attributes, request_options=request_options)
+        _response = self._raw_client.ingest_record(session_id=session_id, record_id=record_id, record_index=record_index, timestamp=timestamp, record_type=record_type, record_source=record_source, attributes=attributes, turn_id=turn_id, span_id=span_id, request_options=request_options)
         return _response.data
     
-    def get_state(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
+    def append_turn(self, *, session_id: str, stream_id: str, turn_index: int, harness_kind: HarnessKind, agent_session_id: typing.Optional[str] = OMIT, sandbox_id: typing.Optional[str] = OMIT, references: typing.Optional[typing.Sequence[Reference]] = OMIT, trace_id: typing.Optional[str] = OMIT, span_id: typing.Optional[str] = OMIT, start_time: typing.Optional[dt.datetime] = OMIT, end_time: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionTurnResponse:
         """
         Parameters
         ----------
         session_id : str
         
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
+        stream_id : str
         
-        Returns
-        -------
-        SessionStateResponse
-            Successful Response
+        turn_index : int
         
-        Examples
-        --------
-        from agenta import AgentaApi
+        harness_kind : HarnessKind
         
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.sessions.get_state(
-            session_id="session_id",
-        )
-        """
-        _response = self._raw_client.get_state(session_id=session_id, request_options=request_options)
-        return _response.data
-    
-    def set_state(self, *, session_id: str, data: typing.Optional[SessionStateData] = OMIT, sandbox_id: typing.Optional[str] = OMIT, sandbox_turn_index: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
-        """
-        Parameters
-        ----------
-        session_id : str
-        
-        data : typing.Optional[SessionStateData]
-            Full replacement of the continuity state (resume ids + staleness guard).
+        agent_session_id : typing.Optional[str]
         
         sandbox_id : typing.Optional[str]
-            Remote sandbox id to record alongside the continuity state.
         
-        sandbox_turn_index : typing.Optional[int]
-            the writer's conversation turn index; the pointer write is applied only when it is >= the row's data.latest_turn_index.
+        references : typing.Optional[typing.Sequence[Reference]]
+        
+        trace_id : typing.Optional[str]
+        
+        span_id : typing.Optional[str]
+        
+        start_time : typing.Optional[dt.datetime]
+        
+        end_time : typing.Optional[dt.datetime]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
         
         Returns
         -------
-        SessionStateResponse
+        SessionTurnResponse
             Successful Response
         
         Examples
@@ -739,11 +764,182 @@ class SessionsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.sessions.set_state(
+        client.sessions.append_turn(
+            session_id="session_id",
+            stream_id="stream_id",
+            turn_index=1,
+            harness_kind="pi_core",
+        )
+        """
+        _response = self._raw_client.append_turn(session_id=session_id, stream_id=stream_id, turn_index=turn_index, harness_kind=harness_kind, agent_session_id=agent_session_id, sandbox_id=sandbox_id, references=references, trace_id=trace_id, span_id=span_id, start_time=start_time, end_time=end_time, request_options=request_options)
+        return _response.data
+    
+    def query_turns(self, *, query: typing.Optional[SessionTurnQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionTurnsResponse:
+        """
+        Parameters
+        ----------
+        query : typing.Optional[SessionTurnQuery]
+        
+        windowing : typing.Optional[Windowing]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SessionTurnsResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.sessions.query_turns()
+        """
+        _response = self._raw_client.query_turns(query=query, windowing=windowing, request_options=request_options)
+        return _response.data
+    
+    def fetch_turn(self, turn_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SessionTurnResponse:
+        """
+        Parameters
+        ----------
+        turn_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SessionTurnResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.sessions.fetch_turn(
+            turn_id="turn_id",
+        )
+        """
+        _response = self._raw_client.fetch_turn(turn_id, request_options=request_options)
+        return _response.data
+    
+    def query_sessions(self, *, references: typing.Optional[typing.Sequence[Reference]] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionsResponse:
+        """
+        Parameters
+        ----------
+        references : typing.Optional[typing.Sequence[Reference]]
+        
+        windowing : typing.Optional[Windowing]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SessionsResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.sessions.query_sessions()
+        """
+        _response = self._raw_client.query_sessions(references=references, windowing=windowing, request_options=request_options)
+        return _response.data
+    
+    def delete_session(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Dict[str, typing.Any]
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.sessions.delete_session(
             session_id="session_id",
         )
         """
-        _response = self._raw_client.set_state(session_id=session_id, data=data, sandbox_id=sandbox_id, sandbox_turn_index=sandbox_turn_index, request_options=request_options)
+        _response = self._raw_client.delete_session(session_id=session_id, request_options=request_options)
+        return _response.data
+    
+    def archive_session(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionResponse:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SessionResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.sessions.archive_session(
+            session_id="session_id",
+        )
+        """
+        _response = self._raw_client.archive_session(session_id=session_id, request_options=request_options)
+        return _response.data
+    
+    def unarchive_session(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionResponse:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SessionResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.sessions.unarchive_session(
+            session_id="session_id",
+        )
+        """
+        _response = self._raw_client.unarchive_session(session_id=session_id, request_options=request_options)
         return _response.data
 class AsyncSessionsClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
@@ -760,7 +956,7 @@ class AsyncSessionsClient:
         """
         return self._raw_client
     
-    async def fetch_session_stream(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamResponseModel:
+    async def fetch_session_stream(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamResponse:
         """
         Parameters
         ----------
@@ -771,7 +967,7 @@ class AsyncSessionsClient:
         
         Returns
         -------
-        SessionStreamResponseModel
+        SessionStreamResponse
             Successful Response
         
         Examples
@@ -796,13 +992,13 @@ class AsyncSessionsClient:
         _response = await self._raw_client.fetch_session_stream(session_id=session_id, request_options=request_options)
         return _response.data
     
-    async def set_session_stream(self, *, session_id: str, prompt: typing.Optional[str] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamCommandResponseModel:
+    async def set_session_stream(self, *, session_id: str, data: typing.Optional[WorkflowRequestData] = OMIT, force: typing.Optional[bool] = OMIT, detached: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamCommandResponse:
         """
         Parameters
         ----------
         session_id : str
         
-        prompt : typing.Optional[str]
+        data : typing.Optional[WorkflowRequestData]
         
         force : typing.Optional[bool]
         
@@ -813,7 +1009,7 @@ class AsyncSessionsClient:
         
         Returns
         -------
-        SessionStreamCommandResponseModel
+        SessionStreamCommandResponse
             Successful Response
         
         Examples
@@ -835,7 +1031,7 @@ class AsyncSessionsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.set_session_stream(session_id=session_id, prompt=prompt, force=force, detached=detached, request_options=request_options)
+        _response = await self._raw_client.set_session_stream(session_id=session_id, data=data, force=force, detached=detached, request_options=request_options)
         return _response.data
     
     async def delete_session_stream(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
@@ -874,7 +1070,7 @@ class AsyncSessionsClient:
         _response = await self._raw_client.delete_session_stream(session_id=session_id, request_options=request_options)
         return _response.data
     
-    async def query_session_streams(self, *, session_id: typing.Optional[str] = OMIT, is_alive: typing.Optional[bool] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamsResponseModel:
+    async def query_session_streams(self, *, session_id: typing.Optional[str] = OMIT, is_alive: typing.Optional[bool] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamsResponse:
         """
         Parameters
         ----------
@@ -889,7 +1085,7 @@ class AsyncSessionsClient:
         
         Returns
         -------
-        SessionStreamsResponseModel
+        SessionStreamsResponse
             Successful Response
         
         Examples
@@ -951,7 +1147,7 @@ class AsyncSessionsClient:
         _response = await self._raw_client.detach_session_stream(session_id=session_id, watcher_id=watcher_id, request_options=request_options)
         return _response.data
     
-    async def heartbeat_session_stream(self, *, session_id: str, replica_id: str, turn_id: typing.Optional[str] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionHeartbeatResponseModel:
+    async def heartbeat_session_stream(self, *, session_id: str, replica_id: str, turn_id: typing.Optional[str] = OMIT, is_running: typing.Optional[bool] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionHeartbeatResult:
         """
         Parameters
         ----------
@@ -968,7 +1164,7 @@ class AsyncSessionsClient:
         
         Returns
         -------
-        SessionHeartbeatResponseModel
+        SessionHeartbeatResult
             Successful Response
         
         Examples
@@ -992,6 +1188,46 @@ class AsyncSessionsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.heartbeat_session_stream(session_id=session_id, replica_id=replica_id, turn_id=turn_id, is_running=is_running, request_options=request_options)
+        return _response.data
+    
+    async def set_session_stream_header(self, *, session_id: str, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStreamResponse:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        name : typing.Optional[str]
+        
+        description : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SessionStreamResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.sessions.set_session_stream_header(
+                session_id="session_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.set_session_stream_header(session_id=session_id, name=name, description=description, request_options=request_options)
         return _response.data
     
     async def create_interaction(self, *, session_id: str, token: str, kind: SessionInteractionKind, turn_id: typing.Optional[str] = OMIT, data: typing.Optional[SessionInteractionData] = OMIT, flags: typing.Optional[SessionInteractionFlags] = OMIT, tags: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, meta: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionInteractionResponse:
@@ -1508,7 +1744,7 @@ class AsyncSessionsClient:
         _response = await self._raw_client.get_record_event(record_id, request_options=request_options)
         return _response.data
     
-    async def ingest_record(self, *, session_id: str, record_id: typing.Optional[str] = OMIT, record_index: typing.Optional[int] = OMIT, timestamp: typing.Optional[dt.datetime] = OMIT, record_type: typing.Optional[str] = OMIT, record_source: typing.Optional[str] = OMIT, attributes: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
+    async def ingest_record(self, *, session_id: str, record_id: typing.Optional[str] = OMIT, record_index: typing.Optional[int] = OMIT, timestamp: typing.Optional[dt.datetime] = OMIT, record_type: typing.Optional[str] = OMIT, record_source: typing.Optional[str] = OMIT, attributes: typing.Optional[typing.Dict[str, typing.Any]] = OMIT, turn_id: typing.Optional[str] = OMIT, span_id: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
         """
         Parameters
         ----------
@@ -1525,6 +1761,10 @@ class AsyncSessionsClient:
         record_source : typing.Optional[str]
         
         attributes : typing.Optional[typing.Dict[str, typing.Any]]
+        
+        turn_id : typing.Optional[str]
+        
+        span_id : typing.Optional[str]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1553,66 +1793,41 @@ class AsyncSessionsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.ingest_record(session_id=session_id, record_id=record_id, record_index=record_index, timestamp=timestamp, record_type=record_type, record_source=record_source, attributes=attributes, request_options=request_options)
+        _response = await self._raw_client.ingest_record(session_id=session_id, record_id=record_id, record_index=record_index, timestamp=timestamp, record_type=record_type, record_source=record_source, attributes=attributes, turn_id=turn_id, span_id=span_id, request_options=request_options)
         return _response.data
     
-    async def get_state(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
+    async def append_turn(self, *, session_id: str, stream_id: str, turn_index: int, harness_kind: HarnessKind, agent_session_id: typing.Optional[str] = OMIT, sandbox_id: typing.Optional[str] = OMIT, references: typing.Optional[typing.Sequence[Reference]] = OMIT, trace_id: typing.Optional[str] = OMIT, span_id: typing.Optional[str] = OMIT, start_time: typing.Optional[dt.datetime] = OMIT, end_time: typing.Optional[dt.datetime] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionTurnResponse:
         """
         Parameters
         ----------
         session_id : str
         
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
+        stream_id : str
         
-        Returns
-        -------
-        SessionStateResponse
-            Successful Response
+        turn_index : int
         
-        Examples
-        --------
-        import asyncio
+        harness_kind : HarnessKind
         
-        from agenta import AsyncAgentaApi
-        
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        
-        
-        async def main() -> None:
-            await client.sessions.get_state(
-                session_id="session_id",
-            )
-        
-        
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.get_state(session_id=session_id, request_options=request_options)
-        return _response.data
-    
-    async def set_state(self, *, session_id: str, data: typing.Optional[SessionStateData] = OMIT, sandbox_id: typing.Optional[str] = OMIT, sandbox_turn_index: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionStateResponse:
-        """
-        Parameters
-        ----------
-        session_id : str
-        
-        data : typing.Optional[SessionStateData]
-            Full replacement of the continuity state (resume ids + staleness guard).
+        agent_session_id : typing.Optional[str]
         
         sandbox_id : typing.Optional[str]
-            Remote sandbox id to record alongside the continuity state.
         
-        sandbox_turn_index : typing.Optional[int]
-            the writer's conversation turn index; the pointer write is applied only when it is >= the row's data.latest_turn_index.
+        references : typing.Optional[typing.Sequence[Reference]]
+        
+        trace_id : typing.Optional[str]
+        
+        span_id : typing.Optional[str]
+        
+        start_time : typing.Optional[dt.datetime]
+        
+        end_time : typing.Optional[dt.datetime]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
         
         Returns
         -------
-        SessionStateResponse
+        SessionTurnResponse
             Successful Response
         
         Examples
@@ -1627,12 +1842,231 @@ class AsyncSessionsClient:
         
         
         async def main() -> None:
-            await client.sessions.set_state(
+            await client.sessions.append_turn(
+                session_id="session_id",
+                stream_id="stream_id",
+                turn_index=1,
+                harness_kind="pi_core",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.append_turn(session_id=session_id, stream_id=stream_id, turn_index=turn_index, harness_kind=harness_kind, agent_session_id=agent_session_id, sandbox_id=sandbox_id, references=references, trace_id=trace_id, span_id=span_id, start_time=start_time, end_time=end_time, request_options=request_options)
+        return _response.data
+    
+    async def query_turns(self, *, query: typing.Optional[SessionTurnQuery] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionTurnsResponse:
+        """
+        Parameters
+        ----------
+        query : typing.Optional[SessionTurnQuery]
+        
+        windowing : typing.Optional[Windowing]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SessionTurnsResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.sessions.query_turns()
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.query_turns(query=query, windowing=windowing, request_options=request_options)
+        return _response.data
+    
+    async def fetch_turn(self, turn_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> SessionTurnResponse:
+        """
+        Parameters
+        ----------
+        turn_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SessionTurnResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.sessions.fetch_turn(
+                turn_id="turn_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.fetch_turn(turn_id, request_options=request_options)
+        return _response.data
+    
+    async def query_sessions(self, *, references: typing.Optional[typing.Sequence[Reference]] = OMIT, windowing: typing.Optional[Windowing] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> SessionsResponse:
+        """
+        Parameters
+        ----------
+        references : typing.Optional[typing.Sequence[Reference]]
+        
+        windowing : typing.Optional[Windowing]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SessionsResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.sessions.query_sessions()
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.query_sessions(references=references, windowing=windowing, request_options=request_options)
+        return _response.data
+    
+    async def delete_session(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Dict[str, typing.Any]:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Dict[str, typing.Any]
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.sessions.delete_session(
                 session_id="session_id",
             )
         
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.set_state(session_id=session_id, data=data, sandbox_id=sandbox_id, sandbox_turn_index=sandbox_turn_index, request_options=request_options)
+        _response = await self._raw_client.delete_session(session_id=session_id, request_options=request_options)
+        return _response.data
+    
+    async def archive_session(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionResponse:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SessionResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.sessions.archive_session(
+                session_id="session_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.archive_session(session_id=session_id, request_options=request_options)
+        return _response.data
+    
+    async def unarchive_session(self, *, session_id: str, request_options: typing.Optional[RequestOptions] = None) -> SessionResponse:
+        """
+        Parameters
+        ----------
+        session_id : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        SessionResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.sessions.unarchive_session(
+                session_id="session_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.unarchive_session(session_id=session_id, request_options=request_options)
         return _response.data

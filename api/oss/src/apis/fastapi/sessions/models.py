@@ -1,14 +1,12 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from oss.src.core.sessions.streams.dtos import (
-    CommandMode,
     SessionStream,
 )
-from oss.src.core.sessions.states.dtos import SessionState, SessionStateData
 from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
@@ -19,7 +17,28 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionStatus,
 )
 from oss.src.core.sessions.mounts.dtos import SessionMount, SessionMountQuery
-from oss.src.core.shared.dtos import Windowing
+from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn, SessionTurnQuery
+from oss.src.core.shared.dtos import OTelSpanId, Reference, Windowing
+
+
+# ---------------------------------------------------------------------------
+# Root session-level request/response models (query/delete/archive/unarchive)
+# ---------------------------------------------------------------------------
+
+
+class SessionQueryRequest(BaseModel):
+    references: Optional[List[Reference]] = None
+    windowing: Optional[Windowing] = None
+
+
+class SessionsResponse(BaseModel):
+    count: int = 0
+    sessions: List[SessionStream] = Field(default_factory=list)
+
+
+class SessionResponse(BaseModel):
+    count: int = 0
+    session: Optional[SessionStream] = None
 
 
 # ---------------------------------------------------------------------------
@@ -27,82 +46,24 @@ from oss.src.core.shared.dtos import Windowing
 # ---------------------------------------------------------------------------
 
 
-class SessionStreamCommandRequestModel(BaseModel):
-    session_id: str
-    prompt: Optional[str] = None
-    force: bool = False
-    detached: bool = False
-
-
-class SessionHeartbeatRequestModel(BaseModel):
-    # project scope comes from the caller's credential, never the body
-    session_id: str
-    replica_id: str = Field(min_length=1)
-    turn_id: Optional[str] = None
-    is_running: bool = True
-
-
-class SessionDetachRequestModel(BaseModel):
+class SessionDetachRequest(BaseModel):
     session_id: str
     watcher_id: str
 
 
-class SessionStreamQueryRequestModel(BaseModel):
+class SessionStreamQueryRequest(BaseModel):
     session_id: Optional[str] = None
     is_alive: Optional[bool] = None
     is_running: Optional[bool] = None
 
 
-class SessionStreamCommandResponseModel(BaseModel):
-    mode: CommandMode
-    session_id: str
-    turn_id: Optional[str] = None
-    watcher_id: Optional[str] = None
-    detached: bool = False
-
-
-class SessionStreamResponseModel(BaseModel):
+class SessionStreamResponse(BaseModel):
     stream: Optional[SessionStream] = None
 
 
-class SessionHeartbeatResponseModel(BaseModel):
-    # the replica owning the session after the heartbeat's claim; the runner compares it
-    # to its own replica_id to refuse serving a session it doesn't own.
-    stream: Optional[SessionStream] = None
-    replica_id: str
-
-
-class SessionStreamsResponseModel(BaseModel):
+class SessionStreamsResponse(BaseModel):
     count: int
     streams: List[SessionStream]
-
-
-# ---------------------------------------------------------------------------
-# States request/response models
-# ---------------------------------------------------------------------------
-
-
-class SessionStateResponse(BaseModel):
-    count: int = Field(default=0)
-    session_state: Optional[SessionState] = Field(default=None)
-
-
-class SessionStateUpsertRequest(BaseModel):
-    data: Optional[SessionStateData] = Field(
-        default=None,
-        description="Full replacement of the continuity state (resume ids + staleness guard).",
-    )
-    sandbox_id: Optional[str] = Field(
-        default=None,
-        description="Remote sandbox id to record alongside the continuity state.",
-    )
-    sandbox_turn_index: Optional[int] = Field(
-        default=None,
-        description=(
-            "the writer's conversation turn index; the pointer write is applied only "
-            "when it is >= the row's data.latest_turn_index."
-        ),
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -140,16 +101,34 @@ class SessionInteractionCreateRequest(BaseModel):
     meta: Optional[Dict[str, Any]] = None
 
 
+class SessionInteractionResolution(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    verdict: Literal["approved", "denied"]
+    tool_call_id: str
+
+
 class SessionInteractionTransitionRequest(BaseModel):
     # No project_id: scope comes from the caller's credential (request.state).
     session_id: str
     token: str
     status: SessionInteractionStatus
+    resolution: Optional[SessionInteractionResolution] = None
+
+    @model_validator(mode="after")
+    def validate_resolution_status(self) -> "SessionInteractionTransitionRequest":
+        # Resolution is answer data, so it is valid only on the resolved lifecycle edge.
+        if (
+            self.resolution is not None
+            and self.status != SessionInteractionStatus.resolved
+        ):
+            raise ValueError("resolution is only valid when status is resolved")
+        return self
 
 
 class SessionInteractionCancelStaleRequest(BaseModel):
-    # Cancels prior turns' pending gates, sparing this turn's own (`turn_id`) and any gates
-    # the current turn answers in-band (`tokens` — a resume must resolve them, not cancel).
+    # Cancels prior turns' pending gates, sparing this turn's own (`turn_id`) and every prior
+    # gate still owned by a live partial resume (`tokens`, including carried gates).
     session_id: str
     turn_id: str
     tokens: Optional[List[str]] = None
@@ -195,6 +174,49 @@ class SessionMountsResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Turns request/response models
+# ---------------------------------------------------------------------------
+
+
+class SessionTurnAppendRequest(BaseModel):
+    # No project_id: scope comes from the caller's credential (request.state).
+    session_id: str
+    turn_id: Optional[UUID] = None
+    stream_id: UUID
+    turn_index: int
+    harness_kind: HarnessKind
+    agent_session_id: Optional[str] = None
+    sandbox_id: Optional[str] = None
+    references: Optional[List[Reference]] = None
+    trace_id: Optional[UUID] = None
+    span_id: Optional[OTelSpanId] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+
+
+class SessionTurnCompleteRequest(BaseModel):
+    session_id: str
+    turn_index: int
+    agent_session_id: Optional[str] = None
+    end_time: datetime
+
+
+class SessionTurnQueryRequest(BaseModel):
+    query: Optional[SessionTurnQuery] = None
+    windowing: Optional[Windowing] = None
+
+
+class SessionTurnResponse(BaseModel):
+    count: int = 0
+    turn: Optional[SessionTurn] = None
+
+
+class SessionTurnsResponse(BaseModel):
+    count: int = 0
+    turns: List[SessionTurn] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
 # Admin record ingest model
 # ---------------------------------------------------------------------------
 
@@ -209,3 +231,7 @@ class SessionRecordIngestRequest(BaseModel):
     record_type: Optional[str] = None
     record_source: Optional[str] = None
     attributes: Optional[Dict[str, Any]] = None
+    # The turn this record belongs to; span_id bridges to observability when available.
+    # Both forward-fill only (tracing-DB rule) — absent on producers that predate this.
+    turn_id: Optional[str] = None
+    span_id: Optional[OTelSpanId] = None

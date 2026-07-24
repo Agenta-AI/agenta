@@ -12,7 +12,7 @@ import pkg from "../package.json";
 export const PROTOCOL_VERSION = 1;
 export const RUNNER_VERSION: string = pkg.version;
 export const ENGINES = ["sandbox-agent"] as const;
-export const HARNESSES = ["pi_core", "claude", "pi_agenta"] as const;
+export const HARNESS_KINDS = ["pi_core", "claude", "pi_agenta"] as const;
 
 export interface RunnerInfo {
   status: "ok";
@@ -30,6 +30,6 @@ export function runnerInfo(): RunnerInfo {
     runner: RUNNER_VERSION,
     protocol: PROTOCOL_VERSION,
     engines: ENGINES,
-    harnesses: HARNESSES,
+    harnesses: HARNESS_KINDS,
   };
 }

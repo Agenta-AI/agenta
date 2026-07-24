@@ -14,7 +14,7 @@ from typing import Dict, Mapping, Optional, Sequence
 
 import pytest
 
-from agenta.sdk.agents import AgentResult, HarnessType
+from agenta.sdk.agents import AgentResult, HarnessKind
 from agenta.sdk.agents.interfaces import Backend, Sandbox, Session
 from agenta.sdk.agents.streaming import AgentStream
 
@@ -87,10 +87,10 @@ class FakeBackend(Backend):
         self,
         *,
         result: Optional[AgentResult] = None,
-        supported: Sequence[HarnessType] = (
-            HarnessType.PI,
-            HarnessType.CLAUDE,
-            HarnessType.AGENTA,
+        supported: Sequence[HarnessKind] = (
+            HarnessKind.PI,
+            HarnessKind.CLAUDE,
+            HarnessKind.AGENTA,
         ),
     ) -> None:
         self.supported_harnesses = frozenset(supported)

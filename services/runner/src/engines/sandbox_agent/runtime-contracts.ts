@@ -18,8 +18,8 @@ import { PendingApprovalPauseController } from "./pause.ts";
 import { buildSandboxProvider } from "./provider.ts";
 import { createRunLimits, resolveRunLimits } from "./run-limits.ts";
 import { type BuildRunPlanDeps, type RunPlan } from "./run-plan.ts";
-import { clearSandboxPointer, readStoredSandboxPointer, writeSandboxPointer } from "./sandbox-reconnect.ts";
-import { hydrateHarnessSessionFromDurable, syncHarnessSessionDurable } from "./session-continuity-durable.ts";
+import { readStoredSandboxPointer } from "./sandbox-reconnect.ts";
+import { appendSessionTurn, hydrateHarnessSessionFromDurable } from "./session-continuity-durable.ts";
 import { type SessionContinuityStore } from "./session-continuity.ts";
 import { type TeardownReason } from "./teardown.ts";
 import { uploadToolMcpAssets } from "./tool-mcp-assets.ts";
@@ -57,13 +57,12 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   createRunLimits?: typeof createRunLimits;
   /** Session-continuity store override (tests inject their own; default is the process singleton). */
   sessionContinuityStore?: SessionContinuityStore;
-  /** Durable read-back/write-forward of the continuity store (tests inject fakes). */
+  /** Durable read-back/append-forward of the continuity store (tests inject fakes). */
   hydrateHarnessSessionFromDurable?: typeof hydrateHarnessSessionFromDurable;
-  syncHarnessSessionDurable?: typeof syncHarnessSessionDurable;
-  /** Durable read/write of the sandbox pointer, for the remote reconnect ladder. */
+  appendSessionTurn?: typeof appendSessionTurn;
+  /** Durable read of the sandbox pointer (the latest turn's sandbox_id), for the remote
+   * reconnect ladder. The write side is folded into `appendSessionTurn`. */
   readStoredSandboxPointer?: typeof readStoredSandboxPointer;
-  clearSandboxPointer?: typeof clearSandboxPointer;
-  writeSandboxPointer?: typeof writeSandboxPointer;
   /**
    * Resolve `{replicaId, ownerReplicaId}` for a session-owned local-sandbox run, so
    * `acquireEnvironment` can fail loudly instead of silently cold-starting on a non-owner
@@ -138,6 +137,17 @@ export interface ResumeApprovalInput {
   promptPromise?: Promise<unknown>;
 }
 
+/**
+ * An approved Pi call whose batched execution is still blocked by a sibling approval. The next
+ * resume seeds this context into its tracer and execution-grant ledger before Pi can emit the
+ * batch's real terminal frame.
+ */
+export interface ParkedApprovedExecution {
+  toolCallId: string;
+  toolName: string | undefined;
+  args: unknown;
+}
+
 /** Per-turn options for `runTurn`. Absent (flag off / cold) means today's byte-identical path. */
 export interface RunTurnOptions {
   /** A live continuation: send only the new user text instead of the full cold transcript. */
@@ -157,8 +167,14 @@ export interface RunTurnOptions {
    * keep-alive turn.
    */
   approvalParkMode?: boolean;
-  /** A live approval resume: answer the parked gate and stream the continued prompt's events. */
-  resume?: ResumeApprovalInput;
+  /**
+   * A live approval resume: answer the matching parked gates and carry the untouched gates into
+   * the next park. All decisions share the one held prompt promise (there is one prompt per turn).
+   */
+  resume?: {
+    decisions: ResumeApprovalInput[];
+    carriedForward: ParkedApproval[];
+  };
 }
 
 /**
@@ -223,17 +239,36 @@ export interface SessionEnvironment {
    */
   lastTurnToolCallIds: string[];
   /**
-   * The Claude ACP permission gate the LAST turn paused on, or undefined. Set only for a harness
-   * ACP permission gate, reset at each turn start; the dispatch reads it after a paused turn to
-   * decide whether to park in `awaiting_approval` and, on the next request, how to resume.
+   * Every parkable ACP permission gate the LAST turn paused on, keyed by the gated tool-call id
+   * (reset at each turn start). This is the source of truth the warm resume iterates: a turn can
+   * hold more than one gate (parallel gated tool calls), and each is answered by its own
+   * `permissionId` on the live session. Empty when no parkable gate paused the turn.
+   */
+  parkedApprovals: Map<string, ParkedApproval>;
+  /**
+   * The FIRST parked gate this turn, a convenience for per-turn-uniform reads (logging, the
+   * gate-type check, the shared history/credential validation). Undefined when the map is empty.
+   * The multi-answer resume and the all-parkable park check read `parkedApprovals`, not this.
    */
   parkedApproval?: ParkedApproval;
   /**
-   * How many Claude ACP permission gates resolved to pendingApproval THIS turn (reset at turn
-   * start). More than one means parallel gates the single-gate resume cannot answer, so the
-   * dispatch does not park (tears down cold as today).
+   * Approved Pi calls settled with the non-retry unknown-result sentinel while a sibling gate was
+   * parked. Consumed and re-seeded on the next live resume; empty outside that internal carry.
+   */
+  parkedApprovedExecutions?: Map<string, ParkedApprovedExecution>;
+  /**
+   * How many ACP permission gates resolved to pendingApproval THIS turn (reset at turn start).
+   * Equals `parkedApprovals.size` when every gate carried a resumable tool-call id; a larger
+   * count means a gate lacked an id and cannot be resumed live, so the dispatch stays cold.
    */
   approvalGateCount: number;
+  /**
+   * How many NON-parkable pauses happened this turn (a client-tool ACP gate or a browser-fulfilled
+   * relay/MCP client tool), reset at turn start. Non-zero means the turn mixes an unanswerable
+   * client-tool pause into the set, so the whole turn stays on the cold path (only cold can
+   * multiplex a mixed set today).
+   */
+  nonParkablePauseCount: number;
   destroyed: boolean;
   /** Complete, idempotent teardown selected from the typed teardown reason. */
   destroy: (opts?: { reason?: TeardownReason }) => Promise<void>;

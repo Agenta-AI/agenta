@@ -196,12 +196,19 @@ def _tool_part_blocks(part: Dict[str, Any], ptype: str) -> List[ContentBlock]:
                 if isinstance(_input, dict)
                 else type(_input).__name__,
             )
+            approval_output: Dict[str, Any] = {"approved": approved}
+            approval = part.get("approval")
+            interaction_token = (
+                approval.get("id") if isinstance(approval, dict) else None
+            )
+            if isinstance(interaction_token, str) and interaction_token:
+                approval_output["interactionToken"] = interaction_token
             blocks.append(
                 ContentBlock(
                     type="tool_result",
                     tool_call_id=tool_call_id,
                     tool_name=tool_name,
-                    output={"approved": approved},
+                    output=approval_output,
                 )
             )
     return blocks
@@ -229,7 +236,13 @@ def _approval_response_blocks(part: Dict[str, Any]) -> List[ContentBlock]:
     output = part.get("output")
     if output is None:
         approved = part.get("approved")
-        output = {"approved": approved} if approved is not None else part.get("reason")
+        if approved is not None:
+            output = {"approved": approved}
+            interaction_token = part.get("approvalId")
+            if isinstance(interaction_token, str) and interaction_token:
+                output["interactionToken"] = interaction_token
+        else:
+            output = part.get("reason")
     return [ContentBlock(type="tool_result", tool_call_id=tool_call_id, output=output)]
 
 
