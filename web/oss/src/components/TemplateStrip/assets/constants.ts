@@ -8,6 +8,7 @@ export const STRIP_COPY = {
     fromTemplate: "From template:",
     useCodingAgent: "Use my coding agent",
     createAgent: "Create agent",
+    creatingAgent: "Creating agent",
     copiedToast: "Copied — paste into Claude Code, Cursor, Codex, or any coding agent",
     // Single source for every "describe an agent" composer (home hero + playground onboarding).
     describeAgentPlaceholder:
