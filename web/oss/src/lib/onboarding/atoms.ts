@@ -8,6 +8,7 @@ import type {CurrentStepState} from "./types"
 const STORAGE_KEYS = {
     ACTIVE_USER_ID: "agenta:onboarding:active-user-id",
     IS_NEW_USER: "is-new-user",
+    NAV_SIMPLIFIED: "nav-simplified",
     SEEN_TOURS: "seen-tours",
 } as const
 
@@ -21,6 +22,10 @@ const createScopedStorageKey = (userId: string, key: string) => `agenta:onboardi
 
 const isNewUserAtomFamily = atomFamily((userId: string) =>
     atomWithStorage<boolean>(createScopedStorageKey(userId, STORAGE_KEYS.IS_NEW_USER), false),
+)
+
+const navSimplifiedDefaultAtomFamily = atomFamily((userId: string) =>
+    atomWithStorage<boolean>(createScopedStorageKey(userId, STORAGE_KEYS.NAV_SIMPLIFIED), false),
 )
 
 const seenToursAtomFamily = atomFamily((userId: string) =>
@@ -52,6 +57,27 @@ export const isNewUserAtom = atom(
         const userId = get(onboardingStorageUserIdAtom)
         if (!userId) return
         set(isNewUserAtomFamily(userId), next)
+    },
+)
+
+/**
+ * Durable "this user signed up under the simplified-nav experience" flag.
+ *
+ * Distinct from {@link isNewUserAtom} on purpose: that flag is sticky-true for everyone
+ * who ever signed up, so reusing it would strip advanced nav from existing users. This one
+ * uses a fresh key that is only written on signups going forward — existing users default
+ * to `false` (full nav). Drives `advancedNavHiddenAtom` (state/onboarding selectors).
+ */
+export const navSimplifiedDefaultAtom = atom(
+    (get) => {
+        const userId = get(onboardingStorageUserIdAtom)
+        if (!userId) return false
+        return get(navSimplifiedDefaultAtomFamily(userId))
+    },
+    (get, set, next: boolean) => {
+        const userId = get(onboardingStorageUserIdAtom)
+        if (!userId) return
+        set(navSimplifiedDefaultAtomFamily(userId), next)
     },
 )
 

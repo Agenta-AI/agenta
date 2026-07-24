@@ -33,10 +33,13 @@ Observability.
 
 ### Phase 1 (this delivery) — hide for new signups
 
-New signup users (`isNewUser === true`) get the simplified sidebar. Everyone else is
-unaffected. There is no switch yet, so a genuinely-new solo user stays simplified until
-Phase 2 ships. Invited teammates already read `isNewUser === false` (see research.md §7), so
-they keep the full nav.
+New signup users get the simplified sidebar, flagged by a fresh forward-only key
+(`navSimplifiedDefaultAtom`, `agenta:onboarding:<userId>:nav-simplified`) seeded at signup.
+Everyone else is unaffected — existing users never have the key, so they keep the full nav. We
+do not reuse `isNewUserAtom` (sticky-true for everyone who ever signed up; reusing it would
+break current users). There is no switch yet, so a genuinely-new solo user stays simplified
+until Phase 2 ships. Invited teammates are never flagged (see research.md §7), so they keep the
+full nav.
 
 ### Phase 2 (follow-up) — the toggle
 
@@ -59,14 +62,16 @@ is additive — it changes no Phase-1 file except the one derived atom.
 
 ## Product language
 
-- **New signup user** — a user for whom `isNewUserAtom` is `true`. Set once on first signup,
-  persisted per-user in localStorage, never cleared today.
+- **New signup user** — a user who signs up after this ships, flagged by the fresh
+  `navSimplifiedDefaultAtom` key (`agenta:onboarding:<userId>:nav-simplified`), seeded `true` at
+  signup alongside `setIsNewUser(true)`. Distinct from `isNewUserAtom`, which is sticky-true for
+  existing users and is deliberately not reused.
 - **Simplified navigation** — the reduced, agent-focused sidebar (advanced items hidden).
 - **Full navigation** — the complete sidebar (today's behavior).
-- **Simplified-nav preference** — the per-user override (`simplifiedNavOverrideAtom`):
+- **Simplified-nav preference** — the per-user override (`simplifiedNavOverrideAtom`, Phase 2):
   `null` = follow the default, `true` = force simplified, `false` = force full.
-- **Effective mode** — `override ?? isNewUser`, exposed as `isNavSimplifiedAtom`. This single
-  value drives both the sidebar and the settings switch.
+- **Effective mode** — `override ?? navSimplifiedDefault`, exposed as `advancedNavHiddenAtom`
+  (in `state/onboarding` selectors). This single value drives both the sidebar and the switch.
 
 ## Success criteria
 

@@ -17,9 +17,11 @@ returning users default to the full view throughout.
 - Nav-only — hide sidebar entries; no route guards, no in-app link changes.
 - Hide when simplified: Prompts, Evaluation group (project); Overview, Registry, Evaluations (app).
 - Keep always: Home, Agents, Observability, app Playground.
-- Default mode seeded by `isNewUser` (new signups → simplified); everyone else → full.
-- Stable seam: the sidebar hook reads `isNavSimplifiedAtom` — Phase 1 `= isNewUser`, Phase 2
-  `= override ?? isNewUser`.
+- Default mode seeded by a fresh forward-only key `navSimplifiedDefaultAtom`, written at signup
+  (new signups → simplified); everyone else → full. Deliberately **not** `isNewUserAtom`, which
+  is sticky-true for existing users and would strip their advanced nav.
+- Stable seam: the sidebar reads one derived atom `advancedNavHiddenAtom` (in `state/onboarding`
+  selectors) — Phase 1 `= navSimplifiedDefault`, Phase 2 `= override ?? navSimplifiedDefault`.
 - No backend, no team-wide enforcement — per-user preference; an invited teammate flips the
   Phase-2 switch to match their team. A workspace-level flag is deferred, not blocked.
 - Built on the sidebar's existing `isHidden` mechanism; one OSS sidebar file, both editions inherit it.

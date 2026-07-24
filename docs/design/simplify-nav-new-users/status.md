@@ -4,24 +4,31 @@
 
 ## Current stage
 
-Planning complete, split into two phases. **Phase 1** (ship now): hide the advanced nav for
-new signups. **Phase 2** (follow-up): a per-user "Simplified navigation" toggle in
-Settings → Account. No code written. Ready to implement Phase 1 on its own branch.
+Split into two phases. **Phase 1** (hide the advanced nav for new signups) is **implemented** —
+`advancedNavHiddenAtom` added to `state/onboarding` selectors, five `isHidden` edits in
+`useSidebarConfig`; `tsc` and ESLint pass clean. Remaining Phase-1 step: manual QA (Slice 4).
+**Phase 2** (a per-user "Simplified navigation" toggle in Settings → Account) is not started.
 
 ## Locked decisions
 
 - **Phased delivery.** Phase 1 = hide-for-new-signups. Phase 2 = the Settings → Account toggle.
-  Phase 2 is additive — it touches no Phase-1 file except the body of `isNavSimplifiedAtom`.
+  Phase 2 is additive — it touches no Phase-1 file except the body of `advancedNavHiddenAtom`.
 - **Hide scope: nav-only.** Remove the sidebar entries only. No route guards, no in-app link
   changes.
 - **Items hidden.** Project: Prompts, Evaluation group (all four children). App: Overview,
   Registry, Evaluations.
 - **Items kept.** Home, Agents, project Observability; app Playground, app Observability.
-- **Default mode = seeded by `isNewUser`.** New signups default to simplified; everyone else
-  defaults to full. No new signup-time storage — reuse `isNewUserAtom`.
-- **Stable seam.** The sidebar hook `useHideAdvancedNav` reads one derived atom
-  `isNavSimplifiedAtom`. Phase 1: `= isNewUser`. Phase 2: `= override ?? isNewUser`. The hook
-  and the five sidebar edits are written once and never change.
+- **Default mode = a fresh forward-only key, seeded at signup.** New signups default to
+  simplified; everyone else defaults to full. We do **not** reuse `isNewUserAtom`: it is
+  sticky-true for everyone who ever signed up (incl. existing users), so deriving from it would
+  strip advanced nav from current users. Instead a new per-user key
+  `agenta:onboarding:<userId>:nav-simplified` (`navSimplifiedDefaultAtom`, default `false`) is
+  written only on signups going forward, alongside `setIsNewUser(true)` in `usePostAuthRedirect`.
+  Existing users never have the key → full nav, unchanged.
+- **Stable seam.** The sidebar reads one derived atom `advancedNavHiddenAtom` (in the
+  `state/onboarding` selectors module, alongside `deadEndNavDisabledAtom`). Phase 1:
+  `= navSimplifiedDefault`. Phase 2: `= override ?? navSimplifiedDefault`. Only this atom's body
+  and the five sidebar edits change; consumers never do.
 - **Phase 1 has no escape hatch (accepted).** A genuinely-new solo user stays simplified until
   Phase 2. Acceptable because that user is exactly the target audience and Phase 2 follows;
   invited teammates already see the full nav (not flagged).
@@ -49,5 +56,11 @@ None. All resolved (2026-07-24). Ready to build.
 
 ## Next action
 
-Implement Phase 1, Slice 0 (pin current sidebar with a test) on a fresh branch, then
-Slices 1–4. Phase 2 (Slices 5–6) follows as a separate delivery.
+Manual QA Phase 1 in the running app (Slice 4): flip `agenta:onboarding:<id>:nav-simplified`
+true/false and confirm the five items hide/show, non-targets stay, no empty section header
+remains. Then Phase 2 (Slices 5–6) as a separate delivery.
+
+**Slice 0 note:** the automated pin was skipped — `@agenta/oss` has no CI-wired vitest runner
+(the web unit layer only runs `test:unit` across `@agenta/*` packages), so a test in `oss/src`
+would never execute. Covered instead by `tsc` + ESLint + manual QA. Standing up an oss vitest
+harness is a possible follow-up if automated sidebar coverage is wanted.
