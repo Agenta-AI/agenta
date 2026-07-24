@@ -1858,9 +1858,9 @@ function PlaygroundConfigSection({
                 isAgentMarker(fieldSchema?.["x-ag-type-ref"]) ||
                 isAgentMarker(fieldSchema?.["x-ag-type"])
             ) {
-                // pt-1 (not py-3) tightens the gap between the region header and the first section
+                // pt-0 (not py-3) tightens the gap between the region header and the first section
                 // row; pb-3 keeps the bottom breathing room. The loading fallback below matches.
-                return <div className="px-4 pb-3 pt-1">{props.defaultRender()}</div>
+                return <div className="px-4 pb-3 pt-0">{props.defaultRender()}</div>
             }
 
             return (

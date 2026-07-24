@@ -1,13 +1,14 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
 import {HeightCollapse} from "@agenta/ui"
-import {ArrowSquareOut, CaretRight, ShieldCheck} from "@phosphor-icons/react"
+import {ArrowSquareOut, CaretRight, ChatText, ShieldCheck} from "@phosphor-icons/react"
 import type {ToolUIPart, UIMessage} from "ai"
-import {Button, Switch, Typography} from "antd"
+import {type GetRef, Button, Input, Switch, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import {useAlwaysAllowTool} from "@/oss/hooks/useAlwaysAllowTool"
 
+import {isAgentChatSteerEnabled} from "../assets/constants"
 import {partToolName, resolveToolDisplay} from "../assets/toolDisplay"
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
 
@@ -102,7 +103,7 @@ const PayloadBlock = ({input, label = "Payload"}: {input: unknown; label?: strin
 interface ApprovalDockProps {
     /** Pending gates for the paused turn (index 0 is acted on first). */
     approvals: PendingApproval[]
-    onApprovalResponse: (args: {id: string; approved: boolean}) => void
+    onApprovalResponse: (args: {id: string; approved: boolean; message?: string}) => void
     /** Open the paused turn's trace drawer (full tool input/output). */
     onViewTrace?: () => void
     /** Selected agent revision — enables per-tool friendly bodies (approvals/registry). */
@@ -151,6 +152,23 @@ const ApprovalDock = ({
     // Armed "always allow this tool" intent for the current gate — applied only when the user
     // clicks Approve, never on its own (the switch must not progress the flow).
     const [alwaysAllowArmed, setAlwaysAllowArmed] = useState(false)
+    // Steer: the "Redirect" panel holds an optional instruction sent WITH the denial.
+    const [steerOpen, setSteerOpen] = useState(false)
+    const [steerMessage, setSteerMessage] = useState("")
+    // The field stays mounted inside the collapse, so `autoFocus` only fires at the dock's initial
+    // mount (while hidden) — focus it explicitly each time the redirect opens. rAF waits for the
+    // expand to start so focus lands on a laid-out (not height-0) element.
+    const steerInputRef = useRef<GetRef<typeof Input.TextArea>>(null)
+    useEffect(() => {
+        if (!steerOpen) return
+        const raf = requestAnimationFrame(() => steerInputRef.current?.focus())
+        return () => cancelAnimationFrame(raf)
+    }, [steerOpen])
+    // Feature flag: the "Redirect" (steer) control is OFF by default. The UI is complete, but the
+    // redirect runs as a follow-up turn — the model reasons about the bare denial before it lands —
+    // so we hide the entry point until the runner-level reject-and-redirect lands. Only the control
+    // is gated; the rest of the implementation ships intact behind it. See [[isAgentChatSteerEnabled]].
+    const steerEnabled = isAgentChatSteerEnabled()
 
     // The current gate changed (we answered one, the next slid in) — re-enable and disarm. Held
     // during a resolve (current is frozen), so it fires only on a real step or a new batch.
@@ -158,7 +176,18 @@ const ApprovalDock = ({
         setResponding(false)
         setResolveSource(null)
         setAlwaysAllowArmed(false)
+        setSteerOpen(false)
+        setSteerMessage("")
     }, [current?.approvalId])
+
+    // Belt-and-braces: also close + clear the redirect note whenever nothing is pending, so the
+    // draft never carries into the next gate and the section can't outlive the card.
+    useEffect(() => {
+        if (approvals.length === 0) {
+            setSteerOpen(false)
+            setSteerMessage("")
+        }
+    }, [approvals.length])
 
     // Once every gate we fired has settled (left the pending set), drop the latch — the dock then
     // closes if nothing remains, or re-latches onto the uncovered gates (a mixed-tool batch).
@@ -190,7 +219,7 @@ const ApprovalDock = ({
     const grantInfo = current ? infoFor(current.toolName) : null
     const canAlwaysAllow = Boolean(grantInfo?.eligible && !grantInfo.alreadyAllowed)
 
-    const respond = (approved: boolean) => {
+    const respond = (approved: boolean, message?: string) => {
         if (responding || !current) return
         setResponding(true)
         setResolveSource("one")
@@ -208,7 +237,11 @@ const ApprovalDock = ({
                 return
             }
         }
-        onApprovalResponse({id: current.approvalId, approved})
+        onApprovalResponse({
+            id: current.approvalId,
+            approved,
+            ...(message?.trim() ? {message: message.trim()} : {}),
+        })
     }
     const approveAll = () => {
         if (responding) return
@@ -314,67 +347,135 @@ const ApprovalDock = ({
                             />
                         )}
 
-                        {/* Actions: trace on the left, decision on the right. Approve is the single primary.
-                            The trace link is Build-only chrome — Chat keeps the payload expander instead. */}
-                        <div className="flex items-center gap-2">
-                            {onViewTrace && !chatMode ? (
-                                <button
-                                    type="button"
-                                    onClick={onViewTrace}
-                                    className="flex cursor-pointer items-center gap-1 border-0 bg-transparent px-0 py-0.5 text-xs text-colorPrimary transition-colors hover:underline"
-                                >
-                                    <ArrowSquareOut size={12} />
-                                    View full trace
-                                </button>
-                            ) : null}
-                            <div className="ml-auto flex items-center gap-1.5">
-                                {count > 1 ? (
-                                    <Button
-                                        loading={responding && resolveSource === "all"}
-                                        disabled={responding}
-                                        onClick={approveAll}
+                        {/* Actions: trace on the left, decision on the right; Approve is the single
+                            primary (trace link is Build-only chrome — Chat keeps the payload expander).
+                            The whole row collapses while steering: an explicit deny+redirect shouldn't
+                            leave the yellow Approve competing, so the redirect panel below becomes the
+                            entire action surface. Mirrors the panel's expand (open={!steerOpen} vs
+                            open={steerOpen}) for one smooth swap. */}
+                        <HeightCollapse open={!steerOpen} fade>
+                            <div className="flex items-center gap-2">
+                                {onViewTrace && !chatMode ? (
+                                    <button
+                                        type="button"
+                                        onClick={onViewTrace}
+                                        className="flex cursor-pointer items-center gap-1 border-0 bg-transparent px-0 py-0.5 text-xs text-colorPrimary transition-colors hover:underline"
                                     >
-                                        Approve all
-                                    </Button>
+                                        <ArrowSquareOut size={12} />
+                                        View full trace
+                                    </button>
                                 ) : null}
-                                <Button disabled={responding} onClick={() => respond(false)}>
-                                    Deny
-                                </Button>
-                                <Button
-                                    type="primary"
-                                    disabled={responding}
-                                    loading={responding && resolveSource === "one"}
-                                    onClick={() => respond(true)}
-                                >
-                                    {renderer?.approveLabel ?? "Approve"}
-                                </Button>
+                                <div className="ml-auto flex items-center gap-1.5">
+                                    {count > 1 ? (
+                                        <Button
+                                            loading={responding && resolveSource === "all"}
+                                            disabled={responding}
+                                            onClick={approveAll}
+                                        >
+                                            Approve all
+                                        </Button>
+                                    ) : null}
+                                    {steerEnabled ? (
+                                        <Button
+                                            type="text"
+                                            disabled={responding}
+                                            icon={<ChatText size={14} />}
+                                            className="!text-colorTextSecondary"
+                                            onClick={() => setSteerOpen(true)}
+                                        >
+                                            Redirect
+                                        </Button>
+                                    ) : null}
+                                    <Button disabled={responding} onClick={() => respond(false)}>
+                                        Deny
+                                    </Button>
+                                    <Button
+                                        type="primary"
+                                        disabled={responding}
+                                        loading={responding && resolveSource === "one"}
+                                        onClick={() => respond(true)}
+                                    >
+                                        {renderer?.approveLabel ?? "Approve"}
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
+                        </HeightCollapse>
+
+                        {/* Steer: an inline redirect note, revealed on demand by the Redirect
+                            button above. Kept inside the card (not a body portal) so it collapses
+                            with the dock and can't linger over another session after a tab switch.
+                            It and the always-allow row below share this bottom slot and animate as a
+                            complementary pair (open={steerOpen} vs open={!steerOpen}, same primitive,
+                            same fade) so one expands exactly as the other collapses — no pop-vs-slide. */}
+                        <HeightCollapse open={steerOpen} fade>
+                            <div className="flex flex-col gap-2 border-0 border-t border-solid border-colorBorderSecondary pt-2.5">
+                                <Text type="secondary" className="!text-[11px]">
+                                    Deny this step and tell the agent what to do instead — your note
+                                    runs as the next message.
+                                </Text>
+                                {/* Filled + borderless-at-rest so the redirect reads as a nested field
+                                    of the approval card, subordinate to the main composer below — not a
+                                    second, louder input competing with it. The filled variant lights its
+                                    border with the full primary on focus (louder than the composer), so
+                                    we pin hover/focus to a neutral border and drop the focus glow. */}
+                                <Input.TextArea
+                                    ref={steerInputRef}
+                                    variant="filled"
+                                    autoSize={{minRows: 2, maxRows: 6}}
+                                    value={steerMessage}
+                                    onChange={(e) => setSteerMessage(e.target.value)}
+                                    placeholder="e.g. write to staging, not prod — or ask for something else entirely"
+                                    disabled={responding}
+                                    className="!text-xs hover:!border-colorBorder focus:!border-colorBorder focus:!shadow-none"
+                                />
+                                <div className="flex items-center justify-end gap-1.5">
+                                    <Button
+                                        type="text"
+                                        disabled={responding}
+                                        onClick={() => setSteerOpen(false)}
+                                    >
+                                        Cancel
+                                    </Button>
+                                    {/* Default, not primary: Approve is the card's single primary. This
+                                        is the confirm for the redirect sub-action, so it stays quiet. */}
+                                    <Button
+                                        disabled={responding || !steerMessage.trim()}
+                                        onClick={() => respond(false, steerMessage)}
+                                    >
+                                        Deny &amp; send
+                                    </Button>
+                                </div>
+                            </div>
+                        </HeightCollapse>
 
                         {/* Always-allow: arms a config write-through so this tool stops asking. The
                             switch only ARMS the intent (it must not progress the flow); the grant is
                             applied when the user clicks Approve. Shown only for gateway /
-                            custom-function / builtin gates that aren't already allowed. */}
+                            custom-function / builtin gates that aren't already allowed. Collapses while
+                            steering (open={!steerOpen}) — "applies when you approve" contradicts a
+                            deny+redirect — as the mirror of the steer panel's expand, for one smooth swap. */}
                         {canAlwaysAllow ? (
-                            <div className="flex items-center gap-2 border-0 border-t border-solid border-colorBorderSecondary pt-2.5">
-                                <Switch
-                                    checked={alwaysAllowArmed}
-                                    disabled={responding}
-                                    onChange={setAlwaysAllowArmed}
-                                />
-                                <div className="flex min-w-0 flex-col">
-                                    <Text className="!text-xs">
-                                        Always allow{" "}
-                                        <span className="font-medium">
-                                            {friendly?.label ?? current.toolName}
-                                        </span>{" "}
-                                        for this agent
-                                    </Text>
-                                    <Text type="secondary" className="!text-[11px]">
-                                        Applies when you approve; commit to use it in triggers.
-                                    </Text>
+                            <HeightCollapse open={!steerOpen} fade>
+                                <div className="flex items-center gap-2 border-0 border-t border-solid border-colorBorderSecondary pt-2.5">
+                                    <Switch
+                                        checked={alwaysAllowArmed}
+                                        disabled={responding}
+                                        onChange={setAlwaysAllowArmed}
+                                    />
+                                    <div className="flex min-w-0 flex-col">
+                                        <Text className="!text-xs">
+                                            Always allow{" "}
+                                            <span className="font-medium">
+                                                {friendly?.label ?? current.toolName}
+                                            </span>{" "}
+                                            for this agent
+                                        </Text>
+                                        <Text type="secondary" className="!text-[11px]">
+                                            Applies when you approve; commit to use it in triggers.
+                                        </Text>
+                                    </div>
                                 </div>
-                            </div>
+                            </HeightCollapse>
                         ) : null}
                     </div>
                 ) : null}

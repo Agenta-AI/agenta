@@ -23,6 +23,12 @@ export const processEnv = {
     // object-store-backed cwd/agent mounts survive and remount on resume (#5197 merged).
     NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION:
         process.env.NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION,
+    // Agent chat Steer (deny + redirect): when "true", the approval dock shows the "Redirect"
+    // control — deny a step and send a redirect note. Off by default: the UI is complete, but the
+    // redirect runs as a FOLLOW-UP turn, so the model reasons about the bare denial before it lands
+    // (the harness always continues the original prompt on reject and exposes no reject-with-feedback
+    // channel). Gated until the runner-level "reject-and-redirect" lands.
+    NEXT_PUBLIC_AGENT_CHAT_STEER: process.env.NEXT_PUBLIC_AGENT_CHAT_STEER,
     // Agent chat message virtualization (react-virtuoso spike): when "true", the playground settings
     // dropdown exposes the Virtualization section and the chat can window its settled history. Gated
     // so it's off everywhere unless explicitly enabled while the approach is evaluated.

@@ -32,6 +32,7 @@ import {
 import {
   APPROVED_EXECUTION_RESULT_UNKNOWN,
   createSandboxAgentOtel,
+  INTERRUPTED_BY_USER,
   TOOL_NOT_EXECUTED_PAUSED,
 } from "../../tracing/otel.ts";
 import {
@@ -94,6 +95,10 @@ export async function runTurn(
 ): Promise<AgentRunResult> {
   const { plan, logger, deps } = env;
   const sessionId = env.sessionId;
+  // Race marker for a user Stop (the control-plane `cancel`/`steer` command drops the alive lock, the
+  // heartbeat aborts `signal`). Distinct from PAUSED/RUN_LIMIT_TRIPPED so the turn ends CLEANLY
+  // (honest interrupted transcript, keep-warm) instead of falling through to the error catch.
+  const CANCELLED = Symbol("cancelled");
   const continuityStore = deps.sessionContinuityStore ?? sessionContinuityStore;
   const turnStartedAt = new Date().toISOString();
   // `turn_index` is a true conversation-turn counter, not an acquire counter: it advances once per completed turn across every environment serving the session.
@@ -743,10 +748,22 @@ export async function runTurn(
       );
       promptPromise.catch(() => {});
     }
+    // A user Stop aborts `signal`, which severs the harness fetch (rejecting the prompt). We want a
+    // clean cancel, not an error: resolve the race to CANCELLED both when the abort event lands first
+    // AND when the prompt rejection lands first while already aborted, so the outcome is deterministic
+    // regardless of ordering. A real (non-abort) prompt rejection is re-thrown into the shared catch.
+    const cancelled = new Promise<typeof CANCELLED>((resolve) => {
+      if (signal?.aborted) resolve(CANCELLED);
+      else signal?.addEventListener("abort", () => resolve(CANCELLED), { once: true });
+    });
     const raced = await Promise.race([
-      promptPromise,
+      promptPromise.then(
+        (value) => value,
+        (err) => (signal?.aborted ? CANCELLED : Promise.reject(err)),
+      ),
       pause.signal.then(() => PAUSED),
       runLimitTripped.then(() => RUN_LIMIT_TRIPPED),
+      cancelled,
     ]);
     // A tripped run-limit ends the turn as an error: throw into the shared catch below so the
     // trace is flushed and the caller's teardown reclaims the (wedged) sandbox.
@@ -754,7 +771,11 @@ export async function runTurn(
       throw new Error(runLimitReason ?? "run limit tripped");
     }
     const stopReason =
-      raced === PAUSED || pause.active ? "paused" : (raced as any)?.stopReason;
+      raced === CANCELLED
+        ? "cancelled"
+        : raced === PAUSED || pause.active
+          ? "paused"
+          : (raced as any)?.stopReason;
     // Terminalization drains queued gates, classifies pause-time completions, and gives allowed
     // executions their original per-call bound before the orphan sweep closes the turn.
     if (stopReason === "paused") {
@@ -813,7 +834,16 @@ export async function runTurn(
         );
       }
     }
-    const result = raced === PAUSED ? undefined : raced;
+    if (stopReason === "cancelled") {
+      // The user Stopped the turn: let any in-flight frames settle, honor real completions that
+      // already arrived, then settle every STILL-open tool call with the interrupt sentinel so the
+      // transcript closes HONESTLY — no orphaned "running" parts, no synthetic success. A deliberate
+      // human halt is not retryable; steer surfaces any new instruction as the next turn's prompt.
+      await pause.waitForEventDrain().catch(() => {});
+      settleBufferedPausedCompletions();
+      run.settleOpenToolCalls(() => false, INTERRUPTED_BY_USER);
+    }
+    const result = raced === PAUSED || raced === CANCELLED ? undefined : raced;
     // A parkable pause this turn: hand the still-pending prompt promise to EVERY parked record so a
     // later resume can await the same continuation (there is one prompt per turn, so every gate
     // shares it). Set after the race so `promptPromise` exists.
@@ -869,6 +899,7 @@ export async function runTurn(
     // in-memory resume pointer or complete the durable ledger row.
     if (
       stopReason !== "paused" &&
+      stopReason !== "cancelled" &&
       env.continuityTurnIndex !== undefined &&
       sessionId
     ) {
@@ -894,8 +925,8 @@ export async function runTurn(
           { authorization: turnLedgerContext.authorization, log: logger },
         ).catch(() => {});
       }
-    } else if (stopReason === "paused") {
-      // A pause stopped mid-turn, after the harness may have written a partial turn natively.
+    } else if (stopReason === "paused" || stopReason === "cancelled") {
+      // A pause/cancel stopped mid-turn, after the harness may have written a partial turn natively.
       invalidateContinuity(sessionId, plan.harness, deps);
     }
 
