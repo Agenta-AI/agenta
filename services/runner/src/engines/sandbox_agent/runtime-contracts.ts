@@ -1,9 +1,16 @@
 import { InMemorySessionPersistDriver, SandboxAgent } from "sandbox-agent";
 
-import { type AgentRunRequest, type HarnessCapabilities } from "../../protocol.ts";
+import {
+  type AgentRunRequest,
+  type HarnessCapabilities,
+} from "../../protocol.ts";
 import { type Responder } from "../../responder.ts";
 import type { ClientToolRelay } from "../../tools/client-tool-relay.ts";
-import { localRelayHost, sandboxRelayHost, startToolRelay } from "../../tools/relay.ts";
+import {
+  localRelayHost,
+  sandboxRelayHost,
+  startToolRelay,
+} from "../../tools/relay.ts";
 import { createSandboxAgentOtel } from "../../tracing/otel.ts";
 import { createAcpFetch } from "./acp-fetch.ts";
 import { type ParkedApprovalGateType } from "./acp-interactions.ts";
@@ -13,13 +20,28 @@ import { createToolCallCorrelationIndex } from "./client-tools.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./daemon.ts";
 import { createCookieFetch, prepareDaytonaPiAssets } from "./daytona.ts";
 import { applyModel } from "./model.ts";
-import { discoverTunnelEndpoint, mountHarnessSessionDirs, mountStorage, mountStorageRemote, signSessionMountCredentials, unmountStorage, type MountCredentials } from "./mount.ts";
+import {
+  discoverTunnelEndpoint,
+  mountHarnessSessionDirs,
+  mountStorage,
+  mountStorageRemote,
+  signSessionMountCredentials,
+  unmountStorage,
+  type MountCredentials,
+} from "./mount.ts";
 import { PendingApprovalPauseController } from "./pause.ts";
 import { buildSandboxProvider } from "./provider.ts";
 import { createRunLimits, resolveRunLimits } from "./run-limits.ts";
 import { type BuildRunPlanDeps, type RunPlan } from "./run-plan.ts";
-import { clearSandboxPointer, readStoredSandboxPointer, writeSandboxPointer } from "./sandbox-reconnect.ts";
-import { hydrateHarnessSessionFromDurable, syncHarnessSessionDurable } from "./session-continuity-durable.ts";
+import {
+  clearSandboxPointer,
+  readStoredSandboxPointer,
+  writeSandboxPointer,
+} from "./sandbox-reconnect.ts";
+import {
+  hydrateHarnessSessionFromDurable,
+  syncHarnessSessionDurable,
+} from "./session-continuity-durable.ts";
 import { type SessionContinuityStore } from "./session-continuity.ts";
 import { type TeardownReason } from "./teardown.ts";
 import { uploadToolMcpAssets } from "./tool-mcp-assets.ts";
@@ -192,6 +214,12 @@ export interface SessionEnvironment {
   mcpAbort: AbortController;
   runAgentDir: string | undefined;
   otlpAuthFilePath: string | undefined;
+  /**
+   * The managed Codex auth.json this run created under `<cwd>/.codex`, or undefined when none was
+   * written (not a Codex run, or a pre-existing file was left untouched). Deleted by `destroy`,
+   * mirroring `otlpAuthFilePath`, so a resolved key never lingers on the session workspace.
+   */
+  codexAuthFilePath: string | undefined;
   mountCreds: MountCredentials | null;
   agentMountCreds?: MountCredentials | null;
   /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is

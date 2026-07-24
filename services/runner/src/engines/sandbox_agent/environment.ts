@@ -41,10 +41,7 @@ import {
   type SessionPermissionRequest,
 } from "sandbox-agent";
 
-import {
-  resolveRunSessionId,
-  type AgentRunRequest,
-} from "../../protocol.ts";
+import { resolveRunSessionId, type AgentRunRequest } from "../../protocol.ts";
 import { advertisedToolSpecs } from "../../tools/public-spec.ts";
 import { createAcpFetch } from "./acp-fetch.ts";
 import {
@@ -94,6 +91,7 @@ import {
   type ClaudeSystemPromptMeta,
 } from "./agent-mount-guidance.ts";
 import { claudeThinkingMeta } from "./claude-thinking.ts";
+import { writeCodexManagedAuthFile } from "./codex-assets.ts";
 import {
   routePermissionRequestToActiveTurn,
   routeSessionEventToActiveTurn,
@@ -121,14 +119,8 @@ import {
   sessionContinuityStore,
 } from "./session-continuity.ts";
 import { projectScopeFor } from "./session-identity.ts";
-import {
-  teardownDisposition,
-  type TeardownReason,
-} from "./teardown.ts";
-import {
-  uploadToolMcpAssets,
-  type ToolMcpAssets,
-} from "./tool-mcp-assets.ts";
+import { teardownDisposition, type TeardownReason } from "./teardown.ts";
+import { uploadToolMcpAssets, type ToolMcpAssets } from "./tool-mcp-assets.ts";
 import { prepareWorkspace } from "./workspace.ts";
 import { prepareEnvironmentSetup } from "./environment-setup.ts";
 
@@ -365,6 +357,10 @@ export async function acquireEnvironment(
     // started (or crashed before reading it), so the bearer never lingers.
     if (environment.otlpAuthFilePath)
       rmSync(environment.otlpAuthFilePath, { force: true });
+    // Backstop: delete the managed Codex auth.json this run created (delete-only-if-created), so
+    // the resolved key never lingers on the session workspace. Mirrors the otlpAuthFilePath line.
+    if (environment.codexAuthFilePath)
+      rmSync(environment.codexAuthFilePath, { force: true });
     // Remove the per-run skills temp root the materializer created (success or error).
     plan.skillsCleanup();
   };
@@ -857,6 +853,15 @@ export async function acquireEnvironment(
     } finally {
       timingLog("prepare_workspace", prepareWorkspaceStartedAt);
     }
+
+    // Managed Codex authenticates from `<cwd>/.codex/auth.json`. Write it now, after the durable
+    // cwd mount and workspace preparation (writing it before the mount would be shadowed). The
+    // created file is deleted by `destroy` (below), mirroring `otlpAuthFilePath`. Non-Codex runs
+    // and Daytona are no-ops inside the helper.
+    environment.codexAuthFilePath = writeCodexManagedAuthFile(
+      plan,
+      logger,
+    ).authFilePath;
 
     // Pi native transcripts belong to the conversation workspace, not the temporary agent
     // directory that holds credentials, settings, extensions, skills, and system prompts.

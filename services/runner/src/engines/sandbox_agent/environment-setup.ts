@@ -2,23 +2,15 @@ import { rmSync } from "node:fs";
 
 import { apiBase } from "../../apiBase.ts";
 
-import {
-  resolveRunSessionId,
-  type AgentRunRequest,
-} from "../../protocol.ts";
+import { resolveRunSessionId, type AgentRunRequest } from "../../protocol.ts";
 import { type ClientToolOutcome } from "../../responder.ts";
 import type { ClientToolRelay } from "../../tools/client-tool-relay.ts";
-import {
-  agentMountPath,
-  signAgentMountCredentials,
-} from "./agent-mount.ts";
+import { agentMountPath, signAgentMountCredentials } from "./agent-mount.ts";
 import { createToolCallCorrelationIndex } from "./client-tools.ts";
+import { configureCodexHome } from "./codex-assets.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./daemon.ts";
 import { conciseError } from "./errors.ts";
-import {
-  signSessionMountCredentials,
-  type MountCredentials,
-} from "./mount.ts";
+import { signSessionMountCredentials, type MountCredentials } from "./mount.ts";
 import {
   buildPiExtensionEnv,
   configurePiSessionWorkspace,
@@ -255,6 +247,11 @@ export async function prepareEnvironmentSetup(
     log: logger,
   });
   let runAgentDir = localPiAssets.dir;
+  // Local managed Codex authenticates from `<cwd>/.codex/auth.json`; point CODEX_HOME at that
+  // directory now (a path only, safe before the durable cwd mount). The auth.json file itself is
+  // written after the mount, right after prepareWorkspace (see environment.ts). Non-Codex runs
+  // and Daytona are no-ops.
+  configureCodexHome(plan, env);
   // Fail closed (Decision 6): a local managed custom run whose models.json could not be written
   // must stop rather than run on a default provider. Recorded here (the write ran above) and
   // thrown inside the try below, like the permission-extension gate.
@@ -325,6 +322,7 @@ export async function prepareEnvironmentSetup(
     mcpAbort,
     runAgentDir,
     otlpAuthFilePath,
+    codexAuthFilePath: undefined,
     mountCreds,
     agentMountCreds,
     mountProjectId: mountCreds?.projectId,

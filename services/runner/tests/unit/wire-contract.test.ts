@@ -68,7 +68,11 @@ const _requestKeysExistOnType: readonly (keyof AgentRunRequest)[] =
 void _requestKeysExistOnType;
 
 describe("wire contract: requests (vs Python golden)", () => {
-  for (const name of ["run_request.pi_core.json", "run_request.claude.json"]) {
+  for (const name of [
+    "run_request.pi_core.json",
+    "run_request.claude.json",
+    "run_request.codex.json",
+  ]) {
     it(`${name}: every top-level key is known to AgentRunRequest`, () => {
       const req = loadGolden(name) as Record<string, unknown>;
       for (const key of Object.keys(req)) {
@@ -216,6 +220,24 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(skill.files![0].path, "scripts/draft.py");
     assert.equal(skill.files![0].executable, true);
     // sessionId is null on the wire, so the runner falls back to its ephemeral id.
+    assert.equal(
+      resolveRunSessionId(req, "runner-ephemeral"),
+      "runner-ephemeral",
+    );
+  });
+
+  it("codex request: no Pi built-ins, no harness files, managed key", () => {
+    const req = loadGolden("run_request.codex.json") as AgentRunRequest;
+    assert.equal(req.harness, "codex");
+    assert.deepEqual(req.tools, []);
+    assert.equal(req.model, "gpt-5.6-luna");
+    assert.deepEqual(req.permissions, { default: "allow_reads" });
+    assert.equal(req.systemPrompt, undefined);
+    assert.equal(req.appendSystemPrompt, undefined);
+    // Unlike Claude, the Milestone 1 default renders no harness configuration file.
+    assert.equal(req.harnessFiles, undefined);
+    assert.equal(req.sandboxPermission, undefined);
+    assert.deepEqual(req.secrets, { OPENAI_API_KEY: "sk-openai" });
     assert.equal(
       resolveRunSessionId(req, "runner-ephemeral"),
       "runner-ephemeral",
