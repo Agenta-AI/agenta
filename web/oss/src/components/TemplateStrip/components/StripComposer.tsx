@@ -21,6 +21,8 @@ interface StripComposerProps {
     composerClassName: string
     /** Forwarded to `RichChatInput`'s `onChange` — lets provenance notice the text going empty. */
     onTextChange?: (text: string) => void
+    /** Create is in flight — spins the primary button and swaps its label to "Creating agent". */
+    loading?: boolean
 }
 
 /**
@@ -36,6 +38,7 @@ const StripComposer = ({
     onCodingAgentCopy,
     composerClassName,
     onTextChange,
+    loading,
 }: StripComposerProps) => {
     return (
         <RichChatInput
@@ -52,6 +55,7 @@ const StripComposer = ({
                 <AgentIntentActions
                     onCreate={() => onCreate()}
                     onCodingAgentCopy={onCodingAgentCopy}
+                    loading={loading}
                 />
             }
         />
