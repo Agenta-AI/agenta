@@ -2,16 +2,19 @@
 
 Last updated: 2026-07-24 (Checkpoint 1 done, derisk probes and Milestone 1 running)
 
-## Now (Milestone 1 code complete; one blocker for Mahmoud)
+## Now (Milestone 1 COMPLETE and green)
 
 - Milestone 1 (managed key, text only) implemented by Codex, reviewed by Opus. SDK +
-  runner code done; SDK agents unit suite 680 green, full runner suite 1217 green.
-- Live QA: a managed-key Codex run streams a text answer (`PONG`, finish=stop) on an
-  EPHEMERAL cwd. BLOCKER on the durable session-mount path (what the playground uses):
-  Codex writes SQLite state into `CODEX_HOME=<cwd>/.codex`, and geesefs (S3 FUSE) cannot
-  support it (`CreateLinkOp: function not implemented`), so the turn hangs. This
-  invalidates the premise of approved D-002 Option A and needs a ruling (options in
-  `reports/m1-implementation-notes.md`). Not re-architected unilaterally.
+  runner done; SDK agents unit suite 680 green, full runner suite 1218 green.
+- Durable-mount blocker RESOLVED via the D-002 P8 amendment: keep `CODEX_HOME=<cwd>/.codex`
+  and add `CODEX_SQLITE_HOME` (off-mount local dir) so codex's WAL SQLite state leaves the
+  geesefs mount. Live QA on the real durable session path is multi-turn green: turn 1 sets
+  codeword FLAMINGO-42, turn 2 (same session) recalls it, both finish=stop, no hang. On
+  disk: no `*.sqlite` on the mount; all SQLite in `CODEX_SQLITE_HOME`; `sessions/` rollouts
+  and the `.tmp/plugins` git clone on the mount are fine (git's `CreateLinkOp` warnings are
+  benign, no wedge). Quality passes done (`/simplify`; desloppify applied manually because
+  the worktree skill dirs are empty; final diff review). Details in
+  `reports/m1-implementation-notes.md`.
 
 ## Earlier
 

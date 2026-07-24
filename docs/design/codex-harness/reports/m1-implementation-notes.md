@@ -6,13 +6,27 @@ milestone report.
 
 ## Headline
 
-The SDK and runner code is complete, both unit suites are green, and a managed-key Codex
-run streams a text answer end to end on an EPHEMERAL cwd. Live QA surfaced ONE blocker on
-the durable session-mount path (the path the playground uses): Codex writes SQLite state
-into `CODEX_HOME`, and with `CODEX_HOME = <cwd>/.codex` on the geesefs (S3-backed) durable
-session mount the turn hangs. This invalidates the premise of approved decision D-002
-Option A and needs a Mahmoud ruling before the playground check passes. Details in
-"Open questions / blocker" below. I did not re-architect around it (surface-pivots rule).
+Milestone 1 is complete and green. Managed-key Codex streams a text answer end to end on
+BOTH the ephemeral and the durable session-mount (playground) paths, including a multi-turn
+run where a codeword set in turn 1 is recalled in turn 2. The durable-mount blocker found in
+the first QA pass (Codex SQLite state wedging on the geesefs mount) is fixed with the approved
+D-002 P8 amendment: keep `CODEX_HOME = <cwd>/.codex` and add `CODEX_SQLITE_HOME` pointing at a
+local off-mount directory (codex's supported upstream knob). Both unit suites green
+(SDK agents 680, runner 1218). Quality passes done. Full evidence below.
+
+### Resolution of the durable-mount blocker (D-002 P8 amendment)
+
+The first QA pass hung on durable sessions because codex writes WAL-mode SQLite state into
+`CODEX_HOME`, and geesefs (S3 FUSE) cannot support it. P8 (`spike/derisk-findings.md`) proved
+codex exposes `CODEX_SQLITE_HOME` (upstream `codex-rs/state/src/lib.rs:93`), which moves all four
+SQLite families (state/goals/logs/memories, each with `-wal`/`-shm`) off `CODEX_HOME` while native
+`session/load` resume rides the plain `sessions/` rollout jsonl that stays on the durable home. The
+fix (runner `codex-assets.ts` `configureCodexHome`): keep `CODEX_HOME = <cwd>/.codex`, and set
+`CODEX_SQLITE_HOME = <tmpdir>/agenta/codex-sqlite/<basename(cwd)>` (a local off-mount dir created
+before the daemon starts, cleaned best-effort on destroy). The path is derived from `basename(cwd)`
+(per-session-stable, like `relayDir`) so it does not enter the config fingerprint and warm daemon
+reuse is preserved. This is parity-or-better with Claude (P8c: Claude keeps its SQLite-free state
+off the geesefs cwd too).
 
 ## Scope recap
 
@@ -80,8 +94,10 @@ SDK tests (`sdks/python/oss/tests/pytest/unit/agents/`):
   `connections/test_capabilities.py` (two pre-existing tests updated for the managed-only codex).
 
 Runner (`services/runner/src/engines/sandbox_agent/`):
-- `codex-assets.ts` (new) — `configureCodexHome`, `writeCodexManagedAuthFile` (0700 dir / 0600
-  file, create-if-absent, delete-only-if-created), `isManagedCodexRun`.
+- `codex-assets.ts` (new) — `configureCodexHome` (sets `CODEX_HOME` + `CODEX_SQLITE_HOME`),
+  `codexSqliteHomeDir` (off-mount, per-session-stable), `writeCodexManagedAuthFile` (0700 dir /
+  0600 file, create-if-absent, delete-only-if-created), `isManagedCodexRun`.
+- `runtime-contracts.ts` / `environment.ts` also track and best-effort-clean `codexSqliteHome`.
 - `daemon.ts` — inherit `CODEX_HOME` as a config-dir path.
 - `run-plan.ts` — `CODEX_SUBSCRIPTION_UNSUPPORTED_MESSAGE` + reject codex `runtime_provided`.
 - `environment-setup.ts` — call `configureCodexHome`; init `codexAuthFilePath`.
@@ -126,7 +142,8 @@ All driven with `codex exec -m gpt-5.6-sol --cd <worktree> --dangerously-bypass-
   `AGENTA_API_URL must be set` (pre-existing acceptance/integration tests that require a live
   backend; unrelated to this change; the unit layer is fully green).
 - Full runner suite: `cd services/runner && pnpm test`
-  -> **1217 passed (78 files)**. `pnpm run typecheck` clean.
+  -> **1218 passed (78 files)** (includes the `CODEX_SQLITE_HOME` fix tests). `pnpm run typecheck`
+  clean.
 
 ## Live QA (worktree deployment http://144.76.237.122:8180, project 019f93b7-8660-...)
 
@@ -147,51 +164,68 @@ Evidence (product endpoint `POST /services/agent/v0/invoke`, harness `codex`, mo
   `finish reason: stop`, assistant text `PONG`. Runner logs confirm the managed path:
   `resolved model=gpt-5.6-luna provider=openai deployment=direct secretKeys=[OPENAI_API_KEY]`
   and `codex auth.json written home=<cwd>/.codex`.
-- **Durable session run (with session id) — HANGS (blocker below).** Runner logs show the
-  managed resolve, `codex auth.json written`, `probe_capabilities ms=12` (the ACP session was
-  created), then a burst of codex SQLite state writes into `.codex`, then
-  `geesefs stderr: *fuseops.CreateLinkOp error: function not implemented` and the turn never
-  completes (heartbeats `running=true` for 3+ minutes, I/O flat at 0).
+- **First durable session pass (before the fix) — HUNG.** Runner logs showed the managed resolve,
+  `codex auth.json written`, ACP session created, a burst of codex SQLite writes into `.codex`,
+  then `geesefs: *fuseops.CreateLinkOp error: function not implemented` and no completion (3+ min).
+  OpenAI egress was fine (401 in 0.17s), so not network. This is what the D-002 P8 amendment fixed.
 
-OpenAI egress from the runner is fine (`api.openai.com` -> HTTP 401 with a bad key in 0.17s), so
-the hang is not network. The `.codex` dir on the mount contained `auth.json` (my write, 185 bytes),
-`goals_1.sqlite` + `-shm` + `-wal`, `installation_id`, `logs_2.sqlite`.
+- **Durable session run, MULTI-TURN, after the fix — PASS.** Same product endpoint, harness `codex`,
+  model `gpt-5.6-luna`, with a fixed `session_id` and the conversation history replayed each turn
+  (the playground shape). Turn 1: "Remember this codeword: FLAMINGO-42. Reply with exactly: OK" ->
+  frames `start -> ... -> text-delta -> ... -> finish` (`finish reason: stop`), text `OK`. Turn 2
+  (same session): "What was the codeword I gave you?" -> `finish reason: stop`, text
+  **`FLAMINGO-42`** (codeword survived turn to turn). No hang either turn.
 
-## Open questions / blocker (needs a Mahmoud ruling)
+  On-disk confirmation of the redirect (inside the runner container):
+  - `.codex/` on the geesefs mount held ONLY geesefs-safe files: `auth.json`, `installation_id`,
+    `sessions/` (the rollout jsonl), `shell_snapshots/`, `skills/`, `.tmp/`. NO `*.sqlite` files.
+  - `CODEX_SQLITE_HOME` (off-mount, `<tmpdir>/agenta/codex-sqlite/<session>`) held all the SQLite
+    families: `goals_1.sqlite`/`-wal`/`-shm`, `logs_2.sqlite`/`-wal`/`-shm`, `memories_1.sqlite`.
+    Exactly the split P8a predicted.
 
-**BLOCKER — D-002 Option A premise invalidated: Codex SQLite state on the geesefs durable
-session mount wedges the run.** Codex keeps its own state as SQLite databases in `$CODEX_HOME`.
-With the approved `CODEX_HOME = <cwd>/.codex` and `<cwd>` being the geesefs (S3-backed) durable
-session mount, geesefs cannot provide the filesystem operations SQLite-WAL needs (no hardlinks:
-`CreateLinkOp: function not implemented`; WAL shared-memory over S3 FUSE), and the turn hangs.
-An ephemeral (non-session) run, which uses a plain tmp cwd, works perfectly. The Milestone 0 spike
-ran the daemon with `CODEX_HOME` on a local tmp dir, so this failure mode was never exercised. The
-playground drives session runs, so this blocks the Milestone 1 headline check on that path.
+### The `.tmp` / geesefs residual-risk observation (both directions)
 
-Options (for Mahmoud; I did not pick one, per the surface-pivots rule):
-- **Option 1 — put CODEX_HOME on a per-run EPHEMERAL dir off the geesefs cwd** (the pi-agent-dir
-  pattern). For Milestone 1 this is clean because no `config.toml` is rendered (authored-only, and
-  the schema carries no codex keys yet), so there is nothing to co-locate on the cwd. The cost is
-  the Milestone 3 config.toml delivery: `config.toml` currently rides the `harnessFiles` seam into
-  `<cwd>/.codex` (cwd-relative, blind runner writer); an off-cwd CODEX_HOME reopens exactly the
-  D-002 Option B tradeoff (the runner would have to write config.toml itself, or use `CODEX_CONFIG`
-  which the P2 poison-combo constraint restricts). Codex cross-session memory also resets per run
-  (already listed as acceptable in design.md).
-- **Option 2 — keep CODEX_HOME on the cwd but relocate only codex's STATE off geesefs** (for
-  example symlink `<cwd>/.codex` state subpaths, or a codex flag to move its state dir if one
-  exists). Unproven; geesefs symlink support (CreateSymlinkOp) is untested and codex may not expose
-  a state-dir override separate from CODEX_HOME.
-- **Option 3 — do not use a durable session mount for codex runs** (ephemeral cwd always). Loses
-  cross-turn workspace persistence for codex; needs a runner branch that suppresses the mount by
-  harness.
+The coordinator flagged two residual risks on the real mount; both were checked and neither wedges:
+- **`sessions/` rollout appends on geesefs: fine.** The rollout jsonl was written on the mount and
+  turn 2's native context worked (codeword recalled).
+- **`.tmp/plugins-*` git clone on geesefs: benign, non-fatal.** Codex clones a plugins repo under
+  `CODEX_HOME/.tmp/plugins` at session start. Git DOES trigger `geesefs: *fuseops.CreateLinkOp error:
+  function not implemented` (git uses hardlinks), but it is non-fatal: git degrades, the
+  `.tmp/plugins` dir plus `plugins.sha`/`plugins.sync.lock` were created, and both turns completed
+  cleanly. So the geesefs-lethal case was ONLY the SQLite WAL (now redirected off-mount); the git
+  hardlink attempts in `.tmp` fail harmlessly. No design response needed. (Separately, some
+  `InvalidAccessKeyId` 403s appeared in the log window, but they belong to the ORPHANED mount of the
+  earlier pre-fix hung session, whose temporary S3 credentials had expired, not to the fixed path.)
 
-My recommendation to evaluate first is Option 1 for Milestone 1 (it makes the headline check pass
-immediately and is the smallest change), with the Milestone 3 config.toml delivery reopened as a
-D-002 follow-up. But this is an approved-decision reversal, so it waits for your ruling.
+## Quality passes (milestone close)
 
-Secondary open question (informational, not blocking M1):
+- **`/simplify` (single-pass inline; the Agent fan-out was unavailable in this context).** Reviewed
+  the milestone diff for reuse, simplification, efficiency, and altitude. Findings: the
+  Claude/Codex identical `wire_tools` is real duplication but collapsing it into the base would
+  touch Claude and break the deliberate mirror (skipped, out of scope); the `codex_settings`
+  renderer and the `INTERNAL_TOOL_MCP_SERVER` constant are unused in M1 but are explicitly-requested,
+  clearly-labeled forward-structure for Milestone 3 Layer 3, and keeping the constant preserves
+  parity with `claude_settings.py` (kept). No code changes; the code was already clean.
+- **Desloppify.** The `.agents/skills/desloppify-*` directories are present but EMPTY in this
+  worktree (no `SKILL.md` or engine content materialized), so the skills could not be invoked as
+  written. I applied the desloppify principles manually, scoped to the touched files: no
+  narration/session-dialogue comments, no dead scaffolding beyond the noted intentional
+  forward-structure, comment density matches the surrounding `pi-assets`/`claude_settings` norm
+  (why/invariants only), naming consistent. No changes needed.
+- **Final fresh-eyes diff review** (`git diff 7b971d8c10..HEAD`): correctness re-confirmed by the
+  green suites; style parity with the adjacent Claude code holds; no debug artifacts, no `TODO`/
+  `FIXME`, no em-dashes in prose. Clean.
+- **Suites re-run after the passes:** SDK agents unit **680 passed**; runner full **1218 passed**.
+
+## Open questions (none blocking)
+
+The durable-mount blocker is resolved (see the headline and the D-002 P8 amendment). No open
+questions block Milestone 1. Informational notes carried forward:
 - The runner's `codex-acp` bridge was already installed in the container from an earlier session,
   so first-run install latency was not observed here. D-005 pinning still applies for a clean image.
+- The `.tmp/plugins` git clone triggers benign `CreateLinkOp` warnings on geesefs (git degrades,
+  no wedge). If a future codex version makes that git activity fatal, it has no upstream override
+  knob today and would need a design response (noted, not currently a problem).
 
 ## Deferred
 
