@@ -412,8 +412,8 @@ export async function runWithKeepalive(
     }
   };
 
-  // Whether a paused turn holds a single, parkable permission gate (a Claude ACP gate or a Pi
-  // ACP gate). Only such a gate carries a `respondPermission`-answerable id; a client-tool MCP
+  // Whether a paused turn holds a single, parkable ACP permission gate. Only such a gate carries
+  // a `respondPermission`-answerable id; a client-tool MCP
   // pause never records `parkedApproval`, and more than one pending gate cannot be answered by
   // the single-gate resume — both stay on the cold path, logged.
   const approvalToPark = (
@@ -543,8 +543,8 @@ export async function runWithKeepalive(
     const env = acq.env;
     let result: AgentRunResult;
     try {
-      // Park mode on: a Claude ACP permission gate this turn keeps the session alive instead of
-      // tearing down. A non-parkable pause (Pi relay/builtin, client tool) still destroys as today.
+      // Park mode keeps a parkable ACP permission gate alive. A non-parkable relay or client-tool
+      // pause still destroys the session.
       result = await engine.runTurn(env, request, trackedEmit, signal, {
         approvalParkMode: true,
         loaded: env.loadedFromContinuity,
@@ -641,7 +641,7 @@ export async function runWithKeepalive(
     // checkout lost a race; fall through to cold.
   } else if (existing && existing.state === "awaiting_approval") {
     // An approval-parked session. A validated approval decision that matches the parked
-    // Claude ACP gate resumes it live; anything else evicts and degrades to cold.
+    // ACP gate resumes it live; anything else evicts and degrades to cold.
     //
     // Unlike the idle-continuation branch above, this branch does NOT require the resume request's
     // configFingerprint or credential epoch to EQUAL the parked session's. Every approval reply is
@@ -666,10 +666,11 @@ export async function runWithKeepalive(
     if (
       !parked ||
       (parked.gateType !== "claude-acp-permission" &&
+        parked.gateType !== "codex-acp-permission" &&
         parked.gateType !== "pi-acp-permission")
     ) {
-      // Defensive: only a parkable gate type (Claude ACP or Pi ACP) ever parks here. Both
-      // resume via `respondPermission` on the live session; the daemon maps the reply by kind.
+      // Defensive: only a parkable ACP gate type ever parks here. All resume through
+      // `respondPermission` on the live session; the daemon maps the reply by kind.
       mismatch = "unrecognized-gate-type";
     } else if (!decision) {
       mismatch = "no-matching-approval"; // fresh user text, or an approval for another id

@@ -1,5 +1,5 @@
 /**
- * Slice 2 tests: keep-alive across approval pauses (Claude ACP permission gates only).
+ * Keep-alive tests across parkable ACP approval pauses.
  *
  * Two seams:
  *  - Dispatch (`runWithKeepalive`) with a fake `KeepaliveEngine` that models a paused turn setting
@@ -369,6 +369,41 @@ describe("runWithKeepalive: approval park + resume", () => {
     assert.equal(calls.acquire, 1, "the resume did NOT re-acquire cold");
     assert.equal(calls.resumes.length, 1, "the Pi gate is answered live once");
     assert.equal(calls.resumes[0].reply, "once");
+  });
+
+  it("parks and resumes a Codex ACP gate exactly like the Claude gate", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-codex",
+          toolCallId: "tc-gate",
+          toolName: "pnpm test",
+          gateType: "codex-acp-permission",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+
+    const r1 = await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    assert.equal(r1.stopReason, "paused");
+    assert.equal(ctx.pool.get(POOL_KEY)!.state, "awaiting_approval");
+
+    const r2 = await runWithKeepalive(
+      approveResume(true),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(r2.ok, true);
+    assert.equal(calls.acquire, 1, "the resume did NOT re-acquire cold");
+    assert.deepEqual(calls.resumes, [
+      {
+        permissionId: "perm-codex",
+        reply: "once",
+        toolCallId: "tc-gate",
+      },
+    ]);
   });
 
   it("answers a denied gate live with reject on the resume", async () => {
@@ -1038,6 +1073,12 @@ const engineReq: AgentRunRequest = {
   messages: [{ role: "user", content: "do X" }],
 };
 
+const codexEngineReq: AgentRunRequest = {
+  harness: "codex",
+  harnessMode: "agent",
+  messages: [{ role: "user", content: "do X" }],
+};
+
 function updateEvent(update: Record<string, unknown>) {
   return { payload: { update } };
 }
@@ -1163,6 +1204,93 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       ),
       "the post-resume tool_call_update streamed (not suppressed) into the new run",
     );
+
+    await env.destroy();
+  });
+
+  it("parks and resumes a Codex ACP exec gate through respondPermission", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const acquired = await acquireEnvironment(codexEngineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const p1 = runTurn(env, codexEngineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "exec-codex",
+        title: "pnpm test",
+        kind: "execute",
+        rawInput: { command: "pnpm test", cwd: "/workspace" },
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-codex",
+      availableReplies: ["once", "always", "reject"],
+      toolCall: {
+        kind: "execute",
+        rawInput: { command: "pnpm test", cwd: "/workspace" },
+        status: "pending",
+        toolCallId: "exec-codex",
+      },
+    });
+    await flush();
+    const r1 = await p1;
+
+    assert.equal(r1.stopReason, "paused");
+    assert.equal(env.parkedApproval?.gateType, "codex-acp-permission");
+    assert.equal(env.parkedApproval?.toolName, "pnpm test");
+    assert.deepEqual(env.parkedApproval?.args, {
+      command: "pnpm test",
+      cwd: "/workspace",
+    });
+
+    env.clearTurn();
+    const held = env.parkedApproval!.promptPromise!;
+    const p2 = runTurn(
+      env,
+      approveResume(true, { harness: "codex", harnessMode: "agent" }),
+      undefined,
+      undefined,
+      {
+        approvalParkMode: true,
+        resume: {
+          permissionId: "perm-codex",
+          reply: "once",
+          toolCallId: "exec-codex",
+          toolName: "pnpm test",
+          args: { command: "pnpm test", cwd: "/workspace" },
+          interactionToken: "perm-codex",
+          promptPromise: held,
+        },
+      },
+    );
+    await flush();
+    assert.deepEqual(calls.permissionReplies, [
+      { id: "perm-codex", reply: "once" },
+    ]);
+
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "exec-codex",
+        status: "completed",
+        content: "passed",
+      }),
+    );
+    calls.resolvePrompt!({
+      stopReason: "complete",
+      usage: { inputTokens: 1, outputTokens: 1 },
+    });
+    const r2 = await p2;
+
+    assert.equal(r2.ok, true);
+    assert.equal(r2.stopReason, "complete");
+    assert.equal(calls.promptCount, 1);
 
     await env.destroy();
   });

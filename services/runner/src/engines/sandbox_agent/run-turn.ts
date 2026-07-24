@@ -83,7 +83,7 @@ export async function runTurn(
   // expected next-history fingerprint).
   env.lastTurnToolCallIds = [];
   // Reset the per-turn approval-park bookkeeping. A fresh turn starts with no parked gate; this
-  // turn re-records it only if it pauses on a Claude ACP permission gate. (The dispatch has
+  // turn re-records it only if it pauses on a parkable ACP permission gate. (The dispatch has
   // already captured any prior park into `opts.resume` before calling us.)
   env.parkedApproval = undefined;
   env.approvalGateCount = 0;
@@ -164,8 +164,8 @@ export async function runTurn(
         (id) => pause.isPausedToolCall(id),
         TOOL_NOT_EXECUTED_PAUSED,
       );
-      // Park mode: a parkable permission gate (Claude ACP or Pi ACP) recorded
-      // `env.parkedApproval` BEFORE firing this pause (the onUserApprovalGate hook runs before
+      // Park mode: a parkable ACP permission gate recorded `env.parkedApproval` BEFORE firing
+      // this pause (the onUserApprovalGate hook runs before
       // the single-pause latch). Keep the live session — the gated tool runs on the resume — so
       // skip ONLY the mcpAbort and the destroySession. The teardown is not lost: the dispatch
       // either parks the session or, if it decides not to (multi-gate, pool full), calls
@@ -309,6 +309,7 @@ export async function runTurn(
       run,
       responder,
       latch,
+      acpAgent: plan.acpAgent,
       serverPermissions,
       log: logger,
       onPause: () => pause.pause(),
@@ -342,7 +343,7 @@ export async function runTurn(
       // Record the parkable permission gate (only in keep-alive park mode) so the dispatch can
       // resume it live. Fires per pending gate (before the latch) so a parallel gate is counted;
       // the single-gate resume records only the FIRST gate's answer target. `info.gateType` names
-      // the plane (Claude ACP vs Pi ACP) so the resume answers on the right one.
+      // the ACP gate type so the resume answers on the right plane.
       onUserApprovalGate: opts.approvalParkMode
         ? (info) => {
             env.approvalGateCount += 1;

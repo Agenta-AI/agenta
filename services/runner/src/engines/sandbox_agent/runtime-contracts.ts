@@ -129,11 +129,11 @@ export interface CurrentTurn {
 
 /**
  * A permission gate that paused the turn and can be answered later on the SAME live session.
- * Recorded for a Claude ACP permission gate (keep-alive slice 2) or a Pi ACP permission gate
- * (Pi approval parking: the gate rides the extension's `ctx.ui.confirm` onto the same ACP
- * permission plane). NOT recorded for a client-tool MCP pause — that cannot be answered across
- * a turn boundary and stays on the cold path. Existence of this record is what makes the
- * dispatch park a paused session in `awaiting_approval` instead of tearing it down.
+ * Recorded for Claude and Codex ACP permission gates, or a Pi ACP permission gate (Pi approval
+ * parking: the gate rides the extension's `ctx.ui.confirm` onto the same ACP permission plane).
+ * NOT recorded for a client-tool MCP pause, which cannot be answered across a turn boundary and
+ * stays on the cold path. Existence of this record is what makes the dispatch park a paused
+ * session in `awaiting_approval` instead of tearing it down.
  */
 export interface ParkedApproval {
   /** Which gate paused; the dispatch resumes only a recognized type and treats others as cold. */
@@ -152,7 +152,7 @@ export interface ParkedApproval {
   promptPromise?: Promise<unknown>;
 }
 
-/** Answer a parked Claude ACP permission gate on the live session (the keep-alive resume input). */
+/** Answer a parked ACP permission gate on the live session (the keep-alive resume input). */
 export interface ResumeApprovalInput {
   permissionId: string;
   reply: "once" | "reject";
@@ -176,7 +176,7 @@ export interface RunTurnOptions {
    */
   loaded?: boolean;
   /**
-   * Keep-alive approval park mode: on a Claude ACP permission gate the pause keeps the session
+   * Keep-alive approval park mode: on a parkable ACP permission gate the pause keeps the session
    * alive (no settle/abort/destroy) so a later resume can answer it. A non-parkable pause (Pi
    * relay, client tool) still tears down exactly as today, so this is safe to set on any eligible
    * keep-alive turn.
@@ -263,13 +263,13 @@ export interface SessionEnvironment {
    */
   lastTurnToolCallIds: string[];
   /**
-   * The Claude ACP permission gate the LAST turn paused on, or undefined. Set only for a harness
-   * ACP permission gate, reset at each turn start; the dispatch reads it after a paused turn to
-   * decide whether to park in `awaiting_approval` and, on the next request, how to resume.
+   * The parkable ACP permission gate the LAST turn paused on, or undefined. Reset at each turn
+   * start; the dispatch reads it after a paused turn to decide whether to park in
+   * `awaiting_approval` and, on the next request, how to resume.
    */
   parkedApproval?: ParkedApproval;
   /**
-   * How many Claude ACP permission gates resolved to pendingApproval THIS turn (reset at turn
+   * How many parkable ACP permission gates resolved to pendingApproval THIS turn (reset at turn
    * start). More than one means parallel gates the single-gate resume cannot answer, so the
    * dispatch does not park (tears down cold as today).
    */
