@@ -143,6 +143,14 @@ function applyEvent(
         }
         case "tool_call": {
             const toolCallId = str(payload.id)
+            const existing = index.tools.get(toolCallId)
+            if (existing) {
+                // A resume re-emits the approved call with the same toolCallId. Update the existing
+                // part (kept across the pause boundary) in place instead of rendering a duplicate;
+                // its tool_result then settles that one part to a single ✓.
+                if (payload.input !== undefined) existing.input = payload.input
+                return
+            }
             const part: Part = {
                 type: toolPartType(payload.name as string),
                 toolCallId,
@@ -283,9 +291,18 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
         // fresh message per turn.
         if (row.session_update === "done" || p.type === "done") {
             if (current && traceId && !current.traceId) current.traceId = traceId
-            // A paused turn's `done` carries stopReason:"paused" — mark the closing message so a cold
-            // reload can tell this turn ended mid-approval, not at a real boundary (read by adoption).
-            if (current && p.stopReason === "paused") current.paused = true
+            if (current && p.stopReason === "paused") {
+                // Paused mid-approval: the resume turn's records (the re-emitted call, its result,
+                // the follow-up text) belong to the SAME assistant turn the user saw live, so keep
+                // the draft OPEN and let them fold into it instead of splitting into a dangling
+                // "awaiting approval" bubble + a resumed bubble. A paused turn blocks the session,
+                // so it's always followed by its own resume or is the last (abandoned) turn. Mark it
+                // paused for the adoption heuristic; the normal `done` below clears it on resume.
+                current.paused = true
+                continue
+            }
+            // A resumed-then-completed turn is no longer paused.
+            if (current) current.paused = false
             current = null
             continue
         }

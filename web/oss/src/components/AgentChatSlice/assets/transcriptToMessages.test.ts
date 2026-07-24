@@ -215,6 +215,64 @@ describe("transcriptToMessages approval hydration", () => {
             errorText: "permission denied",
         })
     })
+
+    it("merges a paused turn with its resume into one message and settles the re-emitted call once", () => {
+        // Real cold-replay shape (verified against records): a Write call pauses for approval, the
+        // turn ends stopReason:"paused", then the resume turn RE-EMITS the same call id, settles it,
+        // and finishes. Reload must match the single live turn, not a dangling "awaiting" bubble.
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "write notes.md"}, "user"),
+            record("r-thought-1", {type: "thought", text: "let me write it"}),
+            record("r-call", {
+                type: "tool_call",
+                id: "tool-1",
+                name: "Write",
+                input: {path: "notes.md"},
+            }),
+            record("r-req", {
+                type: "interaction_request",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-1"},
+            }),
+            record("r-done-paused", {type: "done", stopReason: "paused"}),
+            // resume turn: re-emits the SAME call id, then settles it and finishes.
+            record("r-call-reemit", {
+                type: "tool_call",
+                id: "tool-1",
+                name: "Write",
+                input: {path: "notes.md"},
+            }),
+            record("r-resp", {
+                type: "interaction_response",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-1", approved: true},
+            }),
+            record("r-result", {type: "tool_result", id: "tool-1", output: "written"}),
+            record("r-thought-2", {type: "thought", text: "done"}),
+            record("r-msg", {type: "message", text: "Done!"}),
+            record("r-done", {type: "done"}),
+        ])
+
+        expect(messages).not.toBeNull()
+        // user + ONE merged assistant turn, not user + paused bubble + resumed bubble.
+        expect(messages).toHaveLength(2)
+        const assistant = messages![1]
+        expect(assistant.role).toBe("assistant")
+
+        // Exactly one Write tool part, settled to a single output-available — no duplicate.
+        const toolParts = (assistant.parts as unknown as Record<string, unknown>[]).filter(
+            (part) => "toolCallId" in part,
+        )
+        expect(toolParts).toHaveLength(1)
+        expect(toolParts[0]).toMatchObject({toolCallId: "tool-1", state: "output-available"})
+
+        // The resumed-and-completed turn is no longer flagged paused.
+        expect(
+            (assistant as unknown as {metadata?: {paused?: boolean}}).metadata?.paused,
+        ).toBeFalsy()
+    })
 })
 
 describe("transcriptToMessages paused end-marker", () => {
