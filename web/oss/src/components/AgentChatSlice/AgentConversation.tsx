@@ -129,6 +129,8 @@ import {
 import {
     type SessionRunStatus,
     activeSessionIdAtomFamily,
+    autoTitleSessionAtomFamily,
+    firstUserText,
     persistSessionMessagesAtom,
     sessionMessagesAtom,
     setSessionStatusAtom,
@@ -745,6 +747,15 @@ const AgentConversation = ({
     const activeSessionId = useAtomValue(activeSessionIdAtomFamily(scopeKey))
     const pendingRun = useAtomValue(simulatedAgentRunAtomFamily(entityId))
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(entityId))
+
+    // Auto-name the session from its first user message so the durable list is labeled everywhere
+    // (cross-tab / cross-device) before it's opened. The atom no-ops once the session has a title,
+    // so this fires at most once and never overwrites an explicit rename.
+    const autoTitleSession = useSetAtom(autoTitleSessionAtomFamily(scopeKey))
+    const firstUserMessage = useMemo(() => firstUserText(messages), [messages])
+    useEffect(() => {
+        if (firstUserMessage) autoTitleSession({id: sessionId, text: firstUserMessage})
+    }, [firstUserMessage, sessionId, autoTitleSession])
 
     // Model connection: is the project vault empty (no key of any kind), the agent not self-managed,
     // and the user never set up a key before? Drives the connect-a-model banner AND disables the

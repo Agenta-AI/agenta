@@ -126,8 +126,11 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
         async with self.engine.session() as session:
             stmt = select(SessionStreamDBE).where(
                 SessionStreamDBE.project_id == project_id,
-                SessionStreamDBE.deleted_at.is_(None),
             )
+            if not filter.include_ended:
+                stmt = stmt.where(SessionStreamDBE.deleted_at.is_(None))
+            if not filter.include_archived:
+                stmt = stmt.where(SessionStreamDBE.archived_at.is_(None))
             if filter.session_id is not None:
                 stmt = stmt.where(SessionStreamDBE.session_id == filter.session_id)
             if session_ids is not None:
@@ -247,6 +250,56 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
             if dbe is None:
                 return None
             dbe.deleted_at = None
+            dbe.updated_by_id = user_id
+            dbe.updated_at = datetime.now(timezone.utc)
+            await session.commit()
+            await session.refresh(dbe)
+        return map_stream_dbe_to_dto(stream_dbe=dbe)
+
+    async def set_archived_by_session_id(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+    ) -> Optional[SessionStream]:
+        """Set `archived_at` — hide the session from the default list (restorable). Orthogonal to
+        `deleted_at` (kill): an ended session can still be archived, and the query filters the two
+        states independently."""
+        async with self.engine.session() as session:
+            stmt = select(SessionStreamDBE).where(
+                SessionStreamDBE.project_id == project_id,
+                SessionStreamDBE.session_id == session_id,
+            )
+            result = await session.execute(stmt)
+            dbe = result.scalar_one_or_none()
+            if dbe is None:
+                return None
+            dbe.archived_at = datetime.now(timezone.utc)
+            dbe.updated_by_id = user_id
+            dbe.updated_at = datetime.now(timezone.utc)
+            await session.commit()
+            await session.refresh(dbe)
+        return map_stream_dbe_to_dto(stream_dbe=dbe)
+
+    async def clear_archived_by_session_id(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+    ) -> Optional[SessionStream]:
+        """Clear `archived_at` — restore an archived session to the list (reverse of archive)."""
+        async with self.engine.session() as session:
+            stmt = select(SessionStreamDBE).where(
+                SessionStreamDBE.project_id == project_id,
+                SessionStreamDBE.session_id == session_id,
+            )
+            result = await session.execute(stmt)
+            dbe = result.scalar_one_or_none()
+            if dbe is None:
+                return None
+            dbe.archived_at = None
             dbe.updated_by_id = user_id
             dbe.updated_at = datetime.now(timezone.utc)
             await session.commit()

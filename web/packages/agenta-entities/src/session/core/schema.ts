@@ -91,6 +91,10 @@ export const sessionStreamSchema = z.object({
     id: z.string(),
     project_id: z.string(),
     session_id: z.string(),
+    // Header (name/description) + lifecycle carry the durable session's title, order key, and
+    // ended state — the merged stream row is the session-list source (WP7). `deleted_at` set = ended.
+    name: z.string().nullish(),
+    description: z.string().nullish(),
     turn_id: z.string().nullish(),
     status: z.object({code: z.string().nullish(), message: z.string().nullish()}).nullish(),
     flags: z
@@ -100,11 +104,23 @@ export const sessionStreamSchema = z.object({
             is_attached: z.boolean().nullish(),
         })
         .nullish(),
+    created_at: z.string().nullish(),
+    updated_at: z.string().nullish(),
+    deleted_at: z.string().nullish(),
+    // `archived_at` set = hidden-but-recoverable (distinct from `deleted_at`=ended, still resumable).
+    archived_at: z.string().nullish(),
 })
 
 export const sessionStreamsResponseSchema = z.object({
     count: z.number(),
     streams: z.array(sessionStreamSchema),
+})
+
+/** `POST /sessions/query` — the durable session list (stream rows) for the project, filtered by
+ * the turns' workflow references. */
+export const sessionsQueryResponseSchema = z.object({
+    count: z.number(),
+    sessions: z.array(sessionStreamSchema),
 })
 
 export const sessionStreamResponseSchema = z.object({

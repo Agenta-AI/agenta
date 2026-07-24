@@ -4,6 +4,7 @@ from sqlalchemy import (
     Index,
     PrimaryKeyConstraint,
     String,
+    TIMESTAMP,
     UniqueConstraint,
 )
 
@@ -49,6 +50,10 @@ class SessionStreamDBE(
     # alive/running lock value. Null when idle/ended. Not a pk — a token-like correlator.
     turn_id = Column(String, nullable=True)
 
+    # Archive is distinct from kill: `deleted_at` (LifecycleDBA) marks a killed/ended session
+    # (resumable, still listed); `archived_at` marks a deliberately-hidden one (restorable).
+    archived_at = Column(TIMESTAMP(timezone=True), nullable=True)
+
     __table_args__ = (
         ForeignKeyConstraint(
             ["project_id"],
@@ -65,6 +70,11 @@ class SessionStreamDBE(
             "ix_session_streams_project_id_created_at",
             "project_id",
             "created_at",
+        ),
+        Index(
+            "ix_session_streams_project_id_archived_at",
+            "project_id",
+            "archived_at",
         ),
         Index(
             "ix_session_streams_flags",

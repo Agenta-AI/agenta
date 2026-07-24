@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, Optional
 from uuid import UUID
@@ -34,6 +35,8 @@ class SessionStream(Identifier, Header, Lifecycle):
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
+    # Set = archived (hidden but restorable); distinct from `deleted_at` (killed, still listed).
+    archived_at: Optional[datetime] = None
 
 
 class SessionStreamCreate(Header):
@@ -62,6 +65,12 @@ class SessionStreamHeaderEdit(Header):
 class SessionStreamQuery(BaseModel):
     session_id: Optional[str] = None
     flags: Optional[SessionStreamQueryFlags] = None
+    # Include ended (killed → soft-deleted) rows so a durable list shows resumable history, not
+    # just live sessions. Their `deleted_at` is populated for the caller to mark them ended.
+    include_ended: bool = False
+    # Include archived (deliberately-hidden) rows — off by default so archive hides; on for the
+    # archived view. Orthogonal to `include_ended` (a row can be killed OR archived).
+    include_archived: bool = False
 
 
 class CommandMode(str, Enum):

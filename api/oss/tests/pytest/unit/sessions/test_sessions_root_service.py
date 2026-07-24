@@ -84,11 +84,13 @@ class _FakeStreamsService:
         )
         return True
 
-    async def archive(self, *, project_id, session_id):
-        self.archive_calls.append({"project_id": project_id, "session_id": session_id})
+    async def archive(self, *, project_id, user_id, session_id):
+        self.archive_calls.append(
+            {"project_id": project_id, "user_id": user_id, "session_id": session_id}
+        )
         if self.row is not None:
             self.row = self.row.model_copy(
-                update={"deleted_at": "2026-01-01T00:00:00Z"}
+                update={"archived_at": "2026-01-01T00:00:00Z"}
             )
         return self.row
 
@@ -97,7 +99,7 @@ class _FakeStreamsService:
             {"project_id": project_id, "user_id": user_id, "session_id": session_id}
         )
         if self.row is not None:
-            self.row = self.row.model_copy(update={"deleted_at": None})
+            self.row = self.row.model_copy(update={"archived_at": None})
         return self.row
 
 
@@ -236,11 +238,14 @@ async def test_archive_session_soft_archives_stream_and_mounts():
     )
 
     assert result is not None
-    assert result.deleted_at is not None
+    assert result.archived_at is not None
+    assert result.deleted_at is None
     assert mounts.archive_calls == [
         {"project_id": _PROJECT, "user_id": _USER, "session_id": _SESSION}
     ]
-    assert streams.archive_calls == [{"project_id": _PROJECT, "session_id": _SESSION}]
+    assert streams.archive_calls == [
+        {"project_id": _PROJECT, "user_id": _USER, "session_id": _SESSION}
+    ]
 
 
 @pytest.mark.asyncio
@@ -251,14 +256,14 @@ async def test_unarchive_session_reverses_archive_round_trip():
     archived = await svc.archive_session(
         project_id=_PROJECT, user_id=_USER, session_id=_SESSION
     )
-    assert archived.deleted_at is not None
+    assert archived.archived_at is not None
 
     unarchived = await svc.unarchive_session(
         project_id=_PROJECT, user_id=_USER, session_id=_SESSION
     )
 
     assert unarchived is not None
-    assert unarchived.deleted_at is None
+    assert unarchived.archived_at is None
     assert mounts.unarchive_calls == [
         {"project_id": _PROJECT, "user_id": _USER, "session_id": _SESSION}
     ]

@@ -94,6 +94,24 @@ class SessionStreamsDAOInterface(ABC):
     ) -> Optional[SessionStream]: ...
 
     @abstractmethod
+    async def set_archived_by_session_id(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+    ) -> Optional[SessionStream]: ...
+
+    @abstractmethod
+    async def clear_archived_by_session_id(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+    ) -> Optional[SessionStream]: ...
+
+    @abstractmethod
     async def hard_delete_by_session_id(
         self,
         *,
