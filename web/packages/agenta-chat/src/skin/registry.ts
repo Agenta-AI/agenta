@@ -80,6 +80,9 @@ export const resolveApprovalBody = (toolName: string): ApprovalBodyEntry | undef
 // Keep byte-parity if either side changes. (`parseGatewayToolName` itself is NOT copied — it
 // already lives in `@agenta/entities/workflow/commitDiff`, an existing package dependency, and is
 // imported directly above.)
+// Adaptations: `resolveToolDisplay` below also lets a registered entry override `kind`
+// (`override?.kind ?? parsed.kind`), which the OSS `ToolDisplayOverride` cannot do — a
+// deliberate extension over the OSS chain for skin flexibility.
 const parseNameShape = (raw: string): {label: string; source?: string; kind: ToolKind} => {
     // mcp__{server}__{tool} → tool from "Server · MCP".
     if (raw.startsWith("mcp__")) {

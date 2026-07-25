@@ -74,13 +74,13 @@ export const useComposerAttachments = ({
     /** Add files from picker / paste / programmatic sources through the guardrails. */
     const add = useCallback(
         (incoming: File[]) => {
-            setFiles((prev) => {
-                const {accepted, rejections: rej} = validateIncoming(incoming, prev.length, limits)
-                setRejections(rej)
-                return accepted.length ? [...prev, ...accepted.map(toPendingAttachment)] : prev
-            })
+            const {accepted, rejections: rej} = validateIncoming(incoming, files.length, limits)
+            if (accepted.length) {
+                setFiles((prev) => [...prev, ...accepted.map(toPendingAttachment)])
+            }
+            setRejections(rej)
         },
-        [limits],
+        [files, limits],
     )
 
     const remove = useCallback((uid: string) => {
