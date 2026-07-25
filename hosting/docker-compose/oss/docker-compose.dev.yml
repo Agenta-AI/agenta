@@ -63,6 +63,7 @@ services:
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             WATCHPACK_POLLING: "true"
+            AGENTA_MOBILE_GATE: ${AGENTA_MOBILE_GATE:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -94,6 +95,7 @@ services:
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             WATCHPACK_POLLING: "true"
+            AGENTA_MOBILE_GATE: ${AGENTA_MOBILE_GATE:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-network

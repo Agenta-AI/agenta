@@ -18,6 +18,8 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
+        environment:
+            - AGENTA_MOBILE_GATE=${AGENTA_MOBILE_GATE:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network
@@ -43,6 +45,8 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
+        environment:
+            - AGENTA_MOBILE_GATE=${AGENTA_MOBILE_GATE:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network
