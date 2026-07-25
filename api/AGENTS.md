@@ -89,8 +89,10 @@ active chains:
   (or `tracing_ee/`).
 
 Full model (version tables, fresh-install/upgrade/OSS→EE-switch flows, FK and replay-skew
-rules): `docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md`. The
-parked `core/README.md` covers alembic mechanics.
+rules): `docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md`. For
+alembic mechanics and docker commands, see the parked `core/README.md` — but always run
+those commands from the appropriate active chain working directory (`core_oss`/`tracing_oss`
+or `core_ee`/`tracing_ee`), not the parked `core/`/`tracing/` dirs.
 
 ### Layering and dependency direction
 
