@@ -20,7 +20,8 @@
         "./model": "./src/model/index.ts",
         "./assets": "./src/assets/index.ts",
         "./transport": "./src/transport/index.ts",
-        "./state": "./src/state/index.ts"
+        "./state": "./src/state/index.ts",
+        "./hooks": "./src/hooks/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
@@ -35,10 +36,15 @@
     },
     "devDependencies": {
         "@ai-sdk/react": "3.0.0-beta.153",
+        "@testing-library/react": "^16.3.0",
         "@types/node": "^20.19.20",
         "@types/react": "^19.0.10",
         "@vitest/coverage-v8": "^4.1.4",
         "ai": "6.0.0-beta.150",
+        "jsdom": "^26.1.0",
+        "jotai": "^2.15.0",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
         "typescript": "^5.9.3",
         "vitest": "^4.1.4"
     }
