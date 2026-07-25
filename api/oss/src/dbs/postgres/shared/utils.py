@@ -17,13 +17,19 @@ def apply_windowing(
     id_attribute = span_id_attribute or entity_id_attribute or None
     created_at_attribute = DBE.created_at if getattr(DBE, "created_at", None) else None  # type: ignore
     start_time_attribute = DBE.start_time if getattr(DBE, "start_time", None) else None  # type: ignore
+    updated_at_attribute = DBE.updated_at if getattr(DBE, "updated_at", None) else None  # type: ignore
+    # updated_at rides its own cursor (last-activity ordering); default time_attribute
+    # stays start_time/created_at so unrelated callers are unaffected.
     time_attribute = start_time_attribute or created_at_attribute or None
+    if attribute.lower() == "updated_at" and updated_at_attribute is not None:
+        time_attribute = updated_at_attribute
     # UUID7 -> id ---------------------------------------------------- #
     order_attribute = {
         "id": id_attribute,
         "span_id": span_id_attribute,
         "created_at": created_at_attribute,
         "start_time": start_time_attribute,
+        "updated_at": updated_at_attribute,
     }.get(attribute.lower(), created_at_attribute)
 
     if not order_attribute or not time_attribute or not id_attribute:

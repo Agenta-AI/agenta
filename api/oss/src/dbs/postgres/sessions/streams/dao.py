@@ -145,12 +145,21 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
                 stmt = apply_windowing(
                     stmt=stmt,
                     DBE=SessionStreamDBE,
-                    attribute="id",
+                    # Last-activity ordering: updated_at is fed by heartbeat/edit/archive,
+                    # so a resumed session bumps to the top instead of sorting by its
+                    # original (uuid7) creation time.
+                    attribute="updated_at",
                     order="descending",
                     windowing=windowing,
                 )
             else:
-                stmt = stmt.order_by(SessionStreamDBE.created_at.desc())
+                # No windowing here means this is the liveness-index caller
+                # (`query_session_streams`), not the paginated session list — ordering
+                # isn't load-bearing there, but keep it consistent with the windowed path.
+                stmt = stmt.order_by(
+                    SessionStreamDBE.updated_at.desc(),
+                    SessionStreamDBE.id.desc(),
+                )
             result = await session.execute(stmt)
             dbes = result.scalars().all()
         return [map_stream_dbe_to_dto(stream_dbe=dbe) for dbe in dbes]

@@ -249,13 +249,20 @@ export interface QuerySessionsParams {
     appId?: string
     abortSignal?: AbortSignal
     lowPriority?: boolean
+    /** Page size — omit for the server default (no `windowing` sent at all, preserving prior
+     * unpaginated behavior). */
+    limit?: number
+    /** Cursor: the `id` of the last row from the previous page. */
+    next?: string
+    /** Cursor: the `updated_at` of the last row from the previous page (pairs with `next`). */
+    newest?: string
 }
 
 /**
  * The durable session list for the project: merged stream rows (id, `name` title, flags,
  * `created_at`, `deleted_at`=ended), filtered by the turns' workflow `references`. This is the
- * server source the reconciling sidebar merges over its localStorage cache. Returns `null` on
- * failure / missing project scope.
+ * server source the reconciling sidebar merges over its localStorage cache. Ordered by last
+ * activity (`updated_at`) server-side. Returns `null` on failure / missing project scope.
  */
 export async function querySessions({
     projectId,
@@ -265,13 +272,28 @@ export async function querySessions({
     appId,
     abortSignal,
     lowPriority,
+    limit,
+    next,
+    newest,
 }: QuerySessionsParams): Promise<SessionStream[] | null> {
     if (!projectId) return null
+
+    // Only attach `windowing` when a caller actually opts into pagination — an absent
+    // field preserves the prior unwindowed (server-default-ordered) query shape.
+    const windowing =
+        limit !== undefined || next !== undefined || newest !== undefined
+            ? {limit, next, newest}
+            : undefined
 
     const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
     const data = await callFern("[querySessions]", () =>
         client.querySessions(
-            {references, include_ended: includeEnded, include_archived: includeArchived},
+            {
+                references,
+                include_ended: includeEnded,
+                include_archived: includeArchived,
+                windowing,
+            },
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
