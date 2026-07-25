@@ -37,7 +37,7 @@ transport-bearing entry (a contract change, deferred). Layers 1/2 scalars are un
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from ..tools.models import PermissionMode
 
@@ -135,7 +135,7 @@ def build_codex_settings_files(
     mcp_servers: Any = None,
     tool_specs: Any = None,
     permission_default: PermissionMode = "allow_reads",
-    credential_mode: Any = None,
+    credential_mode: Optional[str] = None,
 ) -> List[Dict[str, str]]:
     """Build the Codex ``config.toml`` as one generic ``harnessFiles`` entry, or ``[]`` if none.
 

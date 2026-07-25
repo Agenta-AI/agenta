@@ -29,14 +29,17 @@ Each adapter implements `_to_harness_config(...)` and emits a different `/run` w
   base instructions over the author's, forces the Agenta tool set, and layers the Agenta
   persona into `append_system`.
 - **`CodexHarness`** drives the `codex` ACP agent. It delivers custom tools over the internal
-  `agenta-tools` MCP channel (like Claude) and renders `.codex/config.toml` from authored options
-  only (`codex_settings.py`). Codex's default runtime mode is `agent-full-access`, so tool
-  approvals are enforced runner-side at the `agenta-tools` pause seam rather than by a codex-native
-  ACP gate (decision D-008); authors can override the mode with the typed `harnessMode` wire field.
-  The runner writes the credential into `CODEX_HOME` (`auth.json`): managed writes the resolved key;
-  local subscription symlinks the operator's mounted login. Codex SQLite state is redirected off the
-  durable mount via `CODEX_SQLITE_HOME`. On Daytona the managed home is in-VM so the key never lands
-  on durable storage (codex-harness decision D-002).
+  `agenta-tools` MCP channel (like Claude) and renders `.codex/config.toml` (`codex_settings.py`).
+  Codex's default runtime mode is `agent-full-access`, so tool approvals are enforced runner-side at
+  the `agenta-tools` pause seam rather than by a codex-native ACP gate (decision D-008); authors can
+  override the mode with the typed `harnessMode` wire field. **Managed auth is file-free** (D-002
+  final ruling): the adapter renders a custom `model_providers` block with `env_key =
+  "OPENAI_API_KEY"` into `config.toml`, and codex reads the key from the daemon env (delivered via
+  `secrets`) at request time; no credential file is written. Local subscription instead symlinks
+  `<cwd>/.codex/auth.json` to the operator's mounted OAuth login. `CODEX_HOME` is the durable
+  `<cwd>/.codex` on both local and Daytona (native rollouts persist, so native resume survives a
+  sandbox replacement); Codex SQLite state is redirected off that home via `CODEX_SQLITE_HOME`
+  (a geesefs constraint).
 
 The wire shapes, side by side:
 

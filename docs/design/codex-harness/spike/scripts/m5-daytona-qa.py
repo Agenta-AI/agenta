@@ -31,10 +31,10 @@ def template():
     tmpl = {
         "instructions": {"agents_md": "Be terse."},
         "llm": {
-            "model": "gpt-5.6-luna",
+            "model": os.environ.get("MODEL", "gpt-5.6-luna"),
             "provider": "openai",
             # Managed vault key (not subscription): resolver -> credentialMode=env.
-            "connection": {"mode": "agenta", "slug": "openai-managed"},
+            "connection": {"mode": "agenta", "slug": None},
             "extras": {},
         },
         "tools": [],

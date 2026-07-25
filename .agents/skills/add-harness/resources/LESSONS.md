@@ -352,3 +352,26 @@ procedure, this file holds the raw experience that justifies it.
   connection-resolution trap, harness-independent, not runner code — verify the product path with a
   slug-None managed cell before assuming your harness broke it, and drive the runner `/run` directly
   (key in `secrets`, `credentialMode=env`) to isolate the harness code from the resolver.
+- 2026-07-25 · **A coding harness may take an API key with NO credential file — enumerate the
+  mechanism space before building a file-writer.** Codex's BUILT-IN openai provider hard-requires a
+  login/auth.json, but a CUSTOM `model_providers` entry with `env_key = "OPENAI_API_KEY"` makes codex
+  read the key from process env at REQUEST time and write nothing. It must be a NEW provider id
+  (built-ins are not overridable) and it must live in the config FILE (the auth-gate check reads the
+  app-server's own config, not an env-delivered override). This retired three milestones of
+  auth.json-writer + delete-backstop machinery (including an ordering bug where the backstop ran
+  after the durable unmount and stranded the key in the store). Lesson: when a harness needs a
+  credential, list EVERY provisioning channel (file, env-at-request, ephemeral store, gateway
+  header, bearer config, ...) and prefer the one that keeps the secret in exactly one place (the env
+  var) with nothing on disk — it also composes best with a placeholder/egress-proxy secret design.
+- 2026-07-25 · **File-free managed auth beats "write-then-delete on durable storage".** For a durable
+  session home on remote/S3-backed storage, an add-then-remove credential lifecycle has an
+  irreducible crash window (the key persists if the process dies before teardown) and a delete that
+  must run BEFORE the unmount/sandbox-stop. If the harness can read the key from env at request time,
+  the file never exists, so there is nothing to delete, no crash window, and native session resume
+  (rollouts on the durable mount) is preserved. Redirect only the unavoidable on-disk state
+  (SQLite/WAL) off the mount; keep the credential in env.
+- 2026-07-25 · **The managed-vs-subscription signal is "not subscription", not "== env".** The runner
+  keys managed on `credentialMode !== "runtime_provided"`, so an unresolved/absent credential mode
+  counts as managed. When rendering credential-mode-dependent config in the SDK, mirror that: default
+  to managed unless the resolved connection (or the authored `self_managed` intent) says subscription
+  — otherwise an un-migrated or unresolved run silently loses its auth config.

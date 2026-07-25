@@ -13,13 +13,19 @@ main checkout. Do-not-merge stands.
 
 - Notes: `reports/m5-implementation-notes.md`. Final suites: runner **1252**, SDK agents unit
   **691**, ruff + typecheck clean; web untouched by M5.
-- **A. Daytona managed-key Codex GREEN.** In-VM `CODEX_HOME` (D-002 M5 amendment, proposed): the key
-  lives only in the sandbox VM, never on durable S3. Live via direct runner `/run`:
-  `codex auth.json written (Daytona, in-VM)`, `stopReason=end_turn`, reply `DAYTONA-OK` on `gpt-5.4`.
-  QA sandboxes deleted (0 remaining). Product-path Daytona TOOL run is blocked by a
-  harness-independent managed-connection-resolver failure (explicit-slug "not found"); documented and
-  STOPPED per brief. Daytona snapshot ships an OLDER codex than the runner pin (model-set mismatch) —
-  follow-up: pin the snapshot recipe too.
+- **A. Daytona managed-key Codex GREEN — now FILE-FREE (D-002 final ruling).** Managed auth writes NO
+  `auth.json`; the SDK renders a custom `model_providers` block with `env_key = "OPENAI_API_KEY"`
+  into `<cwd>/.codex/config.toml` and codex reads the key from the daemon env at request time.
+  `CODEX_HOME` is the durable `<cwd>/.codex` on both local and Daytona (native resume durable);
+  `CODEX_SQLITE_HOME` in-VM/off-mount. Both managed auth.json writers + the ordering-buggy destroy
+  backstop DELETED. Placement: SDK seam (`codex_settings.py`), runner stays a dumb writer. RE-QA all
+  four GREEN: (a) local managed durable multi-turn codeword recalled + NO auth.json on disk + config
+  provider block + rollouts on mount + sqlite off-mount; (b) local managed tool; (c) Daytona managed
+  chat (durable home, file-free, gpt-5.4); (d) subscription chat+tool green, symlink intact, host
+  hash unchanged, no provider block. QA sandboxes deleted. (The earlier in-VM `CODEX_HOME` M5
+  amendment was rejected + superseded.) Daytona snapshot still ships an older codex than the runner
+  pin (model-set mismatch) — follow-up: pin the snapshot recipe too. The product-path explicit-slug
+  managed-connection-resolver failure (harness-independent) is filed as GH #5499.
 - **B. Release-gate cell X1 GREEN** (codex/local/managed). chat/tool/commit/warm PASS;
   mcp/approve/deny/mount SKIP with codex reasons (D-008 + probe-shape). Added to the tracked
   `agent-release-gate` skill (`qa_product.py`, `coverage.md`).

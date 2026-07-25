@@ -7,13 +7,97 @@ kept for the larger cross-file work; the M5 changes are small, well-understood m
 patterns, so direct authorship was faster and is disclosed here). Local checkpoint commits only,
 nothing pushed.
 
-## Headline
+> UPDATE (2026-07-25): the in-VM managed home described in item A below was REJECTED by Mahmoud and
+> SUPERSEDED by the file-free managed auth design (D-002 final ruling). See "File-free managed auth
+> rework" immediately below; it is the shipped state. Item A's original text is kept for history.
 
-- **A. Daytona managed-key Codex: GREEN.** A managed-key codex chat run provisions a real Daytona
-  sandbox, authenticates from an in-VM `auth.json` the runner writes, and streams a reply. Runner
-  log, live: `codex auth.json written (Daytona, in-VM) home=/home/sandbox/agenta/codex-home/…`,
-  `stopReason=end_turn`, reply `DAYTONA-OK`. The key never touches durable S3 storage (D-002 M5
-  amendment). Both QA sandboxes deleted afterward (hygiene: 0 remaining).
+## File-free managed auth rework (D-002 final ruling — shipped state)
+
+Managed Codex auth is now FILE-FREE, on both local and Daytona. No `auth.json` is ever written for a
+managed run. Instead the SDK renders a custom model provider into `<cwd>/.codex/config.toml`:
+
+```toml
+model_provider = "agenta-openai"
+
+[model_providers.agenta-openai]
+name = "Agenta OpenAI"
+env_key = "OPENAI_API_KEY"
+```
+
+Codex reads `OPENAI_API_KEY` from its process env at request time (the runner already delivers it via
+`plan.secrets`), copies it byte-exact into the Authorization header, and writes no credential file. A
+NEW provider id is required (codex does not let user config override the built-in `openai` provider),
+and it must be in the FILE (codex-acp's `authRequired()` reads the active provider from the
+app-server's own `config.toml`; a custom provider defaults `requires_openai_auth=false`, so no login
+gate). Proven in the research probes q1a/q1a2 and re-verified live below.
+
+**Placement chosen: the SDK seam (`codex_settings.py`), not a runner merge.** The credential mode is
+reliably visible at the SDK: `handler.py` resolves the connection before `harnesses.py` builds the
+`CodexAgentTemplate` with `resolved_connection`, so `wire_harness_files` reads
+`resolved_connection.credential_mode` (falling back to the authored `self_managed` intent). A run is
+managed unless it is explicitly subscription (`runtime_provided`), matching the runner's
+`isManagedCodexRun` (`credentialMode !== "runtime_provided"`), so an unresolved connection defaults
+to managed and still authenticates. This keeps the runner a dumb file writer (coordinator's
+preference). The runner-side merge was the sanctioned fallback and was not needed.
+
+What shipped:
+
+- **SDK** (`codex_settings.py`, `dtos.py`): `build_codex_settings_files` takes `credential_mode` and
+  renders the provider block for managed runs (scalars first, then the `[model_providers.*]` table,
+  per TOML ordering). `CodexAgentTemplate.wire_harness_files` passes the resolved credential mode.
+  Invariant comment at the render site: the key value is OPAQUE (the #5277 placeholder lands in the
+  same `OPENAI_API_KEY` env var and flows through `env_key` at request time).
+- **Runner** (`codex-assets.ts`): DELETED both managed auth writers (`writeCodexManagedAuthFile`,
+  `writeCodexDaytonaManagedAuthFile`), the `WriteCodexAuthResult` interface, and the
+  `codexAuthFilePath` field + its destroy backstop (`environment.ts` line ~371) — the research
+  flagged that backstop as ordering-buggy (it ran AFTER `unmountStorage`, so on a local durable
+  session it deleted nothing and stranded the key in the store; file-free removes the file the
+  backstop was for). Daytona `CODEX_HOME` reverted from in-VM to the durable `<cwd>/.codex` (native
+  rollouts persist, native resume survives sandbox replacement — Mahmoud's requirement);
+  `CODEX_SQLITE_HOME` stays in-VM/off-mount in both modes (geesefs WAL constraint). The subscription
+  symlink stays (ChatGPT OAuth needs the token file) and is simplified to `void` (no cleanup: it is a
+  symlink to the operator's own mount, correct for the next resume).
+- **Env delivery**: unchanged and already correct — `plan.secrets` (containing `OPENAI_API_KEY` on
+  managed) is applied to the daemon env after `buildDaemonEnv`'s clear (local), and `daytonaEnvVars`
+  spreads `secrets` (Daytona); subscription has empty secrets so `OPENAI_API_KEY` stays absent. No
+  `PROVIDER_ENV_VAR_GROUPS` change needed (managed uses `plan.secrets` directly, not the inherit
+  path).
+- **Tests**: golden fixture `run_request.codex.json` gained the provider-block `harnessFiles` (a
+  managed run now writes config.toml); provider-block rendering unit tests per credential mode added
+  (`test_codex_settings_layers.py`, `test_wire_contract.py`); the Layer-1/2 tests pass
+  `credential_mode="runtime_provided"` to isolate scalar rendering; the writer unit tests were
+  removed; both contract sides updated. Suites: runner 1248, SDK agents unit 696, ruff + typecheck
+  clean.
+
+### RE-QA (live, worktree deployment) — all four GREEN
+
+- **(a) local managed DURABLE multi-turn.** Product path, one `session_id`, turn 1 set codeword
+  FLAMINGO-42, turn 2 recalled it (both `finish=stop`, no errors). On disk in the runner container:
+  `find /tmp/agenta/mounts -name auth.json` returned NOTHING; the durable `<cwd>/.codex/config.toml`
+  held exactly the provider block; `sessions/` rollouts on the mount; SQLite (goals/logs/memories/
+  state + wal/shm) in `/tmp/agenta/codex-sqlite/<session>` off-mount. Cost is reported via the
+  unchanged M2 mechanism (the LLM span model litellm keys on is unaffected; research q1a2 confirmed
+  usage fully populated under the custom provider).
+- **(b) local managed TOOL.** `mcp.agenta-tools.list_connections` called and executed
+  (`tool-output-available`), no pause, no error, `finish=stop`.
+- **(c) Daytona managed CHAT.** Durable home, file-free: runner log `harness=codex sandbox=daytona`,
+  `resolved model=gpt-5.4 … secretKeys=[OPENAI_API_KEY]`, NO "auth.json written" log, reply
+  `DAYTONA-OK`, `finish=stop`. (Daytona's snapshot codex still serves the older `gpt-5.4`-era model
+  set — the runner-pin-vs-snapshot gap from item A stands.)
+- **(d) subscription regression.** Chat + tool GREEN (`list_connections` ran, no pause);
+  `<cwd>/.codex/auth.json` is a SYMLINK → `/codex-home/auth.json` (intact) with NO provider block
+  (subscription correctly excluded); host `~/.codex/auth.json` md5 `02c69a43…1cff4058` UNCHANGED
+  before/after.
+
+QA Daytona sandboxes deleted (0 remaining).
+
+## Headline (original M5, item A superseded above)
+
+- **A. Daytona managed-key Codex: GREEN (SUPERSEDED — see file-free rework above).** A managed-key
+  codex chat run provisions a real Daytona sandbox, authenticates from an in-VM `auth.json` the
+  runner writes, and streams a reply. Runner log, live: `codex auth.json written (Daytona, in-VM)
+  home=/home/sandbox/agenta/codex-home/…`, `stopReason=end_turn`, reply `DAYTONA-OK`. The key never
+  touches durable S3 storage (D-002 M5 amendment, later rejected).
 - **B. Release-gate codex cell (X1): GREEN.** Added cell `X1` (codex, local, managed key) to the
   `agent-release-gate` skill. `chat`, `tool`, `commit`, `warm` PASS; `mcp`/`approve`/`deny`/`mount`
   SKIP with codex-specific reasons (D-008 design + probe-shape). No FAILs.
