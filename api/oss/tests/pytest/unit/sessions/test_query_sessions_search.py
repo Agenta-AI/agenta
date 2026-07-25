@@ -155,6 +155,9 @@ class _FakeTurnsService:
     async def query_turns(self, *, project_id, query=None, windowing=None):
         return []
 
+    async def latest_turn_per_session(self, *, project_id, session_ids):
+        return {}
+
 
 class _FakeInteractionsService:
     pass

@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy import and_, delete as sa_delete, or_, select
@@ -272,6 +272,33 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
         if dbe is None:
             return None
         return map_turn_dbe_to_dto(turn_dbe=dbe)
+
+    async def latest_turn_per_session(
+        self,
+        *,
+        project_id: UUID,
+        session_ids: List[str],
+    ) -> Dict[str, SessionTurn]:
+        """Batch resume-read: one row per `session_id`, the highest `turn_index` (WP0-R3
+        list-row hydration — a single query instead of N `latest_turn` calls)."""
+        if not session_ids:
+            return {}
+        async with self.engine.session() as session:
+            stmt = (
+                select(SessionTurnDBE)
+                .distinct(SessionTurnDBE.session_id)
+                .where(
+                    SessionTurnDBE.project_id == project_id,
+                    SessionTurnDBE.session_id.in_(session_ids),
+                )
+                .order_by(
+                    SessionTurnDBE.session_id,
+                    SessionTurnDBE.turn_index.desc(),
+                )
+            )
+            result = await session.execute(stmt)
+            dbes = result.scalars().all()
+        return {dbe.session_id: map_turn_dbe_to_dto(turn_dbe=dbe) for dbe in dbes}
 
     async def delete_by_session_id(
         self,

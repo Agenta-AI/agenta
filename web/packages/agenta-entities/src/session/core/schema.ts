@@ -82,6 +82,14 @@ export type SessionInteraction = z.infer<typeof sessionInteractionSchema>
 export type SessionInteractionStatusCode = "pending" | "responded" | "resolved" | "cancelled"
 export type SessionInteractionKind = "user_approval" | "user_input" | "client_tool"
 
+/** A `{id, slug, version}` workflow/agent reference — mirrors `QuerySessionsParams.references`
+ * on the request side. Every field is optional: a turn's reference may carry only a subset. */
+export const sessionReferenceSchema = z.object({
+    id: z.string().nullish(),
+    slug: z.string().nullish(),
+    version: z.string().nullish(),
+})
+
 /**
  * A live stream handle. Liveness rides `flags` (nested: alive ⊇ running ⊇ attached);
  * `resumable` (alive & !running) and `reattachable` (running & !attached) are derived
@@ -109,6 +117,9 @@ export const sessionStreamSchema = z.object({
     deleted_at: z.string().nullish(),
     // `archived_at` set = hidden-but-recoverable (distinct from `deleted_at`=ended, still resumable).
     archived_at: z.string().nullish(),
+    // `/sessions/query` only (WP0-R3): the session's latest turn's workflow/agent references —
+    // absent for a session with no turns yet, and for a plain stream fetch (not query'd).
+    references: z.array(sessionReferenceSchema).nullish(),
 })
 
 export const sessionStreamsResponseSchema = z.object({
@@ -137,6 +148,7 @@ export const sessionStreamCommandResponseSchema = z.object({
 })
 
 export type SessionStream = z.infer<typeof sessionStreamSchema>
+export type SessionReference = z.infer<typeof sessionReferenceSchema>
 export type SessionStreamCommandResponse = z.infer<typeof sessionStreamCommandResponseSchema>
 
 /** One entry in a mount's durable file listing. `path` is relative to the mount root; folders

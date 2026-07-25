@@ -15,7 +15,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from oss.src.core.shared.dtos import Reference, Windowing
-from oss.src.core.sessions.dtos import SessionQuery
+from oss.src.core.sessions.dtos import SessionListItem, SessionQuery
 from oss.src.core.sessions.streams.dtos import SessionStream, SessionStreamQuery
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.turns.dtos import SessionTurnQuery
@@ -45,7 +45,7 @@ class SessionsService:
         #
         query: Optional[SessionQuery] = None,
         windowing: Optional[Windowing] = None,
-    ) -> List[SessionStream]:
+    ) -> List[SessionListItem]:
         """List/filter sessions, newest -> oldest, windowed.
 
         Reads the merged stream rows; when `references` is set, first joins the
@@ -53,6 +53,10 @@ class SessionsService:
         `session_id`s, then filters the stream query to that set. No
         denormalization onto the stream row (B3) — revisit only if the join
         proves hot.
+
+        Each row is enriched (READ-time only, see `SessionListItem`) with its latest
+        turn's `references` via a single batch lookup keyed on every listed
+        `session_id` — never one `latest_turn` call per row (WP0-R3).
         """
         session_ids: Optional[List[str]] = None
 
@@ -66,7 +70,7 @@ class SessionsService:
             if not session_ids:
                 return []
 
-        return await self.streams_service.query_streams(
+        streams = await self.streams_service.query_streams(
             project_id=project_id,
             filter=SessionStreamQuery(
                 include_ended=bool(query and query.include_ended),
@@ -76,6 +80,26 @@ class SessionsService:
             windowing=windowing,
             session_ids=session_ids,
         )
+
+        if not streams:
+            return []
+
+        latest_turns = await self.turns_service.latest_turn_per_session(
+            project_id=project_id,
+            session_ids=[stream.session_id for stream in streams],
+        )
+
+        return [
+            SessionListItem(
+                **stream.model_dump(),
+                references=(
+                    latest_turns[stream.session_id].references
+                    if stream.session_id in latest_turns
+                    else None
+                ),
+            )
+            for stream in streams
+        ]
 
     async def delete_session(
         self,
