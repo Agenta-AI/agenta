@@ -89,17 +89,16 @@ class SessionsService:
             session_ids=[stream.session_id for stream in streams],
         )
 
-        return [
-            SessionListItem(
-                **stream.model_dump(),
-                references=(
-                    latest_turns[stream.session_id].references
-                    if stream.session_id in latest_turns
-                    else None
-                ),
+        items = []
+        for stream in streams:
+            turn = latest_turns.get(stream.session_id)
+            items.append(
+                SessionListItem(
+                    **stream.model_dump(),
+                    references=turn.references if turn else None,
+                )
             )
-            for stream in streams
-        ]
+        return items
 
     async def delete_session(
         self,

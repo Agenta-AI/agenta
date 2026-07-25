@@ -297,10 +297,10 @@ async def test_query_sessions_no_filter_returns_all_streams():
     result = await svc.query_sessions(project_id=_PROJECT)
 
     # `SessionListItem` (stream fields + `references`), not the bare `SessionStream` --
-    # equality is type-sensitive in pydantic, so compare fields instead of `== [stream]`.
+    # equality is type-sensitive in pydantic, so compare the inherited fields as a dict
+    # (full-field pinning) and assert the added field separately.
     assert len(result) == 1
-    assert result[0].session_id == stream.session_id
-    assert result[0].id == stream.id
+    assert result[0].model_dump(exclude={"references"}) == stream.model_dump()
     assert result[0].references is None
     assert streams.query_calls[0]["session_ids"] is None
 

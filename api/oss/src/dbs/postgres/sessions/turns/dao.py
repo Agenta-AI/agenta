@@ -280,7 +280,9 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
         session_ids: List[str],
     ) -> Dict[str, SessionTurn]:
         """Batch resume-read: one row per `session_id`, the highest `turn_index` (WP0-R3
-        list-row hydration — a single query instead of N `latest_turn` calls)."""
+        list-row hydration — a single query instead of N `latest_turn` calls). The IN-list
+        is bounded by the caller's page (windowing limit); it is unbounded only for the
+        currently-unpaginated OSS `/sessions` list."""
         if not session_ids:
             return {}
         async with self.engine.session() as session:
