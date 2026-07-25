@@ -7,7 +7,8 @@ import {atomFamily, selectAtom} from "jotai/utils"
 
 /**
  * Persisted expand/collapse state for in-message widgets (thoughts, tool rows, tool groups, long
- * errors), so an expanded widget survives a Virtuoso unmount when its row scrolls out of the window.
+ * errors), so an expanded widget survives the windowed list unmounting its row when it scrolls out
+ * of view.
  *
  * Kept in a plain map (not an `atomFamily` of values) so the key set is enumerable and can be pruned:
  * entries are dropped when their owning message is gone (rewind / session eviction / close), which

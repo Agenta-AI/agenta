@@ -21,7 +21,8 @@
         "./assets": "./src/assets/index.ts",
         "./transport": "./src/transport/index.ts",
         "./state": "./src/state/index.ts",
-        "./hooks": "./src/hooks/index.ts"
+        "./hooks": "./src/hooks/index.ts",
+        "./skin": "./src/skin/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
