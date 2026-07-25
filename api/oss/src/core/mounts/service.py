@@ -39,6 +39,7 @@ from oss.src.core.mounts.types import (
     MountStorageUnavailable,
 )
 from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -59,11 +60,6 @@ _SESSION_CWD_NAME = "cwd"
 # CWD MOUNT ROOT and nowhere else. geesefs degrades the symlink to a plain object of the same name in
 # the cwd store; that object is a runner artifact, never user content.
 _AGENT_FILES_LINK_NAME = "agent-files"
-
-# Default TTL (seconds) for signed mount credentials. Covers the mount lifetime for a
-# turn; geesefs holds the creds without refresh, so a turn outliving this hits ExpiredToken.
-_CREDENTIALS_TTL_SECONDS = 3600
-
 
 def _slugify(value: str) -> str:
     return sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
@@ -740,12 +736,13 @@ class MountsService:
         *,
         project_id: UUID,
         mount_id: UUID,
-        duration_seconds: int = _CREDENTIALS_TTL_SECONDS,
     ) -> MountCredentials:
         """Mint short-lived, prefix-scoped credentials for one mount.
 
         The master key signs the STS request API-side and never leaves; the returned
         key pair + session token are scoped to this mount's prefix and expire in minutes.
+        geesefs holds the credentials without refresh, so a turn outliving the TTL hits
+        ExpiredToken.
         """
         if self.mounts_store is None:
             raise MountStorageUnavailable()
@@ -758,7 +755,7 @@ class MountsService:
         creds = await self.mounts_store.sign_temp_credentials(
             bucket=bucket,
             prefix=prefix,
-            duration_seconds=duration_seconds,
+            duration_seconds=env.mounts.credentials_ttl_seconds,
         )
         return MountCredentials(
             endpoint=self.mounts_store.endpoint_url,
