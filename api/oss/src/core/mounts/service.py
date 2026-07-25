@@ -61,6 +61,7 @@ _SESSION_CWD_NAME = "cwd"
 # the cwd store; that object is a runner artifact, never user content.
 _AGENT_FILES_LINK_NAME = "agent-files"
 
+
 def _slugify(value: str) -> str:
     return sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
 

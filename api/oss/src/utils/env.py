@@ -1155,10 +1155,10 @@ class MountsConfig(BaseModel):
     # Lifetime of signed mount credentials, in seconds. The store backends clamp it to their
     # own STS bounds.
     credentials_ttl_seconds: int = Field(
-        default_factory=lambda: _parse_optional_positive_int_env(
-            "AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS"
+        default_factory=lambda: (
+            _parse_optional_positive_int_env("AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS")
+            or 3600
         )
-        or 3600
     )
 
     model_config = ConfigDict(extra="ignore")
