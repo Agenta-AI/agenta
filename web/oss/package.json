@@ -25,6 +25,7 @@
     "dependencies": {
         "@agenta/annotation": "workspace:../packages/agenta-annotation",
         "@agenta/annotation-ui": "workspace:../packages/agenta-annotation-ui",
+        "@agenta/chat": "workspace:../packages/agenta-chat",
         "@agenta/entities": "workspace:../packages/agenta-entities",
         "@agenta/entity-ui": "workspace:../packages/agenta-entity-ui",
         "@agenta/playground": "workspace:../packages/agenta-playground",
