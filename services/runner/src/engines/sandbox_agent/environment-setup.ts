@@ -346,7 +346,6 @@ export async function prepareEnvironmentSetup(
     mcpAbort,
     runAgentDir,
     otlpAuthFilePath,
-    codexAuthFilePath: undefined,
     codexSqliteHome,
     mountCreds,
     agentMountCreds,

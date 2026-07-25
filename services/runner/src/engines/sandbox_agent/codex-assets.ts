@@ -1,19 +1,26 @@
 /**
- * Codex home assembly. Both credential modes use a runner-owned per-session home at `<cwd>/.codex`,
- * so a product session never loads the operator's personal `config.toml`/`plugins`/`apps` (item C,
- * the D-002 symlink-assembly amendment). Managed mode writes `auth.json` into that home from the
- * resolved vault key; subscription mode SYMLINKS `auth.json` there to the operator's mounted login
- * (`$CODEX_HOME/auth.json`), so codex's in-place refresh (P4) still lands in the real login. The
- * auth file (or symlink) is created AFTER the durable cwd mount (writing before it would be
- * shadowed); teardown removes only what this run created — the managed file, or the symlink LINK,
- * never the mount target.
+ * Codex home assembly. Both credential modes use a runner-owned per-session home at `<cwd>/.codex`
+ * (on the durable cwd mount, so native `sessions/` rollouts persist and native resume survives a
+ * sandbox replacement — D-002 final ruling). SQLite state is always redirected off that home to
+ * local/in-VM disk (`CODEX_SQLITE_HOME`), a hard geesefs constraint.
+ *
+ * MANAGED mode is FILE-FREE (D-002 final ruling): NO `auth.json` is ever written. The SDK renders a
+ * custom `model_providers` block with `env_key = "OPENAI_API_KEY"` into `<cwd>/.codex/config.toml`
+ * (codex_settings.py); codex reads the key from the daemon env (delivered via `plan.secrets`) at
+ * request time. There is nothing to write or delete for managed auth in this module.
+ *
+ * SUBSCRIPTION mode still needs the operator's ChatGPT OAuth token FILE, so it SYMLINKS
+ * `<cwd>/.codex/auth.json` to the operator's mounted login (`$CODEX_HOME/auth.json`); codex's
+ * in-place refresh (P4) lands in the real login. The symlink is created AFTER the durable cwd mount
+ * (linking before it would be shadowed) and points the runner-owned home's credential at the mount
+ * while the operator's own `config.toml`/`plugins` never load.
  */
 
 // Standing invariant: NEVER deliver Codex sandbox_mode through a CODEX_CONFIG environment JSON.
 // That poison combination silently disables all approval gates. The only CODEX_CONFIG we emit is
 // the subscription store-mode pin below (a single scalar key, never sandbox_mode).
 
-import { existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
@@ -42,9 +49,9 @@ export function codexSqliteHomeDir(cwd: string): string {
 }
 
 /**
- * A managed Codex run authenticates from a runner-written auth.json (credentialMode "env" or
- * "none"). A "runtime_provided" subscription run owns its login mount, so managed auth writing
- * must exclude it.
+ * A managed Codex run authenticates file-free from the daemon-env `OPENAI_API_KEY` via the rendered
+ * custom provider (credentialMode "env" or "none"). A "runtime_provided" subscription run uses its
+ * own mounted OAuth login instead, so it is excluded here.
  */
 export function isManagedCodexRun(
   plan: Pick<RunPlan, "acpAgent" | "credentialMode">,
@@ -103,175 +110,64 @@ export function configureCodexHome(
   return sqliteHome;
 }
 
-// The in-VM Daytona base for Codex home + SQLite state: a sibling of the relay / tool-MCP dirs
-// (run-plan.ts), always on the sandbox's own container disk, NEVER the geesefs-mounted durable cwd.
-// Managed Daytona keeps the resolved key OFF durable storage this way (see codexDaytonaHomeDir).
-const DAYTONA_CODEX_BASE = "/home/sandbox/agenta";
-
 /**
- * A managed Daytona Codex run's CODEX_HOME, in the sandbox VM (not the durable cwd). auth.json holds
- * the resolved key, so it must never land on the geesefs-mounted cwd, which is durable S3 storage:
- * the destroy path pauses or destroys the sandbox before any per-run file backstop could delete it
- * (environment.ts), so a key on the durable cwd could outlive the run. An in-VM home is reaped with
- * the sandbox and is reliably deleted at session end by construction — the strongest form of the
- * D-002 "reliably delete the key at session end" requirement (amendment recorded in decisions.md).
- * An authored `.codex/config.toml` still applies: prepareWorkspace writes it under the cwd and codex
- * reads it as the workspace config layer (D-007), independent of CODEX_HOME. Per-session-stable via
- * basename(cwd), like relayDir, so it is not a config-fingerprint input and warm reuse is preserved.
+ * A managed Daytona Codex run's in-VM CODEX_SQLITE_HOME: a sibling of the relay / tool-MCP dirs
+ * (run-plan.ts), on the sandbox's own container disk, NEVER the geesefs-mounted durable cwd (SQLite
+ * WAL is unsupported on geesefs — the P8 hard constraint). CODEX_HOME itself stays on the durable
+ * cwd (below) so native rollouts persist. Per-session-stable via basename(cwd), like relayDir, so it
+ * is not a config-fingerprint input and warm reuse is preserved.
  */
-export function codexDaytonaHomeDir(cwd: string): string {
-  return join(DAYTONA_CODEX_BASE, "codex-home", basename(cwd));
-}
-
-/** A managed Daytona Codex run's in-VM CODEX_SQLITE_HOME (off the geesefs mount, per the P8 lesson). */
 export function codexDaytonaSqliteHomeDir(cwd: string): string {
-  return join(DAYTONA_CODEX_BASE, "codex-sqlite", basename(cwd));
+  return join("/home/sandbox/agenta", "codex-sqlite", basename(cwd));
 }
 
 /**
  * Configure a managed Daytona Codex daemon's env. The Daytona daemon env is FIXED at sandbox
  * creation (environment.ts), so these paths must be set here, before the provider is built, into the
- * env object that becomes the sandbox's `envVars` (daytonaEnvVars). CODEX_HOME and CODEX_SQLITE_HOME
- * both point at in-VM paths so no credential and no WAL SQLite ever touch the durable cwd. Subscription
- * Daytona is rejected up front (run-plan.ts); local runs and non-codex runs are no-ops.
+ * env object that becomes the sandbox's `envVars` (daytonaEnvVars). CODEX_HOME is the DURABLE
+ * `<cwd>/.codex` (native `sessions/` rollouts persist to the store, so native resume survives a
+ * sandbox replacement — D-002 final ruling); CODEX_SQLITE_HOME is redirected off it to in-VM disk
+ * (the geesefs WAL constraint). Managed auth is file-free (the SDK-rendered custom provider reads
+ * OPENAI_API_KEY from this env at request time; daytonaEnvVars spreads plan.secrets), so no
+ * credential file is written to the durable cwd. Subscription Daytona is rejected up front
+ * (run-plan.ts); local runs and non-codex runs are no-ops.
  */
 export function configureDaytonaCodexEnv(
   plan: Pick<RunPlan, "acpAgent" | "credentialMode" | "isDaytona" | "cwd">,
   daytonaEnv: Record<string, string>,
 ): void {
   if (!plan.isDaytona || !isManagedCodexRun(plan)) return;
-  daytonaEnv.CODEX_HOME = codexDaytonaHomeDir(plan.cwd);
+  daytonaEnv.CODEX_HOME = codexHomeDir(plan.cwd);
   daytonaEnv.CODEX_SQLITE_HOME = codexDaytonaSqliteHomeDir(plan.cwd);
-}
-
-/**
- * Write a managed Daytona Codex run's auth.json into the in-VM CODEX_HOME after the sandbox starts.
- * Uses the sandbox filesystem API (the file lives in the remote VM, not on the runner host). Written
- * every acquire (idempotent): a fresh VM has no file, and a warm-reused VM is refreshed to the current
- * key. The dir is in-VM and reaped with the sandbox, so no cross-mount teardown delete is needed.
- *
- * INVARIANT (Daytona-Secrets #5277 compat): the key value is written OPAQUELY. Under the placeholder
- * design the runner receives a placeholder here, not the real key, and Daytona's egress proxy
- * substitutes it in flight; P3 proved codex copies the credential byte-exact into request headers with
- * no client-side validation, so this writer must never inspect, parse, or reformat the string.
- */
-export async function writeCodexDaytonaManagedAuthFile(
-  sandbox: {
-    mkdirFs: (arg: { path: string }) => Promise<unknown>;
-    writeFsFile: (arg: { path: string }, contents: string) => Promise<unknown>;
-  },
-  plan: Pick<
-    RunPlan,
-    | "acpAgent"
-    | "credentialMode"
-    | "isDaytona"
-    | "cwd"
-    | "secrets"
-    | "legacyHarnessApiKeyVar"
-  >,
-  log: Log = () => {},
-): Promise<void> {
-  if (!plan.isDaytona || !isManagedCodexRun(plan)) return;
-
-  const key = plan.secrets[plan.legacyHarnessApiKeyVar];
-  if (!key) {
-    log(
-      `codex managed Daytona run has no resolved API key under ${plan.legacyHarnessApiKeyVar}; ` +
-        "auth.json not written",
-    );
-    return;
-  }
-
-  const home = codexDaytonaHomeDir(plan.cwd);
-  await sandbox.mkdirFs({ path: home });
-  // The auth.json field is always OPENAI_API_KEY regardless of the source variable.
-  await sandbox.writeFsFile(
-    { path: join(home, "auth.json") },
-    JSON.stringify({ OPENAI_API_KEY: key }),
-  );
-  log(`codex auth.json written (Daytona, in-VM) home=${home}`);
-}
-
-export interface WriteCodexAuthResult {
-  /**
-   * The file this run created. Undefined means there is nothing for the caller to delete, so a
-   * pre-existing login is never removed.
-   */
-  authFilePath: string | undefined;
-}
-
-/**
- * Write a local managed Codex run's auth.json after the durable cwd mount is applied. The file is
- * created only when absent and returned only when this run created it, so teardown never deletes
- * a pre-existing login.
- */
-export function writeCodexManagedAuthFile(
-  plan: Pick<
-    RunPlan,
-    | "acpAgent"
-    | "credentialMode"
-    | "isDaytona"
-    | "cwd"
-    | "secrets"
-    | "legacyHarnessApiKeyVar"
-  >,
-  log: Log = () => {},
-): WriteCodexAuthResult {
-  if (!isManagedCodexRun(plan) || plan.isDaytona) {
-    return { authFilePath: undefined };
-  }
-
-  const home = codexHomeDir(plan.cwd);
-  const key = plan.secrets[plan.legacyHarnessApiKeyVar];
-  if (!key) {
-    log(
-      `codex managed run has no resolved API key under ${plan.legacyHarnessApiKeyVar}; ` +
-        "auth.json not written",
-    );
-    return { authFilePath: undefined };
-  }
-
-  mkdirSync(home, { recursive: true, mode: 0o700 });
-  const authFile = join(home, "auth.json");
-  if (existsSync(authFile)) return { authFilePath: undefined };
-
-  // The auth.json field is always OPENAI_API_KEY regardless of the source variable.
-  writeFileSync(authFile, JSON.stringify({ OPENAI_API_KEY: key }), {
-    encoding: "utf-8",
-    mode: 0o600,
-  });
-  log(`codex auth.json written home=${home}`);
-  return { authFilePath: authFile };
 }
 
 /**
  * Symlink a subscription Codex run's auth.json in the runner-owned home (`<cwd>/.codex/auth.json`)
  * to the operator's mounted login (`$CODEX_HOME/auth.json`). Codex rewrites auth.json in place and
  * follows the symlink (P4), so a token refresh lands in the operator's real login; the runner never
- * writes or deletes the mount's file. Created only when absent and returned only when this run
- * created the LINK, so teardown removes the link (not its target) with delete-only-if-created.
+ * writes or deletes the mount's file. Created only when absent (idempotent across warm/durable
+ * resume), and the link is never torn down — it is a symlink to the operator's own mount, not a
+ * secret, and pointing at the stable mount path is correct for the next resume. Managed runs are
+ * file-free and never reach here.
  */
 export function symlinkCodexSubscriptionAuthFile(
   plan: Pick<RunPlan, "acpAgent" | "credentialMode" | "isDaytona" | "cwd">,
   log: Log = () => {},
-): WriteCodexAuthResult {
-  if (!isSubscriptionCodexRun(plan) || plan.isDaytona) {
-    return { authFilePath: undefined };
-  }
+): void {
+  if (!isSubscriptionCodexRun(plan) || plan.isDaytona) return;
 
   const mount = codexSubscriptionMountDir();
   if (!mount) {
     log("codex subscription run has no CODEX_HOME mount; auth.json symlink not created");
-    return { authFilePath: undefined };
+    return;
   }
 
   const home = codexHomeDir(plan.cwd);
   mkdirSync(home, { recursive: true, mode: 0o700 });
   const linkPath = join(home, "auth.json");
-  if (existsSync(linkPath)) return { authFilePath: undefined };
+  if (existsSync(linkPath)) return;
 
   const target = join(mount, "auth.json");
   symlinkSync(target, linkPath);
   log(`codex subscription auth.json symlinked ${linkPath} -> ${target}`);
-  return { authFilePath: linkPath };
 }

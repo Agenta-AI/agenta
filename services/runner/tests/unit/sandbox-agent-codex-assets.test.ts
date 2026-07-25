@@ -21,13 +21,10 @@ import {
   codexSqliteHomeDir,
   configureCodexHome,
   configureDaytonaCodexEnv,
-  codexDaytonaHomeDir,
   codexDaytonaSqliteHomeDir,
   isManagedCodexRun,
   isSubscriptionCodexRun,
   symlinkCodexSubscriptionAuthFile,
-  writeCodexDaytonaManagedAuthFile,
-  writeCodexManagedAuthFile,
 } from "../../src/engines/sandbox_agent/codex-assets.ts";
 
 let cwd: string;
@@ -150,7 +147,11 @@ describe("Codex managed-credential assets", () => {
     assert.equal(env.CODEX_SQLITE_HOME, undefined);
   });
 
-  it("writeCodexManagedAuthFile writes auth.json 0600 with the OPENAI_API_KEY field and returns the created path", () => {
+  it("managed codex is FILE-FREE: no auth.json is written under the home for a managed run", () => {
+    // The managed-auth writers were removed (D-002 final ruling): managed auth is delivered by the
+    // SDK-rendered custom provider (env_key OPENAI_API_KEY) in config.toml, read from the daemon env
+    // at request time. configureCodexHome sets the home + SQLite redirect but writes no credential.
+    const env: Record<string, string> = {};
     const plan = {
       acpAgent: "codex",
       credentialMode: "env",
@@ -160,81 +161,10 @@ describe("Codex managed-credential assets", () => {
       legacyHarnessApiKeyVar: "OPENAI_API_KEY",
     } as any;
 
-    const { authFilePath } = writeCodexManagedAuthFile(plan);
-    const home = codexHomeDir(cwd);
-    const expectedPath = join(home, "auth.json");
+    configureCodexHome(plan, env);
 
-    assert.equal(authFilePath, expectedPath);
-    assert.equal(existsSync(expectedPath), true);
-    assert.deepEqual(JSON.parse(readFileSync(expectedPath, "utf-8")), {
-      OPENAI_API_KEY: "sk-live",
-    });
-    assert.equal(statSync(expectedPath).mode & 0o777, 0o600);
-    assert.equal(statSync(home).mode & 0o777, 0o700);
-  });
-
-  it("writeCodexManagedAuthFile does not overwrite a pre-existing auth.json and returns undefined (delete-only-if-created)", () => {
-    const home = codexHomeDir(cwd);
-    const existingPath = join(home, "auth.json");
-    const sentinel = '{"sentinel":"keep-me"}';
-    mkdirSync(home, { recursive: true });
-    writeFileSync(existingPath, sentinel, "utf-8");
-    const plan = {
-      acpAgent: "codex",
-      credentialMode: "env",
-      isDaytona: false,
-      cwd,
-      secrets: { OPENAI_API_KEY: "sk-live" },
-      legacyHarnessApiKeyVar: "OPENAI_API_KEY",
-    } as any;
-
-    const { authFilePath } = writeCodexManagedAuthFile(plan);
-
-    assert.equal(authFilePath, undefined);
-    assert.equal(readFileSync(existingPath, "utf-8"), sentinel);
-  });
-
-  it("writeCodexManagedAuthFile is a no-op with no resolved key", () => {
-    const plan = {
-      acpAgent: "codex",
-      credentialMode: "env",
-      isDaytona: false,
-      cwd,
-      secrets: {},
-      legacyHarnessApiKeyVar: "OPENAI_API_KEY",
-    } as any;
-
-    const { authFilePath } = writeCodexManagedAuthFile(plan);
-
-    assert.equal(authFilePath, undefined);
+    assert.equal(env.CODEX_HOME, codexHomeDir(cwd));
     assert.equal(existsSync(join(codexHomeDir(cwd), "auth.json")), false);
-  });
-
-  it("writeCodexManagedAuthFile is a no-op for a non-codex run and for a Daytona codex run", () => {
-    const plans = [
-      {
-        acpAgent: "claude",
-        credentialMode: "env",
-        isDaytona: false,
-        cwd,
-        secrets: { OPENAI_API_KEY: "sk-live" },
-        legacyHarnessApiKeyVar: "OPENAI_API_KEY",
-      },
-      {
-        acpAgent: "codex",
-        credentialMode: "env",
-        isDaytona: true,
-        cwd,
-        secrets: { OPENAI_API_KEY: "sk-live" },
-        legacyHarnessApiKeyVar: "OPENAI_API_KEY",
-      },
-    ] as any[];
-
-    for (const plan of plans) {
-      const { authFilePath } = writeCodexManagedAuthFile(plan);
-      assert.equal(authFilePath, undefined);
-      assert.equal(existsSync(join(codexHomeDir(cwd), "auth.json")), false);
-    }
   });
 
   it("isManagedCodexRun identifies only managed Codex runs", () => {
@@ -327,10 +257,9 @@ describe("Codex managed-credential assets", () => {
       }) as any;
 
     it("symlinks <cwd>/.codex/auth.json to the mount's auth.json and links nothing else", () => {
-      const { authFilePath } = symlinkCodexSubscriptionAuthFile(subPlan());
+      symlinkCodexSubscriptionAuthFile(subPlan());
       const linkPath = join(codexHomeDir(cwd), "auth.json");
 
-      assert.equal(authFilePath, linkPath);
       assert.equal(lstatSync(linkPath).isSymbolicLink(), true);
       assert.equal(readlinkSync(linkPath), join(mount, "auth.json"));
       // The operator's config.toml is NOT copied/linked into the session home (leak closed).
@@ -341,21 +270,19 @@ describe("Codex managed-credential assets", () => {
       });
     });
 
-    it("does not clobber a pre-existing auth.json and returns undefined (delete-only-if-created)", () => {
+    it("does not clobber a pre-existing auth.json (idempotent across resume)", () => {
       const home = codexHomeDir(cwd);
       mkdirSync(home, { recursive: true });
       writeFileSync(join(home, "auth.json"), '{"sentinel":true}');
 
-      const { authFilePath } = symlinkCodexSubscriptionAuthFile(subPlan());
+      symlinkCodexSubscriptionAuthFile(subPlan());
 
-      assert.equal(authFilePath, undefined);
       assert.equal(lstatSync(join(home, "auth.json")).isSymbolicLink(), false);
     });
 
     it("is a no-op when CODEX_HOME (the mount) is unset", () => {
       delete process.env.CODEX_HOME;
-      const { authFilePath } = symlinkCodexSubscriptionAuthFile(subPlan());
-      assert.equal(authFilePath, undefined);
+      symlinkCodexSubscriptionAuthFile(subPlan());
       assert.equal(existsSync(join(codexHomeDir(cwd), "auth.json")), false);
     });
 
@@ -376,17 +303,14 @@ describe("Codex managed-credential assets", () => {
         },
       ] as any[];
       for (const plan of plans) {
-        assert.equal(
-          symlinkCodexSubscriptionAuthFile(plan).authFilePath,
-          undefined,
-        );
+        symlinkCodexSubscriptionAuthFile(plan);
       }
       assert.equal(existsSync(join(codexHomeDir(cwd), "auth.json")), false);
     });
   });
 
   describe("Codex managed Daytona assets", () => {
-    it("configureDaytonaCodexEnv sets in-VM CODEX_HOME + CODEX_SQLITE_HOME for a managed Daytona codex run", () => {
+    it("configureDaytonaCodexEnv sets DURABLE <cwd>/.codex CODEX_HOME + in-VM CODEX_SQLITE_HOME for a managed Daytona codex run", () => {
       const env: Record<string, string> = {};
       const plan = {
         acpAgent: "codex",
@@ -397,12 +321,13 @@ describe("Codex managed-credential assets", () => {
 
       configureDaytonaCodexEnv(plan, env);
 
-      assert.equal(env.CODEX_HOME, codexDaytonaHomeDir(cwd));
+      // CODEX_HOME on the durable cwd (native rollouts persist; D-002 final ruling).
+      assert.equal(env.CODEX_HOME, codexHomeDir(cwd));
+      assert.equal(env.CODEX_HOME, join(cwd, ".codex"));
+      // SQLite redirected off the mount to in-VM disk (geesefs WAL constraint).
       assert.equal(env.CODEX_SQLITE_HOME, codexDaytonaSqliteHomeDir(cwd));
-      // In-VM base, never the durable geesefs cwd.
-      assert.ok(env.CODEX_HOME.startsWith("/home/sandbox/agenta/"));
-      assert.ok(!env.CODEX_HOME.startsWith(cwd));
-      assert.equal(basename(env.CODEX_HOME), basename(cwd));
+      assert.ok(env.CODEX_SQLITE_HOME.startsWith("/home/sandbox/agenta/"));
+      assert.ok(!env.CODEX_SQLITE_HOME.startsWith(cwd));
     });
 
     it("configureDaytonaCodexEnv is a no-op for local, subscription, and non-codex Daytona runs", () => {
@@ -424,90 +349,21 @@ describe("Codex managed-credential assets", () => {
       }
     });
 
-    it("writeCodexDaytonaManagedAuthFile writes {OPENAI_API_KEY} into the in-VM home via the sandbox FS API", async () => {
-      const writes: Array<{ path: string; contents: string }> = [];
-      const mkdirs: string[] = [];
-      const sandbox = {
-        mkdirFs: async ({ path }: { path: string }) => {
-          mkdirs.push(path);
-        },
-        writeFsFile: async ({ path }: { path: string }, contents: string) => {
-          writes.push({ path, contents });
-        },
-      };
-      const plan = {
-        acpAgent: "codex",
-        credentialMode: "env",
-        isDaytona: true,
-        cwd,
-        secrets: { OPENAI_API_KEY: "sk-placeholder-or-live" },
-        legacyHarnessApiKeyVar: "OPENAI_API_KEY",
-      } as any;
-
-      await writeCodexDaytonaManagedAuthFile(sandbox, plan);
-
-      const home = codexDaytonaHomeDir(cwd);
-      assert.deepEqual(mkdirs, [home]);
-      assert.equal(writes.length, 1);
-      assert.equal(writes[0].path, join(home, "auth.json"));
-      // The key is written opaquely (no parsing/reformatting) — Daytona-Secrets #5277 placeholder compat.
-      assert.deepEqual(JSON.parse(writes[0].contents), {
-        OPENAI_API_KEY: "sk-placeholder-or-live",
-      });
-    });
-
-    it("writeCodexDaytonaManagedAuthFile no-ops without a key, and for local / subscription / non-codex runs", async () => {
-      const calls: string[] = [];
-      const sandbox = {
-        mkdirFs: async ({ path }: { path: string }) => {
-          calls.push(`mkdir:${path}`);
-        },
-        writeFsFile: async ({ path }: { path: string }) => {
-          calls.push(`write:${path}`);
-        },
-      };
-      const plans = [
-        // Managed Daytona codex but NO resolved key.
+    it("managed Daytona codex writes NO auth.json (file-free) — the SDK renders the custom provider instead", () => {
+      // The Daytona managed-auth writer was removed. Nothing in this module writes a credential for
+      // a managed Daytona run; auth rides OPENAI_API_KEY in the daemon env (daytonaEnvVars spreads
+      // plan.secrets) read at request time by the SDK-rendered custom provider.
+      const env: Record<string, string> = {};
+      configureDaytonaCodexEnv(
         {
           acpAgent: "codex",
           credentialMode: "env",
           isDaytona: true,
           cwd,
-          secrets: {},
-          legacyHarnessApiKeyVar: "OPENAI_API_KEY",
-        },
-        // Local codex (handled by writeCodexManagedAuthFile, not this Daytona writer).
-        {
-          acpAgent: "codex",
-          credentialMode: "env",
-          isDaytona: false,
-          cwd,
-          secrets: { OPENAI_API_KEY: "sk" },
-          legacyHarnessApiKeyVar: "OPENAI_API_KEY",
-        },
-        // Subscription Daytona (rejected up front in run-plan anyway).
-        {
-          acpAgent: "codex",
-          credentialMode: "runtime_provided",
-          isDaytona: true,
-          cwd,
-          secrets: { OPENAI_API_KEY: "sk" },
-          legacyHarnessApiKeyVar: "OPENAI_API_KEY",
-        },
-        // Non-codex Daytona.
-        {
-          acpAgent: "claude",
-          credentialMode: "env",
-          isDaytona: true,
-          cwd,
-          secrets: { ANTHROPIC_API_KEY: "sk" },
-          legacyHarnessApiKeyVar: "ANTHROPIC_API_KEY",
-        },
-      ] as any[];
-      for (const plan of plans) {
-        await writeCodexDaytonaManagedAuthFile(sandbox, plan);
-      }
-      assert.deepEqual(calls, []);
+        } as any,
+        env,
+      );
+      assert.equal(existsSync(join(codexHomeDir(cwd), "auth.json")), false);
     });
   });
 });

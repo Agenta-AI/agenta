@@ -1023,12 +1023,28 @@ class CodexAgentTemplate(HarnessAgentTemplate):
         # so it is imported here to keep ``dtos`` free of that cycle.
         from .adapters.codex_settings import build_codex_settings_files
 
+        # Managed vs subscription decides the file-free auth provider block (D-002 final ruling).
+        # The resolved connection is the authority (``credential_mode`` "env"/"none" = managed,
+        # "runtime_provided" = subscription). When it is not threaded, fall back to the author's
+        # connection intent so an explicit ``self_managed`` (subscription) is still excluded;
+        # everything else defaults to managed, matching the runner's ``isManagedCodexRun``.
+        credential_mode: Optional[str] = None
+        if self.resolved_connection is not None:
+            credential_mode = self.resolved_connection.credential_mode
+        elif (
+            self.model_ref is not None
+            and self.model_ref.connection is not None
+            and self.model_ref.connection.mode == "self_managed"
+        ):
+            credential_mode = "runtime_provided"
+
         files = build_codex_settings_files(
             self.harness_permissions,
             self.sandbox_permission,
             self.mcp_servers,
             self.tool_specs,
             self.permission_default,
+            credential_mode=credential_mode,
         )
         if not files:
             return {}

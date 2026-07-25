@@ -95,8 +95,6 @@ import { claudeThinkingMeta } from "./claude-thinking.ts";
 import {
   isSubscriptionCodexRun,
   symlinkCodexSubscriptionAuthFile,
-  writeCodexDaytonaManagedAuthFile,
-  writeCodexManagedAuthFile,
 } from "./codex-assets.ts";
 import {
   routePermissionRequestToActiveTurn,
@@ -364,12 +362,11 @@ export async function acquireEnvironment(
     // started (or crashed before reading it), so the bearer never lingers.
     if (environment.otlpAuthFilePath)
       rmSync(environment.otlpAuthFilePath, { force: true });
-    // Backstop: delete the Codex auth.json this run created (delete-only-if-created). For a managed
-    // run this is the file holding the resolved key; for a subscription run it is the SYMLINK to the
-    // operator's mounted login — `rmSync` unlinks the link, never the mount target. Mirrors the
-    // otlpAuthFilePath line.
-    if (environment.codexAuthFilePath)
-      rmSync(environment.codexAuthFilePath, { force: true });
+    // No Codex auth.json backstop: managed auth is file-free (no file exists), and the subscription
+    // symlink is intentionally left in the runner-owned home (a symlink to the operator's mount, not
+    // a secret; correct for the next resume). The old managed-file backstop was also ordering-buggy
+    // (it ran AFTER unmountStorage, so on a local durable session it deleted nothing and stranded the
+    // key in the store — the bug the file-free design removes entirely; D-002 research Q2a).
     // Best-effort: remove the local off-mount CODEX_SQLITE_HOME dir. The SQLite state is
     // disposable (native resume rides the sessions/ rollouts on CODEX_HOME), so a failure here is
     // harmless.
@@ -732,11 +729,9 @@ export async function acquireEnvironment(
           logger,
         );
       }
-      // Managed Codex authenticates from auth.json in its in-VM CODEX_HOME (set in the daemon env
-      // by configureDaytonaCodexEnv). Write it now that the sandbox is up; the file lives in the VM
-      // (off the durable cwd) so no per-run teardown delete into the store is needed. Subscription
-      // Daytona is rejected in run-plan; non-codex runs are no-ops.
-      await writeCodexDaytonaManagedAuthFile(environment.sandbox, plan, logger);
+      // Managed Codex is file-free on Daytona too (the SDK-rendered custom provider reads
+      // OPENAI_API_KEY from the daemon env at request time; configureDaytonaCodexEnv set CODEX_HOME
+      // to the durable <cwd>/.codex and CODEX_SQLITE_HOME off-mount). Nothing to write here.
     }
 
     // Durable cwd: mount BEFORE createSession (so the session opens inside it) and BEFORE
@@ -873,16 +868,13 @@ export async function acquireEnvironment(
       timingLog("prepare_workspace", prepareWorkspaceStartedAt);
     }
 
-    // Codex authenticates from `<cwd>/.codex/auth.json`. Write/link it now, after the durable cwd
-    // mount and workspace preparation (doing it before the mount would be shadowed). Managed writes
-    // the resolved key; subscription SYMLINKS it to the operator's mounted login so refresh lands in
-    // the real login (the modes are mutually exclusive). The created file/link is removed by
-    // `destroy` (below), mirroring `otlpAuthFilePath`. Non-Codex runs and Daytona are no-ops.
-    environment.codexAuthFilePath = (
-      isSubscriptionCodexRun(plan)
-        ? symlinkCodexSubscriptionAuthFile(plan, logger)
-        : writeCodexManagedAuthFile(plan, logger)
-    ).authFilePath;
+    // Managed Codex is file-free (the SDK renders a custom provider with env_key OPENAI_API_KEY into
+    // <cwd>/.codex/config.toml; codex reads the key from the daemon env at request time), so there is
+    // nothing to write. A local subscription run still needs the operator's OAuth token file, so
+    // symlink <cwd>/.codex/auth.json to the mounted login now, after the durable cwd mount (linking
+    // before it would be shadowed). Non-Codex runs, managed runs, and Daytona are no-ops.
+    if (isSubscriptionCodexRun(plan))
+      symlinkCodexSubscriptionAuthFile(plan, logger);
 
     // Pi native transcripts belong to the conversation workspace, not the temporary agent
     // directory that holds credentials, settings, extensions, skills, and system prompts.

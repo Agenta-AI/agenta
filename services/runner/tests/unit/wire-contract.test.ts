@@ -227,7 +227,7 @@ describe("wire contract: requests (vs Python golden)", () => {
     );
   });
 
-  it("codex request: no Pi built-ins, no harness files, managed key", () => {
+  it("codex request: no Pi built-ins, file-free managed auth provider block, managed key", () => {
     const req = loadGolden("run_request.codex.json") as AgentRunRequest;
     assert.equal(req.harness, "codex");
     assert.deepEqual(req.tools, []);
@@ -236,8 +236,15 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.deepEqual(req.permissions, { default: "allow_reads" });
     assert.equal(req.systemPrompt, undefined);
     assert.equal(req.appendSystemPrompt, undefined);
-    // Unlike Claude, the Milestone 1 default renders no harness configuration file.
-    assert.equal(req.harnessFiles, undefined);
+    // A managed codex run carries the file-free auth provider block in `.codex/config.toml` (D-002
+    // final ruling): the runner writes it blind; codex reads OPENAI_API_KEY from the daemon env at
+    // request time. The secret is NOT in the file (it rides `secrets`).
+    const files = req.harnessFiles!;
+    assert.equal(files.length, 1);
+    assert.equal(files[0].path, ".codex/config.toml");
+    assert.match(files[0].content, /model_provider = "agenta-openai"/);
+    assert.match(files[0].content, /env_key = "OPENAI_API_KEY"/);
+    assert.equal(files[0].content.includes("sk-openai"), false);
     assert.equal(req.sandboxPermission, undefined);
     assert.deepEqual(req.secrets, { OPENAI_API_KEY: "sk-openai" });
     assert.equal(

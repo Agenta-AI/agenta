@@ -220,12 +220,6 @@ export interface SessionEnvironment {
   runAgentDir: string | undefined;
   otlpAuthFilePath: string | undefined;
   /**
-   * The managed Codex auth.json this run created under `<cwd>/.codex`, or undefined when none was
-   * written (not a Codex run, or a pre-existing file was left untouched). Deleted by `destroy`,
-   * mirroring `otlpAuthFilePath`, so a resolved key never lingers on the session workspace.
-   */
-  codexAuthFilePath: string | undefined;
-  /**
    * The local off-mount directory this run pointed CODEX_SQLITE_HOME at (Codex's SQLite state,
    * which cannot live on the geesefs cwd mount). Removed best-effort by `destroy`; the state is
    * disposable because native resume rides the `sessions/` rollout files on CODEX_HOME, not the

@@ -48,6 +48,25 @@ SETTINGS_PATH = ".codex/config.toml"
 APPROVAL_POLICIES = frozenset({"untrusted", "on-request", "on-failure", "never"})
 SANDBOX_MODES = frozenset({"read-only", "workspace-write", "danger-full-access"})
 
+# File-free managed authentication (D-002 final ruling). A managed Codex run authenticates through
+# a CUSTOM model provider whose `env_key` names the environment variable holding the key. Codex reads
+# that variable from its process environment AT REQUEST TIME and never writes a credential file:
+# `config.toml` carries only the variable NAME, never the secret. The provider id must be NEW (codex
+# does not let user config override the built-in `openai` provider), and it must live in the FILE,
+# not a `CODEX_CONFIG` env override, because codex-acp's `authRequired()` reads the ACTIVE provider
+# from the app-server's own `config.toml` (a custom provider defaults `requires_openai_auth=false`,
+# so no login gate). Proven end to end on the daemon path (research q1a/q1a2). Subscription runs do
+# NOT get this block: ChatGPT OAuth needs the built-in provider and its mounted login file.
+MANAGED_PROVIDER_ID = "agenta-openai"
+MANAGED_PROVIDER_NAME = "Agenta OpenAI"
+# INVARIANT: the value of this variable is treated as OPAQUE. Under the Daytona-Secrets placeholder
+# design (#5277) the runner delivers a placeholder here, not the real key, and Daytona's egress proxy
+# substitutes it in flight; codex copies whatever the variable holds byte-exact into the request's
+# Authorization header (probe P3 / q1a). Nothing here inspects, parses, or reformats it. The runner
+# already delivers OPENAI_API_KEY into the daemon env for managed runs (plan.secrets), and it stays
+# absent on subscription runs.
+MANAGED_PROVIDER_ENV_KEY = "OPENAI_API_KEY"
+
 
 def _toml_escape(value: str) -> str:
     """Escape backslashes and double quotes for a TOML basic string."""
@@ -65,6 +84,19 @@ def _render_config_toml(scalars: Dict[str, str]) -> str:
     """
     return "".join(
         f'{key} = "{_toml_escape(value)}"\n' for key, value in scalars.items()
+    )
+
+
+def _render_managed_provider_table() -> str:
+    """Render the file-free managed auth provider table (see the ``MANAGED_PROVIDER_*`` docstring).
+
+    A TOML table must follow every top-level scalar, so this is appended AFTER the scalars (which
+    include the ``model_provider`` pointer). The secret never appears here; only the env var name.
+    """
+    return (
+        f"\n[model_providers.{MANAGED_PROVIDER_ID}]\n"
+        f'name = "{_toml_escape(MANAGED_PROVIDER_NAME)}"\n'
+        f'env_key = "{_toml_escape(MANAGED_PROVIDER_ENV_KEY)}"\n'
     )
 
 
@@ -103,23 +135,38 @@ def build_codex_settings_files(
     mcp_servers: Any = None,
     tool_specs: Any = None,
     permission_default: PermissionMode = "allow_reads",
+    credential_mode: Any = None,
 ) -> List[Dict[str, str]]:
     """Build the Codex ``config.toml`` as one generic ``harnessFiles`` entry, or ``[]`` if none.
 
-    Renders only flat top-level scalars: the author's Codex-native Layer-1 options
-    (``approval_policy``, ``sandbox_mode``) plus the Layer-2 filesystem reinforcement. Per the
-    D-008 amendment, NO ``[mcp_servers.*]`` approval tables are rendered (codex rejects a
-    transport-less server entry at ``session/new``, and the runner-side gate is the tool-permission
-    authority — see the module docstring). ``mcp_servers``, ``tool_specs``, and
-    ``permission_default`` are accepted for signature parity with ``build_claude_settings_files``
-    and are intentionally unused here.
+    Renders the file-free managed auth provider block (see the ``MANAGED_PROVIDER_*`` docstring)
+    plus flat top-level scalars: the author's Codex-native Layer-1 options (``approval_policy``,
+    ``sandbox_mode``) and the Layer-2 filesystem reinforcement. Per the D-008 amendment, NO
+    ``[mcp_servers.*]`` approval tables are rendered (codex rejects a transport-less server entry at
+    ``session/new``, and the runner-side gate is the tool-permission authority — see the module
+    docstring). ``mcp_servers``, ``tool_specs``, and ``permission_default`` are accepted for
+    signature parity with ``build_claude_settings_files`` and are intentionally unused here.
 
-    When nothing is authored or derived, returns ``[]`` so the runner writes no file and a
-    text-only Codex run is byte-identical to a fileless run.
+    ``credential_mode`` decides the managed auth block. A run is MANAGED unless it is explicitly
+    subscription (``"runtime_provided"``), matching the runner's ``isManagedCodexRun`` (which keys
+    on ``credentialMode !== "runtime_provided"``): ``"env"``, ``"none"``, and an unresolved
+    (``None``) connection all render the provider block so the managed key authenticates
+    file-free. A subscription run renders no block (it uses the built-in provider + its mounted
+    login).
+
+    When a subscription run has nothing authored or derived either, returns ``[]`` so the runner
+    writes no file and that run stays byte-identical to a fileless run.
 
     Returns ``[{"path": ".codex/config.toml", "content": <toml str>}]`` or ``[]``.
     """
+    managed = credential_mode != "runtime_provided"
+
     scalars: Dict[str, str] = {}
+
+    # File-free managed auth: point codex at the custom provider (top-level scalar, rendered before
+    # the provider table appended below). Subscription keeps the built-in provider.
+    if managed:
+        scalars["model_provider"] = MANAGED_PROVIDER_ID
 
     approval_policy = _get(harness_permissions, "approval_policy")
     if isinstance(approval_policy, str) and approval_policy in APPROVAL_POLICIES:
@@ -135,11 +182,12 @@ def build_codex_settings_files(
 
     # The model is not written here; it rides the wire ``model`` field for the runner to apply.
 
-    # Nothing authored or derived keeps a text-only (or permission-only) Codex run fileless: a run
-    # whose only permission content would have been per-server/per-tool tables now writes NO file
-    # at all, since those tables are no longer rendered.
+    # A subscription run with nothing authored or derived stays fileless (byte-identical to before).
+    # A managed run always has at least the `model_provider` scalar, so it always writes the file.
     if not scalars:
         return []
 
     content = _render_config_toml(scalars)
+    if managed:
+        content += _render_managed_provider_table()
     return [{"path": SETTINGS_PATH, "content": content}]

@@ -405,12 +405,21 @@ def test_codex_no_warning_without_builtins(make_env, monkeypatch):
     assert recorded == []
 
 
-def test_codex_renders_no_files_without_authored_options(make_env):
+def test_codex_managed_renders_file_free_provider_block(make_env):
+    # An unresolved connection defaults to MANAGED, which renders the file-free auth provider block
+    # (env_key OPENAI_API_KEY) even with no authored options (D-002 final ruling). No credential in
+    # the file; codex reads the key from the daemon env at request time.
     harness = CodexHarness(make_env(supported=[HarnessType.CODEX]))
 
     result = harness._to_harness_config(_session_config())
+    files = result.wire_harness_files()["harnessFiles"]
 
-    assert result.wire_harness_files() == {}
+    assert len(files) == 1
+    assert files[0]["path"] == ".codex/config.toml"
+    content = files[0]["content"]
+    assert 'model_provider = "agenta-openai"' in content
+    assert "[model_providers.agenta-openai]" in content
+    assert 'env_key = "OPENAI_API_KEY"' in content
 
 
 # --------------------------------------------------------------- _normalize_tool_specs

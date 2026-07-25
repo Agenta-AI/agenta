@@ -21,6 +21,12 @@
   "permissions": {
     "default": "allow_reads"
   },
+  "harnessFiles": [
+    {
+      "path": ".codex/config.toml",
+      "content": "model_provider = \"agenta-openai\"\n\n[model_providers.agenta-openai]\nname = \"Agenta OpenAI\"\nenv_key = \"OPENAI_API_KEY\"\n"
+    }
+  ],
   "runContext": {
     "run": {
       "kind": "test"
