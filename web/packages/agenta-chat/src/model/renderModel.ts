@@ -47,6 +47,7 @@ export const isSupersededGate = (part: ToolUIPart, executed: Set<string>): boole
 
 export interface BuildTurnRenderItemsOptions {
     executed: Set<string>
+    /** Registry-backed check; the desktop closes over {isStreaming, isLastMessage} + renderMap — see AgentMessage.tsx. */
     isClientToolPart: (part: ToolUIPart) => boolean
 }
 

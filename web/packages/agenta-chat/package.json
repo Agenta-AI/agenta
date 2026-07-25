@@ -17,7 +17,8 @@
     },
     "exports": {
         ".": "./src/index.ts",
-        "./model": "./src/model/index.ts"
+        "./model": "./src/model/index.ts",
+        "./assets": "./src/assets/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",

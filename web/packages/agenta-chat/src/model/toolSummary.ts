@@ -1,20 +1,24 @@
 import type {ToolUIPart} from "ai"
 
+// The OSS original imports these rather than redefining them; the extraction introduced a
+// second copy. They must match services/runner/src/tracing/otel.ts exactly, and a drift here
+// turns every "skipped, not failed" tool row back into a plain error.
+import {stripFence} from "../assets/toolFormat"
+import {
+    APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX,
+    DEFERRED_NOT_EXECUTED_PREFIX,
+} from "../assets/transcriptToMessages"
+
 /** Minimal structural shape rowSummary needs off a registered tool display — a normalized human
  * summary hook, without pulling in the OSS ToolDisplay registry type. */
 export interface ToolSummaryDisplay {
     summary?: (input: unknown, output: unknown) => string | null | undefined
 }
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/assets/toolFormat.ts (2026-07-25);
-// the OSS original remains authoritative for the desktop chat until the re-plumb PR deletes it.
-// Keep byte-parity if either side changes.
-/** Strip a surrounding markdown code fence — backends wrap tool output/errors in ```…```. Only a
- * fence that spans the WHOLE string is stripped, so inner fenced blocks are left intact. */
-export const stripFence = (value: string): string => {
-    const m = value.trim().match(/^```[\w-]*\n?([\s\S]*?)\n?```$/)
-    return m ? m[1].trim() : value
-}
+// Adaptation (2026-07-25): stripFence now lives canonically in ../assets/toolFormat (copied from
+// the OSS asset of the same name) — re-exported here so existing imports of it from this module
+// keep working, without a second definition.
+export {stripFence}
 
 // Copied verbatim from web/oss/src/components/AgentChatSlice/components/ToolActivity.tsx
 // (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
@@ -23,18 +27,6 @@ export const stripFence = (value: string): string => {
 // (preparing input, running, awaiting/just-answered an approval) is still in flight.
 const SETTLED = new Set(["output-available", "output-error", "output-denied"])
 export const isSettled = (state: string) => SETTLED.has(state)
-
-// Copied verbatim from web/oss/src/components/AgentChatSlice/assets/transcriptToMessages.ts
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
-// Mirrors services/runner/src/tracing/otel.ts; park sentinels report skipped or unobserved work, not final results.
-const DEFERRED_NOT_EXECUTED_PREFIX = "DEFERRED_NOT_EXECUTED"
-const APPROVED_EXECUTION_RESULT_UNKNOWN =
-    "APPROVED_EXECUTION_RESULT_UNKNOWN: the approved call started but its result was not observed before the pause ended the turn; do not assume it failed and do not retry a side-effecting call."
-const APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX = APPROVED_EXECUTION_RESULT_UNKNOWN.slice(
-    0,
-    APPROVED_EXECUTION_RESULT_UNKNOWN.indexOf(":"),
-)
 
 // Copied verbatim from web/oss/src/components/AgentChatSlice/components/ToolActivity.tsx
 // (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
