@@ -107,7 +107,15 @@ def apply_windowing(
     if order_attribute is id_attribute:
         stmt = stmt.order_by(windowing_order)
     else:
-        stmt = stmt.order_by(windowing_order, id_attribute)
+        # Tiebreak direction must match the cursor predicate's direction (`id <` on the
+        # descending branch, `id >` on ascending) — an ASC tiebreak under a DESC cursor
+        # splits a tie group across the page boundary (duplicate/skip rows).
+        id_tiebreak = (
+            id_attribute.desc()
+            if windowing_order == descending_order
+            else id_attribute.asc()  # type: ignore
+        )
+        stmt = stmt.order_by(windowing_order, id_tiebreak)
 
     if windowing.limit:
         stmt = stmt.limit(windowing.limit)

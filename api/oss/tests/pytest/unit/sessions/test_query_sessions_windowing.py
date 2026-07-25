@@ -48,8 +48,25 @@ def test_updated_at_attribute_orders_by_coalesced_updated_at_with_id_tiebreak():
     sql = _compile(stmt)
     order_by_fragment = sql.split("ORDER BY", 1)[1]
 
-    assert f"ORDER BY {COALESCE_EXPR} DESC, session_streams.id" in sql
+    # Tiebreak direction must match the cursor's DESC semantics (`id <`) — an ASC
+    # tiebreak here would split a tie group across the page boundary.
+    assert f"ORDER BY {COALESCE_EXPR} DESC, session_streams.id DESC" in sql
     _assert_created_at_only_inside_coalesce(order_by_fragment)
+
+
+def test_updated_at_attribute_ascending_orders_with_matching_id_tiebreak():
+    """Mirror of the descending case: the ascending branch's cursor uses `id >`, so
+    the tiebreak must be `id ASC`, not the bare (previously-ASC-by-default) column."""
+    stmt = apply_windowing(
+        stmt=select(SessionStreamDBE),
+        DBE=SessionStreamDBE,
+        attribute="updated_at",
+        order="ascending",
+        windowing=Windowing(limit=20, order="ascending"),
+    )
+    sql = _compile(stmt)
+
+    assert f"ORDER BY {COALESCE_EXPR} ASC, session_streams.id ASC" in sql
 
 
 def test_updated_at_cursor_rides_coalesced_updated_at():
@@ -90,7 +107,8 @@ def test_created_at_attribute_behavior_is_unchanged():
         )
     )
     assert (
-        "ORDER BY session_streams.created_at DESC, session_streams.id" in no_cursor_sql
+        "ORDER BY session_streams.created_at DESC, session_streams.id DESC"
+        in no_cursor_sql
     )
 
     cursor_sql = _compile(

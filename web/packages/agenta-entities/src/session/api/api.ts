@@ -254,7 +254,8 @@ export interface QuerySessionsParams {
     limit?: number
     /** Cursor: the `id` of the last row from the previous page. */
     next?: string
-    /** Cursor: the `updated_at` of the last row from the previous page (pairs with `next`). */
+    /** Cursor: the activity value (`updated_at ?? created_at`, server-coalesced) of the last
+     * row from the previous page (pairs with `next`). */
     newest?: string
 }
 

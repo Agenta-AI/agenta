@@ -147,7 +147,10 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
                     DBE=SessionStreamDBE,
                     # Last-activity ordering: updated_at is fed by heartbeat/edit/archive,
                     # so a resumed session bumps to the top instead of sorting by its
-                    # original (uuid7) creation time.
+                    # original (uuid7) creation time. The coalesce(updated_at, created_at)
+                    # expression can't use the (project_id, created_at)/archived_at indexes
+                    # (no expression index for it), but per-project session-list sizes keep
+                    # the in-memory sort acceptable — a deliberate choice, not an oversight.
                     attribute="updated_at",
                     order="descending",
                     windowing=windowing,
