@@ -174,8 +174,10 @@ CELLS = {
     },
     # X1: the CODEX harness on the local sandbox with a MANAGED vault key (mode "agenta", slug
     # None -> the project's default OpenAI provider_key). Mirrors C3 (Pi local managed) but on the
-    # codex harness: the runner writes auth.json from the resolved key into <cwd>/.codex and codex
-    # authenticates from it. gpt-5.6-luna is the cheapest curated codex model (D-006). The local
+    # codex harness: managed auth is FILE-FREE (D-002 final ruling) — the SDK renders a custom
+    # model provider with env_key=OPENAI_API_KEY into <cwd>/.codex/config.toml and codex reads the
+    # key from the daemon env at request time (no auth.json). gpt-5.6-luna is the cheapest curated
+    # codex model (D-006). The local
     # runner pins codex-acp 1.1.7 (D-005), so the model list stays stable. The `tool` journey
     # exercises the runner-side gate; `approve`/`deny` ride the runner-side pause seam (D-008), not a
     # codex-native ACP gate. Subscription codex is local-only (not a managed-key cell); Daytona codex

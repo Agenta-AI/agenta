@@ -1,13 +1,27 @@
 # Status
 
-Last updated: 2026-07-25 (Milestone 5 COMPLETE — ALL milestones closed; awaiting lane split + Mahmoud review)
+Last updated: 2026-07-25 (PR OPEN — single PR per D-009; awaiting Mahmoud review)
 
-## Project state: COMPLETE, awaiting lane split + review
+## Project state: SHIPPED AS ONE PR, awaiting Mahmoud review
 
-All five milestones are code-complete and green on `worktree-codex-harness` (local commits only,
-nothing pushed, nothing merged). The remaining work is Mahmoud's: ratify the D-002 M5 amendment,
-choose the lane split (area vs concern, `lane-split-plan.md`), and execute the stacked PRs in the
-main checkout. Do-not-merge stands.
+PR: **https://github.com/Agenta-AI/agenta/pull/5509** — `feat(agents): add Codex as a first-class
+harness`, base `main`, head `feat/codex-harness`. Opened per decision D-009 (single PR with inline
+self-review comments, not stacked lanes; the lane-split plan is superseded). The branch was merged
+up onto `origin/main` first (only `website/**` moved on main; zero overlap with our files, no
+conflicts). Suites re-verified green after the merge: SDK agents 696, runner 1248 (81 files),
+runner typecheck, ruff format + check, golden wire contract. Inline review comments are posted on
+the PR covering every non-obvious file and seam. `@coderabbitai review` requested.
+
+Do-not-merge stands — merging is Mahmoud's action. Open for Mahmoud: (1) review the PR; (2) ratify
+the D-002 file-free managed-auth final ruling as implemented; (3) the untracked spike
+transcripts/scenarios (`spike/scenarios-auth/`, `spike/scenarios-derisk/`, `spike/transcripts/`,
+~1.5MB, placeholder credentials only) were intentionally NOT committed — decide whether they belong
+in the public repo. The three QA recordings (m1/m3/m4 MP4s) ARE committed in `reports/`.
+
+### Previously (before the D-009 single-PR ruling)
+
+All five milestones are code-complete and green on `worktree-codex-harness`. The lane split
+(`lane-split-plan.md`) is superseded by D-009. Do-not-merge stands.
 
 ## Now (Milestone 5 — Daytona, pin, release gate, docs, sweep, lane plan) — CLOSED
 
