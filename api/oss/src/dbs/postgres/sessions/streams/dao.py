@@ -155,9 +155,13 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
             else:
                 # No windowing here means this is the liveness-index caller
                 # (`query_session_streams`), not the paginated session list — ordering
-                # isn't load-bearing there, but keep it consistent with the windowed path.
+                # isn't load-bearing there, but keep it consistent with the windowed path,
+                # coalescing onto created_at for rows never touched since creation (same
+                # rationale as `apply_windowing`'s updated_at branch).
                 stmt = stmt.order_by(
-                    SessionStreamDBE.updated_at.desc(),
+                    func.coalesce(
+                        SessionStreamDBE.updated_at, SessionStreamDBE.created_at
+                    ).desc(),
                     SessionStreamDBE.id.desc(),
                 )
             result = await session.execute(stmt)
