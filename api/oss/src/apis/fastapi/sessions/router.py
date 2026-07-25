@@ -1562,6 +1562,7 @@ class SessionsRootRouter:
                 references=body.references,
                 include_ended=body.include_ended,
                 include_archived=body.include_archived,
+                search=body.search,
             ),
             windowing=body.windowing,
         )

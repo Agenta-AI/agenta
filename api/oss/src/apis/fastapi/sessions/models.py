@@ -33,6 +33,8 @@ class SessionQueryRequest(BaseModel):
     include_ended: bool = False
     # Include archived sessions — off by default (archive hides); on for the archived view.
     include_archived: bool = False
+    # Case-insensitive substring match over the session title (`session_streams.name`).
+    search: Optional[str] = None
 
 
 class SessionsResponse(BaseModel):

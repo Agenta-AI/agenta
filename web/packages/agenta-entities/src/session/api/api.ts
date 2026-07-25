@@ -8,6 +8,8 @@
  * const events = await querySessionRecords({sessionId, projectId})
  * ```
  */
+import type {AgentaApi} from "@agentaai/api-client"
+
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {
     mountFileContentResponseSchema,
@@ -246,6 +248,8 @@ export interface QuerySessionsParams {
      * hide them by display filter, rather than mistake an archived row for a hard-delete and prune
      * it. Set false only for a view that wants strictly non-archived rows. */
     includeArchived?: boolean
+    /** Case-insensitive substring match over the session title (`session_streams.name`). */
+    search?: string
     appId?: string
     abortSignal?: AbortSignal
     lowPriority?: boolean
@@ -270,6 +274,7 @@ export async function querySessions({
     references,
     includeEnded = true,
     includeArchived = true,
+    search,
     appId,
     abortSignal,
     lowPriority,
@@ -294,7 +299,10 @@ export async function querySessions({
                 include_ended: includeEnded,
                 include_archived: includeArchived,
                 windowing,
-            },
+                // TODO(fern-regen): `search` isn't in the generated SessionQueryRequest yet
+                // (regen out of scope) — widen the type until the client picks it up.
+                search,
+            } as AgentaApi.SessionQueryRequest & {search?: string},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )

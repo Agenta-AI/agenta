@@ -71,6 +71,7 @@ class SessionsService:
             filter=SessionStreamQuery(
                 include_ended=bool(query and query.include_ended),
                 include_archived=bool(query and query.include_archived),
+                search=query.search if query else None,
             ),
             windowing=windowing,
             session_ids=session_ids,
