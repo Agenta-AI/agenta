@@ -95,7 +95,9 @@ USER node
 # clean, unlike proprietary Claude Code. Pinned versions recorded next to the sandbox-agent pin in
 # package.json. Runs as `node` so the install lands in the runtime user's HOME.
 # PIN: @agentclientprotocol/codex-acp 1.1.7 (bundles @openai/codex 0.145.0).
-RUN node_modules/.bin/sandbox-agent install-agent codex --agent-process-version 1.1.7 -n
+# The sandbox-agent package ships no bin entry (its CLI is a transitive optional dep), so the
+# pin script resolves the daemon binary via the runner's own daemon.ts resolution.
+RUN node_modules/.bin/tsx scripts/pin-codex-adapter.ts install-agent codex --agent-process-version 1.1.7 -n
 
 # Call the local tsx binary directly to avoid pnpm/corepack HOME writes when the
 # container runs as a non-root host uid.
