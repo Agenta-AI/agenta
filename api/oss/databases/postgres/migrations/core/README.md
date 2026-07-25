@@ -20,7 +20,8 @@
 > switch: `docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md`.
 >
 > The commands below still describe the alembic mechanics, but swap the `-w .../core`
-> working directory for `.../core_oss` (or the right active chain) when creating revisions.
+> working directory for `.../core_oss` (or the right active chain) when running `revision`,
+> `upgrade`, or `downgrade` — the parked `.../core` chain should not advance.
 
 Generic single-database configuration with an async dbapi.
 
