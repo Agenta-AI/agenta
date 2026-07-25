@@ -16,6 +16,8 @@ const MASK =
 
 type Chip = {
   name?: string;
+  // Accessible name for icon-only chips (rendered as aria-label, never shown).
+  label?: string;
   mono?: boolean;
   logo?: string;
   href?: string;
@@ -24,27 +26,29 @@ type Chip = {
 
 type Row = { label: string; speed: number; chips: Chip[] };
 
-const mcp: Array<[string, string]> = [
-  ["github", "https://github.com"],
-  ["slack", "https://slack.com"],
-  ["linear", "https://linear.app"],
-  ["anthropic", "https://anthropic.com"],
-  ["notion", "https://notion.so"],
-  ["stripe", "https://stripe.com"],
-  ["postgresql", "https://postgresql.org"],
-  ["hubspot", "https://hubspot.com"],
-  ["posthog", "https://posthog.com"],
-  ["googledrive", "https://drive.google.com"],
-  ["zendesk", "https://zendesk.com"],
-  ["docker", "https://docker.com"],
-  ["figma", "https://figma.com"],
-  ["discord", "https://discord.com"],
-  ["asana", "https://asana.com"],
-  ["gitlab", "https://gitlab.com"],
-  ["airtable", "https://airtable.com"],
-  ["supabase", "https://supabase.com"],
-  ["mongodb", "https://mongodb.com"],
-  ["cloudflare", "https://cloudflare.com"],
+// [slug, href, accessible-name]. The MCPs row is logo-only (no visible text), so
+// each link carries an aria-label for screen readers / keyboard users.
+const mcp: Array<[string, string, string]> = [
+  ["github", "https://github.com", "GitHub"],
+  ["slack", "https://slack.com", "Slack"],
+  ["linear", "https://linear.app", "Linear"],
+  ["anthropic", "https://anthropic.com", "Anthropic"],
+  ["notion", "https://notion.so", "Notion"],
+  ["stripe", "https://stripe.com", "Stripe"],
+  ["postgresql", "https://postgresql.org", "PostgreSQL"],
+  ["hubspot", "https://hubspot.com", "HubSpot"],
+  ["posthog", "https://posthog.com", "PostHog"],
+  ["googledrive", "https://drive.google.com", "Google Drive"],
+  ["zendesk", "https://zendesk.com", "Zendesk"],
+  ["docker", "https://docker.com", "Docker"],
+  ["figma", "https://figma.com", "Figma"],
+  ["discord", "https://discord.com", "Discord"],
+  ["asana", "https://asana.com", "Asana"],
+  ["gitlab", "https://gitlab.com", "GitLab"],
+  ["airtable", "https://airtable.com", "Airtable"],
+  ["supabase", "https://supabase.com", "Supabase"],
+  ["mongodb", "https://mongodb.com", "MongoDB"],
+  ["cloudflare", "https://cloudflare.com", "Cloudflare"],
 ];
 
 const rows: Row[] = [
@@ -66,7 +70,7 @@ const rows: Row[] = [
   {
     label: "MCPs & tools",
     speed: 30,
-    chips: mcp.map(([slug, href]) => ({ logo: local(slug), href })),
+    chips: mcp.map(([slug, href, label]) => ({ logo: local(slug), href, label })),
   },
   {
     label: "Harness",
@@ -199,6 +203,7 @@ const isExternal = (href?: string) => !!href && href.startsWith("http");
                       target={isExternal(c.href) ? "_blank" : undefined}
                       rel={isExternal(c.href) ? "noopener" : undefined}
                       style={chipStyle(c)}
+                      aria-label={!c.name ? c.label : undefined}
                       aria-hidden={dup ? "true" : undefined}
                       tabindex={dup ? -1 : undefined}
                     >
