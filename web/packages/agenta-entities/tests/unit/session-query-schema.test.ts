@@ -27,10 +27,11 @@ const wireRow = {
     tags: {priority: "high"},
     meta: {source: "web"},
     turn_id: "turn-7",
-    status: {code: "idle", message: null},
     created_at: "2026-07-20T10:00:00Z",
     updated_at: "2026-07-24T09:30:00Z",
-    references: [{id: "wf-1", slug: "support-router", version: "v3"}],
+    references: [
+        {id: "33333333-3333-3333-3333-333333333333", slug: "support-router", version: "v3"},
+    ],
 }
 
 const wireEnvelope = {count: 1, sessions: [wireRow]}
@@ -42,7 +43,7 @@ describe("sessionStreamSchema (/sessions/query rows)", () => {
         expect(out.name).toBe("Refactor the auth flow")
         expect(out.flags).toEqual({is_alive: true, is_running: false, is_attached: false})
         expect(out.updated_at).toBe("2026-07-24T09:30:00Z")
-        expect(out.references?.[0]?.id).toBe("wf-1")
+        expect(out.references?.[0]?.id).toBe("33333333-3333-3333-3333-333333333333")
         expect(out.references?.[0]?.slug).toBe("support-router")
         expect(out.references?.[0]?.version).toBe("v3")
     })
@@ -61,7 +62,6 @@ describe("sessionStreamSchema (/sessions/query rows)", () => {
         expect(out.description).toBeUndefined()
         expect(out.flags).toBeUndefined()
         expect(out.turn_id).toBeUndefined()
-        expect(out.status).toBeUndefined()
         expect(out.created_at).toBeUndefined()
         expect(out.updated_at).toBeUndefined()
         expect(out.deleted_at).toBeUndefined()
@@ -105,7 +105,7 @@ describe("sessionsQueryResponseSchema (envelope)", () => {
         expect(out.count).toBe(1)
         expect(out.sessions).toHaveLength(1)
         expect(out.sessions[0].session_id).toBe("sess-1")
-        expect(out.sessions[0].references?.[0]?.id).toBe("wf-1")
+        expect(out.sessions[0].references?.[0]?.id).toBe("33333333-3333-3333-3333-333333333333")
     })
 })
 
