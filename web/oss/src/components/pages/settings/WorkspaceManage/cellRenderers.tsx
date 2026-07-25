@@ -3,7 +3,7 @@ import {useState} from "react"
 import type {User} from "@agenta/shared/types"
 import {message} from "@agenta/ui/app-message"
 import {EditOutlined, MoreOutlined, SyncOutlined} from "@ant-design/icons"
-import {ArrowClockwise, Trash} from "@phosphor-icons/react"
+import {ArrowClockwise, Key, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Input, Modal, Space, Tag, Tooltip, Typography} from "antd"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
@@ -11,7 +11,7 @@ import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {snakeToTitle} from "@/oss/lib/helpers/utils"
 import {WorkspaceMember} from "@/oss/lib/Types"
-import {updateUsername} from "@/oss/services/profile"
+import {resetPassword, updateUsername} from "@/oss/services/profile"
 import {
     assignWorkspaceRole,
     removeFromWorkspace,
@@ -21,6 +21,9 @@ import {
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {useWorkspaceRoles} from "@/oss/state/workspace"
+
+import GenerateResetLinkModal from "./Modals/GenerateResetLinkModal"
+import PasswordResetLinkModal from "./Modals/PasswordResetLinkModal"
 
 export const Actions: React.FC<{
     member: WorkspaceMember
@@ -32,16 +35,23 @@ export const Actions: React.FC<{
 }> = ({member, hidden, organizationId, workspaceId, onResendInvite, selfMenu}) => {
     const {user} = member
     const isMember = user.status === "member"
-    const {canInviteMembers, canRemoveMembers} = useWorkspacePermissions()
+    const {canInviteMembers, canRemoveMembers, canModifyRoles} = useWorkspacePermissions()
 
     const [resendLoading, setResendLoading] = useState(false)
     const {refetch} = useOrgData()
     const {refetch: refetchProfile} = useProfileData()
     const [renameOpen, setRenameOpen] = useState(false)
     const [renameValue, setRenameValue] = useState(user.username || "")
+    const [generateResetLinkOpen, setGenerateResetLinkOpen] = useState(false)
+    const [resetLinkOpen, setResetLinkOpen] = useState(false)
+    const [resetLink, setResetLink] = useState("")
+    const [resetLoading, setResetLoading] = useState(false)
+
+    // OSS: invite permission is broadly available; EE: require invite or role-modify rights.
+    const canResetPassword = canInviteMembers || canModifyRoles
 
     if (hidden && !selfMenu) return null
-    if (!selfMenu && !canInviteMembers && !canRemoveMembers) return null
+    if (!selfMenu && !canInviteMembers && !canRemoveMembers && !canModifyRoles) return null
 
     const handleResendInvite = () => {
         if (!organizationId || !user.email || !workspaceId) return
@@ -91,6 +101,24 @@ export const Actions: React.FC<{
         }
     }
 
+    const handleResetPassword = async () => {
+        setResetLoading(true)
+        try {
+            const link = await resetPassword(user.id)
+            setGenerateResetLinkOpen(false)
+            setResetLink(typeof link === "string" ? link : String(link))
+            setResetLinkOpen(true)
+        } catch (error: any) {
+            const detail =
+                error?.response?.data?.detail ||
+                error?.message ||
+                "Unable to generate reset password link"
+            message.error(detail)
+        } finally {
+            setResetLoading(false)
+        }
+    }
+
     return (
         <>
             <Dropdown
@@ -128,6 +156,19 @@ export const Actions: React.FC<{
                                         },
                                     ]
                                   : []),
+                              ...(isMember && canResetPassword
+                                  ? [
+                                        {
+                                            key: "reset_password",
+                                            label: "Reset password",
+                                            icon: <Key size={16} />,
+                                            onClick: (e: any) => {
+                                                e.domEvent.stopPropagation()
+                                                setGenerateResetLinkOpen(true)
+                                            },
+                                        },
+                                    ]
+                                  : []),
                               ...(canRemoveMembers
                                   ? [
                                         {
@@ -149,7 +190,7 @@ export const Actions: React.FC<{
                     onClick={(e) => e.stopPropagation()}
                     type="text"
                     icon={<MoreOutlined />}
-                    loading={resendLoading}
+                    loading={resendLoading || resetLoading}
                 />
             </Dropdown>
 
@@ -170,6 +211,21 @@ export const Actions: React.FC<{
                     placeholder="New username"
                 />
             </Modal>
+
+            <GenerateResetLinkModal
+                open={generateResetLinkOpen}
+                username={user.username}
+                onCancel={() => setGenerateResetLinkOpen(false)}
+                onOk={handleResetPassword}
+                confirmLoading={resetLoading}
+            />
+
+            <PasswordResetLinkModal
+                open={resetLinkOpen}
+                username={user.username}
+                generatedLink={resetLink}
+                onCancel={() => setResetLinkOpen(false)}
+            />
         </>
     )
 }
