@@ -1,5 +1,16 @@
 # Decision register
 
+## D-009 (PR train) · One PR with inline review comments · approved (Mahmoud, 2026-07-25)
+
+The branch ships as a single PR, not stacked lanes. Reasoning: the split's only
+purpose is reviewability; the feature split requires hunk-level file splitting
+against already-made commits (the known-painful GitButler case), and the area
+split's lanes are not independently meaningful (the wire contract spans SDK and
+runner). Requirement carried with the ruling: thorough inline review comments on
+files and non-obvious parts, posted with the PR, so the reviewer can navigate.
+Execution waits for the Daytona layout ruling (D-002 research in flight).
+
+
 Every choice in this project that is not an obvious copy of the existing Claude/Pi
 pattern is recorded here. A decision has one of three statuses:
 
@@ -95,7 +106,40 @@ directions:
   used. With P1 confirming the environment channel, the fallback stays unused.
 
 **Amendment (2026-07-25, Milestone 5, credential-safety-forced) · Daytona managed
-home is IN-VM, not the durable cwd · proposed (implemented; awaiting ratification):**
+home is IN-VM, not the durable cwd · REJECTED by Mahmoud (2026-07-25), superseded
+by the research below:**
+
+Mahmoud's ruling and reasoning: sacrificing codex's native resume on Daytona is
+optimizing for the wrong thing, because platform-side history replay is a crutch
+the product is moving away from, and durable sessions with harness-native
+continuity are the direction. His proposed design: keep the durable home (native
+rollouts durable, native resume survives sandbox replacement; SQLite stays in-VM,
+a hard filesystem constraint), and manage the credential by lifecycle: write
+auth.json at session start, delete it from durable storage before the sandbox
+stops. He also asked for deeper research on whether codex can take a key with no
+credential file at all (the surprise that no file-free path exists).
+
+**Final ruling (Mahmoud, 2026-07-25): FILE-FREE managed auth on the durable home,
+both local and Daytona.** The research (`spike/auth-and-cleanup-research.md`)
+found codex 0.145 supports a custom model provider with `env_key`: the key is read
+from the process environment AT REQUEST TIME, no credential file ever exists, the
+built-in provider's hardcoded login requirement is bypassed by design, and the
+WebSocket-upgrade caveat disappears (custom providers do not attempt it). Probed
+green end to end on the daemon path against both a local listener (placeholder
+byte-exact in the header) and the real API. This restores `CODEX_HOME =
+<cwd>/.codex` on the durable mount for Daytona (native resume durable, Mahmoud's
+requirement), keeps `CODEX_SQLITE_HOME` in-VM (hard geesefs constraint), deletes
+both managed auth.json writers and every cleanup backstop (including a discovered
+ordering bug where the local backstop ran after the storage unmounted and stranded
+the file), and composes exactly with the #5277 placeholder (which lands in the
+same process environment `env_key` reads). Subscription mode is unchanged (the
+operator's own login file via symlink). The add-then-remove lifecycle stays
+documented in the research file as the fallback if a future codex version breaks
+the provider mechanism. Process post-mortem for why this was missed for three
+milestones: the enumerate-mechanism-space rule, recorded in the add-harness skill
+and session memory.
+
+The rejected in-VM amendment text follows for the record:
 The managed ruling approved `CODEX_HOME = <cwd>/.codex` plus the requirement that on
 Daytona the key be reliably deleted at session end. Milestone 5 implementation found
 that requirement is not reliably satisfiable with the key on the durable cwd: on

@@ -1,5 +1,12 @@
 # Lane-split plan
 
+> SUPERSEDED by decision D-009 (Mahmoud, 2026-07-25): the branch ships as a SINGLE PR with thorough
+> inline review comments, NOT stacked lanes. Reasoning (in decisions.md): the split's only purpose is
+> reviewability; the concern split needs hunk-level file splitting against already-made commits (the
+> painful GitButler case), and the area split's lanes are not independently meaningful (the wire
+> contract spans SDK and runner). This document is kept for history and for the file-to-area map,
+> which is still useful when writing the single PR's description and review comments.
+
 How to break the `worktree-codex-harness` branch into stacked GitButler lanes for review in the
 main checkout. This is a plan only. The GitButler execution happens later, in the main checkout,
 with Mahmoud's go-ahead. Nothing here pushes, merges, or runs `but`.

@@ -55,9 +55,16 @@ four standard questions, refined per harness:
    harness, over which channel (ACP session params vs config file), and can specific
    tools be pre-allowed/denied natively (the F-046 question: an "allow" tool must run
    without pausing)?
-4. **Auth modes.** Which credential forms work: env var, credential file with an API
-   key, credential file with OAuth tokens (subscription)? What exactly does the
-   subscription sidecar need to produce?
+4. **Auth mechanisms, enumerated from source.** Do NOT probe a candidate list of
+   credential forms and stop at the first that works; that satisficing locked the
+   Codex project into a file-based design for three milestones while a file-free
+   mechanism sat one function away. Instead: find the harness's credential
+   RESOLUTION/PRECEDENCE function in its source at the pinned version and read it
+   top to bottom; precedence functions are small and enumerate the whole mechanism
+   space by construction. Table every branch (env-at-request-time, files, stores,
+   login flows), then probe the promising ones through the daemon path. The same
+   rule applies to any capability that shapes a design: config delivery, state
+   location, continuity. Also determine what the subscription sidecar must produce.
 
 Everything unverified in the design stays marked "TO VERIFY IN SPIKE" until the spike
 answers it with a saved transcript. The spike ends in a findings memo plus a decision
