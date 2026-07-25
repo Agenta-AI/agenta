@@ -61,6 +61,9 @@ export {
     describeUnreachableService,
 } from "./invocationErrors"
 
+// Step error reporting
+export {extractStepError, type StepError} from "./stepErrors"
+
 // Request body builder
 export {
     transformToRequestBody,
