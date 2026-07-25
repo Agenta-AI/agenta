@@ -11,10 +11,12 @@ const { sticky = false } = Astro.props;
 const BOOK_DEMO = "https://cal.com/mahmoud-mabrouk-ogzgey/demo?duration=30";
 const GET_STARTED = "https://cloud.agenta.ai/";
 
-// Top-level links that navigate directly.
-const links = [
+// Top-level links. First-party pages navigate same-tab; links that leave the
+// marketing site (Docs) open in a new tab via `external`.
+type NavLink = { label: string; href: string; external?: boolean };
+const links: NavLink[] = [
   { label: "Pricing", href: "/pricing" },
-  { label: "Docs", href: "https://docs.agenta.ai/" },
+  { label: "Docs", href: "https://docs.agenta.ai/", external: true },
   { label: "Blog", href: "/blog" },
 ];
 
@@ -30,9 +32,9 @@ const icoX = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke
 const icoLinkedin = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/></svg>`;
 
 // Dropdown menus (open on hover / keyboard focus). Resources + Community mirror
-// live agenta.ai. Changelog/Roadmap point at the same docs pages the live site
-// links to and navigate same-tab (like Docs). Tutorial is hidden for now — flip
-// SHOW_TUTORIAL to bring it back with the item intact.
+// live agenta.ai. Changelog/Roadmap/Tutorial point at the docs site, so they
+// open in a new tab (external) to keep the marketing site open behind them.
+// Tutorial is hidden for now — flip SHOW_TUTORIAL to bring it back intact.
 const SHOW_TUTORIAL = false;
 type Item = { label: string; desc: string; href: string; icon: string; external?: boolean };
 const dropdowns: { label: string; items: Item[] }[] = [
@@ -40,10 +42,10 @@ const dropdowns: { label: string; items: Item[] }[] = [
     label: "Resources",
     items: [
       ...(SHOW_TUTORIAL
-        ? [{ label: "Tutorial", desc: "Get started with Agenta", href: "https://agenta.ai/docs/tutorials/cookbooks/capture-user-feedback", icon: icoHelp }]
+        ? [{ label: "Tutorial", desc: "Get started with Agenta", href: "https://agenta.ai/docs/tutorials/cookbooks/capture-user-feedback", icon: icoHelp, external: true }]
         : []),
-      { label: "Changelog", desc: "See our latest releases", href: "https://agenta.ai/docs/changelog/main", icon: icoHistory },
-      { label: "Roadmap", desc: "See what's coming next", href: "https://agenta.ai/docs/roadmap", icon: icoRoute },
+      { label: "Changelog", desc: "See our latest releases", href: "https://agenta.ai/docs/changelog/main", icon: icoHistory, external: true },
+      { label: "Roadmap", desc: "See what's coming next", href: "https://agenta.ai/docs/roadmap", icon: icoRoute, external: true },
     ],
   },
   {
@@ -114,7 +116,13 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
   <div class="ag-navlinks">
     {
       links.map((l) => (
-        <a class="ag-navlink" href={l.href} style={linkStyle}>
+        <a
+          class="ag-navlink"
+          href={l.href}
+          target={l.external ? "_blank" : undefined}
+          rel={l.external ? "noopener" : undefined}
+          style={linkStyle}
+        >
           {l.label}
         </a>
       ))
@@ -164,6 +172,8 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
     links.map((l) => (
       <a
         href={l.href}
+        target={l.external ? "_blank" : undefined}
+        rel={l.external ? "noopener" : undefined}
         style="display:flex;align-items:center;height:42px;padding:0 12px;border-radius:8px;font:var(--text-body-md);color:rgba(255,255,255,0.78);cursor:pointer;text-decoration:none;"
       >
         {l.label}
