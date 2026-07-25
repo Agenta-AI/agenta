@@ -30,7 +30,10 @@ describe("messageText", () => {
         const message = {
             id: "m1",
             role: "assistant",
-            parts: [{type: "text", text: "ok"}, {type: "tool-search_docs", state: "output-available"}],
+            parts: [
+                {type: "text", text: "ok"},
+                {type: "tool-search_docs", state: "output-available"},
+            ],
         } as unknown as UIMessage
         expect(messageText(message)).toBe("ok")
     })

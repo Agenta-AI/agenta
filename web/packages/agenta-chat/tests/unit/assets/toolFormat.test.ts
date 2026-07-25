@@ -8,7 +8,7 @@ describe("stripFence", () => {
     })
 
     it("leaves inner fenced blocks intact when they don't span the whole string", () => {
-        const value = 'see ```inline``` here'
+        const value = "see ```inline``` here"
         expect(stripFence(value)).toBe(value)
     })
 
