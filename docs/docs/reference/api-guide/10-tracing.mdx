@@ -106,7 +106,7 @@ So a single evaluation run leaves behind one invocation trace per (testcase × s
 
 :::info Most callers don't need this directly
 
-The Agenta SDK and OTel auto-instrumentation handle ingestion for you in the common cases. See [Observability](/observability/overview) for the SDK setup. Use the endpoints below only when you have a custom integration that bypasses the SDK.
+The Agenta SDK and OTel auto-instrumentation handle ingestion for you in the common cases. See [Observability](/1.0/observability/overview) for the SDK setup. Use the endpoints below only when you have a custom integration that bypasses the SDK.
 
 :::
 
@@ -203,7 +203,7 @@ The legacy `/tracing/traces/query` and `/tracing/spans/query` paths are deprecat
 
 ### Ingest spans from your runtime
 
-For programmatic ingestion of nested traces, point any OTel exporter at `POST /otlp/v1/traces`. The Agenta SDK and the OTel auto-instrumentation set this up for you; see [Observability](/observability/overview) for SDK setup, or the [OpenTelemetry exporter documentation](https://opentelemetry.io/docs/specs/otlp/#otlphttp) if you're configuring a raw OTel collector.
+For programmatic ingestion of nested traces, point any OTel exporter at `POST /otlp/v1/traces`. The Agenta SDK and the OTel auto-instrumentation set this up for you; see [Observability](/1.0/observability/overview) for SDK setup, or the [OpenTelemetry exporter documentation](https://opentelemetry.io/docs/specs/otlp/#otlphttp) if you're configuring a raw OTel collector.
 
 ### Record a single annotation
 
