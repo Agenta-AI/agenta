@@ -26,6 +26,12 @@ export const shippedFeatures: ShippedFeature[] = [
   // Evaluation: 86B7FF
   // Integration: FFA500
   // Security: 000000
+  // Agent Builder: BCFF78
+  // Reliability: FF6B6B
+  // Approvals: FFC53D
+  // Multimodality: 5CC8FF
+  // Channels: 2DD4BF
+  // Mobile: F472B6
   {
     id: "playground-evaluation-workbench",
     title: "Evaluate While You Iterate in the Playground",
@@ -462,89 +468,54 @@ export const shippedFeatures: ShippedFeature[] = [
 ];
 export const inProgressFeatures: PlannedFeature[] = [
   {
-    id: "navigation-in-the-playground",
-    title: "Improving Navigation between Testsets in the Playground",
+    id: "durable-sessions",
+    title: "Durable Agent Sessions",
     description:
-      "We are making it easy to use and navigate in the playground with large testsets.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2731",
+      "Keep the full conversation when the process running an agent restarts. The runner rebuilds session history from stored records on a cold start, so an agent resumes exactly where it left off instead of losing or replaying earlier turns.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/issues/5443",
     labels: [
       {
-        name: "Playground",
-        color: "BCFF78",
+        name: "Reliability",
+        color: "FF6B6B",
       },
     ],
   },
   {
-    id: "prompt-snippets",
-    title: "Prompt Snippets",
+    id: "voice-and-attachments",
+    title: "Voice and Attachments",
     description:
-      "Create reusable prompt snippets that can be referenced across multiple prompts. Reference specific versions or always use the latest version to maintain consistency across prompt variants.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2858",
+      "Talk to an agent with voice input, and attach files or drive uploads to a message. Adds input beyond text so agents can work with what the user says and shares, not just typed prompts.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/pull/5439",
     labels: [
       {
-        name: "Playground",
-        color: "BCFF78",
+        name: "Multimodality",
+        color: "5CC8FF",
       },
     ],
   },
   {
-    id: "open-spans-playground",
-    title: "Open Observability Spans Directly in the Playground",
+    id: "batch-tool-approvals",
+    title: "Batch Tool Approvals",
     description:
-      "Add a button in observability to open any chat span directly in the playground. Creates a stateless playground session pre-filled with the exact prompt, configuration, and inputs for immediate iteration.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2862",
+      "Approve or deny several tool calls together in one step, including a deny-all option, instead of handling one approval card at a time. Makes the human-in-the-loop approval flow faster when an agent requests many tools at once.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/issues/5391",
     labels: [
       {
-        name: "Playground",
-        color: "BCFF78",
-      },
-      {
-        name: "Observability",
-        color: "DE74FF",
+        name: "Approvals",
+        color: "FFC53D",
       },
     ],
   },
   {
-    id: "evaluator-playground-updates",
-    title: "Updates to the Evaluator Playground",
+    id: "build-kit-context",
+    title: "A Build Kit That Manages Its Own Context",
     description:
-      "A richer editing experience for LLM-as-a-Judge and other evaluators, with inline test runs and the ability to evaluate evaluators against a labeled test set to measure agreement with ground truth.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/4011",
+      "Give agents with many tools and large tool results a reliable context. Tools are revealed to the model in stages as the toolset grows, and oversized tool outputs are capped so a single large result does not break a long conversation.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/issues/5341",
     labels: [
       {
-        name: "Evaluation",
-        color: "86B7FF",
-      },
-    ],
-  },
-
-  {
-    id: "agents-from-ui",
-    title: "Creating Agents from the UI",
-    description:
-      "Build and configure AI agents directly from the Agenta UI. Define agent workflows, select tools, and set up orchestration logic without writing code. Test and iterate on agent behavior in the playground, then deploy to production with versioning and observability built in.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3705",
-    labels: [
-      {
-        name: "Playground",
-        color: "BCFF78",
-      },
-    ],
-  },
-  {
-    id: "annotation-queue-label-testsets",
-    title: "Annotation Queue to Label Test Sets",
-    description:
-      "Turn annotated traces into labeled test cases directly from an annotation queue. Export reviewed traces with ground-truth labels as a new or existing test set in one action.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/4010",
-    labels: [
-      {
-        name: "Evaluation",
-        color: "86B7FF",
-      },
-      {
-        name: "Observability",
-        color: "DE74FF",
+        name: "Build Kit",
+        color: "FFA500",
       },
     ],
   },
@@ -552,51 +523,68 @@ export const inProgressFeatures: PlannedFeature[] = [
 
 export const plannedFeatures: PlannedFeature[] = [
   {
-    id: "trace-usage-limits",
-    title: "Usage Limits for Traces (Hard and Soft Caps)",
+    id: "channels",
+    title: "Channels: Slack, Telegram, and More",
     description:
-      "Set usage limits for traces at the project level. Configure a hard cap to stop accepting new traces once the limit is reached, or a soft cap to receive an alert while continuing to accept traces. Gives teams cost predictability and control in production.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3784",
+      "Connect an agent to the messaging surfaces people already use. A channel routes an incoming Slack or Telegram message to an agent session and delivers the agent's reply back to that same surface.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/issues/5510",
     labels: [
       {
-        name: "Observability",
-        color: "DE74FF",
+        name: "Channels",
+        color: "2DD4BF",
       },
     ],
   },
-
   {
-    id: "prompt-caching-sdk",
-    title: "Prompt Caching in the SDK",
-    description: "We are adding the ability to cache prompts in the SDK.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2734",
-    labels: [
-      {
-        name: "SDK",
-        color: "DE74FF",
-      },
-    ],
-  },
-
-  {
-    id: "tagging",
-    title: "Tagging Traces, Testsets, Evaluations and Prompts",
+    id: "mobile",
+    title: "Agenta on Mobile",
     description:
-      "We are adding the ability to tag traces, testsets, evaluations and prompts. This is useful for organizing and filtering your data.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2736",
+      "Use the core agent experience from a phone. Chat with an agent, approve or deny tool calls, and browse past runs on a small screen.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/issues/5511",
     labels: [
       {
-        name: "Evaluation",
-        color: "86B7FF",
+        name: "Mobile",
+        color: "F472B6",
       },
     ],
   },
-
-  // Example:
-  // {
-  //   id: "plg-cost-dashboard",
-  //   title: "Cost Dashboard",
-  //   description: "Track token usage and cost across environments and models.",
-  //   githubUrl: "https://github.com/Agenta-AI/agenta/discussions/5678",
-  // },
+  {
+    id: "skill-registry",
+    title: "Skill Registry",
+    description:
+      "Publish a skill once, then browse and install it into any agent, with versioning. Teams reuse skills instead of defining the same one by hand on every agent.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/issues/5512",
+    labels: [
+      {
+        name: "Agent Builder",
+        color: "BCFF78",
+      },
+    ],
+  },
+  {
+    id: "mcp-gateway",
+    title: "MCP Gateway",
+    description:
+      "Reach MCP tools through one managed entry point. MCP servers are registered centrally, and an agent's tool calls route through the gateway with shared authentication and access policy, instead of configuring each server on every agent.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/issues/5513",
+    labels: [
+      {
+        name: "Tools & Triggers",
+        color: "FFA500",
+      },
+    ],
+  },
+  {
+    id: "custom-triggers",
+    title: "Custom Triggers",
+    description:
+      "Start an agent from sources beyond the Composio catalog, including direct webhooks and AI-configured or user-defined events. Triggers today are limited to Composio events; this opens them to custom sources.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/issues/5514",
+    labels: [
+      {
+        name: "Tools & Triggers",
+        color: "FFA500",
+      },
+    ],
+  },
 ];
