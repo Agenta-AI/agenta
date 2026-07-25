@@ -133,7 +133,7 @@
             "env": ["NODE_ENV", "NEXT_PUBLIC_*"]
         },
         "@agenta/mobile#lint": {
-            "inputs": ["src/**/*.ts", "src/**/*.tsx", "eslint.config.*"],
+            "inputs": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "eslint.config.*"],
             "outputs": []
         },
         "@agenta/mobile#types:check": {
