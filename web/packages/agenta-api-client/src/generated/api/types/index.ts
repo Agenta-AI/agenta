@@ -294,7 +294,6 @@ export * from "./MountCredentials.js";
 export * from "./MountCredentialsResponse.js";
 export * from "./MountData.js";
 export * from "./MountEdit.js";
-export * from "./MountFile.js";
 export * from "./MountFileDeletedResponse.js";
 export * from "./MountFileWrittenResponse.js";
 export * from "./MountFlags.js";

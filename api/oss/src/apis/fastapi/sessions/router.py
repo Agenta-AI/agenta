@@ -11,7 +11,15 @@ import re
 from functools import wraps
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.responses import JSONResponse
 from typing import Any, Optional, Union
 
@@ -54,6 +62,7 @@ from oss.src.core.sessions.mounts.dtos import SessionMountQuery
 from oss.src.core.mounts.service import MountsService
 from oss.src.apis.fastapi.mounts.router import handle_mount_exceptions
 from oss.src.apis.fastapi.mounts.utils import (
+    BINARY_RESPONSE,
     download_mount_file,
     sign_mount_credentials,
     upload_mount_file,
@@ -940,6 +949,8 @@ class SessionMountsRouter:
             methods=["GET"],
             operation_id="download_session_mount_file",
             response_model=None,
+            response_class=Response,
+            responses=BINARY_RESPONSE,
             status_code=status.HTTP_200_OK,
         )
 
