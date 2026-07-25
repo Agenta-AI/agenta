@@ -12,6 +12,7 @@ proposed fix.
 | [context.md](context.md) | What breaks for the user today, and why this work exists. |
 | [research.md](research.md) | How credentials flow end to end, what actually expires and when, where credentials are installed into mounts, which refresh mechanisms geesefs supports, and why the fix is safe on both SeaweedFS and real AWS. |
 | [plan.md](plan.md) | The chosen fix, the exact code changes per file, the test plan, and the live QA plan. |
+| [decisions.md](decisions.md) | Every decision the fix embeds, its trade-off, and how to back it out. |
 | [status.md](status.md) | Where this work stands right now. |
 
 ## Domain nouns, one sentence each

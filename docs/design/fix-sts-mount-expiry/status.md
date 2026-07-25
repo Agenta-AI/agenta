@@ -1,6 +1,7 @@
 # Status
 
-**State**: planned and revised, awaiting Mahmoud's approval. No code changes made yet.
+**State**: implemented, live-validated, PR open for Mahmoud's review. Do not merge
+without his approval.
 
 - 2026-07-25: workspace created for issue Agenta-AI/agenta#5516. Research done
   against the pinned versions (geesefs v0.43.0 source, SeaweedFS 4.37 source,
@@ -14,17 +15,34 @@
   installed-credential lease and a required-validity window of one worst-case turn
   in the runner's session pool. Issue directions 1 (EACCES event sniffing) and 4
   (RoleSessionName) deferred; rationale in plan.md.
-- 2026-07-25: plan.md revised after an external design review. The runner half now
-  records the expiry of the credentials actually installed in each mount instead of
-  patching the repark path, lease sufficiency is checked separately from identity,
-  a fixed 60-second clock-skew allowance was added, the STS paths fail closed on a
-  missing expiry, the TTL knob is wired through docker-compose, and the QA numbers
-  were made insensitive to turn timing. The default TTL (3600, measured in
-  production, with in-place refresh as the follow-up if churn hurts) and the source
-  of the validity window (the runner's own run limits plus the fixed skew constant)
-  are settled in the plan.
-- Next: approval of plan.md, then implementation on a GitButler lane with the unit
-  tests and the recorded live QA described there.
-
-One open question remains at the end of plan.md: whether the Daytona harness
-transcript mounts need their own lease entries.
+- 2026-07-25: plan.md revised after an external design review (Codex gpt-5.6-sol
+  at xhigh reasoning; the requested gpt-5.6.10 model is not available on the
+  account). The runner half now records the expiry of the credentials actually
+  installed in each mount instead of patching the repark path, lease sufficiency
+  is checked separately from identity, a fixed 60-second clock-skew allowance was
+  added, the STS paths fail closed on a missing expiry, the TTL knob is wired
+  through docker-compose, and the QA numbers were made insensitive to turn timing.
+- 2026-07-25: implemented (API commit acaa86e288, runner commit 290cfc244b) on
+  the worktree branch `worktree-fix-sts-mount-expiry-5516` (worktree used instead
+  of a GitButler lane, per Mahmoud). Mahmoud decided the one open question from
+  plan.md: the Daytona harness transcript mounts do not get their own lease
+  entries (deferred; argument recorded in decisions.md item 7). A four-angle
+  cleanup review (reuse, simplification, efficiency, altitude) was applied; the
+  register of every decision, including the review-sourced ones, is decisions.md.
+- 2026-07-25: live QA on a dedicated stack deployed from the worktree
+  (SeaweedFS backend). All four phases passed: the bug reproduced on demand with
+  the pre-fix runner (11 consecutive denied turns starting 20 seconds after the
+  120-second lease expired, all warm-continued onto the dead mount), the fixed
+  runner ran the identical cadence with zero denials across eight lease-cycle
+  rebuilds, the `lease-short` warning fired as designed at TTL 60, and a
+  22-minute soak at default settings showed exactly one `credentials-expiring`
+  cold rebuild at the 14-minute mark and no denial (the old behavior broke at
+  minute 15). One extra finding from the reproduction: a write acknowledged at
+  the expiry boundary was silently lost in the geesefs cache flush, so the
+  pre-fix behavior could lose acknowledged data, not just deny access.
+- Remaining follow-ups (not this PR): in-place credential refresh via a
+  container-credentials endpoint if the ~14-minute cold-rebuild cadence of long
+  active conversations proves costly in production (decisions.md item 2), the
+  EE/production deployment repos need the TTL passthrough when the knob should
+  become settable there, per-mount RoleSessionName, and an optional AWS staging
+  pass at TTL 900.
