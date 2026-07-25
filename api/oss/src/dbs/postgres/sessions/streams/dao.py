@@ -141,13 +141,12 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
                 )
                 if flags_filter:
                     stmt = stmt.where(SessionStreamDBE.flags.contains(flags_filter))
-            if filter.search:
+            term = filter.search.strip() if filter.search else ""
+            if term:
                 # Escape LIKE metacharacters so a literal `%`/`_` in the search term
                 # doesn't act as a wildcard.
                 escaped = (
-                    filter.search.replace("\\", "\\\\")
-                    .replace("%", "\\%")
-                    .replace("_", "\\_")
+                    term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
                 )
                 stmt = stmt.where(
                     SessionStreamDBE.name.ilike(f"%{escaped}%", escape="\\")

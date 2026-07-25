@@ -101,7 +101,7 @@ async def test_absent_search_has_no_like_clause(monkeypatch):
 
     sql = str(stmt.compile(compile_kwargs={"literal_binds": True}))
 
-    assert "LIKE" not in sql.upper() or "session_streams.name" not in sql
+    assert "LIKE" not in sql.upper()
 
 
 @pytest.mark.asyncio
@@ -110,7 +110,16 @@ async def test_blank_search_has_no_like_clause(monkeypatch):
 
     sql = str(stmt.compile(compile_kwargs={"literal_binds": True}))
 
-    assert "session_streams.name" not in sql or "LIKE" not in sql.upper()
+    assert "LIKE" not in sql.upper()
+
+
+@pytest.mark.asyncio
+async def test_whitespace_only_search_has_no_like_clause(monkeypatch):
+    stmt = await _run_query(monkeypatch, search="   ")
+
+    sql = str(stmt.compile(compile_kwargs={"literal_binds": True}))
+
+    assert "LIKE" not in sql.upper()
 
 
 # ---------------------------------------------------------------------------------- #
