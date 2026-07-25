@@ -567,3 +567,103 @@ export async function readMountFile({
     const validated = safeParseWithLogging(mountFileContentResponseSchema, data, "[readMountFile]")
     return validated?.content ?? null
 }
+
+/** Fetch the agent's ONE durable mount, keyed by the workflow artifact it belongs to.
+ * Returns `null` when the agent has no mount yet, which is a normal state, not a failure. */
+export async function queryAgentMount({
+    artifactId,
+    projectId,
+    appId,
+    abortSignal,
+}: {
+    artifactId: string
+    projectId: string
+    appId?: string
+    abortSignal?: AbortSignal
+}): Promise<Mount | null> {
+    if (!projectId || !artifactId) return null
+
+    const data = await callFern("[queryAgentMount]", () =>
+        getMountsClient().queryAgentMount(
+            {artifact_id: artifactId},
+            projectScopedRequest(projectId, appId, abortSignal, 1),
+        ),
+    )
+    if (!data) return null
+
+    const validated = safeParseWithLogging(sessionMountsResponseSchema, data, "[queryAgentMount]")
+    return validated?.mounts?.[0] ?? null
+}
+
+/** Raw bytes of one mount file. Returns `null` on failure/missing scope. */
+export async function fetchMountFileBytes({
+    mountId,
+    projectId,
+    appId,
+    abortSignal,
+    path,
+}: Omit<MountFilesParams, "path" | "lowPriority"> & {path: string}): Promise<Blob | null> {
+    if (!projectId || !mountId || !path) return null
+
+    const response = await callFern("[fetchMountFileBytes]", () =>
+        getMountsClient().downloadMountFile(
+            {mount_id: mountId, path},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    if (!response) return null
+
+    return callFern("[fetchMountFileBytes]", () => response.blob())
+}
+
+/** One mount to include in an archive, placed under `prefix/` in the zip. */
+export interface MountArchiveSource {
+    mountId: string
+    /** Where this mount's files land inside the zip. */
+    prefix?: string
+    /** Restrict the export to a sub-path of the mount. */
+    path?: string
+}
+
+/** A zip download that has started but not been read. Callers pick how to consume it: `stream()`
+ * writes to disk without buffering, `blob()` holds the whole archive in memory. Structurally the
+ * Fern binary response, restated here so consumers don't depend on the generated types. */
+export interface MountArchiveDownload {
+    stream: () => ReadableStream<Uint8Array> | null
+    blob: () => Promise<Blob>
+}
+
+/** Start a "download all" zip export across mounts. Returns the unread body, so the caller
+ * chooses between streaming it to disk and buffering it. `null` on failure/missing scope. */
+export async function exportMountFiles({
+    mounts,
+    projectId,
+    appId,
+    abortSignal,
+    filename,
+}: {
+    mounts: MountArchiveSource[]
+    projectId: string
+    appId?: string
+    abortSignal?: AbortSignal
+    filename?: string
+}): Promise<MountArchiveDownload | null> {
+    const sources = mounts.filter((mount) => mount.mountId)
+    if (!projectId || !sources.length) return null
+
+    // maxRetries 0: the backend streams the zip member-by-member, so a mid-stream failure has
+    // already sent 200 headers; a retry would restart a potentially large export, not recover it.
+    return callFern("[exportMountFiles]", () =>
+        getMountsClient().exportMountFiles(
+            {
+                mounts: sources.map((mount) => ({
+                    mount_id: mount.mountId,
+                    prefix: mount.prefix ?? "",
+                    path: mount.path ?? "",
+                })),
+                filename,
+            },
+            projectScopedRequest(projectId, appId, abortSignal, 0),
+        ),
+    )
+}

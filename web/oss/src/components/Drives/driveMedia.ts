@@ -8,14 +8,12 @@
  */
 import {useEffect, useMemo, useState} from "react"
 
-import {type Mount} from "@agenta/entities/session"
+import {exportMountFiles, fetchMountFileBytes, type Mount} from "@agenta/entities/session"
 import {useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {getJWT} from "@/oss/services/api"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {renderPdfFirstPage} from "./pdfThumb"
@@ -51,17 +49,7 @@ export async function fetchMountFileBlob({
     projectId: string
     path: string
 }): Promise<Blob | null> {
-    if (!mountId || !projectId || !path) return null
-    try {
-        // Axios (not Fern): Fern JSON-parses response bodies, mangling binary payloads.
-        const response = await axios.get(`${getAgentaApiUrl()}/mounts/${mountId}/files/download`, {
-            params: {project_id: projectId, path},
-            responseType: "blob",
-        })
-        return response.data as Blob
-    } catch {
-        return null
-    }
+    return fetchMountFileBytes({mountId, projectId, path})
 }
 
 /** One drive file's raw bytes (up to the 25 MB media cap). MEMORY POLICY: a blob lives only
@@ -201,16 +189,7 @@ export async function downloadMountArchive({
     projectId: string | null | undefined
     filename?: string
 }): Promise<{ok: boolean; error?: string; cancelled?: boolean}> {
-    const valid = mounts.filter((m) => m.mountId)
-    if (!valid.length || !projectId) return {ok: false}
-    const payload = {
-        mounts: valid.map((m) => ({
-            mount_id: m.mountId,
-            prefix: m.prefix ?? "",
-            path: m.path ?? "",
-        })),
-        filename,
-    }
+    if (!mounts.some((m) => m.mountId) || !projectId) return {ok: false}
 
     // ─── Streaming-to-disk (Chromium) ────────────────────────────────────────────────────────────
     const showSaveFilePicker = getShowSaveFilePicker()
@@ -228,19 +207,11 @@ export async function downloadMountArchive({
         if (handle) {
             const writable = await handle.createWritable()
             try {
-                const jwt = await getJWT()
-                const url = `${getAgentaApiUrl()}/mounts/files/export?project_id=${encodeURIComponent(projectId)}`
-                const response = await fetch(url, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        ...(jwt ? {Authorization: `Bearer ${jwt}`} : {}),
-                    },
-                    body: JSON.stringify(payload),
-                })
-                if (!response.ok || !response.body) throw new Error(`archive ${response.status}`)
+                const archive = await exportMountFiles({mounts, projectId, filename})
+                const body = archive?.stream()
+                if (!body) throw new Error("archive stream unavailable")
                 // Manual read → write per chunk (pipeTo into a FileSystemWritableFileStream no-ops).
-                const reader = response.body.getReader()
+                const reader = body.getReader()
                 for (;;) {
                     const {done, value} = await reader.read()
                     if (done) break
@@ -257,11 +228,9 @@ export async function downloadMountArchive({
 
     // ─── Buffered fallback (Safari / Firefox / no picker) ─────────────────────────────────────────
     try {
-        const response = await axios.post(`${getAgentaApiUrl()}/mounts/files/export`, payload, {
-            params: {project_id: projectId},
-            responseType: "blob",
-        })
-        const url = URL.createObjectURL(response.data as Blob)
+        const archive = await exportMountFiles({mounts, projectId, filename})
+        if (!archive) throw new Error("archive unavailable")
+        const url = URL.createObjectURL(await archive.blob())
         const anchor = document.createElement("a")
         anchor.href = url
         anchor.download = filename
