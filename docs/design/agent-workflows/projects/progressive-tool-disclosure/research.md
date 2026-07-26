@@ -74,7 +74,7 @@ were ~19% low; the catalog grew.
 
 | Op | Tokens | Note |
 | --- | ---: | --- |
-| `test_run` | 7,777 | embeds the 6,441-token agent-template delta schema; handler-gated |
+| `test_run` | 7,777 | embeds the 6,441-token agent-template delta schema; handler-mode (`callRef`) |
 | `commit_revision` | 6,878 | embeds the **same** 6,441-token delta schema |
 | `query_spans` | 1,578 | filtering DSL `$defs` |
 | others (10 ops) | 2,120 | combined; 7 of them under 400 each |
@@ -87,10 +87,17 @@ Two findings reorder the whole project:
 - **Duplication.** `_build_agent_template_delta_schema()` (`op_catalog.py:317`) is 6,441 tokens and
   is embedded twice — 12,882 of 18,353, i.e. **70% of the bill is one object counted twice.**
 
-`test_run` is handler-based (`handler="tools.agenta.test_run"`) and gated by
-`AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` (default off, `platform_tools.py:36`), so the live
-advertised cost may be 10,576 — in which case `commit_revision` alone is 65% of it. Confirm which
-set advertises live before quoting a headline number.
+All 13 ops advertise by default, so 18,353 is the live figure. `test_run` is handler-based and
+gated by `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS`, but that flag **defaults ON** — unset and empty
+both resolve to enabled, and the resolver skips the op only for an explicit `off`/`false`/`0`
+(`platform_tools.py:41`). Earlier drafts said "default off" and carried an alternate 10,576 figure;
+that was wrong (see [baseline.md](baseline.md)).
+
+**Handler-mode ops take a different execution shape.** `test_run` is the only handler-mode op
+(`_HANDLER_CALL_REFS`, `op_catalog.py:58`). It resolves via `to_call_ref()` to a **`callRef`**, and
+`to_call()` explicitly raises for it (`op_catalog.py:175`). So a platform op is *not* always a
+direct-`call` spec — which breaks the naive disclosure heuristic (seam 5) and the invoker's
+execution path (seam 3).
 
 ### The diet's replacement already exists
 
@@ -111,11 +118,14 @@ changes `input_schema` values in `op_catalog.py` and nothing else.
    (`tools/spec-schema.ts:39`), the single camel/snake accessor — not `spec.inputSchema` directly.
 2. **Private spec index** (`toolSpecsByName`, `public-spec.ts:34`). Must stay COMPLETE — the
    invoker looks the target op up here; execution and the approval gate depend on it.
-3. **Direct-call execution** (`relay.ts:318` → `direct.ts`). The invoker must reach this unchanged,
-   feeding the target op's private `call`. Note `executeAllowedRelayedTool` re-runs
-   `assertRequiredArguments(spec, req.args)` (`relay.ts:369`) — the invoker must pass the **target**
-   spec and the **unwrapped** args, or required-field validation silently degrades to the invoker's
-   loose schema.
+3. **Execution — TWO shapes, not one** (`relay.ts:318` → `executeAllowedRelayedTool`,
+   `relay.ts:361`). Endpoint-mode ops carry a direct `call` and go through
+   `assembleBody` → `directCallUrl` → `callDirect`. Handler-mode ops (`test_run`) carry a
+   **`callRef`** instead and fall through to `callAgentaTool` with `applyContextBindings`. An
+   invoker that only forwards `spec.call` cannot execute `test_run` at all. Note also that
+   `executeAllowedRelayedTool` re-runs `assertRequiredArguments(spec, req.args)` (`relay.ts:369`) —
+   the invoker must pass the **target** spec and the **unwrapped** args, or required-field
+   validation silently degrades to the invoker's loose schema.
 4. **Permission decision — four sites, not one.** This is the project's dominant risk and has its
    own document: **[security.md](security.md)**. In brief: the gates run *upstream of and
    independently from* the relay execution path, each resolving a spec from the advertised name, in
@@ -124,12 +134,20 @@ changes `input_schema` values in `op_catalog.py` and nothing else.
    `effectivePermission` degrade at once — `readOnlyHint`, `specPermission`, name-matched policy
    rules (`ruleMatches`, `permission-plan.ts:214`), and the `allow_reads` default
    (`permission-plan.ts:248`).
-5. **Identifying disclosure-eligible specs.** A platform op is a `callback`-kind spec with a direct
-   `call`. So is a `reference` (workflow) tool (`direct.ts` header). There is no explicit "this is a
-   platform op" marker on `ResolvedToolSpec` today, so the runner cannot cleanly tell a build-kit op
-   from an author's reference tool without one. Two ways out (Open Question 4): a heuristic
-   (collapse all direct-`call` callback specs), or a small marker added by the platform resolver
-   (a wire add).
+5. **Identifying disclosure-eligible specs — harder than it looks.** Platform ops do **not** share
+   one shape: endpoint-mode ops carry a direct `call`, handler-mode `test_run` carries a `callRef`.
+   Meanwhile a `reference` (workflow) tool *also* carries a direct `call`, and a gateway (Composio)
+   tool *also* carries a `callRef`. So neither field identifies a platform op:
+
+   | | direct `call` | `callRef` |
+   | --- | --- | --- |
+   | **platform op** | 12 endpoint-mode ops | `test_run` |
+   | **not a platform op** | author's `reference` tool | gateway (Composio) tool |
+
+   A "collapse all direct-`call` callback specs" heuristic therefore **misses `test_run`** — 7,777
+   tokens, 42% of the bill, the single largest target — while over-collapsing an author's reference
+   tools. There is no explicit "this is a platform op" marker on `ResolvedToolSpec` today. See
+   Open Question 4; the marker is now the recommended route, not the fallback.
 6. **Wire contract mirroring.** If Seam 5 uses a marker, `protocol.ts` + `wire.py` + goldens change
    together (`services/runner/CLAUDE.md`, "The wire contract is mirrored").
 7. **Client tools stay advertised.** `request_connection` / `request_input` must remain

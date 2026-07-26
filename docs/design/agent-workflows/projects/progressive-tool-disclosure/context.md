@@ -12,8 +12,9 @@ Two costs, not one:
 
 - **Tokens.** And they are *concentrated*, not spread. `test_run` (7,777) + `commit_revision`
   (6,878) + `query_spans` (1,578) are **88%** of the bill; the other ten ops are 2,120 tokens
-  combined. One schema object — `_build_agent_template_delta_schema()`, 6,441 tokens, embedded in
-  **both** `test_run` and `commit_revision` — is **70%** on its own.
+  combined. One schema object — `_build_agent_template_delta_schema()`, 6,441 tokens — is embedded
+  in **both** `test_run` and `commit_revision`, so its two copies are 12,882 tokens: **70% of the
+  bill is one object counted twice.**
 - **Reliability.** The internal-tools review
   (`../builder-agent-reliability/tools-review/part-2-internal-tools.md`) found the same tools are a
   *double* cost: "each unused tool is context cost plus a wander target (the capstone showed extra
