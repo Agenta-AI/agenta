@@ -128,6 +128,7 @@
             "env": ["NODE_ENV", "NEXT_PUBLIC_*"]
         },
         "@agenta/mobile#build": {
+            "dependsOn": ["@agenta/shared#build", "@agenta/entities#build", "@agenta/chat#build"],
             "inputs": ["$TURBO_DEFAULT$", "!tests/**", "!**/*.md"],
             "outputs": [".next/**", "!.next/cache/**"],
             "env": ["NODE_ENV", "NEXT_PUBLIC_*"]
@@ -137,6 +138,7 @@
             "outputs": []
         },
         "@agenta/mobile#types:check": {
+            "dependsOn": ["^types:check"],
             "inputs": ["src/**", "next.config.ts", "tsconfig.json"],
             "outputs": []
         },

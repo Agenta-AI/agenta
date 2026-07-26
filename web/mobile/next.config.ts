@@ -9,6 +9,18 @@ const nextConfig: NextConfig = {
     // the app itself owns the prefix (assets, links, and routes all under /m).
     basePath: "/m",
     output: "standalone",
+    // Workspace packages ship TS source (main: ./src/index.ts) — Next must
+    // transpile the full dependency closure (chat → entities/playground/shared;
+    // entities → sdk/api-client/shared/ui). Same mechanism as web/oss.
+    transpilePackages: [
+        "@agenta/sdk",
+        "@agentaai/api-client",
+        "@agenta/shared",
+        "@agenta/ui",
+        "@agenta/entities",
+        "@agenta/playground",
+        "@agenta/chat",
+    ],
     reactStrictMode: true,
     pageExtensions: ["ts", "tsx"],
     productionBrowserSourceMaps: true,

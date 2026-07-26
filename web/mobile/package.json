@@ -20,15 +20,25 @@
         "test:watch": "vitest"
     },
     "dependencies": {
+        "@agenta/chat": "workspace:../packages/agenta-chat",
+        "@agenta/entities": "workspace:../packages/agenta-entities",
+        "@agenta/sdk": "workspace:../packages/agenta-sdk",
+        "@agenta/shared": "workspace:../packages/agenta-shared",
+        "@ai-sdk/react": "3.0.0-beta.153",
+        "@tanstack/react-query": "^5.90.21",
+        "ai": "6.0.0-beta.150",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
+        "jotai": "^2.16.1",
+        "jotai-tanstack-query": "^0.11.0",
         "lucide-react": "^0.479.0",
         "motion": "^12.0.0",
         "next": "15.5.18",
         "radix-ui": "^1.6.2",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
-        "tailwind-merge": "^3.3.1"
+        "tailwind-merge": "^3.3.1",
+        "zod": "^4.3.6"
     },
     "devDependencies": {
         "@eslint/js": "^9.39.4",
