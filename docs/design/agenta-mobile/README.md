@@ -169,6 +169,20 @@ breakdown and grounding facts.
 - Build proof: all three apps (`oss`, `ee`, `mobile`) print a `ƒ Middleware` row after adding
   their respective `src/middleware.ts`, confirming Next 15.5.18 picks up the placement.
 - Zero new tsc signatures in `@agenta/oss` or `@agenta/ee` after wiring the middleware (T2).
+  Scope note from the combined post-execution review: the T6 Playwright spec itself adds 9
+  signatures to the `@agenta/oss` tsc run (TS2307 `@playwright/test` + implicit-any bindings) —
+  the same error class every existing acceptance spec under `tests/playwright/` already
+  produces, because playwright specs are type-checked by the `web/tests` harness, not oss tsc.
+  Accepted as precedented noise; the clean fix (excluding `tests/playwright` in
+  `web/oss/tsconfig.json`) is a separate cleanup, not part of this WP.
+- Combined six-commit review verdict: **approve**. Every code block landed byte-identical to
+  the plan, the desktop matcher regex was independently confirmed correct against the compiled
+  middleware manifest (`/m` and `/m/*` excluded; `/models`-style paths still gated), and the
+  middleware bundle carries only the gate core (no transitive leaks). Two deferred hardening
+  notes for the agenta_cloud PR: make the gate cookies `secure` conditional on the forwarded
+  proto and add `httpOnly` (safe — nothing client-side reads them), and note that EE's first
+  deploy with these commits is the first live `ƒ Middleware` proof for EE (its local build
+  predates the middleware; the file is a byte-twin of the verified OSS one).
 - **T5 live proof** (the load-bearing verification): same standalone binary, two runs, no
   rebuild between them. Flag on (`AGENTA_MOBILE_GATE=true`): mobile UA on `/w` → `307` to `/m/`,
   desktop UA on `/w` → `200`. Same binary, flag unset: mobile UA on `/w` → `200`, no redirect —
