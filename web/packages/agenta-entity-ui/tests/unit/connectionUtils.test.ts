@@ -296,6 +296,37 @@ describe("connectionUtils: harness-filtered model picker", () => {
             ),
         ).toBe(false)
     })
+
+    it("selectedKeepsModel regression: vault model flagged unavailable without secrets, available with them", () => {
+        // Reproduces the false 'model not available' badge: the selectedKeepsModel derivation in
+        // useModelHarness called harnessAllowsModel WITHOUT customSecrets or slug. The function is
+        // correct — the call site was wrong. This test locks that in.
+        const secrets = [
+            {name: "my-bedrock", provider: "bedrock", models: ["custom-bedrock-model-id-123"]},
+        ]
+        // Old call (no secrets) — returns false → badge wrongly showed "model not available"
+        expect(harnessAllowsModel(CAPABILITIES, "claude", "custom-bedrock-model-id-123")).toBe(false)
+        // Fixed call (secrets + slug threaded through) — returns true → badge shows "supports your model"
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "custom-bedrock-model-id-123",
+                secrets,
+                "my-bedrock",
+            ),
+        ).toBe(true)
+        // Slug mismatch → still false (the credential is for a different connection)
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "custom-bedrock-model-id-123",
+                secrets,
+                "other-connection",
+            ),
+        ).toBe(false)
+    })
 })
 
 describe("connectionUtils: model_catalog is preferred when published", () => {
