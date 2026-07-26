@@ -79,7 +79,7 @@ services:
     web-mobile:
         # === ACTIVATION =========================================== #
         profiles:
-            - with-web
+            - with-web-mobile
         # === IMAGE ================================================ #
         image: agenta-ee-dev-web:latest
         # === EXECUTION ============================================ #
