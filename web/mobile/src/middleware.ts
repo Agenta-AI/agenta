@@ -95,5 +95,8 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-    matcher: ["/((?!_next|__env\\.js|.*\\..*).*)"],
+    // The explicit "/" entry is required: with basePath, the bare root
+    // (`/m`, no trailing slash) does not match the `/(...)` capture pattern,
+    // leaving the landing page ungated without it.
+    matcher: ["/", "/((?!_next|__env\\.js|.*\\..*).*)"],
 }
