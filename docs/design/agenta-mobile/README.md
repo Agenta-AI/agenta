@@ -36,7 +36,7 @@ headless chat core shared between desktop and mobile skins).
 | [plans/2026-07-12-wp0-sessions-query-and-stamping.md](./plans/2026-07-12-wp0-sessions-query-and-stamping.md) | WP0 residual plan — **EXECUTED** (see banner: re-audit corrections + execution deltas) |
 | [plans/2026-07-12-wp3a-chat-headless-core.md](./plans/2026-07-12-wp3a-chat-headless-core.md) | WP3a plan — **EXECUTED under copy-extraction** (see banners: strategy change + task mapping) |
 | [plans/2026-07-25-wp1-infra-tail.md](./plans/2026-07-25-wp1-infra-tail.md) | WP1 infra tail (prod image CI, compose, run.sh) — **EXECUTED** (Tasks 1-5, 7); fixed the latent entrypoint crash in the unbuilt mobile image. Only the first `workflow_dispatch` publish (Task 7 runbook) is still pending, and it's post-merge by design |
-| [plans/2026-07-26-wp5-device-gate.md](./plans/2026-07-26-wp5-device-gate.md) | WP5 device gate (flag-gated middleware, both directions) — **READY TO EXECUTE**; default-off, T8 banner-retirement deferred to flag-flip |
+| [plans/2026-07-26-wp5-device-gate.md](./plans/2026-07-26-wp5-device-gate.md) | WP5 device gate (flag-gated middleware, both directions) — **EXECUTED** (Tasks T1-T7); default-off, T8 banner-retirement deferred to flag-flip |
 
 Wave-2 plans (WP2 auth + project drawer, WP3b mobile chat skin, WP4 product pages, WP5 device
 gate) are **deliberately unwritten** — they must be planned against the real wave-1 code and the
@@ -147,6 +147,47 @@ green. Task 5 re-verified (didn't re-add) that mobile lint and `@agenta/chat` un
 already reached by the existing generic CI mechanisms (workflows 11 and 12); only the mobile
 image build and `@agenta/mobile` typecheck needed a new job.
 
+### WP5 device gate — EXECUTED (2026-07-26, 5 commits)
+
+Ships the mobile device gate (design.md "Gate and routing") behind a runtime flag,
+`AGENTA_MOBILE_GATE`, **default off**: with the flag off, request behavior is byte-identical to
+today. `NoMobilePageWrapper` retirement (T8) is specified but deliberately **not executed** —
+it ships only in the deployment window where the flag is actually flipped on. See
+[plans/2026-07-26-wp5-device-gate.md](./plans/2026-07-26-wp5-device-gate.md) for the full task
+breakdown and grounding facts.
+
+| Commit | Content |
+|--------|---------|
+| `cf272e1227` | T1: `@agenta/shared/utils/mobileGate` — pure, framework-free decision core (detection, deep-link maps, cookie semantics, documented exceptions); 27 unit tests in the package's vitest harness |
+| `6b3aaf5654` | T2: `web/oss/src/middleware.ts` + `web/ee/src/middleware.ts` — twin desktop forward-gate adapters (byte-identical, both NEW files) wrapping the shared core |
+| `2df5e4d2a1` | T3: `web/mobile/src/middleware.ts` — reverse-gate middleware carrying a declared verbatim copy of the reverse-gate subset (mobile has zero workspace deps until WP2), new minimal mobile vitest harness, and the "View desktop site" `?view=desktop` escape link on the placeholder page |
+| `7be0b8d528` | T4: plumb `AGENTA_MOBILE_GATE` through dev + gh compose files (default `false`), documented in both dev env examples |
+| `9ac651525f` | T6: self-skipping Playwright UA-emulation smoke (`web/oss/tests/playwright/acceptance/mobile-gate/gate.spec.ts`), 6 tests, skips unless the runner asserts `AGENTA_MOBILE_GATE=true` |
+
+**Verification highlights:**
+
+- Build proof: all three apps (`oss`, `ee`, `mobile`) print a `ƒ Middleware` row after adding
+  their respective `src/middleware.ts`, confirming Next 15.5.18 picks up the placement.
+- Zero new tsc signatures in `@agenta/oss` or `@agenta/ee` after wiring the middleware (T2).
+- **T5 live proof** (the load-bearing verification): same standalone binary, two runs, no
+  rebuild between them. Flag on (`AGENTA_MOBILE_GATE=true`): mobile UA on `/w` → `307` to `/m/`,
+  desktop UA on `/w` → `200`. Same binary, flag unset: mobile UA on `/w` → `200`, no redirect —
+  proving `process.env` in middleware is read at request time on the pinned standalone server,
+  not build-inlined. Also surfaced a **basePath-stripping observation**: at runtime Next strips
+  the `/m` basePath from `nextUrl.pathname` before the mobile middleware handler runs, but the
+  handler normalizes defensively either way (needed for unit tests, which construct
+  `NextRequest` directly and still see the `/m` prefix).
+- **T6 spec self-skip.** `--list` (which does not invoke `global-setup`) confirms the spec
+  discovers exactly the expected 6 tests. A real (non-`--list`) run against this worktree with
+  no stack running was attempted to observe the runtime skip directly, but `global-setup`
+  unconditionally authenticates against `AGENTA_WEB_URL` before any per-test `test.skip` logic
+  runs, so it fails with `ERR_CONNECTION_REFUSED` rather than reporting `6 skipped` — exactly the
+  fallback the plan anticipated. With the flag confirmed unset in the runner env (the CI
+  default), the `test.skip(!gateEnabled, ...)` predicate is proven to evaluate `true`, so the
+  6-skipped outcome is correct by construction; observing it as a live Playwright report is an
+  operator step against a running stack (flag-on run is likewise an operator step — see Open
+  items below).
+
 ## Resume runbook (from here)
 
 1. **Plan wave-2** against the real code (WP2 auth/drawer → WP3b skin → WP4 pages → WP5 gate).
@@ -201,6 +242,14 @@ pnpm dev-mobile   # → http://localhost:3000/m, check light+dark
 - **Design-doc staleness:** `docs/designs/sessions/**` predates the streams-merge/turns model;
   don't trust it over the code. The memory file `project_agenta_mobile_discovery` (assistant
   memory) mirrors this handoff.
+- **WP5 device gate flag-flip runbook (not yet run):** once WP2 (mobile auth) and WP4 (product
+  pages) are live, per deployment: set `AGENTA_MOBILE_GATE=true` in that deployment's env file,
+  recreate the `web`/`web-mobile` services, run the T6 Playwright smoke
+  (`web/oss/tests/playwright/acceptance/mobile-gate/gate.spec.ts`) against it to confirm 6
+  passed, then land T8 (the prepared, not-yet-executed `NoMobilePageWrapper` retirement commit)
+  from [plans/2026-07-26-wp5-device-gate.md](./plans/2026-07-26-wp5-device-gate.md). T8 remains
+  **specified but unexecuted** in that plan by design — it is coupled to this flip, not to WP5
+  landing.
 
 ## Follow-up tracks (post-wave-1, explicitly out of scope for now)
 
