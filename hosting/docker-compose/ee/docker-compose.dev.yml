@@ -90,6 +90,7 @@ services:
         command: sh -c 'echo "AGENTA_MOBILE_GATE=$${AGENTA_MOBILE_GATE:-false}" > /app/mobile/.env.development.local && pnpm dev-mobile'
         # === STORAGE ============================================== #
         volumes:
+            - ../../../web/packages:/app/packages
             - ../../../web/mobile/src:/app/mobile/src
             - ../../../web/mobile/public:/app/mobile/public
             - nextjs-mobile-cache:/app/mobile/.next/cache
