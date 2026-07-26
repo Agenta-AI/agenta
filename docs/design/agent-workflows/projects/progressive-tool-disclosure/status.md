@@ -55,28 +55,54 @@ Recorded so the reasoning is not re-litigated:
 - **New finding not in the first draft:** name-matched **policy rules** silently stop matching.
   `ruleMatches` (`permission-plan.ts:214`) compares `gate.toolName` exactly, so any rule written
   against an op name (`commit_revision: ask`, `remove_schedule: deny`) falls through to the default
-  once calls arrive as `agenta_op`. It does not error.
+  once calls arrive as `agenta_op`. It does not error. *Fix: carry the target's name into the gate,
+  so existing rules keep matching and no operator rewrites a policy.*
+- **"Disclosure inevitably breaks permission" — overstated.** Every failure mode in security.md is
+  fixable by re-resolving the target; the risk is that the fix must land correctly in four
+  fail-closed sites, not that the approach is unsound. security.md now frames them as failure modes
+  to design against, and requires a single shared resolver so there is one implementation instead of
+  four. *(Raised by CodeRabbit, 2026-07-26.)*
+- **Handler flag "default off" — wrong, corrected.** It defaults **on**; see "Closed since the last
+  revision" below. *(Raised by CodeRabbit, 2026-07-26.)*
+- **Direct-`call` eligibility heuristic — wrong, rejected.** It misses handler-mode `test_run`, the
+  largest single target; the marker is now the rule. See below. *(Raised by CodeRabbit, 2026-07-26.)*
+- **`agenta_ops` "flat regardless of catalog size" — imprecise.** The *advertised prompt cost* is
+  flat; the *result payload* is O(n) and must be bounded/filterable. design.md corrected.
 
 ## Open questions
 
-**Blocking Slice 3 only — none block the diet.**
+**All of these gate the Slice 3 decision. None gate Slices 1–2 (the diet) — start those now.**
 
-1. **Prompt caching (blocking the Slice 3 decision).** Are these tokens billed every turn, or cached
-   after the first? Nothing in the runner sets or inspects cache behavior. This sets the ROI of
-   everything past the diet. *Owner: needs a measurement on a real run.*
-2. **Live advertised set.** Does `test_run` advertise with `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS`
-   off (default)? If not, the live bill is 10,576 and Slice 1's win is ~6,900, not ~12,900.
-3. **Wander evidence.** Is there measured evidence that tool *count* causes run failures? The
+1. **Prompt caching.** Are these tokens billed every turn, or cached after the first? Nothing in the
+   runner sets or inspects cache behavior. This sets the ROI of everything past the diet.
+   *Owner: needs a measurement on a real run.*
+2. **Wander evidence.** Is there measured evidence that tool *count* causes run failures? The
    internal-tools review asserts it; the meta-toolset's whole remaining case rests on it.
-4. **M2 vs Lever B.** M2 (dynamic real-name advertisement) keeps real names in front of every gate
+3. **M2 vs Lever B.** M2 (dynamic real-name advertisement) keeps real names in front of every gate
    and so dissolves most of security.md. Is its mid-session re-registration cheaper than four-site
    gate surgery? Compare at the decision point, not after building Lever B.
-5. **Disclosure-eligible identification** (Slice 3 only) — heuristic vs a `source:"platform"` marker.
-   *Recommendation: heuristic for the flagged POC; marker before default-on.*
-6. **Invoker shape** (Slice 3 only) — one `agenta_op` with describe/execute modes, or two tools?
+4. **Invoker shape** — one `agenta_op` with describe/execute modes, or two tools?
    *Recommendation: one.*
+
+## Closed since the last revision
+
+- **Live advertised set — CLOSED.** All 13 ops advertise by default.
+  `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` **defaults ON** (`platform_tools.py:41`: unset → `True`,
+  empty → enabled; only an explicit `off`/`false`/`0` disables). The "default off" claim and its
+  10,576 alternate figure came from the 2026-07-17 investigation and were **wrong**. 18,353 is the
+  live number and Slice 1's win is the full ~12,900.
+- **Disclosure-eligible identification — CLOSED, and the earlier recommendation was wrong.** The
+  proposed "collapse all direct-`call` callback specs" heuristic **misses `test_run`**, which is
+  handler-mode and resolves to a `callRef` (`op_catalog.py:175`) — 7,777 tokens, 42% of the bill,
+  the largest single target. A direct-`call` rule also over-collapses an author's `reference` tools.
+  **Decision: the `source:"platform"` marker is the eligibility rule**, and it moves into Slice 3 as
+  a prerequisite rather than a post-POC follow-up.
 
 ## Next action
 
-Answer open questions 1 and 2 (both are measurements on a real run, both cheap), then start
-**Slice 1** — it is not blocked by either.
+**Start Slice 1 (the schema diet) now.** No open question gates it: the live-set question is closed
+(all 13 ops advertise, so the full ~12,900 win is real), and the caching question only affects
+whether Slice 3 is worth doing at all.
+
+Run the caching measurement (open question 1) in parallel, on its own timeline — it feeds the
+Slice 3 decision point, not the diet.

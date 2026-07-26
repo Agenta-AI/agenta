@@ -12,7 +12,7 @@ stripped), matching `advertisedToolSpec()` in `services/runner/src/tools/public-
 
 | op | total | schema | descr | note |
 | --- | ---: | ---: | ---: | --- |
-| `test_run` | 7,777 | 7,593 | 163 | handler-gated; write |
+| `test_run` | 7,777 | 7,593 | 163 | handler-mode (`callRef`), advertised by default; write |
 | `commit_revision` | 6,878 | 6,713 | 147 | write |
 | `query_spans` | 1,578 | 1,463 | 96 | read |
 | `create_schedule` | 425 | 351 | 56 | write |
@@ -34,10 +34,23 @@ stripped), matching `advertisedToolSpec()` in `services/runner/src/tools/public-
 2. **One schema object is 70% of the bill.** `_build_agent_template_delta_schema()`
    (`sdks/python/agenta/sdk/agents/platform/op_catalog.py:317`) is **6,441 tokens** and is embedded
    **twice** — in `commit_revision` and in `test_run`. That is 12,882 of 18,353.
-3. **`test_run` may not be live.** It is handler-based (`handler="tools.agenta.test_run"`, no
-   `method`/`path`) and gated by `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS`, default off
-   (`sdks/python/agenta/sdk/agents/platform/platform_tools.py:36`). With handlers off the live
-   advertised cost is **10,576**, of which `commit_revision` alone is 65%.
+3. **All 13 ops are live by default — 18,353 is the real number.** `test_run` is handler-based
+   (`handler="tools.agenta.test_run"`, no `method`/`path`) and gated by
+   `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS`, but that flag **defaults ON**
+   (`sdks/python/agenta/sdk/agents/platform/platform_tools.py:41`):
+
+   ```python
+   if value is None: return True   # unset -> ENABLED
+   return value.strip().lower() not in _DISABLED_ENV_VALUES
+   ```
+
+   Unset *and* empty both mean enabled; the resolver skips the op only for an explicit `off` /
+   `false` / `0` (`_DISABLED_ENV_VALUES`). The resolver's own log line says "explicitly disabled".
+
+   > **Correction.** Drafts before 2026-07-26 (and the 2026-07-17 investigation they came from)
+   > claimed "default off" and carried a 10,576-token alternate figure. That was wrong. There is no
+   > alternate figure: `test_run` advertises unless someone opts out, so its 7,777 tokens — 42% of
+   > the bill — are real, and Slice 1's win is the full ~12,900.
 
 ## Consequence for slicing
 

@@ -68,7 +68,10 @@ Stop advertising N op schemas. Advertise a small fixed meta-toolset; keep the op
 **private** in runner memory; move each op's schema from the *prompt* into a *tool result*.
 
 - **`agenta_ops(query?)`** — the op catalog as a compact list: `{op, one_line, read_only}`, no input
-  schemas. A few hundred tokens, flat regardless of catalog size.
+  schemas. The **advertised prompt cost is flat** regardless of catalog size — that is the win. The
+  *result* is O(n) in the catalog (~200 tokens at today's 13 ops, ~15/op), so it must be bounded:
+  `query` filters, results are capped at a hard limit, and the response states when it truncated.
+  Without a cap, a large catalog reintroduces the same cost one layer down.
 - **`agenta_op(op, args?)`** — the generic invoker. No `args` (or `mode:"describe"`) returns one
   op's `inputSchema` as a tool result; with `args` it executes that op.
 
@@ -88,39 +91,74 @@ is the pattern Claude Code uses on its own tools: names listed, schema loaded on
    conversation, in a far less cache-friendly position than a stable tool-definition prefix.
    Without Lever A first, disclosure can cost *more* across a real build session.
 
+## One shared target resolver (required)
+
+Four separate sites need to answer "which op is this really?", and a site that gets it wrong fails
+**open** (see [security.md](security.md)). Four independent implementations of a security-sensitive
+lookup is the wrong shape.
+
+**Requirement:** define exactly one runner-side primitive —
+`resolveDisclosedTarget(toolName, args, specsByName)` — that
+
+1. returns `undefined` unless `toolName` is the invoker (so non-disclosed calls are untouched),
+2. validates `args.op` against the same fixed spec map every gate already uses, returning
+   `undefined` (→ fail closed) for anything unknown or malformed,
+3. returns the canonical `{spec, gateName, args}` triple the caller builds its `GateDescriptor`
+   from.
+
+All four gate sites and the invoker's dispatch consume that one result. No site re-implements the
+lookup. This is what makes "resolve the target" a single reviewable, single-testable change instead
+of four chances to fail open.
+
 ## Execution path for `agenta_op(op, args)`
 
-1. **Resolve the target.** Look up `op` in `toolSpecsByName`. Unknown → tool error listing valid
-   ops (recoverable), and fail closed at every gate.
+1. **Resolve the target** via the shared primitive above. Unknown → tool error listing valid ops
+   (recoverable), and fail closed at every gate.
 2. **Describe mode** → return the target's resolved input schema. No side effects, no approval.
-3. **Execute mode** → resolve the permission gate from the **target** op's spec at all four sites
-   (see security.md), run `decide()`, then `assertRequiredArguments(target, innerArgs)` followed by
-   `assembleBody` → `directCallUrl` → `callDirect`, exactly as `executeRelayedTool` does now.
-4. **Return** the endpoint response verbatim.
+3. **Execute mode** → build the permission gate from the **target** spec at all four sites, run
+   `decide()`, then `assertRequiredArguments(target, innerArgs)`.
+4. **Dispatch on the target's shape — there are two.** Reuse the `executeRelayedTool` core rather
+   than reimplementing either branch:
+   - **Endpoint-mode** (12 ops, direct `call`) → `assembleBody` → `directCallUrl` → `callDirect`.
+   - **Handler-mode** (`test_run`, `callRef`) → `applyContextBindings` → `callAgentaTool`.
+
+   An invoker that forwards only `spec.call` cannot run `test_run` at all.
+5. **Return** the response verbatim.
 
 ## Why execution itself is safe by construction
 
-Execution reads the **private** spec (research seams 2–3), so feeding the target's private `call`
-into the unchanged `direct.ts` path preserves:
+Execution reads the **private** spec (research seams 2–3), so dispatching the target through its
+own unchanged execution branch preserves:
 
-- **Self-targeting.** `assembleBody` still fills `call.context` (`$ctx.*`) last, so
+- **Self-targeting, endpoint-mode.** `assembleBody` still fills `call.context` (`$ctx.*`) last, so
   `commit_revision` still binds `$ctx.workflow.variant.id`; the model cannot retarget. Those fields
   were stripped at resolve time and are re-applied below the invoker.
-- **SSRF guard.** `directCallUrl` host-locks to the run's Agenta origin.
+- **Self-targeting, handler-mode.** `test_run` binds `target.workflow_variant_id` through
+  `applyContextBindings` on the `callAgentaTool` branch — a different mechanism, equally below the
+  invoker. Both branches must be covered by the `$ctx` test in security.md, not just the first.
+- **SSRF guard.** `directCallUrl` host-locks to the run's Agenta origin (endpoint-mode);
+  `callAgentaTool` posts back through Agenta's own `/tools/call` so the secret stays server-side
+  (handler-mode).
 
 Permission is the part that is **not** free. It is designed in, not inherited — see security.md.
 
 ## Identifying the disclosure-eligible set
 
-A platform op is a `callback`-kind spec with a direct `call`; so is a `reference` (workflow) tool.
-No explicit marker exists today (research seam 5).
+**Revised 2026-07-26.** The earlier draft recommended a "collapse every direct-`call` callback spec"
+heuristic for the POC. That rule is wrong: platform ops do not share one shape (research seam 5).
 
-- **Heuristic (zero wire change).** Collapse every direct-`call` callback spec. Risk: an author's
-  `reference` tool gets disclosed too. Acceptable for a flagged POC.
-- **Marker (small wire add).** The platform resolver stamps `source:"platform"`; the runner
-  collapses exactly that group. Costs `protocol.ts` + `wire.py` + goldens.
+- `test_run` is **handler-mode** — it resolves to a `callRef`, not a `call` (`op_catalog.py:175`).
+  A direct-`call` heuristic **skips it**, leaving 7,777 tokens (42% of the bill, the largest single
+  target) advertised. The POC would miss most of its own goal.
+- Conversely, an author's `reference` tool carries a direct `call` and a gateway tool carries a
+  `callRef`, so both fields over-collapse in the other direction.
 
-Recommendation: heuristic for the POC, marker before default-on.
+**Decision: use the marker.** The platform resolver stamps `source:"platform"` (or a `disclosable`
+group tag) on the resolved spec; the runner collapses exactly that group. Costs a `protocol.ts` +
+`wire.py` + golden change — small, and it is the only rule that is actually correct. It also lets us
+disclose gateway/reference groups later on purpose rather than by accident.
+
+The heuristic is retained only as a documented non-option, so it is not re-proposed.
 
 ## The catalog summary (`agenta_ops`)
 

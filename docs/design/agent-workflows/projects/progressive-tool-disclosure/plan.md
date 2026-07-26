@@ -13,22 +13,26 @@ mechanism is a separately-justified follow-up.
 - Playground platform ops only; no saved-agent change; no committed-agent behavior change.
 - Each slice leaves the tree working and testable.
 
-## Slice 0 — Baseline ✅ tokens done, 2 gaps open
+## Slice 0 — Baseline ✅ done (does not block Slice 1)
 
 1. ~~Measurement script + per-op table.~~ **Done** — [baseline.md](baseline.md), measured
    2026-07-26: 18,353 total, top 3 ops = 88%, one duplicated schema object = 70%.
-2. **OPEN — confirm the live advertised set.** `test_run` is handler-gated
-   (`AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS`, default off). Resolve the overlay in a real run and
-   record whether it advertises. If not, the live figure is 10,576 and `commit_revision` alone is
-   65% of it.
-3. **OPEN — answer prompt caching.** Nothing in the runner sets or inspects cache behavior; the
-   harnesses own it. Determine whether these tokens are billed per turn or only on the first. This
-   directly sets the ROI of Slice 3 and should be answered before it is scheduled.
-4. Add a runner unit test asserting today's behavior: every resolved platform op appears in
-   `advertisedToolSpecs(plan.toolSpecs)`. The invariant Slice 3 would intentionally flip.
+2. ~~Confirm the live advertised set.~~ **Done — all 13 ops advertise by default.**
+   `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` **defaults ON** (unset and empty both enable;
+   `platform_tools.py:41`), so `test_run` is live and 18,353 is the real figure. Earlier drafts said
+   "default off" with a 10,576 alternate — deleted as wrong.
+3. **OPEN — answer prompt caching (blocks the Slice 3 decision only, not Slice 1).** Nothing in the
+   runner sets or inspects cache behavior; the harnesses own it. Determine whether these tokens are
+   billed per turn or only on the first.
+4. Add a **resolution-path** test, not a projection test. `advertisedToolSpecs` is a pure
+   `specs.map(...)`, so "every input appears in the output" is a tautology that can never detect a
+   missing op. Instead exercise platform resolution/materialization with
+   `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` explicitly **on** and explicitly **off**, and assert the
+   resulting live advertised set (13 ops with it on/unset, 12 with it disabled). That is the
+   invariant Slice 3 would intentionally flip.
 
-**Exit:** live-set and caching questions answered in baseline.md; the "all platform ops advertised
-today" test passes on `main`.
+**Exit:** items 1–2 recorded in baseline.md ✅; the resolution-path test passes on `main`. Item 3 is
+tracked to the Slice 3 decision point and is **not** a gate on Slices 1–2.
 
 ## Slice 1 — Diet the duplicated agent-template schema (the main win)
 
@@ -71,26 +75,39 @@ If those do not hold, close the project after Slice 2 and record why.
 
 ## Slice 3 — Discovery meta-toolset (only if the gate above opens)
 
-Flagged, default off.
+Behind a new disclosure feature flag, default off. (Unrelated to
+`AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS`, which defaults *on* — see Slice 0.)
 
 1. Add the flag/env that turns disclosure on for a run.
-2. Disclosure transform at the two advertisement call sites (`pi-assets.ts:353`,
-   `environment.ts:721`): replace disclosure-eligible specs with `agenta_ops` + `agenta_op`; keep
-   client tools and everything else advertised. `plan.toolSpecs` / `toolSpecsByName` stay complete.
-   Register the invoker into `piToolSpecsByName` too, or the Pi gate fails closed on it.
-3. **Permission work — the bulk of this slice.** Teach all four gate sites to resolve the target
-   from `args.op` and validate it against the known spec map:
+2. **Add the `source:"platform"` marker** — the eligibility rule, and a prerequisite, not a
+   follow-up. The platform resolver stamps it; `protocol.ts` + `wire.py` + goldens change together
+   (research seam 6). The previously-planned "collapse all direct-`call` callback specs" heuristic
+   is **rejected**: `test_run` is handler-mode (`callRef`), so the heuristic would skip the single
+   largest target while over-collapsing an author's reference tools (design.md, "Identifying the
+   disclosure-eligible set").
+3. Build the **shared resolver** `resolveDisclosedTarget(toolName, args, specsByName)` first, with
+   its own unit tests (security.md, "Required: one shared resolver"). Everything below consumes it;
+   no site re-implements the lookup.
+4. Disclosure transform at the two advertisement call sites (`pi-assets.ts:353`,
+   `environment.ts:721`): replace marked specs with `agenta_ops` + `agenta_op`; keep client tools
+   and everything else advertised. `plan.toolSpecs` / `toolSpecsByName` stay complete. Register the
+   invoker into `piToolSpecsByName` too, or the Pi gate fails closed on it.
+5. **Permission work — the bulk of this slice.** Wire the shared resolver into all four gate sites:
    `relay-guard.ts:53`, `acp-interactions.ts:516` (Claude), `acp-interactions.ts:456` (Pi),
-   `extensions/agenta.ts:318` (in-sandbox). Keep `grant()`/`consume()` keying consistent. Read
+   `extensions/agenta.ts:318` (in-sandbox). Each must carry the **target's** name into the gate so
+   op-name policy rules keep matching, and `grant()`/`consume()` must key consistently. Read
    [security.md](security.md) before writing any of it.
-4. Invoker dispatch: `agenta_ops` returns `{op, one_line, read_only}` built runner-side;
-   `agenta_op` describe-mode returns one op's schema; execute-mode re-runs
-   `assertRequiredArguments` against the **target** spec, then reuses the `executeRelayedTool` core.
-5. Tests — the full list in security.md ("Required test coverage"), per mutating op, on **both**
+6. Invoker dispatch: `agenta_ops` returns a **bounded, filterable** `{op, one_line, read_only}` list
+   built runner-side (capped, and it says so when truncated); `agenta_op` describe-mode returns one
+   op's schema; execute-mode re-runs `assertRequiredArguments` against the **target** spec, then
+   dispatches on the target's shape — `call` → the direct branch, `callRef` → `callAgentaTool` —
+   reusing the `executeRelayedTool` core for both.
+7. Tests — the full list in security.md ("Required test coverage"), per mutating op, on **both**
    harness paths. Minimum: same verdict as a direct call; `allow_reads` still distinguishes read
    from write; name-based policy rules still match; approvals do not cross ops; `$ctx` still binds
-   server-side; describe-mode is inert; unknown `op` fails closed everywhere.
-6. Add the one-line nudge to the `build-an-agent` skill.
+   server-side on **both** execution branches; `test_run` is disclosed *and* executable;
+   describe-mode is inert; unknown `op` fails closed everywhere.
+8. Add the one-line nudge to the `build-an-agent` skill.
 
 **Exit:** flag on → a lab run completes discover → wire → commit → schedule using only the
 meta-tools; every test in security.md passes; `tsc` + `pnpm test` green in `services/runner`.
@@ -107,6 +124,7 @@ meta-tools; every test in security.md passes; `tsc` + `pnpm test` green in `serv
 ## Not in this plan
 
 - **Op-set curation** — dropped (capability regression for ~5%; see design.md alternatives).
-- Marker-based eligibility (Slice 3 uses the heuristic).
+- The direct-`call` eligibility heuristic — rejected as incorrect (misses handler-mode `test_run`);
+  the marker moved *into* Slice 3 as a prerequisite.
 - Disclosing gateway/code/client/MCP tools.
 - M2 implementation — but it must be *compared* at the decision point.
