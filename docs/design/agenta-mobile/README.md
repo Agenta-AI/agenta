@@ -65,6 +65,10 @@ What works right now: `cd web && pnpm dev-mobile` → http://localhost:3000/m re
 shell (light+dark from the bridged palette); `pnpm build-mobile` produces a standalone server;
 `pnpm --filter @agenta/mobile lint` enforces the bans + token sync; the dev compose stacks have
 a routable `web-mobile` service (needs a dev-image rebuild to pick up the Dockerfile changes).
+Opt-in in dev too: `run.sh --dev --with-mobile` (originally it rode `with-web` and auto-started,
+but a live dev run showed the second Next dev server pushes an 8GB Docker VM into OOM-killing
+the main web app's first big Turbopack compile — dmesg-confirmed `next-server` kills at ~4.5GB
+RSS. Running both dev servers comfortably wants a 12GB+ VM).
 
 ### WP0 residual — COMPLETE (2026-07-25, 9 commits, all dual-reviewed)
 
