@@ -179,14 +179,35 @@ const MD_COMPONENTS = {code: CodeBlock, pre: PreUnwrap}
  * (the streaming one), its already-settled parts — a reasoning block, text before a tool call —
  * keep the same `content` string, so this skips re-parsing + re-running Prism on them each token.
  * (Settled messages don't re-render at all; the stable-`onRewind` fix handles those.) */
-// Anchor component ensures all markdown-rendered links open in a new tab safely.
-// Only forward real anchor attributes — XMarkdown/html-react-parser also pass internal
-// props (`domNode`, `node`, `streamStatus`, …) that would leak onto the DOM element.
-const Anchor = ({href, children, title, className}: any) => (
-    <a href={href} title={title} className={className} target="_blank" rel="noopener noreferrer">
-        {children}
-    </a>
-)
+/** A link target that must stay a plain external link: any `scheme:` URL (http, https, mailto, tel,
+ * data, …), a protocol-relative `//host`, or an in-page `#fragment`. Everything else is a RELATIVE
+ * path, which might name a file in this conversation's drive. */
+const isExternalHref = (href?: string): boolean =>
+    !href || /^([a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)
+
+// Anchor: real URLs open in a new tab (as before). A RELATIVE path that names a file in this
+// conversation's drive resolves to the SAME in-Files chip as an inline-code mention — issue #5481:
+// nested / `NN-name/` paths get emitted as markdown links, which bypassed the file resolver and were
+// forced to a new tab; now they route through the same resolver (`renderCode`), and anything it can't
+// confirm as a file falls back to this plain link (label preserved). Only forward real anchor attrs —
+// XMarkdown/html-react-parser also pass internal props (`domNode`, `node`, `streamStatus`, …).
+const Anchor = ({href, children, title, className}: any) => {
+    const sessionId = useDriveSessionId()
+    const link = useAtomValue(chatFileLinkAtomFamily(sessionId ?? ""))
+    const external = (
+        <a
+            href={href}
+            title={title}
+            className={className}
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            {children}
+        </a>
+    )
+    if (link && !isExternalHref(href)) return <>{link.renderCode(href, external)}</>
+    return external
+}
 
 const Markdown = ({content, className}: {content: string; className?: string}) => (
     <XMarkdown

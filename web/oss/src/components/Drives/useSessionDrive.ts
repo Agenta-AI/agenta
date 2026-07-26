@@ -37,6 +37,12 @@ export const fileOrigin = (path: string): FileOrigin => {
     return rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`) ? "agent" : "session"
 }
 
+/** The bare `agent-files` entry at the cwd top level is the fold-point SYMLINK to the agent mount,
+ * not a real file — its content is surfaced folded under `agent-files/` (full drive) or counted
+ * (summary). So the symlink row itself must never appear in a file/recents list; only its contents,
+ * carried via the agent mount, do. One predicate so every list drops it the same way. */
+export const isAgentFilesFold = (path: string): boolean => cleanPath(path) === AGENT_FILES_DIR
+
 /** True when a listing holds BOTH agent and session files — the only time the origin tags/filter
  * carry information (a single-origin drive doesn't need them). */
 export const driveHasMixedOrigins = (files: {path: string}[]): boolean => {
@@ -147,7 +153,7 @@ export function useSessionDrive(
     const structural = useMemo(() => {
         const listing = filesQuery.data ?? null
         const cwdStats = driveFileStats(listing)
-        const cwdFiles = cwdStats.files.filter((f) => cleanPath(f.path) !== AGENT_FILES_DIR)
+        const cwdFiles = cwdStats.files.filter((f) => !isAgentFilesFold(f.path))
 
         // Agent-mount files, presented under `agent-files/` so they read as a subfolder of cwd.
         const agentListing = agentFilesQuery.data ?? null
@@ -368,7 +374,7 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
         // Newest write/edit per path (the map already dedups by path, keeping the latest timestamp).
         const recordRecents: DriveRecentFile[] = [...recordRecency.entries()]
             .map(([toolPath, at]) => ({path: cleanPath(toolPath), touchedAt: at}))
-            .filter((f) => f.path && !isInternalDrivePath(f.path))
+            .filter((f) => f.path && !isInternalDrivePath(f.path) && !isAgentFilesFold(f.path))
             .sort((a, b) =>
                 b.touchedAt !== a.touchedAt
                     ? b.touchedAt - a.touchedAt
