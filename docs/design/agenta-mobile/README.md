@@ -195,6 +195,16 @@ breakdown and grounding facts.
   the `/m` basePath from `nextUrl.pathname` before the mobile middleware handler runs, but the
   handler normalizes defensively either way (needed for unit tests, which construct
   `NextRequest` directly and still see the `/m` prefix).
+- **Live QA found two gate defects the review missed (both fixed):** (1) Turbopack's DEV
+  middleware sandbox exposes only `.env`-file vars, not the container's process env, so
+  `AGENTA_MOBILE_GATE` read `undefined` in `next dev` even with the container env set — dev
+  compose commands now mirror the flag into `.env.development.local` at container start
+  (prod standalone is unaffected; T5's runtime-read proof stands). (2) With `basePath`, the
+  bare root `/m` never matched the `"/((?!...).*)"` matcher (the root strips to an empty
+  string), leaving the landing page ungated in BOTH dev and prod — the matcher now carries an
+  explicit `"/"` entry. Unit tests construct `NextRequest` directly and bypass Next's matcher
+  layer entirely, which is why 27+8 green tests missed it; only a live end-to-end probe
+  caught both. Desktop twins are unaffected (no basePath; `/` 308s into gated `/w`).
 - **T6 spec self-skip.** `--list` (which does not invoke `global-setup`) confirms the spec
   discovers exactly the expected 6 tests. A real (non-`--list`) run against this worktree with
   no stack running was attempted to observe the runtime skip directly, but `global-setup`
