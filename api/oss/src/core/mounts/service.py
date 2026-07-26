@@ -54,6 +54,11 @@ _MOUNTS_NAMESPACE = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "mounts")
 # The single session-bound mount: the agent's durable working directory.
 _SESSION_CWD_NAME = "cwd"
 
+# The name the runner symlinks the agent mount into the cwd as (runner: `AGENT_FILES_LINK_NAME`).
+# geesefs degrades that symlink to a 0-byte OBJECT of the same name in the cwd store, so archiving
+# must skip it (see `build_archive_work_list`) — its real content comes from the folded agent mount.
+_AGENT_FILES_LINK_NAME = "agent-files"
+
 # Default TTL (seconds) for signed mount credentials. Covers the mount lifetime for a
 # turn; geesefs holds the creds without refresh, so a turn outliving this hits ExpiredToken.
 _CREDENTIALS_TTL_SECONDS = 3600
@@ -1158,6 +1163,15 @@ class MountsService:
                     )
                     continue
                 zip_path = "/".join([*pfx_segments, *rel_segments])
+                # Skip the cwd mount's `agent-files` fold marker. The runner symlinks the agent mount
+                # into the cwd as `agent-files/`, but geesefs degrades that symlink to a 0-byte OBJECT
+                # named `agent-files`. Archived as a FILE it collides with the `agent-files/` DIRECTORY
+                # the folded agent-mount source contributes (passed as its own mount, prefix
+                # "agent-files"); on extraction the file blocks the directory and the agent's files are
+                # lost. The FE display filters the same marker (`isAgentFilesFold`); mirror it here so
+                # the real content survives.
+                if zip_path == _AGENT_FILES_LINK_NAME:
+                    continue
                 work.append((zip_path, obj.key, obj.size or 0, obj.mtime))
 
         return work

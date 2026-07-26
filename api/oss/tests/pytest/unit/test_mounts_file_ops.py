@@ -377,6 +377,34 @@ class TestArchiveZipSlip:
         assert zip_paths == ["a/report.txt"]
 
 
+@pytest.mark.asyncio
+class TestArchiveAgentFilesFold:
+    async def test_agent_files_fold_marker_is_skipped(self):
+        # geesefs degrades the runner's `agent-files` symlink to a 0-byte OBJECT named `agent-files`
+        # in the cwd store. Archived as a FILE it collides with the `agent-files/` DIRECTORY the folded
+        # agent mount contributes, so on extraction the file blocks the directory and the agent's files
+        # are lost. The bare marker must be skipped; real files and any `agent-files/…` content ship.
+        mount = _make_mount()
+        storage = FakeMountStorage()
+        service = MountsService(
+            mounts_dao=_StubDAO(mount),
+            mounts_store=storage,
+            bucket=_BUCKET,
+        )
+        mount_base = service._storage_key(project_id=mount.project_id, mount=mount)
+        bucket_store = storage._store.setdefault(_BUCKET, {})
+        for key in ["notes.md", "agent-files", "agent-files/keep.txt"]:
+            bucket_store[f"{mount_base}{key}"] = b"x"
+
+        work = await service.build_archive_work_list(
+            project_id=mount.project_id,
+            mounts=[MountArchiveSource(mount_id=mount.id)],
+        )
+
+        zip_paths = {zip_path for zip_path, *_rest in work}
+        assert zip_paths == {"notes.md", "agent-files/keep.txt"}
+
+
 # ---------------------------------------------------------------------------
 # Roundtrip
 # ---------------------------------------------------------------------------
