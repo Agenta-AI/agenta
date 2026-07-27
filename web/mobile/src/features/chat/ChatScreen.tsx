@@ -70,15 +70,15 @@ export const ChatScreen = ({
     }
 
     return (
-        <div className="bg-background text-foreground flex min-h-dvh flex-col">
+        <div className="bg-background text-foreground flex h-dvh flex-col">
             <ChatHeader sessionId={sessionId} projectId={projectId} workspaceId={workspaceId} />
             {running ? (
-                <div className="border-border flex items-center justify-between border-b px-4 py-2">
+                <div className="border-border flex shrink-0 items-center justify-between border-b px-4 py-2">
                     <span className="text-primary text-xs">A turn is running</span>
                     <StopButton sessionId={sessionId} projectId={projectId} />
                 </div>
             ) : null}
-            {body}
+            <div className="flex flex-1 flex-col overflow-y-auto overscroll-contain">{body}</div>
         </div>
     )
 }

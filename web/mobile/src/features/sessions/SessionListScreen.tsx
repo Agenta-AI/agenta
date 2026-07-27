@@ -8,6 +8,7 @@ import {SessionSearchBar} from "./SessionSearchBar"
 import {SessionListEmpty, SessionListError, SessionListLoading} from "./states/SessionListStates"
 import {pendingCountBySession, useActionableInteractions} from "./useActionableInteractions"
 import {livenessBySession, useLivenessPoll} from "./useLivenessPoll"
+import {useSessionListScrollRestore} from "./useSessionListScrollRestore"
 import {useSessionsInfinite} from "./useSessionsInfinite"
 
 /** Sessions list: server-side search, id+activity cursor paging, archived rows hidden. */
@@ -26,6 +27,7 @@ export const SessionListScreen = ({
     }, [input])
 
     const query = useSessionsInfinite(projectId, search)
+    const scroll = useSessionListScrollRestore(projectId, !query.isPending)
     const liveness = useLivenessPoll(projectId)
     const liveBadges = useMemo(() => livenessBySession(liveness.data), [liveness.data])
     const interactions = useActionableInteractions(projectId)
@@ -86,8 +88,8 @@ export const SessionListScreen = ({
     }
 
     return (
-        <div className="bg-background text-foreground flex min-h-dvh flex-col">
-            <div className="border-border flex flex-col gap-2 border-b p-4">
+        <div className="bg-background text-foreground flex h-dvh flex-col">
+            <div className="border-border flex shrink-0 flex-col gap-2 border-b p-4">
                 <SessionSearchBar value={input} onChange={setInput} />
                 {pendingTotal > 0 ? (
                     <p className="text-primary text-xs">
@@ -95,7 +97,13 @@ export const SessionListScreen = ({
                     </p>
                 ) : null}
             </div>
-            {body}
+            <div
+                ref={scroll.ref}
+                onScroll={scroll.onScroll}
+                className="flex flex-1 flex-col overflow-y-auto overscroll-contain"
+            >
+                {body}
+            </div>
         </div>
     )
 }
