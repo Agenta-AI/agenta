@@ -1,0 +1,362 @@
+---
+slug: "top-6-techniques-to-manage-context-length-in-llms"
+title: "Top techniques to Manage Context Lengths in LLMs"
+description: "Overcome LLM token limits with 6 practical techniques. Learn how you can use truncation, RAG, memory buffering, and compression to overcome the token limit and fit the LLM context window."
+category: Article
+date: 2025-07-16
+readingTime: "10 min read"
+heroImage: /blog/top-6-techniques-to-manage-context-length-in-llms/hero.webp
+ogImage: /blog/top-6-techniques-to-manage-context-length-in-llms/hero.webp
+author: mahmoud-mabrouk
+featured: false
+tags: ["Article"]
+---
+
+When building applications with Large Language Models (LLMs), one of the first limitations developers encounter is the context window. This often-overlooked concept can drastically impact your app’s performance, accuracy, and reliability especially as your prompts, user inputs, and data grow in size.
+
+## So, what is a context window?
+
+<InlineCTA />
+
+At a high level, the context window defines the maximum number of tokens an LLM can process in a single request including both the input and the generated output.
+
+When building your application, key parameters like `<strong>max_input_tokens</strong>` and `<strong>max_output_tokens</strong>` help you manage this budget:
+
+- `max_input_tokens`: caps your prompt’s size.
+- `max_output_tokens`: limits the model’s response length.
+
+Critically, these values are interdependent:
+
+**(input tokens + output tokens) ≤ context window size**. If your input consumes 90% of a 128K-token window, output is confined to the remaining 10% — provided neither exceeds any hard-capped max_input_tokens or max_output_tokens parameters you've set earlier.
+
+**Below are context window lengths of some widely known LLMs**
+
+<table><tbody><tr><th><strong>LLM</strong></th><th><strong>Context Window (Tokens)</strong></th></tr><tr><td>Gemini 2.5 Pro</td><td>2M</td></tr><tr><td>o3</td><td>200k</td></tr><tr><td>Claude 4</td><td>200k</td></tr><tr><td>Grok 4</td><td>256k</td></tr></tbody></table>
+
+## But what exactly is a "token"?
+
+Tokens are the fundamental units of text that LLMs process. Tokens don’t align perfectly with words, they can include parts of words, spaces and punctuation. For example, the word "transformer" might split into "trans" + "former" (2 tokens).
+
+Tokenization is unpredictable: the same text can require vastly different numbers of tokens depending on formatting, symbols, or language. For instance:
+
+- **Simple text** (e.g., plain English) tends to be token-efficient.
+- **Structured data** (random numbers, code, spreadsheets) often consumes disproportionately more tokens due to symbols, spacing, or syntax.
+
+This means data-heavy inputs can silently eat up your context window, leaving little room for outputs.
+
+## Why Managing the Context Window Matters ?
+
+Managing the context window is essential. If your input exceeds the model’s token limit, the response will fail with an error indicating that the context length is too long.
+
+To ensure your application functions properly and reliably, you need to manage the context window in a way that allows your prompts and user inputs to fit within the model’s token limit. That’s the baseline for getting any response at all.
+
+However, managing the context window is not always straightforward. A naive approach such as simply truncating the input can lead to serious issues. You may accidentally remove important information causing the model to miss key details for the response. This can reduce accuracy and introduce hallucinations.
+
+Even when your content fits within the allowed token count, you can still face problems like the lost-in-the-middle effect. LLMs tend to weigh the beginning and end of the prompt more heavily: this is known as primacy and recency bias. As a result, important context placed in the middle may be undervalued by the model.
+
+Ultimately, context window management is not just about getting under the limit. It’s about extracting and structuring the right information so that the model performs well. The goal is to include not less—so nothing critical is left out—and not more—so the model doesn’t get overwhelmed or distracted. The sweet spot is providing just enough relevant context for the LLM to deliver useful, accurate results.
+
+In this article we will cover the top 6 techniques that can help you effectively manage the context window in your LLM powered app
+
+## 1. Truncation
+
+Truncation is the most straightforward way to manage the context window. The idea is simple: if your input is too long, just cut off the excess tokens until it fits.
+
+**How It Works:**
+
+Truncation involves two main steps:
+
+1. **Determine the model’s maximum input token limit** `# User-defined: Reserve space for output
+context_window = 128000 # GPT-4o total
+max_output_tokens = 4000 # Your desired response length
+max_input_tokens = context_window - max_output_tokens # 124K`
+2. **Compute the number of tokens in your input and trim it if necessary**
+
+To count the number of your users’ input tokens, you can use Litellm’s **token_counter**. This helper function returns the number of tokens for a given input.
+
+It takes as arguments the input and the model which it uses to determine the corresponding tokenizer, and defaults to tiktoken if no model-specific tokenizer is available.
+
+(Check the docs for more information: [https://github.com/BerriAI/litellm/blob/main/docs/my-website/src/pages/token_usage.md](https://github.com/BerriAI/litellm/blob/main/docs/my-website/src/pages/token_usage.md))
+
+```python
+from litellm import token_counter, encode, decode
+messages = [{"role": "user", "content": "Hey, how's it going"}]
+print(token_counter(model="gpt-4-turbo", messages=messages))
+```
+
+```python
+from litellm import token_counter, encode, decode
+
+def truncate_text(text: str, model: str, max_input_tokens: int) -> str:
+    tokens = encode(model, text)  # Model-specific tokenization
+    if len(tokens) > max_input_tokens:
+        truncated_tokens = tokens[:max_input_tokens]
+        return decode(model, truncated_tokens)
+    return text
+```
+
+A simple yet powerful enhancement to the truncation method is to distinguish between must-have and optional context elements.
+
+- Must-have content: includes things like the current user message, core instructions, or system prompts, anything the model absolutely needs to understand the task.
+- Optional content: could be prior conversation history, extended metadata, or examples—things that are helpful, but not essential.
+
+With this approach, you can always include the must-haves and then append optional items only if there’s space left in the context window after tokenization. This allows you to take advantage of available room without risking an error or losing critical input.
+
+**Pros and Cons:**
+
+- Pros: Simple to implement, works with any LLM and a low computational overhead.
+- Cons: No semantic awareness and dumb truncation loses context: risk of cutting critical info which may lead to less accurate or unreliable responses.
+
+**References:**
+
+There are many implementations of truncation algorithms you can use such as:
+
+- [https://docs.litellm.ai/docs/completion/message_trimming](https://docs.litellm.ai/docs/completion/message_trimming)
+- [https://python.langchain.com/docs/concepts/text_splitters/](https://python.langchain.com/docs/concepts/text_splitters/)
+
+## 2. Routing to Larger Models
+
+Rather than trimming your input, another simple solution is to route large requests to a model with a larger context window.
+
+**How It Works:**
+
+1. **Check Token Count**: Calculate the total tokens in your input (prompt + content).
+2. **Model Selection**: If the content fits within a smaller/cheaper model (e.g., Llama 3’s 8K), use it.
+3. If not, fall back to larger models (e.g., GPT-4 Turbo’s 128K → Claude 3’s 200K → Gemini 1.5’s 2M).
+4. **Seamless Switching**: Libraries like **LiteLLM** let you swap models with a single line change (no vendor-specific code).
+
+It offers:
+
+- **A Unified API**: Call the same `completion()` function for all models (OpenAI/Anthropic/Gemini).
+- **Automatic Routing**: Configure fallbacks in one place (e.g., `fallbacks=["gpt-4-turbo", "claude-3-opus"]`).
+- **Cost-Efficient**: Avoid paying for large models when smaller ones suffice.
+
+**Pros and Cons:**
+
+- Pros: Preserves full context (no data loss), add new models easily.
+- Cons: Higher costs for large-context models, latency varies across providers.
+
+## 3. Memory Buffering
+
+Memory buffering stores and organizes past conversations so the LLM remembers key details (decisions, reasons, constraints) without overloading the context window. This technique is mainly relevant to chat applications.
+
+Let’s say you’re building an investment assistant app where users can discuss multi-step strategies over weeks, reference past decisions, adjust plans based on new data. In this case memory buffering can be the method to go as it can help remember the nuanced reasoning behind user-made choices, and build upon it later.
+
+**How it works:**
+
+- Stores raw interactions temporarily.
+- Periodically summarizes them (e.g., every 10 messages).
+- Preserves critical entities (names, dates, decisions, constraints etc).
+
+**Code example:**
+
+```python
+from langchain.chains import ConversationChain
+from langchain.memory import ConversationSummaryBufferMemory
+from langchain.llms import OpenAI
+# Memory auto-saves after each interaction
+conversation = ConversationChain(
+llm=OpenAI(),
+memory=ConversationSummaryBufferMemory(llm=OpenAI(), max_token_limit=1000)
+)
+user_input = … #get user input
+response = conversation.run(user_input)
+```
+
+**Pros and Cons:**
+
+- Pros: Context preservation, adaptive summarization, customizable retention.
+- Cons: Short-term memory only (limited to the last few interactions.), not scalable: can't handle large documents or long histories, increased latency compared to stateless interactions.
+
+## 4. Hierarchical Summarization
+
+Hierarchical summarization condenses long documents into layered summaries (like a pyramid) to preserve key information while minimizing tokens
+
+Let’s say you want to build a conversational system, for your system to be powerful and reliable you want it to remember past discussions and manage the history of conversations so it provides contextualized answers for your users. Hierarchical summarization can be your go to in this use case.
+
+**How it works:**
+
+- The process starts by dividing the input text into smaller chunks, such as paragraphs, sections, or documents.
+- Each chunk is then summarized individually ⇒ These are the first level of the hierarchy
+- The summaries from the previous level are then combined and summarized again, creating a higher-level summary.
+- This process can be repeated multiple times, creating a hierarchy of summaries with each level representing a more condensed view of the input.
+
+**Code example:**
+
+```python
+from transformers import pipeline
+# Initialize summarization pipeline
+summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+def hierarchical_summarize(text, levels=3, max_length=150):
+	for _ in range(levels):
+		text = summarizer(text, max_length=max_length)[0]['summary_text']
+	return text
+Usage:
+long_document = "..."  # Your input text/ retrieve conversation history 
+final_summary = hierarchical_summarize(long_document, levels=3)
+```
+
+**Pros and Cons:**
+
+- Pros: Efficient long-context handling, flexible granularity (allows querying different levels of detail), scalable
+- Cons: Cumulative Error Risk (errors in early summaries propagate through layers), latency overhead, domain sensitivity (works best with structured documents while poor fit for chaotic content)
+
+## 5. Context Compression
+
+While summarization creates new sentences (and therefore might introduce a hallucination risk), compression keeps the original phrasing but removes redundancy (which may be safer for precision).
+
+- What it does: Automatically shrinks long documents by removing filler words, redundant phrases, and non-essential clauses while preserving key info. This can result in a 40-60% token reduction
+- How it works: typical compression techniques Extract entities and relationships from documents/ conversations.
+- Build a knowledge graph out of them.
+- The context provided to the LLM can include the most recent messages in the conversation along with relevant facts synthesized from the knowledge graph.
+
+**Code example:**
+
+```python
+from langchain.chains import ConversationChain
+from langchain.chat_models import ChatOpenAI
+from langchain.memory import ConversationKGMemory
+from langchain.llms import OpenAI
+# Initialize the language model
+llm = ChatOpenAI(temperature=0, model_name="gpt-4")
+# Create the knowledge graph memory
+kg_memory = ConversationKGMemory(llm=llm,return_messages=True,
+k=5  # number of recent interactions to keep alongside the KG summary
+)
+# Set up a conversation chain that uses the KG memory
+conversation = ConversationChain(llm=llm,memory=kg_memory,verbose=True)
+```
+
+**Pros and Cons:**
+
+- Pros: Saves token usage, Maintains continuity (older info stays accessible), faster processing (Smaller input size → faster LLM response times)
+- Cons: Information loss risk (with over-agressive compression), compression quality dependent
+
+## 6. RAG (Retrieval-Augmented Generation)
+
+Retrieval-Augmented Generation (RAG) is a powerful strategy for managing the context window by retrieving only the most relevant information at query time, instead of trying to fit an entire document, history, or dataset into the prompt.
+
+**How it works:**
+
+The general workflow for RAG is as follows:
+
+1. Chunk and embed your source data (documents, chat history, etc.)
+2. Store the embeddings in a vector store
+3. At runtime, embed the current query and retrieve the top relevant chunks from the store
+4. Inject the retrieved chunks into the LLM prompt and run inference
+
+When a query arrives, RAG searches your knowledge base, retrieves just the top-matched chunks, and feeds only those to the LLM. For example, querying a 100-page legal contract with RAG might inject just 3 key clauses into the prompt (avoiding truncation while slashing token costs.)
+
+**Code example:**
+
+Below is a simplified example of how to implement RAG using LangChain with OpenAI and FAISS as the vector store.
+
+```python
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.vectorstores import FAISS
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.chat_models import ChatOpenAI
+from langchain.chains import RetrievalQA
+from langchain.document_loaders import TextLoader
+# Step 1: Load and split your documents
+loader = TextLoader("your_data.txt")
+documents = loader.load()
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+docs = text_splitter.split_documents(documents)
+# Step 2: Embed and store in vector DB
+embeddings = OpenAIEmbeddings()
+vectorstore = FAISS.from_documents(docs, embeddings)
+# Step 3: Set up the retrieval-augmented QA chain
+retriever = vectorstore.as_retriever()
+llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
+qa_chain = RetrievalQA.from_chain_type(llm=llm,retriever=retriever,
+																			return_source_documents=True)
+# Step 4: Ask a question
+query = "What are the main benefits of RAG?"
+result = qa_chain.run(query)
+print(result)
+```
+
+**Pros and Cons:**
+
+- Pros: Retrieves only the most relevant context, dynamic and up-to-date, scales well to large data sources.
+- Cons: Retrieval dependency (Garbage in → garbage out), setup complexity, latency introduced by the retrieval step.
+
+> ***For more information about RAG, check out our guides about how to***[***improve RAG applications***](/blog/top-10-techniques-to-improve-rag-applications)***and***[***how to evaluate them***](/blog/how-to-evaluate-rag-metrics-evals-and-best-practices)
+
+## How to Select the Right Context Management Strategy?
+
+There is no universal best method for managing context in LLM applications. the optimal approach depends on your application's characteristics, performance needs, and cost constraints. Selecting the right strategy involves balancing trade-offs between fidelity, latency, and complexity. Some key factors to consider when deciding which technique to use are:
+
+- Interaction Style
+- Information Precision
+- Latency Sensitivity
+- Cost Constraints
+
+Below are some recommendations/ guidelines to help you decide:
+
+**1. IF your app needs accurate, sourced answers (e.g., Q&A, research tools):**
+
+→ **USE Retrieval-Augmented Generation (RAG)**
+
+- *Best when*: You have reference documents and want to avoid hallucinations.
+
+**2. IF users have long, multi-session conversations (e.g., coaching bots, assistants):**
+
+→ **USE Memory Buffering**
+
+- *Best when*: Conversations span days/weeks and require recalling past details.
+
+**3. IF processing very long texts (e.g., books, legal contracts):**
+
+→ **USE Hierarchical Summarization**
+
+- *Best when*: Documents are structured (chapters/sections) and need progressive condensation.
+
+**4. IF token costs are too high (e.g., using o3 ):**
+
+→ **USE Context Compression**
+
+- *Best when*: Inputs contain fluff (logs, transcripts) that can be trimmed.
+
+**5. IF speed is critical (e.g., real-time customer support):**
+
+→ **COMBINE RAG + Compression**
+
+- *Best when*: You need fast, sourced answers without excessive tokens.
+
+**6. IF working with sensitive/regulated content (e.g., legal, medical):**
+
+→ **USE RAG with Exact Retrieval (no summarization)**
+
+*Best when*: Every word matters—avoid compression/summarization risks.
+
+**Final Advice: Test Rigorously:**
+
+As emphasized earlier, there is no one-size-fits-all solution. To find the optimal strategy, You need to **experiment with different strategies and see which one it works.** i.e. you need to create a test set with test cases that overflow your context window and then evaluate the outputs with different strategies.
+
+### Try it yourself: Agenta
+
+We've explored various strategies for managing the context window. How can you validate a technique and make sure it works before putting it in production?
+
+You need to create test cases that overflow your context window and evaluate and compare the outputs with different strategies.
+
+For this you need an LLM evaluation platform.
+
+Agenta is an [open-source LLMOps platform](https://github.com/agenta-ai/agenta) that provides you with all the tools to manage this. With Agenta, you can:
+
+1. **Rapidly prototype and test** different prompt designs, memory configurations, and strategies all in one place.
+2. **Build Real-World Test Cases** [Create evaluation scenarios](https://docs.agenta.ai/evaluation/create-test-sets) using *your own data*
+3. [Test across different LLMs](https://docs.agenta.ai/prompt-engineering/playground/adding-custom-providers) (GPT-4, Claude, Llama, etc.)
+4. Simulate edge cases that challenge context limits
+5. [**Evaluate rigorously**](https://docs.agenta.ai/evaluation/overview) using built-in and custom metrics to make sure what you are putting into production works
+
+#### [Get started with Agenta](/) References:
+
+- [Lost in the Middle: How Language Models Use Long Contexts](https://arxiv.org/pdf/2307.03172)
+- [LLM Context Windows: Why They Matter and 5 Solutions for Context Limits](https://www.kolena.com/guides/llm-context-windows-why-they-matter-and-5-solutions-for-context-limits/)
+- [Context Window Management Strategies](https://apxml.com/courses/langchain-production-llm/chapter-3-advanced-memory-management/context-window-management)
+- [How do I handle context window limitations when using semantic search with LLMs](https://milvus.io/ai-quick-reference/how-do-i-handle-context-window-limitations-when-using-semantic-search-with-llms)
+- [What is retrival augmented generation (ambersearch)](https://ambersearch.de/en/what-is-retrieval-augmented-generation/)
+- [Building Long-Term memories using hierarchical summarization](https://pieces.app/blog/hierarchical-summarization#:~:text=Hierarchical%20summarization%20in%20the%20AI%20space%20is,the%20process%20to%20create%20summaries%20of%20summaries.&text=This%20allows%20Pieces%20to%20quickly%20find%20top%2Dlevel,relevant%20context%20to%20send%20to%20the%20LLM)
+- [Enhancing LLM Context with Recursive Summarization Using Python](https://github.com/xbeat/Machine-Learning/blob/main/Enhancing%20LLM%20Context%20with%20Recursive%20Summarization%20Using%20Python.md)

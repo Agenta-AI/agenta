@@ -1,0 +1,67 @@
+---
+slug: "july-2025-product-updates"
+title: "July 2025 Product Updates"
+description: "Product updates for July 2025. Adding tool and image support to the LLM playground to improve your prompt engineering flow, new observability integrations, and feedback endpoint to capture evaluations from your end-users"
+category: Article
+date: 2025-08-07
+readingTime: "5 min read"
+heroImage: /blog/july-2025-product-updates/hero.webp
+ogImage: /blog/july-2025-product-updates/hero.webp
+author: mahmoud-mabrouk
+featured: false
+tags: ["Product Updates"]
+---
+
+Here's what's new in July 2025 (and the last couple of months):
+
+<InlineCTA />
+
+### Tool support in the playground:
+
+<iframe src="https://www.youtube.com/embed/SGqHOJf7tb8?iv_load_policy=3&rel=0&modestbranding=1&playsinline=1&autoplay=0&mute=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+We released tool usage in the [Agenta playground](https://docs.agenta.ai/prompt-engineering/playground/using-the-playground) - a key feature for anyone building agents with LLMs.
+
+Agents need tools to access external data, perform calculations, or call APIs. Now you can:
+
+- Define tools directly in the playground using JSON schema
+- Test how your prompt generates tool calls in the playground and simulate the response
+- Run evaluation and test whether calls are done correctly with custom evaluators
+
+The tool schema is saved with your prompt configuration, making integration easy when you fetch configs through the API.
+
+### Image support in the playground:
+
+<iframe src="https://www.youtube.com/embed/QCwhLRAYLuo?iv_load_policy=3&rel=0&modestbranding=1&playsinline=1&autoplay=0&mute=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+Agenta now supports images in the [playground](https://docs.agenta.ai/prompt-engineering/playground/using-the-playground), [test sets](https://docs.agenta.ai/evaluation/create-test-sets), and [evaluations](https://docs.agenta.ai/evaluation/overview). This enables a systematic workflow for developing and testing applications that use vision models. Now you can:
+
+- Add images directly to your prompts when experimenting in the playground.
+- Create and manage test sets that include image inputs alongside text.
+- Run evaluations on prompts designed to process images, allowing for systematic comparison of different prompt versions or models.
+
+### User feedback API:
+
+One of the recurring feature requests we had was the ability to [capture user feedback and annotations (e.g. scores) to LLM responses](https://docs.agenta.ai/tutorials/cookbooks/capture-user-feedback) traced in Agenta.
+
+As of now you can use the annotation API to add annotations to LLM responses traced in Agenta. Now you can:
+
+- Collect user feedback on LLM responses
+- Run custom evaluation workflow
+- Measure application performance in real-time
+
+Check out the how to annotate traces from API for more details. Or try our [new tutorial](https://docs.agenta.ai/tutorials/cookbooks/capture-user-feedback) (available as [jupyter notebook](https://github.com/Agenta-AI/agenta/blob/main/examples/jupyter/capture_user_feedback.ipynb)).
+
+### New integrations to Observability
+
+We've added integrations to [OpenAI Agents SDK](https://docs.agenta.ai/observability/integrations/openai-agents), [PydanticAI](https://docs.agenta.ai/observability/integrations/pydanticai), [LangGraph](https://docs.agenta.ai/observability/integrations/langgraph) and [LLamaIndex](https://docs.agenta.ai/observability/integrations/llamaindex) with more to come.
+
+### Rewrite to the self-hosting docs
+
+Self-hosting Agenta used to be a hassle. We've restructured the logic, reworked the environment variables and [rewritten the docs](https://docs.agenta.ai/self-host/quick-start).
+
+Now you can self-host Agenta very easily in all scenarios, whether you're [using a different port](https://docs.agenta.ai/self-host/quick-start#using-a-custom-port), [using HTTPS](https://docs.agenta.ai/self-host/guides/using-ssl), or [running behind nginx](https://docs.agenta.ai/self-host/guides/deploy-remotely#option-2-deploy-with-nginx) - we've got you covered.
+
+As the LLMs say, that's a wrap for today.
+
+We're planning a major launch week culminating with a Product Hunt launch in the beginning of October. Lots of exciting updates soon!

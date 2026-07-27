@@ -27,7 +27,7 @@ import {
     Warning,
 } from "@phosphor-icons/react"
 import {Button, Popconfirm, Select, Typography} from "antd"
-import {useAtomValue} from "jotai"
+import {atom, useAtomValue} from "jotai"
 
 import {useHasChangedUnder, useRevertUnder} from "../../../drawers/shared/ChangedPathsContext"
 import {useFocusPaths, useHasFocusUnder} from "../../../drawers/shared/FocusPathsContext"
@@ -42,6 +42,7 @@ import {
     harnessAllowsModel,
     harnessSupportsUserMcp,
     modelIdFromConfig,
+    modelLabel,
     providerForModel,
     vaultModelGroups,
     vaultPickedProviderFamily,
@@ -57,6 +58,11 @@ import {SandboxPermissionControl} from "../SandboxPermissionControl"
 import {enumLabel} from "./agentTemplateUtils"
 import ProviderCredentialsSection from "./ProviderCredentialsSection"
 import {useBuildKit} from "./useBuildKit"
+
+// Only assert "needs a key" once the vault query has resolved (an array). While it's pending,
+// `standardSecretsAtom` returns the static provider catalog with empty keys, so a reload would
+// flash a false "Connect key" warning on the section, rail item, and config-panel row.
+const vaultLoadedAtom = atom((get) => Array.isArray(get(vaultSecretsQueryAtom).data))
 
 type PermissionPolicy = "allow_reads" | "allow" | "ask" | "deny"
 
@@ -193,10 +199,9 @@ export function useModelHarness({
     const capabilities = harnessRefKey ? capabilitiesFromCatalog : null
     const mcpSupported = harnessSupportsUserMcp(capabilities, harnessValue)
 
-    // The vault query backs `vaultLoaded` below (gates the "needs a key" flag) and the custom_provider
-    // model groups (`vaultModelGroups`); connections themselves are always the project default now,
-    // so there is no named-connection list here.
-    const vaultQuery = useAtomValue(vaultSecretsQueryAtom)
+    // Narrowed to the loaded flag (all this hook reads) — the raw query atom churns identity on
+    // every fetch-state flip during boot.
+    const vaultLoaded = useAtomValue(vaultLoadedAtom)
 
     const modeOptions = useMemo(
         () => allowedConnectionModes(capabilities, harnessValue),
@@ -226,10 +231,6 @@ export function useModelHarness({
             ) ?? null
         )
     }, [standardSecrets, selectedProviderFamily])
-    // Only assert "needs a key" once the vault query has resolved (an array). While it's pending,
-    // `standardSecretsAtom` returns the static provider catalog with empty keys, so a reload would
-    // flash a false "Connect key" warning on the section, rail item, and config-panel row.
-    const vaultLoaded = Array.isArray(vaultQuery.data)
     // Self-managed agents never need a vault key — the harness signs itself in. Neither does a
     // named custom-provider connection (agenta mode with a slug): it carries its own credentials,
     // so a missing STANDARD vault key for the family is not this connection's problem.
@@ -365,8 +366,13 @@ export function useModelHarness({
         [harness, setSection],
     )
 
+    // Prefer the harness catalog's label ("Sonnet") over the stored id ("sonnet"), so the summary
+    // names the model the way the picker did.
     const modelSummary =
-        [enumLabel(harnessProps.kind, harness.kind), enumLabel(props.llm, modelId)]
+        [
+            enumLabel(harnessProps.kind, harness.kind),
+            modelLabel(capabilities, harnessValue, modelId) ?? enumLabel(props.llm, modelId),
+        ]
             .filter(Boolean)
             .join(" · ") || undefined
 
@@ -819,16 +825,20 @@ export function useModelHarness({
         </>
     )
 
-    const modelHarnessDrawerBody = capabilities ? (
-        <div className="flex h-full min-h-0 gap-6">
-            <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
-                {modelHarnessControls}
+    // The two-panel layout (controls + version-history aside) is DRAWER chrome. Under a focus filter
+    // this same body renders INLINE in the config panel (the "what changed" view), where the version
+    // history and its fixed-width aside don't belong — drop to a single column of the narrowed controls.
+    const modelHarnessDrawerBody =
+        capabilities && !focus.active ? (
+            <div className="flex h-full min-h-0 gap-6">
+                <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+                    {modelHarnessControls}
+                </div>
+                <div className="w-[240px] shrink-0 overflow-y-auto">{versionHistorySkeleton}</div>
             </div>
-            <div className="w-[240px] shrink-0 overflow-y-auto">{versionHistorySkeleton}</div>
-        </div>
-    ) : (
-        <div className="flex h-full flex-col gap-3 overflow-y-auto">{modelHarnessControls}</div>
-    )
+        ) : (
+            <div className="flex h-full flex-col gap-3 overflow-y-auto">{modelHarnessControls}</div>
+        )
 
     // Advanced header summary: sandbox only now — mode UI moved to the Provider credentials section.
     const advancedSummary = sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined
@@ -1035,7 +1045,13 @@ export function useModelHarness({
 
     // The stacked sections carry their own dividers; drop the trailing one on whichever section
     // renders last (they're conditional, so target the last child rather than a fixed section).
-    const advancedDrawerBody = (
+    // Same as Model & harness: the version-history aside is drawer chrome; under a focus filter this
+    // body renders inline in the panel, so drop to a single column of the narrowed controls.
+    const advancedDrawerBody = focus.active ? (
+        <div className="flex h-full flex-col overflow-y-auto [&>*:last-child]:!border-b-0">
+            {advancedControls}
+        </div>
+    ) : (
         <div className="flex h-full min-h-0 gap-6">
             <div className="flex min-w-0 flex-1 flex-col overflow-y-auto pr-1 [&>*:last-child]:!border-b-0">
                 {advancedControls}

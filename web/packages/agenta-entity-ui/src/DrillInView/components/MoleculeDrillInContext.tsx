@@ -279,11 +279,13 @@ export function MoleculeDrillInProvider<TEntity = unknown, TDraft = Partial<TEnt
     }, [entityId, discardEntity])
 
     // ========== BEHAVIORS ==========
-    const moleculeBehaviors = molecule.drillIn.fields ?? {}
+    // Dep is the raw (possibly undefined) fields ref — a `?? {}` fallback here would mint a fresh
+    // dep every render and churn the whole context value.
+    const moleculeBehaviors = molecule.drillIn.fields
     const behaviors: Required<DrillInFieldBehaviors> = useMemo(
         () => ({
             ...defaultFieldBehaviors,
-            ...moleculeBehaviors,
+            ...(moleculeBehaviors ?? {}),
             // Props override molecule config
             ...(editable !== undefined ? {editable} : {}),
             ...(collapsible !== undefined ? {collapsible} : {}),

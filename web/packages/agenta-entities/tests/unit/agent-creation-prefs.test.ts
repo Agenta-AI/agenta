@@ -1,6 +1,9 @@
 import {describe, expect, it} from "vitest"
 
-import {applyAgentCreationPrefs} from "../../src/workflow/state/agentCreationPrefs"
+import {
+    applyAgentCreationPrefs,
+    ensureEnabledSandbox,
+} from "../../src/workflow/state/agentCreationPrefs"
 
 describe("applyAgentCreationPrefs", () => {
     it("leaves the template config untouched when no prefs are set", () => {
@@ -51,5 +54,41 @@ describe("applyAgentCreationPrefs", () => {
             {version: 1, harness: "claude", model: "claude-opus-4"},
         )
         expect(result).toEqual({harness: {kind: "claude"}, llm: {model: "claude-opus-4"}})
+    })
+})
+
+describe("ensureEnabledSandbox", () => {
+    it("leaves the config untouched when the current kind is enabled", () => {
+        const config = {sandbox: {kind: "local", permissions: {network: "on"}}, llm: {model: "x"}}
+        expect(ensureEnabledSandbox(config, ["local"])).toBe(config)
+    })
+
+    it("leaves the config untouched when local is unset but local is enabled (runtime default)", () => {
+        const config = {llm: {model: "x"}}
+        expect(ensureEnabledSandbox(config, ["local", "daytona"])).toBe(config)
+    })
+
+    it("coerces the template's local default to the first enabled provider (daytona-only)", () => {
+        const config = {sandbox: {kind: "local"}, llm: {model: "x"}}
+        const result = ensureEnabledSandbox(config, ["daytona"])
+        expect(result.sandbox).toEqual({kind: "daytona"})
+        expect(result.llm).toEqual({model: "x"})
+    })
+
+    it("coerces an unset (implicit local) sandbox when local is not enabled", () => {
+        const config = {llm: {model: "x"}}
+        const result = ensureEnabledSandbox(config, ["daytona"])
+        expect(result.sandbox).toEqual({kind: "daytona"})
+    })
+
+    it("preserves sibling sandbox keys (e.g. permissions) while coercing the kind", () => {
+        const config = {sandbox: {kind: "local", permissions: {network: "off"}}}
+        const result = ensureEnabledSandbox(config, ["daytona"])
+        expect(result.sandbox).toEqual({kind: "daytona", permissions: {network: "off"}})
+    })
+
+    it("is a no-op when the enabled set is empty (never hide every option)", () => {
+        const config = {sandbox: {kind: "local"}}
+        expect(ensureEnabledSandbox(config, [])).toBe(config)
     })
 })

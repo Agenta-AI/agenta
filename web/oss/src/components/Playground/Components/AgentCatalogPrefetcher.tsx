@@ -17,17 +17,12 @@ import {useAtomValue} from "jotai"
 const AgentCatalogPrefetcher = () => {
     useAtomValue(agTypeSchemaAtomFamily("agent-template"))
     useAtomValue(harnessCapabilitiesAtomFamily(""))
-    // Warm the code-split agent-template control during idle time, so its download +
-    // execution doesn't land in the same main-thread burst as the revision/schema
-    // resolving (which froze the paint right as the panels transitioned to content).
+    // Warm the code-split agent-template control immediately (this component mounts only when the
+    // early-agent signal says agent): idle scheduling let the config sections mount before the lazy
+    // chunk resolved, flashing the Suspense fallback on warm reloads. The import is async, so the
+    // download runs in parallel with the revision/schema restore rather than blocking it.
     useEffect(() => {
-        const idle = (window as Window & typeof globalThis).requestIdleCallback
-        if (typeof idle === "function") {
-            const id = idle(() => void preloadAgentTemplateControl(), {timeout: 2000})
-            return () => window.cancelIdleCallback?.(id)
-        }
-        const t = window.setTimeout(() => void preloadAgentTemplateControl(), 300)
-        return () => window.clearTimeout(t)
+        void preloadAgentTemplateControl()
     }, [])
     return null
 }

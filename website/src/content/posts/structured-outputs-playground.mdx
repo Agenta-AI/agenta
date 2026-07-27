@@ -1,0 +1,109 @@
+---
+slug: "structured-outputs-playground"
+title: "Launch Week Day 4 – Structured Output in the Playground"
+description: "Enforce JSON and schema-validated responses straight from the Agenta playground."
+category: Article
+date: 2025-04-17
+readingTime: "5 min read"
+heroImage: /blog/structured-outputs-playground/hero.webp
+ogImage: /blog/structured-outputs-playground/hero.webp
+author: mahmoud-mabrouk
+featured: false
+tags: ["Product Updates"]
+---
+
+You asked your model for JSON. It gave you Markdown, code fences, and a rogue emoji.
+
+Today we fix that. We are introducing structured outputs in the playground.
+
+### Why structured output matters
+
+Large language models excel at free-form text. Yet most production workflows need structured data that your code can reliably process.
+
+#### Common challenges
+
+- **Chaining prompts**: When agents pipe one tool's output into the next, a missing field can crash the entire chain.
+- **Data extraction**: You need clean rows for your database, not responses that begin with "Sure! Here is the JSON:".
+- **UI generation**: Front-end renderers expect data in a specific format.
+- **Guardrails & evaluations**: Automated tests can break on malformed JSON.
+
+Many developers attempt to work around this by explicitly instructing the model to "Return JSON only." This helps, but it's not foolproof. You might still get Markdown code fences or mistyped keys.
+
+### LLMs provide two approaches to structured output
+
+<table><tbody><tr><th>Mode</th><th>What it guarantees</th><th>Best for</th></tr><tr><td><strong>JSON mode</strong></td><td>Output parses as valid JSON</td><td>Quick implementations when you only need well-formed JSON</td></tr><tr><td><strong>Schema mode</strong></td><td>Output exactly matches the JSON Schema you provide—types, required fields, nested objects</td><td>Mission-critical chains and typed back-ends</td></tr></tbody></table>
+
+Note that not all models support these modes. For instance, in OpenAI, Structured Outputs is only supported with the `gpt-4o-mini`, `gpt-4o-mini-2024-07-18`, and `gpt-4o-2024-08-06` model snapshots and later.
+
+Both modes are now available with a single click in the Agenta playground.
+
+### Using structured output in the playground
+
+<iframe src="https://www.youtube.com/embed/08r4g5mO9lw?iv_load_policy=3&rel=0&modestbranding=1&playsinline=1&autoplay=0&mute=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+With Agenta's playground, implementing structured outputs is straightforward:
+
+1. Open any prompt
+2. Switch the Response format dropdown from text to JSON mode or JSON Schema
+3. Paste or write your schema (Agenta supports the full JSON Schema specification)
+4. Run the prompt - the response panel will show the response beautified
+5. Commit the changes - the schema will be saved with your prompt, so when your SDK fetches the prompt, it will include the schema information
+
+When you fetch the prompt using the SDK, you can see the schema as part of your configuration
+
+```python
+import os
+import agenta as ag
+
+ag.init()
+
+config = ag.ConfigManager.get_from_registry(
+    app_slug="capital-finder",
+    environment_slug="production"
+)
+
+print(config)
+"""
+{
+    'prompt': {
+        'messages': [
+            {
+                'role': 'system',
+                'content': 'You are an expert in geography'
+            },
+            {
+                'role': 'user',
+                'content': 'What is the capital of {{country}}?'
+            }
+        ],
+        'input_keys': ['country'],
+        'llm_config': {
+            'model': 'gpt-3.5-turbo',
+            'response_format': {
+                'type': 'json_schema',
+                'json_schema': {
+                    'name': 'Capital',
+                    'schema': {
+                        'type': 'object',
+                        'properties': {
+                            'capital': {'type': 'string'}
+                        }
+                    },
+                    'strict': False,
+                    'description': 'Country capital'
+                }
+            }
+        },
+        'template_format': 'curly'
+    }
+}
+"""
+```
+
+## What's next
+
+<InlineCTA />
+
+Tomorrow we'll unveil the last announcement for the launch week.
+
+Questions or ideas? [Star the repo](https://github.com/agenta-ai/agenta) and join the discussion.

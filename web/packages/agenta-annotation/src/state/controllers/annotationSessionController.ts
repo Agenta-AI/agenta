@@ -63,7 +63,7 @@ import {
     traceRootSpanAtomFamily,
     type TraceSpan,
 } from "@agenta/entities/trace"
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {workflowDetailQueryAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {axios, getAgentaApiUrl, queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
@@ -552,7 +552,11 @@ const testsetSyncEvaluatorsAtom = atom<TestsetSyncEvaluator[]>((get) => {
 
     for (const step of annotationSteps) {
         const workflowId = step.references?.evaluator?.id ?? null
-        const evaluatorEntity = workflowId ? get(workflowMolecule.selectors.data(workflowId)) : null
+        // Workflow-keyed detail query (cache-shared) — the molecule's data selector
+        // is revision-keyed and fires a guaranteed-null /revisions/query for a workflow id.
+        const evaluatorEntity = workflowId
+            ? get(workflowDetailQueryAtomFamily(workflowId)).data
+            : null
         const name = evaluatorEntity?.name?.trim() || null
         const slug =
             step.references?.evaluator?.slug ??

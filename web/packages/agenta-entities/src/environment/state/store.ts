@@ -5,7 +5,7 @@
  * These provide the single source of truth for server data.
  */
 
-import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {idleReadyAtom, projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {createBatchFetcher, isValidUUID} from "@agenta/shared/utils"
 import {atom, getDefaultStore} from "jotai"
 import type {PrimitiveAtom} from "jotai"
@@ -335,6 +335,10 @@ export interface RevisionDeployment {
 export const revisionDeploymentAtomFamily = atomFamily((revisionId: string) =>
     atom<RevisionDeployment[]>((get) => {
         if (!revisionId) return []
+
+        // Passive badge chrome (always-mounted config header): don't let it pull the
+        // environments list into the cold-load burst; the badge fills in after idle.
+        if (!get(idleReadyAtom)) return []
 
         const listQuery = get(environmentsListQueryAtomFamily(false))
         const environments = listQuery.data?.environments ?? []

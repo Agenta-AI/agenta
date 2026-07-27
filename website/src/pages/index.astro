@@ -1,0 +1,59 @@
+---
+import Base from "../layouts/Base.astro";
+import SiteNav from "../components/SiteNav.astro";
+import Hero from "../components/Hero.astro";
+import TemplateSection from "../components/TemplateSection.astro";
+import HowItWorks from "../components/HowItWorks.astro";
+import OpenStandards from "../components/OpenStandards.astro";
+import Reliability from "../components/Reliability.astro";
+import OpenSource from "../components/OpenSource.astro";
+import CtaBand from "../components/CtaBand.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+
+// Organization structured data (schema.org JSON-LD). Emitted only on the landing
+// page so crawlers attach the knowledge-panel entity to the site root.
+const orgJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Agenta",
+  url: "https://agenta.ai",
+  logo: new URL("/logos/Agenta-logo-full-dark.svg", Astro.site).toString(),
+  description:
+    "The open-source workspace for building, evaluating, and shipping AI agents and automations.",
+  sameAs: [
+    "https://github.com/Agenta-AI/agenta",
+    "https://www.linkedin.com/company/agenta-ai/",
+    "https://twitter.com/agenta_ai",
+    "https://www.youtube.com/@agentaAI",
+  ],
+};
+---
+
+<Base
+  title="Agenta — The open-source workspace for your agents"
+  description="Agenta is the open-source workspace for your agents. Build agents through chat, improve them with feedback, and share them with your whole team — self-hosted or in the cloud."
+>
+  <Fragment slot="head">
+    <script
+      type="application/ld+json"
+      is:inline
+      set:html={JSON.stringify(orgJsonLd)}
+    />
+  </Fragment>
+
+  <!-- The page bg shows as a 12px frame around the 1440-wide section stack. -->
+  <div
+    class="ag-wrap"
+    style="width:100%;max-width:1440px;margin:0 auto;background:var(--ag-d-bg-0);padding:0 12px;box-sizing:border-box;font-family:var(--font-sans);"
+  >
+    <SiteNav sticky />
+    <Hero />
+    <TemplateSection />
+    <HowItWorks />
+    <OpenStandards />
+    <Reliability />
+    <OpenSource />
+    <CtaBand />
+    <SiteFooter />
+  </div>
+</Base>

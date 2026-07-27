@@ -24,7 +24,12 @@ export function classifyAgentIntent(message: string): string {
     return "other"
 }
 
-export type FirstAgentIntentSource = "template" | "composer" | "skipped" | "browse_templates"
+export type FirstAgentIntentSource =
+    | "template"
+    | "composer"
+    | "skipped"
+    | "browse_templates"
+    | "website_template"
 
 export interface FirstAgentIntentPayload {
     source: FirstAgentIntentSource

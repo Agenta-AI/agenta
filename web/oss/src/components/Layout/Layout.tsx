@@ -5,12 +5,12 @@ import clsx from "clsx"
 import {atom} from "jotai"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import {selectAtom} from "jotai/utils"
+import {eagerAtom} from "jotai-eager"
 import {useRouter} from "next/router"
 import {ErrorBoundary} from "react-error-boundary"
 
-import useURL from "@/oss/hooks/useURL"
 import {currentAppAtom} from "@/oss/state/app"
-import {appStateSnapshotAtom, requestNavigationAtom, useAppState} from "@/oss/state/appState"
+import {appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {getProjectValues, useProjectData} from "@/oss/state/project"
 import {
@@ -19,6 +19,7 @@ import {
     demoReturnHintPendingAtom,
     lastNonDemoProjectAtom,
 } from "@/oss/state/project/selectors/project"
+import {urlAtom} from "@/oss/state/url"
 
 import CustomWorkflowBanner from "../CustomWorkflow/CustomWorkflowBanner"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
@@ -152,6 +153,20 @@ const useCommittedLayoutFlags = (): LayoutRouteFlags => {
     return committedFlags
 }
 
+// Narrow slice of the app-state snapshot: exactly what AppWithVariants renders from
+const appRouteSliceAtom = selectAtom(
+    appStateSnapshotAtom,
+    (snapshot) => ({
+        pathname: snapshot.pathname,
+        asPath: snapshot.asPath,
+        routeLayer: snapshot.routeLayer,
+    }),
+    (a, b) => a.pathname === b.pathname && a.asPath === b.asPath && a.routeLayer === b.routeLayer,
+)
+
+// String-valued so org/app churn inside urlAtom doesn't re-render AppWithVariants
+const baseAppURLAtom = eagerAtom((get) => get(urlAtom).baseAppURL)
+
 type StyleClasses = ReturnType<typeof useStyles>
 
 const {Content} = Layout
@@ -180,8 +195,8 @@ const AppWithVariants = memo(
         appTheme: string
         isPlayground?: boolean
     }) => {
-        const {baseAppURL} = useURL()
-        const appState = useAppState()
+        const baseAppURL = useAtomValue(baseAppURLAtom)
+        const appState = useAtomValue(appRouteSliceAtom)
         const isAnnotations = appState.pathname.includes("/annotations")
         const lastBasePathRef = useRef<string | null>(null)
         const lastNonSettingsPathRef = useRef<string | null>(null)
@@ -243,6 +258,14 @@ const AppWithVariants = memo(
             setDemoReturnModalOpen(false)
             setDemoReturnHintDismissed(true)
         }, [setDemoReturnHintDismissed])
+
+        // Stable theme object so antd cssinjs doesn't re-evaluate per parent render
+        const contentThemeConfig = useMemo(
+            () => ({
+                algorithm: appTheme === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
+            }),
+            [appTheme],
+        )
 
         const handleBackToWorkspaceSwitch = useCallback(() => {
             if (!lastNonDemoProject?.workspaceId || !lastNonDemoProject?.projectId) {
@@ -343,14 +366,7 @@ const AppWithVariants = memo(
                                         )}
                                     >
                                         <ErrorBoundary FallbackComponent={ErrorFallback}>
-                                            <ConfigProvider
-                                                theme={{
-                                                    algorithm:
-                                                        appTheme === "dark"
-                                                            ? theme.darkAlgorithm
-                                                            : theme.defaultAlgorithm,
-                                                }}
-                                            >
+                                            <ConfigProvider theme={contentThemeConfig}>
                                                 <div
                                                     className={clsx("w-full", {
                                                         "flex min-h-0 flex-col gap-6 h-[calc(100dvh-75px)] overflow-hidden":
@@ -393,7 +409,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                     </ErrorBoundary>
                 </Layout>
             ) : (
-                <ProtectedRoute>
+                <ProtectedRoute shell="app">
                     <AppWithVariants
                         isAppRoute={isAppRoute}
                         classes={classes}

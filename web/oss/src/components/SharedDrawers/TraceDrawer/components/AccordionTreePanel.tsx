@@ -265,7 +265,8 @@ const AccordionTreePanel = ({
     ...props
 }: AccordionTreePanelProps) => {
     const {token} = theme.useToken()
-    const classes = useStyles({bgColor, theme: token})
+    // antd's GlobalToken is the runtime superset JSSTheme indexes into; align at the boundary
+    const classes = useStyles({bgColor, theme: token as unknown as JSSTheme})
     const editorRef = useRef<HTMLDivElement>(null)
     const textViewerId = useId().replace(/:/g, "")
 

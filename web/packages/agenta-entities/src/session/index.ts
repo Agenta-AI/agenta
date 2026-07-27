@@ -66,7 +66,9 @@ export {
     sessionRecordsQueryFamily,
     sessionRecordFileRecencyAtomFamily,
     revalidateSessionRecordsAtom,
+    fetchSessionRecordsAtom,
     sessionRecordsQueryKey,
+    type SessionRecordsFetchResult,
 } from "./state/records"
 export {
     sessionMountsQueryFamily,

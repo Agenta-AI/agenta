@@ -1,0 +1,29 @@
+---
+// Ported 1:1 from the design system: components/buttons/Button.jsx
+// (keycap look = vertical gradient fill + inset top-light shadow; reproduce both).
+interface Props {
+  variant?: "primary" | "outline" | "dark" | "ghost";
+  size?: "sm" | "md" | "lg";
+  href?: string;
+}
+const { variant = "primary", size = "md", href } = Astro.props;
+
+const sizes: Record<string, string> = {
+  sm: "height:30px;padding:0 12px;",
+  md: "height:36px;padding:0 16px;",
+  lg: "height:44px;padding:0 20px;",
+};
+const variants: Record<string, string> = {
+  primary:
+    "background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);",
+  outline:
+    "background:var(--grad-btn-outline);box-shadow:var(--shadow-btn-outline);color:var(--ink-900);",
+  dark: "background:var(--grad-btn-dark);box-shadow:var(--shadow-btn-dark);color:#FFFFFF;",
+  ghost: "background:transparent;box-shadow:none;color:var(--ink-900);",
+};
+
+const style = `display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;border-radius:var(--radius-sm);font:var(--text-label);cursor:pointer;text-decoration:none;white-space:nowrap;box-sizing:border-box;${sizes[size]}${variants[variant]}`;
+const Tag = href ? "a" : "button";
+---
+
+<Tag class="ds-btn" href={href} style={style}><slot /></Tag>

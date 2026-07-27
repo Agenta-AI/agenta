@@ -1,0 +1,21 @@
+{
+  // Production Cloudflare Workers Static Assets config for the marketing site.
+  // Separate from wrangler.jsonc (the preview worker `agenta-website-preview`):
+  // this deploys the real production worker `agenta-website` via `wrangler deploy`
+  // (a real deploy, not `versions upload`) from .github/workflows/16-website-production.yml
+  // on every merge to main that touches website/**.
+  //
+  // No routes / custom-domain config yet — the agenta.ai domain is attached in the
+  // Cloudflare dashboard after merge. preview_urls is off: production takes no
+  // per-version preview aliases (those live on the preview worker).
+  "name": "agenta-website",
+  "compatibility_date": "2026-07-01",
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist",
+    // Serve /about for both /about and /about/ ; canonicalize to no trailing slash.
+    "html_handling": "drop-trailing-slash",
+    // Unknown paths render the generated 404 page.
+    "not_found_handling": "404-page"
+  }
+}
