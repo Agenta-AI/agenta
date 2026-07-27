@@ -216,6 +216,36 @@ breakdown and grounding facts.
   operator step against a running stack (flag-on run is likewise an operator step — see Open
   items below).
 
+## Flows-lite + auth-lite + approvals (2026-07-26/27) — EXECUTED
+
+The postponed-fidelity phase Arda redirected into ("keep ui look basic / raw … focus on
+navigation / flows / logic"). All raw-UI; the radix-primitives track re-skins later.
+
+- **Flows-lite** ([plan](./plans/2026-07-26-mobile-flows-lite.md), 6 tasks + review fixes,
+  commits `cf2792299f…9137760079`): @agenta/* packages wired into the mobile app + both
+  container layers; AppProviders (default-store jotai + queryClientAtom + sdk host) +
+  route→projectIdAtom ContextSync; root workspace/project resolution (stored → single →
+  desktop-continuity → raw picker); sessions list (querySessions windowed cursor, debounced
+  search, `includeArchived:false`); read-only transcript replay (loadSessionMessages +
+  buildTurnViewModels). Reviewed: approve after 4 fixes. **Live-verified by Arda.**
+- **Auth-lite** (commits `2a2f91af61…f0809ee1c4`): gate maps `/auth`→`/m/auth`
+  (`/auth/callback` stays desktop — OAuth must land there); headless supertokens-web-js
+  (desktop-identical appInfo); refresh-before-verdict + the **provider-scope
+  `ensureAuthInit()`** (the SuperTokens fetch interceptor must install before ANY API call —
+  live QA caught the sessions query 401ing without it); raw email/password `/m/auth` page
+  (OTP/SSO → "use desktop" notice).
+- **Approvals** ([plan](./plans/2026-07-27-mobile-approvals-steering.md) — read §1: there is
+  NO server-side session SSE; approval answers are fresh `/invoke` POSTs; §4b decisions;
+  9 commits `53e1fa427f…2a2ba33f2a` + review fixes `02c36566aa`): M0 badges/polls, M1
+  approve/deny/approve-all via the references-only lite resume builder (fire-and-forget) +
+  Stop, runner warm-park TTL 5→30min, M2 detached respond composition (api). Reviewed:
+  approve; both high-risk contracts traced end-to-end. **Live-unverified:** warm-vs-cold on a
+  detached respond (probe: answer via `/respond`, check runner logs `resume key=` vs
+  `approval-mismatch`); runner process restart required to activate the TTL.
+- **⚠️ Standing follow-ups (Arda: do not forget):** M3 live relay (desktop live-updating a
+  phone-resumed turn) and steer-lite (M1.5 specced+unbuilt, gated on runner
+  reject-with-feedback #5444; Arda may request next).
+
 ## Resume runbook (from here)
 
 1. **Plan wave-2** against the real code (WP2 auth/drawer → WP3b skin → WP4 pages → WP5 gate).
