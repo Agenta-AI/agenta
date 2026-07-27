@@ -49,6 +49,7 @@ import {
   computeCredentialEpoch,
   configFingerprint,
   credentialEpochMismatch,
+  carriesMinimalHistory,
   mountCredentialsExpired,
   expectedNextHistoryFingerprint,
   historyFingerprint,
@@ -595,9 +596,15 @@ export async function runWithKeepalive(
       existing.credentialEpoch,
       incomingEpoch,
     );
+    // A last-message-only client sends no prior conversation, so there is nothing to compare:
+    // `priorConversation` is empty and the fingerprint can never match what the last turn stored.
+    // Comparing anyway evicts the warm session on every turn of every conversation. The session
+    // id already binds the request to this conversation; the client simply no longer asserts it.
+    const clientAssertsHistory = !carriesMinimalHistory(request);
     let mismatch: string | undefined;
     if (cfgFp !== existing.configFingerprint) mismatch = "config";
-    else if (priorFp !== existing.historyFingerprint) mismatch = "history";
+    else if (clientAssertsHistory && priorFp !== existing.historyFingerprint)
+      mismatch = "history";
     else if (credMismatch) mismatch = credMismatch;
     else if (!tailIsFreshUserMessage(request)) mismatch = "tail";
 
@@ -1006,11 +1013,14 @@ async function runAndStreamWithApiBaseResolved(
       turnId,
       request.runContext?.trace?.span_id,
     );
-    // Record the inbound user turn first so the session record is the full conversation,
-    // not just agent output. Interaction replies ride tool_result blocks (no text) and are
-    // already recorded on the interaction, so an empty prompt persists nothing.
+    // Record the inbound user turn first so the session record is the full conversation, not just
+    // agent output. Guard on `tailIsFreshUserMessage`: an approval RESUME's tail is the tool_result
+    // envelope (no text), so `resolvePromptText` falls back to the ORIGINAL prompt and would
+    // re-persist it as a DUPLICATE user row. The guard writes the prompt only on the turn that first
+    // introduced it — a real new turn's tail IS a fresh user message; a resume's is not.
     const promptText = resolvePromptText(request);
-    if (promptText) persist({ type: "message", text: promptText }, "user");
+    if (promptText && tailIsFreshUserMessage(request))
+      persist({ type: "message", text: promptText }, "user");
     emitFn = persistingEmit;
     flushPersist = flush;
     persistError = (message) => persist({ type: "error", message }, "agent");
