@@ -279,9 +279,9 @@ describe("transcriptToMessages approval hydration", () => {
 
         // "View full trace" on the merged turn links to the RESUME trace (where the tool ran),
         // not the paused turn's trace.
-        expect(
-            (assistant as unknown as {metadata?: {traceId?: string}}).metadata?.traceId,
-        ).toBe("trace-resume")
+        expect((assistant as unknown as {metadata?: {traceId?: string}}).metadata?.traceId).toBe(
+            "trace-resume",
+        )
     })
 })
 
