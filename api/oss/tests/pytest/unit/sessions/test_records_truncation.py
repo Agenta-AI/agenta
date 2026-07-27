@@ -71,3 +71,14 @@ def test_non_dict_attributes_fall_back():
     huge = "z" * (MAX_ATTRIBUTES_BYTES * 2)
     out = _truncate_attributes(huge, MAX_ATTRIBUTES_BYTES, _size(huge))
     assert out == {"_truncated": True, "_original_bytes": _size(huge)}
+
+
+def test_smart_truncation_flag_is_reachable_from_the_env_object():
+    """The publish path reads `env.agenta.sessions.records.smart_truncation` inside a
+    try/except that swallows anything and drops the record. When `SessionsConfig` was not
+    attached to `AgentaConfig` this raised AttributeError, so every over-cap record was
+    discarded instead of truncated, and the tests above still passed because they call
+    `_truncate_attributes` directly and never touch the flag."""
+    from oss.src.utils.env import env
+
+    assert isinstance(env.agenta.sessions.records.smart_truncation, bool)

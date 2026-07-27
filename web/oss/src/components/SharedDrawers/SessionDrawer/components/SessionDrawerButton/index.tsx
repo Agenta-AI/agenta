@@ -7,8 +7,11 @@ import {useSetAtom} from "jotai"
 
 import {useQueryParamState} from "@/oss/state/appState"
 
-import {openTraceDrawerAtom, setTraceDrawerActiveSpanAtom} from "./store/sessionDrawerStore"
-import {SessionDrawerButtonProps} from "./types"
+import {
+    openTraceDrawerAtom,
+    setTraceDrawerActiveSpanAtom,
+} from "../../../TraceDrawer/store/traceDrawerStore"
+import {SessionDrawerButtonProps} from "../../types"
 
 const SessionDrawerButton = ({
     label,
@@ -24,7 +27,8 @@ const SessionDrawerButton = ({
 
     const traceId = useMemo(() => {
         const directTraceId =
-            result?.response?.trace_id || result?.metadata?.rawError?.detail?.trace_id
+            (result as any)?.response?.trace_id ||
+            (result as any)?.metadata?.rawError?.detail?.trace_id
         if (directTraceId) return directTraceId
 
         const responseTrace = (result as any)?.response?.trace
@@ -119,7 +123,7 @@ const SessionDrawerButton = ({
             return false
         })()
 
-        return hasNodes || Boolean(result?.response?.trace) || Boolean(result?.error)
+        return hasNodes || Boolean((result as any)?.response?.trace) || Boolean(result?.error)
     }, [result])
 
     const passthroughProps = {
@@ -154,4 +158,4 @@ const SessionDrawerButton = ({
 }
 
 export default SessionDrawerButton
-export {default as TraceDrawer} from "./components/SessionDrawer"
+export {default as TraceDrawer} from "../SessionDrawer"

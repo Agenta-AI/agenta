@@ -49,6 +49,7 @@ import {
   computeCredentialEpoch,
   configFingerprint,
   credentialEpochMismatch,
+  carriesMinimalHistory,
   mountCredentialsExpired,
   expectedNextHistoryFingerprint,
   historyFingerprint,
@@ -599,9 +600,15 @@ export async function runWithKeepalive(
       existing.credentialEpoch,
       incomingEpoch,
     );
+    // A last-message-only client sends no prior conversation, so there is nothing to compare:
+    // `priorConversation` is empty and the fingerprint can never match what the last turn stored.
+    // Comparing anyway evicts the warm session on every turn of every conversation. The session
+    // id already binds the request to this conversation; the client simply no longer asserts it.
+    const clientAssertsHistory = !carriesMinimalHistory(request);
     let mismatch: string | undefined;
     if (cfgFp !== existing.configFingerprint) mismatch = "config";
-    else if (priorFp !== existing.historyFingerprint) mismatch = "history";
+    else if (clientAssertsHistory && priorFp !== existing.historyFingerprint)
+      mismatch = "history";
     else if (credMismatch) mismatch = credMismatch;
     else if (!tailIsFreshUserMessage(request)) mismatch = "tail";
 

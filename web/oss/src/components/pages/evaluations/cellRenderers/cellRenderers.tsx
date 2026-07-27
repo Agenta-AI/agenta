@@ -174,7 +174,10 @@ export const ResultRenderer = memo(
 export const runningStatuses = [EvaluationStatus.INITIALIZED, EvaluationStatus.STARTED]
 export const statusMapper =
     (token: GlobalToken) => (status: EvaluationStatus | "stopped" | "closed") => {
-        const statusMap = {
+        // Partial: not every EvaluationStatus is mapped (e.g. FAILED) — unmapped fall to "Unknown"
+        const statusMap: Partial<
+            Record<EvaluationStatus | "stopped" | "closed", {label: string; color: string}>
+        > = {
             [EvaluationStatus.PENDING]: {
                 label: "Pending",
                 color: token.colorTextSecondary,
