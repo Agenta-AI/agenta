@@ -17,14 +17,14 @@ import AgentHome from "./index"
  *  - first-run (no agents yet) → redirect to the ephemeral onboarding playground (`/playground`);
  *  - returning (has agents)    → the agent-home list, as before.
  *
- * An empty list means we're either still confirming it or already redirecting — the loader covers
- * both, so we never flash the wrong surface. A non-empty list is conclusive immediately, so
+ * While the list is empty we're either still confirming it or already redirecting, and the loader
+ * covers both so we never flash the wrong surface. A non-empty list is conclusive immediately, so
  * returning users never wait. `useAgentsFirstRun` (not `agentsWorkflowsAtom`) because the decision
  * happens on mount — see its docs.
  */
 const OnboardingEntry = () => {
     const router = useRouter()
-    const {isEmpty, firstRun} = useAgentsFirstRun()
+    const {resolving, firstRun} = useAgentsFirstRun()
     const {projectURL} = useAtomValue(urlAtom)
 
     // Warm the agent-template cache now so the ephemeral mint on `/playground` finds it cached (no
@@ -43,7 +43,7 @@ const OnboardingEntry = () => {
     }, [firstRun, projectURL, router])
 
     // The shared onboarding loader, so the whole flow reads as one continuous "setting up" screen.
-    if (isEmpty) {
+    if (resolving) {
         return <OnboardingLoader />
     }
 

@@ -72,10 +72,12 @@ export const useAgentsFirstRun = () => {
     // Deliberately unfiltered: existence is not a question about the agents table's search box.
     const query = useQuery(agentsWorkflowsQueryOptions(projectId))
     const isEmpty = (query.data ?? []).length === 0
-    // An empty list only counts once confirmed; an error counts too, so a failing fetch can't strand us.
-    const settled = query.isError || (query.isSuccess && !query.isFetching && !query.isStale)
-
-    return {isEmpty, firstRun: isEmpty && settled}
+    // Only a confirmed-fresh empty list is a first run. A failed fetch is not evidence of emptiness,
+    // so it must never send someone who already has agents into onboarding.
+    const firstRun = isEmpty && query.isSuccess && !query.isFetching && !query.isStale
+    // Empty and still resolving → hold the loader. On error we let agent-home render instead, so a
+    // failing fetch shows the (retryable) home page rather than spinning forever.
+    return {resolving: isEmpty && !query.isError, firstRun}
 }
 
 export async function invalidateAgentsWorkflowQueries() {
@@ -83,22 +85,27 @@ export async function invalidateAgentsWorkflowQueries() {
 }
 
 interface CreatedAgentSeed {
+    projectId: string
     workflowId: string
     name: string
     createdAt?: string | null
     createdById?: string | null
 }
 
-/** Unfiltered lists only — a new agent may not match whatever the agents table last searched for. */
-const unfilteredList = (query: {queryKey: readonly unknown[]}) =>
-    query.queryKey[query.queryKey.length - 1] === null
+/**
+ * This project's unfiltered lists only. Unfiltered because a new agent may not match whatever the
+ * agents table last searched for; project-scoped because every project visited this session keeps a
+ * cached list, and the row belongs to exactly one of them.
+ */
+const unfilteredProjectList = (projectId: string) => (query: {queryKey: readonly unknown[]}) =>
+    query.queryKey[1] === projectId && query.queryKey[query.queryKey.length - 1] === null
 
 function seedCreatedAgentRow(agent: CreatedAgentSeed) {
     queryClient.setQueriesData<AppWorkflowRow[]>(
         {
             queryKey: AGENTS_WORKFLOWS_QUERY_KEY,
             exact: false,
-            predicate: unfilteredList,
+            predicate: unfilteredProjectList(agent.projectId),
         },
         (rows) => {
             if (!rows || rows.some((row) => row.workflowId === agent.workflowId)) return rows
@@ -128,7 +135,7 @@ export async function registerCreatedAgent(agent: CreatedAgentSeed) {
     await queryClient.invalidateQueries({
         queryKey: AGENTS_WORKFLOWS_QUERY_KEY,
         exact: false,
-        predicate: unfilteredList,
+        predicate: unfilteredProjectList(agent.projectId),
         refetchType: "all",
     })
     seedCreatedAgentRow(agent)
