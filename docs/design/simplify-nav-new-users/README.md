@@ -1,18 +1,18 @@
 # Simplify navigation for new signup users
 
-**Status:** Planning complete — decisions locked, ready to implement
-**Date:** 2026-07-24
+**Status:** Implemented
+**Date:** 2026-07-27
 
 New signup users land on the full platform sidebar, which is noise when their only goal is
 building an agent. This workspace plans a nav-only simplification in two phases. **Phase 1**
 hides the advanced pages (Prompts, the Evaluation group, Overview, Registry, Evaluations) for
-new signups. **Phase 2** adds a per-user **"Simplified navigation"** toggle in Settings →
-Account so anyone can switch back to the full view to use the LLM-app pages. Existing and
+new signups. **Phase 2** adds a per-user **"Classic mode"** switch in Settings →
+Feature flags so anyone can switch back to the full view to use the LLM-app pages. Existing and
 returning users default to the full view throughout.
 
 ## Decisions
 
-- Two phases: Phase 1 = hide-for-new-signups; Phase 2 = the Settings → Account toggle
+- Two phases: Phase 1 = hide-for-new-signups; Phase 2 = the Settings → Feature flags switch
   (additive — touches no Phase-1 file except one derived atom).
 - Nav-only — hide sidebar entries; no route guards, no in-app link changes.
 - Hide when simplified: Prompts, Evaluation group (project); Overview, Registry, Evaluations (app).
@@ -37,6 +37,6 @@ returning users default to the full view throughout.
 
 A user who has just signed up sees a focused, agent-first sidebar: Home, Agents, and
 Observability at the project level, Playground + Observability inside an app. Anyone who wants
-the complete platform — an existing LLM-app team, or an invited teammate — flips one switch in
-Settings → Account and gets it back, with the choice remembered. No one is ever stuck in the
+the complete platform — an existing LLM-app team, or an invited teammate — enables Classic mode
+in Settings → Feature flags and gets it back, with the choice remembered. No one is ever stuck in the
 wrong view.

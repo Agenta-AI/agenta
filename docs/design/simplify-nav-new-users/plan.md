@@ -1,9 +1,9 @@
 # Plan — Simplify nav for new signup users
 
 Two phases. **Phase 1** ships the hide-for-new-signups behavior. **Phase 2** adds the
-Settings → Account toggle so users can switch back to the full view (e.g. to use the LLM-app
-pages). Phase 2 is designed to be **purely additive** — it touches no Phase-1 file except the
-one derived atom.
+Classic mode switch under Settings → Feature flags so users can switch back to the full view
+(e.g. to use the LLM-app pages). Phase 2 is **purely additive** — it touches no Phase-1 file
+except the one derived atom.
 
 ## Scope
 
@@ -12,8 +12,8 @@ one derived atom.
   sidebar; everyone else — including all existing users — is unaffected. No way to switch yet, so
   a genuinely-new solo user stays simplified until Phase 2. (Invited teammates are never flagged,
   so they keep the full nav — see research.md §7.)
-- **Phase 2:** a per-user localStorage override + a switch in Settings → Account, so anyone can
-  force simplified or full.
+- **Phase 2:** a per-user localStorage override + a Classic mode switch in Settings →
+  Feature flags, so users can reveal the full navigation.
 
 ## The stable seam
 
@@ -53,19 +53,22 @@ gates); only the atom's body changes between phases.
 
    ```ts
    const navSimplifiedDefaultAtomFamily = atomFamily((userId: string) =>
-       atomWithStorage<boolean>(createScopedStorageKey(userId, "nav-simplified"), false),
-   )
+     atomWithStorage<boolean>(
+       createScopedStorageKey(userId, "nav-simplified"),
+       false,
+     ),
+   );
 
    export const navSimplifiedDefaultAtom = atom(
-       (get) => {
-           const userId = get(onboardingStorageUserIdAtom)
-           return userId ? get(navSimplifiedDefaultAtomFamily(userId)) : false
-       },
-       (get, set, next: boolean) => {
-           const userId = get(onboardingStorageUserIdAtom)
-           if (userId) set(navSimplifiedDefaultAtomFamily(userId), next)
-       },
-   )
+     (get) => {
+       const userId = get(onboardingStorageUserIdAtom);
+       return userId ? get(navSimplifiedDefaultAtomFamily(userId)) : false;
+     },
+     (get, set, next: boolean) => {
+       const userId = get(onboardingStorageUserIdAtom);
+       if (userId) set(navSimplifiedDefaultAtomFamily(userId), next);
+     },
+   );
    ```
 
    Export it from the `lib/onboarding` barrel.
@@ -79,7 +82,9 @@ gates); only the atom's body changes between phases.
 
    ```ts
    // Phase 1: follows the signup-era default. Phase 2 adds a user override here.
-   export const advancedNavHiddenAtom = atom((get) => get(navSimplifiedDefaultAtom))
+   export const advancedNavHiddenAtom = atom((get) =>
+     get(navSimplifiedDefaultAtom),
+   );
    ```
 
    No new module or wrapper hook — consumers read it with a bare `useAtomValue`, like the
@@ -128,7 +133,7 @@ gate allows. With it false, all five behave exactly as before.
 
 ---
 
-# Phase 2 — Settings → Account toggle (follow-up)
+# Phase 2 — Settings → Feature flags control
 
 Additive. Nothing from Phase 1 changes except the body of `advancedNavHiddenAtom`.
 
@@ -138,19 +143,19 @@ Add the override atom (near `navSimplifiedDefaultAtom`) and extend `advancedNavH
 `web/oss/src/state/onboarding/selectors.ts`:
 
 ```ts
-import {atomWithStorage} from "jotai/utils"
+import { atomWithStorage } from "jotai/utils";
 
 /** null = follow default, true = force simplified, false = force full. Per-user via LS. */
-export const simplifiedNavOverrideAtom = atomWithStorage<boolean | null>(
-    "agenta:nav:simplified-override",
-    null,
-)
+export const navSimplifiedOverrideAtom = atomWithStorage<boolean | null>(
+  "agenta:onboarding:<userId>:nav-simplified-override",
+  null,
+);
 
 // Phase 2: explicit choice wins; else fall back to the signup-era default.
 export const advancedNavHiddenAtom = atom((get) => {
-    const override = get(simplifiedNavOverrideAtom)
-    return override ?? get(navSimplifiedDefaultAtom)
-})
+  const override = get(navSimplifiedOverrideAtom);
+  return override ?? get(navSimplifiedDefaultAtom);
+});
 ```
 
 Unit test: override `null` → `navSimplifiedDefault`; override `true`/`false` → that value.
@@ -160,22 +165,21 @@ from Phase 1 is unchanged when no override is set.
 
 ## Slice 6 — The switch
 
-1. Add `web/oss/src/components/pages/settings/Account/NavigationPreference.tsx`: an antd `Switch`
-   labeled "Simplified navigation" with a one-line description ("Hide advanced features —
-   Prompts, Evaluations, Registry — for a focused agent workspace"). `checked` reads
-   `advancedNavHiddenAtom`; `onChange` writes the boolean to `simplifiedNavOverrideAtom`.
-2. Render it in the Account tab, above `DeleteAccount`, at
-   `pages/w/[workspace_id]/p/[project_id]/settings/index.tsx:171` (`case "account"`).
+1. Add a Feature flags settings page with an antd `Switch` labeled "Classic mode".
+   `checked` is the inverse of `advancedNavHiddenAtom`; `onChange` writes the corresponding
+   simplified-nav boolean to the per-user override.
+2. Register the page as the `featureFlags` settings tab, available in both OSS and EE.
 
 **Exit:** toggling shows/hides the advanced items live (no reload); the choice survives a
 reload; both directions verified. Non-new users can now opt into simplified, and new users can
-reveal everything.
+reveal everything. Classic mode changes navigation only; it does not restore older routing.
 
 ---
 
 ## Files touched
 
 **Phase 1**
+
 - `web/oss/src/lib/onboarding/atoms.ts` — new `navSimplifiedDefaultAtom` + family + storage key.
 - `web/oss/src/lib/onboarding/index.ts` — export `navSimplifiedDefaultAtom` from the barrel.
 - `web/oss/src/hooks/usePostAuthRedirect.ts` — seed the default at signup (two call sites).
@@ -185,11 +189,11 @@ reveal everything.
   `useAtomValue(advancedNavHiddenAtom)` + two dep-array entries.
 
 **Phase 2**
-- `web/oss/src/state/onboarding/selectors.ts` — add `simplifiedNavOverrideAtom`, extend
-  `advancedNavHiddenAtom`.
-- `web/oss/src/components/pages/settings/Account/NavigationPreference.tsx` — new switch.
-- `web/oss/src/pages/w/[workspace_id]/p/[project_id]/settings/index.tsx` — render the switch in
-  the `account` case.
+
+- `web/oss/src/lib/onboarding/atoms.ts` — add the per-user `navSimplifiedOverrideAtom`.
+- `web/oss/src/state/onboarding/selectors.ts` — extend `advancedNavHiddenAtom`.
+- `web/oss/src/components/pages/settings/FeatureFlags/FeatureFlags.tsx` — new switch.
+- `web/oss/src/pages/w/[workspace_id]/p/[project_id]/settings/index.tsx` — register the page.
 
 No changes to `engine/` or `scopes/`, or any EE file, in either phase.
 
@@ -198,5 +202,5 @@ No changes to `engine/` or `scopes/`, or any EE file, in either phase.
 Phase 1: revert `advancedNavHiddenAtom`, `navSimplifiedDefaultAtom` + signup seed, the sidebar
 `useAtomValue` read, and the five `isHidden` edits — pure code revert, no data migration, no
 server state. The harmless `agenta:onboarding:<userId>:nav-simplified` localStorage key can be
-left. Phase 2: delete the switch + settings render and revert `advancedNavHiddenAtom` to the
-passthrough; the harmless `agenta:nav:simplified-override` localStorage key can be left.
+left. Phase 2: delete the switch + settings page and revert `advancedNavHiddenAtom` to the
+passthrough; the harmless per-user override localStorage key can be left.

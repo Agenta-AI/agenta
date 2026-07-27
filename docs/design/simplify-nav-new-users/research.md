@@ -15,13 +15,13 @@ sidebar via `workflowItems.ts:29`. No EE file overrides `useSidebarConfig`, `mai
 
 ### Target items and their exact lines
 
-| Item | Scope | Key | Line |
-| --- | --- | --- | --- |
-| Prompts | project | `PROMPTS_SIDEBAR_KEY` | `:72` |
-| Evaluation (whole group) | project | `evaluation-group` | `:88` |
-| Overview | app | `overview-link` | `:147` |
-| Registry | app | `app-variants-link` | `:164` |
-| Evaluations | app | `app-evaluations-link` | `:174` |
+| Item                     | Scope   | Key                    | Line   |
+| ------------------------ | ------- | ---------------------- | ------ |
+| Prompts                  | project | `PROMPTS_SIDEBAR_KEY`  | `:72`  |
+| Evaluation (whole group) | project | `evaluation-group`     | `:88`  |
+| Overview                 | app     | `overview-link`        | `:147` |
+| Registry                 | app     | `app-variants-link`    | `:164` |
+| Evaluations              | app     | `app-evaluations-link` | `:174` |
 
 The Evaluation group at `:88` is a single item with a `submenu` (Test sets, Evaluators,
 Evaluation runs, Annotation Queues). Hiding the group hides all four children.
@@ -33,7 +33,15 @@ Evaluation runs, Annotation Queues). Hiding the group hides all four children.
 
 ```ts
 items.flatMap((item) =>
-    item.isHidden ? [] : [{...item, submenu: item.submenu ? filterVisibleItems(item.submenu) : undefined}])
+  item.isHidden
+    ? []
+    : [
+        {
+          ...item,
+          submenu: item.submenu ? filterVisibleItems(item.submenu) : undefined,
+        },
+      ],
+);
 ```
 
 It runs recursively and drops flagged items at every level, so a hidden item never renders,
@@ -63,7 +71,7 @@ Lifecycle, verified by grep:
   call. The atom's own doc comment claims it flips on tour completion, but that code path does
   not exist. So today the flag is **sticky-true per browser** once a user signs up.
 - `onboardingStorageUserIdAtom` is set for every authed user (`usePostAuthRedirect.ts:114`),
-  but `isNewUser` is only *written* when the payload says new. A returning user on a fresh
+  but `isNewUser` is only _written_ when the payload says new. A returning user on a fresh
   browser therefore reads the family default `false` → full nav. Only genuine fresh signups
   read `true`.
 
@@ -99,31 +107,27 @@ behavior (same atom, same pattern), so it is acceptable for the MVP. If the flas
 objectionable, `atomWithStorage(..., {getOnInit: true})` or gating render on a
 mounted/hydrated flag are the standard fixes — noted, not required.
 
-## 6. The settings surface for the toggle already exists
+## 6. The settings registry supports a dedicated page
 
 Settings tabs are declared in
-`web/oss/src/components/pages/settings/assets/navigation.ts`. There is already an `account`
-tab (`SettingsTabKey`), and its content renders at
-`web/oss/src/pages/w/[workspace_id]/p/[project_id]/settings/index.tsx:171` —
-`case "account": ... content: <DeleteAccount />`. The Account content folder
-(`components/pages/settings/Account/`) currently holds only `DeleteAccount.tsx`, so it is a
-clean place to add a "Simplified navigation" switch above the delete-account block.
+`web/oss/src/components/pages/settings/assets/navigation.ts`. A dedicated `featureFlags`
+tab can be registered there and rendered by the shared OSS Settings page so both editions
+inherit it.
 
 ## 7. Per-user vs per-workspace — why the toggle is the chosen shape
 
-The intent ("simplify for agent-focused people") is really a per-*workspace* property, but the
-only ready signal (`isNewUser`) and the chosen storage (localStorage) are per-*user*. A per-user
+The intent ("simplify for agent-focused people") is really a per-_workspace_ property, but the
+only ready signal (`isNewUser`) and the chosen storage (localStorage) are per-_user_. A per-user
 preference therefore cannot force a whole team to match. Verified consequence in the invite flow:
 `usePostAuthRedirect.ts` calls `setIsNewUser(true)` only in the **non-invited** branches
 (`:136`, `:147`); an invited teammate returns at `:128–:131` before the flag is set, so they read
 `isNewUser === false` → full nav, even when the inviter (a fresh agent signup) sees the simplified
-nav. The toggle resolves this at the individual level: the teammate flips one switch to match.
+nav. The personal preference resolves this at the individual level.
 Team-wide enforcement would require a workspace-level flag (backend), which is deferred.
 
 ## Seams to pin in the plan
 
-1. A per-user preference atom `simplifiedNavOverrideAtom` (`boolean | null`, localStorage, Phase
-   2) plus a derived `advancedNavHiddenAtom = override ?? navSimplifiedDefault`, homed in
+1. A per-user preference atom `navSimplifiedOverrideAtom` (`boolean | null`, localStorage, Phase 2) plus a derived `advancedNavHiddenAtom = override ?? navSimplifiedDefault`, homed in
    `state/onboarding/selectors.ts` next to `deadEndNavDisabledAtom`. The default is a **fresh**
    forward-only key (`nav-simplified`), NOT `isNewUserAtom` — see §3. One value, two consumers.
 2. `projectItems`: Prompts and evaluation-group need a new `isHidden` bound to
@@ -132,5 +136,5 @@ Team-wide enforcement would require a workspace-level flag (backend), which is d
    app-context `isHidden`, not replaced.
 4. The condition must reach the sidebar through a single selector so it lives in one place.
 5. Non-targets (Home, Agents, Observability, Playground) must remain untouched.
-6. The Settings → Account switch reads and writes the same preference, so the sidebar and the
-   switch never disagree.
+6. The Settings → Feature flags switch reads and writes the same preference, so the sidebar
+   and switch never disagree.

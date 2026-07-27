@@ -20,10 +20,12 @@ phases.
 **Advanced items hidden when the simplified view is active:**
 
 Project scope (`projectItems` in `useSidebarConfig`):
+
 - Prompts
 - Evaluation — the entire group (Test sets, Evaluators, Evaluation runs, Annotation Queues)
 
 App scope (`appItems` in `useSidebarConfig`):
+
 - Overview
 - Registry
 - Evaluations
@@ -43,9 +45,9 @@ full nav.
 
 ### Phase 2 (follow-up) — the toggle
 
-A "Simplified navigation" switch in **Settings → Account**, backed by a per-user localStorage
-override. It flips the mode either way: a new user can reveal everything (e.g. to use the
-LLM-app pages), and an existing user or invited teammate can opt into the focused view. Phase 2
+A "Classic mode" switch in **Settings → Feature flags**, backed by a per-user localStorage
+override. A new user can reveal everything (e.g. to use the LLM-app pages), while existing
+users continue to see the full navigation by default. Phase 2
 is additive — it changes no Phase-1 file except the one derived atom.
 
 ## Out of scope (both phases)
@@ -68,7 +70,7 @@ is additive — it changes no Phase-1 file except the one derived atom.
   existing users and is deliberately not reused.
 - **Simplified navigation** — the reduced, agent-focused sidebar (advanced items hidden).
 - **Full navigation** — the complete sidebar (today's behavior).
-- **Simplified-nav preference** — the per-user override (`simplifiedNavOverrideAtom`, Phase 2):
+- **Simplified-nav preference** — the per-user override (`navSimplifiedOverrideAtom`, Phase 2):
   `null` = follow the default, `true` = force simplified, `false` = force full.
 - **Effective mode** — `override ?? navSimplifiedDefault`, exposed as `advancedNavHiddenAtom`
   (in `state/onboarding` selectors). This single value drives both the sidebar and the switch.
@@ -76,6 +78,7 @@ is additive — it changes no Phase-1 file except the one derived atom.
 ## Success criteria
 
 **Phase 1**
+
 1. A new signup user sees the simplified sidebar (no Prompts, Evaluation group, Overview,
    Registry, or Evaluations).
 2. An existing/returning user sees the full sidebar exactly as before.
@@ -83,8 +86,5 @@ is additive — it changes no Phase-1 file except the one derived atom.
 4. Hidden items never render, auto-open, or become the selected key while simplified.
 5. No backend change is introduced.
 
-**Phase 2**
-6. The Settings → Account switch flips the effective mode in either direction and survives a
-   reload.
-7. Toggling the switch updates the sidebar without a full page reload.
-8. Phase 1's sidebar behavior is unchanged when no override is set.
+**Phase 2** 6. The Settings → Feature flags switch flips the effective mode and survives a
+reload. 7. Toggling the switch updates the sidebar without a full page reload. 8. Phase 1's sidebar behavior is unchanged when no override is set.

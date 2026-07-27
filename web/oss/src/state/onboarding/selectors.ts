@@ -1,7 +1,7 @@
 import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {atom} from "jotai"
 
-import {navSimplifiedDefaultAtom} from "@/oss/lib/onboarding/atoms"
+import {navSimplifiedDefaultAtom, navSimplifiedOverrideAtom} from "@/oss/lib/onboarding/atoms"
 
 import {onboardingSessionAtom} from "./atoms"
 
@@ -48,4 +48,7 @@ export const deadEndNavDisabledAtom = atom((get) => {
  * existing users keep the full nav. Stable seam: Phase 2 layers a user override here
  * (`override ?? default`) without touching consumers.
  */
-export const advancedNavHiddenAtom = atom((get) => get(navSimplifiedDefaultAtom))
+export const advancedNavHiddenAtom = atom((get) => {
+    const override = get(navSimplifiedOverrideAtom)
+    return override ?? get(navSimplifiedDefaultAtom)
+})

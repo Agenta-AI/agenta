@@ -9,6 +9,7 @@ const STORAGE_KEYS = {
     ACTIVE_USER_ID: "agenta:onboarding:active-user-id",
     IS_NEW_USER: "is-new-user",
     NAV_SIMPLIFIED: "nav-simplified",
+    NAV_SIMPLIFIED_OVERRIDE: "nav-simplified-override",
     SEEN_TOURS: "seen-tours",
 } as const
 
@@ -26,6 +27,13 @@ const isNewUserAtomFamily = atomFamily((userId: string) =>
 
 const navSimplifiedDefaultAtomFamily = atomFamily((userId: string) =>
     atomWithStorage<boolean>(createScopedStorageKey(userId, STORAGE_KEYS.NAV_SIMPLIFIED), false),
+)
+
+const navSimplifiedOverrideAtomFamily = atomFamily((userId: string) =>
+    atomWithStorage<boolean | null>(
+        createScopedStorageKey(userId, STORAGE_KEYS.NAV_SIMPLIFIED_OVERRIDE),
+        null,
+    ),
 )
 
 const seenToursAtomFamily = atomFamily((userId: string) =>
@@ -78,6 +86,20 @@ export const navSimplifiedDefaultAtom = atom(
         const userId = get(onboardingStorageUserIdAtom)
         if (!userId) return
         set(navSimplifiedDefaultAtomFamily(userId), next)
+    },
+)
+
+/** A user's explicit navigation choice. Null preserves their signup-era default. */
+export const navSimplifiedOverrideAtom = atom(
+    (get) => {
+        const userId = get(onboardingStorageUserIdAtom)
+        if (!userId) return null
+        return get(navSimplifiedOverrideAtomFamily(userId))
+    },
+    (get, set, next: boolean | null) => {
+        const userId = get(onboardingStorageUserIdAtom)
+        if (!userId) return
+        set(navSimplifiedOverrideAtomFamily(userId), next)
     },
 )
 

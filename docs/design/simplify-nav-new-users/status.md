@@ -1,17 +1,17 @@
 # Status — Simplify nav for new signup users
 
-**Last updated:** 2026-07-24
+**Last updated:** 2026-07-27
 
 ## Current stage
 
 Split into two phases. **Phase 1** (hide the advanced nav for new signups) is **implemented** —
 `advancedNavHiddenAtom` added to `state/onboarding` selectors, five `isHidden` edits in
 `useSidebarConfig`; `tsc` and ESLint pass clean. Remaining Phase-1 step: manual QA (Slice 4).
-**Phase 2** (a per-user "Simplified navigation" toggle in Settings → Account) is not started.
+**Phase 2** (a per-user "Classic mode" switch in Settings → Feature flags) is implemented.
 
 ## Locked decisions
 
-- **Phased delivery.** Phase 1 = hide-for-new-signups. Phase 2 = the Settings → Account toggle.
+- **Phased delivery.** Phase 1 = hide-for-new-signups. Phase 2 = the Settings → Feature flags switch.
   Phase 2 is additive — it touches no Phase-1 file except the body of `advancedNavHiddenAtom`.
 - **Hide scope: nav-only.** Remove the sidebar entries only. No route guards, no in-app link
   changes.
@@ -32,8 +32,8 @@ Split into two phases. **Phase 1** (hide the advanced nav for new signups) is **
 - **Phase 1 has no escape hatch (accepted).** A genuinely-new solo user stays simplified until
   Phase 2. Acceptable because that user is exactly the target audience and Phase 2 follows;
   invited teammates already see the full nav (not flagged).
-- **Phase 2 override.** A per-user localStorage `simplifiedNavOverrideAtom`
-  (`null | true | false`); switch in **Settings → Account**. Graduation becomes manual, anytime.
+- **Phase 2 override.** A per-user localStorage `navSimplifiedOverrideAtom`
+  (`null | true | false`); Classic mode switch in **Settings → Feature flags**.
 - **No backend, no team-wide enforcement.** Per-user preference. An invited teammate flips the
   switch (Phase 2) to match the team; we do not force a whole workspace to one mode. A
   workspace-level flag (backend) would, and is deferred; the override model does not block it.
@@ -45,8 +45,8 @@ Split into two phases. **Phase 1** (hide the advanced nav for new signups) is **
   `firstEvaluationTour`'s reference to the hidden Evaluations item is a non-issue.
 - **Empty sections: filter them out.** `filterVisibleSections` already drops zero-item
   sections; QA confirms nothing residual renders.
-- **Override scope (Phase 2): global-per-browser.** One `agenta:nav:simplified-override` key,
-  not per-user. Accepted the shared-browser leak as negligible for MVP.
+- **Override scope (Phase 2): per user and per browser.** The key is scoped with the active
+  user id, matching the signup-era default and avoiding preference leakage between accounts.
 - **SSR/hydration flash: accept and judge in QA.** Ship as-is; only reach for `getOnInit` /
   a hydrated-gate if the one-frame flash actually looks bad.
 
@@ -56,9 +56,8 @@ None. All resolved (2026-07-24). Ready to build.
 
 ## Next action
 
-Manual QA Phase 1 in the running app (Slice 4): flip `agenta:onboarding:<id>:nav-simplified`
-true/false and confirm the five items hide/show, non-targets stay, no empty section header
-remains. Then Phase 2 (Slices 5–6) as a separate delivery.
+Manual QA: toggle Classic mode and confirm the advanced navigation appears or disappears
+without a reload, then reload and confirm the choice persists.
 
 **Slice 0 note:** the automated pin was skipped — `@agenta/oss` has no CI-wired vitest runner
 (the web unit layer only runs `test:unit` across `@agenta/*` packages), so a test in `oss/src`
