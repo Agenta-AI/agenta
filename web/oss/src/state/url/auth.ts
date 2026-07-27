@@ -298,11 +298,13 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
 
                 if (!inviteEmail || !userEmail || inviteEmail === userEmail) {
                     if (!isCurrentAcceptRouteForInvite(appState, invite)) {
-                        void Router.replace({pathname: "/workspaces/accept", query: invite}).catch(
-                            (error) => {
-                                console.error("Failed to redirect to invite acceptance:", error)
-                            },
-                        )
+                        // Spread into a fresh object literal so it satisfies ParsedUrlQueryInput
+                        void Router.replace({
+                            pathname: "/workspaces/accept",
+                            query: {...invite},
+                        }).catch((error) => {
+                            console.error("Failed to redirect to invite acceptance:", error)
+                        })
                     }
                     store.set(protectedRouteReadyAtom, false)
                     return

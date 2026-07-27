@@ -37,5 +37,5 @@ export const getOrgValues = () => {
 
 export const resetOrganizationData = () => {
     const store = getDefaultStore()
-    store.set(resetOrganizationDataAtom, null)
+    store.set(resetOrganizationDataAtom)
 }

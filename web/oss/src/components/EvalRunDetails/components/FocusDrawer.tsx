@@ -141,7 +141,8 @@ interface FocusDrawerSection {
  * Hook to compute sections for a given run
  */
 const useFocusDrawerSections = (runId: string | null) => {
-    const {columnResult} = usePreviewTableData({runId: runId ?? undefined})
+    // Hook tolerates a nullish runId at runtime (falsy atom-family key); typed as-is.
+    const {columnResult} = usePreviewTableData({runId: (runId ?? undefined) as string})
     const descriptorMap = useAtomValue(
         useMemo(() => columnValueDescriptorMapAtomFamily(runId), [runId]),
     )
@@ -177,7 +178,9 @@ const useFocusDrawerSections = (runId: string | null) => {
                     }))
 
                 const staticColumns: SectionColumnEntry[] =
-                    group.kind === "metric" && group.staticMetricColumns?.length
+                    // Dead branch: the early return above excludes "metric" groups; cast keeps
+                    // the exact runtime behavior while satisfying TS (typed as-is per WP-4e-2a).
+                    (group.kind as string) === "metric" && group.staticMetricColumns?.length
                         ? group.staticMetricColumns.map((definition) => {
                               const column = buildStaticMetricColumn(group.id, definition)
                               return {
@@ -453,7 +456,7 @@ const ScenarioColumnValue = memo(
             const formattedValue =
                 typeof rawFormattedValue === "boolean"
                     ? String(rawFormattedValue)
-                    : rawFormattedValue
+                    : (rawFormattedValue as ReactNode)
 
             const isPlaceholder = formattedValue === METRIC_EMPTY_PLACEHOLDER
 
@@ -1344,7 +1347,9 @@ export const FocusDrawerContent = ({
                     }))
 
                 const staticColumns: SectionColumnEntry[] =
-                    group.kind === "metric" && group.staticMetricColumns?.length
+                    // Dead branch: the early return above excludes "metric" groups; cast keeps
+                    // the exact runtime behavior while satisfying TS (typed as-is per WP-4e-2a).
+                    (group.kind as string) === "metric" && group.staticMetricColumns?.length
                         ? group.staticMetricColumns.map((definition) => {
                               const column = buildStaticMetricColumn(group.id, definition)
                               return {

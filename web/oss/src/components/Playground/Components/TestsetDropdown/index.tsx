@@ -174,8 +174,9 @@ export function TestsetDropdown() {
                         return Object.values(
                             chatExecutions as Record<string, MessageExecution>,
                         ).some(
+                            // "success" typed as-is: MessageExecutionStatus never emits it (dead branch)
                             (r) =>
-                                (r?.status === "complete" || r?.status === "success") &&
+                                (r?.status === "complete" || (r?.status as string) === "success") &&
                                 !!r?.traceId,
                         )
                     }
@@ -233,7 +234,10 @@ export function TestsetDropdown() {
             const chatExecutions = store.get(executionByMessageIdAtomFamily(loadableId))
             chatTraceReferences = Object.values(chatExecutions as Record<string, MessageExecution>)
                 .filter(
-                    (r) => (r?.status === "complete" || r?.status === "success") && !!r?.traceId,
+                    // "success" typed as-is: MessageExecutionStatus never emits it (dead branch)
+                    (r) =>
+                        (r?.status === "complete" || (r?.status as string) === "success") &&
+                        !!r?.traceId,
                 )
                 .map(toTestsetTraceReference)
                 .filter((reference): reference is TestsetTraceReference => !!reference)

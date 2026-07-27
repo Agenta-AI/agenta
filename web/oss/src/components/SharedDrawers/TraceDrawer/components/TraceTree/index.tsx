@@ -200,7 +200,8 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
                         />
                     }
                     placement="bottomRight"
-                    classNames={{body: "!p-0 w-[240px]"}}
+                    // antd's PopoverClassNamesType doesn't declare `body`; kept as-is
+                    classNames={{body: "!p-0 w-[240px]"} as any}
                     arrow={false}
                 >
                     <Button icon={<SlidersHorizontal size={14} />} type="text" size="small" />
