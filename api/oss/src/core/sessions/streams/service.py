@@ -21,13 +21,17 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.dbs.redis.sessions.contract import (
     CONCURRENCY_LIMIT,
+    WATCH_LIFECYCLE_ENDED,
+    WATCH_LIFECYCLE_RUNNING,
     validate_session_id as _validate_session_id_fn,
 )
+from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
 from oss.src.dbs.redis.sessions.locks import (
     acquire_alive,
     acquire_running,
     claim_owner,
     clear_running,
+    release_running,
     force_cancel_alive,
     force_clear_owner,
     get_session_liveness,
@@ -74,9 +78,22 @@ class SessionStreamsService:
         *,
         streams_dao: SessionStreamsDAOInterface,
         lock_engine: LockEngine,
+        watch_publisher: Optional[SessionsWatchPublisher] = None,
     ) -> None:
         self._dao = streams_dao
         self._lock = lock_engine
+        self._watch = watch_publisher
+
+    async def _publish_lifecycle(
+        self, *, project_id: UUID, session_id: str, state: str
+    ) -> None:
+        # Fire-and-forget relay notification; the publisher never raises.
+        if self._watch is not None:
+            await self._watch.lifecycle(
+                project_id=str(project_id),
+                session_id=session_id,
+                state=state,
+            )
 
     async def command(
         self,
@@ -148,6 +165,11 @@ class SessionStreamsService:
                 project_id=project_id,
                 user_id=user_id,
                 session_id=session_id,
+            )
+            await self._publish_lifecycle(
+                project_id=project_id,
+                session_id=session_id,
+                state=WATCH_LIFECYCLE_ENDED,
             )
             return SessionStreamCommandResponse(
                 mode=mode,
@@ -250,6 +272,11 @@ class SessionStreamsService:
             user_id=user_id,
             session_id=session_id,
         )
+        await self._publish_lifecycle(
+            project_id=project_id,
+            session_id=session_id,
+            state=WATCH_LIFECYCLE_ENDED,
+        )
         return await self._dao.delete_by_session_id(
             project_id=project_id,
             session_id=session_id,
@@ -337,9 +364,24 @@ class SessionStreamsService:
         elif not request.is_running:
             # Turn ended: drop only `running`. `alive` outlives the turn (own TTL, cleared
             # only by kill) — this is what makes the session reattachable.
-            await clear_running(
-                self._lock, project_id=str(project_id), session_id=request.session_id
+            #
+            # Release only what this turn owns. The arming branch above already refuses a
+            # superseded turn; clearing unconditionally left the mirror hole open, where a
+            # stale turn's final beat deleted the LIVE turn's lock and published `ended`
+            # underneath it.
+            released = await release_running(
+                self._lock,
+                project_id=str(project_id),
+                session_id=request.session_id,
+                turn_id=request.turn_id,
             )
+            # Publish only on the actual transition, not on every idle heartbeat.
+            if released:
+                await self._publish_lifecycle(
+                    project_id=project_id,
+                    session_id=request.session_id,
+                    state=WATCH_LIFECYCLE_ENDED,
+                )
 
         liveness = await get_session_liveness(
             self._lock, project_id=str(project_id), session_id=request.session_id
@@ -610,6 +652,11 @@ class SessionStreamsService:
                     user_id=user_id,
                     session_id=session_id,
                 )
+        await self._publish_lifecycle(
+            project_id=project_id,
+            session_id=session_id,
+            state=WATCH_LIFECYCLE_RUNNING,
+        )
         return turn_id
 
     async def _mirror_flags(

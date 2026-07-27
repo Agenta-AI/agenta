@@ -12,11 +12,33 @@ from oss.src.core.sessions.interactions.interfaces import (
 )
 from oss.src.core.sessions.interactions.types import InteractionNotFound
 from oss.src.core.shared.dtos import Windowing
+from oss.src.dbs.redis.sessions.contract import (
+    WATCH_INTERACTION_PENDING,
+    WATCH_INTERACTION_RESOLVED,
+)
+from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
 
 
 class SessionInteractionsService:
-    def __init__(self, *, interactions_dao: SessionInteractionsDAOInterface) -> None:
+    def __init__(
+        self,
+        *,
+        interactions_dao: SessionInteractionsDAOInterface,
+        watch_publisher: Optional[SessionsWatchPublisher] = None,
+    ) -> None:
         self.interactions_dao = interactions_dao
+        self._watch = watch_publisher
+
+    async def _publish_interaction(
+        self, *, project_id: UUID, session_id: str, status: str
+    ) -> None:
+        # Fire-and-forget relay notification; the publisher never raises.
+        if self._watch is not None:
+            await self._watch.interaction(
+                project_id=str(project_id),
+                session_id=session_id,
+                status=status,
+            )
 
     async def create_interaction(
         self,
@@ -26,11 +48,17 @@ class SessionInteractionsService:
         #
         interaction: SessionInteractionCreate,
     ) -> SessionInteraction:
-        return await self.interactions_dao.create_interaction(
+        created = await self.interactions_dao.create_interaction(
             project_id=project_id,
             user_id=user_id,
             interaction=interaction,
         )
+        await self._publish_interaction(
+            project_id=project_id,
+            session_id=interaction.session_id,
+            status=WATCH_INTERACTION_PENDING,
+        )
+        return created
 
     async def fetch_interaction(
         self,
@@ -59,6 +87,11 @@ class SessionInteractionsService:
             raise InteractionNotFound(
                 f"Interaction with token {transition.token!r} not found or already terminal"
             )
+        await self._publish_interaction(
+            project_id=transition.project_id,
+            session_id=transition.session_id,
+            status=WATCH_INTERACTION_RESOLVED,
+        )
         return result
 
     async def cancel_session_pending(
@@ -69,12 +102,19 @@ class SessionInteractionsService:
         except_turn_id: Optional[str] = None,
         except_tokens: Optional[List[str]] = None,
     ) -> int:
-        return await self.interactions_dao.cancel_session_pending(
+        cancelled = await self.interactions_dao.cancel_session_pending(
             project_id=project_id,
             session_id=session_id,
             except_turn_id=except_turn_id,
             except_tokens=except_tokens,
         )
+        if cancelled:
+            await self._publish_interaction(
+                project_id=project_id,
+                session_id=session_id,
+                status=WATCH_INTERACTION_RESOLVED,
+            )
+        return cancelled
 
     async def query_interactions(
         self,

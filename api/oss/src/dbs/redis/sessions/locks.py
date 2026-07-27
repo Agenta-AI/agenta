@@ -145,6 +145,30 @@ async def refresh_running(
     return False
 
 
+async def release_running(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: str,
+) -> bool:
+    """Clear the running lock only if turn_id still owns it.
+
+    The unconditional `clear_running` is right for displacement and the orphan sweep, which
+    mean to evict whoever holds it. It is wrong for a turn reporting its own end: a stale
+    turn's final beat would delete the live turn's lock and publish `ended` underneath it.
+    Atomic, so the owner cannot change between the read and the delete.
+    """
+    key = running_key(project_id, session_id)
+    result = await engine.eval(
+        RELEASE_IF_OWNER_LUA,
+        1,
+        key.encode(),
+        turn_id.encode(),
+    )
+    return result == 1
+
+
 async def clear_running(
     engine: LockEngine,
     *,
