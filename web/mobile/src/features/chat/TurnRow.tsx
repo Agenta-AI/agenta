@@ -1,5 +1,7 @@
 import {partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 
+import {ApprovalCard} from "./ApprovalCard"
+
 /** One transcript turn: raw aligned text parts, one-line tool summaries, raw error line. */
 export const TurnRow = ({turn}: {turn: TurnViewModel}) => (
     <div className={`flex ${turn.isUser ? "justify-end" : "justify-start"}`}>
@@ -31,12 +33,19 @@ export const TurnRow = ({turn}: {turn: TurnViewModel}) => (
                     return (
                         <div key={item.index} className="flex flex-col gap-0.5">
                             {item.parts.map((part, i) => {
+                                const key = part.toolCallId ?? `${item.index}-${i}`
+                                if (part.state === "approval-requested") {
+                                    return (
+                                        <ApprovalCard
+                                            key={key}
+                                            toolName={partToolName(part)}
+                                            input={part.input}
+                                        />
+                                    )
+                                }
                                 const summary = rowSummary(part)
                                 return (
-                                    <p
-                                        key={part.toolCallId ?? `${item.index}-${i}`}
-                                        className="text-muted-foreground text-xs"
-                                    >
+                                    <p key={key} className="text-muted-foreground text-xs">
                                         {partToolName(part)} — {part.state ?? "pending"}
                                         {summary ? ` · ${summary}` : ""}
                                     </p>

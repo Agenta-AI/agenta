@@ -1,6 +1,12 @@
-import {useMemo} from "react"
+import {useMemo, useState} from "react"
 
-import {buildTurnViewModels, createExecutedToolIdentityCache} from "@agenta/chat/model"
+import {
+    buildTurnViewModels,
+    createExecutedToolIdentityCache,
+    getPendingApprovals,
+} from "@agenta/chat/model"
+
+import {useLivenessPoll} from "../sessions/useLivenessPoll"
 
 import {ChatHeader} from "./ChatHeader"
 import {ChatEmpty, ChatLoading} from "./states/ChatStates"
@@ -17,7 +23,17 @@ export const ChatScreen = ({
     projectId: string
     workspaceId: string
 }) => {
-    const {messages, state} = useSessionTranscript(sessionId)
+    // Tightened records cadence only while this foregrounded screen shows a running or pending
+    // turn; derived from the previous render's messages, so it settles one render behind.
+    const [pollMs, setPollMs] = useState(0)
+    const {messages, state} = useSessionTranscript(sessionId, pollMs)
+    const liveness = useLivenessPoll(projectId)
+    const running = Boolean(
+        liveness.data?.find((s) => s.session_id === sessionId)?.flags?.is_running,
+    )
+    const pendingCount = useMemo(() => getPendingApprovals(messages).length, [messages])
+    const nextPollMs = pendingCount > 0 || running ? 7_500 : 0
+    if (nextPollMs !== pollMs) setPollMs(nextPollMs)
     // One identity cache per session mount (the screen is keyed by sessionId).
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const executedFor = useMemo(() => createExecutedToolIdentityCache(), [sessionId])
