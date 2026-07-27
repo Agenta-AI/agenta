@@ -1,4 +1,6 @@
 export interface EvaluationDrawerPayload {
+    // Explicit index signature keeps the payload assignable to Record<string, unknown>
+    [key: string]: unknown
     inputs: Record<string, unknown>
     outputs: Record<string, unknown>
     evaluators: Record<string, unknown>

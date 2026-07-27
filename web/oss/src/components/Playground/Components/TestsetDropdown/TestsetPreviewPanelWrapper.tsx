@@ -236,23 +236,15 @@ export function TestsetPreviewPanelWrapper({
                         </Typography.Text>
                     </div>
                 </ModalContent>
-                <ModalFooter>
-                    <Button
-                        onClick={() => {
-                            setIsAddColumnModalOpen(false)
-                            setNewColumnName("")
-                        }}
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        type="primary"
-                        onClick={handleConfirmAddColumn}
-                        disabled={!newColumnName.trim()}
-                    >
-                        OK
-                    </Button>
-                </ModalFooter>
+                <ModalFooter
+                    onCancel={() => {
+                        setIsAddColumnModalOpen(false)
+                        setNewColumnName("")
+                    }}
+                    onConfirm={handleConfirmAddColumn}
+                    confirmLabel="OK"
+                    canConfirm={!!newColumnName.trim()}
+                />
             </EnhancedModal>
         </>
     )
