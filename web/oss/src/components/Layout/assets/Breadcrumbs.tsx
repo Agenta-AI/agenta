@@ -67,7 +67,8 @@ const breadcrumbItemsGenerator = (breadcrumbs: BreadcrumbAtom): {title: React.Re
     })
 }
 
-const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
+// `appName` is accepted but unused: breadcrumbs derive the app label from breadcrumbAtom
+const BreadcrumbContainer = memo(({appTheme}: {appTheme: string; appName?: string}) => {
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const breadcrumbs = useAtomValue(breadcrumbAtom)
     const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom)

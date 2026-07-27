@@ -53,6 +53,8 @@ export interface TextColumnDef<T = unknown> {
     fixed?: "left" | "right"
     /** Lock column from being hidden in visibility menu (defaults to true if fixed is set) */
     columnVisibilityLocked?: boolean
+    /** Custom value extractor for CSV export (read by useTableExport) */
+    exportValue?: (row: T, column?: ColumnsType<T>[number], columnIndex?: number) => unknown
 }
 
 export interface DateColumnDef {
@@ -171,6 +173,7 @@ function createTextColumn<T>(def: TextColumnDef<T>): ColumnType<T> {
         render: def.render as ColumnType<T>["render"],
         // Lock column from being toggled in visibility menu (explicit or derived from fixed)
         columnVisibilityLocked: def.columnVisibilityLocked ?? Boolean(def.fixed),
+        ...(def.exportValue ? {exportValue: def.exportValue} : {}),
         onHeaderCell: () => ({
             style: {minWidth: def.width},
         }),

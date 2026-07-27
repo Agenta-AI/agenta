@@ -158,7 +158,8 @@ const StreamsTab = ({sessionId}: {sessionId: string}) => {
                 </dd>
                 <dt className="text-colorTextTertiary">status</dt>
                 <dd className="m-0 min-w-0 break-all text-colorTextSecondary">
-                    {data?.status?.code ?? "—"}
+                    {/* typed as-is: backend SessionStream has no `status` field, so this always falls back */}
+                    {(data as {status?: {code?: string}} | null)?.status?.code ?? "—"}
                 </dd>
                 <dt className="text-colorTextTertiary">watcher_id</dt>
                 <dd className="m-0 min-w-0 break-all font-mono text-colorTextSecondary">

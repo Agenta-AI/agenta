@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {Skeleton, Typography} from "antd"
 import clsx from "clsx"
@@ -12,8 +12,8 @@ import {
 } from "recharts"
 
 interface PlaceholderProps {
-    title?: string
-    description?: string
+    title?: ReactNode
+    description?: ReactNode
     minHeight?: number
     variant?: "chart" | "list"
 }

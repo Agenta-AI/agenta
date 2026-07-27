@@ -8,6 +8,8 @@ import {useAtomValue} from "jotai"
 import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
 interface PlaygroundLoadingShellProps {
+    /** Unused; accepted for next/dynamic `loading` compatibility (DynamicOptionsLoadingProps). */
+    error?: Error | null
     /** Force the agent-flavored header. Onboarding always targets an agent, so it need not
      * wait for the early app-id signal to resolve. Defaults to the early agent-state atom. */
     agent?: boolean

@@ -14,7 +14,8 @@ export const appsAtom = eagerAtom<Workflow[]>((get) => {
     return get(appsQueryAtom).data ?? EmptyApps
 })
 
-export const selectedAppIdAtom = eagerAtom<string | null>((get) => {
+// Plain atom (not eagerAtom): both deps are synchronous, so the value is never a Promise.
+export const selectedAppIdAtom = atom<string | null>((get) => {
     return get(routerAppIdAtom) || get(recentAppIdAtom) || null
 })
 
