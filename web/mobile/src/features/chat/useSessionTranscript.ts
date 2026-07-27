@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {loadSessionMessages} from "@agenta/chat/assets"
 import {revalidateSessionRecordsAtom} from "@agenta/entities/session"
@@ -13,10 +13,18 @@ import {getDefaultStore} from "jotai"
  * `pollMs` > 0 tightens the cadence (a running turn / pending approval): each tick marks the
  * records stale and re-reads through the shared cache. Foreground-only — a hidden tab skips
  * ticks entirely (the records query is the heavy one; see the plan's cost note).
+ *
+ * The returned `refresh` is the tick's body as a stable callback, so the live relay
+ * (`useSessionWatch`) can drive the exact same revalidate path push-style.
  */
 export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
     const [messages, setMessages] = useState<UIMessage[]>([])
     const [state, setState] = useState<"loading" | "ready" | "empty">("loading")
+    // Session-switch guard: a late resolve for a previous session must never land.
+    const sessionRef = useRef(sessionId)
+    sessionRef.current = sessionId
+    const inFlightRef = useRef(false)
+
     useEffect(() => {
         let cancelled = false
         let refreshed = false
@@ -39,33 +47,30 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
         }
     }, [sessionId])
 
+    const refresh = useCallback(() => {
+        if (document.visibilityState !== "visible" || inFlightRef.current) return
+        inFlightRef.current = true
+        // Invalidate first so the shared-cache read refetches instead of serving staleTime.
+        getDefaultStore().set(revalidateSessionRecordsAtom, sessionId)
+        void loadSessionMessages(sessionId)
+            .then((msgs) => {
+                if (sessionRef.current === sessionId && msgs && msgs.length > 0) {
+                    setMessages(msgs)
+                    setState("ready")
+                }
+            })
+            .finally(() => {
+                inFlightRef.current = false
+            })
+    }, [sessionId])
+
     useEffect(() => {
         if (!pollMs) return
-        let cancelled = false
-        let inFlight = false
-        const store = getDefaultStore()
-        const tick = () => {
-            if (document.visibilityState !== "visible" || inFlight) return
-            inFlight = true
-            // Invalidate first so the shared-cache read refetches instead of serving staleTime.
-            store.set(revalidateSessionRecordsAtom, sessionId)
-            void loadSessionMessages(sessionId)
-                .then((msgs) => {
-                    if (!cancelled && msgs && msgs.length > 0) {
-                        setMessages(msgs)
-                        setState("ready")
-                    }
-                })
-                .finally(() => {
-                    inFlight = false
-                })
-        }
-        const handle = setInterval(tick, pollMs)
+        const handle = setInterval(refresh, pollMs)
         return () => {
-            cancelled = true
             clearInterval(handle)
         }
-    }, [sessionId, pollMs])
+    }, [refresh, pollMs])
 
-    return {messages, state}
+    return {messages, state, refresh}
 }

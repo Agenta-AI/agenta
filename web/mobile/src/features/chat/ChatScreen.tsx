@@ -14,7 +14,9 @@ import {StopButton} from "./StopButton"
 import {TurnRow} from "./TurnRow"
 import {useApprovalActions} from "./useApprovalActions"
 import {useSessionTranscript} from "./useSessionTranscript"
+import {useSessionWatch} from "./useSessionWatch"
 import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
+import {watchAwarePollMs} from "./watchRelay"
 
 /** Read-only replay screen — mount it with `key={sessionId}` so per-session state resets. */
 export const ChatScreen = ({
@@ -29,7 +31,10 @@ export const ChatScreen = ({
     // Tightened records cadence only while this foregrounded screen shows a running or pending
     // turn; derived from the previous render's messages, so it settles one render behind.
     const [pollMs, setPollMs] = useState(0)
-    const {messages, state} = useSessionTranscript(sessionId, pollMs)
+    const {messages, state, refresh} = useSessionTranscript(sessionId, pollMs)
+    // Live relay (M3): push-invalidate through the same tick body; while it is open the
+    // poll below is only a safety net.
+    const watch = useSessionWatch({sessionId, projectId, onRecordsChanged: refresh})
     const liveness = useLivenessPoll(projectId)
     const running = Boolean(
         liveness.data?.find((s) => s.session_id === sessionId)?.flags?.is_running,
@@ -37,8 +42,9 @@ export const ChatScreen = ({
     const pendingCount = useMemo(() => getPendingApprovals(messages).length, [messages])
     const approvals = useApprovalActions({sessionId, projectId, pendingCount})
     // ~4s while a fired decision settles (fire-and-forget — records carry the resume).
-    const nextPollMs =
+    const basePollMs =
         approvals.phase === "resuming" ? 4_000 : pendingCount > 0 || running ? 7_500 : 0
+    const nextPollMs = watchAwarePollMs(basePollMs, watch.connected)
     if (nextPollMs !== pollMs) setPollMs(nextPollMs)
     // One identity cache per session mount (the screen is keyed by sessionId).
     // eslint-disable-next-line react-hooks/exhaustive-deps
