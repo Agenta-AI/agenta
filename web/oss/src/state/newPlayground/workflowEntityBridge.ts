@@ -193,9 +193,11 @@ const resolveRemainingWorkflowRevisionId = async ({
 
         // Refetch variants list and try adjacent
         const variantsQuery = store.get(workflowVariantsQueryAtomFamily(workflowId))
-        if (variantsQuery.refetch) {
+        // The atom can return a plain placeholder (no refetch) before the scoped query is live
+        const refetchVariants = "refetch" in variantsQuery ? variantsQuery.refetch : undefined
+        if (refetchVariants) {
             try {
-                const refetched = await variantsQuery.refetch()
+                const refetched = await refetchVariants()
                 const refetchedVariantIds =
                     refetched.data?.workflow_variants
                         ?.map((variant) => variant.id)

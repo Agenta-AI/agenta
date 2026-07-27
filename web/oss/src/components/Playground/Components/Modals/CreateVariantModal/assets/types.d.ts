@@ -14,7 +14,7 @@ export interface CreateVariantModalContentProps {
     newVariantName: string
     setNewVariantName: (value: string) => void
     setNameExists: Dispatch<SetStateAction<boolean>>
-    variants: {variantName: string}[]
+    variants: {variantName?: string | null}[]
     nameExists: boolean
     note: string
     setNote: Dispatch<SetStateAction<string>>

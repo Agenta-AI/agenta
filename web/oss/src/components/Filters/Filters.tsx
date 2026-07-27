@@ -20,6 +20,8 @@ import {
     Space,
     TreeSelect,
     Typography,
+    type PopoverProps,
+    type TreeSelectProps,
 } from "antd"
 import {useAtomValue} from "jotai"
 import isEqual from "lodash/isEqual"
@@ -860,7 +862,11 @@ const Filters: React.FC<Props> = ({
             open={isFilterOpen}
             placement="bottomLeft"
             autoAdjustOverflow
-            styles={{body: {maxHeight: "70vh"}, root: {maxWidth: "100vw"}}}
+            // antd v6 dropped the `body` semantic key (now container/content), so the
+            // `body` styles are ignored at runtime — typed as-is per WP-4e-2a.
+            styles={
+                {body: {maxHeight: "70vh"}, root: {maxWidth: "100vw"}} as PopoverProps["styles"]
+            }
             destroyOnHidden
             content={
                 <section>

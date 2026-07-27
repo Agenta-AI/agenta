@@ -206,7 +206,9 @@ const buildMappings = (
     // Generate input mappings aligned with Playground (schema + initial prompt vars for custom; prompt tokens for non-custom)
     {
         const store = getDefaultStore()
-        const appContext = store.get(currentAppContextAtom)
+        const appContextValue = store.get(currentAppContextAtom)
+        // the eager atom can still hold a pending Promise; a Promise has no appType, so isCustom stays false
+        const appContext = appContextValue instanceof Promise ? null : appContextValue
         const isCustom = appContext?.appType === "custom"
         const spec = store.get(appOpenApiSchemaAtomFamily(revision.id))
         const routePath = store.get(appRoutePathAtomFamily(revision.id)) || ""
@@ -298,7 +300,10 @@ const buildMappings = (
     // Evaluator output mappings generated dynamically per evaluator
     if (evaluators && evaluators.length > 0) {
         evaluators?.forEach((evaluator) => {
-            const metrics = getMetricsFromEvaluator(evaluator)
+            // typed as-is: a Workflow is passed where an EvaluatorDto is expected; only `.data` is read
+            const metrics = getMetricsFromEvaluator(
+                evaluator as unknown as Parameters<typeof getMetricsFromEvaluator>[0],
+            )
             Object.keys(metrics).forEach((key) => {
                 mappings.push({
                     column: {kind: "evaluator", name: `${evaluator.slug}.${key}`},
