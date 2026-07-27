@@ -476,6 +476,16 @@ describe("runWithKeepalive: validation mismatches degrade to cold", () => {
     assert.equal(calls.acquire, 2);
   });
 
+  it("a last-message-only turn 2 keeps the warm session (no history to compare)", async () => {
+    // The flag-on frontend sends ONLY the trailing user message, so `priorConversation` is
+    // empty and its fingerprint can never match what turn 1 stored. Comparing anyway evicted
+    // every conversation to cold on every turn.
+    const minimal = turn2("s1", { messages: [{ role: "user", content: "more" }] });
+    const { calls, env1 } = await parkThen(minimal);
+    assert.equal(env1.destroyed, 0, "the warm env must survive a minimal-history turn");
+    assert.equal(calls.acquire, 1, "no cold re-acquire");
+  });
+
   it("credential-epoch expiry evicts to cold", async () => {
     // The parked mount expiry is in the past, so the next turn's epoch check fails.
     const { calls, env1 } = await parkThen(turn2(), {
