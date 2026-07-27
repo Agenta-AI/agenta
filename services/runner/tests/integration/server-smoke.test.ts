@@ -16,23 +16,6 @@ import {
 } from "../../src/server.ts";
 
 // ---------------------------------------------------------------------------
-// Server lifecycle helper
-// ---------------------------------------------------------------------------
-
-async function listen(
-  run: RunAgent,
-): Promise<{ url: string; close: () => Promise<void> }> {
-  const server = createAgentServer(run);
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const { port } = server.address() as AddressInfo;
-  return {
-    url: `http://127.0.0.1:${port}`,
-    close: () =>
-      new Promise<void>((resolve) => server.close(() => resolve())),
-  };
-}
-
-// ---------------------------------------------------------------------------
 // Skip guards for external infra
 // ---------------------------------------------------------------------------
 
@@ -59,6 +42,23 @@ afterEach(() => {
   else process.env[TOKEN_ENV] = savedToken;
 });
 
+const TEST_TOKEN = "test-runner-token";
+const AUTH = { authorization: `Bearer ${TEST_TOKEN}` };
+
+async function listen(
+  run: RunAgent,
+): Promise<{ url: string; close: () => Promise<void> }> {
+  if (!process.env[TOKEN_ENV]) process.env[TOKEN_ENV] = TEST_TOKEN;
+  const server = createAgentServer(run);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  return {
+    url: `http://127.0.0.1:${port}`,
+    close: () =>
+      new Promise<void>((resolve) => server.close(() => resolve())),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Basic end-to-end: server boots, endpoints respond
 // ---------------------------------------------------------------------------
@@ -80,17 +80,15 @@ describe("server integration — in-process server with fake engine", () => {
     }
   });
 
-  it("POST /run with no token returns 200 (default-off gate)", async () => {
-    delete process.env[TOKEN_ENV];
+  it("POST /run is REJECTED when no token is configured (fails closed; there is no unauthenticated mode)", async () => {
     const s = await listen(okRun);
+    delete process.env[TOKEN_ENV];
     try {
       const res = await fetch(`${s.url}/run`, {
         method: "POST",
         body: JSON.stringify({ harness: "pi_core" }),
       });
-      assert.equal(res.status, 200);
-      const body = (await res.json()) as { ok: boolean; output: string };
-      assert.equal(body.ok, true);
+      assert.equal(res.status, 401);
     } finally {
       await s.close();
     }
@@ -137,7 +135,7 @@ describe("server integration — in-process server with fake engine", () => {
     try {
       const res = await fetch(`${s.url}/run`, {
         method: "POST",
-        headers: { accept: "application/x-ndjson" },
+        headers: { accept: "application/x-ndjson", ...AUTH },
         body: "{}",
       });
       assert.equal(res.status, 200);

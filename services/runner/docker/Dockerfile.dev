@@ -59,6 +59,9 @@ ENV NODE_ENV=development \
 
 EXPOSE 8765
 
+# No USER node here (unlike Dockerfile.gh): dev rebuilds dist/ under /app and mkdir's /pi-agent
+# at container start, both root-owned paths — not a FUSE constraint (fusermount works non-root).
+
 # Rebuild the Pi extension from the mounted src on start (cheap, ~120ms) so a restart picks
 # up extension edits, then run the watcher. Call node + the local tsx binary directly to
 # avoid pnpm/corepack HOME writes when the container runs as a non-root host uid.

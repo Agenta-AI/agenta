@@ -11,6 +11,7 @@ from .errors import (
     AmbiguousConnectionError,
     ConnectionNotFoundError,
     ConnectionResolutionError,
+    EndpointResolutionError,
     MissingProviderError,
     ProviderMismatchError,
     UnsupportedConnectionModeError,
@@ -45,6 +46,7 @@ __all__ = [
     # Errors
     "AgentConnectionError",
     "ConnectionResolutionError",
+    "EndpointResolutionError",
     "ConnectionNotFoundError",
     "MissingProviderError",
     "AmbiguousConnectionError",

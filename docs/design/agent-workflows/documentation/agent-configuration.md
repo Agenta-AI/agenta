@@ -178,8 +178,8 @@ list of `{pattern, permission}` entries for harness-builtin tools (for example
 `Bash(rm:*)` set to `ask`). The runner checks rules before falling back to `default`.
 
 Tool entries are strict even though the list is lenient. Each tool subclass is `extra="forbid"`
-(`sdks/python/agenta/sdk/agents/tools/models.py`). `MCPServerConfig` is also `extra="forbid"`
-with a transport validator (`sdks/python/agenta/sdk/agents/mcp/models.py`).
+(`sdks/python/agenta/sdk/agents/tools/models.py`). `MCPServerConfig` is also `extra="forbid"`. It accepts only the nested HTTP
+connection, credential, and policy roles defined in `sdks/python/agenta/sdk/agents/mcp/models.py`.
 
 There is no `ModelRef` type. `model` is a plain string everywhere. There is no provider field.
 The rich model picker is built only for the UI by `_model_catalog_type()`
@@ -217,7 +217,7 @@ Legend: (a) catalog/schema, (b) SDK neutral config, (c) runtime.
 | --- | --- | --- | --- | --- |
 | model / provider | yes, `model: str` | yes, `Optional[str]` | wired to the runner | Loose string. No `ModelRef`, no provider enum. There is no separate provider field. |
 | tools | yes, strict list | yes, lenient coercion | wired, resolved to builtin names + tool specs | Entries strict, list lenient. |
-| mcp_servers | yes, strict list | yes | wired, resolved to runner mcp servers | Strict per entry. Gated by `AGENTA_AGENT_MCPS_ENABLED` at the service. |
+| mcp_servers | yes, strict list | yes | wired, resolved to runner MCP servers | Strict per entry. Claude supports external HTTP servers; Pi refuses them until its bridge exists. |
 | skills | yes, embed/inline list | yes | wired | Author-settable (`SkillConfig` inline or `@ag.embed` references). The playground build-kit overlay embeds one skill, the `build-an-agent` playbook; the `pi_agenta` harness additionally force-unions `getting-started`. See below. |
 | persona | no | no | wired but forced only | Not a config field. The Agenta harness hardcodes an append-system preamble. See below. |
 | agents_md | yes, `agents_md: str` | yes, as `instructions` | wired to `agentsMd` | The schema names it `agents_md`. The neutral config names it `instructions`. |
@@ -259,13 +259,17 @@ This is what the playground saves and the runtime reads:
   ],
   "mcp_servers": [
     {
-      "name": "github",
-      "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"]
+      "name": "memory",
+      "connection": {
+        "type": "http",
+        "url": "https://memory.example.com/mcp",
+        "headers": {},
+        "credentials": { "type": "none" }
+      },
+      "policy": { "tools": { "mode": "all" }, "permission": "ask" }
     }
   ],
-  "harness": "pi_core",
+  "harness": "claude",
   "sandbox": "local",
   "runner": { "permissions": { "default": "allow_reads" } }
 }
@@ -274,8 +278,8 @@ This is what the playground saves and the runtime reads:
 With this config, the runtime reads `agents_md`, `model`, `tools`, `mcp_servers`, and the
 run-selection fields `harness`, `sandbox`, and `runner.permissions.default` through the one
 neutral `AgentConfig`, resolves the tools and MCP servers server-side, and runs one turn on
-the Pi harness in a local sandbox. Under `allow_reads`, `web_search` runs as a read with no
-prompt; a write tool would pause for approval on this harness exactly as it would on Claude.
+the Claude harness in a local sandbox. Under `allow_reads`, `web_search` runs as a read with no
+prompt; a write tool pauses for approval.
 
 ## See also
 

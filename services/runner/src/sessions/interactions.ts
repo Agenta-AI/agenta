@@ -121,19 +121,27 @@ export async function resolveInteraction(
 /**
  * At the start of a new session turn, cancel prior turns' still-pending gates: if the user
  * sent a new message instead of answering a pending approval, that gate is orphaned. Spares
- * the current turn's own gates via `turn_id`. Fire-and-forget, single attempt — best effort,
- * never blocks the turn.
+ * the current turn's own gates via `turn_id`, plus any prior-turn gates this turn answers
+ * in-band via `tokens` — an in-band answer never transitioned the row off `pending` (only the
+ * interactions-plane respond endpoint does), and the resume resolves it after consuming the
+ * decision; sweeping it first would record the granted gate as `cancelled` and 404 the
+ * resolve. Fire-and-forget, single attempt — best effort, never blocks the turn.
  */
 export async function cancelStaleInteractions(
   sessionId: string,
   turnId: string,
+  tokens: string[] | undefined,
   auth: () => string,
 ): Promise<void> {
   try {
     const res = await fetch(`${apiBase()}/sessions/interactions/cancel-stale`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: auth() },
-      body: JSON.stringify({ session_id: sessionId, turn_id: turnId }),
+      body: JSON.stringify({
+        session_id: sessionId,
+        turn_id: turnId,
+        ...(tokens?.length ? { tokens } : {}),
+      }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     log(`cancel-stale OK session=${sessionId} turn=${turnId}`);

@@ -262,6 +262,11 @@ describe("wire contract: results (vs Python golden)", () => {
       typed.map((e) => e.type),
       ["message", "usage", "done"],
     );
+    // The terminal `done` event carries the run's trace id (durable-replay link to the trace).
+    const doneEvent = typed.find((e) => e.type === "done") as {
+      traceId?: string;
+    };
+    assert.equal(doneEvent.traceId, "trace-abc");
     assert.deepEqual(res.usage, {
       input: 10,
       output: 5,

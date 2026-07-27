@@ -66,6 +66,7 @@ import {
   type RelayActivitySource,
 } from "./relay-watch.ts";
 import { assertRequiredArguments } from "./spec-schema.ts";
+import { toolSpecsByName } from "./public-spec.ts";
 
 // Compatibility re-export: the type moved to `client-tool-relay.ts` (a pure type module);
 // importers that still reach it through this module keep working while they migrate.
@@ -421,7 +422,10 @@ function isRelayFileName(name: string): boolean {
 /** Bound one daemon removal so relay startup, polling, and shutdown cannot wedge on it. */
 const RELAY_REMOVE_TIMEOUT_MS = 10_000;
 
-async function removeRelayFile(host: RelayHost, path: string): Promise<boolean> {
+async function removeRelayFile(
+  host: RelayHost,
+  path: string,
+): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<false>((resolve) => {
     timer = setTimeout(() => resolve(false), RELAY_REMOVE_TIMEOUT_MS);
@@ -509,10 +513,13 @@ export function startToolRelay(
   runContext?: RunContext,
   clientToolRelay?: ClientToolRelay,
   guard?: RelayExecutionGuard,
-  opts?: { log?: (msg: string) => void },
+  opts?: { log?: (msg: string) => void; writePausedAnswer?: boolean },
 ): { ready: Promise<void>; stop: () => Promise<void> } {
   let active = true;
   const log = opts?.log ?? (() => {});
+  // Single switch between the two pause outcomes; defaults OFF so an un-flagged caller keeps Pi's
+  // write-no-answer behavior.
+  const writePausedAnswer = opts?.writePausedAnswer ?? false;
   // Telemetry gate: without a log sink there is nowhere for pickup_ms to go, so the
   // stat (a daemon round-trip on Daytona) is skipped entirely.
   const telemetry = opts?.log !== undefined;
@@ -522,7 +529,7 @@ export function startToolRelay(
   // a lingering picked-up file cannot insta-wake watch windows forever.
   const removeFailed = new Set<string>();
   const inflight: Promise<void>[] = [];
-  const specsByName = new Map(specs.map((spec) => [spec.name, spec]));
+  const specsByName = toolSpecsByName(specs);
 
   const writeResponse = async (
     id: string,
@@ -557,8 +564,15 @@ export function startToolRelay(
         clientToolRelay,
         guard,
       );
-      if (text === PAUSED) return;
-      res = { ok: true, text };
+      if (text === PAUSED) {
+        // A client tool parked. Pi writes no answer; the non-Pi shim gets a benign paused answer so
+        // it ends its blocking `tools/call` at once instead of waiting out the per-tool timeout and
+        // emitting a late error frame (see ClientToolPauseDisposition).
+        if (!writePausedAnswer) return;
+        res = { ok: true, paused: true };
+      } else {
+        res = { ok: true, text };
+      }
     } catch (err) {
       res = {
         ok: false,

@@ -1,34 +1,34 @@
 /**
- * McpServerFormView
- *
- * Structured form view for an MCP server, the Form side of {@link ConfigItemDrawer}. Mirrors
- * the MCPServerConfig shape (sdks/python/agenta/sdk/agents/mcp/models.py): name, transport
- * (stdio command/args/env, or http url), vault secret-name map, and an optional exposed-tool
- * allowlist. It edits only those known keys so the object stays valid (the backend model is
- * `extra="forbid"`).
- *
- * Re-mount it per server (key on the open item) so the local key/value text state seeds
- * cleanly.
+ * Structured editor for one external HTTP MCP server.
  */
 import {useState} from "react"
 
-import {Input, Select} from "antd"
+import {customNamedSecretsAtom} from "@agenta/entities/secret"
+import {Input, Select, Tag} from "antd"
+import {useAtomValue} from "jotai"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 
-import {CodeEditor} from "./CodeEditor"
-
 type Dict = Record<string, string>
+type CredentialType = "none" | "header_secret_refs"
+type AuthenticationType = CredentialType | "oauth"
+
+interface McpCredentials {
+    type?: CredentialType
+    headers?: Dict
+}
+
+interface McpConnection {
+    type?: "http"
+    url?: string
+    headers?: Dict
+    credentials?: McpCredentials
+}
 
 interface McpServer {
     name?: string
-    transport?: "stdio" | "http"
-    command?: string
-    args?: string[]
-    env?: Dict
-    url?: string
-    secrets?: Dict
-    tools?: string[]
+    connection?: McpConnection
+    policy?: Record<string, unknown>
 }
 
 export interface McpServerFormViewProps {
@@ -37,164 +37,167 @@ export interface McpServerFormViewProps {
     disabled?: boolean
 }
 
-/** `KEY=value` per line ↔ a string map. Local text state avoids cursor jumps on edit. */
-function KeyValueLines({
-    value,
-    onChange,
-    placeholder,
-    disabled,
-}: {
-    value: Dict | undefined
-    onChange: (next: Dict) => void
-    placeholder?: string
-    disabled?: boolean
-}) {
-    const [text, setText] = useState(() =>
-        Object.entries(value ?? {})
-            .map(([k, v]) => `${k}=${v}`)
-            .join("\n"),
-    )
-
-    const handle = (next: string) => {
-        setText(next)
-        const obj: Dict = {}
-        next.split("\n").forEach((line) => {
-            const i = line.indexOf("=")
-            if (i > 0) {
-                const k = line.slice(0, i).trim()
-                if (k) obj[k] = line.slice(i + 1).trim()
-            }
-        })
-        onChange(obj)
-    }
-
-    return (
-        <Input.TextArea
-            value={text}
-            onChange={(e) => handle(e.target.value)}
-            placeholder={placeholder}
-            disabled={disabled}
-            autoSize={{minRows: 2, maxRows: 6}}
-            className="font-mono"
-        />
-    )
-}
+const MCP_SERVER_NAME_PATTERN = /^[A-Za-z0-9._-]{1,128}$/
 
 export function McpServerFormView({value, onChange, disabled}: McpServerFormViewProps) {
-    const server = (value ?? {}) as McpServer
-    const transport = server.transport ?? "stdio"
+    const namedSecrets = useAtomValue(customNamedSecretsAtom)
+    const server = value as McpServer
+    const connection = server.connection ?? {
+        type: "http" as const,
+        url: "",
+        credentials: {type: "none" as const},
+    }
+    const credentials = connection.credentials ?? {type: "none" as const}
+    const credentialType = credentials.type ?? "none"
+    const initialSecretHeader = Object.entries(credentials.headers ?? {})[0] ?? ["", ""]
+    const [secretHeader, setSecretHeader] = useState({
+        name: initialSecretHeader[0],
+        slug: initialSecretHeader[1],
+    })
 
-    const set = (key: keyof McpServer, fieldValue: unknown) => {
-        const next = {...(value ?? {})}
-        if (fieldValue === undefined || fieldValue === null || fieldValue === "") {
-            delete (next as Record<string, unknown>)[key]
-        } else {
-            ;(next as Record<string, unknown>)[key] = fieldValue
-        }
-        onChange(next)
+    const name = server.name ?? ""
+    const invalidName = Boolean(name) && !MCP_SERVER_NAME_PATTERN.test(name)
+    const selectedSecretExists = namedSecrets.some((secret) => secret.slug === secretHeader.slug)
+
+    const setServer = (patch: Partial<McpServer>) => {
+        onChange({...value, ...patch})
+    }
+
+    const setConnection = (patch: Partial<McpConnection>) => {
+        setServer({
+            connection: {
+                ...connection,
+                type: "http",
+                ...patch,
+            },
+        })
+    }
+
+    const writeSecretHeader = (next: {name: string; slug: string}) => {
+        setSecretHeader(next)
+        setConnection({
+            credentials: {
+                type: "header_secret_refs",
+                headers: next.name && next.slug ? {[next.name]: next.slug} : {},
+            },
+        })
+    }
+
+    const setAuthenticationType = (type: AuthenticationType) => {
+        if (type === "oauth") return
+        setConnection({
+            credentials:
+                type === "none"
+                    ? {type: "none"}
+                    : {
+                          type: "header_secret_refs",
+                          headers:
+                              secretHeader.name && secretHeader.slug
+                                  ? {[secretHeader.name]: secretHeader.slug}
+                                  : {},
+                      },
+        })
     }
 
     return (
         <div className="flex flex-col gap-3">
-            <RailField label="Server name" align="center">
+            <RailField label="Server name">
                 <Input
-                    value={server.name ?? ""}
-                    onChange={(e) => set("name", e.target.value)}
-                    placeholder="my-mcp-server"
+                    value={name}
+                    onChange={(event) => setServer({name: event.target.value})}
+                    placeholder="exa"
+                    status={invalidName ? "error" : undefined}
+                    disabled={disabled}
+                />
+                {invalidName ? (
+                    <span className="mt-1 text-xs text-[var(--ag-colorError)]">
+                        Use only letters, numbers, dots, hyphens, or underscores.
+                    </span>
+                ) : null}
+            </RailField>
+
+            <RailField label="MCP URL" align="center">
+                <Input
+                    value={connection.url ?? ""}
+                    onChange={(event) => setConnection({url: event.target.value})}
+                    placeholder="https://example.com/mcp"
                     disabled={disabled}
                 />
             </RailField>
 
-            <RailField label="Transport" align="center">
-                <Select
+            <RailField label="Authentication" align="center">
+                <Select<AuthenticationType>
                     className="w-full"
-                    value={transport}
-                    onChange={(v) => set("transport", v)}
+                    value={credentialType}
+                    onChange={setAuthenticationType}
                     disabled={disabled}
                     options={[
-                        {label: "stdio (local command)", value: "stdio"},
-                        {label: "http (remote URL)", value: "http"},
+                        {label: "None", value: "none"},
+                        {label: "Secret header", value: "header_secret_refs"},
+                        {
+                            label: (
+                                <span className="flex items-center justify-between gap-2">
+                                    OAuth
+                                    <Tag className="m-0 text-[10px]">Soon</Tag>
+                                </span>
+                            ),
+                            value: "oauth",
+                            disabled: true,
+                        },
                     ]}
                 />
             </RailField>
 
-            {transport === "stdio" ? (
+            {credentialType === "header_secret_refs" ? (
                 <>
-                    <RailField label="Command">
-                        <CodeEditor
-                            value={server.command ?? ""}
-                            onChange={(v) => set("command", v)}
-                            placeholder="npx"
+                    <RailField
+                        label={railInfoLabel(
+                            "Header name",
+                            "The HTTP header required by the MCP server, for example x-api-key",
+                        )}
+                        align="center"
+                    >
+                        <Input
+                            value={secretHeader.name}
+                            onChange={(event) =>
+                                writeSecretHeader({
+                                    ...secretHeader,
+                                    name: event.target.value.trim(),
+                                })
+                            }
+                            placeholder="x-api-key"
                             disabled={disabled}
                         />
                     </RailField>
-                    <RailField label="Arguments" align="center">
+
+                    <RailField
+                        label={railInfoLabel(
+                            "Project secret",
+                            "The selected secret is resolved securely when the agent runs",
+                        )}
+                        align="center"
+                    >
                         <Select
-                            mode="tags"
                             className="w-full"
-                            value={server.args ?? []}
-                            onChange={(v) => set("args", v)}
-                            placeholder="one argument per token"
+                            value={selectedSecretExists ? secretHeader.slug : undefined}
+                            onChange={(slug) => writeSecretHeader({...secretHeader, slug})}
+                            placeholder={
+                                secretHeader.slug && !selectedSecretExists
+                                    ? "Selected secret is unavailable"
+                                    : "Select a project secret"
+                            }
                             disabled={disabled}
-                            open={false}
-                            suffixIcon={null}
+                            notFoundContent="No project secrets found"
+                            options={namedSecrets
+                                .filter((secret) => Boolean(secret.slug))
+                                .map((secret) => ({
+                                    label: secret.name || "Unnamed secret",
+                                    value: secret.slug as string,
+                                }))}
                         />
                     </RailField>
                 </>
-            ) : (
-                <RailField label="Server URL" align="center">
-                    <Input
-                        value={server.url ?? ""}
-                        onChange={(e) => set("url", e.target.value)}
-                        placeholder="https://example.com/mcp"
-                        disabled={disabled}
-                    />
-                </RailField>
-            )}
-
-            <RailField label={railInfoLabel("Environment", "KEY=value per line")}>
-                <KeyValueLines
-                    value={server.env}
-                    onChange={(env) => set("env", Object.keys(env).length ? env : undefined)}
-                    placeholder={"NODE_ENV=production"}
-                    disabled={disabled}
-                />
-            </RailField>
-
-            <RailField
-                label={railInfoLabel(
-                    "Secrets",
-                    "Map an env var to a vault secret name: ENV_VAR=secret_name",
-                )}
-            >
-                <KeyValueLines
-                    value={server.secrets}
-                    onChange={(secrets) =>
-                        set("secrets", Object.keys(secrets).length ? secrets : undefined)
-                    }
-                    placeholder={"API_KEY=my_api_key"}
-                    disabled={disabled}
-                />
-            </RailField>
-
-            <RailField
-                label={railInfoLabel(
-                    "Exposed tools",
-                    "Optional allowlist — leave empty to expose all of the server's tools",
-                )}
-                align="center"
-            >
-                <Select
-                    mode="tags"
-                    className="w-full"
-                    value={server.tools ?? []}
-                    onChange={(v) => set("tools", v.length ? v : undefined)}
-                    placeholder="tool names"
-                    disabled={disabled}
-                    open={false}
-                    suffixIcon={null}
-                />
-            </RailField>
+            ) : null}
         </div>
     )
 }

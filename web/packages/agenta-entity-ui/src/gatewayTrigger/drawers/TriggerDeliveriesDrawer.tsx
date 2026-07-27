@@ -9,12 +9,13 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {EnhancedModal, ModalContent} from "@agenta/ui"
+import {useDrillInUI} from "@agenta/ui/drill-in"
 import {
     createStandardColumns,
     InfiniteVirtualTableFeatureShell,
     useTableManager,
 } from "@agenta/ui/table"
-import {Code, Play} from "@phosphor-icons/react"
+import {Code, Play, TreeView} from "@phosphor-icons/react"
 import {Drawer, Empty, Tag, Tooltip, Typography, message} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useAtom, useSetAtom} from "jotai"
@@ -52,11 +53,22 @@ function deliveryInputs(record: TriggerDeliveryRow): Record<string, unknown> {
     return (record.data?.inputs ?? {}) as Record<string, unknown>
 }
 
+function deliveryTraceId(record: TriggerDeliveryRow): string | null {
+    const traceId = record.data?.result?.trace_id
+    return typeof traceId === "string" && traceId ? traceId : null
+}
+
+function deliverySpanId(record: TriggerDeliveryRow): string | null {
+    const spanId = record.data?.result?.span_id
+    return typeof spanId === "string" && spanId ? spanId : null
+}
+
 export default function TriggerDeliveriesDrawer() {
     const [state, setState] = useAtom(triggerDeliveriesDrawerAtom)
     const open = !!state
     const owner = state?.owner
     const playgroundEntityId = state?.playgroundEntityId
+    const {openTrace} = useDrillInUI()
 
     const setOwner = useSetAtom(triggerDeliveriesOwnerAtom)
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(playgroundEntityId ?? ""))
@@ -137,12 +149,15 @@ export default function TriggerDeliveriesDrawer() {
                     type: "text",
                     key: "result",
                     title: "Result",
-                    width: 280,
+                    width: 380,
                     render: (_value, record) => {
                         if (record.__isSkeleton) return null
                         if (record.data?.error) {
                             return (
-                                <Typography.Text type="danger" className="!text-xs" ellipsis>
+                                <Typography.Text
+                                    type="danger"
+                                    className="!text-xs whitespace-normal break-words"
+                                >
                                     {record.data.error}
                                 </Typography.Text>
                             )
@@ -152,7 +167,7 @@ export default function TriggerDeliveriesDrawer() {
                             return <Typography.Text type="secondary">-</Typography.Text>
                         }
                         return (
-                            <Typography.Text className="!text-xs" ellipsis>
+                            <Typography.Text className="!text-xs whitespace-normal break-words">
                                 {JSON.stringify(result)}
                             </Typography.Text>
                         )
@@ -191,6 +206,18 @@ export default function TriggerDeliveriesDrawer() {
                               ]
                             : []),
                         {
+                            key: "view-trace",
+                            label: "View trace",
+                            icon: <TreeView size={16} />,
+                            hidden: (record: TriggerDeliveryRow) =>
+                                !openTrace || !deliveryTraceId(record),
+                            onClick: (record: TriggerDeliveryRow) => {
+                                const traceId = deliveryTraceId(record)
+                                if (!traceId || !openTrace) return
+                                openTrace({traceId, spanId: deliverySpanId(record)})
+                            },
+                        },
+                        {
                             key: "view",
                             label: "View payload",
                             icon: <Code size={16} />,
@@ -207,7 +234,7 @@ export default function TriggerDeliveriesDrawer() {
                     ],
                 },
             ]),
-        [runInPlayground],
+        [openTrace, runInPlayground],
     )
 
     const tableProps = useMemo(
@@ -236,7 +263,7 @@ export default function TriggerDeliveriesDrawer() {
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}
         >
-            <div className="flex h-full min-h-0 grow flex-col">
+            <div className="flex h-full min-h-0 grow flex-col px-6 pt-4">
                 <InfiniteVirtualTableFeatureShell<TriggerDeliveryRow>
                     {...table.shellProps}
                     // Read-only audit log: no table-level multi-row actions, so no

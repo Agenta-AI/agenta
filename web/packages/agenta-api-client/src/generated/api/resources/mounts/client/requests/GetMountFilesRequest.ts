@@ -10,4 +10,10 @@ export interface GetMountFilesRequest {
     mount_id: string;
     path?: string | null;
     read?: string | null;
+    order?: string | null;
+    limit?: number | null;
+    depth?: number | null;
+    with_counts?: boolean;
+    git_aware?: boolean;
+    include_gitignored?: boolean;
 }

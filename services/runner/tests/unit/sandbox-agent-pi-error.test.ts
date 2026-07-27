@@ -5,14 +5,22 @@
  * `stopReason: "error"` + `errorMessage`, but reports a plain `end_turn` with no content over
  * ACP. `findSwallowedPiError` reads that transcript so the empty turn can fail loud.
  *
+ * The transcript lives where `configurePiSessionWorkspace` points Pi: the directory returned
+ * by `piSessionWorkspaceDir(cwd)`, with the `.jsonl` files written flat into it (an explicit
+ * PI_CODING_AGENT_SESSION_DIR gets no encoded-cwd subdir). These tests write transcripts
+ * through that same shared helper, so the reader and the writer cannot drift apart again
+ * (QA finding F-11: the reader once scanned the old Pi agent dir and found nothing, turning
+ * every provider failure into a generic "The agent produced no output.").
+ *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-pi-error.test.ts)
  */
 import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { piSessionWorkspaceDir } from "../../src/engines/sandbox_agent/pi-assets.ts";
 import { findSwallowedPiError } from "../../src/engines/sandbox_agent/pi-error.ts";
 
 const dirs: string[] = [];
@@ -23,17 +31,21 @@ function tempDir(): string {
   return dir;
 }
 
-/** Write a Pi-style .jsonl transcript under `<piAgentDir>/sessions/<name>/` for `cwd`. */
+/**
+ * Write a Pi-style .jsonl transcript into `piSessionWorkspaceDir(cwd)` (flat, like Pi does
+ * when pointed at an explicit session dir). `recordCwd` overrides the cwd stamped on the
+ * transcript's `session` record, to simulate a stale or copied transcript.
+ */
 function writeTranscript(
-  piAgentDir: string,
-  name: string,
   cwd: string,
+  name: string,
   messages: Array<Record<string, unknown>>,
+  recordCwd: string = cwd,
 ): void {
-  const dir = join(piAgentDir, "sessions", name);
+  const dir = piSessionWorkspaceDir(cwd);
   mkdirSync(dir, { recursive: true });
   const lines = [
-    JSON.stringify({ type: "session", version: 3, id: name, cwd }),
+    JSON.stringify({ type: "session", version: 3, id: name, cwd: recordCwd }),
     ...messages.map((m) => JSON.stringify(m)),
   ];
   writeFileSync(join(dir, `${name}.jsonl`), lines.join("\n") + "\n");
@@ -44,10 +56,9 @@ afterEach(() => {
 });
 
 describe("findSwallowedPiError", () => {
-  it("returns the last assistant errorMessage for a matching cwd", () => {
-    const piAgentDir = tempDir();
-    const cwd = "/tmp/agenta-sandbox-agent-abc123";
-    writeTranscript(piAgentDir, "--tmp-agenta-sandbox-agent-abc123--", cwd, [
+  it("returns the last assistant errorMessage from the session-workspace transcript", () => {
+    const cwd = tempDir();
+    writeTranscript(cwd, "sess-quota", [
       { type: "message", message: { role: "user", content: [{ type: "text", text: "hi" }] } },
       {
         type: "message",
@@ -60,14 +71,13 @@ describe("findSwallowedPiError", () => {
       },
     ]);
 
-    const error = findSwallowedPiError(piAgentDir, cwd);
+    const error = findSwallowedPiError(cwd);
     assert.equal(error, "You exceeded your current quota, please check your plan.");
   });
 
   it("returns undefined for a successful turn", () => {
-    const piAgentDir = tempDir();
-    const cwd = "/tmp/agenta-sandbox-agent-ok";
-    writeTranscript(piAgentDir, "--tmp-agenta-sandbox-agent-ok--", cwd, [
+    const cwd = tempDir();
+    writeTranscript(cwd, "sess-ok", [
       {
         type: "message",
         message: {
@@ -78,13 +88,12 @@ describe("findSwallowedPiError", () => {
       },
     ]);
 
-    assert.equal(findSwallowedPiError(piAgentDir, cwd), undefined);
+    assert.equal(findSwallowedPiError(cwd), undefined);
   });
 
   it("does not surface an error cleared by a later successful turn", () => {
-    const piAgentDir = tempDir();
-    const cwd = "/tmp/agenta-sandbox-agent-recovered";
-    writeTranscript(piAgentDir, "--recovered--", cwd, [
+    const cwd = tempDir();
+    writeTranscript(cwd, "sess-recovered", [
       {
         type: "message",
         message: { role: "assistant", content: [], stopReason: "error", errorMessage: "transient" },
@@ -99,52 +108,27 @@ describe("findSwallowedPiError", () => {
       },
     ]);
 
-    assert.equal(findSwallowedPiError(piAgentDir, cwd), undefined);
+    assert.equal(findSwallowedPiError(cwd), undefined);
   });
 
-  it("ignores transcripts for a different cwd", () => {
-    const piAgentDir = tempDir();
-    writeTranscript(piAgentDir, "--other--", "/tmp/some-other-cwd", [
-      {
-        type: "message",
-        message: { role: "assistant", content: [], stopReason: "error", errorMessage: "nope" },
-      },
-    ]);
-
-    assert.equal(
-      findSwallowedPiError(piAgentDir, "/tmp/agenta-sandbox-agent-missing"),
-      undefined,
-    );
-  });
-
-  it("returns undefined when the sessions dir is absent", () => {
-    const piAgentDir = tempDir();
-    assert.equal(findSwallowedPiError(piAgentDir, "/tmp/whatever"), undefined);
-  });
-
-  it("finds the error in the per-run agent dir Pi was actually pointed at, not the static source dir", () => {
-    // Regression: a run that materializes skills/system-prompt gets a throwaway per-run Pi
-    // agent dir (prepareLocalAgentDir's return value) — the engine must read the swallowed
-    // error from THAT dir (where Pi, pointed there via PI_CODING_AGENT_DIR, wrote its
-    // transcript), not from the static source login dir, which never has the transcript.
-    const sourceAgentDir = tempDir(); // e.g. ~/.pi/agent — never receives transcripts
-    const runAgentDir = tempDir(); // the throwaway dir prepareLocalAgentDir returns
-    const cwd = "/tmp/agenta-sandbox-agent-run1";
-    writeTranscript(runAgentDir, "--tmp-agenta-sandbox-agent-run1--", cwd, [
-      {
-        type: "message",
-        message: {
-          role: "assistant",
-          content: [],
-          stopReason: "error",
-          errorMessage: "insufficient credit",
+  it("ignores transcripts whose session record was stamped with a different cwd", () => {
+    const cwd = tempDir();
+    writeTranscript(
+      cwd,
+      "sess-stale",
+      [
+        {
+          type: "message",
+          message: { role: "assistant", content: [], stopReason: "error", errorMessage: "nope" },
         },
-      },
-    ]);
+      ],
+      "/tmp/some-other-cwd",
+    );
 
-    // The bug: passing the static source dir finds nothing.
-    assert.equal(findSwallowedPiError(sourceAgentDir, cwd), undefined);
-    // The fix: passing the actual per-run dir Pi wrote to finds the error.
-    assert.equal(findSwallowedPiError(runAgentDir, cwd), "insufficient credit");
+    assert.equal(findSwallowedPiError(cwd), undefined);
+  });
+
+  it("returns undefined when the transcript dir is absent", () => {
+    assert.equal(findSwallowedPiError(tempDir()), undefined);
   });
 });

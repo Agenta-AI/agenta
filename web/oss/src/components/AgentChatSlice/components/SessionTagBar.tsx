@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from "react"
+import {memo, useCallback, useEffect, useRef, useState} from "react"
 
 import {PencilSimple, Plus, X} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
@@ -7,34 +7,39 @@ import {useAtomValue} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {SESSION_SPRING, TAG_VARIANTS} from "../assets/sessionMotion"
-import {
-    type AgentChatSession,
-    type SessionRunStatus,
-    sessionFirstUserTextAtomFamily,
-    sessionStatusAtomFamily,
-} from "../state/sessions"
+import {type SessionDotStatus, sessionDotStatusAtomFamily} from "../state/liveness"
+import {type AgentChatSession, sessionFirstUserTextAtomFamily} from "../state/sessions"
 
 import SessionTabLabel, {type SessionTabLabelHandle} from "./SessionTabLabel"
 
 /** Slight left/right edge fade so tabs dissolve into the strip edges instead of a hard cut when
- * they overflow (mirrors the chat viewport's top/bottom fade). */
+ * they overflow. Applied per-side ONLY where content is actually clipped (scrolled past) — a strip
+ * that fits (e.g. a single tab) gets no fade, so its lone item isn't dimmed at the edges. */
 const EDGE_FADE_PX = 20
-const EDGE_FADE_MASK = `linear-gradient(to right, transparent 0, #000 ${EDGE_FADE_PX}px, #000 calc(100% - ${EDGE_FADE_PX}px), transparent 100%)`
+const fadeMask = (left: boolean, right: boolean): string => {
+    const start = left ? `transparent 0, #000 ${EDGE_FADE_PX}px` : "#000 0"
+    const end = right ? `#000 calc(100% - ${EDGE_FADE_PX}px), transparent 100%` : "#000 100%"
+    return `linear-gradient(to right, ${start}, ${end})`
+}
 
 /** `attention` states need the user (approval / input) or flag a failure — their semantic colour
- * outranks the active tab's clean white dot, so it's never masked on the session you're viewing. */
+ * outranks the active tab's clean white dot, so it's never masked on the session you're viewing.
+ * `alive` is the cross-device/warm signal: a backend sandbox that's live but idle here — a dim,
+ * non-pulsing accent so it reads as "resumes instantly" without competing with a live `running`. */
 const STATUS_META: Record<
-    SessionRunStatus,
+    SessionDotStatus,
     {dot: string; pulse: boolean; attention: boolean; title: string}
 > = {
     running: {dot: "bg-colorInfo", pulse: true, attention: false, title: "Responding…"},
     awaiting: {dot: "bg-colorWarning", pulse: true, attention: true, title: "Needs your input"},
     error: {dot: "bg-colorError", pulse: false, attention: true, title: "Last run failed"},
+    alive: {dot: "bg-colorInfoBorder", pulse: false, attention: false, title: "Session is live"},
     idle: {dot: "bg-colorTextQuaternary", pulse: false, attention: false, title: "Idle"},
 }
 
-/** A session's run-state dot. Subscribes to just that session's status atom so a streaming
- * conversation repaints only its own dot, never the whole bar. */
+/** A session's run-state dot. Subscribes to just that session's effective-status atom (local run
+ * state, or backend liveness when idle here) so a streaming conversation repaints only its own dot,
+ * never the whole bar. */
 export const SessionStatusDot = ({
     sessionId,
     active = false,
@@ -42,7 +47,7 @@ export const SessionStatusDot = ({
     sessionId: string
     active?: boolean
 }) => {
-    const status = useAtomValue(sessionStatusAtomFamily(sessionId))
+    const status = useAtomValue(sessionDotStatusAtomFamily(sessionId))
     const meta = STATUS_META[status]
     // Whiten the dot to match the active tab's white text ONLY when the session is idle. Any live
     // state — running (streaming a response), awaiting (needs you), error — keeps its semantic
@@ -73,6 +78,10 @@ export const SessionStatusDot = ({
     )
 }
 
+// Static icon elements — see the note in SessionRail: an inline `<Icon />` is a new prop each render.
+const PENCIL_ICON = <PencilSimple size={12} />
+const X_ICON = <X size={12} />
+
 interface SessionTagProps {
     session: AgentChatSession
     index: number
@@ -81,15 +90,17 @@ interface SessionTagProps {
     /** True when this session already existed at the bar's first mount (reload restore) — an
      * activation here jumps instantly; a session added afterwards keeps the smooth scroll. */
     presentAtMount: boolean
-    onSelect: () => void
-    onClose: () => void
-    onRename: (title: string) => void
+    // Id-taking so the bar can forward its own stable setters straight through; per-chip closures
+    // would change identity every render and drag each chip's Tooltip/Button subtree with them.
+    onSelect: (id: string) => void
+    onClose: (id: string) => void
+    onRename: (id: string, title: string) => void
 }
 
 /** One session chip: status dot + truncated label (double-click or pencil to rename) + hover
  * actions. The rename/close buttons float OVER the label's tail (Chrome-tab style) instead of
  * reserving in-flow width, so revealing them on hover never reflows the label or shifts pixels. */
-const SessionTag = ({
+const SessionTag = memo(function SessionTag({
     session,
     index,
     active,
@@ -98,13 +109,50 @@ const SessionTag = ({
     onSelect,
     onClose,
     onRename,
-}: SessionTagProps) => {
+}: SessionTagProps) {
     const text = useAtomValue(sessionFirstUserTextAtomFamily(session.id))
     const label = session.title || text || `Chat ${index + 1}`
     const tabRef = useRef<HTMLDivElement>(null)
     const labelRef = useRef<SessionTabLabelHandle>(null)
     // Hide the hover actions while the inline rename input owns the row.
     const [renaming, setRenaming] = useState(false)
+    // Mount the hover actions on hover/focus rather than rendering them behind `opacity-0` — see
+    // the matching note in SessionRail: each button carries a Tooltip + Trigger + icon subtree.
+    const [hot, setHot] = useState(false)
+    const onEnter = useCallback(() => setHot(true), [])
+    const onLeave = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        // Don't unmount the cluster out from under keyboard focus (symmetric with onBlurChip).
+        if (!e.currentTarget.contains(document.activeElement)) setHot(false)
+    }, [])
+    const onBlurChip = useCallback((e: React.FocusEvent<HTMLDivElement>) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setHot(false)
+    }, [])
+    const sessionId = session.id
+    const handleSelect = useCallback(() => onSelect(sessionId), [onSelect, sessionId])
+    const handleRename = useCallback(
+        (title: string) => onRename(sessionId, title),
+        [onRename, sessionId],
+    )
+    const startRename = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation()
+        labelRef.current?.startEditing()
+    }, [])
+    const handleClose = useCallback(
+        (e: React.MouseEvent) => {
+            e.stopPropagation()
+            onClose(sessionId)
+        },
+        [onClose, sessionId],
+    )
+    const onKeyDown = useCallback(
+        (e: React.KeyboardEvent) => {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                handleSelect()
+            }
+        },
+        [handleSelect],
+    )
     // Keep the active tab visible. Jump INSTANTLY only on the bar's initial reveal of a session that
     // was already present at mount (reload restoring a far-away active tab) — the strip's scroll-smooth
     // would otherwise play a long scroll across the whole strip. A session added later, or any user
@@ -152,15 +200,17 @@ const SessionTag = ({
                 role="tab"
                 aria-selected={active}
                 tabIndex={0}
-                onClick={onSelect}
-                onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault()
-                        onSelect()
-                    }
-                }}
+                onClick={handleSelect}
+                onKeyDown={onKeyDown}
+                onMouseEnter={onEnter}
+                onMouseLeave={onLeave}
+                onFocus={onEnter}
+                onBlur={onBlurChip}
                 className={clsx(
-                    "group relative flex h-7 max-w-[180px] min-w-0 cursor-pointer items-center gap-1.5 rounded-md border border-solid px-2 text-xs transition-colors",
+                    // Floor the width so short labels ("hi") still leave a clickable label zone to the
+                    // left of the hover actions (rename/close overlay the right ~58px) — otherwise a
+                    // tiny chip is fully covered on hover and the click lands on a button, not select.
+                    "group relative flex h-7 min-w-[112px] max-w-[180px] cursor-pointer items-center gap-1.5 rounded-md border border-solid px-2 text-xs transition-colors",
                     // White pill on the recessed chat canvas (raised); the active tab keeps the
                     // primary text + a 2px accent underline so it's unmistakable against neighbours.
                     active
@@ -172,21 +222,15 @@ const SessionTag = ({
                 <SessionTabLabel
                     ref={labelRef}
                     label={label}
-                    onRename={onRename}
+                    onRename={handleRename}
                     onEditingChange={setRenaming}
                     className="block min-w-0 flex-1 truncate"
                 />
                 {/* Hover actions overlay the label's tail — absolutely positioned so no width is
                     reserved at rest (no pixel shift). The gradient fades the covered text out under
                     the buttons instead of hard-clipping it. */}
-                {!renaming && (
-                    <div
-                        className={clsx(
-                            "pointer-events-none absolute inset-y-0 right-0 flex items-center opacity-0 transition-opacity",
-                            "group-hover:pointer-events-auto group-hover:opacity-100",
-                            "group-focus-within:pointer-events-auto group-focus-within:opacity-100",
-                        )}
-                    >
+                {hot && !renaming && (
+                    <div className="absolute inset-y-0 right-0 flex items-center">
                         <span
                             aria-hidden
                             className="h-full w-3 bg-gradient-to-l from-colorBgContainer to-transparent"
@@ -196,11 +240,8 @@ const SessionTag = ({
                                 <Button
                                     type="text"
                                     aria-label="Rename session"
-                                    icon={<PencilSimple size={12} />}
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        labelRef.current?.startEditing()
-                                    }}
+                                    icon={PENCIL_ICON}
+                                    onClick={startRename}
                                     className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
                                 />
                             </Tooltip>
@@ -208,11 +249,8 @@ const SessionTag = ({
                                 <Button
                                     type="text"
                                     aria-label="Close session"
-                                    icon={<X size={12} />}
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        onClose()
-                                    }}
+                                    icon={X_ICON}
+                                    onClick={handleClose}
                                     className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
                                 />
                             )}
@@ -222,7 +260,7 @@ const SessionTag = ({
             </div>
         </motion.div>
     )
-}
+})
 
 export interface SessionTagBarProps {
     sessions: AgentChatSession[]
@@ -266,38 +304,71 @@ const SessionTagBar = ({
         seededRef.current = true
         sessions.forEach((s) => presentAtMountRef.current.add(s.id))
     }
-    // React 19 registers onWheel as passive, so preventDefault would be a no-op. Attach a native
-    // non-passive listener that maps vertical wheel delta to horizontal scroll.
-    const wheelCleanupRef = useRef<(() => void) | null>(null)
-    const scrollStripRef = useCallback((el: HTMLDivElement | null) => {
-        wheelCleanupRef.current?.()
-        wheelCleanupRef.current = null
+    // Edge fade is applied per side only where the strip is actually scrolled past its content, so
+    // a strip that fits (single tab, no scroll) shows no fade on either edge.
+    const [fade, setFade] = useState({left: false, right: false})
+    const stripElRef = useRef<HTMLDivElement | null>(null)
+    const measureFade = useCallback(() => {
+        const el = stripElRef.current
         if (!el) return
-        const onWheel = (e: WheelEvent) => {
-            if (el.scrollWidth <= el.clientWidth) return
-            const axis = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX
-            if (axis === 0) return
-            // Wheels report deltaMode=LINE (tiny integers) and the strip has scroll-smooth —
-            // together they crawl. Normalize to px, scroll instantly.
-            const delta =
-                e.deltaMode === 1 ? axis * 16 : e.deltaMode === 2 ? axis * el.clientWidth : axis
-            e.preventDefault()
-            const prev = el.style.scrollBehavior
-            el.style.scrollBehavior = "auto"
-            el.scrollLeft += delta
-            el.style.scrollBehavior = prev
-        }
-        el.addEventListener("wheel", onWheel, {passive: false})
-        wheelCleanupRef.current = () => el.removeEventListener("wheel", onWheel)
+        const overflow = el.scrollWidth - el.clientWidth > 1
+        setFade({
+            left: overflow && el.scrollLeft > 1,
+            right: overflow && el.scrollLeft < el.scrollWidth - el.clientWidth - 1,
+        })
     }, [])
+    // React 19 registers onWheel as passive, so preventDefault would be a no-op. Attach a native
+    // non-passive listener that maps vertical wheel delta to horizontal scroll; also track scroll +
+    // resize to recompute the edge fade.
+    const stripCleanupRef = useRef<(() => void) | null>(null)
+    const scrollStripRef = useCallback(
+        (el: HTMLDivElement | null) => {
+            stripCleanupRef.current?.()
+            stripCleanupRef.current = null
+            stripElRef.current = el
+            if (!el) return
+            const onWheel = (e: WheelEvent) => {
+                if (el.scrollWidth <= el.clientWidth) return
+                const axis = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX
+                if (axis === 0) return
+                // Wheels report deltaMode=LINE (tiny integers) and the strip has scroll-smooth —
+                // together they crawl. Normalize to px, scroll instantly.
+                const delta =
+                    e.deltaMode === 1 ? axis * 16 : e.deltaMode === 2 ? axis * el.clientWidth : axis
+                e.preventDefault()
+                const prev = el.style.scrollBehavior
+                el.style.scrollBehavior = "auto"
+                el.scrollLeft += delta
+                el.style.scrollBehavior = prev
+            }
+            el.addEventListener("wheel", onWheel, {passive: false})
+            el.addEventListener("scroll", measureFade, {passive: true})
+            const ro = new ResizeObserver(() => measureFade())
+            ro.observe(el)
+            measureFade()
+            stripCleanupRef.current = () => {
+                el.removeEventListener("wheel", onWheel)
+                el.removeEventListener("scroll", measureFade)
+                ro.disconnect()
+            }
+        },
+        [measureFade],
+    )
+    // A ResizeObserver watches the element box, not its content — remeasure when the tab set changes.
+    useEffect(() => {
+        measureFade()
+    }, [sessions, measureFade])
     return (
         <MotionConfig reducedMotion="user">
-            <div className="flex h-[48px] min-w-0 w-full shrink-0 items-center gap-2 overflow-hidden border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-3">
+            <div className="flex h-[48px] min-w-0 w-full shrink-0 items-center gap-2 overflow-hidden border-0 border-b border-solid border-[var(--ag-surface-card-border)] bg-[var(--ag-surface-canvas)] px-3">
                 {showSessions ? (
                     <div
                         ref={scrollStripRef}
                         className="flex min-w-0 flex-1 items-center overflow-x-auto overscroll-x-contain motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                        style={{maskImage: EDGE_FADE_MASK, WebkitMaskImage: EDGE_FADE_MASK}}
+                        style={{
+                            maskImage: fadeMask(fade.left, fade.right),
+                            WebkitMaskImage: fadeMask(fade.left, fade.right),
+                        }}
                     >
                         <AnimatePresence initial={false}>
                             {sessions.map((session, index) => (
@@ -308,9 +379,9 @@ const SessionTagBar = ({
                                     active={session.id === activeId}
                                     closable={closable}
                                     presentAtMount={presentAtMountRef.current.has(session.id)}
-                                    onSelect={() => onSelect(session.id)}
-                                    onClose={() => onClose(session.id)}
-                                    onRename={(title) => onRename(session.id, title)}
+                                    onSelect={onSelect}
+                                    onClose={onClose}
+                                    onRename={onRename}
                                 />
                             ))}
                         </AnimatePresence>

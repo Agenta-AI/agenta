@@ -15,7 +15,11 @@ import {expectAuthenticatedSession} from "../utils/auth"
 import {createScenarios} from "../utils/scenarios"
 import {buildAcceptanceTags} from "../utils/tags"
 
-import {ELICITATION_PAYLOAD, RICH_ELICITATION_PAYLOAD} from "./assets/elicitationStream"
+import {
+    ELICITATION_PAYLOAD,
+    RICH_ELICITATION_PAYLOAD,
+    STEPPER_ELICITATION_PAYLOAD,
+} from "./assets/elicitationStream"
 import {test as baseAgentChatTest} from "./tests"
 
 const scenarios = createScenarios(baseAgentChatTest)
@@ -302,6 +306,81 @@ const agentChatTests = () => {
                 expect(resumeBody).toContain("notion")
                 // The Other… UI sentinel must never leak into the accepted content.
                 expect(resumeBody).not.toContain("__ag_enum_other__")
+            })
+        },
+    )
+
+    // ── Spec 6: stepper keyboard shortcuts ─────────────────────────────────────────────────
+    baseAgentChatTest(
+        "Elicitation stepper: advertised shortcuts work when the form appears",
+        {tag: elicitationTags},
+        async ({
+            page,
+            seedAgentChatApp,
+            navigateToAgentPlayground,
+            mockElicitationInvoke,
+            sendChatMessage,
+        }) => {
+            baseAgentChatTest.setTimeout(120000)
+            let mock!: Awaited<ReturnType<typeof mockElicitationInvoke>>
+
+            await scenarios.given("the user is authenticated", async () => {
+                await expectAuthenticatedSession(page)
+            })
+
+            await scenarios.and("a choice-card stepper requests input", async () => {
+                const appId = await seedAgentChatApp()
+                await navigateToAgentPlayground(appId)
+                mock = await mockElicitationInvoke(STEPPER_ELICITATION_PAYLOAD)
+                mock.setResumeText("Recorded.")
+                await sendChatMessage("set it up")
+                await expect(page.getByText(STEPPER_ELICITATION_PAYLOAD.message)).toBeVisible({
+                    timeout: 30000,
+                })
+            })
+
+            const selectedCard = page.locator('[role="radio"][aria-checked="true"]')
+            const firstCard = page.locator('[role="radiogroup"] [role="radio"]').first()
+
+            await scenarios.then("the current answer surface owns keyboard focus", async () => {
+                await expect(selectedCard).toBeFocused()
+            })
+
+            await scenarios.when("the user presses the first option's digit", async () => {
+                await page.keyboard.press("1")
+            })
+
+            await scenarios.then("the first option is selected", async () => {
+                await expect(firstCard).toHaveAttribute("aria-checked", "true")
+            })
+
+            await scenarios.when("the user presses the advertised next shortcut", async () => {
+                await page.keyboard.press("ControlOrMeta+ArrowRight")
+            })
+
+            await scenarios.then("the stepper advances to the next question", async () => {
+                await expect(page.getByText("Notify on", {exact: true})).toBeVisible()
+            })
+
+            await scenarios.when("the user invokes the primary-action shortcut", async () => {
+                await page.keyboard.press("ControlOrMeta+Enter")
+            })
+
+            await scenarios.then("the Next action advances to the third question", async () => {
+                await expect(page.getByText("Task management system", {exact: true})).toBeVisible()
+            })
+
+            await scenarios.when("the user invokes the primary action twice more", async () => {
+                await page.keyboard.press("ControlOrMeta+Enter")
+                await expect(page.getByText("Review answers", {exact: true})).toBeVisible()
+                await page.keyboard.press("ControlOrMeta+Enter")
+            })
+
+            await scenarios.then("the Accept action submits the answers", async () => {
+                await expect(page.getByText("Provided the requested input.")).toBeVisible({
+                    timeout: 30000,
+                })
+                expect(mock.calls.length).toBeGreaterThanOrEqual(2)
             })
         },
     )

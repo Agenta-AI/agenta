@@ -99,8 +99,16 @@ absolute-URL builder in the app.
    crashes on first request because AGENTA_AUTH_KEY / AGENTA_CRYPT_KEY
    are empty. Fail at install time instead.
 
+   Also rejects the literal placeholder "replace-me" shipped in
+   values.yaml's defaults for authKey/cryptKey/runnerToken — otherwise
+   a stock `helm install` with no overrides silently deploys with a
+   publicly-known secret instead of failing.
+
    When the user opts into secrets.existingSecret they're declaring
    "I'll populate these myself" — we trust that and skip the check.
+   agentRunner.auth.tokenSecretRef is a separate escape hatch for just
+   the runner token: if set, the runner reads its token from the
+   operator's own Secret and agenta.runnerToken is not required.
    ================================================================ */}}
 {{- define "agenta.validateRequiredSecrets" -}}
 {{- $values := include "agenta.values" . | fromYaml -}}
@@ -109,10 +117,16 @@ absolute-URL builder in the app.
 {{- $postgres := default dict $values.postgres -}}
 {{- $postgresql := default dict $values.postgresql -}}
 {{- $postgresqlExternal := default dict $postgresql.external -}}
+{{- $agentRunner := default dict $values.agentRunner -}}
+{{- $runnerAuth := default dict $agentRunner.auth -}}
+{{- $placeholder := "replace-me" -}}
 {{- if not $secrets.existingSecret -}}
 {{- $missing := list -}}
-{{- if not $agenta.authKey -}}{{- $missing = append $missing "agenta.authKey" -}}{{- end -}}
-{{- if not $agenta.cryptKey -}}{{- $missing = append $missing "agenta.cryptKey" -}}{{- end -}}
+{{- if or (not $agenta.authKey) (eq $agenta.authKey $placeholder) -}}{{- $missing = append $missing "agenta.authKey" -}}{{- end -}}
+{{- if or (not $agenta.cryptKey) (eq $agenta.cryptKey $placeholder) -}}{{- $missing = append $missing "agenta.cryptKey" -}}{{- end -}}
+{{- if not $runnerAuth.tokenSecretRef -}}
+{{- if or (not $agenta.runnerToken) (eq $agenta.runnerToken $placeholder) -}}{{- $missing = append $missing "agenta.runnerToken" -}}{{- end -}}
+{{- end -}}
 {{- /* postgres.password is required unless the operator supplied full
        external URIs for all three databases (core, tracing, supertokens),
        in which case credentials live inside the URIs themselves and
@@ -128,22 +142,41 @@ absolute-URL builder in the app.
 {{- if $missing -}}
 {{- fail (printf `
 
-CONFIGURATION ERROR: required secret(s) missing: %s
+CONFIGURATION ERROR: required secret(s) missing or still set to the placeholder "replace-me": %s
 
-Either set them in your values file:
+Generate real values and set them in your values file:
+
+  openssl rand -hex 32   # run once per secret
 
   agenta:
-    authKey:  "<32+ random bytes hex>"
-    cryptKey: "<32+ random bytes hex>"
+    authKey:     "<32+ random bytes hex>"
+    cryptKey:    "<32+ random bytes hex>"
+    runnerToken: "<32+ random bytes hex>"
   postgres:
     password: "<your-postgres-password>"
+
+Or pass them on the command line:
+
+  helm install agenta hosting/kubernetes/helm \
+    --set agenta.authKey=$(openssl rand -hex 32) \
+    --set agenta.cryptKey=$(openssl rand -hex 32) \
+    --set agenta.runnerToken=$(openssl rand -hex 32) \
+    --set postgres.password=<your-postgres-password>
 
 Or provide a pre-created Kubernetes Secret and point the chart at it:
 
   secrets:
     existingSecret: my-agenta-secret
 
-The Secret must contain keys: AGENTA_AUTH_KEY, AGENTA_CRYPT_KEY, POSTGRES_PASSWORD.
+The Secret must contain keys: AGENTA_AUTH_KEY, AGENTA_CRYPT_KEY, AGENTA_RUNNER_TOKEN, POSTGRES_PASSWORD.
+
+agenta.runnerToken alone can also be satisfied by pointing the runner at your own Secret:
+
+  agentRunner:
+    auth:
+      tokenSecretRef:
+        name: my-runner-token-secret
+        key: token
 ` (join ", " $missing)) -}}
 {{- end -}}
 {{- end -}}

@@ -84,16 +84,23 @@ services/runner/tests/results/
 .agents/*
 !.agents/skills/
 .agents/skills/*
+!.agents/skills/agent-release-gate/
 !.agents/skills/write-template-playbooks/
 !.claude/
 .claude/*
 !.claude/skills/
 .claude/skills/*
+!.claude/skills/agent-release-gate
 !.claude/skills/write-template-playbooks
 
 # Temporary SDK copies created by run.sh --local
 api/sdks
 services/sdks
+
+# Local-only docker-compose overrides auto-included by hosting/docker-compose/run.sh
+# (docker-compose.<stage>.<name>.local.yml, e.g. an operator's harness subscription mounts).
+# The committed gh.local stage files have no <name> segment, so they are NOT matched.
+hosting/docker-compose/*/docker-compose.*.*.local.yml
 
 # Helm chart packages (built artifacts)
 agenta-oss-*.tgz

@@ -6,6 +6,7 @@ export type { DeleteMountFileRequest } from "./DeleteMountFileRequest.js";
 export type { DownloadMountFileRequest } from "./DownloadMountFileRequest.js";
 export type { FetchMountRequest } from "./FetchMountRequest.js";
 export type { GetMountFilesRequest } from "./GetMountFilesRequest.js";
+export type { MountArchiveRequest } from "./MountArchiveRequest.js";
 export type { MountCreateRequest } from "./MountCreateRequest.js";
 export type { MountEditRequest } from "./MountEditRequest.js";
 export type { MountQueryRequest } from "./MountQueryRequest.js";

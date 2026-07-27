@@ -56,7 +56,8 @@ this page and the referenced code as the source of truth.
   on Daytona (`tools/tool-mcp-stdio.ts`; the harness spawns it, its `tools/call` writes relay
   request files, and the runner-side relay loop executes server-side). The channel's name
   `agenta-tools` is reserved; a user-declared MCP server claiming it is refused. User-declared
-  MCP resolution is feature-gated (`AGENTA_AGENT_MCPS_ENABLED`, off by default).
+  external HTTP MCP configuration is resolved for every run. Harness capabilities expose the
+  editor for Claude and hide it for Pi until Pi has a delivery bridge.
 - `client` tools (browser-fulfilled, e.g. `request_connection`) are delivered to Claude too on
   the local path: advertised over the same internal MCP channel and PAUSED in the `tools/call`
   handler (no JSON-RPC result + abort the request), then resumed from the browser result next
@@ -84,10 +85,10 @@ this page and the referenced code as the source of truth.
   per option (`HARNESS_IDENTITIES`); the stored/wire harness value stays the bare string.
 - Per-request model override is not honored on the Pi ACP path. pi-acp accepts only its
   default model and silently falls back (`projects/qa/findings.md`, F-007).
-- User-declared MCP transports split: remote (`http`) servers are delivered by the runner
-  (`toAcpMcpServers`, #4834); stdio servers are disabled (`USER_MCP_UNSUPPORTED_MESSAGE`) because
-  they launch a process on the runner host. The runner's own internal gateway-tool channel is a
-  separate thing, delivered over loopback HTTP locally and the in-sandbox stdio shim on Daytona.
+- User-declared MCP servers are HTTP-only. The runner delivers them to Claude through
+  `toAcpMcpServers`; Pi refuses them until its MCP bridge exists. The runner's own internal
+  gateway-tool channel is separate and uses loopback HTTP locally or a trusted in-sandbox stdio
+  shim on Daytona.
 - Trigger lifecycle, Compose.io trigger integration, and event-to-agent mapping are not
   implemented in the agent workflow code.
 - A persisted agent template object that separates `AGENTS.md`, skills, tools,

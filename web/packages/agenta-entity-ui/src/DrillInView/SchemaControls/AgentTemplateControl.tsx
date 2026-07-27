@@ -21,7 +21,7 @@
  * Sections are schema-driven: each renders only when its field exists in the resolved
  * schema, so the panel tracks the backend contract instead of hard-coding fields.
  */
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
 import type {SchemaProperty} from "@agenta/entities/shared"
@@ -39,7 +39,6 @@ import {agentSelfCommitSignalAtom, openAgentConfigSectionAtom} from "@agenta/sha
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {
     ConfigAccordionSection,
-    sectionIndicatorColor,
     type SectionIndicatorTone,
 } from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -48,13 +47,12 @@ import {
     Cpu,
     FileText,
     GraduationCap,
-    Lightning,
     Plugs,
     Plus,
     SlidersHorizontal,
     Wrench,
 } from "@phosphor-icons/react"
-import {Button, Tabs, Tooltip, Typography} from "antd"
+import {Button, Tooltip, Typography} from "antd"
 import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useStore} from "jotai"
 
@@ -72,24 +70,19 @@ import {ToolManagementList} from "./agentTemplate/ToolManagementList"
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
-import {agentTemplateLayoutAtom} from "./agentTemplateLayout"
 import {ConfigItemDrawer} from "./ConfigItemDrawer"
 import {connectionFromConfig, modelIdFromConfig} from "./connectionUtils"
 import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
 import {parseGatewayTool, type ParsedGatewayTool, type ToolObj} from "./toolUtils"
-import {
-    AddTriggerDropdown,
-    TriggerManagementSection,
-    useAgentTriggers,
-} from "./TriggerManagementSection"
+import {useAgentTriggers} from "./TriggerManagementSection"
 import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
 
 // Tooltip copy for the config-panel draft/validation indicators.
 const INVALID_ITEM_TIP: Record<ItemKind, string> = {
     tool: "This tool is missing its name.",
-    mcp: "This server is missing a required field (name, command, or URL).",
+    mcp: "This server is missing its name or URL.",
     skill: "This skill is missing its name.",
 }
 const DRAFT_TIP: Record<string, string> = {
@@ -129,7 +122,7 @@ const ModelHarnessSectionDrawerBody = ({
 // the agent populates them (see `useAutoExpandOnPopulate`).
 const CONTROLLED_SECTION_KEYS = new Set(["tools", "mcp", "skills", "triggers"])
 
-export function AgentTemplateControl({
+export const AgentTemplateControl = memo(function AgentTemplateControl({
     schema,
     value,
     onChange,
@@ -273,9 +266,6 @@ export function AgentTemplateControl({
     // Enable Save only when the draft actually differs from what we opened with (config or build-kit).
     const sectionDirty = isCurrentSectionDirty()
 
-    // Layout (accordion / tabs / cards) is a global persisted preference; the panel only reads it.
-    const layout = useAtomValue(agentTemplateLayoutAtom)
-
     // `config` IS the agent template (`parameters.agent`); `schema` is the `agent-template` type and
     // decides which sections exist. Portable fields (instructions / llm / tools / mcps / skills) are
     // FLAT; execution parts (harness / runner / sandbox) are nested sub-objects (see useModelHarness).
@@ -292,6 +282,10 @@ export function AgentTemplateControl({
     const drillIn = useOptionalDrillIn<unknown>()
     const revisionId = drillIn?.entityId ?? null
     revisionIdRef.current = revisionId
+
+    // Trigger count for the section auto-expand/summary state (the Triggers UI itself now lives in
+    // the sibling AgentOperationsSections; this shares the same deduped query).
+    const {count: triggerCount} = useAgentTriggers(revisionId)
 
     // ── Agent self-commit: surface WHAT the agent just changed ──────────────────────────
     // The chat raises the signal (with the outgoing revision's parameters) when the agent
@@ -338,16 +332,12 @@ export function AgentTemplateControl({
         },
         [agentChangedKeys, commitSignal?.version],
     )
-    // Triggers bound to this agent (for the section count badge). The section body and the header
-    // add-dropdown derive scoping from the same hook.
-    const {count: triggerCount} = useAgentTriggers(revisionId)
-
     // Model & harness + Advanced own a lot of coupled, stateful logic (the model/connection state
     // feeds both sections), so they live in their own hook that returns the summaries + bodies.
     //
     // TWO instances, on purpose:
-    //  - `mh` is bound to the LIVE entity — it drives the accordion header summaries + the inline
-    //    tabs bodies. Keeping it live means a section header NEVER reflects the drawer's unsaved draft
+    //  - `mh` is bound to the LIVE entity — it drives the accordion header summaries. Keeping it live
+    //    means a section header NEVER reflects the drawer's unsaved draft
     //    (the reported bug: editing in the open drawer updated the background summary).
     //  - The DRAFT instance (config + build-kit buffer) that drives the OPEN section drawer's body
     //    now lives inside `ModelHarnessSectionDrawerBody`, mounted only while the drawer is open, so
@@ -376,7 +366,7 @@ export function AgentTemplateControl({
         referenceableWorkflows,
     } = useAgentTools({config, onChange, configRef, openCreate, workflowReference})
 
-    // MCP servers: a flat array of McpServer shapes (stdio command/args/env or remote url + secrets).
+    // External HTTP MCP servers from the saved agent template.
     const mcpServers = useMemo(
         () => (Array.isArray(config.mcps) ? (config.mcps as unknown[]) : []),
         [config.mcps],
@@ -429,7 +419,7 @@ export function AgentTemplateControl({
 
     const hasInstructions = Boolean(props.instructions)
     const hasTools = Boolean(props.tools)
-    const hasMcp = Boolean(props.mcps)
+    const hasMcp = Boolean(props.mcps) && mh.mcpSupported
     const hasSkills = Boolean(props.skills)
 
     // Per-field section headers read their label from the template schema (`props.<field>.title`),
@@ -633,7 +623,7 @@ export function AgentTemplateControl({
         }
         if (key === "mcp")
             return mcpServers.some((m) => ITEM_KINDS.mcp.draftInvalid(m as Record<string, unknown>))
-                ? "An MCP server is missing a required field."
+                ? "An MCP server is missing its name or URL."
                 : null
         if (key === "skills")
             return skills.some((s) => ITEM_KINDS.skill.draftInvalid(s as Record<string, unknown>))
@@ -713,14 +703,15 @@ export function AgentTemplateControl({
     }
 
     // Compact "+" for a section header's `extra` slot (stops propagation, so it never toggles open).
+    // The header keeps a uniform height regardless of this button — ConfigAccordionSection collapses
+    // the extra slot's vertical footprint (see its `-my-2`), so no per-button sizing is needed here.
     const headerAddButton = (label: string, onClick: () => void) => (
         <Tooltip title={label}>
             <Button type="text" icon={<Plus size={16} />} onClick={onClick} aria-label={label} />
         </Tooltip>
     )
 
-    // Each config section as a descriptor, so it can be rendered in any layout (accordion /
-    // tabs / cards) without duplicating the content. Schema-gated, like before.
+    // Each config section as a descriptor rendered by the accordion. Schema-gated, like before.
     const sections = [
         mh.hasModelOrHarness && {
             key: "model-harness",
@@ -730,8 +721,6 @@ export function AgentTemplateControl({
             indicator: headerIndicator("model-harness"),
             defaultOpen: true,
             onOpen: () => openSectionDrawer("model-harness"),
-            content: mh.modelHarnessDrawerBody,
-            inlineContent: mh.modelHarnessInline,
         },
         hasInstructions && {
             key: "instructions",
@@ -849,15 +838,6 @@ export function AgentTemplateControl({
                 />
             ),
         },
-        {
-            key: "triggers",
-            icon: <Lightning size={16} />,
-            title: "Triggers",
-            summary: countSummary(triggerCount, "trigger"),
-            extra: !disabled ? <AddTriggerDropdown entityId={revisionId} /> : undefined,
-            defaultOpen: triggerCount > 0,
-            content: <TriggerManagementSection entityId={revisionId} disabled={disabled} />,
-        },
         mh.hasAdvanced && {
             key: "advanced",
             icon: <SlidersHorizontal size={16} />,
@@ -866,8 +846,6 @@ export function AgentTemplateControl({
             defaultOpen: false,
             summary: mh.advancedSummary,
             onOpen: () => openSectionDrawer("advanced"),
-            content: mh.advancedDrawerBody,
-            inlineContent: mh.advancedInline,
         },
     ].filter(Boolean) as {
         key: string
@@ -878,15 +856,9 @@ export function AgentTemplateControl({
         indicator?: {tone: SectionIndicatorTone; tooltip?: string}
         defaultOpen?: boolean
         onOpen?: () => void
-        content: React.ReactNode
-        // Trimmed single-column body for the tabs layout (drawer sections only); falls back to
-        // `content` when a section has no separate inline form.
-        inlineContent?: React.ReactNode
+        // Only the inline (non-`onOpen`) sections render a body; drawer-opening sections omit it.
+        content?: React.ReactNode
     }[]
-
-    // Each config section is a contained card on the raised Config panel — the surface tokens give
-    // it depth against the panel (see theme-variables.css "Agent Playground surface ladder").
-    const sectionCardClass = "ag-surface-card rounded-[11px] px-4"
 
     // Keep the item + instruction drawers MOUNTED while they animate closed. Their editing state
     // goes null on close; retaining the last value and driving `open` off the live state lets the
@@ -904,72 +876,6 @@ export function AgentTemplateControl({
                 <Typography.Text type="secondary" className="text-xs">
                     No agent configuration fields are available for this schema.
                 </Typography.Text>
-            ) : layout === "tabs" ? (
-                // Tabs renders each section's body inline (no drawer), so edits are live. Drawer
-                // sections supply a trimmed `inlineContent` so the tab shows just their controls.
-                <Tabs
-                    items={sections.map((s) => ({
-                        key: s.key,
-                        label: (
-                            <span className="inline-flex items-center gap-1.5">
-                                <Tooltip title={s.indicator?.tooltip}>
-                                    <span
-                                        className="relative inline-flex items-center"
-                                        style={
-                                            s.indicator
-                                                ? {
-                                                      color: `color-mix(in srgb, ${sectionIndicatorColor(s.indicator.tone)} 45%, var(--ag-colorTextTertiary))`,
-                                                  }
-                                                : undefined
-                                        }
-                                    >
-                                        {s.icon}
-                                        {s.indicator ? (
-                                            <span
-                                                className="absolute -right-1 -top-0.5 h-1.5 w-1.5 rounded-full"
-                                                style={{
-                                                    background: sectionIndicatorColor(
-                                                        s.indicator.tone,
-                                                    ),
-                                                }}
-                                            />
-                                        ) : null}
-                                    </span>
-                                </Tooltip>
-                                <span className="truncate">{s.title}</span>
-                                {sectionBadge(s.key)}
-                            </span>
-                        ),
-                        children: (
-                            // Render `extra` (the add-action) here too, else tab users can't add
-                            // items. Body is the trimmed `inlineContent` or `content`.
-                            <div className="flex flex-col gap-3 pt-1">
-                                {s.extra ? <div className="flex justify-end">{s.extra}</div> : null}
-                                {s.inlineContent ?? s.content}
-                            </div>
-                        ),
-                    }))}
-                />
-            ) : layout === "cards" ? (
-                <div className="flex flex-col gap-3 pt-1">
-                    {sections.map((s, index) => (
-                        <ConfigAccordionSection
-                            key={s.key}
-                            icon={s.icon}
-                            title={s.title}
-                            titleBadge={sectionBadge(s.key)}
-                            summary={s.summary}
-                            extra={s.extra}
-                            indicator={s.indicator ?? agentChangeIndicator(s.key)}
-                            onOpen={s.onOpen}
-                            collapsible={false}
-                            noDivider
-                            className={sectionCardClass}
-                        >
-                            {s.content}
-                        </ConfigAccordionSection>
-                    ))}
-                </div>
             ) : (
                 sections.map((s, index) => {
                     // Controlled keys drive `open`/`onOpenChange` so the agent can auto-expand them;
@@ -1141,4 +1047,4 @@ export function AgentTemplateControl({
             )}
         </div>
     )
-}
+})

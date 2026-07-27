@@ -1,4 +1,6 @@
+import {catalogPersister} from "@agenta/shared/api/persist"
 import {logAtom, projectIdAtom} from "@agenta/shared/state"
+import type {QueryKey} from "@tanstack/react-query"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -111,6 +113,8 @@ export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
         // parallel with /profile/, so this does not reintroduce the sequential
         // profile-wait that 2ede5faa10 removed to fix the demo-banner cold-load race.
         enabled: get(sessionExistsAtom) && jwtReady && !isAcceptRoute && !!orgId,
+        // Paint from disk + background revalidate; key includes orgId so no cross-org bleed.
+        persister: catalogPersister.persisterFn<ProjectsResponse[], QueryKey>,
     }
 })
 

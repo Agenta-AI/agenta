@@ -41,13 +41,14 @@ export function createAgentColumns(actions: AgentColumnActions) {
             title: "Created by",
             width: 160,
             render: (_, record) => (
-                <div className="h-full flex items-center">
+                <div className="h-full shrink-0 flex items-center">
                     <UserAuthorLabel
                         userId={record.createdById}
                         showPrefix={false}
                         showAvatar
                         showYouLabel
                         fallback="—"
+                        className="shrink-0"
                     />
                 </div>
             ),

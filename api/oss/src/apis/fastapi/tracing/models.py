@@ -352,7 +352,7 @@ class OldAnalyticsResponse(BaseModel):
         default=[],
         description=(
             "Time-bucketed aggregates with fixed fields (`total`, `errors`) "
-            "holding `count`, `duration`, `costs`, and `tokens`."
+            "holding `count`, `duration`, `costs`, and `tokens`, ordered oldest to newest."
         ),
     )
 
@@ -368,7 +368,7 @@ class AnalyticsResponse(BaseModel):
         default=[],
         description=(
             "Time-bucketed aggregates. Each bucket's `metrics` dict is "
-            "keyed by the dotted `path` of the corresponding `MetricSpec`."
+            "keyed by the dotted `path` of the corresponding `MetricSpec`, ordered oldest to newest."
         ),
     )
     #

@@ -3,24 +3,33 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-daytona.test.ts)
  */
-import { afterEach, describe, it, vi } from "vitest";
+import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { rmSync } from "node:fs";
 
 import {
+  DAYTONA_PI_COMMAND,
   DAYTONA_PI_DIR,
-  DAYTONA_PI_INSTALL,
   DAYTONA_PI_INSTALL_DIR,
-  DAYTONA_PI_VERSION,
+  PINNED_PI_VERSION,
   createCookieFetch,
   daytonaEnvVars,
-  installPiInSandbox,
-  uploadPiAuthToSandbox,
+  ensurePiInSandbox,
+  removePiModelsConfigFromSandbox,
+  uploadPiModelsConfigToSandbox,
 } from "../../src/engines/sandbox_agent/daytona.ts";
+import type { PiModelConfigPlan } from "../../src/engines/sandbox_agent/pi-model-config.ts";
 
-const envKeys = ["PI_CODING_AGENT_DIR", "AGENTA_AGENT_SANDBOX_PI_INSTALLED"];
+const MODEL_CONFIG_PLAN: PiModelConfigPlan = {
+  providerId: "my-ollama",
+  providerFamily: "openai",
+  api: "openai-completions",
+  baseUrl: "https://example.test/v1",
+  apiKeyEnv: "OPENAI_API_KEY",
+  models: [{ id: "qwen2.5-coder:7b" }],
+};
+
+const envKeys = ["PI_CODING_AGENT_DIR"];
 const previousEnv = new Map<string, string | undefined>();
 for (const key of envKeys) previousEnv.set(key, process.env[key]);
 
@@ -32,12 +41,13 @@ afterEach(() => {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
   }
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  for (const dir of dirs.splice(0))
+    rmSync(dir, { recursive: true, force: true });
   globalThis.fetch = originalFetch;
 });
 
 describe("daytonaEnvVars", () => {
-  it("combines Pi agent dir, extension env, provider secrets, and Pi command", () => {
+  it("combines Pi agent dir, extension env, provider secrets, and the pinned Pi command", () => {
     const env = daytonaEnvVars(
       { TRACEPARENT: "trace", AGENTA_AGENT_TOOLS_RELAY_DIR: "/relay" },
       { OPENAI_API_KEY: "key" },
@@ -47,89 +57,184 @@ describe("daytonaEnvVars", () => {
     assert.equal(env.TRACEPARENT, "trace");
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, "/relay");
     assert.equal(env.OPENAI_API_KEY, "key");
-    if (DAYTONA_PI_INSTALL) {
-      assert.equal(env.PI_ACP_PI_COMMAND, `${DAYTONA_PI_INSTALL_DIR}/node_modules/.bin/pi`);
-    }
+    // The command always points at the runner-pinned Pi path; the probe/repair path guarantees
+    // the binary is present there before the session runs.
+    assert.equal(env.PI_ACP_PI_COMMAND, DAYTONA_PI_COMMAND);
   });
 });
 
-describe("DAYTONA_PI_INSTALL default", () => {
-  afterEach(() => {
-    vi.resetModules();
-  });
-
-  it("defaults to installing Pi for a fresh bare sandbox", async () => {
-    delete process.env.AGENTA_AGENT_SANDBOX_PI_INSTALLED;
-    vi.resetModules();
-    const mod = await import("../../src/engines/sandbox_agent/daytona.ts");
-    assert.equal(mod.DAYTONA_PI_INSTALL, true);
-  });
-
-  it("installs Pi when explicitly enabled", async () => {
-    process.env.AGENTA_AGENT_SANDBOX_PI_INSTALLED = "true";
-    vi.resetModules();
-    const mod = await import("../../src/engines/sandbox_agent/daytona.ts");
-    assert.equal(mod.DAYTONA_PI_INSTALL, true);
-  });
-
-  it("skips the session install only when the snapshot already bakes Pi", async () => {
-    process.env.AGENTA_AGENT_SANDBOX_PI_INSTALLED = "false";
-    vi.resetModules();
-    const mod = await import("../../src/engines/sandbox_agent/daytona.ts");
-    assert.equal(mod.DAYTONA_PI_INSTALL, false);
-  });
-});
-
-describe("installPiInSandbox", () => {
-  it("installs the pinned Pi version", async () => {
+describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
+  it("skips the install when the pinned Pi executable is already present (baked snapshot)", async () => {
     const calls: any[] = [];
     const sandbox = {
       mkdirFs: async () => {},
       runProcess: async (input: any) => {
         calls.push(input);
+        // `test -x <pinned path>` succeeds: Pi is already baked in.
         return { exitCode: 0 };
       },
     };
 
-    await installPiInSandbox(sandbox);
+    await ensurePiInSandbox(sandbox);
 
-    assert.equal(DAYTONA_PI_VERSION, "0.80.6");
-    assert.deepEqual(calls, [
-      {
-        command: "npm",
-        args: [
-          "install",
-          "--no-fund",
-          "--no-audit",
-          "@earendil-works/pi-coding-agent@0.80.6",
-        ],
-        cwd: DAYTONA_PI_INSTALL_DIR,
-        timeoutMs: 180_000,
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].command, "test");
+    assert.deepEqual(calls[0].args, ["-x", DAYTONA_PI_COMMAND]);
+  });
+
+  it("links a PATH-baked pi to the pinned path instead of reinstalling (recipe snapshot)", async () => {
+    const calls: any[] = [];
+    let probed = 0;
+    const sandbox = {
+      mkdirFs: async () => {},
+      runProcess: async (input: any) => {
+        calls.push(input);
+        if (input.command === "test") {
+          probed += 1;
+          // Pinned path missing before the link, present after it.
+          return { exitCode: probed === 1 ? 1 : 0 };
+        }
+        // The `sh -lc command -v pi && ln -sf ...` link succeeds.
+        return { exitCode: 0 };
       },
+    };
+
+    await ensurePiInSandbox(sandbox);
+
+    assert.ok(
+      calls.some((c) => c.command === "sh"),
+      "expected the global-pi link attempt",
+    );
+    assert.equal(
+      calls.some((c) => c.command === "npm"),
+      false,
+      "a baked snapshot must not pay a session-time npm install",
+    );
+  });
+
+  it("installs the pinned Pi version when the probe and PATH both miss (custom image)", async () => {
+    const calls: any[] = [];
+    const sandbox = {
+      mkdirFs: async () => {},
+      runProcess: async (input: any) => {
+        calls.push(input);
+        if (input.command === "test") {
+          // Missing until the install completes.
+          return { exitCode: calls.some((c) => c.command === "npm") ? 0 : 1 };
+        }
+        if (input.command === "sh") return { exitCode: 1 }; // no pi on PATH
+        return { exitCode: 0 };
+      },
+    };
+
+    await ensurePiInSandbox(sandbox);
+
+    const install = calls.find((c) => c.command === "npm");
+    assert.ok(install, "expected a pinned npm install");
+    assert.deepEqual(install.args, [
+      "install",
+      "--no-fund",
+      "--no-audit",
+      `@earendil-works/pi-coding-agent@${PINNED_PI_VERSION}`,
     ]);
+    assert.equal(install.cwd, DAYTONA_PI_INSTALL_DIR);
+  });
+
+  it("fails the run when Pi is still missing after the install attempt", async () => {
+    const sandbox = {
+      mkdirFs: async () => {},
+      runProcess: async (input: any) => {
+        // Probe and PATH both always miss; install "succeeds" but leaves nothing behind.
+        if (input.command === "test" || input.command === "sh") {
+          return { exitCode: 1 };
+        }
+        return { exitCode: 0 };
+      },
+    };
+
+    await assert.rejects(
+      () => ensurePiInSandbox(sandbox),
+      new RegExp(`pi ${PINNED_PI_VERSION} is not available`),
+    );
   });
 });
 
-describe("uploadPiAuthToSandbox", () => {
-  it("uploads local Pi auth and settings when present", async () => {
-    const agentDir = mkdtempSync(join(tmpdir(), "agenta-pi-auth-test-"));
-    dirs.push(agentDir);
-    process.env.PI_CODING_AGENT_DIR = agentDir;
-    writeFileSync(join(agentDir, "auth.json"), "{\"token\":\"x\"}", "utf-8");
-    writeFileSync(join(agentDir, "settings.json"), "{\"approval\":\"never\"}", "utf-8");
-    const calls: Array<{ path: string; body?: string }> = [];
+describe("uploadPiModelsConfigToSandbox", () => {
+  it("writes the exact models.json into the Pi agent dir (key never inlined)", async () => {
+    const writes: Array<{ path: string; body: string }> = [];
     const sandbox = {
-      mkdirFs: async ({ path }: { path: string }) => calls.push({ path }),
-      writeFsFile: async ({ path }: { path: string }, body: string) => calls.push({ path, body }),
+      mkdirFs: async () => {},
+      writeFsFile: async ({ path }: { path: string }, body: string) => {
+        writes.push({ path, body });
+      },
     };
 
-    await uploadPiAuthToSandbox(sandbox);
+    await uploadPiModelsConfigToSandbox(
+      sandbox,
+      DAYTONA_PI_DIR,
+      MODEL_CONFIG_PLAN,
+    );
 
-    assert.deepEqual(calls, [
-      { path: DAYTONA_PI_DIR },
-      { path: `${DAYTONA_PI_DIR}/auth.json`, body: "{\"token\":\"x\"}" },
-      { path: `${DAYTONA_PI_DIR}/settings.json`, body: "{\"approval\":\"never\"}" },
-    ]);
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].path, `${DAYTONA_PI_DIR}/models.json`);
+    assert.deepEqual(JSON.parse(writes[0].body), {
+      providers: {
+        "my-ollama": {
+          baseUrl: "https://example.test/v1",
+          api: "openai-completions",
+          apiKey: "$OPENAI_API_KEY",
+          models: [{ id: "qwen2.5-coder:7b" }],
+        },
+      },
+    });
+    assert.equal(writes[0].body.includes("$OPENAI_API_KEY"), true);
+  });
+
+  it("throws when the upload fails (materialization is terminal)", async () => {
+    const sandbox = {
+      mkdirFs: async () => {},
+      writeFsFile: async () => {
+        throw new Error("sandbox fs write failed");
+      },
+    };
+
+    await assert.rejects(
+      () =>
+        uploadPiModelsConfigToSandbox(
+          sandbox,
+          DAYTONA_PI_DIR,
+          MODEL_CONFIG_PLAN,
+        ),
+      /sandbox fs write failed/,
+    );
+  });
+});
+
+describe("removePiModelsConfigFromSandbox", () => {
+  it("deletes a stale models.json so a reused sandbox keeps no earlier provider", async () => {
+    const deletes: string[] = [];
+    const sandbox = {
+      deleteFsEntry: async ({ path }: { path: string }) => {
+        deletes.push(path);
+      },
+    };
+
+    await removePiModelsConfigFromSandbox(sandbox, DAYTONA_PI_DIR);
+
+    assert.deepEqual(deletes, [`${DAYTONA_PI_DIR}/models.json`]);
+  });
+
+  it("swallows a missing-file / unsupported-delete error (best effort)", async () => {
+    const sandbox = {
+      deleteFsEntry: async () => {
+        throw new Error("not found");
+      },
+    };
+    // Must not throw.
+    await removePiModelsConfigFromSandbox(sandbox, DAYTONA_PI_DIR);
+
+    // A provider without a delete op is also tolerated.
+    await removePiModelsConfigFromSandbox({}, DAYTONA_PI_DIR);
   });
 });
 
@@ -138,7 +243,9 @@ describe("createCookieFetch", () => {
     const seenCookies: Array<string | null> = [];
     const innerFetch = (async (_input: any, init?: any) => {
       seenCookies.push(new Headers(init?.headers).get("cookie"));
-      return new Response("ok", { headers: { "set-cookie": "session=abc; Path=/" } });
+      return new Response("ok", {
+        headers: { "set-cookie": "session=abc; Path=/" },
+      });
     }) as typeof fetch;
     const cookieFetch = createCookieFetch(innerFetch);
 

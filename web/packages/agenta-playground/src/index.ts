@@ -74,7 +74,7 @@ export {
     isAgentModeAtomFamily,
     buildAgentRequest,
     buildAgentReferences,
-    agentChannelModeAtom,
+    agentChannelModeAtomFamily,
     createNegotiatingFetch,
 } from "./state"
 export type {AgentRequest, AgentChannelMode, NegotiatingFetch} from "./state"

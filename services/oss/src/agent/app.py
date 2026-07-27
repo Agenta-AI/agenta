@@ -47,7 +47,7 @@ from oss.src.agent.config import (
     load_config,
     runner_dir,
     runner_url,
-    sandbox_local_allowed,
+    sandbox_provider_enabled,
 )
 from oss.src.agent.schemas import AGENT_SCHEMAS
 from oss.src.agent.tools import resolve_mcp_servers, resolve_tools
@@ -73,12 +73,13 @@ def select_backend(agent_template: AgentTemplate) -> Backend:
     spawns the TypeScript runner CLI from the runner dir. Only ``sandbox`` is read here;
     it is a backend/environment concern that never enters ``SessionConfig``.
 
-    ``local`` is refused unless ``AGENTA_SANDBOX_LOCAL_ALLOWED`` is on: it is unconfined
-    host bash, not a tenant boundary, on a shared deployment. This is the producer-side
-    gate; the runner's own id whitelist is a second, independent layer.
+    A sandbox provider not in ``AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`` is refused here:
+    ``local`` is unconfined host bash, not a tenant boundary, on a shared deployment. This is
+    the producer-side gate; the runner's own enabled-provider check is a second, independent
+    layer and the final authority.
     """
-    if agent_template.sandbox == "local" and not sandbox_local_allowed():
-        raise LocalSandboxNotAllowedError()
+    if not sandbox_provider_enabled(agent_template.sandbox):
+        raise LocalSandboxNotAllowedError(sandbox=agent_template.sandbox)
     return SandboxAgentBackend(
         sandbox=agent_template.sandbox,
         url=runner_url(),

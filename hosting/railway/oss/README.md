@@ -49,13 +49,14 @@ baseline.
 ## Security Note
 
 The scripts default to compose-like placeholder values for `AGENTA_AUTH_KEY`,
-`AGENTA_CRYPT_KEY`, and `POSTGRES_PASSWORD`. This is acceptable for ephemeral
-preview environments, but not for persistent deployments. For persistent
-deployments, set unique values:
+`AGENTA_CRYPT_KEY`, `AGENTA_RUNNER_TOKEN`, and `POSTGRES_PASSWORD`. This is
+acceptable for ephemeral preview environments, but not for persistent
+deployments. For persistent deployments, set unique values:
 
 ```bash
 export AGENTA_AUTH_KEY="$(openssl rand -hex 32)"
 export AGENTA_CRYPT_KEY="$(openssl rand -hex 32)"
+export AGENTA_RUNNER_TOKEN="$(openssl rand -hex 32)"
 export POSTGRES_PASSWORD="$(openssl rand -hex 24)"
 ```
 

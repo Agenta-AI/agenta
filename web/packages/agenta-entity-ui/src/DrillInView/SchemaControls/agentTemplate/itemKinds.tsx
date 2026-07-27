@@ -111,16 +111,38 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         editView: () => "form",
         jsonOnly: () => false,
         isReadOnly: () => false,
-        createSeed: () => ({name: "", transport: "stdio", command: "", args: []}),
+        createSeed: () => ({
+            name: "",
+            connection: {
+                type: "http",
+                url: "",
+                credentials: {type: "none"},
+            },
+            policy: {tools: {mode: "all"}},
+        }),
         draftInvalid: (draft) => {
-            // A server needs a launch target too, not just a name: stdio → command, http → url.
             const name = String(draft.name ?? "").trim()
-            const transport = draft.transport === "http" ? "http" : "stdio"
-            const target =
-                transport === "http"
-                    ? String(draft.url ?? "").trim()
-                    : String(draft.command ?? "").trim()
-            return !name || !target
+            const validName = /^[A-Za-z0-9._-]{1,128}$/.test(name)
+            const connection =
+                draft.connection && typeof draft.connection === "object"
+                    ? (draft.connection as Record<string, unknown>)
+                    : {}
+            const url = String(connection.url ?? "").trim()
+            const credentials =
+                connection.credentials && typeof connection.credentials === "object"
+                    ? (connection.credentials as Record<string, unknown>)
+                    : {}
+            const headers =
+                credentials.headers && typeof credentials.headers === "object"
+                    ? (credentials.headers as Record<string, unknown>)
+                    : {}
+            const missingSecretHeader =
+                credentials.type === "header_secret_refs" &&
+                !Object.entries(headers).some(
+                    ([headerName, secretSlug]) =>
+                        headerName.trim() && String(secretSlug ?? "").trim(),
+                )
+            return !validName || !url || missingSecretHeader
         },
     },
     skill: {

@@ -129,4 +129,42 @@ describe("classifyRevisionDeltaChanges — sections for a partial delta", () => 
         const agent = preview!.proposedParams.agent as {llm: {model: string}}
         expect(agent.llm.model).toBe("gpt-5")
     })
+
+    // The backend commits the delta onto the WHOLE revision data tree; the preview only
+    // renders `parameters`. Anything out of scope must fall back to the raw payload —
+    // never a partial summary that hides the rest of the commit.
+    it("returns null when set reaches outside parameters, even alongside a parameters edit", () => {
+        expect(
+            classifyRevisionDeltaChanges(currentParams, {
+                set: {
+                    parameters: {agent: {instructions: {agents_md: "You are concise."}}},
+                    url: "https://evil.example/hook",
+                },
+            }),
+        ).toBeNull()
+        expect(
+            classifyRevisionDeltaChanges(currentParams, {set: {script: "print('hi')"}}),
+        ).toBeNull()
+    })
+
+    it("returns null when remove targets a path outside parameters", () => {
+        expect(
+            classifyRevisionDeltaChanges(currentParams, {
+                set: {parameters: {agent: {instructions: {agents_md: "You are concise."}}}},
+                remove: ["url"],
+            }),
+        ).toBeNull()
+        // `parametersX` must not pass as a prefix match.
+        expect(
+            classifyRevisionDeltaChanges(currentParams, {remove: ["parametersX.agent"]}),
+        ).toBeNull()
+    })
+
+    it("still previews parameters-scoped removes", () => {
+        const preview = classifyRevisionDeltaChanges(currentParams, {
+            remove: ["parameters.agent.tools"],
+        })
+        expect(preview).not.toBeNull()
+        expect("tools" in (preview!.proposedParams.agent as Record<string, unknown>)).toBe(false)
+    })
 })

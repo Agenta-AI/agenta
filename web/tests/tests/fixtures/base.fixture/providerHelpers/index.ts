@@ -146,7 +146,7 @@ async function waitForModelsPageReady(page: Page): Promise<void> {
                     .isVisible()
                     .catch(() => false)
                 const createButtonEnabled = await customProvidersSection
-                    .getByRole("button", {name: "Create"})
+                    .getByRole("button", {name: "OpenAI-compatible endpoint"})
                     .isEnabled()
                     .catch(() => false)
 
@@ -168,8 +168,8 @@ async function waitForModelsPageReady(page: Page): Promise<void> {
 
 async function navigateToModels(page: Page, uiHelpers: UIHelpers): Promise<void> {
     if (!getProjectScopedBasePath(page)) {
-        await page.goto("/apps", {waitUntil: "domcontentloaded"})
-        await uiHelpers.expectPath("/apps")
+        await page.goto("/prompts", {waitUntil: "domcontentloaded"})
+        await uiHelpers.expectPath("/prompts")
     }
 
     const projectBasePath = getProjectScopedBasePath(page)
@@ -189,8 +189,10 @@ async function navigateToModels(page: Page, uiHelpers: UIHelpers): Promise<void>
 }
 
 function getCustomProvidersSection(page: Page): Locator {
+    // The custom-providers section no longer has a dedicated header label — its
+    // section-identifying text IS the "OpenAI-compatible endpoint" trigger button now.
     return page
-        .getByText("Custom providers", {exact: true})
+        .getByText("OpenAI-compatible endpoint", {exact: true})
         .locator("xpath=ancestor::section[1]")
         .first()
 }

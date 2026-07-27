@@ -1,60 +1,93 @@
-"""Unit tests for `RunnerConfig.sandbox_local_allowed` (api/oss/src/utils/env.py).
+"""Unit tests for the API-side sandbox-provider registry parser (api/oss/src/utils/env.py).
 
-Declarative config only: the value is a class-level default evaluated at import time
-(same pattern as `WebhooksConfig.allow_insecure`), so tests reload the module after
-setting/clearing the env var. See test_webhooks_utils.py for the precedent this mirrors.
-The actual runtime gate lives in services/oss/src/agent/app.py (this env var's canonical
-declaration only, not a second live enforcement point in the api service).
+The API reimplements the runner's `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` /
+`AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER` parsing so its provider pre-filter matches the
+runner's final authority. These cases mirror the runner's TypeScript parser tests
+(runner-selfhosting-cleanup/qa.md section 2) so both readers agree on every input.
 """
 
 import importlib
 
 import pytest
 
-
-def test_sandbox_local_allowed_defaults_true(monkeypatch):
-    monkeypatch.delenv("AGENTA_SANDBOX_LOCAL_ALLOWED", raising=False)
-    from oss.src.utils import env
-
-    importlib.reload(env)
-    assert env.RunnerConfig().sandbox_local_allowed is True
+from oss.src.utils import env
 
 
-@pytest.mark.parametrize("value", ["true", "1", "yes", "on"])
-def test_sandbox_local_allowed_true_values(monkeypatch, value):
-    from oss.src.utils import env
-
-    monkeypatch.setenv("AGENTA_SANDBOX_LOCAL_ALLOWED", value)
-    try:
-        importlib.reload(env)
-        assert env.RunnerConfig().sandbox_local_allowed is True
-    finally:
-        monkeypatch.delenv("AGENTA_SANDBOX_LOCAL_ALLOWED", raising=False)
-        importlib.reload(env)
+# --- Parser rules (pure functions, no env) -------------------------------------- #
 
 
-@pytest.mark.parametrize("value", ["false", "0", "no", "off"])
-def test_sandbox_local_allowed_false_values(monkeypatch, value):
-    from oss.src.utils import env
-
-    monkeypatch.setenv("AGENTA_SANDBOX_LOCAL_ALLOWED", value)
-    try:
-        importlib.reload(env)
-        assert env.RunnerConfig().sandbox_local_allowed is False
-    finally:
-        monkeypatch.delenv("AGENTA_SANDBOX_LOCAL_ALLOWED", raising=False)
-        importlib.reload(env)
+def test_enabled_unset_gives_local():
+    assert env._parse_enabled_sandbox_providers(None) == ["local"]
 
 
-def test_sandbox_local_allowed_true_when_unset_after_reload(monkeypatch):
-    from oss.src.utils import env
+def test_enabled_explicit_pair_is_set_equal_order_independent():
+    a = env._parse_enabled_sandbox_providers("local,daytona")
+    b = env._parse_enabled_sandbox_providers("daytona,local")
+    assert sorted(a) == sorted(b) == ["daytona", "local"]
 
-    monkeypatch.delenv("AGENTA_SANDBOX_LOCAL_ALLOWED", raising=False)
-    try:
-        importlib.reload(env)
-        assert env.RunnerConfig().sandbox_local_allowed is True
-    finally:
-        importlib.reload(env)
+
+def test_enabled_normalizes_whitespace_and_case():
+    assert env._parse_enabled_sandbox_providers("  LOCAL , Daytona ") == [
+        "local",
+        "daytona",
+    ]
+
+
+@pytest.mark.parametrize("raw", ["", "   "])
+def test_enabled_explicit_empty_fails(raw):
+    with pytest.raises(ValueError):
+        env._parse_enabled_sandbox_providers(raw)
+
+
+def test_enabled_duplicate_fails():
+    with pytest.raises(ValueError):
+        env._parse_enabled_sandbox_providers("local,local")
+
+
+def test_enabled_unknown_fails():
+    with pytest.raises(ValueError):
+        env._parse_enabled_sandbox_providers("local,e2b")
+
+
+def test_default_unset_gives_local():
+    assert env._parse_default_sandbox_provider(None, ["local"]) == "local"
+
+
+def test_default_outside_enabled_fails():
+    with pytest.raises(ValueError):
+        env._parse_default_sandbox_provider("local", ["daytona"])
+
+
+def test_default_honors_explicit_enabled_value():
+    assert (
+        env._parse_default_sandbox_provider("daytona", ["local", "daytona"])
+        == "daytona"
+    )
+
+
+# --- RunnerConfig integration (default_factory reads the environment) ----------- #
+
+
+def test_runner_config_defaults_local_when_unset(monkeypatch):
+    monkeypatch.delenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", raising=False)
+    monkeypatch.delenv("AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER", raising=False)
+    config = env.RunnerConfig()
+    assert config.enabled_sandbox_providers == ["local"]
+    assert config.default_sandbox_provider == "local"
+
+
+def test_runner_config_reads_enabled_pair(monkeypatch):
+    monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "local,daytona")
+    monkeypatch.setenv("AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER", "daytona")
+    config = env.RunnerConfig()
+    assert config.enabled_sandbox_providers == ["local", "daytona"]
+    assert config.default_sandbox_provider == "daytona"
+
+
+def test_runner_config_rejects_invalid_enabled(monkeypatch):
+    monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "local,e2b")
+    with pytest.raises(Exception):
+        env.RunnerConfig()
 
 
 def test_sandbox_runner_defaults_local_when_unset(monkeypatch):

@@ -25,6 +25,45 @@ import type {
 type EmitRun = { emitEvent: (event: AgentEvent) => void };
 
 /**
+ * Lifecycle policy for a parked browser-fulfilled client tool: what happens to both the turn and
+ * the in-sandbox shim's blocking `tools/call` when it parks. Closed set:
+ *   - "pi-native":        Pi parks through its own extension; the relay writes no answer file.
+ *   - "cold-acknowledge": the non-Pi shim (Claude on Daytona) blocks on a relay answer file, so the
+ *                         relay writes a benign paused answer to end the `tools/call`. The only
+ *                         disposition that writes an answer.
+ *   - "warm-hold":        RESERVED, not built — keep the `tools/call` open inside the live turn (the
+ *                         way an ACP approval holds on a warm session). See #5384.
+ */
+export type ClientToolPauseDisposition =
+  | "pi-native"
+  | "cold-acknowledge"
+  | "warm-hold";
+
+/**
+ * Whether the relay loop writes the benign paused answer for this disposition — the single derived
+ * switch the relay consumes. Exhaustive on purpose: a new disposition (the warm hold) forces a
+ * decision here rather than silently falling through to the cold behavior.
+ */
+export function relayWritesPausedAnswer(
+  disposition: ClientToolPauseDisposition,
+): boolean {
+  switch (disposition) {
+    case "cold-acknowledge":
+      return true;
+    case "pi-native":
+      // Pi parks through its extension; the shim answer file is a non-Pi concept.
+      return false;
+    case "warm-hold":
+      // The warm hold keeps the call open inside the live turn, so it writes no cold answer.
+      return false;
+    default: {
+      const unreachable: never = disposition;
+      return unreachable;
+    }
+  }
+}
+
+/**
  * Correlates an MCP `tools/call` (which carries only name + arguments) to the real ACP
  * tool-call id Claude surfaced on the event stream, so the paused `client_tool` interaction
  * attaches to Claude's actual tool-call bubble (and `markPausedToolCall` suppresses that
@@ -46,8 +85,11 @@ export interface ToolCallCorrelationIndex {
  * bare spec name `lookup()` receives. The lazy match ends the prefix at the FIRST `__` after
  * the server name, so a TOOL name that itself contains `__` survives intact (our server name,
  * `agenta-tools`, contains no `__`; a server name that did would truncate ambiguously).
+ *
+ * Exported: `acp-interactions.ts` reuses it to resolve the real `ResolvedToolSpec` for an ACP
+ * gate by the same bare name this index correlates on.
  */
-function bareToolName(title: string): string {
+export function bareToolName(title: string): string {
   return title.replace(/^mcp__.+?__/, "");
 }
 
@@ -88,13 +130,17 @@ export function createToolCallCorrelationIndex(): ToolCallCorrelationIndex {
         | undefined;
       if (!u || u.sessionUpdate !== "tool_call") return;
       const toolCallId =
-        typeof u.toolCallId === "string" && u.toolCallId ? u.toolCallId : undefined;
+        typeof u.toolCallId === "string" && u.toolCallId
+          ? u.toolCallId
+          : undefined;
       // Each ACP call is recorded once (a re-sent frame for the same id must not enqueue twice).
       if (!toolCallId || recordedIds.has(toolCallId)) return;
       // The name comes from the ACP `title` only. ACP `kind` is a CATEGORY (read/fetch/execute/
       // other), not a name — indexing under it could mis-correlate unrelated calls.
       const name =
-        typeof u.title === "string" && u.title ? bareToolName(u.title) : undefined;
+        typeof u.title === "string" && u.title
+          ? bareToolName(u.title)
+          : undefined;
       if (!name) return;
       recordedIds.add(toolCallId);
       const entry: Entry = { id: toolCallId, consumed: false };

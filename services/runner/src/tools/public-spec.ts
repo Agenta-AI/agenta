@@ -19,8 +19,22 @@ export interface AdvertisedToolSpec {
 }
 
 /** `client` tools are browser-fulfilled and are not executable by a runner child process. */
-export function executableToolSpecs(specs: ResolvedToolSpec[]): ResolvedToolSpec[] {
+export function executableToolSpecs(
+  specs: ResolvedToolSpec[],
+): ResolvedToolSpec[] {
   return specs.filter((spec) => (spec.kind ?? "callback") !== "client");
+}
+
+/**
+ * The run's specs indexed by name — the ONE resolution path every consumer keys a tool by.
+ * Shared by the relay execute loop (which hands the spec to the relay execution guard), the
+ * internal tool MCP server, and the ACP approval gate. One index means the human's approval
+ * card and the guard's verdict cannot disagree about a tool's `permission`/`readOnly`.
+ */
+export function toolSpecsByName(
+  specs: ResolvedToolSpec[],
+): Map<string, ResolvedToolSpec> {
+  return new Map(specs.map((spec) => [spec.name, spec]));
 }
 
 export function advertisedToolSpec(spec: ResolvedToolSpec): AdvertisedToolSpec {
@@ -40,6 +54,8 @@ export function advertisedToolSpec(spec: ResolvedToolSpec): AdvertisedToolSpec {
  * model must SEE (e.g. `request_connection`) even though the browser, not the runner, fulfils
  * them. (Contrast `executableToolSpecs`, which is the gatekeeper for the execute paths.)
  */
-export function advertisedToolSpecs(specs: ResolvedToolSpec[]): AdvertisedToolSpec[] {
+export function advertisedToolSpecs(
+  specs: ResolvedToolSpec[],
+): AdvertisedToolSpec[] {
   return specs.map(advertisedToolSpec);
 }

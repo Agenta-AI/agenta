@@ -1,0 +1,74 @@
+---
+slug: "humanloop-sunsetting-migration-and-alternative"
+title: "Humanloop Sunsetting - Migration and Alternative"
+description: "Humanloop has been acquired and goes offline on September 8, 2025. Agenta is an ideal alternative that lets you version prompts, evaluate, and monitor LLM apps easily. Migrate your prompts and workflows to Agenta with free white-glove migration support."
+category: Engineering
+date: 2025-07-22
+readingTime: "10 min read"
+heroImage: /blog/humanloop-sunsetting-migration-and-alternative/hero.webp
+ogImage: /blog/humanloop-sunsetting-migration-and-alternative/hero.webp
+author: mahmoud-mabrouk
+featured: false
+tags: ["Comparisons"]
+---
+
+## Why is Humanloop Shutting Down?
+
+<InlineCTA />
+
+Humanloop announced they've entered an acquisition process, but as part of this transition, they're sunsetting their current platform. The official shutdown date is September 8, 2025.
+
+This means your prompt workflows, evaluation datasets, observability logs, and API integrations will no longer be accessible. If you're depending on Humanloop for prompt management, evaluation, or tracing, now is the time to start planning your migration.
+
+## Why Agenta is the Ideal Humanloop Alternative
+
+Agenta is the ideal Humanloop alternative. We built a platform with the same mission: helping cross-functional teams ship AI products reliably.
+
+This means enabling collaboration between product teams and engineers in prompt engineering, evaluation, and monitoring LLM applications in production.
+
+### Who is Agenta for?
+
+Agenta's perfect users are cross-functional teams made of AI engineers, product teams, and subject matter experts. Agenta enables all three personas to collaborate to build reliable LLM applications.
+
+Agenta is used by teams from companies of different sizes, from startups to large enterprise customers building AI products and features such as chatbots, AI agents, RAG applications, or automations.
+
+### How do Users Make Use of Agenta?
+
+Our customers use Agenta to streamline the LLMOps workflow and ship reliable LLM applications confidently.
+
+They use Agenta for:
+
+**Prompt versioning and management**: Enable everyone on the team to collaborate and test prompts and deploy prompt changes to staging and production environments without requiring engineering support at each step. This also means keeping track of all changes in prompts and models.
+
+**Prompt engineering and experimentation**: Through a powerful prompt playground where they can see and compare prompts.
+
+**Human annotation**: Creating experiments with human annotation from subject matter experts to validate changes to the prompt before moving them to production.
+
+**Evaluation**: Running automatic evaluation with LLM-as-a-judge or custom code.
+
+**Observability**: Tracing complex applications to be able to debug them, annotate them, and find edge cases to add them to test cases.
+
+**Monitoring**: Ability to view costs and tokens in production.
+
+## Feature Comparison: Humanloop vs Agenta
+
+<table><tbody><tr><th>Feature</th><th>Humanloop</th><th>Agenta</th><th>Why it matters</th></tr><tr><td><strong>Prompt Management</strong></td><td>✓ Provides ability to version prompts and a single environment for deployment for non-enterprise packages</td><td>✓ Provides ability to version prompts, create multiple branches for experimentation, offers multiple environments (dev, staging, production)</td><td>Powerful prompt management allows large teams to organize their prompt drafts and revert changes in production in case of any issues</td></tr><tr><td><strong>Human evaluation and annotation</strong></td><td>✓ Allows running human evaluation with custom feedback on test sets</td><td>✓ Allows running both single human evaluation and A/B human evaluation with multiple metrics. Allows the annotation of production traces</td><td>Human evaluation is the golden truth in many cases on whether to push something to production. A/B testing helps in many cases where it's not possible to score a single model objectively and a comparison is simpler</td></tr><tr><td><strong>Test set management</strong></td><td>✓ Provides versioned test sets with interfaces in UI, CSV, or programmatic for creation</td><td>✓ Provides test sets (versioned is planned very soon) with interfaces in UI, CSV, or programmatic creation. Allows the addition of test cases from the playground and from traces</td><td>Creating a test set is one of the most difficult and important things for a successful LLMOps workflow. Agenta streamlines how to create test sets (using interesting traces or outputs from playground) and allows loading these test cases directly in the playground for iteration</td></tr><tr><td><strong>Evaluations</strong></td><td>✓ Provides evaluation UI for both dev and SMEs to create evaluation seamlessly. Allows the configuration of evaluators from code or LLM as a judge</td><td>✓ Provides evaluation UI for both dev and SMEs to create evaluation seamlessly. Allows the configuration of evaluators from code or LLM as a judge</td><td>Both platforms have very similar capabilities with very powerful evaluation workflows for both developers and product teams</td></tr><tr><td><strong>Observability</strong></td><td>✓ Provides custom observability SDK and integration</td><td>✓ Uses OpenTelemetry for observability with integrations for almost all frameworks and LLM providers</td><td>The OpenTelemetry SDK is a battle-tested SDK with hundreds of integrations. The system has no vendor lock-in, allowing you to migrate very easily</td></tr><tr><td><strong>Multi-model Support</strong></td><td>Limited</td><td>✓ OpenAI, Claude, Gemini, Mistral, Bedrock, Azure, and any custom LLM providers with OpenAI compatible endpoints</td><td>Agenta is compatible with almost all LLM providers and works with fine-tuned custom models</td></tr><tr><td><strong>Integration</strong></td><td>Humanloop main integration flow is through calling the prompt directly in Humanloop</td><td>Offers both as-a-proxy setup (calling the prompt directly in Agenta and getting the results logged directly) and as-prompt-manager setup (an API call to get the prompt and another to send the traces/observability data)</td><td>Agenta is flexible in its integration, allowing a simple integration with an endpoint call and more complex setups for people building agents where they want Agenta outside of the critical path</td></tr><tr><td><strong>Open Source</strong></td><td>✗</td><td>✓ MIT License</td><td>Agenta is open-source providing future-proofness and has code reviewed for security</td></tr><tr><td><strong>Pricing</strong></td><td>Custom and Expensive</td><td>Pro tier: $49/month for three users and 10k traces. Then $20 for each additional user and $5 for each additional trace. Enterprise tier available for enterprise features</td><td>Agenta's pricing works with small and large companies and grows with your usage and the value you get from the platform</td></tr></tbody></table>
+
+## Free Migration Support: From Humanloop to Agenta
+
+We've already helped teams move from Humanloop to Agenta with minimal effort. Our support includes:
+
+- One-on-one onboarding to understand your current setup
+- Scripted exports for prompts and traces from Humanloop to Agenta
+- Rebuilding key workflows for evaluation and custom evaluators
+- Help with SDK setup for observability and prompt management
+
+## Next Steps
+
+Book a free consulting call to discuss your workflow, how to migrate, and see the platform in action.
+
+In the meantime, you can sign up for free and get started using the platform directly.
+
+[[**Book Free Migration Call**](https://cal.com/mahmoud-mabrouk-ogzgey/demo)] [[**Try Agenta Now**](https://cloud.agenta.ai)]
+
+*Ready to build better LLM applications? Join 10,000+ developers already using Agenta for prompt engineering, evaluation, and deployment.*

@@ -1,0 +1,120 @@
+---
+title: "Run agents locally"
+sidebar_label: "Local runs"
+description: "Run agents inside the runner container: enable the provider, give the harness a credential, and smoke test the deployment."
+slug: /self-host/agent-execution/run-agents-locally
+sidebar_position: 3
+---
+
+A local run executes the agent inside the runner container, on the machine that runs your
+deployment. It needs no cloud account, and it is the only provider that can authenticate a harness
+with your own Pi, Claude, or ChatGPT subscription. Local runs are not isolated from each other; see
+[Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security) before
+you open the deployment to other people.
+
+This page sets local runs up on an existing deployment. Every variable is set on the `runner`
+service. Defaults and validation rules are in the
+[runner reference](/self-host/configuration#agent-runner).
+
+## Before you start
+
+- A running deployment. See the [Quick start](/self-host/quick-start).
+
+## 1. Enable the provider
+
+Local is the default provider, so a deployment that sets neither variable already runs agents
+locally. To state it explicitly, or to return to it after enabling Daytona:
+
+```bash
+AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS=local
+AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER=local
+```
+
+To serve both local and Daytona runs from one runner, list both and pick the default:
+
+```bash
+AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS=local,daytona
+AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER=local
+```
+
+The default must be one of the enabled providers, or the runner fails to start.
+
+## 2. Give the harness a credential
+
+A local run authenticates the harness in one of two ways:
+
+- **A model API key**, which Agenta resolves for each run from the keys configured in the studio.
+  This is the default and needs no runner configuration.
+- **Your own subscription**, mounted into the runner container. See
+  [Use your own subscription](/self-host/use-your-own-subscription).
+
+## 3. Smoke test
+
+Recreate the runner, then run an agent. The runner logs its resolved configuration on startup:
+
+```text
+runner providers enabled=[local] default=local
+```
+
+The harness process starts inside the runner container. Later turns reuse the pooled session until
+it expires; see
+[warm sessions and scale](/self-host/configuration#warm-sessions-and-scale).
+
+## Troubleshooting
+
+### A run fails with `Sandbox provider 'local' is not enabled on this deployment`
+
+**Cause:** The deployment enables only `daytona`.
+
+**Solution:** Add `local` to `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` (step 1) and recreate the
+runner.
+
+### A self-managed run fails because the harness has no login
+
+**Cause:** The subscription mount is missing, or `PI_CODING_AGENT_DIR` / `CLAUDE_CONFIG_DIR` does
+not point at it.
+
+**Solution:** See [Use your own subscription](/self-host/use-your-own-subscription).
+
+### The runner container does not start: `error gathering device information while adding custom device "/dev/fuse"`
+
+**Cause:** The bundled Compose files pass `/dev/fuse` to the runner, and the host does not have that
+device. Docker then refuses to create the container.
+
+**Solution:** Load the FUSE module on the host:
+
+```bash
+sudo modprobe fuse
+```
+
+If the host cannot provide FUSE at all, remove the `devices`, `cap_add`, and `security_opt` entries
+from the `runner` service. Agents still run: the runner falls back to an ephemeral working
+directory per run, and working directories stop persisting across turns.
+
+### Working directories do not persist across turns
+
+**Cause:** The runner container cannot mount the durable store. It mounts it with FUSE, which needs
+`/dev/fuse` and the `SYS_ADMIN` capability.
+
+**Solution:** The bundled Compose files grant both. On a Compose deployment of your own, grant them
+on the `runner` service:
+
+```yaml
+services:
+  runner:
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse
+    security_opt:
+      - apparmor:unconfined
+```
+
+The Helm chart grants them on the runner pod whenever the store is enabled, unless you set
+`agentRunner.securityContext` yourself, which replaces the chart's default.
+
+## Next
+
+- [Customize the agent runtime](/self-host/agent-execution/customize-the-agent-runtime) adds tools,
+  folders, or container resources to local runs.
+- [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) isolates each run.

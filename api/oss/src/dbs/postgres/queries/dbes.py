@@ -31,11 +31,6 @@ class QueryArtifactDBE(Base, ProjectScopeDBA, ArtifactDBA):
             ["projects.id"],
             ondelete="CASCADE",
         ),
-        Index(
-            "ix_query_artifacts_project_id_slug",
-            "project_id",
-            "slug",
-        ),
     )
 
 
@@ -60,11 +55,6 @@ class QueryVariantDBE(Base, ProjectScopeDBA, VariantDBA):
             ["project_id", "artifact_id"],
             ["query_artifacts.project_id", "query_artifacts.id"],
             ondelete="CASCADE",
-        ),
-        Index(
-            "ix_query_variants_project_id_slug",
-            "project_id",
-            "slug",
         ),
         Index(
             "ix_query_variants_project_id_artifact_id",
@@ -108,11 +98,6 @@ class QueryRevisionDBE(Base, ProjectScopeDBA, RevisionDBA):
             ["project_id", "variant_id"],
             ["query_variants.project_id", "query_variants.id"],
             ondelete="CASCADE",
-        ),
-        Index(
-            "ix_query_revisions_project_id_slug",
-            "project_id",
-            "slug",
         ),
         Index(
             "ix_query_revisions_project_id_artifact_id",

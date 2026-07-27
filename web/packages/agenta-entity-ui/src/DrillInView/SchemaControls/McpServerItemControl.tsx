@@ -2,11 +2,9 @@
  * McpServerItemControl
  *
  * Schema-driven control for one declared MCP server on the agent config. MCP servers are a
- * sibling of `tools` (not a tool variant): a server names a transport (stdio command/args/env
- * or a remote url), an optional tool allowlist, and the vault secret names the backend resolves
- * into its env at run time. The shape is open enough that a JSON editor is the pragmatic v1 —
- * the same approach ToolItemControl takes for tool definitions — with a name header and a delete
- * control. The typed shape lives in the `agent-template` catalog type (AgentTemplateSchema /
+ * sibling of `tools` (not a tool variant): a server names an external HTTP connection,
+ * credential strategy, and policy. The typed shape lives in the `agent-template` catalog type
+ * (AgentTemplateSchema /
  * McpServer in the SDK); this control just edits one entry of the `agent.mcps` array.
  */
 import {memo, useCallback, useEffect, useRef, useState} from "react"

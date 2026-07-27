@@ -38,6 +38,7 @@ export function EventSourcePicker({
     waitLabel = "Wait for a new event",
     waitHint,
     autoWaitOnOpen,
+    captureMode,
 }: {
     /** The element that opens the popover (a button). */
     trigger: ReactNode
@@ -52,6 +53,8 @@ export function EventSourcePicker({
     waitHint?: string
     /** Start the live capture immediately when the popover opens (single-click test). */
     autoWaitOnOpen?: boolean
+    /** Data-capture wait (picks apply data, not actions): survives popover close, and a resolved event keeps the popover open. */
+    captureMode?: boolean
 }) {
     const [open, setOpen] = useState(false)
     const [waiting, setWaiting] = useState(false)
@@ -70,7 +73,8 @@ export function EventSourcePicker({
             const event = await onWaitForEvent()
             if (event && !settledRef.current) {
                 settledRef.current = true
-                setOpen(false)
+                // Capture mode keeps the popover open — the event lands in recentEvents.
+                if (!captureMode) setOpen(false)
                 onPick(event)
             }
         } catch {
@@ -87,8 +91,9 @@ export function EventSourcePicker({
         if (next) {
             settledRef.current = false
             if (autoWaitOnOpen && onWaitForEvent) void wait()
-        } else {
-            // A wait resolving after the popover closed must not fire onPick.
+        } else if (!captureMode) {
+            // A wait resolving after the popover closed must not fire onPick — unless it's
+            // a data capture (that flow sends users away from the popover).
             settledRef.current = true
         }
     }

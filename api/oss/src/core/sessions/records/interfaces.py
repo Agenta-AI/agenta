@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from oss.src.core.sessions.records.dtos import (
@@ -12,7 +12,15 @@ class RecordsDAOInterface:
         self,
         *,
         event: SessionRecordEvent,
+        session: Optional[Any] = None,
     ) -> Optional[SessionRecord]:
+        raise NotImplementedError
+
+    async def append_many(
+        self,
+        *,
+        events: List[SessionRecordEvent],
+    ) -> List[SessionRecord]:
         raise NotImplementedError
 
     async def get_records(

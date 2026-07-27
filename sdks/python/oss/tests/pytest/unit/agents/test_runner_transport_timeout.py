@@ -132,6 +132,9 @@ async def test_subprocess_stream_raises_on_a_stall_longer_than_the_idle_window(
 async def test_http_stream_passes_timeout_to_httpx_client(monkeypatch):
     import httpx
 
+    # The runner token is required on every call; this test is about the timeout, not auth.
+    monkeypatch.setenv("AGENTA_RUNNER_TOKEN", "test-token")
+
     captured = {}
 
     class _Stream:

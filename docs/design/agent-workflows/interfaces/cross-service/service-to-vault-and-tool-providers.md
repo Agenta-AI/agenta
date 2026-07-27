@@ -26,11 +26,15 @@ The service resolves several types, each with a clear job:
 one connection deterministically, and fails loud on ambiguity. The run never receives the
 whole vault.
 
-**Capability gating.** A per-harness table decides which providers, deployments, and
-connection modes a harness can reach. Pi reaches eight direct providers; Claude reaches
-Anthropic across direct, custom, bedrock, and vertex. The service checks provider and mode
-before resolution and deployment after, and rejects unreachable choices server-side. The
-same table ships on `/inspect` so the form can filter ahead of time.
+**Capability gating.** A resolved-pair table (`harness_allows_pair`) decides which resolved
+`(provider, deployment)` pairs a harness can reach. Pi reaches its direct providers plus the
+OpenAI-compatible `custom` deployment (a provider-less `custom` connection resolves to provider
+`openai`, deployment `custom`); Claude reaches Anthropic across direct, custom, bedrock, and
+vertex. The service checks provider and mode before resolution and deployment after, and rejects
+unreachable choices server-side. The flat `deployments` lists (`["direct", "custom"]` for Pi) feed
+the form and `/inspect`; the pair table is authoritative for a run. A `custom` connection with an
+unusable base URL never falls back to a default endpoint. It raises `EndpointResolutionError`,
+which returns HTTP 422, as do `UnsupportedProviderError` and `UnsupportedDeploymentError`.
 
 ## Owned by
 

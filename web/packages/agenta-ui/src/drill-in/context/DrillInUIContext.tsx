@@ -341,6 +341,9 @@ export interface DrillInUIComponents {
     /** Workflow-as-tool reference integration for the tool selector (#4860) */
     workflowReference?: WorkflowReferenceBridge
 
+    /** Open a trace in the host application. */
+    openTrace?: (params: {traceId: string; spanId?: string | null}) => void
+
     /**
      * Lexical editor context hook
      * Used by: ResponseFormatControl for reading editor content

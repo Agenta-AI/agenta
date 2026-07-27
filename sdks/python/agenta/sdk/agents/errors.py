@@ -38,16 +38,18 @@ class AgentRunnerConfigurationError(RuntimeError):
 
 
 class LocalSandboxNotAllowedError(ErrorStatus):
-    """`sandbox: "local"` requested while `AGENTA_SANDBOX_LOCAL_ALLOWED` is off; maps to HTTP 403."""
+    """A sandbox provider not in `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`; maps to HTTP 403."""
 
     code: int = 403
     type: str = f"{ERRORS_BASE_URL}#v0:agent:local-sandbox-not-allowed"
 
     def __init__(
         self,
-        message: str = (
-            "sandbox 'local' is not allowed on this deployment "
-            "(set AGENTA_SANDBOX_LOCAL_ALLOWED=true to enable)"
-        ),
+        sandbox: str = "local",
+        message: str = None,
     ) -> None:
-        super().__init__(code=self.code, type=self.type, message=message)
+        resolved = message or (
+            f"sandbox '{sandbox}' is not enabled on this deployment "
+            f"(add it to AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS to enable)"
+        )
+        super().__init__(code=self.code, type=self.type, message=resolved)

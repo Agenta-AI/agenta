@@ -91,13 +91,7 @@ async def publish_record(
             maxlen=MAXLEN_STREAMS_RECORDS,
             approximate=True,
         )
-        log.tick(
-            "records.published",
-            bytes=len(event_bytes),
-            dims={"stream": "records"},
-        )
         return True
     except Exception as e:
         log.error(f"[RECORDS] Failed to publish: {e}", exc_info=True)
-        log.tick("records.publish_errors", dims={"stream": "records"})
         return False

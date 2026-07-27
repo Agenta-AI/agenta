@@ -9,22 +9,16 @@ MCP layers, and they toggle separately (do not merge their gates):
    endpoint the runner serves (local sandbox; no runner-host child process), or an in-sandbox
    stdio MCP shim the runner uploads and the harness launches (Daytona). Its server name,
    `agenta-tools`, is reserved on every transport.
-2. **User-declared MCP servers** — the user's own servers on the `/run` payload after the Python
-   side resolves their secrets. HTTP (remote) servers are delivered; stdio servers are DISABLED
-   (they launch an arbitrary process on the runner host, outside the sandbox boundary).
-
-PR #4831 once conflated these into a single `MCP_UNSUPPORTED_MESSAGE` switch, which disabled the
-internal channel as collateral with the (correct) user-stdio disable; the gateway-tool-mcp
-project split them again. The user-facing constant is now `USER_MCP_UNSUPPORTED_MESSAGE` and means
-ONLY "user MCP servers are unsupported"; the internal channel never borrows it.
+2. **User-declared MCP servers** - the user's external HTTP servers on the `/run` payload after
+   the Python side resolves header-secret references. Public stdio is not representable.
 
 ## The contract
 
 **Gating.** The runner builds MCP servers only when the harness is not Pi and the capability
 probe reports `mcpTools: true`. Pi always returns an empty MCP set because it gets tools the
-native way. Because Pi cannot consume MCP, a USER MCP server (stdio OR http) attached to a Pi run
+native way. Because Pi cannot consume MCP, a user HTTP MCP server attached to a Pi run
 would be dropped silently — so `run-plan.ts` refuses any Pi run carrying `mcpServers` up front
-with `PI_USER_MCP_UNSUPPORTED_MESSAGE` (fail loud, the way the stdio-MCP and code-tool gates do),
+with `PI_USER_MCP_UNSUPPORTED_MESSAGE`,
 rather than returning a "successful" empty run. A user http MCP is a Claude-only capability.
 
 **Reserved server name.** The channel's name `agenta-tools` is a stable identity on both
@@ -36,7 +30,7 @@ and `buildSessionMcpServers` repeats the check at session materialization
 (`assertNoReservedUserMcpName`) as defense in depth.
 
 **The internal channel, local transport (HTTP on loopback).** For a non-Pi harness with
-executable tool specs on the LOCAL sandbox, `buildToolMcpServers` starts a tiny MCP
+tool specs (executable and `client` alike) on the LOCAL sandbox, `buildToolMcpServers` starts a tiny MCP
 server on `127.0.0.1:<ephemeral>` and returns one ACP `type: "http"` entry
 (`{name: "agenta-tools", url, headers: []}`). The server speaks JSON-RPC 2.0 over Streamable-HTTP
 (stateless JSON mode) and answers three methods:
@@ -63,9 +57,9 @@ closed for user stdio MCP. The run end closes it (releases the port).
 
 **The internal channel, Daytona transport (in-sandbox stdio shim).** The loopback URL is a
 runner-host address; on Daytona the harness runs IN the sandbox, where `127.0.0.1` is the
-sandbox's own loopback, not the runner's, so the HTTP transport is unusable. Instead, for a
-non-Pi harness with executable tool specs, the engine uploads two files into an ephemeral
-in-VM dir (`/home/sandbox/agenta/tool-mcp/<key>`, a sibling of the relay dir, keyed the same
+sandbox's own loopback, not the runner's, so the HTTP transport is unusable. Instead, for any
+non-Pi harness with tool specs (executable and `client` alike), the engine uploads two files
+into an ephemeral in-VM dir (`/home/sandbox/agenta/tool-mcp/<key>`, a sibling of the relay dir, keyed the same
 way — never inside the relay dir, which the relay loop sweeps, and never on the durable
 geesefs cwd):
 
@@ -73,9 +67,11 @@ geesefs cwd):
   `pnpm run build:extension` alongside the Pi extension. `SANDBOX_AGENT_RELAY_MCP_BUNDLE`
   overrides the bundle path on the runner (trusted deployment configuration, never run or
   request configuration; tests point it at a fixture).
-- `tool-mcp-specs.json` — the run's `AdvertisedToolSpec` array (public fields only). A file,
-  not an env value, because the env is copied through four exec layers and tool JSON Schemas
-  are unbounded.
+- `tool-mcp-specs.json` — the run's `AdvertisedToolSpec` array (public fields only). `client`
+  specs ride this file too now, so the model sees browser-fulfilled tools and can call them; a
+  paused `tools/call` returns a benign non-error wait result via the `{ ok: true, paused: true }`
+  relay answer (below). A file, not an env value, because the env is copied through four exec
+  layers and tool JSON Schemas are unbounded.
 
 `buildInternalToolMcpEntry` then advertises one ACP stdio entry in `sessionInit.mcpServers`:
 `{name: "agenta-tools", command: "node", args: [bundlePath], env}` with NO `type` field — the
@@ -99,15 +95,20 @@ server-side. The shim runs under the sandbox's own confinement, not on the runne
 does not reopen the #4831 user-stdio hole (that hole is a runner-host concern, and this entry
 is synthesized by the runner, never user-declared).
 
-Two refusals remain on the remote path, both loud in `run-plan.ts` (never a silent tool drop):
-a remote provider that is not Daytona fails closed with `REMOTE_TOOLS_UNSUPPORTED_MESSAGE`
-(the shim's upload + spawn path is proven for Daytona only, and a new provider must not
-silently re-open the F1 zero-tools drop), and any `client` (browser-fulfilled) tool on a
-non-Pi remote run refuses with `REMOTE_CLIENT_TOOLS_UNSUPPORTED_MESSAGE` (the relay loop parks
-a client call and writes no response file, so through the shim it would hang until the relay
-timeout; the loopback channel's pause-by-abort has no stdio equivalent yet). Executable
-(gateway/callback) tools proceed. A user http MCP server (a remote URL the harness dials
-directly) is NOT loopback-bound and stays delivered on Daytona unchanged.
+One refusal remains on the remote path, loud in `run-plan.ts` (never a silent tool drop): a
+remote provider that is not Daytona fails closed with `REMOTE_TOOLS_UNSUPPORTED_MESSAGE` (the
+shim's upload + spawn path is proven for Daytona only, and a new provider must not silently
+re-open the F1 zero-tools drop). On Daytona both executable (gateway/callback) AND `client`
+(browser-fulfilled) tools now proceed. A client call PARKS through the shim rather than being
+refused: the runner-side relay loop (`startToolRelay`) writes a benign paused answer
+(`{ ok: true, paused: true }`) into the relay response file, gated by the run-plan
+`writePausedAnswer` capability flag (true for a non-Pi harness, false for Pi). The shim maps
+that answer to a benign, NON-error `tools/call` result whose text names the tool and tells the
+model not to retry, so Claude's turn ends cleanly on the shared client-tool pause seam instead
+of waiting out the per-tool relay timeout and emitting a late error frame. The browser result
+returns on the cold-replay resume turn, exactly as on the local and Pi paths. A user http MCP
+server (a remote URL the harness dials directly) is NOT loopback-bound and stays delivered on
+Daytona unchanged.
 
 **The file relay.** A resolved tool may need to run privately rather than inside the harness
 process. The relay moves the call across that boundary: the child publishes a `<id>.req.json`
@@ -137,28 +138,33 @@ the guard passes `ask`. Residual, stated honestly: on that path a forged request
 still trigger an ask-tool WITHOUT a dialog; reflecting the harness approval into the grant
 ledger is a documented follow-up. The hard deny boundary holds on every harness.
 
-**User-declared servers.** `mcpServers` in `/run` carries each user server with its
-transport, command or url, args, env (secrets already injected by the Python resolver), tool
-allowlist, and permission. Two transports, opposite states:
+**User-declared servers.** `/run.mcpServers` carries only resolved external HTTP servers:
 
-- **HTTP (`transport: "http"` + `url`) is delivered.** A remote server has no child process on
-  the runner host: the harness connects to the URL and the named secret rides in a request
-  header, so it does not bypass the sandbox boundary. The resolved secret arrives on the wire
-  under the server's `env` map (the resolver merges named secrets into `env` regardless of
-  transport, and the wire has no separate `headers` field), so `toAcpMcpServers` emits each
-  `env` entry as an HTTP header (`Authorization: <token>`, etc.). The author names the header
-  via the secret-map key — `secrets: {"Authorization": "linear-mcp-token"}` lands as a header.
-  The runner builds the ACP `McpServer` `type: "http"` variant (`{name, url, headers}`). Before
-  attaching the credential, `validateUserMcpUrl` applies an SSRF guard: the `url` must be `https`
-  and must not target an internal/metadata host (loopback, link-local incl. `169.254.169.254`,
-  or private literals), else the run fails loud. A host listed in the optional comma-separated
-  `AGENTA_AGENT_MCPS_HOST_ALLOWLIST` env var opts out of both checks (e.g. a known-safe internal
-  endpoint).
-- **Stdio (`transport: "stdio"` + `command`) is disabled.** A stdio server launches an
-  arbitrary process on the runner host, outside the sandbox boundary, so the implementation is
-  disabled (parity with the removed code execution) until its security is fixed. `run-plan.ts`
-  refuses any run carrying one (`USER_MCP_UNSUPPORTED_MESSAGE`); `toAcpMcpServers` throws the same
-  as a defense-in-depth backstop. The wire shape is kept; only delivery is off.
+```jsonc
+{
+  "name": "memory",
+  "connection": {
+    "type": "http",
+    "url": "https://memory.example.com/mcp",
+    "headers": { "Authorization": "Bearer resolved-value" }
+  },
+  "policy": {
+    "tools": { "mode": "all" },
+    "permission": "ask"
+  }
+}
+```
+
+The Python service resolves named header-secret references before constructing this object. The
+runner treats `connection.headers` as secret-bearing and converts each entry to the ACP HTTP header
+array. `validateUserMcpUrl` requires HTTPS and blocks internal, private, link-local, loopback, and
+metadata destinations unless the operator explicitly allowlists the host with
+`AGENTA_AGENT_MCPS_HOST_ALLOWLIST`.
+
+A user HTTP server remains reachable from Daytona because Claude connects from inside the sandbox
+to the remote URL. This is independent of the internal `agenta-tools` transport selection. Public
+stdio does not exist in the run contract. Pi refuses external user MCP servers with
+`PI_USER_MCP_UNSUPPORTED_MESSAGE` until Pi has a delivery bridge.
 
 ## Owned by
 
@@ -168,10 +174,10 @@ allowlist, and permission. Two transports, opposite states:
   on Daytona via `buildInternalToolMcpEntry`; the reserved-name check
   `assertNoReservedUserMcpName`; threads `clientToolRelay` + abort signal; `validateUserMcpUrl`
   SSRF guard).
-- `services/runner/src/engines/sandbox_agent/run-plan.ts`: the remote gates
-  (`REMOTE_TOOLS_UNSUPPORTED_MESSAGE` for non-Daytona remotes,
-  `REMOTE_CLIENT_TOOLS_UNSUPPORTED_MESSAGE` for client tools on a non-Pi remote run, the
-  reserved-name refusal) and the `toolMcpDir` placement invariants.
+- `services/runner/src/engines/sandbox_agent/run-plan.ts`: the remote gate
+  (`REMOTE_TOOLS_UNSUPPORTED_MESSAGE` for non-Daytona remotes, the reserved-name refusal), the
+  `writePausedAnswer` capability flag (true for non-Pi so a client call parks rather than hangs;
+  false for Pi), and the `toolMcpDir` placement invariants.
 - `services/runner/src/engines/sandbox_agent/tool-mcp-assets.ts`: the shim bundle location
   (`SANDBOX_AGENT_RELAY_MCP_BUNDLE` override) and the per-run upload (`uploadToolMcpAssets`,
   fail-loud `TOOL_MCP_UNAVAILABLE_MESSAGE`).
@@ -180,21 +186,25 @@ allowlist, and permission. Two transports, opposite states:
 - `services/runner/src/engines/sandbox_agent/client-tools.ts`: the shared client-tool seam
   (`buildClientToolRelay`, `emitClientToolInteraction`, the ACP tool-call correlation index).
 - `services/runner/src/tools/mcp-bridge.ts`: the internal channel builder (advertises `client`
-  tools when a relay is wired); the `USER_MCP_UNSUPPORTED_MESSAGE` /
-  `PI_USER_MCP_UNSUPPORTED_MESSAGE` refusal constants.
+  tools when a relay is wired).
+- `services/runner/src/engines/sandbox_agent/run-plan.ts`: the
+  `PI_USER_MCP_UNSUPPORTED_MESSAGE` refusal.
 - `services/runner/src/tools/tool-mcp-http.ts`: the internal loopback HTTP MCP server (the
   `client` pause: no JSON-RPC result + abort-the-request).
 - `services/runner/src/tools/tool-mcp-stdio.ts`: the in-sandbox stdio shim (newline-delimited
-  JSON-RPC; `tools/call` writes relay request files through the shared relay client).
+  JSON-RPC; `tools/call` writes relay request files through the shared relay client, and maps a
+  `paused` relay answer to a benign, non-error wait result so a client call ends the turn cleanly).
 - `services/runner/src/tools/tool-mcp-env.ts`: the shim's env-name contract, a dependency-free
   module the server-side entry builder shares without importing the bundle entrypoint.
 - `services/runner/src/tools/spec-schema.ts`: the shared `specInputSchema` accessor + arg
   validation.
-- `services/runner/src/tools/mcp-server.ts`: the removed stdio JSON-RPC server (refusing stub).
 - `services/runner/src/tools/relay.ts`: the runner-side relay loop and hosts
-  (delete-on-pickup; idle-poll backoff in fallback mode).
+  (delete-on-pickup; idle-poll backoff in fallback mode; `startToolRelay` writes the
+  `{ ok: true, paused: true }` paused answer for a parked client call when `writePausedAnswer`
+  is set).
 - `services/runner/src/tools/relay-client.ts` and `relay-protocol.ts`: the bundle-safe
-  in-sandbox writer and wire protocol (atomic publication; the hop-1 response watch).
+  in-sandbox writer and wire protocol (atomic publication; the hop-1 response watch; the
+  optional `paused?: true` field on `ExecuteRelayResponse` for a parked client call).
 - `services/runner/src/tools/relay-watch.ts`: the hop-2 wake sources (local `fs.watch`; the
   flagged Daytona watch exec).
 
@@ -210,15 +220,25 @@ allowlist, and permission. Two transports, opposite states:
   the MCP client the installed Claude harness uses; re-verify it if that version moves. The
   Daytona stdio shim answers the same three methods over newline-delimited JSON-RPC; it copies
   the `specInputSchema` fallback locally so its bundle's import surface stays exactly
-  relay-client + relay-protocol + types.
-- **The client-tool pause is no-result-before-finish.** A paused `tools/call` must never write a
-  JSON-RPC result (a result lets the harness settle and clobber the pending widget); the handler
-  aborts its own request and the engine fires an `AbortSignal` on pause/teardown. The stdio shim
-  has NO pause path, which is exactly why client tools are refused on the remote non-Pi path.
-- **The remote-tools gates.** A non-Pi run on a non-Daytona remote provider carrying ANY custom
-  tool is refused in `run-plan.ts` (fail closed until in-sandbox delivery is proven there); a
-  non-Pi remote run carrying a `client` tool is refused separately. Executable tools proceed on
-  Daytona via the shim. Do not widen either gate without a proven delivery path.
+  relay-client + relay-protocol + types. On the shim a client `tools/call` parks instead of
+  aborting: it returns the benign non-error wait result mapped from the `{ ok: true, paused: true }`
+  relay answer.
+- **The client-tool pause seam has two transports, one outcome.** Both end the turn on the
+  shared client-tool pause seam; they differ only in how the paused `tools/call` gets there. On
+  the loopback HTTP channel a paused call must never write a JSON-RPC result (a result lets the
+  harness settle and clobber the pending widget); the handler aborts its own request and the
+  engine fires an `AbortSignal` on pause/teardown. Over stdio there is no socket to abort, so the
+  runner instead writes a benign `{ ok: true, paused: true }` relay answer (gated by the run-plan
+  `writePausedAnswer` flag) and the shim returns a benign, non-error wait result — the turn still
+  ends on the pause seam, and client tools now deliver on Daytona. The pause models a CLOSED set
+  of outcomes — answered / error / paused-cold (the current Daytona behavior) — with a
+  `paused-hold` outcome RESERVED for a future warm-path native hold (keeping the shim's call open
+  inside a live turn, like an ACP approval); no warm behavior is built yet.
+- **The remote-tools gate.** A non-Pi run on a non-Daytona remote provider carrying ANY custom
+  tool is refused in `run-plan.ts` (fail closed until in-sandbox delivery is proven there). On
+  Daytona both executable AND `client` tools proceed via the shim: executable tools run
+  server-side, and a client call parks through the `writePausedAnswer` relay answer. Do not widen
+  the gate to another remote provider without a proven delivery path.
 - **The reserved server name.** `agenta-tools` must stay in lockstep with the Python adapter's
   rendered `mcp__agenta-tools__<tool>` rules, and a user server may never claim it (checked at
   declaration time and again at materialization).
@@ -234,11 +254,7 @@ allowlist, and permission. Two transports, opposite states:
   the shim. Requiring a grant there would refuse every approved call; removing the guard would
   let a forged file run a denied tool. Keep the residual (forged-file ask without a dialog on
   the MCP path) documented until the grant-ledger follow-up lands.
-- **HTTP MCP delivery.** `toAcpMcpServers` routes the resolved secret from `env` into a
-  request header and builds the ACP `type: "http"` entry. Changing the env-to-header mapping or
-  the ACP variant shape changes which auth reaches the remote server.
-- **USER stdio MCP stays disabled.** Re-enabling it requires making its runner-host execution
-  sandbox-safe — a real security change, not a flag flip. The internal in-sandbox stdio shim
-  is not an exception to this: it runs inside the sandbox, is synthesized from runner
-  constants, and can never be user-declared.
+- **HTTP MCP delivery.** `toAcpMcpServers` routes resolved `connection.headers` into the ACP
+  `type: "http"` entry. Changing the header mapping or ACP variant changes which authentication
+  reaches the remote server.
 - **Per-server permission and allowlist behavior.**

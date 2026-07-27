@@ -47,7 +47,13 @@ export function conciseError(
   if (/credit balance is too low|exceeded your current quota|insufficient_quota/i.test(raw)) {
     return `${harness}: the model provider account has insufficient credit (check ${keyHint}).`;
   }
-  if (/authentication required|invalid api key|401|unauthorized/i.test(raw)) {
+  // `401` must stand alone (not digit-adjacent) so it doesn't false-match a bare HTTP status
+  // code embedded in an unrelated number — e.g. a `Date.now()`-based path/id that happens to
+  // contain "401" as a substring (a real, timestamp-dependent flake this caused).
+  if (
+    /authentication required|invalid api key|unauthorized/i.test(raw) ||
+    /(?<!\d)401(?!\d)/.test(raw)
+  ) {
     return `${harness}: model authentication failed — add ${keyHint} to the project vault, or log in (OAuth).`;
   }
   return msg || "agent run failed";

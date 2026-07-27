@@ -95,7 +95,9 @@ export const PROVIDER_LABELS: Record<string, string> = {
     bedrock: "AWS Bedrock",
     azure: "Azure OpenAI",
     minimax: "MiniMax",
-    custom: "Custom Provider",
+    // Stored value stays "custom"; only the user-visible label changes. The v1 custom deployment
+    // speaks the OpenAI Chat Completions dialect, so name it for what it connects to.
+    custom: "OpenAI-compatible endpoint",
 }
 
 export const PROVIDER_KINDS: Record<string, string> = {

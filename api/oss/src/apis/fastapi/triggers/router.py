@@ -1602,10 +1602,8 @@ class TriggersRouter:
                     ),
                     timeout=_ENQUEUE_TIMEOUT_SECONDS,
                 )
-                log.tick("triggers.enqueued", dims={"queue": "triggers"})
             except Exception as e:
                 log.error("Failed to enqueue trigger event: %s", e)
-                log.tick("triggers.enqueue_errors", dims={"queue": "triggers"})
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="Failed to enqueue trigger event",

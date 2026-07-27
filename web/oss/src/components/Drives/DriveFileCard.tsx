@@ -1,0 +1,132 @@
+/**
+ * DriveFileCard — the in-thread artifact card (build-spec v2, view E1): a file the agent
+ * wrote/updated during a turn, rendered inside the message. Icon · name · Created/Updated tag ·
+ * type/size meta · Download; click opens Quick Look. Jargon-free (no mount/cwd). Meta and
+ * download enrich from the ambient conversation drive when the file resolves against the
+ * listing; deletes render struck-through with no actions.
+ */
+import {mountPathMatchesToolPath, type FileActivityOp} from "@agenta/entities/session"
+import {DownloadSimple} from "@phosphor-icons/react"
+import {Button, Tag, Tooltip, Typography} from "antd"
+import {useAtomValue, useSetAtom} from "jotai"
+
+import {projectIdAtom} from "@/oss/state/project"
+
+import {driveFileIcon} from "./driveIcons"
+import {fileTypeLabel} from "./driveKinds"
+import {downloadMountFile} from "./driveMedia"
+import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
+import {humanSize} from "./driveTree"
+import {driveQuickLookAtomFamily} from "./quickLook"
+import {useSessionDrive} from "./useSessionDrive"
+
+const {Text} = Typography
+
+const OP_META: Record<FileActivityOp, {label: string; color?: string}> = {
+    write: {label: "Created", color: "green"},
+    edit: {label: "Updated", color: "blue"},
+    delete: {label: "Deleted"},
+}
+
+/**
+ * Compact INLINE reference to a drive file — for a filename the agent names in prose. Reads as a
+ * subtle inline chip (icon + name) that flows within the sentence and opens Quick Look on click.
+ * The heavy block {@link DriveFileCard} is reserved for the tool step that actually wrote the file,
+ * so a mention in the reply never breaks the paragraph with a full card.
+ */
+export function DriveFileInlineRef({path}: {path: string}) {
+    const sessionId = useDriveSessionId()
+    const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId ?? ""))
+    const name = path.split("/").pop() ?? path
+    return (
+        <button
+            type="button"
+            onClick={() => openQuickLook({path})}
+            title={path}
+            className="mx-px inline-flex max-w-full cursor-pointer items-center gap-1 rounded border border-solid border-colorBorderSecondary bg-colorFillTertiary px-1 py-0 align-baseline font-mono text-[0.9em] leading-[1.4] text-colorText transition-colors hover:border-colorBorder hover:bg-colorFillSecondary"
+        >
+            <span className="flex shrink-0 items-center">
+                {driveFileIcon(path, 11, "text-current")}
+            </span>
+            <span className="min-w-0 truncate">{name}</span>
+        </button>
+    )
+}
+
+export function DriveFileCard({path, op}: {path: string; op?: FileActivityOp}) {
+    const projectId = useAtomValue(projectIdAtom)
+    const sessionId = useDriveSessionId()
+    const artifactId = useDriveArtifactId()
+    const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId ?? ""))
+    const drive = useSessionDrive(sessionId ?? "", artifactId ?? undefined)
+
+    const resolved = drive.files.find((f) => mountPathMatchesToolPath(f.path, path)) ?? null
+    const name = path.split("/").pop() ?? path
+    const deleted = op === "delete"
+    // No op (a prose mention rather than a detected write) → no status tag; just the file card.
+    const meta = op ? OP_META[op] : null
+
+    const download = () => {
+        if (!resolved) return
+        // The file may live in the cwd mount or the nested agent-files mount — route to whichever.
+        const target = drive.resolveMount(resolved.path)
+        if (!target) return
+        void downloadMountFile({mount: target.mount, path: target.path, projectId})
+    }
+
+    // A <span> root (inline-flex) so the card is valid inline — it's rendered both standalone in a
+    // flex row (tool activity) AND inside a markdown paragraph (a prose file mention).
+    return (
+        <span
+            className={`my-0.5 inline-flex w-fit max-w-full items-center gap-2.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary py-1.5 pl-2 pr-1 align-middle ${
+                deleted ? "opacity-70" : ""
+            }`}
+        >
+            <button
+                type="button"
+                disabled={deleted}
+                onClick={() => openQuickLook({path})}
+                className={`flex min-w-0 items-center gap-2.5 border-0 bg-transparent p-0 text-left ${
+                    deleted ? "cursor-default" : "cursor-pointer"
+                }`}
+            >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-colorFillTertiary">
+                    {driveFileIcon(path, 16)}
+                </span>
+                <span className="flex min-w-0 flex-col">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                        <span
+                            className={`min-w-0 truncate font-mono text-xs font-medium ${
+                                deleted ? "line-through" : ""
+                            }`}
+                        >
+                            {name}
+                        </span>
+                        {meta ? (
+                            <Tag
+                                color={meta.color}
+                                className="m-0 shrink-0 !text-[10px] leading-[16px]"
+                            >
+                                {meta.label}
+                            </Tag>
+                        ) : null}
+                    </span>
+                    <Text type="secondary" className="!text-[11px]">
+                        {fileTypeLabel(path)}
+                        {resolved?.size != null ? <> · {humanSize(resolved.size)}</> : null}
+                    </Text>
+                </span>
+            </button>
+            {!deleted && resolved ? (
+                <Tooltip title="Download">
+                    <Button
+                        type="text"
+                        icon={<DownloadSimple size={14} />}
+                        onClick={download}
+                        aria-label={`Download ${name}`}
+                    />
+                </Tooltip>
+            ) : null}
+        </span>
+    )
+}

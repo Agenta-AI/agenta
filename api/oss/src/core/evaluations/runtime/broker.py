@@ -6,8 +6,12 @@ custom no-redelivery broker and task registration aren't duplicated.
 """
 
 from taskiq import AsyncBroker
-from taskiq_redis import RedisStreamBroker
 
+from oss.src.tasks.taskiq.shared.broker import (
+    ProducerOnlyMixin,
+    TrimOnAckRedisStreamBroker,
+    stable_consumer_name,
+)
 from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
@@ -22,12 +26,13 @@ from oss.src.utils.env import env
 MAXLEN_QUEUES_EVALUATIONS = 100_000
 
 
-class NoRedeliveryRedisStreamBroker(RedisStreamBroker):
+class NoRedeliveryRedisStreamBroker(TrimOnAckRedisStreamBroker):
     """Stream broker that never redelivers. `listen()` reads only NEW messages
     (`>`) and skips the XAUTOCLAIM pending-replay block, so a task that crashed
     mid-run is not re-served to later workers. Evaluation tasks are not safely
     re-runnable (`retry_on_error=False`); a stuck unacked entry replaying on every
-    worker restart is worse than dropping it.
+    worker restart is worse than dropping it. Inherits XDEL-on-ack so completed
+    entries leave the stream (XLEN = backlog).
     """
 
     async def listen(self):
@@ -55,12 +60,28 @@ class NoRedeliveryRedisStreamBroker(RedisStreamBroker):
                         )
 
 
-def build_evaluations_broker(*, consumer_group_name: str) -> AsyncBroker:
-    """Construct the durable evaluations broker (shared queue name/maxlen)."""
-    return NoRedeliveryRedisStreamBroker(
+class ProducerOnlyEvaluationsBroker(ProducerOnlyMixin, NoRedeliveryRedisStreamBroker):
+    """Evaluations producer: `.kiq()`-only, so it never declares the group."""
+
+
+def build_evaluations_broker(
+    *, consumer_group_name: str, producer_only: bool = False
+) -> AsyncBroker:
+    """Construct the durable evaluations broker (shared queue name/maxlen).
+
+    `producer_only=True` for the API-side enqueuer (never `.listen()`s), so it
+    doesn't declare a phantom consumer group.
+    """
+    broker_cls = (
+        ProducerOnlyEvaluationsBroker
+        if producer_only
+        else NoRedeliveryRedisStreamBroker
+    )
+    return broker_cls(
         url=env.redis.uri_durable,
         queue_name="queues:evaluations",
         consumer_group_name=consumer_group_name,
+        consumer_name=stable_consumer_name(consumer_group_name),
         maxlen=MAXLEN_QUEUES_EVALUATIONS,
         approximate=True,
         # socket_timeout must be >= xread_block / 1000 to avoid connection errors.

@@ -14,13 +14,13 @@ Batch Configuration:
 - max_delay_ms: 250ms - max wait time for batch accumulation when small batches arrive
 """
 
-import os
 import time
 import asyncio
 from typing import Dict, List, Optional, Tuple
 
 from redis.asyncio import Redis
 
+from oss.src.tasks.taskiq.shared.broker import stable_consumer_name
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -54,9 +54,10 @@ class StreamConsumer:
         self.stream_name = stream_name
         self.consumer_group = consumer_group
         self.metric_stream = consumer_group.removeprefix("worker-")
-        # Per-pid consumer name — what makes horizontal scale-up safe: all
-        # replicas share consumer_group, Redis fans out work across consumers.
-        self.consumer_name = consumer_name or f"worker-{os.getpid()}"
+        # Container-unique consumer name (PID is always 1 in a container, so it
+        # can't distinguish replicas): all replicas share consumer_group and
+        # Redis fans out work across the distinct per-container consumers.
+        self.consumer_name = consumer_name or stable_consumer_name(consumer_group)
         self.max_batch_size = max_batch_size
         self.max_block_ms = max_block_ms
         self.max_batch_mb = max_batch_mb
@@ -182,37 +183,19 @@ class StreamConsumer:
 
         while True:
             try:
-                read_started = time.perf_counter()
                 batch = await self.read_batch()
                 if not batch:
                     continue
 
-                # read_ms = fetch + batch accumulation (the consumer's Redis-read
-                # latency, symmetric with the producer's XADD latency); duration_ms
-                # = process + ack only. Idle 5s blocks return empty and never tick.
-                read_ms = (time.perf_counter() - read_started) * 1000
-                started = time.perf_counter()
-                processed_count, processed_message_ids = await self.process_batch(batch)
+                _, processed_message_ids = await self.process_batch(batch)
 
                 if processed_message_ids:
                     await self.ack_and_delete(processed_message_ids)
-
-                log.tick(
-                    f"{self.metric_stream}.processed",
-                    count=processed_count,
-                    duration_ms=(time.perf_counter() - started) * 1000,
-                    read_ms=read_ms,
-                    dims={"stream": self.metric_stream},
-                )
 
             except Exception:
                 log.error(
                     f"{self.log_prefix} Error in worker loop",
                     exc_info=True,
-                )
-                log.tick(
-                    f"{self.metric_stream}.errors",
-                    dims={"stream": self.metric_stream},
                 )
                 # Sleep before retry to avoid tight error loop
                 await asyncio.sleep(1)

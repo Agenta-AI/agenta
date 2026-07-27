@@ -184,9 +184,9 @@ class TestGetRunner:
         monkeypatch.delenv("AGENTA_SERVICES_CODE_SANDBOX_RUNNER", raising=False)
         monkeypatch.delenv("AGENTA_SERVICES_SANDBOX_RUNNER", raising=False)
 
-    def test_default_is_restricted(self, monkeypatch):
+    def test_default_is_local(self, monkeypatch):
         self._clear(monkeypatch)
-        assert isinstance(get_runner(), RestrictedRunner)
+        assert isinstance(get_runner(), LocalRunner)
 
     def test_explicit_restricted(self, monkeypatch):
         self._clear(monkeypatch)

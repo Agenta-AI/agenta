@@ -1,6 +1,10 @@
 import {useCallback} from "react"
 
-import {invalidateWorkflowsListCache, updateWorkflow} from "@agenta/entities/workflow"
+import {
+    invalidateWorkflowCache,
+    invalidateWorkflowsListCache,
+    updateWorkflow,
+} from "@agenta/entities/workflow"
 
 import {GenericObject} from "@/oss/lib/Types"
 import {useAppsData} from "@/oss/state/app"
@@ -48,6 +52,7 @@ export const useRenameApp = () => {
                     flags: {is_application: true},
                 })
                 invalidateWorkflowsListCache()
+                invalidateWorkflowCache(id)
                 await mutate()
                 await invalidateAppManagementWorkflowQueries()
                 return true

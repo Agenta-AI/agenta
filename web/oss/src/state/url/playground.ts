@@ -852,7 +852,9 @@ playgroundSyncAtom.onMount = (set) => {
 
             const tryApplyHydrations = () => {
                 const query = store.get(queryAtom)
-                if (!query.isPending && query.data) {
+                // Data presence alone gates the apply: an IDB-restored body is usable the
+                // moment it lands, and `isPending` adds nothing (data implies settled).
+                if (query.data) {
                     // Apply all pending hydrations for this source via the
                     // ordered helper — it processes createLocalDraft entries
                     // before applyDraftPatch entries so local copies are
@@ -901,10 +903,10 @@ playgroundSyncAtom.onMount = (set) => {
             const query = store.get(
                 workflowMolecule.selectors.query(hydration.sourceRevisionId),
             ) as {
-                isPending: boolean
-                data: any
+                data: unknown
             }
-            if (!query.isPending && query.data) {
+            // Same data-presence gate as tryApplyHydrations above.
+            if (query.data) {
                 readySourceIds.add(hydration.sourceRevisionId)
             }
         }
@@ -1024,6 +1026,10 @@ playgroundSyncAtom.onMount = (set) => {
                 store.set(playgroundInitializedAtom, true)
             }
         } else {
+            // Synchronous restore FIRST (persisted last-selection / cached latest): on a warm
+            // reload the selection atom is empty at bind time even though a selection exists,
+            // and subscribing the list-data atom below would mount the FULL revisions query.
+            tryApplyDefaults()
             // Deferred by a microtask: these subs fire inside TanStack query notifications,
             // i.e. mid atom-read — applying the selection there mutates the store during a
             // read (jotai's "Detected store mutation during atom read").
@@ -1031,15 +1037,13 @@ playgroundSyncAtom.onMount = (set) => {
                 queueMicrotask(tryApplyDefaults),
             )
             // Subscribe to entity data so we retry when it finishes loading.
-            // Only needed when no URL selection exists and we must find a default.
-            if (currentAppId) {
+            // Only when no selection could be restored — this sub mounts the full list query.
+            if (currentAppId && !hasAppliedDefaults) {
                 currentLatestRevUnsub = store.sub(
                     workflowRevisionsByWorkflowListDataAtomFamily(currentAppId),
                     () => queueMicrotask(tryApplyDefaults),
                 )
             }
-            // Immediate check in case already ready
-            tryApplyDefaults()
         }
     }
     bindRevisionsReady()
@@ -1369,5 +1373,29 @@ playgroundSyncAtom.onMount = (set) => {
         for (const unsub of unsubs) unsub()
         for (const [, unsub] of sourceIdSubs) unsub()
         sourceIdSubs.clear()
+    }
+}
+
+// ============================================================================
+// MODULE-EVAL SEED: restore the selection BEFORE the first React commit
+// ============================================================================
+// On a hard reload of a playground URL this module evaluates (inside the lazy
+// playground chunk) before Playground/MainLayout ever render, but the URL sync
+// normally only runs from `urlQuerySyncAtom.onMount` / route events — one commit
+// AFTER the first render, so MainLayout paints a one-frame placeholder (gates
+// 3.1/3.6). Run the full URL sync here: it applies the exact precedence order
+// (#pgSnapshot hash → ?revisions= → persisted last selection → cached latest)
+// and every later replay is idempotent — the hash path dedupes via
+// lastWrittenSnapshotHash, the revisions path no-ops via applyPlaygroundSelection's
+// equality check, and defaults skip when a selection exists. Client-side navs are
+// already synchronous (beforeHistoryChange fires before the new page renders).
+if (isBrowser) {
+    try {
+        const {pathname} = window.location
+        if (pathname.includes("/playground") && !pathname.includes("/playground-test")) {
+            syncPlaygroundStateFromUrl()
+        }
+    } catch {
+        // Non-fatal: the onMount/route-event sync replays the same restore later.
     }
 }

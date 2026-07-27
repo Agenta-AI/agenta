@@ -7,7 +7,7 @@ import type * as OpenApiPlugin from "docusaurus-plugin-openapi-docs";
 
 const config: Config = {
   title: "Docs - Agenta",
-  tagline: "The LLMOps platform.",
+  tagline: "The open-source workspace for your agents.",
   favicon: "images/favicon.ico",
   // Local development configuration
   url: "http://localhost:5000",
@@ -335,6 +335,22 @@ const config: Config = {
           {
             from: "/self-host/migration/applying-schema-migration",
             to: "/self-host/upgrading",
+          },
+          {
+            from: "/self-host/guides/deploy-the-agent-runner",
+            to: "/self-host/agent-execution/how-agents-run",
+          },
+          {
+            from: "/self-host/guides/custom-agent-runner-images",
+            to: "/self-host/agent-execution/customize-the-agent-runtime",
+          },
+          {
+            from: "/self-host/guides/agent-daytona-sandboxes",
+            to: "/self-host/agent-execution/daytona",
+          },
+          {
+            from: "/self-host/agent-execution/runner-configuration",
+            to: "/self-host/configuration",
           },
           {
             from: "/reference/sdk/quick_start",

@@ -187,21 +187,41 @@ const APPROVAL_RESUME_CLOSING =
   "If a call is marked APPROVED and not yet run, execute exactly that call now with the " +
   "same arguments; do not restart the task. If it was DENIED, continue without it.";
 
+const CLIENT_RESUME_CLOSING =
+  "The user has responded to the request(s) above (for example an input form or a connection " +
+  "prompt); the result is shown in the history. Continue the task from where it paused, using " +
+  "that result; do not restart the task or ask again for anything the user already provided.";
+
+export type ResumeKind = "approval" | "client";
+
+/** A client-tool settle (elicitation answer, connection reference, decline/cancel) rides back as
+ * a non-approval `tool_result`. Approval envelopes carry `{approved}` and are handled separately. */
+function isClientToolSettle(block: ContentBlock): boolean {
+  return block?.type === "tool_result" && approvalDecisionOf(block) === undefined;
+}
+
 /**
- * An approval resume carries no NEW user text: the newest meaningful content is the
- * approval-decision envelope, and `resolvePromptText` falls back to a STALE earlier user
- * message. Closing the frame with that stale command makes a fresh model restart the whole
- * task instead of re-issuing the approved call (cold-replay failure report, turn 6d34b1ea).
- * Detected conservatively: an unresolved approved call (`lastPending`) sits in a message
- * AFTER the last user message that carries text.
+ * A resume carries no NEW user text: the newest meaningful content is a settled interaction, and
+ * `resolvePromptText` falls back to a STALE earlier user message. Closing the frame with that stale
+ * command makes a fresh model restart the whole task instead of continuing from the pause — it
+ * re-issues the approved call (cold-replay failure report, turn 6d34b1ea) or, for a client tool,
+ * re-asks for input the user just gave (issue #5357).
+ *
+ * Two shapes, detected conservatively as content AFTER the last user text message:
+ *   - approval: an unresolved approved call (`lastPending`) — needs the execute-the-call frame.
+ *   - client:  a client-tool settle in an ASSISTANT message — the settled `tool_result` rides back
+ *     in the assistant turn it paused on (the Vercel adapter preserves that role), so an executed
+ *     server-tool result in a `tool`/user turn is not mistaken for a resume.
+ * An approval pending call wins when both are present (it carries the stronger instruction).
  */
-function isApprovalResume(
+function resumeKindFor(
   request: AgentRunRequest,
   hints: Map<ContentBlock, ApprovalRenderHint>,
-): boolean {
+): ResumeKind | null {
   const messages = request.messages ?? [];
   let lastUserTextIndex = -1;
-  let lastPendingIndex = -1;
+  let lastPendingApprovalIndex = -1;
+  let lastClientSettleIndex = -1;
   for (let i = 0; i < messages.length; i++) {
     const message = messages[i];
     if (message.role === "user" && messageText(message.content)) {
@@ -210,10 +230,19 @@ function isApprovalResume(
     const content = message.content;
     if (!Array.isArray(content)) continue;
     if (content.some((block) => hints.get(block) === "lastPending")) {
-      lastPendingIndex = i;
+      lastPendingApprovalIndex = i;
+    }
+    if (message.role === "assistant" && content.some(isClientToolSettle)) {
+      lastClientSettleIndex = i;
     }
   }
-  return lastPendingIndex >= 0 && lastPendingIndex > lastUserTextIndex;
+  if (lastPendingApprovalIndex >= 0 && lastPendingApprovalIndex > lastUserTextIndex) {
+    return "approval";
+  }
+  if (lastClientSettleIndex >= 0 && lastClientSettleIndex > lastUserTextIndex) {
+    return "client";
+  }
+  return null;
 }
 
 /**
@@ -229,10 +258,11 @@ export function buildTurnText(
 ): string {
   const latest = resolvePromptText(request);
   const messages = request.messages ?? [];
-  const resume = isApprovalResume(request, approvalRenderHints(messages));
+  const resumeKind = resumeKindFor(request, approvalRenderHints(messages));
+  const resume = resumeKind !== null;
   // Normal turn: drop the prompt user message from the replay (it closes the frame).
-  // Approval resume: nothing is re-presented in the frame, so replay every message —
-  // including the stale command in place and an approval envelope on a trailing user turn.
+  // Resume: nothing is re-presented in the frame, so replay every message — including the
+  // stale command in place and the settled interaction (approval envelope or client-tool result).
   const prior = resume ? messages : priorMessages(request);
   const hints = approvalRenderHints(prior);
   const history = prior
@@ -260,15 +290,18 @@ export function buildTurnText(
     }
   }
 
-  const closing = resume
-    ? APPROVAL_RESUME_CLOSING
-    : `Continue the conversation. The user now says:\n${latest}`;
+  const closing =
+    resumeKind === "approval"
+      ? APPROVAL_RESUME_CLOSING
+      : resumeKind === "client"
+        ? CLIENT_RESUME_CLOSING
+        : `Continue the conversation. The user now says:\n${latest}`;
   const turnText = `Conversation so far:\n${transcript}\n\n${closing}`;
   log?.(
     `[HITL] cold replay: transcript ${full.length}->${transcript.length} chars, ` +
       `evicted ${evicted}/${history.length} messages, ` +
       `pendingNudge=${transcript.includes("has NOT run yet")}, ` +
-      `resumeFrame=${resume}, turnText ${turnText.length} chars`,
+      `resumeFrame=${resumeKind ?? "none"}, turnText ${turnText.length} chars`,
   );
   return turnText;
 }

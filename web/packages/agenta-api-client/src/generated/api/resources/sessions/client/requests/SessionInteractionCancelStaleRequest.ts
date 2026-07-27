@@ -10,4 +10,5 @@
 export interface SessionInteractionCancelStaleRequest {
     session_id: string;
     turn_id: string;
+    tokens?: string[] | null;
 }

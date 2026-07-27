@@ -32,9 +32,13 @@ const EmptyChart = ({className}: {className: string}) => (
 
 interface AnalyticsDashboardProps {
     layout?: "grid-2" | "grid-4"
+    showTimeRangeSelector?: boolean
 }
 
-const AnalyticsDashboard = ({layout = "grid-2"}: AnalyticsDashboardProps) => {
+const AnalyticsDashboard = ({
+    layout = "grid-2",
+    showTimeRangeSelector = true,
+}: AnalyticsDashboardProps) => {
     const {data, loading, isFetching} = useObservabilityDashboard()
     const [timeRange, setTimeRange] = useAtom(observabilityDashboardTimeRangeAtom)
 
@@ -58,15 +62,18 @@ const AnalyticsDashboard = ({layout = "grid-2"}: AnalyticsDashboardProps) => {
 
     return (
         <div>
-            <div className="flex justify-end mb-4">
-                <Sort
-                    type="text"
-                    disabled={loading || isFetching}
-                    onSortApply={setTimeRange}
-                    defaultSortValue={timeRange.label || "1 month"}
-                    exclude={["all time"]}
-                />
-            </div>
+            {showTimeRangeSelector ? (
+                <div className="flex justify-end mb-4">
+                    <Sort
+                        type="text"
+                        disabled={loading || isFetching}
+                        onSortApply={setTimeRange}
+                        defaultSortValue={timeRange.label || "1 month"}
+                        exclude={["all time"]}
+                        ariaLabel="Usage date range"
+                    />
+                </div>
+            ) : null}
             <Spin spinning={loading || isFetching}>
                 <div className={gridClassName}>
                     <WidgetCard

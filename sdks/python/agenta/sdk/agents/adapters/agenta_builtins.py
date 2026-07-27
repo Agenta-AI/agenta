@@ -196,9 +196,9 @@ runner default for that one tool). The six `type` values:
 
 ### mcps
 
-Declared MCP servers. Each: `{ "name": ..., "transport": "stdio"|"http", "command"/"args"
-(stdio) or "url" (http), "env", "secrets", "tools", "permission" }`. Secret env resolves from the
-vault at run time; tokens never live in the config.
+Declared external MCP servers. Each has `name`, an HTTP `connection` with `url`, optional
+public `headers`, and discriminated `credentials`, plus a `policy` for tools and permission.
+Secret header references resolve from the vault at run time; values never live in the config.
 
 ### skills
 

@@ -175,40 +175,43 @@ const ReasoningPart = ({
     )
 }
 
+/** The ONE rule driving both the clamp and the toggle — they can't disagree and hide text (#5350). */
+const isBigError = (text: string) => text.length > 240 || text.split("\n").length > 4
+
 /**
- * Failed-run body: the icon + "The agent run failed" + the reason. The reason is clamped to a few
- * lines by default so a long message (or a stacktrace that slipped past parsing) can't drown the
- * chat; when it's long, a "Show more" toggle expands it into a scrollable, whitespace-preserving
- * block so it stays readable.
+ * Failed-run body: the icon + "The agent run failed" + the reason. An everyday reason shows in
+ * full; a big one (stacktrace) clamps behind a "Show more" that opens a scrollable block, so it
+ * can't drown the chat.
  */
 const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
     const stored = useAtomValue(expandedValueAtomFamily(stateKey))
-    const setAll = useSetAtom(setExpandedAtom)
+    const setExpanded = useSetAtom(setExpandedAtom)
     const expanded = stored ?? false
-    const setExpanded = (v: boolean) => setAll({key: stateKey, value: v})
-    const isLong = text.length > 220 || text.includes("\n")
+    const big = isBigError(text)
 
     return (
         <div className="flex items-start gap-2 rounded-md bg-[var(--ant-color-error-bg)] px-3 py-2">
             <XCircle size={16} weight="fill" className="mt-px shrink-0 text-colorError" />
             <div className="flex min-w-0 flex-col items-start gap-0.5">
                 <Text className="!text-xs !font-medium !text-colorError">The agent run failed</Text>
-                {expanded ? (
+                {big && expanded ? (
                     <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-[11px] !text-colorErrorText">
                         {text}
                     </pre>
                 ) : (
                     <Text
-                        className="line-clamp-3 !text-xs break-words !text-colorErrorText"
-                        title={isLong ? text : undefined}
+                        className={`!text-xs whitespace-pre-wrap break-words !text-colorErrorText ${
+                            big ? "line-clamp-3" : ""
+                        }`}
+                        title={big ? text : undefined}
                     >
                         {text}
                     </Text>
                 )}
-                {isLong && (
+                {big && (
                     <button
                         type="button"
-                        onClick={() => setExpanded(!expanded)}
+                        onClick={() => setExpanded({key: stateKey, value: !expanded})}
                         aria-expanded={expanded}
                         className="-ml-1 cursor-pointer rounded border-0 bg-transparent px-1 py-0.5 text-[11px] font-medium text-colorError transition-colors hover:bg-[var(--ant-color-error-bg)]"
                     >
@@ -527,7 +530,7 @@ const AgentMessage = ({
     )
 
     // Failed run: the whole bubble reads as the error (red), message inline — no nested box.
-    // RunErrorBody truncates a long reason so it can't drown the chat (expand to read it all).
+    // RunErrorBody shows an everyday reason in full; only a big one collapses behind "Show more".
     const errorBody = (
         <RunErrorBody text={errorText || "The agent run failed."} stateKey={errorKey(message.id)} />
     )

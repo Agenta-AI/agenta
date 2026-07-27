@@ -23,7 +23,18 @@ import {
   buildClientToolRelay,
   createToolCallCorrelationIndex,
   emitClientToolInteraction,
+  relayWritesPausedAnswer,
 } from "../../src/engines/sandbox_agent/client-tools.ts";
+
+describe("relayWritesPausedAnswer (client-tool pause disposition)", () => {
+  it("only the cold-acknowledge disposition writes the paused answer", () => {
+    // The single derived switch the relay consumes. The exhaustive mapping is what keeps the
+    // reserved warm hold from silently being treated as cold.
+    assert.equal(relayWritesPausedAnswer("cold-acknowledge"), true);
+    assert.equal(relayWritesPausedAnswer("pi-native"), false);
+    assert.equal(relayWritesPausedAnswer("warm-hold"), false);
+  });
+});
 
 function responderReturning(verdict: ClientToolVerdict): Responder {
   return {

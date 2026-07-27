@@ -23,10 +23,8 @@ import {
   type KeepaliveContext,
   type KeepaliveEngine,
 } from "../../src/server.ts";
-import {
-  SessionPool,
-  type KeepaliveConfig,
-} from "../../src/engines/sandbox_agent/session-pool.ts";
+import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
+import type { KeepaliveConfig } from "../../src/engines/sandbox_agent/session-identity.ts";
 import type { MountCredentials } from "../../src/engines/sandbox_agent/mount.ts";
 import {
   acquireEnvironment,
@@ -980,6 +978,10 @@ function pausableHarness(opts: { clientTool?: boolean } = {}) {
           run.settled.push({ id, message });
         }
       },
+      denied: [] as string[],
+      markToolCallDenied(id: string | undefined) {
+        if (id) run.denied.push(id);
+      },
       traceId() {
         return "trace-1";
       },
@@ -1210,12 +1212,18 @@ describe("runTurn: real approval park + respondPermission resume", () => {
 
   it("a client-tool MCP pause is NOT parkable and tears down cold, even in park mode", async () => {
     const { calls, deps, captured } = pausableHarness({ clientTool: true });
-    const acquired = await acquireEnvironment(engineReq, deps);
+    // The client spec is resolved by NAME from the run's customTools (the run plan, built here)
+    // — a real ACP tool-call never carries the spec inline.
+    const clientReq: AgentRunRequest = {
+      ...engineReq,
+      customTools: [{ name: "browser", kind: "client" }],
+    };
+    const acquired = await acquireEnvironment(clientReq, deps);
     assert.equal(acquired.ok, true);
     if (!acquired.ok) return;
     const env = acquired.env;
 
-    const p1 = runTurn(env, engineReq, undefined, undefined, {
+    const p1 = runTurn(env, clientReq, undefined, undefined, {
       approvalParkMode: true,
     });
     await flush();
@@ -1224,11 +1232,7 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     captured.onPermissionRequest!({
       id: "perm-c",
       availableReplies: ["once", "reject"],
-      toolCall: {
-        toolCallId: "tc-client",
-        name: "browser",
-        spec: { kind: "client", name: "browser" },
-      },
+      toolCall: { toolCallId: "tc-client", name: "browser" },
     });
     await flush();
     const r1 = await p1;

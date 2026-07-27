@@ -8,7 +8,7 @@ import "dotenv/config";
 
 const config: Config = {
   title: "Docs - Agenta",
-  tagline: "The LLMOps platform.",
+  tagline: "The open-source workspace for your agents.",
   favicon: "images/favicon.ico",
   // Public site lives on the main domain under /docs
   url: "https://agenta.ai",
@@ -368,6 +368,22 @@ const config: Config = {
             to: "/self-host/upgrading",
           },
           {
+            from: "/self-host/guides/deploy-the-agent-runner",
+            to: "/self-host/agent-execution/how-agents-run",
+          },
+          {
+            from: "/self-host/guides/custom-agent-runner-images",
+            to: "/self-host/agent-execution/customize-the-agent-runtime",
+          },
+          {
+            from: "/self-host/guides/agent-daytona-sandboxes",
+            to: "/self-host/agent-execution/daytona",
+          },
+          {
+            from: "/self-host/agent-execution/runner-configuration",
+            to: "/self-host/configuration",
+          },
+          {
             from: "/reference/sdk/quick_start",
             to: "/reference/sdk/configuration-management",
           },
@@ -674,7 +690,7 @@ const config: Config = {
       "docusaurus-plugin-llms-txt",
       {
         title: "Agenta Documentation",
-        description: "The LLMOps platform for building and deploying LLM applications.",
+        description: "The open-source workspace for your agents — build them through chat, improve them with feedback, and share them with your team.",
         fullLLMsTxt: true,
       },
     ],

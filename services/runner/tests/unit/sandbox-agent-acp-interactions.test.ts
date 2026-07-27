@@ -6,7 +6,8 @@
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
-import type { AgentEvent } from "../../src/protocol.ts";
+import type { AgentEvent, ResolvedToolSpec } from "../../src/protocol.ts";
+import { toolSpecsByName } from "../../src/tools/public-spec.ts";
 import type { ClientToolVerdict, Responder } from "../../src/responder.ts";
 import {
   ApprovalResponder,
@@ -47,6 +48,21 @@ function makeSession(
     },
   };
 }
+
+/**
+ * The run's real resolved specs, exactly as the engine indexes them. A real ACP tool-call NEVER
+ * carries the spec inline — the runner resolves it by name from this map — so fixtures must set
+ * the spec HERE and leave the emitted toolCall spec-less (see the realistic-shape tests below).
+ */
+function specsByName(specs: ResolvedToolSpec[]): Map<string, ResolvedToolSpec> {
+  return toolSpecsByName(specs);
+}
+
+const CLIENT_SPEC: ResolvedToolSpec = {
+  name: "request_connection",
+  kind: "client",
+  render: { kind: "component", component: "connect" },
+};
 
 function fakeResponder(
   permissionVerdict: Verdict,
@@ -115,6 +131,59 @@ describe("attachPermissionResponder", () => {
 
     assert.deepEqual(replies, [{ id: "perm-1", reply: "reject" }]);
     assert.deepEqual(events, []);
+  });
+
+  it("deny verdict flags the gated tool-call id denied so its result renders a decline", async () => {
+    const replies: Array<{ id: string; reply: string }> = [];
+    const { session, emit } = makeSession(async (id, reply) => {
+      replies.push({ id, reply });
+    });
+    const events: AgentEvent[] = [];
+    const denied: Array<string | undefined> = [];
+
+    attachPermissionResponder({
+      session,
+      run: {
+        emitEvent: (event) => events.push(event),
+        markToolCallDenied: (id) => denied.push(id),
+      },
+      responder: fakeResponder({ kind: "deny" }),
+      latch: new PendingApprovalLatch(),
+    });
+    emit({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tool-7", name: "edit", rawInput: { path: "a" } },
+    });
+    await flushPromises();
+
+    assert.deepEqual(replies, [{ id: "perm-1", reply: "reject" }]);
+    // The gate's tool-call id is flagged BEFORE the reject reply, keyed by the real toolCallId.
+    assert.deepEqual(denied, ["tool-7"]);
+  });
+
+  it("allow verdict does NOT flag the tool-call id denied", async () => {
+    const { session, emit } = makeSession(async () => {});
+    const events: AgentEvent[] = [];
+    const denied: Array<string | undefined> = [];
+
+    attachPermissionResponder({
+      session,
+      run: {
+        emitEvent: (event) => events.push(event),
+        markToolCallDenied: (id) => denied.push(id),
+      },
+      responder: fakeResponder({ kind: "allow" }),
+      latch: new PendingApprovalLatch(),
+    });
+    emit({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tool-7", name: "edit", rawInput: { path: "a" } },
+    });
+    await flushPromises();
+
+    assert.deepEqual(denied, []);
   });
 
   it("pendingApproval emits, creates the interaction, pauses, and sends no reply", async () => {
@@ -285,6 +354,7 @@ describe("attachPermissionResponder", () => {
       run: { emitEvent: (event) => events.push(event) },
       responder: fakeResponder({ kind: "deny" }, { kind: "pendingApproval" }),
       latch: new PendingApprovalLatch(),
+      toolSpecsByName: specsByName([CLIENT_SPEC]),
       onPause: () => {
         pauses += 1;
       },
@@ -300,12 +370,8 @@ describe("attachPermissionResponder", () => {
       availableReplies: ["once", "reject"],
       toolCall: {
         toolCallId: "tool-client",
+        title: "mcp__agenta-tools__request_connection",
         rawInput: { integration: "slack" },
-        spec: {
-          kind: "client",
-          name: "request_connection",
-          render: { kind: "component", component: "connect" },
-        },
       },
     });
     await flushPromises();
@@ -332,12 +398,8 @@ describe("attachPermissionResponder", () => {
           toolCallId: "tool-client",
           toolCall: {
             toolCallId: "tool-client",
+            title: "mcp__agenta-tools__request_connection",
             rawInput: { integration: "slack" },
-            spec: {
-              kind: "client",
-              name: "request_connection",
-              render: { kind: "component", component: "connect" },
-            },
             resolvedName: "request_connection",
           },
           toolName: "request_connection",
@@ -363,14 +425,15 @@ describe("attachPermissionResponder", () => {
         { kind: "fulfilled", output: { connected: true } },
       ),
       latch: new PendingApprovalLatch(),
+      toolSpecsByName: specsByName([CLIENT_SPEC]),
     });
     emit({
       id: "client-1",
       availableReplies: ["once", "reject"],
       toolCall: {
         toolCallId: "tool-client",
+        title: "mcp__agenta-tools__request_connection",
         input: { integration: "slack" },
-        spec: { kind: "client", name: "request_connection" },
       },
     });
     await flushPromises();
@@ -475,6 +538,115 @@ describe("attachPermissionResponder", () => {
 
     assert.equal(seen.permission?.[0].gate.toolName, "Terminal");
     assert.equal((toolCall as any).resolvedName, undefined);
+  });
+
+  // ---------------------------------------------------------------------- //
+  // RUN-ACPSPEC-1. A REAL ACP tool-call carries no spec: the harness sends    //
+  // toolCallId + an mcp__<server>__<tool> title + rawInput, and nothing else. //
+  // The runner must resolve the tool's true permission/readOnly by NAME from  //
+  // the run's resolved specs — the same index the relay execution guard uses. //
+  // The old fixtures set `toolCall.spec` inline (a field production never     //
+  // writes), which is exactly what hid this from the suite.                   //
+  // ---------------------------------------------------------------------- //
+
+  it("resolves the REAL spec permission for a spec-less (realistically-shaped) ACP tool call", async () => {
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      latch: new PendingApprovalLatch(),
+      toolSpecsByName: specsByName([
+        { name: "commit_revision", permission: "ask", readOnly: false },
+      ]),
+    });
+    // Exactly what Claude's ACP adapter sends: NO spec/toolSpec/resolvedTool/tool field.
+    emit({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        toolCallId: "tool-1",
+        title: "mcp__agenta-tools__commit_revision",
+        rawInput: { message: "ship it" },
+      },
+    });
+    await flushPromises();
+
+    const gate = seen.permission?.[0].gate;
+    // The card now names the tool by its bare spec name and carries its TRUE policy.
+    assert.equal(gate.toolName, "commit_revision");
+    assert.equal(gate.executor, "relay");
+    assert.equal(gate.specPermission, "ask");
+    assert.equal(gate.readOnlyHint, false);
+  });
+
+  it("a WRITE tool is never shown as read-only just because the plan default is permissive", async () => {
+    // The human-facing defect: with no spec resolved, a mutating tool inherited the plan
+    // default and the approval card implied it was safe. The card must reflect the tool.
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      latch: new PendingApprovalLatch(),
+      toolSpecsByName: specsByName([
+        { name: "delete_everything", permission: "deny", readOnly: false },
+      ]),
+    });
+    emit({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        toolCallId: "tool-1",
+        title: "mcp__agenta-tools__delete_everything",
+        rawInput: { scope: "all" },
+      },
+    });
+    await flushPromises();
+
+    const gate = seen.permission?.[0].gate;
+    assert.equal(gate.specPermission, "deny");
+    assert.equal(
+      gate.readOnlyHint,
+      false,
+      "a mutating tool must never reach the card as read-only",
+    );
+  });
+
+  it("an unresolved tool name still takes the harness path (no spec invented)", async () => {
+    // A builtin (Read/Bash/...) has no resolved spec: it must stay `harness`, with no
+    // specPermission fabricated for it.
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      latch: new PendingApprovalLatch(),
+      toolSpecsByName: specsByName([
+        { name: "commit_revision", permission: "ask" },
+      ]),
+    });
+    emit({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        toolCallId: "tool-1",
+        name: "Bash",
+        rawInput: { command: "ls" },
+      },
+    });
+    await flushPromises();
+
+    const gate = seen.permission?.[0].gate;
+    assert.equal(gate.toolName, "Bash");
+    assert.equal(gate.executor, "harness");
+    assert.equal(gate.specPermission, undefined);
   });
 
   it("passes server-level MCP permissions into harness gates", async () => {

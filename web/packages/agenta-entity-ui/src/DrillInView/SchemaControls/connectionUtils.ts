@@ -163,6 +163,14 @@ function capsFor(
     return capabilities[harness] ?? null
 }
 
+/** External MCP authoring is available only when the selected harness publishes it. */
+export function harnessSupportsUserMcp(
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+    harness: string | null | undefined,
+): boolean {
+    return Boolean(capsFor(capabilities, harness)?.mcp?.user_servers)
+}
+
 /**
  * The provider families the harness can reach. A missing harness/capability is permissive
  * (returns `["*"]`, so the form shows a free-text provider field).
@@ -316,6 +324,21 @@ export function buildModelOptionGroups(
 }
 
 /**
+ * The catalog's display label for a picked model id (`label`, then `name`). Null when the catalog
+ * has neither, so a caller can try the schema's own title before falling back to the raw id; the
+ * picker has no schema to consult, which is why it ends at `id` instead.
+ */
+export function modelLabel(
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+    harness: string | null | undefined,
+    modelId: string | null | undefined,
+): string | null {
+    if (!modelId) return null
+    const hit = capsFor(capabilities, harness)?.model_catalog?.find((e) => e.id === modelId)
+    return hit?.label ?? hit?.name ?? null
+}
+
+/**
  * The provider family that owns a picked model id, derived from the harness's published models
  * (the group the id sits in). Returns null when the id is not in any group (e.g. a stale id under
  * a switched harness). Use this so picking a model sets BOTH provider and model.
@@ -424,6 +447,10 @@ export function vaultPickedProviderFamily(
     const family = familyFromModelId(modelId, capabilities)
     if (family) return family
     if (metadataProvider && !isDeploymentProviderKind(metadataProvider)) return metadataProvider
+    // The OpenAI-compatible (`custom`) deployment defaults to openai rather than deferring to the
+    // caller's prior (likely unrelated) provider fallback.
+    if (metadataProvider?.toLowerCase() === OPENAI_COMPATIBLE_KIND)
+        return OPENAI_COMPATIBLE_DEFAULT_FAMILY
     return null
 }
 
@@ -435,6 +462,13 @@ export function vaultPickedProviderFamily(
 // either flavor (its provider Select offers both azure/bedrock/vertex_ai/custom AND every standard
 // provider), so both must be recognized here or one flavor's connections silently vanish.
 const DEPLOYMENT_KINDS = new Set(["direct", "custom", "azure", "bedrock", "vertex_ai", "sagemaker"])
+
+// The `custom` deployment kind is the "OpenAI-compatible endpoint": its models are bare ids that
+// encode no vendor, and the v1 runner speaks the OpenAI Chat Completions dialect. So it resolves to
+// the `openai` provider family — used both to default a provider-less pick and to gate visibility
+// (a harness must reach openai, not just consume the `custom` deployment).
+const OPENAI_COMPATIBLE_KIND = "custom"
+const OPENAI_COMPATIBLE_DEFAULT_FAMILY = "openai"
 
 /**
  * Whether a custom_provider `kind` names a DEPLOYMENT surface (a hosting mechanism, not itself a
@@ -458,7 +492,15 @@ function harnessReachesCustomProviderKind(
 ): boolean {
     if (isDeploymentProviderKind(kind)) {
         const consumable = allowedDeployments(capabilities, harness)
-        return consumable.includes("*") || consumable.some((d) => d.toLowerCase() === kind)
+        const deploymentOk =
+            consumable.includes("*") || consumable.some((d) => d.toLowerCase() === kind)
+        if (!deploymentOk) return false
+        // An OpenAI-compatible (`custom`) deployment resolves to the openai provider family, so the
+        // harness must ALSO reach openai — otherwise a Claude-only-Anthropic harness that consumes
+        // `custom` would still be offered an OpenAI-compatible connection it cannot run.
+        if (kind === OPENAI_COMPATIBLE_KIND)
+            return harnessAllowsProvider(capabilities, harness, OPENAI_COMPATIBLE_DEFAULT_FAMILY)
+        return true
     }
     const providers = allowedProviders(capabilities, harness)
     return providers.includes("*") || providers.some((p) => p.toLowerCase() === kind)

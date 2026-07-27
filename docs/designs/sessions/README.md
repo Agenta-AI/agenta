@@ -12,6 +12,12 @@ one `apis/fastapi/sessions` router), plus the standalone `mounts` domain it dele
 | **interactions** | Human-in-the-loop requests raised by running agents (approvals, inputs, tool confirmations) | core DB `interactions` | [interactions/](./interactions/) |
 | **mounts** (standalone) | Durable object-store mounts for agent working directories; `sessions/mounts` is a thin session-scoped layer over it | core DB `mounts` | [../mounts/](../mounts/) |
 
+## Frontend
+
+- [frontend-integration.md](./frontend-integration.md) — status + follow-ups for the agent-chat
+  FE integration (records-replay, liveness badge, SWR cache, request priority). **Read its
+  "Blocked / waiting" and "Follow-ups" tables before picking up remaining FE work.**
+
 ## Cross-cutting
 
 - **RBAC**: one permission family `VIEW_SESSIONS` / `EDIT_SESSIONS` / `RUN_SESSIONS` across all

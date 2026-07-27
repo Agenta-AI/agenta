@@ -8,7 +8,7 @@ import type * as AgentaApi from "../index.js";
 export interface AnalyticsResponse {
     /** Number of time buckets returned. */
     count?: number | undefined;
-    /** Time-bucketed aggregates. Each bucket's `metrics` dict is keyed by the dotted `path` of the corresponding `MetricSpec`. */
+    /** Time-bucketed aggregates. Each bucket's `metrics` dict is keyed by the dotted `path` of the corresponding `MetricSpec`, ordered oldest to newest. */
     buckets?: AgentaApi.MetricsBucket[] | undefined;
     /** The resolved query used to compute the buckets. */
     query?: AgentaApi.TracingQuery | undefined;

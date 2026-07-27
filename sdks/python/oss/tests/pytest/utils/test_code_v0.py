@@ -29,11 +29,11 @@ from agenta.sdk.workflows.handlers import code_v0
 
 _code_v0 = code_v0.__wrapped__
 
-# Mirrors registry.get_runner() precedence: restricted unless explicitly overridden.
+# Mirrors registry.get_runner() precedence: local unless explicitly overridden.
 _SANDBOX_RUNNER = (
     os.getenv("AGENTA_SERVICES_CODE_SANDBOX_RUNNER")
     or os.getenv("AGENTA_SERVICES_SANDBOX_RUNNER")
-    or "restricted"
+    or "local"
 ).lower()
 
 # Python execution works on the restricted, local, and daytona runners, so those

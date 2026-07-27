@@ -53,14 +53,14 @@ const tests = () => {
             })
 
             await scenarios.and("at least one prompt app exists in the project", async () => {
-                // getApp navigates to /apps internally and creates an app via UI if none exist.
+                // getApp navigates to /prompts internally and creates an app via UI if none exist.
                 // app.name is the correct field (not app.app_name).
                 const app = await apiHelpers.getApp()
                 appName = app.name
             })
 
             await scenarios.and("the user is on the apps list page", async () => {
-                // Explicitly navigate to /apps after getApp — if getApp created a new app it
+                // Explicitly navigate to /prompts after getApp — if getApp created a new app it
                 // lands on the playground; this step brings us back to the table.
                 await navigateToApps()
             })

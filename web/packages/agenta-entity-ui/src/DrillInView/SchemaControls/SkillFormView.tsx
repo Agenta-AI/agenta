@@ -301,7 +301,11 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                             disabled={disabled}
                             showToolbar
                             defaultView="rendered"
-                            maxHeight={360}
+                            // Viewport-relative, not a fixed 360px: the SKILL.md body is the point of
+                            // this form, so let it use most of the drawer height (scrolls internally
+                            // past that). Full parent-fill for consistency with the instructions
+                            // editor is a larger cross-package layout change (LabeledField in @agenta/ui).
+                            maxHeight="60vh"
                         />
                     </LabeledField>
                 ) : (

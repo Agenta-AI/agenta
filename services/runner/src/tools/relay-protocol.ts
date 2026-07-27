@@ -31,6 +31,15 @@ export interface ExecuteRelayResponse {
   ok: boolean;
   text?: string;
   error?: string;
+  /**
+   * The "paused" answer variant: a client tool parked, so the turn ends and the browser result
+   * returns on the cold-replay resume. An answer is one of three — success (`ok: true, text`),
+   * failure (`ok: false, error`), or pause (`ok: true, paused: true`). Additive but NOT blindly
+   * backward-compatible: a reader that ignores `paused` misreads a pause as an empty-text success,
+   * so the shim must check `paused` before `ok` (see relay-client.ts). Written only on the non-Pi
+   * in-sandbox shim path (`writePausedAnswer`).
+   */
+  paused?: true;
 }
 export type RelayResponse = ExecuteRelayResponse;
 

@@ -7,10 +7,21 @@ import {useRouter} from "next/router"
 import {PLAYGROUND_NATIVE_ONBOARDING} from "@/oss/components/pages/agent-home/assets/constants"
 import OnboardingLoader from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingLoader"
 import {currentWorkflowContextAtom} from "@/oss/state/workflow"
+import {prewarmCurrentWorkflowQueries} from "@/oss/state/workflow/prewarmCurrentWorkflow"
 
 import PlaygroundLoadingShell from "./PlaygroundLoadingShell"
 
-const Playground = dynamic(() => import("../Playground/Playground"), {
+const loadPlayground = () => import("../Playground/Playground")
+// Warm the playground graph immediately at module eval: without this the ~10MB chunk
+// is only discovered after the auth + protected-route gates release, serializing its
+// download+parse behind them instead of running in parallel.
+if (typeof window !== "undefined") {
+    void loadPlayground()
+    // Same reasoning for the current app's detail + latest-revision DATA (see module docs).
+    prewarmCurrentWorkflowQueries()
+}
+
+const Playground = dynamic(loadPlayground, {
     ssr: false,
     loading: PlaygroundLoadingShell,
 })
@@ -18,7 +29,7 @@ const Playground = dynamic(() => import("../Playground/Playground"), {
 // Same Playground component + chunk, but the onboarding loader (agent-forced shell + chat skeleton) as
 // the chunk-download fallback, so the ephemeral onboarding flow shows one continuous screen (matching
 // OnboardingEntry + the mint state) that morphs straight into the live panel. Webpack dedupes the chunk.
-const OnboardingPlayground = dynamic(() => import("../Playground/Playground"), {
+const OnboardingPlayground = dynamic(loadPlayground, {
     ssr: false,
     loading: OnboardingLoader,
 })

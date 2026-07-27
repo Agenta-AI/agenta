@@ -4,7 +4,6 @@ from sqlalchemy import (
     PrimaryKeyConstraint,
     UniqueConstraint,
     ForeignKeyConstraint,
-    Index,
 )
 
 from oss.src.dbs.postgres.shared.base import Base
@@ -43,7 +42,6 @@ class SessionStateDBE(
             "session_id",
             name="uq_session_states_project_session_id",
         ),
-        Index("ix_session_states_project_id_session_id", "project_id", "session_id"),
     )
 
     # bare correlator — not an FK; sessions may be external

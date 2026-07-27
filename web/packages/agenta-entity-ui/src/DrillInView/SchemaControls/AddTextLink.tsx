@@ -20,3 +20,5 @@ export const AddTextLink = forwardRef<
         </button>
     )
 })
+
+AddTextLink.displayName = "AddTextLink"

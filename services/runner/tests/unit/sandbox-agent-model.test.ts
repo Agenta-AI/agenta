@@ -16,12 +16,24 @@ import {
 
 describe("pickModel", () => {
   it("matches exact ids first", () => {
-    assert.equal(pickModel(["openai-codex/gpt-5.5", "anthropic/sonnet"], "anthropic/sonnet"), "anthropic/sonnet");
+    assert.equal(
+      pickModel(
+        ["openai-codex/gpt-5.5", "anthropic/sonnet"],
+        "anthropic/sonnet",
+      ),
+      "anthropic/sonnet",
+    );
   });
 
   it("matches by provider suffix", () => {
-    assert.equal(pickModel(["openai-codex/gpt-5.5"], "gpt-5.5"), "openai-codex/gpt-5.5");
-    assert.equal(pickModel(["openai-codex/gpt-5.5"], "other/gpt-5.5"), "openai-codex/gpt-5.5");
+    assert.equal(
+      pickModel(["openai-codex/gpt-5.5"], "gpt-5.5"),
+      "openai-codex/gpt-5.5",
+    );
+    assert.equal(
+      pickModel(["openai-codex/gpt-5.5"], "other/gpt-5.5"),
+      "openai-codex/gpt-5.5",
+    );
   });
 
   it("returns undefined when no model matches", () => {
@@ -42,14 +54,56 @@ describe("pickModel", () => {
   it("does not fall back from a hinted request to a bare id (never shrinks context)", () => {
     // Only "sonnet" is offered (no "[1m]" sibling): a caller that explicitly asked for the
     // long-context variant must not be silently downgraded to the short-context one.
-    assert.equal(pickModel(["default", "sonnet", "opus"], "sonnet[1m]"), undefined);
+    assert.equal(
+      pickModel(["default", "sonnet", "opus"], "sonnet[1m]"),
+      undefined,
+    );
+  });
+
+  it("maps a custom connection's bare model id to Pi's advertised <slug>/<model-id>", () => {
+    // After models.json, pi-acp advertises the custom provider as `<connection-slug>/<model-id>`.
+    // The wire carries the bare model id; the existing suffix match resolves it (design Decision 7).
+    assert.equal(
+      pickModel(["my-ollama/qwen2.5-coder:7b"], "qwen2.5-coder:7b"),
+      "my-ollama/qwen2.5-coder:7b",
+    );
+    // A model id that the custom provider does not advertise does not resolve, so the run fails
+    // loud (ModelNotSettableError) instead of continuing on a default.
+    assert.equal(
+      pickModel(["my-ollama/qwen2.5-coder:7b"], "llama3:70b"),
+      undefined,
+    );
+  });
+
+  it("bare-suffix matching is order-dependent and can pick a built-in over the custom provider", () => {
+    // Collision (design Decision 7 hazard): the vault key rides into Pi as OPENAI_API_KEY, so Pi
+    // keeps advertising its built-in `openai/<model>` (pointing at api.openai.com) ALONGSIDE the
+    // custom `my-conn/<model>`. When the custom model id equals a built-in one (e.g. "gpt-4o"),
+    // bare-suffix matching returns the FIRST advertised id with that suffix — the built-in — which
+    // would silently route to the wrong provider/endpoint. This proves why the runner must request
+    // the fully qualified id (below) instead of the bare wire id for a managed custom run.
+    assert.equal(
+      pickModel(["openai/gpt-4o", "my-conn/gpt-4o"], "gpt-4o"),
+      "openai/gpt-4o",
+    );
+    // The fully qualified `<slug>/<model>` is an EXACT match, so it wins regardless of order and
+    // regardless of a colliding built-in — this is the id the runner now passes when a
+    // PiModelConfigPlan exists.
+    assert.equal(
+      pickModel(["openai/gpt-4o", "my-conn/gpt-4o"], "my-conn/gpt-4o"),
+      "my-conn/gpt-4o",
+    );
   });
 });
 
 describe("allowedFromError", () => {
   it("parses allowed values from harness errors", () => {
     assert.deepEqual(
-      allowedFromError(new Error("Unsupported value. Allowed values: openai-codex/gpt-5.5, anthropic/sonnet")),
+      allowedFromError(
+        new Error(
+          "Unsupported value. Allowed values: openai-codex/gpt-5.5, anthropic/sonnet",
+        ),
+      ),
       ["openai-codex/gpt-5.5", "anthropic/sonnet"],
     );
   });
@@ -70,7 +124,10 @@ describe("allowedModels", () => {
         },
       ],
     };
-    assert.deepEqual(await allowedModels(session), ["openai-codex/gpt-5.5", "anthropic/sonnet"]);
+    assert.deepEqual(await allowedModels(session), [
+      "openai-codex/gpt-5.5",
+      "anthropic/sonnet",
+    ]);
   });
 });
 
@@ -79,7 +136,10 @@ describe("applyModel", () => {
     const calls: string[] = [];
     const session = { setModel: async (id: string) => void calls.push(id) };
 
-    assert.equal(await applyModel(session, "anthropic/sonnet"), "anthropic/sonnet");
+    assert.equal(
+      await applyModel(session, "anthropic/sonnet"),
+      "anthropic/sonnet",
+    );
     assert.deepEqual(calls, ["anthropic/sonnet"]);
   });
 
@@ -99,7 +159,9 @@ describe("applyModel", () => {
       setModel: async (id: string) => {
         calls.push(id);
         if (id === "gpt-5.5") {
-          throw new Error("Unsupported value. Allowed values: openai-codex/gpt-5.5");
+          throw new Error(
+            "Unsupported value. Allowed values: openai-codex/gpt-5.5",
+          );
         }
       },
     };
@@ -139,7 +201,9 @@ describe("applyModel", () => {
     };
 
     assert.equal(
-      await applyModel(session, "gpt-5.5", (m) => logs.push(m), { strict: false }),
+      await applyModel(session, "gpt-5.5", (m) => logs.push(m), {
+        strict: false,
+      }),
       undefined,
     );
     assert.match(logs[0], /using harness default/);

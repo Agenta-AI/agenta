@@ -45,7 +45,7 @@ const CloudScripts = () => {
     return (
         <>
             <Head>
-                <title>Agenta: The LLMOps platform.</title>
+                <title>Agenta – the open-source workspace for building and running agents</title>
                 <link rel="shortcut icon" href="/assets/favicon.ico" />
             </Head>
             <Script

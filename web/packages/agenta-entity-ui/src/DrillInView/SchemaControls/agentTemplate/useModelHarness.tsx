@@ -11,7 +11,7 @@ import {
 } from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
-import {isSandboxLocalEnabled} from "@agenta/shared/api"
+import {getEnabledSandboxProviders} from "@agenta/shared/api"
 import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -19,7 +19,7 @@ import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {Check, Cube, Lightbulb, ShieldCheck, Sparkle, Warning} from "@phosphor-icons/react"
 import {Select, Typography} from "antd"
-import {useAtomValue} from "jotai"
+import {atom, useAtomValue} from "jotai"
 
 import {RailField, railInfoLabel} from "../../../drawers/shared/RailField"
 import {SectionRail} from "../../../drawers/shared/SectionRail"
@@ -30,7 +30,9 @@ import {
     composeModelValue,
     connectionFromConfig,
     harnessAllowsModel,
+    harnessSupportsUserMcp,
     modelIdFromConfig,
+    modelLabel,
     providerForModel,
     vaultModelGroups,
     vaultPickedProviderFamily,
@@ -46,6 +48,11 @@ import {enumLabel} from "./agentTemplateUtils"
 import ProviderCredentialsSection from "./ProviderCredentialsSection"
 import {useBuildKit} from "./useBuildKit"
 
+// Only assert "needs a key" once the vault query has resolved (an array). While it's pending,
+// `standardSecretsAtom` returns the static provider catalog with empty keys, so a reload would
+// flash a false "Connect key" warning on the section, rail item, and config-panel row.
+const vaultLoadedAtom = atom((get) => Array.isArray(get(vaultSecretsQueryAtom).data))
+
 type PermissionPolicy = "allow_reads" | "allow" | "ask" | "deny"
 
 const PERMISSION_POLICY_OPTIONS: {value: PermissionPolicy; label: string; help: string}[] = [
@@ -57,6 +64,8 @@ const PERMISSION_POLICY_OPTIONS: {value: PermissionPolicy; label: string; help: 
 const PERMISSION_POLICY_VALUES = new Set<string>(
     PERMISSION_POLICY_OPTIONS.map((option) => option.value),
 )
+
+const HIDDEN_HARNESSES = new Set(["pi_agenta"])
 
 function isPermissionPolicy(value: unknown): value is PermissionPolicy {
     return typeof value === "string" && PERMISSION_POLICY_VALUES.has(value)
@@ -97,8 +106,8 @@ export function useModelHarness({
     const runnerProps = subProps("runner")
     const sandboxProps = subProps("sandbox")
     const sandboxOptions = useMemo(() => {
-        const options = getEnumOptions(sandboxProps.kind)
-        return isSandboxLocalEnabled() ? options : options.filter((o) => o.value !== "local")
+        const enabled = new Set(getEnabledSandboxProviders())
+        return getEnumOptions(sandboxProps.kind).filter((o) => enabled.has(o.value))
     }, [sandboxProps.kind])
 
     const asObject = useCallback(
@@ -143,6 +152,16 @@ export function useModelHarness({
         [config, onChange],
     )
 
+    const sandboxValue = typeof sandbox.kind === "string" ? sandbox.kind : null
+    useEffect(() => {
+        const availableValue = sandboxOptions.some((option) => option.value === sandboxValue)
+            ? sandboxValue
+            : (sandboxOptions[0]?.value ?? null)
+        if (availableValue && availableValue !== sandboxValue) {
+            setSection("sandbox", {...sandbox, kind: availableValue})
+        }
+    }, [sandbox, sandboxOptions, sandboxValue, setSection])
+
     // Model + credential connection (`llm`). It is ALWAYS a structured object (the harness-filtered
     // picker only ever produces one); a legacy bare string is read for display. composeModelValue
     // carries through extra keys (e.g. `extras`) so a form edit never silently drops them. The picker
@@ -167,11 +186,11 @@ export function useModelHarness({
         useMemo(() => harnessCapabilitiesAtomFamily(harnessRefKey ?? ""), [harnessRefKey]),
     )
     const capabilities = harnessRefKey ? capabilitiesFromCatalog : null
+    const mcpSupported = harnessSupportsUserMcp(capabilities, harnessValue)
 
-    // The vault query backs `vaultLoaded` below (gates the "needs a key" flag) and the custom_provider
-    // model groups (`vaultModelGroups`); connections themselves are always the project default now,
-    // so there is no named-connection list here.
-    const vaultQuery = useAtomValue(vaultSecretsQueryAtom)
+    // Narrowed to the loaded flag (all this hook reads) — the raw query atom churns identity on
+    // every fetch-state flip during boot.
+    const vaultLoaded = useAtomValue(vaultLoadedAtom)
 
     const modeOptions = useMemo(
         () => allowedConnectionModes(capabilities, harnessValue),
@@ -201,10 +220,6 @@ export function useModelHarness({
             ) ?? null
         )
     }, [standardSecrets, selectedProviderFamily])
-    // Only assert "needs a key" once the vault query has resolved (an array). While it's pending,
-    // `standardSecretsAtom` returns the static provider catalog with empty keys, so a reload would
-    // flash a false "Connect key" warning on the section, rail item, and config-panel row.
-    const vaultLoaded = Array.isArray(vaultQuery.data)
     // Self-managed agents never need a vault key — the harness signs itself in. Neither does a
     // named custom-provider connection (agenta mode with a slug): it carries its own credentials,
     // so a missing STANDARD vault key for the family is not this connection's problem.
@@ -340,8 +355,13 @@ export function useModelHarness({
         [harness, setSection],
     )
 
+    // Prefer the harness catalog's label ("Sonnet") over the stored id ("sonnet"), so the summary
+    // names the model the way the picker did.
     const modelSummary =
-        [enumLabel(harnessProps.kind, harness.kind), enumLabel(props.llm, modelId)]
+        [
+            enumLabel(harnessProps.kind, harness.kind),
+            modelLabel(capabilities, harnessValue, modelId) ?? enumLabel(props.llm, modelId),
+        ]
             .filter(Boolean)
             .join(" · ") || undefined
 
@@ -489,7 +509,12 @@ export function useModelHarness({
     // Harness list, from the inspect capabilities map. Model compatibility is shown per-card (below).
     // GAP (tracked): harness_capabilities covers model/provider/mode/hosting only — NOT tools/skills/
     // MCP — so switching harness can silently leave unsupported tools unwarned. See design.md.
-    const harnessList = capabilities ? Object.keys(capabilities) : []
+    const schemaHarnesses = Array.isArray(harnessProps.kind?.enum)
+        ? (harnessProps.kind.enum as unknown[]).map(String)
+        : []
+    const harnessList = (capabilities ? Object.keys(capabilities) : schemaHarnesses).filter(
+        (harnessId) => !HIDDEN_HARNESSES.has(harnessId),
+    )
 
     // Harness as a `[rail │ detail]` (experiment): the harness list on the rail with a model-compat dot,
     // the selected harness's providers / hosting / models + compatibility badge in the content panel.
@@ -646,6 +671,7 @@ export function useModelHarness({
                 <RailField label="Harness" align="center">
                     <HarnessSelectControl
                         schema={harnessProps.kind}
+                        visibleValues={harnessList}
                         value={(harness.kind as string | null) ?? null}
                         onChange={(v) => setSection("harness", {...harness, kind: v})}
                         withTooltip={withTooltip}
@@ -668,10 +694,6 @@ export function useModelHarness({
     ) : (
         <div className="flex h-full flex-col gap-3 overflow-y-auto">{modelHarnessControls}</div>
     )
-
-    // Trimmed body for the tabs layout: the same controls in one column, without the drawer's
-    // two-panel split or side panel (which read as out-of-place chrome inside a tab).
-    const modelHarnessInline = <div className="flex flex-col gap-4">{modelHarnessControls}</div>
 
     // Advanced header summary: sandbox only now — mode UI moved to the Provider credentials section.
     const advancedSummary = sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined
@@ -713,7 +735,7 @@ export function useModelHarness({
                             />
                         </RailField>
                     ) : null}
-                    {sandboxProps.permissions ? (
+                    {sandboxProps.permissions && sandbox.kind !== "local" ? (
                         <>
                             {permissionOverrideHint}
                             {/* Renders its knobs as peer RailField rows (Network egress / Filesystem
@@ -812,13 +834,9 @@ export function useModelHarness({
         </div>
     )
 
-    // Trimmed body for the tabs layout: the grouped controls in one column, no side panel.
-    const advancedInline = (
-        <div className="flex flex-col [&>*:last-child]:!border-b-0">{advancedControls}</div>
-    )
-
     return {
         hasModelOrHarness,
+        mcpSupported,
         // The selected model's provider has a standard vault slot but no key yet — the config panel
         // highlights the Model & harness section and the chat gates on it until it's connected.
         needsProviderKey: providerNeedsKey,
@@ -827,12 +845,10 @@ export function useModelHarness({
         modelUnsupported: !!modelId && !selectedKeepsModel,
         modelSummary,
         modelHarnessDrawerBody,
-        modelHarnessInline,
         // The capability-aware (two-panel) drawer is wider than the plain one.
         modelHarnessDrawerWidth: capabilities ? 880 : 560,
         hasAdvanced,
         advancedSummary,
         advancedDrawerBody,
-        advancedInline,
     }
 }

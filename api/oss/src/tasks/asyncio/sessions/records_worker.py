@@ -145,18 +145,16 @@ class RecordsWorker(StreamConsumer):
             if is_ee() and org_id and not org_allowed.get(org_id, True):
                 continue
 
-            for msg in project_batch["events"]:
-                try:
-                    result = await self.service.append(
-                        event=msg.record_event,
-                    )
-                    if result is not None:
-                        total_appended += 1
-                except Exception:
-                    log.error(
-                        "[RECORDS] Failed to append event",
-                        session_id=str(msg.record_event.session_id),
-                        exc_info=True,
-                    )
+            try:
+                results = await self.service.append_many(
+                    events=[msg.record_event for msg in project_batch["events"]],
+                )
+                total_appended += len(results)
+            except Exception:
+                log.error(
+                    "[RECORDS] Failed to append event batch",
+                    project_id=str(project_batch["project_id"]),
+                    exc_info=True,
+                )
 
         return total_appended, processed_ids

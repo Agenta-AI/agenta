@@ -1,9 +1,28 @@
+import time
+
 import pytest
 import requests
 
 from utils.constants import BASE_TIMEOUT
 
 INVOKE_TIMEOUT = 60  # seconds — LLM calls can be slow
+
+# A 502 right after a fresh deploy is the gateway racing the cutover to the new
+# instance, not an application error — retry a few times before failing.
+_GATEWAY_RETRY_STATUSES = frozenset({502, 503, 504})
+_GATEWAY_RETRY_ATTEMPTS = 4
+_GATEWAY_RETRY_DELAY = 2  # seconds
+
+
+def _request_with_gateway_retry(request_fn, *, method: str, url: str, **kwargs):
+    response = None
+    for attempt in range(_GATEWAY_RETRY_ATTEMPTS):
+        response = request_fn(method=method, url=url, **kwargs)
+        if response.status_code not in _GATEWAY_RETRY_STATUSES:
+            return response
+        if attempt < _GATEWAY_RETRY_ATTEMPTS - 1:
+            time.sleep(_GATEWAY_RETRY_DELAY)
+    return response
 
 
 @pytest.fixture(scope="session")
@@ -16,7 +35,9 @@ def unauthed_services_api(ag_env):
 
     def _request(method: str, path: str, **kwargs):
         url = f"{services_url}{path}"
-        return session.request(method=method, url=url, timeout=BASE_TIMEOUT, **kwargs)
+        return _request_with_gateway_retry(
+            session.request, method=method, url=url, timeout=BASE_TIMEOUT, **kwargs
+        )
 
     yield _request
 
@@ -42,7 +63,8 @@ def services_api(cls_account, ag_env):
         url = f"{services_url}{path}"
         headers = kwargs.pop("headers", {})
         headers.setdefault("Authorization", credentials)
-        return requests.request(
+        return _request_with_gateway_retry(
+            requests.request,
             method=method,
             url=url,
             headers=headers,
@@ -71,7 +93,8 @@ def mod_api(mod_account, ag_env):
         headers.setdefault("Authorization", credentials)
         params = kwargs.pop("params", {})
         params.setdefault("project_id", project_id)
-        return requests.request(
+        return _request_with_gateway_retry(
+            requests.request,
             method=method,
             url=url,
             headers=headers,
@@ -98,7 +121,8 @@ def mod_services_api(mod_account, ag_env):
         url = f"{services_url}{path}"
         headers = kwargs.pop("headers", {})
         headers.setdefault("Authorization", credentials)
-        return requests.request(
+        return _request_with_gateway_retry(
+            requests.request,
             method=method,
             url=url,
             headers=headers,

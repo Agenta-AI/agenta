@@ -64,10 +64,18 @@ export function deepSet(
   let cursor = target;
   for (let i = 0; i < parts.length - 1; i++) {
     const key = parts[i];
+    // Literal comparisons (not UNSAFE_KEYS.has) — CodeQL only models these as sanitizers
+    if (key === "__proto__" || key === "constructor" || key === "prototype") {
+      throw new Error(`unsafe path segment '${key}' in '${path}'`);
+    }
     if (!isPlainObject(cursor[key])) cursor[key] = {};
     cursor = cursor[key] as Record<string, unknown>;
   }
-  cursor[parts[parts.length - 1]] = value;
+  const leaf = parts[parts.length - 1];
+  if (leaf === "__proto__" || leaf === "constructor" || leaf === "prototype") {
+    throw new Error(`unsafe path segment '${leaf}' in '${path}'`);
+  }
+  cursor[leaf] = value;
 }
 
 /**

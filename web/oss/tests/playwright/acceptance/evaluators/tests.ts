@@ -477,7 +477,9 @@ const editEvaluatorAndSaveNewVersion = async (page: Page, evaluatorName: string)
     const commitButton = editDrawer
         .getByRole("button", {name: EVALUATOR_COMMIT_CHANGES_BUTTON_LABEL})
         .first()
-    await expect(commitButton).toBeEnabled({timeout: 10000})
+    // Enables within ~1s locally once the field registers as dirty; 20s gives
+    // CI's slower/shared runners headroom without masking a real hang.
+    await expect(commitButton).toBeEnabled({timeout: 20000})
     await commitButton.click()
 
     // EntityCommitModal opens — identified by the commit message textarea

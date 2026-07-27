@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from agenta.sdk.agents.dtos import AgentTemplate, SessionConfig, TraceContext
+from agenta.sdk.agents.wire_models import WireToolCallback
 
 
 def test_session_config_secrets_masked_in_repr() -> None:
@@ -15,3 +16,11 @@ def test_session_config_secrets_masked_in_repr() -> None:
 def test_trace_context_authorization_masked_in_repr() -> None:
     trace = TraceContext(authorization="Bearer supersecrettoken")
     assert "supersecrettoken" not in repr(trace)
+
+
+def test_wire_tool_callback_authorization_masked_in_repr() -> None:
+    callback = WireToolCallback(
+        endpoint="https://example.test/tools/call",
+        authorization="Bearer supersecrettoken",
+    )
+    assert "supersecrettoken" not in repr(callback)

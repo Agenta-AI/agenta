@@ -38,6 +38,7 @@ import {
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {message} from "@agenta/ui"
+import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {MoreOutlined} from "@ant-design/icons"
 import {
     ArrowsClockwise,
@@ -55,7 +56,7 @@ import {
 import {Button, Dropdown, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
-import {atomWithStorage} from "jotai/utils"
+import {atomWithStorage, selectAtom} from "jotai/utils"
 
 import {AddItemMenu, type AddItemGroup} from "../../drawers/shared/AddItemMenu"
 import {loadRecentSamples, waitForNewDelivery} from "../../gatewayTrigger/drawers/shared/deliveries"
@@ -68,7 +69,8 @@ import TriggerScheduleDrawer from "../../gatewayTrigger/drawers/TriggerScheduleD
 import TriggerSubscriptionDrawer from "../../gatewayTrigger/drawers/TriggerSubscriptionDrawer"
 
 import {AddTextLink} from "./AddTextLink"
-import {CollapsibleProviderGroup, SubSectionHeader} from "./sectionGroups"
+import {countSummary} from "./agentTemplate/agentTemplateUtils"
+import {CollapsibleProviderGroup} from "./sectionGroups"
 
 // Persisted per-agent expand state for provider groups (key = `${entityId}:${providerKey}`).
 const triggerGroupsExpandedAtom = atomWithStorage<Record<string, boolean>>(
@@ -303,17 +305,36 @@ function referencesMatch(
 export function useAgentTriggers(entityId: string | null) {
     // The drill-in entity only carries `parameters`; read the parent ids straight from
     // the workflow molecule (keyed by the revision id, which is the entityId).
-    const revision = useAtomValue(
-        useMemo(() => workflowMolecule.selectors.resolvedData(entityId ?? ""), [entityId]),
+    // Narrowed to the four fields used — a whole-resolvedData subscription re-renders the
+    // config panel on every boot-time data resolution.
+    const revisionMeta = useAtomValue(
+        useMemo(
+            () =>
+                selectAtom(
+                    workflowMolecule.selectors.resolvedData(entityId ?? ""),
+                    (revision) => ({
+                        appId: revision?.workflow_id ?? null,
+                        variantId: revision?.workflow_variant_id ?? revision?.variant_id ?? null,
+                        appSlug: (revision as {slug?: string} | null)?.slug ?? null,
+                        name: (revision as {name?: string} | null)?.name ?? null,
+                    }),
+                    (a, b) =>
+                        a.appId === b.appId &&
+                        a.variantId === b.variantId &&
+                        a.appSlug === b.appSlug &&
+                        a.name === b.name,
+                ),
+            [entityId],
+        ),
     )
-    const appId = revision?.workflow_id ?? null
-    const variantId = revision?.workflow_variant_id ?? revision?.variant_id ?? null
+    const appId = revisionMeta.appId
+    const variantId = revisionMeta.variantId
     // The app slug — needed for "By environment" binding, which resolves via the
     // application slug + environment (see triggers/service.py `_normalize_references`).
-    const appSlug = (revision as {slug?: string} | null)?.slug ?? null
+    const appSlug = revisionMeta.appSlug
     // Readable label for the default binding so the drawer's bound-workflow field
     // shows the agent's name instead of a raw id. Falls back when the name is unresolved.
-    const defaultBoundLabel = (revision as {name?: string} | null)?.name ?? "Current agent"
+    const defaultBoundLabel = revisionMeta.name ?? "Current agent"
 
     const agentIds = useMemo(() => {
         const ids = new Set<string>()
@@ -545,7 +566,6 @@ function AppTriggerProviderGroups({
 
     return (
         <div className="flex flex-col gap-2">
-            <SubSectionHeader label="App triggers" count={scopedSubscriptions.length} />
             {providerGroups.map((group) => {
                 const open = isGroupOpen(group)
                 const activeCount = group.subs.filter(isEntityActive).length
@@ -618,7 +638,7 @@ function AppTriggerProviderGroups({
 }
 
 export function TriggerManagementSection({entityId, disabled}: TriggerManagementSectionProps) {
-    const {scopedSubscriptions, scopedSchedules, count, defaultReferences, defaultBoundLabel} =
+    const {scopedSubscriptions, scopedSchedules, defaultReferences, defaultBoundLabel} =
         useAgentTriggers(entityId)
 
     const {
@@ -803,71 +823,117 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
         [openDeliveries, openScheduleDrawer, removeSchedule, entityId, disabled],
     )
 
-    return (
-        <div className="flex flex-col gap-2">
-            {count === 0 ? (
-                !disabled ? (
-                    <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
-                        No triggers yet —{" "}
-                        <AddTriggerDropdown
-                            entityId={entityId}
-                            trigger={<AddTextLink label="add a trigger" />}
-                        />
-                    </span>
-                ) : null
-            ) : (
-                <div className="flex flex-col gap-3">
-                    {/* App triggers — grouped by provider (subscriptions first). The connections +
-                        catalog queries live inside this child so they only fire when there ARE app
-                        subscriptions to decorate, not on every playground load. */}
-                    {scopedSubscriptions.length > 0 && (
-                        <AppTriggerProviderGroups
-                            scopedSubscriptions={scopedSubscriptions}
-                            entityId={entityId}
-                            disabled={disabled}
-                            defaultReferences={defaultReferences}
-                            defaultBoundLabel={defaultBoundLabel}
-                            subscriptionMenu={subscriptionMenu}
-                        />
-                    )}
+    // Create flows for the per-section "+" and empty-state links — both default-bind to this agent.
+    const openSubscriptionCreate = useCallback(() => {
+        openSubscriptionDrawer({
+            defaultReferences,
+            defaultBoundLabel,
+            playgroundEntityId: entityId ?? undefined,
+        })
+    }, [openSubscriptionDrawer, defaultReferences, defaultBoundLabel, entityId])
+    const openScheduleCreate = useCallback(() => {
+        openScheduleDrawer({
+            defaultReferences,
+            defaultBoundLabel,
+            playgroundEntityId: entityId ?? undefined,
+        })
+    }, [openScheduleDrawer, defaultReferences, defaultBoundLabel, entityId])
 
-                    {/* Schedules — flat (no provider), listed last. */}
-                    {scopedSchedules.length > 0 && (
-                        <div className="flex flex-col gap-2">
-                            <SubSectionHeader label="Schedules" count={scopedSchedules.length} />
-                            {scopedSchedules.map((record) => {
-                                const cron = record.data?.schedule
-                                const named = !!record.name?.trim()
-                                const message = getScheduleMessagePreview(
-                                    record.data?.inputs_fields,
-                                )
-                                return (
-                                    <TriggerRow
-                                        key={`schedule-${record.id}`}
-                                        icon={<Clock size={15} />}
-                                        name={named ? (record.name as string) : "Untitled schedule"}
-                                        nameMuted={!named}
-                                        chip={cron ? describeCron(cron) : undefined}
-                                        subtitle={message || "No message set"}
-                                        active={isEntityActive(record)}
-                                        disabled={disabled}
-                                        runDisabled={disabled || !record.id}
-                                        onRun={() => simulateSchedule(record)}
-                                        onOpen={() =>
-                                            record.id &&
-                                            openScheduleDrawer({
-                                                scheduleId: record.id,
-                                                playgroundEntityId: entityId ?? undefined,
-                                            })
-                                        }
-                                        menuItems={scheduleMenu(record)}
-                                    />
-                                )
-                            })}
-                        </div>
-                    )}
-                </div>
-            )}
+    // Compact header "+" — the same affordance the config sections render in their `extra` slot.
+    const headerAddButton = (label: string, onClick: () => void) => (
+        <Tooltip title={label}>
+            <Button type="text" icon={<Plus size={16} />} onClick={onClick} aria-label={label} />
+        </Tooltip>
+    )
+
+    return (
+        <div className="flex flex-col">
+            {/* Subscriptions + Schedules render as the SAME accordion sections the template config
+                uses (icon, count summary, header "+", collapse) so the Triggers region reads like
+                the Configuration region. */}
+            <ConfigAccordionSection
+                // Remount on the empty↔non-empty boundary so `defaultOpen` re-applies: adding the
+                // FIRST subscription (0→1) otherwise leaves the mount-time-collapsed section shut and
+                // hides the new row.
+                key={scopedSubscriptions.length > 0 ? "has-subscriptions" : "no-subscriptions"}
+                icon={<Lightning size={16} />}
+                title="Subscriptions"
+                summary={countSummary(scopedSubscriptions.length, "subscription")}
+                extra={
+                    !disabled
+                        ? headerAddButton("Add subscription", openSubscriptionCreate)
+                        : undefined
+                }
+                defaultOpen={scopedSubscriptions.length > 0}
+                animateInitialOpen
+            >
+                {scopedSubscriptions.length > 0 ? (
+                    // Grouped by provider. The connections + catalog queries live inside this child
+                    // so they only fire when there ARE app subscriptions to decorate.
+                    <AppTriggerProviderGroups
+                        scopedSubscriptions={scopedSubscriptions}
+                        entityId={entityId}
+                        disabled={disabled}
+                        defaultReferences={defaultReferences}
+                        defaultBoundLabel={defaultBoundLabel}
+                        subscriptionMenu={subscriptionMenu}
+                    />
+                ) : !disabled ? (
+                    <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
+                        No subscriptions yet —{" "}
+                        <AddTextLink label="add a subscription" onClick={openSubscriptionCreate} />
+                    </span>
+                ) : null}
+            </ConfigAccordionSection>
+
+            <ConfigAccordionSection
+                // See the Subscriptions section: remount on 0↔1 so adding the first schedule opens it.
+                key={scopedSchedules.length > 0 ? "has-schedules" : "no-schedules"}
+                icon={<Clock size={16} />}
+                title="Schedules"
+                summary={countSummary(scopedSchedules.length, "schedule")}
+                extra={!disabled ? headerAddButton("Add schedule", openScheduleCreate) : undefined}
+                defaultOpen={scopedSchedules.length > 0}
+                noDivider
+                animateInitialOpen
+            >
+                {scopedSchedules.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                        {scopedSchedules.map((record) => {
+                            const cron = record.data?.schedule
+                            const named = !!record.name?.trim()
+                            const message = getScheduleMessagePreview(record.data?.inputs_fields)
+                            return (
+                                <TriggerRow
+                                    key={`schedule-${record.id}`}
+                                    icon={<Clock size={15} />}
+                                    name={named ? (record.name as string) : "Untitled schedule"}
+                                    nameMuted={!named}
+                                    chip={cron ? describeCron(cron) : undefined}
+                                    subtitle={message || "No message set"}
+                                    active={isEntityActive(record)}
+                                    disabled={disabled}
+                                    runDisabled={disabled || !record.id}
+                                    onRun={() => simulateSchedule(record)}
+                                    onOpen={() =>
+                                        record.id &&
+                                        openScheduleDrawer({
+                                            scheduleId: record.id,
+                                            playgroundEntityId: entityId ?? undefined,
+                                        })
+                                    }
+                                    menuItems={scheduleMenu(record)}
+                                />
+                            )
+                        })}
+                    </div>
+                ) : !disabled ? (
+                    <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
+                        No schedules yet —{" "}
+                        <AddTextLink label="add a schedule" onClick={openScheduleCreate} />
+                    </span>
+                ) : null}
+            </ConfigAccordionSection>
 
             {/* Propless, atom-driven drawers — mounted once; they manage their own
                 visibility. App browsing + connecting now happens inside the subscription

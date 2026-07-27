@@ -1,0 +1,115 @@
+---
+// PostCard — the blog card, one component, four layouts (per COMPONENTS.md):
+//   - featured:  index primary card (vertical, 300px hero, title + excerpt)
+//   - secondary: index featured stack (horizontal, 116px thumb)
+//   - grid:      index "All blogs" grid (vertical, 168px hero, excerpt)
+//   - related:   post page "More from the blog" (vertical, 160px hero, no excerpt)
+//
+// Shows the hero image when present; otherwise a category-tinted gradient + a
+// faded Agenta symbol (CONTENT_MODEL.md). Whole card links to /blog/<slug>.
+import type { Post } from "../lib/blog";
+import { categoryGradient, formatDate } from "../lib/blog";
+
+interface Props {
+  post: Post;
+  variant?: "featured" | "secondary" | "grid" | "related";
+}
+const { post, variant = "grid" } = Astro.props;
+const { title, description, category, date, heroImage } = post.data;
+const href = `/blog/${post.id}`;
+const dateLabel = formatDate(date);
+const gradient = categoryGradient(category);
+
+// Vertical-card hero is a fixed 16:9 frame (matches agenta.ai/blog); the image
+// fills it with object-fit:cover so no card size distorts the crop.
+
+const darkPill =
+  "position:relative;display:inline-flex;align-items:center;height:22px;padding:0 11px;border-radius:999px;background:rgba(0,0,0,0.35);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);font:var(--text-caption);letter-spacing:0.04em;color:rgba(255,255,255,0.85);";
+const yellowPill =
+  "position:relative;display:inline-flex;align-items:center;height:24px;padding:0 12px;border-radius:999px;background:rgba(242,242,92,0.12);box-shadow:inset 0 0 0 1px rgba(242,242,92,0.3);font:var(--text-caption);letter-spacing:0.04em;color:var(--yellow-400);";
+---
+
+{
+  variant === "secondary" ? (
+    <a
+      href={href}
+      data-category={category}
+      class="ag-card"
+      style="text-decoration:none;display:flex;flex:1;box-sizing:border-box;gap:16px;border-radius:12px;overflow:hidden;background:rgba(255,255,255,0.02);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.07);padding:14px;"
+    >
+      <div
+        style={`flex:0 0 40%;align-self:stretch;min-height:108px;border-radius:8px;background:${gradient};box-shadow:inset 0 0 0 1px rgba(255,255,255,0.05);position:relative;overflow:hidden;`}
+      >
+        {heroImage ? (
+          <img
+            src={heroImage}
+            alt={title}
+            loading="lazy"
+            decoding="async"
+            style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;"
+          />
+        ) : (
+          <img
+            src="/logos/Agenta-symbol-dark.svg"
+            alt=""
+            style="position:absolute;right:-12px;bottom:-16px;width:90px;opacity:0.08;"
+          />
+        )}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;min-width:0;padding:2px 0;">
+        <span style="font:var(--text-caption);letter-spacing:0.04em;text-transform:uppercase;color:var(--yellow-400);">
+          {category}
+        </span>
+        <span style="font:300 18px/1.22 var(--font-display);color:#F7F6F4;text-wrap:pretty;">
+          {title}
+        </span>
+        <span style="font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.42);margin-top:auto;">
+          {dateLabel}
+        </span>
+      </div>
+    </a>
+  ) : (
+    <a
+      href={href}
+      data-category={category}
+      class="ag-card ag-vcard"
+      style="text-decoration:none;border-radius:12px;overflow:hidden;background:rgba(255,255,255,0.02);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.07);"
+    >
+      <div
+        style={`position:relative;aspect-ratio:16/9;background:${gradient};overflow:hidden;display:flex;align-items:flex-end;padding:16px;box-sizing:border-box;`}
+      >
+        {heroImage ? (
+          <img
+            src={heroImage}
+            alt={title}
+            loading="lazy"
+            decoding="async"
+            style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;"
+          />
+        ) : (
+          <img
+            src="/logos/Agenta-symbol-dark.svg"
+            alt=""
+            style="position:absolute;right:-18px;top:-22px;width:140px;opacity:0.06;"
+          />
+        )}
+        <span style={variant === "featured" ? yellowPill : darkPill}>{category}</span>
+      </div>
+      <div style="padding:18px 18px 20px;display:flex;flex-direction:column;gap:10px;flex:1;">
+        <h3
+          style={`margin:0;font:300 ${variant === "featured" ? "32px/1.12" : variant === "related" ? "19px/1.25" : "20px/1.22"} var(--font-display);color:#F7F6F4;text-wrap:pretty;`}
+        >
+          {title}
+        </h3>
+        {variant !== "related" && (
+          <p style="margin:0;font:var(--text-body-sm);color:rgba(255,255,255,0.52);text-wrap:pretty;">
+            {description}
+          </p>
+        )}
+        <span style="font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.4);margin-top:auto;padding-top:8px;">
+          {dateLabel}
+        </span>
+      </div>
+    </a>
+  )
+}

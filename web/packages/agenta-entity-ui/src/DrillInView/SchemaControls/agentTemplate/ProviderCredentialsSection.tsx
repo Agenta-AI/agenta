@@ -84,7 +84,7 @@ const CUSTOM_PROVIDER_ROWS: {kind: string; label: string}[] = [
     {kind: CustomProviderKind.Azure, label: "Azure OpenAI"},
     {kind: CustomProviderKind.Bedrock, label: "AWS Bedrock"},
     {kind: CustomProviderKind.VertexAi, label: "Vertex AI"},
-    {kind: CustomProviderKind.Custom, label: "Custom provider"},
+    {kind: CustomProviderKind.Custom, label: "OpenAI-compatible endpoint"},
 ]
 
 /** Family spellings that must compare equal across catalog names, vault env names, and titles. */
@@ -413,7 +413,7 @@ export function ProviderCredentialsSection({
                                         label={secret.name ?? "?"}
                                     />
                                 }
-                                label={secret.name ?? "Custom provider"}
+                                label={secret.name ?? "OpenAI-compatible endpoint"}
                                 trailing={
                                     <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ag-colorSuccess)]" />
                                 }

@@ -727,6 +727,7 @@ class InteractionsRouter:
             project_id=project_id,
             session_id=body.session_id,
             except_turn_id=body.turn_id,
+            except_tokens=body.tokens,
         )
         return {"cancelled": cancelled}
 
@@ -849,7 +850,6 @@ class InteractionsRouter:
                 interaction_id=str(interaction_id),
                 answer=answer,
             )
-            log.tick("interactions.enqueued", dims={"queue": "interactions"})
         else:
             references = (
                 {

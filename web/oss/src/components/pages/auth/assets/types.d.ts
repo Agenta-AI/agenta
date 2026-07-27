@@ -40,4 +40,10 @@ export interface SocialAuthProps {
         label: string
         icon?: React.ReactNode
     }[]
+    // "promoted" = taller, stronger ring (returning last-used slot).
+    variant?: "default" | "promoted"
+    // Yellow keycap treatment (the one primary action on the screen).
+    yellow?: boolean
+    // Render the inline "Last used" tag.
+    lastUsed?: boolean
 }

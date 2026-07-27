@@ -143,6 +143,23 @@ answers.
 For output, Pi streams pure text deltas over ACP (`agent_message_chunk`). The runner
 appends them in order to build the final answer.
 
+### OpenAI-compatible custom endpoints
+
+A named `custom` connection (a base URL, a key, and a model id, resolved to provider `openai`
+and deployment `custom`) reaches Pi through a `models.json` the runner writes into the per-run
+Pi agent dir. The builder (`services/runner/src/engines/sandbox_agent/pi-model-config.ts`) is a
+pure function that returns a plan keyed by the connection slug, in the shape
+`{"providers": {"<slug>": {baseUrl, api: "openai-completions", apiKey: "$OPENAI_API_KEY",
+models: [{id}]}}}`. The `apiKey` is an environment reference, so no secret lands on disk; the
+real key rides the sandbox env. Locally the runner writes the file `0600` and atomically into an
+isolated per-run dir that carries no operator `auth.json`, so a plan run never authenticates with
+the operator's login. On Daytona it uploads the file to `DAYTONA_PI_DIR` before session creation.
+
+For a custom run the runner requests the fully qualified `<slug>/<model>` id rather than the bare
+model. This bypasses the suffix match above and its risk of silently routing to `api.openai.com`.
+Builder, write, and upload failures are terminal; the run never falls through to a default
+provider.
+
 ## Daytona notes
 
 Two things differ on Daytona. The sandbox-agent `-full` image ships the `pi-acp` adapter but not the

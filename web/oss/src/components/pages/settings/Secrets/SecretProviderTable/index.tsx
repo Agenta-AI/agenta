@@ -203,7 +203,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                             size="small"
                             onClick={() => setIsConfigProviderOpen(true)}
                         >
-                            Custom Provider
+                            OpenAI-compatible endpoint
                         </Button>
                     ) : (
                         <Button

@@ -9,11 +9,11 @@ author-review revision (Part 1 trust/transport, Part 2 enforcement matrix) is co
 docs-only. The decided near-term code changes are now implemented in a follow-up runner-only PR
 (lane `feat/agent-sidecar-trust-enforcement`, `services/agent/src/**` only):
 
-1. **Network isolation + optional `/run` token** (Part 1 steps 1–2): the sidecar binds to
+1. **Network isolation + required `/run` token** (Part 1 steps 1–2): the sidecar binds to
    loopback by default (`AGENTA_RUNNER_HOST`, default `127.0.0.1`, never `0.0.0.0`), and
-   an OPTIONAL shared token (`AGENTA_RUNNER_TOKEN`, default OFF) gates `/run` with a
-   constant-time compare when set (`server.ts`). `/health` stays open. mTLS / scoped tokens /
-   payload encryption remain deferred.
+   a REQUIRED shared token (`AGENTA_RUNNER_TOKEN`) gates `/run` with a constant-time compare
+   (`server.ts`); the runner refuses to start without it and fails closed. `/health` stays open.
+   mTLS / scoped tokens / payload encryption remain deferred.
 2. **Error-on-unimplemented `sandbox_permission`** (Part 2): `run-plan.ts` now errors the
    not-implemented way (mirroring `code.ts`) when a restricted `network` policy is set on the
    LOCAL sandbox (any `enforcement`), and whenever `filesystem` is specified (any backend, since

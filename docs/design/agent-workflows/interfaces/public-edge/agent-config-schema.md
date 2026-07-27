@@ -22,7 +22,7 @@ The fields and the full schema follow.
 | `agents_md` | string (textarea) | hello-world prompt | The agent's system prompt, its AGENTS.md. |
 | `model` | string (`grouped_choice`) | `"gpt-5.5"` | Model the agent runs on. A plain id (`"gpt-5.5"`) or a structured `{provider, connection}` ref. See [Model connection resolution](../in-service/model-connection-resolution.md). |
 | `tools` | `(ToolConfig \| EmbedRef)[]` | `[]` | Runnable tools: `builtin`, `gateway`, `code`, `client`, `reference` (a workflow referenced as a tool — `type: "reference"` — the service runs server-side as a callback tool), or `platform` (an existing Agenta endpoint exposed to the agent — `type: "platform"` — the runner calls it directly). A workflow value can also be inlined via `@ag.embed`. See [Tool models and resolution](../in-service/tool-models-and-resolution.md). |
-| `mcp_servers` | `MCPServerConfig[]` | `[]` | Declared MCP servers; secret env resolved from the vault at run time. See [MCP models and resolution](../in-service/mcp-models-and-resolution.md). |
+| `mcp_servers` | `MCPServerConfig[]` | `[]` | External HTTP MCP servers; named header-secret references resolve from the vault per run. See [MCP models and resolution](../in-service/mcp-models-and-resolution.md). |
 | `harness` | `"pi_core" \| "claude" \| "pi_agenta"` (see slug+name note) | `"pi_core"` | The coding agent to drive. `pi_core` and `pi_agenta` both drive the `pi` ACP agent; `pi_agenta` adds Agenta's forced skills, prompt, and policy. |
 | `sandbox` | `"local" \| "daytona"` | `"local"` | Where it runs. |
 | `permissions` | `{default: "allow" \| "ask" \| "deny" \| "allow_reads", rules?: [...]}` | `{default: "allow_reads"}` | The agent-wide policy. `allow_reads` runs read-hinted tools and asks for everything else; `allow` runs everything; `ask` asks for everything; `deny` runs nothing unless a tool explicitly allows it. `rules` are optional authored patterns (for example `Bash(rm:*)`) that override the default for matching harness builtins. |
@@ -186,35 +186,37 @@ way. See [Tool models and resolution](../in-service/tool-models-and-resolution.m
 
 ### `mcp_servers[]`
 
+External user MCP servers use one HTTP-only, role-based object:
+
 ```jsonc
 {
-  "name": "files",
-  "transport": "stdio",            // "stdio" (needs command; DISABLED) | "http" (needs url; delivered)
-  "command": "npx", "args": ["-y", "server-filesystem"],
-  "env": {},                       // non-secret env
-  "url": null,                     // http transport only
-  "secrets": { "TOKEN_ENV": "vault-secret-name" },  // {env-or-header name: vault secret name}
-  "tools": [],                     // allowlist; empty = all
-  "permission": null               // "allow" | "ask" | "deny"
+  "name": "memory",
+  "connection": {
+    "type": "http",
+    "url": "https://memory.example.com/mcp",
+    "headers": { "X-Client": "agenta" },
+    "credentials": {
+      "type": "header_secret_refs",
+      "headers": { "Authorization": "memory-mcp-token" }
+    }
+  },
+  "policy": {
+    "tools": { "mode": "all" },
+    "permission": "ask"
+  }
 }
 ```
 
-For an **http** server the resolved secret is sent as a request header named by the secret-map
-key, so a bearer token is `secrets: {"Authorization": "vault-name"}` (value `"Bearer ..."`).
-**stdio** servers are disabled in the sidecar (they launch a runner-host process); a run
-carrying one is refused.
+`connection.headers` contains public values. `connection.credentials.headers` maps an HTTP header
+name to a project-vault secret name; the saved revision never contains the resolved value. Use
+`{"type": "none"}` when the server needs no credential. Public stdio, commands, arguments, and
+environment variables are not part of this interface. The name `agenta-tools` is reserved for the
+runner's private tool channel.
 
-```jsonc
-// http (remote) MCP server example
-{
-  "name": "linear",
-  "transport": "http",
-  "url": "https://mcp.linear.app/sse",
-  "secrets": { "Authorization": "linear-mcp-token" },  // -> Authorization request header
-  "tools": [],
-  "permission": "ask"
-}
-```
+`policy.tools.mode` is either `all` or `include`. `include` requires a non-empty `names` list.
+The initial editor authors `all`; discovered-tool selection is future product work. Claude
+publishes the `mcp.user_servers` harness capability and receives the HTTP server through ACP. Pi
+does not publish the capability and refuses external MCP configuration until its bridge exists.
 
 ### `sandbox_permission`
 

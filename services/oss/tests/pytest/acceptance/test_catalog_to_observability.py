@@ -41,7 +41,8 @@ pytestmark = [pytest.mark.acceptance]
 # for the tail case (worker drain lag under parallel load) in very few requests.
 _POLL_INITIAL = 1.0  # first wait before the initial fetch (ingestion is async)
 _POLL_BACKOFF = 2.0  # multiplier applied to the wait after each miss (doubling)
-_POLL_TIMEOUT = 45.0  # maximum seconds to wait for a trace to appear
+# 90 covers the verified >45s ingestion tail of a full parallel run (healthy worker).
+_POLL_TIMEOUT = 90.0  # maximum seconds to wait for a trace to appear
 
 
 def _uid() -> str:

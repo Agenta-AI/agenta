@@ -54,7 +54,7 @@ We never bake an OAuth login or an API key into an image.
   builds and uses its own snapshot internally; self-hosters run the same recipe
   against their own Daytona account. We ship the build script (the recipe), not the
   built snapshot, so we never distribute a Claude-containing artifact. Snapshot
-  builder: `services/runner/sandbox-images/daytona/build_snapshot.py`.
+  builder: `services/runner/images/sandbox/daytona/build_snapshot.py`.
   Self-hosters run this recipe in their own Daytona account. That is
   compliant under the recipe-not-image model. **Cleaner-provenance follow-up
   (needs a live Daytona build to verify):** base on a daemon-only sandbox-agent image and

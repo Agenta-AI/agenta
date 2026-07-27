@@ -14,11 +14,10 @@
  * Schemas are unbounded. This module owns the bundle location and the upload; `mcp.ts` stays
  * pure (it builds the session entry, it does not touch files).
  *
- * FAIL LOUD: the caller only invokes this on the path that REQUIRES the shim (Daytona +
- * non-Pi + executable tools) — without it the tools silently never surface (the F-042 /
- * silent-tool-drop bug). So a missing bundle or a failed upload THROWS the named message and
- * the engine turns it into `{ok: false, error}` rather than proceeding with an empty tool
- * channel.
+ * FAIL LOUD: the caller only invokes this on the path that REQUIRES the shim (Daytona + non-Pi +
+ * tools, executable and client alike) — without it the tools silently never surface (the F-042 /
+ * silent-tool-drop bug). So a missing bundle or a failed upload THROWS the named message and the
+ * engine turns it into `{ok: false, error}` rather than proceeding with an empty tool channel.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";

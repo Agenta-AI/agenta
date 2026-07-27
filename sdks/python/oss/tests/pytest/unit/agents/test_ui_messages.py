@@ -540,9 +540,10 @@ class TestUIMessageStream:
         approval = next(p for p in parts if p["type"] == "tool-approval-request")
         assert approval["toolCallId"] == "call_1"
 
-    async def test_tool_denial_rides_iserror_not_a_denied_field(self):
-        # No runner path ever sets a `denied` field on a tool_result — a human deny rides
-        # `isError: True` like any other tool failure, so it becomes tool-output-error.
+    async def test_tool_denial_marker_becomes_denied_frame(self):
+        # A denied gated call rides `isError: True` (the harness closes it as a failed tool call)
+        # PLUS the runner's structural `denied` marker. The marker projects the AI SDK's dedicated
+        # tool-output-denied chunk (a decline), never tool-output-error (a breakage).
         run = _run(
             events=[
                 {"type": "tool_call", "id": "c1", "name": "deleteFile", "input": {}},
@@ -550,6 +551,32 @@ class TestUIMessageStream:
                     "type": "tool_result",
                     "id": "c1",
                     "output": "denied by user",
+                    "isError": True,
+                    "denied": True,
+                },
+                {"type": "done"},
+            ],
+            result={"output": ""},
+        )
+        parts = await _collect(run, session_id="s1")
+        denied = next(p for p in parts if p["type"] == "tool-output-denied")
+        assert denied["toolCallId"] == "c1"
+        # The denied chunk is a strict object of only type + toolCallId (no errorText/output leak).
+        assert set(denied.keys()) == {"type", "toolCallId"}
+        types = [p["type"] for p in parts]
+        assert "tool-output-error" not in types
+        assert "tool-output-available" not in types
+
+    async def test_genuine_tool_error_without_marker_stays_error_frame(self):
+        # A real tool failure (no `denied` marker) still becomes tool-output-error, unchanged: the
+        # denied projection is gated strictly on the structural marker, never on the error text.
+        run = _run(
+            events=[
+                {"type": "tool_call", "id": "c1", "name": "deleteFile", "input": {}},
+                {
+                    "type": "tool_result",
+                    "id": "c1",
+                    "output": "disk full",
                     "isError": True,
                 },
                 {"type": "done"},
@@ -668,7 +695,11 @@ class TestUIMessageStream:
         assert err["toolCallId"] == "c1"
         assert err["errorText"] == "boom"
 
-    async def test_terminal_failure_emits_error_part_and_no_finish(self):
+    async def test_terminal_failure_emits_error_part_and_still_finishes(self):
+        # SDK-3: this used to assert `"finish" not in types`. That was the defect, not a
+        # contract — the routing-layer twin has always drained to a finish frame from its
+        # `finally:`, and a consumer waiting on `finish` hangs without one. The two twins now
+        # agree: the error part surfaces AND the stream terminates.
         records = [
             {"kind": "event", "event": {"type": "message", "text": "partial"}},
             {"kind": "result", "result": {"ok": False, "error": "kaboom"}},
@@ -677,6 +708,6 @@ class TestUIMessageStream:
         parts = [part async for part in agent_run_to_vercel_parts(run, session_id="s1")]
         types = [p["type"] for p in parts]
         assert types[0] == "start"
-        assert "finish" not in types
+        assert types[-1] == "finish"
         error = next(p for p in parts if p["type"] == "error")
         assert "kaboom" in error["errorText"]

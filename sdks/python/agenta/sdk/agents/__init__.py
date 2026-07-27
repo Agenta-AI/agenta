@@ -42,6 +42,7 @@ from .connections import (
     ConnectionResolutionError,
     ConnectionResolver,
     Endpoint,
+    EndpointResolutionError,
     EnvConnectionResolver,
     MissingProviderError,
     ModelRef,
@@ -96,7 +97,6 @@ from .interfaces import (
 )
 from .mcp import (
     MCPConfigurationError,
-    MCPDisabledError,
     MCPError,
     MCPResolver,
     MCPServerConfig,
@@ -221,7 +221,6 @@ __all__ = [
     "MCPResolver",
     "MCPError",
     "MCPConfigurationError",
-    "MCPDisabledError",
     "MissingMCPSecretError",
     # Skills are a sibling subsystem
     "SkillTemplate",
@@ -243,6 +242,7 @@ __all__ = [
     "StaticConnectionResolver",
     "AgentConnectionError",
     "ConnectionResolutionError",
+    "EndpointResolutionError",
     "ConnectionNotFoundError",
     "MissingProviderError",
     "AmbiguousConnectionError",

@@ -52,6 +52,8 @@ export {
     MoleculeDrillInProvider,
     PlaygroundConfigSection,
     AgentConfigSkeleton,
+    AgentOperationsSections,
+    AgentOperationsSkeleton,
     preloadAgentTemplateControl,
     useDrillIn,
     type PlaygroundConfigSectionProps,

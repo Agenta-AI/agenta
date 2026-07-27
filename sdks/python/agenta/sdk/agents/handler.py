@@ -2,7 +2,7 @@
 
 Owns stream/trim/force; composition (template, tool/MCP/connection resolvers, backend
 selector) is injectable via `AgentComposition`, defaulting to env-driven SDK behavior. The
-default composition also owns capability gating, degradation policy, and MCP gating:
+default composition also owns capability gating and degradation policy:
 these are protocol-level safety behaviors, not service-specific, so a bare `agent_v0` (no
 composition override) gets them for free instead of a permissive fallback.
 """
@@ -18,6 +18,7 @@ from agenta.sdk.agents.interfaces import Backend, Environment
 from agenta.sdk.agents.capabilities import (
     harness_allows_deployment,
     harness_allows_mode,
+    harness_allows_pair,
     harness_allows_provider,
 )
 from agenta.sdk.agents.connections import (
@@ -33,8 +34,8 @@ from agenta.sdk.agents.connections import (
 from agenta.sdk.agents.tools import ResolvedToolSet
 from agenta.sdk.agents.adapters import SandboxAgentBackend, make_harness
 from agenta.sdk.agents.errors import LocalSandboxNotAllowedError
-from agenta.sdk.agents.mcp import MCPDisabledError, ResolvedMCPServer
-from agenta.sdk.agents.mcp.parsing import parse_mcp_server_configs
+from agenta.sdk.agents.sandbox_providers import sandbox_provider_enabled
+from agenta.sdk.agents.mcp import ResolvedMCPServer
 from agenta.sdk.agents.platform import (
     resolve_connection as _platform_resolve_connection,
 )
@@ -54,7 +55,6 @@ from agenta.sdk.models.workflows import (
     WorkflowInvokeRequestFlags,
     WorkflowServiceRequest,
 )
-from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -76,21 +76,16 @@ def _default_template() -> AgentTemplate:
     return AgentTemplate()
 
 
-def _sandbox_local_allowed() -> bool:
-    return (
-        os.getenv("AGENTA_SANDBOX_LOCAL_ALLOWED") or "true"
-    ).strip().lower() in TRUTHY
-
-
 def _default_select_backend(agent_template: AgentTemplate) -> Backend:
     """Env-driven default: `AGENTA_RUNNER_INTERNAL_URL` picks HTTP transport; else local cwd.
 
-    `local` (unconfined host bash, not a tenant boundary) is refused unless
-    `AGENTA_SANDBOX_LOCAL_ALLOWED` is on — a bare `agent_v0` gets this protocol-level
-    safety behavior for free, same as capability gating and MCP gating above.
+    A sandbox the deployment has not enabled is refused before any run — a bare `agent_v0`
+    gets this protocol-level safety behavior for free, same as capability gating and MCP
+    gating above. The runner remains the final authority; this is a pre-filter that reads the
+    same `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` registry.
     """
-    if agent_template.sandbox == "local" and not _sandbox_local_allowed():
-        raise LocalSandboxNotAllowedError()
+    if not sandbox_provider_enabled(agent_template.sandbox):
+        raise LocalSandboxNotAllowedError(sandbox=agent_template.sandbox)
     url = os.getenv("AGENTA_RUNNER_INTERNAL_URL", "").strip() or None
     return SandboxAgentBackend(sandbox=agent_template.sandbox, url=url, cwd=os.getcwd())
 
@@ -99,25 +94,10 @@ async def _default_resolve_tools(tools, **kwargs) -> ResolvedToolSet:
     return await _platform_resolve_tools(tools, **kwargs)
 
 
-def _mcp_enabled() -> bool:
-    # MCP gating: off by default, deployment opts in via AGENTA_AGENT_MCPS_ENABLED.
-    return os.getenv("AGENTA_AGENT_MCPS_ENABLED", "").strip().lower() in TRUTHY
-
-
 async def _default_resolve_mcp_servers(
     mcp_servers, **kwargs
 ) -> List[ResolvedMCPServer]:
-    """Resolve MCP servers, gated by ``AGENTA_AGENT_MCPS_ENABLED`` (off by default).
-
-    Disabled + no servers declared -> ``[]`` (the common case, unchanged). Disabled + servers
-    declared -> :class:`MCPDisabledError`, so a caller's ignored MCP config fails loud instead
-    of silently running with none.
-    """
-    if not _mcp_enabled():
-        if not mcp_servers:
-            return []
-        names = [config.name for config in parse_mcp_server_configs(mcp_servers)]
-        raise MCPDisabledError(server_names=names)
+    """Resolve external MCP server declarations for one run."""
     return await _platform_resolve_mcp(mcp_servers, **kwargs)
 
 
@@ -135,10 +115,19 @@ def _check_harness_pre_resolve(model_ref: ModelRef, harness: Optional[str]) -> N
     """
     if not harness:
         return
+    connection = model_ref.connection
+    is_named = connection.mode == "agenta" and bool(
+        connection.slug and connection.slug.strip()
+    )
     provider = model_ref.provider
-    if provider and not harness_allows_provider(harness, provider):
+    # A named Agenta connection defers provider acceptance to the post-resolve pair check: the
+    # vault record is authoritative for the family (a provider-less OpenAI-compatible custom
+    # normalizes to ``openai``, and the model may even carry the connection slug as a placeholder
+    # provider that no harness lists). Rejecting that untrusted pre-resolve string would block a
+    # valid custom connection, so a named connection validates only its mode here.
+    if provider and not is_named and not harness_allows_provider(harness, provider):
         raise UnsupportedProviderError(provider=provider, harness=harness)
-    mode = model_ref.connection.mode
+    mode = connection.mode
     if not harness_allows_mode(harness, mode):
         raise UnsupportedConnectionModeError(mode=mode, harness=harness)
 
@@ -146,17 +135,23 @@ def _check_harness_pre_resolve(model_ref: ModelRef, harness: Optional[str]) -> N
 def _check_harness_post_resolve(
     resolved: ResolvedConnection, harness: Optional[str]
 ) -> None:
-    """The POST-resolve half of the capability check: reject an unconsumable deployment.
+    """The POST-resolve half of the capability check: reject an unconsumable resolved pair.
 
-    A slug-less ``agenta`` connection only reveals its deployment once the vault selects the
-    secret, so the deployment reject runs after the resolve returns.
+    The resolved provider family and deployment surface are only known once the vault selects
+    the secret (a slug-less ``agenta`` connection reveals its deployment there; a named custom
+    connection normalizes its provider there), so the authoritative pair check runs after the
+    resolve returns. ``harness_allows_pair`` gates the cross-product (design Decision 3): Pi
+    consumes ``custom`` only with ``openai``, Claude only with ``anthropic``. Decompose the
+    reject into the most specific error.
     """
     if not harness:
         return
-    if not harness_allows_deployment(harness, resolved.deployment):
-        raise UnsupportedDeploymentError(
-            deployment=resolved.deployment, harness=harness
-        )
+    if not harness_allows_pair(harness, resolved.provider, resolved.deployment):
+        if not harness_allows_deployment(harness, resolved.deployment):
+            raise UnsupportedDeploymentError(
+                deployment=resolved.deployment, harness=harness
+            )
+        raise UnsupportedProviderError(provider=resolved.provider, harness=harness)
 
 
 async def _default_resolve_session_connection(
@@ -223,9 +218,9 @@ class AgentComposition:
     ``None``/no-op when a run has no such state, so a bare ``agent_v0`` behaves correctly in
     any process without composition.
 
-    ``resolve_session_connection`` / ``resolve_mcp_servers`` default to the SAFE behavior
-    (capability-gated + degrading connection resolve; MCP-gated server resolve) rather than
-    a bare fallback, so a composition-free ``agent_v0`` is not the permissive copy."""
+    ``resolve_session_connection`` defaults to the SAFE behavior (capability-gated + degrading
+    connection resolve) rather than a bare fallback, so a composition-free ``agent_v0`` is not
+    the permissive copy."""
 
     default_template: DefaultTemplateFn = field(default=_default_template)
     resolve_tools: ResolveToolsFn = field(default=_default_resolve_tools)
@@ -271,6 +266,13 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             params, defaults=comp.default_template()
         )
 
+        # SVC-1: select the backend BEFORE resolving. select_backend carries the sandbox gate
+        # (a `local` run on a shared deployment is refused), and it reads only agent_template,
+        # so a doomed request must not first pay for the tool/MCP/vault resolution below.
+        harness = make_harness(
+            agent_template.harness, Environment(comp.select_backend(agent_template))
+        )
+
         msgs = to_messages(messages or (inputs or {}).get("messages") or [])
         resolved_tools = await comp.resolve_tools(agent_template.tools)
         resolved_mcp = await comp.resolve_mcp_servers(agent_template.mcp_servers)
@@ -313,10 +315,6 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             tool_specs=resolved_tools.tool_specs,
             tool_callback=resolved_tools.tool_callback,
             mcp_servers=resolved_mcp,
-        )
-
-        harness = make_harness(
-            agent_template.harness, Environment(comp.select_backend(agent_template))
         )
 
         if stream:

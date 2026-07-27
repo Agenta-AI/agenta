@@ -33,6 +33,33 @@ COMPOSE_PROJECT_NAME=agenta-ee-dev-instance2 ./hosting/docker-compose/run.sh \
 - `--build` for a normal rebuild.
 - `--build --no-cache` to rebuild from scratch.
 
+### Local compose overrides (auto-included)
+
+`run.sh` auto-includes every `docker-compose.<stage>.*.local.yml` in the edition dir as an
+extra `-f`, sorted lexicographically, and prints the effective compose file set on every run.
+These files are gitignored (see the `.gitignore` pattern) and hold operator-local tweaks. One
+example is `docker-compose.dev.harness.local.yml`, which bind-mounts the runner's Claude/Pi
+subscription logins. Because `run.sh` assembles the same set every time, a routine
+`run.sh --build` can no longer silently recreate a service without its override.
+
+- `--no-local-overrides` skips the auto-include.
+- `--compose-file <name>` appends an extra file (repeatable; bare name resolves in the edition
+  dir like `-e`, or pass a path). Appended after the auto-included ones.
+
+### Restart one service (surgical)
+
+`run.sh --recreate <service>` and `--rebuild <service>` are the blessed entry point for
+single-service restarts. They run `up -d --no-deps --force-recreate <service>` (or `build`
+then recreate) with the **full assembled `-f` set** and the same env handling as a full run,
+so a targeted restart never drops a local override. Both are repeatable and reject unknown
+services. `--rebuild` honors `--no-cache`; a service with no build config of its own (e.g. the
+dev `web`/`runner`) is built via its `.<name>` anchor automatically.
+
+```bash
+run.sh --ee --dev --env-file .env.ee.dev.local --recreate runner   # recreate with all overrides
+run.sh --ee --dev --env-file .env.ee.dev.local --rebuild web        # rebuilds the .web anchor, recreates web
+```
+
 ### Key difference
 
 - **Main branch**: no prefix, uses `.env.ee.dev.local`.

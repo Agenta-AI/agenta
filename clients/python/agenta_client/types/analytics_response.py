@@ -22,7 +22,7 @@ class AnalyticsResponse(UniversalBaseModel):
     
     buckets: typing.Optional[typing.List[MetricsBucket]] = pydantic.Field(default=None)
     """
-    Time-bucketed aggregates. Each bucket's `metrics` dict is keyed by the dotted `path` of the corresponding `MetricSpec`.
+    Time-bucketed aggregates. Each bucket's `metrics` dict is keyed by the dotted `path` of the corresponding `MetricSpec`, ordered oldest to newest.
     """
     
     query: typing.Optional[TracingQuery] = pydantic.Field(default=None)

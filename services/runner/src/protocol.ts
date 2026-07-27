@@ -234,25 +234,23 @@ export interface WireSkill {
   allowExecutableFiles?: boolean;
 }
 
-/**
- * A user-declared MCP server attached to the run. `stdio` launches `command`/`args` with
- * `env` (secret env already resolved server-side); `tools` is an optional allowlist (empty =
- * all). Remote (`http`) carries no auth on the wire by design.
- */
+export interface McpToolPolicy {
+  mode: "all" | "include";
+  names?: string[];
+}
+
 export interface McpServerConfig {
   name: string;
-  transport?: "stdio" | "http";
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-  url?: string;
-  tools?: string[];
-  /**
-   * Layer-3 permission for the whole server: `allow` / `ask` / `deny`. Absent =
-   * fall back to the global permission plan. An MCP server has no `readOnly` hint, so there
-   * is no derived default: an explicit author value or nothing.
-   */
-  permission?: ToolPermission;
+  connection: {
+    type: "http";
+    url: string;
+    /** Resolved per-run headers. Values may be secret and must never be logged. */
+    headers?: Record<string, string>;
+  };
+  policy: {
+    tools: McpToolPolicy;
+    permission?: ToolPermission;
+  };
 }
 
 /**
@@ -347,6 +345,14 @@ export type AgentEvent =
       /** Structured output (object), used for generative UI; `output` stays the text form. */
       data?: unknown;
       isError?: boolean;
+      /**
+       * The result is a USER/POLICY DENIAL of a gated call, not a genuine tool failure. A denied
+       * call still rides `isError: true` (the harness closes it as a failed tool call), so this
+       * structural marker is the only reliable way for the egress to project `tool-output-denied`
+       * (a decline) instead of `tool-output-error` (a breakage). Set by the runner at the deny
+       * mapping, never inferred from the error text.
+       */
+      denied?: boolean;
       render?: RenderHint;
     }
   // A human-in-the-loop request the harness raised (ACP reverse-RPC). The kind is our own
@@ -371,7 +377,10 @@ export type AgentEvent =
       cost?: number;
     }
   | { type: "error"; message: string }
-  | { type: "done"; stopReason?: string };
+  // `traceId` is the run's observability trace id, stamped on the turn's terminal event so a
+  // persisted transcript can link a replayed turn back to its trace (latency, full-trace view).
+  // Live streams carry it via `messageMetadata`; this is the durable-replay channel.
+  | { type: "done"; stopReason?: string; traceId?: string };
 
 /** A live event sink the engines call as each event is built. */
 export type EmitEvent = (event: AgentEvent) => void;

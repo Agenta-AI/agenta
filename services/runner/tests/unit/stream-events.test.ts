@@ -284,4 +284,36 @@ describe("createSandboxAgentOtel state machine", () => {
     assert.equal(calls.length, 1, "no refresh — args were present up front");
     assert.deepEqual(calls[0].input, { city: "Paris" }, "keeps the initial args");
   });
+
+  it("scenario 7: a denied gate stamps `denied` on the closing failed tool_result", () => {
+    // The runner replied `reject`, so it flags the id via markToolCallDenied. The harness then
+    // closes the call as a FAILED tool call; the tool_result must carry `denied: true` so the
+    // egress projects a decline, not a breakage.
+    const emitted: AgentEvent[] = [];
+    const run = createSandboxAgentOtel({ harness: "claude", model: "anthropic/x", emit: (e) => emitted.push(e) });
+    run.start({ prompt: "x" });
+    run.handleUpdate({ sessionUpdate: "tool_call", toolCallId: "c1", title: "deleteFile", rawInput: {} });
+    run.markToolCallDenied("c1");
+    run.handleUpdate({ sessionUpdate: "tool_call_update", toolCallId: "c1", status: "failed", content: [{ content: { type: "text", text: "User refused permission" } }] });
+    run.finish();
+
+    const results = ofType(emitted, "tool_result");
+    assert.equal(results.length, 1, "one tool_result");
+    assert.equal(results[0].isError, true, "a denied close still rides isError");
+    assert.equal(results[0].denied, true, "the denied marker is stamped");
+  });
+
+  it("scenario 8: a genuine tool failure (no markToolCallDenied) is NOT flagged denied", () => {
+    const emitted: AgentEvent[] = [];
+    const run = createSandboxAgentOtel({ harness: "claude", model: "anthropic/x", emit: (e) => emitted.push(e) });
+    run.start({ prompt: "x" });
+    run.handleUpdate({ sessionUpdate: "tool_call", toolCallId: "c1", title: "deleteFile", rawInput: {} });
+    run.handleUpdate({ sessionUpdate: "tool_call_update", toolCallId: "c1", status: "failed", content: [{ content: { type: "text", text: "disk full" } }] });
+    run.finish();
+
+    const results = ofType(emitted, "tool_result");
+    assert.equal(results.length, 1, "one tool_result");
+    assert.equal(results[0].isError, true, "a real failure rides isError");
+    assert.equal(results[0].denied, undefined, "no denied marker on a genuine failure");
+  });
 });

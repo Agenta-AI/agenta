@@ -17,7 +17,7 @@ from agenta.sdk.agents.adapters.claude_settings import (
     build_claude_settings_files,
 )
 from agenta.sdk.agents.dtos import SandboxPermission
-from agenta.sdk.agents.mcp import ResolvedMCPServer
+from agenta.sdk.agents.mcp import MCPPolicy, ResolvedMCPServer
 from agenta.sdk.agents.tools.models import (
     CallbackToolSpec,
     ClientToolSpec,
@@ -39,6 +39,14 @@ def _settings(files):
 def _claude(permissions):
     # The first arg to build_claude_settings_files is the harness's `permissions` slice directly.
     return permissions
+
+
+def _mcp(name: str, permission=None) -> ResolvedMCPServer:
+    return ResolvedMCPServer(
+        name=name,
+        url="https://x",
+        policy=MCPPolicy(permission=permission),
+    )
 
 
 def test_renders_author_mode_and_rules():
@@ -96,9 +104,7 @@ def test_filesystem_off_denies_write_edit():
 
 
 def test_mcp_permission_deny_renders_server_rule():
-    server = ResolvedMCPServer(
-        name="github", transport="http", url="https://x", permission="deny"
-    )
+    server = _mcp("github", "deny")
     files = build_claude_settings_files(None, None, [server])
     perms = _settings(files)["permissions"]
     assert perms["deny"] == ["mcp__github"]
@@ -108,16 +114,10 @@ def test_mcp_permission_deny_renders_server_rule():
 
 def test_mcp_permissions_route_to_their_lists_and_skip_unset():
     servers = [
-        ResolvedMCPServer(
-            name="filesystem", transport="http", url="https://x", permission="allow"
-        ),
-        ResolvedMCPServer(
-            name="github", transport="http", url="https://x", permission="ask"
-        ),
-        ResolvedMCPServer(
-            name="shell", transport="http", url="https://x", permission="deny"
-        ),
-        ResolvedMCPServer(name="unset", transport="http", url="https://x"),
+        _mcp("filesystem", "allow"),
+        _mcp("github", "ask"),
+        _mcp("shell", "deny"),
+        _mcp("unset"),
     ]
     perms = _settings(build_claude_settings_files(None, None, servers))["permissions"]
     assert perms["allow"] == ["mcp__filesystem"]
@@ -126,12 +126,7 @@ def test_mcp_permissions_route_to_their_lists_and_skip_unset():
 
 
 def test_reserved_internal_mcp_server_name_does_not_render_whole_server_rule():
-    server = ResolvedMCPServer(
-        name=INTERNAL_TOOL_MCP_SERVER,
-        transport="http",
-        url="https://x",
-        permission="deny",
-    )
+    server = _mcp(INTERNAL_TOOL_MCP_SERVER, "deny")
     tool = CallbackToolSpec(
         name="get_user", description="d", call_ref="tools__x", permission="allow"
     )
@@ -181,7 +176,7 @@ def test_accepts_plain_dicts_for_sandbox_and_mcp():
     files = build_claude_settings_files(
         None,
         {"network": {"mode": "off"}},
-        [{"name": "github", "permission": "deny"}],
+        [{"name": "github", "policy": {"permission": "deny"}}],
     )
     perms = _settings(files)["permissions"]
     assert perms["deny"] == ["WebFetch", "WebSearch", "mcp__github"]
@@ -199,12 +194,7 @@ def test_empty_inputs_render_nothing():
         == []
     )
     # an MCP server with no permission contributes nothing.
-    assert (
-        build_claude_settings_files(
-            None, None, [ResolvedMCPServer(name="x", transport="http", url="https://x")]
-        )
-        == []
-    )
+    assert build_claude_settings_files(None, None, [_mcp("x")]) == []
 
 
 def test_malformed_permissions_slice_renders_nothing():
@@ -360,9 +350,7 @@ def test_client_tool_deny_renders_deny_rule():
 def test_tool_rules_merge_with_author_and_mcp():
     # Author allow/deny first, then the per-MCP-server rule, then the per-tool rule append (deduped,
     # first-seen order preserved).
-    server = ResolvedMCPServer(
-        name="github", transport="http", url="https://x", permission="allow"
-    )
+    server = _mcp("github", "allow")
     allow_tool = CallbackToolSpec(
         name="capital_lookup",
         description="d",

@@ -9,6 +9,7 @@ import os
 import socket
 from urllib.parse import urlparse
 
+from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -20,7 +21,7 @@ _ALLOW_INSECURE = (
     or os.getenv("AGENTA_WEBHOOKS_ALLOW_INSECURE")
     or os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE")
     or "false"
-).lower() in {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
+).lower() in TRUTHY
 
 if not _ALLOW_INSECURE:
     log.info(

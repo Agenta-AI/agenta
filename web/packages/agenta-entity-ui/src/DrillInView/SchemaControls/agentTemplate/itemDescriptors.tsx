@@ -225,16 +225,18 @@ export function describeTool(tool: unknown): ItemDescriptor {
 /** Classify an MCP server into its row avatar / name / description / tags. */
 export function describeMcp(server: unknown): ItemDescriptor {
     const s = (server ?? {}) as Record<string, unknown>
-    const transport = s.transport === "http" ? "http" : "stdio"
+    const connection =
+        s.connection && typeof s.connection === "object"
+            ? (s.connection as Record<string, unknown>)
+            : {}
     const name = typeof s.name === "string" && s.name ? (s.name as string) : "MCP server"
-    const detailField = transport === "http" ? s.url : s.command
     return {
         name,
-        description: typeof detailField === "string" ? detailField : undefined,
+        description: typeof connection.url === "string" ? connection.url : undefined,
         mono: "",
         color: "#2563eb",
         icon: <Plugs size={15} weight="fill" />,
-        tags: [transport],
+        tags: ["HTTP"],
         typeLabel: "MCP server",
         typeColor: "cyan",
         subtitle: "Model Context Protocol server",

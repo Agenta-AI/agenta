@@ -180,15 +180,30 @@ describe("insecureEgressAllowed + validateUserMcpUrl bypass", () => {
   });
 
   it("reads the canonical flag and its deprecated aliases", () => {
-    assert.equal(insecureEgressAllowed(), false, "unset -> false");
-    process.env.AGENTA_INSECURE_EGRESS_ALLOWED = "true";
-    assert.equal(insecureEgressAllowed(), true, "canonical true");
+    assert.equal(insecureEgressAllowed(), true, "unset -> true (permissive default)");
+    process.env.AGENTA_INSECURE_EGRESS_ALLOWED = "false";
+    assert.equal(insecureEgressAllowed(), false, "canonical false hardens");
     delete process.env.AGENTA_INSECURE_EGRESS_ALLOWED;
-    process.env.AGENTA_WEBHOOK_ALLOW_INSECURE = "yes";
-    assert.equal(insecureEgressAllowed(), true, "deprecated alias true");
+    process.env.AGENTA_WEBHOOK_ALLOW_INSECURE = "0";
+    assert.equal(insecureEgressAllowed(), false, "deprecated alias false hardens");
   });
 
-  it("blocks http and private MCP hosts when egress is restricted (default)", async () => {
+  it("agrees with the Python side: unset is permissive, explicit false hardens", () => {
+    // Mirrors api/oss/src/utils/env.py's WebhooksConfig.allow_insecure default (`or "true"`).
+    assert.equal(insecureEgressAllowed(), true, "unset -> permissive on both sides");
+    for (const falsy of ["false", "0", "no", "off"]) {
+      process.env.AGENTA_INSECURE_EGRESS_ALLOWED = falsy;
+      assert.equal(insecureEgressAllowed(), false, `"${falsy}" -> hardened`);
+    }
+  });
+
+  it("allows http and private MCP hosts when egress is unrestricted (default)", async () => {
+    assert.equal(await validateUserMcpUrl("http://example.com/sse"), undefined);
+    assert.equal(await validateUserMcpUrl("http://127.0.0.1/sse"), undefined);
+  });
+
+  it("blocks http and private MCP hosts when egress is explicitly restricted", async () => {
+    process.env.AGENTA_INSECURE_EGRESS_ALLOWED = "false";
     assert.match(
       (await validateUserMcpUrl("http://example.com/sse")) ?? "",
       /must use https/,
@@ -199,13 +214,8 @@ describe("insecureEgressAllowed + validateUserMcpUrl bypass", () => {
     );
   });
 
-  it("allows http and private MCP hosts when egress is unrestricted", async () => {
-    process.env.AGENTA_INSECURE_EGRESS_ALLOWED = "true";
-    assert.equal(await validateUserMcpUrl("http://example.com/sse"), undefined);
-    assert.equal(await validateUserMcpUrl("http://127.0.0.1/sse"), undefined);
-  });
-
   it("surfaces a DNS-resolution failure distinctly from an SSRF block", async () => {
+    process.env.AGENTA_INSECURE_EGRESS_ALLOWED = "false";
     dnsLookupMock.mockRejectedValue(new Error("ENOTFOUND"));
     const msg = (await validateUserMcpUrl("https://nope.invalid/sse")) ?? "";
     assert.match(msg, /could not be resolved/);

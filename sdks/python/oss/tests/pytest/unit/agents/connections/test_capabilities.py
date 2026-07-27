@@ -16,6 +16,7 @@ from agenta.sdk.agents.capabilities import (
     PI_VAULT_PROVIDERS,
     harness_allows_deployment,
     harness_allows_mode,
+    harness_allows_pair,
     harness_allows_provider,
     harness_capabilities_document,
 )
@@ -70,11 +71,40 @@ def test_two_modes_supported_on_all_known_harnesses():
     assert harness_allows_mode("pi_core", "bogus") is False
 
 
-def test_pi_only_consumes_direct_deployment_in_v1():
+def test_pi_consumes_direct_and_custom_deployment_in_v1():
+    # Pi now publishes `custom` (the OpenAI-compatible surface) alongside `direct` so the UI can
+    # surface those connections. The cloud surfaces remain unconsumed in v1. The openai-only
+    # pairing on `custom` is enforced by `harness_allows_pair`, not this per-axis list.
     for harness in ("pi_core", "pi_agenta"):
         assert harness_allows_deployment(harness, "direct") is True
-        for deployment in ("custom", "bedrock", "vertex_ai", "azure"):
+        assert harness_allows_deployment(harness, "custom") is True
+        for deployment in ("bedrock", "vertex_ai", "azure"):
             assert harness_allows_deployment(harness, deployment) is False
+
+
+def test_resolved_pair_validation_matches_decision_3_table():
+    # Every row of design Decision 3's allowed-pairs table.
+    for harness in ("pi_core", "pi_agenta"):
+        # Pi + openai + direct/custom -> allowed.
+        assert harness_allows_pair(harness, "openai", "direct") is True
+        assert harness_allows_pair(harness, "openai", "custom") is True
+        # Pi + an arbitrary family + custom -> rejected (custom is openai-only for Pi), even for
+        # a family Pi otherwise reaches directly (anthropic).
+        assert harness_allows_pair(harness, "anthropic", "custom") is False
+        assert harness_allows_pair(harness, "anything-custom", "custom") is False
+        # A family Pi cannot reach at all is rejected on any deployment.
+        assert harness_allows_pair(harness, "anything-custom", "direct") is False
+
+    # Claude + anthropic + direct/custom -> allowed; the cloud surfaces it consumes too.
+    for deployment in ("direct", "custom", "bedrock", "vertex_ai", "vertex"):
+        assert harness_allows_pair("claude", "anthropic", deployment) is True
+    # Claude + openai + custom -> rejected (Claude reaches anthropic only).
+    assert harness_allows_pair("claude", "openai", "custom") is False
+    assert harness_allows_pair("claude", "openai", "direct") is False
+
+    # Unknown harness -> rejected for any pair (closed, not permissive).
+    assert harness_allows_pair("some-future-harness", "openai", "direct") is False
+    assert harness_allows_pair("some-future-harness", "openai", "custom") is False
 
 
 def test_claude_consumes_custom_gateway_bedrock_and_vertex():
@@ -92,7 +122,7 @@ def test_capabilities_document_shape():
         PI_SUBSCRIPTION_PROVIDERS
     )
     assert doc["pi_core"]["connection_modes"] == ["agenta", "self_managed"]
-    assert doc["pi_core"]["deployments"] == ["direct"]
+    assert doc["pi_core"]["deployments"] == ["direct", "custom"]
     assert doc["claude"]["deployments"] == [
         "direct",
         "custom",
@@ -100,6 +130,14 @@ def test_capabilities_document_shape():
         "vertex_ai",
         "vertex",
     ]
+    assert doc["claude"]["mcp"] == {
+        "user_servers": {
+            "connection_types": ["http"],
+            "credentials": ["none", "header_secret_refs"],
+        }
+    }
+    assert "mcp" not in doc["pi_core"]
+    assert "mcp" not in doc["pi_agenta"]
 
 
 def test_every_harness_publishes_a_models_map():
@@ -142,9 +180,10 @@ def test_claude_models_are_the_alias_set_under_anthropic():
     models = HARNESS_CONNECTION_CAPABILITIES["claude"].models
     assert set(models) == {"anthropic"}
     assert models["anthropic"] == list(CLAUDE_MODEL_ALIASES)
-    # Aliases, not provider-prefixed ids.
-    assert "opus" in models["anthropic"]
+    # Exact harness config values, not provider-prefixed ids or friendly aliases.
     assert "opus[1m]" in models["anthropic"]
+    assert "claude-fable-5" in models["anthropic"]
+    assert "fable" not in models["anthropic"]
     assert all("/" not in alias for alias in models["anthropic"])
 
 

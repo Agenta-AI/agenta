@@ -60,8 +60,8 @@ def test_retrieve_interface_matches_what_inspect_advertises():
 
 
 def test_rebuilding_the_app_keeps_the_binding_stable():
-    # A second build in the same process must not break the binding (the handler register is a
-    # setdefault, the interface override is idempotent). The acceptance criteria still hold.
+    # A second build in the same process must not break the binding (the handler register
+    # REPLACES, like the interface override, so a rebuild is idempotent).
     app.create_agent_app()
     assert retrieve_handler(_AGENT_URI) is not None
     interface = retrieve_interface(_AGENT_URI)

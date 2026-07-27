@@ -5,10 +5,8 @@ import type {
 } from "../../protocol.ts";
 import {
   buildToolMcpServers,
-  USER_MCP_UNSUPPORTED_MESSAGE,
 } from "../../tools/mcp-bridge.ts";
 import type { ClientToolRelay } from "../../tools/client-tool-relay.ts";
-import { executableToolSpecs } from "../../tools/public-spec.ts";
 // The shim's env contract, from the dependency-free names module — never from the shim's
 // bundle entrypoint (`tool-mcp-stdio.ts`), which server code must not import.
 import {
@@ -194,63 +192,28 @@ export async function validateUserMcpUrl(
   return undefined;
 }
 
-/**
- * Convert USER-declared MCP servers into ACP entries. (This is the USER MCP capability layer —
- * distinct from the INTERNAL gateway-tool channel below; see `buildSessionMcpServers`.)
- *
- * - HTTP (`transport: "http"` + `url`) is ENABLED. A remote server has no child process on the
- *   runner host: the harness connects to the URL and the named secret rides in a request header,
- *   so it does not bypass the sandbox boundary the way a stdio child does. The resolved secret
- *   arrives on the `/run` wire in the server's `env` map (the SDK resolver merges named secrets
- *   into `env` regardless of transport, and the wire has no separate `headers` field), so each
- *   `env` entry is emitted as an HTTP header (`Authorization: <token>`, etc.). The author names
- *   the header via the secret-map key, exactly as a stdio server names its env var.
- * - STDIO (`transport: "stdio"` + `command`) is DISABLED. A stdio MCP server launches an
- *   arbitrary process on the runner host, outside the sandbox boundary, so the implementation is
- *   disabled (parity with the removed code execution) until its security is fixed. The wire shape
- *   (`McpServerConfig`) is kept, but a stdio server throws `USER_MCP_UNSUPPORTED_MESSAGE` rather
- *   than being delivered.
- * - A server that is neither a valid http (no `url`) nor a valid stdio (no `command`) is skipped
- *   with a log — it was never deliverable.
- * - An http `url` that fails the SSRF guard (`validateUserMcpUrl`: non-https, or an
- *   internal/metadata host) throws, so a credentialed request is never sent to an internal sink.
- */
+/** Convert external HTTP MCP servers into Claude ACP session entries. */
 export async function toAcpMcpServers(
   servers: McpServerConfig[] | undefined,
   log: Log = () => {},
 ): Promise<McpServerEntry[]> {
   const out: McpServerEntry[] = [];
   for (const s of servers ?? []) {
-    const transport = s.transport ?? "stdio";
-
-    if (transport === "http") {
-      if (!s.url) {
-        log(`skipping http MCP server '${s?.name ?? "?"}' (no url)`);
-        continue;
-      }
-      // SSRF guard: the resolved named secret rides as a header on this author-supplied URL, so
-      // reject a non-https / internal / metadata target before any credential is attached.
-      const urlError = await validateUserMcpUrl(s.url);
-      if (urlError) throw new Error(urlError);
-      out.push({
-        type: "http",
-        name: s.name,
-        url: s.url,
-        headers: Object.entries(s.env ?? {}).map(([name, value]) => ({
-          name,
-          value,
-        })),
-      });
+    const url = s.connection?.url;
+    if (!url) {
+      log(`skipping HTTP MCP server '${s?.name ?? "?"}' (no URL)`);
       continue;
     }
-
-    // stdio: a command-less server was never launched, so it stays a skipped no-op; a real
-    // stdio server is disabled and fails loud.
-    if (!s.command) {
-      log(`skipping stdio MCP server '${s?.name ?? "?"}' (no command)`);
-      continue;
-    }
-    throw new Error(USER_MCP_UNSUPPORTED_MESSAGE);
+    const urlError = await validateUserMcpUrl(url);
+    if (urlError) throw new Error(urlError);
+    out.push({
+      type: "http",
+      name: s.name,
+      url,
+      headers: Object.entries(s.connection.headers ?? {}).map(
+        ([name, value]) => ({ name, value }),
+      ),
+    });
   }
   return out;
 }
@@ -303,17 +266,20 @@ export interface SessionMcpServers {
  *
  * TWO INDEPENDENT LAYERS — do not merge their gates (the #4831 regression this fixed conflated
  * them into one switch; project gateway-tool-mcp):
- *  1. INTERNAL gateway-tool channel: the runner-synthesized advertisement of the run's resolved
- *     gateway/callback tools. Carries only public metadata; execution relays server-side. Two
+ *  1. INTERNAL tool channel: the runner-synthesized advertisement of the run's resolved tools —
+ *     gateway/callback tools AND browser-fulfilled `client` tools (the model must SEE a client
+ *     tool to call it; the call then parks). Carries only public metadata; execution relays
+ *     server-side (a `client` call parks rather than executing). Two
  *     transports by where the harness runs: LOCAL keeps the loopback HTTP MCP server
  *     (`buildToolMcpServers`); on DAYTONA the harness runs IN the sandbox (where `127.0.0.1`
  *     is the sandbox's loopback, not the runner's), so the channel is the uploaded in-sandbox
  *     stdio MCP shim instead (`buildInternalToolMcpEntry`, fed by `uploadToolMcpAssets` — its
- *     `tools/call` writes relay request files the runner-side loop executes). Daytona WITHOUT
- *     uploaded shim assets means no delivery path; `run-plan.ts` refuses undeliverable
- *     combinations (non-Daytona remotes, client tools on Daytona) before a session is ever
- *     built, and the log below states honestly whether an advertisement happened — it must
- *     never claim a delivery that isn't happening (the F1 false log).
+ *     `tools/call` writes relay request files the runner-side loop executes; a `client` tool
+ *     parks and the loop writes a benign paused answer). Daytona WITHOUT uploaded shim assets
+ *     means no delivery path; `run-plan.ts` refuses the one still-undeliverable combination (a
+ *     non-Daytona remote provider) before a session is ever built, and the log below states
+ *     honestly whether an advertisement happened — it must never claim a delivery that isn't
+ *     happening (the F1 false log).
  *  2. USER MCP capability (`toAcpMcpServers`): the user's own declared servers — stdio DISABLED,
  *     http delivered (#4834). UNCHANGED on every sandbox: a user http MCP is a REMOTE url the
  *     harness dials directly (not a runner loopback), so it stays reachable from a Daytona sandbox.
@@ -356,9 +322,10 @@ export async function buildSessionMcpServers({
   //    as the internal TYPELESS stdio entry instead — the in-sandbox harness launches the
   //    uploaded `tool-mcp-stdio.js`, which writes relay request files the runner-side relay
   //    loop executes (the loop already polls the sandbox FS; see `engines/sandbox_agent.ts`).
-  //    Only executable specs ride this channel (client tools have no pause path through the
-  //    shim; `run-plan.ts` refuses them on this path). Without uploaded assets there is no
-  //    delivery path and the honest no-channel log below fires.
+  //    BOTH executable and client specs ride this channel: an executable call relays inline,
+  //    a client call parks and the relay writes a benign paused answer so the shim ends its
+  //    `tools/call` cleanly while the runner ends the turn (see `startToolRelay`). Without
+  //    uploaded assets there is no delivery path and the honest no-channel log below fires.
   let internal: SessionMcpServers;
   if (!isDaytona) {
     internal = await buildToolMcpServers(toolSpecs, relayDir, {
@@ -366,7 +333,7 @@ export async function buildSessionMcpServers({
       signal,
       log,
     });
-  } else if (internalToolMcp && executableToolSpecs(toolSpecs).length > 0) {
+  } else if (internalToolMcp && toolSpecs.length > 0) {
     internal = {
       servers: [buildInternalToolMcpEntry(internalToolMcp, relayDir)],
       close: async () => {},
@@ -375,9 +342,11 @@ export async function buildSessionMcpServers({
     internal = { servers: [], close: async () => {} };
   }
   if (isDaytona && toolSpecs.length > 0) {
+    // Count every advertised tool, executable and client alike: both kinds now ride the shim
+    // (executable tools relay inline; a client tool parks and resolves via the paused answer).
     log(
       internal.servers.length > 0
-        ? `daytona: ${executableToolSpecs(toolSpecs).length} gateway tool(s) advertised via ` +
+        ? `daytona: ${toolSpecs.length} tool(s) advertised via ` +
             `the in-sandbox stdio MCP shim (the loopback MCP URL is unreachable from the sandbox)`
         : `daytona: ${toolSpecs.length} tool(s) NOT advertised (no in-sandbox tool MCP assets ` +
             `for this harness — run-plan should have refused this run)`,

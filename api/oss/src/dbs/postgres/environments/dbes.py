@@ -37,11 +37,6 @@ class EnvironmentArtifactDBE(Base, ProjectScopeDBA, ArtifactDBA):
             ondelete="SET NULL",
         ),
         Index(
-            "ix_environment_artifacts_project_id_slug",
-            "project_id",
-            "slug",
-        ),
-        Index(
             "ix_environment_artifacts_folder_id",
             "folder_id",
         ),
@@ -69,11 +64,6 @@ class EnvironmentVariantDBE(Base, ProjectScopeDBA, VariantDBA):
             ["project_id", "artifact_id"],
             ["environment_artifacts.project_id", "environment_artifacts.id"],
             ondelete="CASCADE",
-        ),
-        Index(
-            "ix_environment_variants_project_id_slug",
-            "project_id",
-            "slug",
         ),
         Index(
             "ix_environment_variants_project_id_artifact_id",
@@ -117,11 +107,6 @@ class EnvironmentRevisionDBE(Base, ProjectScopeDBA, RevisionDBA):
             ["project_id", "variant_id"],
             ["environment_variants.project_id", "environment_variants.id"],
             ondelete="CASCADE",
-        ),
-        Index(
-            "ix_environment_revisions_project_id_slug",
-            "project_id",
-            "slug",
         ),
         Index(
             "ix_environment_revisions_project_id_artifact_id",
