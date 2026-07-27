@@ -291,6 +291,20 @@ export function approvalDecisionForToolCall(
 }
 
 /**
+ * True when the request carries exactly its own fresh user turn and no prior conversation —
+ * what a last-message-only client sends. The single predicate both sides agree on: the runner
+ * reconstructs prior turns only for such a request, and the keep-alive check skips its history
+ * comparison for one, because the client is no longer asserting the conversation at all.
+ *
+ * A message count alone is NOT enough: turn one of any conversation is also a single message,
+ * and a lone assistant message or an empty array are neither a fresh turn nor a full history.
+ */
+export function carriesMinimalHistory(request: AgentRunRequest): boolean {
+  const messages = request.messages ?? [];
+  return messages.length === 1 && tailIsFreshUserMessage(request);
+}
+
+/**
  * True when the request's tail is a fresh user message with text and NOT an approval envelope.
  * A continuation only takes the live path for a plain new user turn; an approval reply (a
  * trailing tool-role message, or a user turn carrying a tool_result) stays cold here.

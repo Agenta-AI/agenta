@@ -34,9 +34,9 @@ const PostSignupHeader = ({orgs}: PostSignupHeaderProps) => {
             <ListOfOrgs
                 collapsed={false}
                 interactive={true}
-                orgSelectionEnabled={false}
+                organizationSelectionEnabled={false}
                 buttonProps={{className: "w-[236px] !p-1 !h-10 rounded"}}
-                overrideOrgId={overrideOrgId}
+                overrideOrganizationId={overrideOrgId}
             />
         </section>
     )

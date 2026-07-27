@@ -1,7 +1,7 @@
 import {type FC, memo, useCallback, useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {createEvaluatorFromTemplate} from "@agenta/entities/workflow"
+import {createEvaluatorFromTemplate, type EvaluatorCatalogTemplate} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {CloseCircleOutlined} from "@ant-design/icons"
 import {Input, Tabs, Tag, Typography} from "antd"
@@ -11,7 +11,6 @@ import dynamic from "next/dynamic"
 
 import {openHumanEvaluatorDrawerAtom} from "@/oss/components/Evaluators/Drawers/HumanEvaluatorDrawer/store"
 import useFocusInput from "@/oss/hooks/useFocusInput"
-import type {Evaluator} from "@/oss/lib/Types"
 import {openEvaluatorDrawerAtom} from "@/oss/state/evaluator/evaluatorDrawerStore"
 
 import TabLabel from "../assets/TabLabel"
@@ -119,7 +118,8 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
 
     // Handler for opening the evaluator creation drawer with embedded playground
     const handleSelectTemplate = useCallback(
-        async (evaluator: Evaluator) => {
+        // EvaluatorTemplateDropdown (via SelectEvaluatorSection) emits catalog templates
+        async (evaluator: EvaluatorCatalogTemplate) => {
             const templateKey = evaluator.key
             if (!templateKey) {
                 message.error("Unable to open evaluator template")
@@ -377,7 +377,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                 activeKey={activePanel || "appPanel"}
                 onChange={handlePanelChange as any}
                 items={items}
-                tabPlacement="left"
+                tabPlacement="start" // antd 6 logical value; "start" === "left" (app is LTR-only)
                 className={clsx([
                     tabsContainerClass,
                     "[&_.ant-tabs-tab]:!p-2 [&_.ant-tabs-tab]:!mt-1",

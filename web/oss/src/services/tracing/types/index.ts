@@ -104,6 +104,8 @@ export interface TraceSpanNode extends TraceSpan {
         span_id: string
     }
     children?: TraceSpan[]
+    /** Attached by the trace/session drawer stores when annotation data is loaded */
+    annotations?: import("@/oss/lib/hooks/useAnnotations/types").AnnotationDto[]
 }
 
 // --- RESPONSE WRAPPER --------------------------------------------------------

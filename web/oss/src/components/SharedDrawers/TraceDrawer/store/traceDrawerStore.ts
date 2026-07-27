@@ -14,7 +14,7 @@ import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {getNodeById, observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
 import {queryAllAnnotations} from "@/oss/services/annotations/api"
 import {AgentaTreeDTO, TracesWithAnnotations} from "@/oss/services/observability/types"
-import {SpanLink, TracesResponse} from "@/oss/services/tracing/types"
+import {SpanLink, TracesResponse, type TraceSpanNode} from "@/oss/services/tracing/types"
 import {getOrgValues} from "@/oss/state/org"
 import {projectIdAtom} from "@/oss/state/project"
 
@@ -539,10 +539,10 @@ export const traceDrawerIsLinkedViewAtom = atom((get) => {
 
 // ------------------------------------------------------------------
 
-const getReferences = (trace: TracesWithAnnotations) => {
+const getReferences = (trace: TracesWithAnnotations | TraceSpanNode | undefined) => {
     const allReferences: {key?: string; value: Record<string, any>}[] = []
 
-    const traverseObject = (obj: Record<string, any>, path = "") => {
+    const traverseObject = (obj: Record<string, any> | undefined, path = "") => {
         if (!obj || typeof obj !== "object") return
 
         for (const key in obj) {
@@ -603,8 +603,8 @@ const getReferences = (trace: TracesWithAnnotations) => {
 
 // Linked spans and reference metadata for the currently active span.
 export const linksAndReferencesAtom = atom<{
-    links: Record<string, any>[]
-    references: Record<string, any>[]
+    links?: Record<string, any>[]
+    references?: Record<string, any>[]
 }>((get) => {
     const activeSpanId = get(traceDrawerActiveSpanIdAtom)
     if (!activeSpanId) return {}
