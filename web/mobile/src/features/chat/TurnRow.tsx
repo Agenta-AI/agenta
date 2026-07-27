@@ -37,7 +37,7 @@ export const TurnRow = ({turn}: {turn: TurnViewModel}) => (
                                         key={part.toolCallId ?? `${item.index}-${i}`}
                                         className="text-muted-foreground text-xs"
                                     >
-                                        {partToolName(part)} — {part.state}
+                                        {partToolName(part)} — {part.state ?? "pending"}
                                         {summary ? ` · ${summary}` : ""}
                                     </p>
                                 )

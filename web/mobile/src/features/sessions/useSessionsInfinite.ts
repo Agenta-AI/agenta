@@ -18,6 +18,9 @@ export const useSessionsInfinite = (projectId: string, search: string) =>
                 limit: PAGE_SIZE,
                 next: pageParam?.next,
                 newest: pageParam?.newest,
+                // Server-side filter: an all-archived first page would otherwise
+                // render "No sessions." while live rows sit behind the cursor.
+                includeArchived: false,
                 abortSignal: signal,
             }),
         getNextPageParam: (lastPage): SessionsCursor | undefined => {

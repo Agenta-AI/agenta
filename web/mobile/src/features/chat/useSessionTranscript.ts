@@ -13,15 +13,18 @@ export const useSessionTranscript = (sessionId: string) => {
     const [state, setState] = useState<"loading" | "ready" | "empty">("loading")
     useEffect(() => {
         let cancelled = false
+        let refreshed = false
         setState("loading")
         setMessages([])
         void loadSessionMessages(sessionId, (fresh) => {
             // Disk-restore revalidation re-delivery — fresh is non-empty by contract.
             if (cancelled) return
+            refreshed = true
             setMessages(fresh)
             setState("ready")
         }).then((msgs) => {
-            if (cancelled) return
+            // A fast revalidation can beat this one-shot resolve; never clobber it.
+            if (cancelled || refreshed) return
             setMessages(msgs ?? [])
             setState(msgs && msgs.length > 0 ? "ready" : "empty")
         })
