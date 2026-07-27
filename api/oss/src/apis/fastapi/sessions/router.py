@@ -639,10 +639,15 @@ class InteractionsRouter:
         interactions_service: SessionInteractionsService,
         workflows_service: WorkflowsService,
         respond_task: Optional[Any] = None,
+        # InteractionsDispatcher (typed loosely, like respond_task: the API layer does not
+        # import the tasks layer). When present, the no-worker respond fallback goes through
+        # it so both paths share ONE answer-composition implementation.
+        interactions_dispatcher: Optional[Any] = None,
     ) -> None:
         self.interactions_service = interactions_service
         self.workflows_service = workflows_service
         self.respond_task = respond_task
+        self.interactions_dispatcher = interactions_dispatcher
 
         self.router = APIRouter()
 
@@ -910,13 +915,21 @@ class InteractionsRouter:
                 detail="Interaction is no longer pending",
             )
 
-        # Enqueue onto the interactions worker when wired; otherwise fall back to an
-        # inline blocking invoke (keeps the route usable in minimal/test compositions).
+        # Enqueue onto the interactions worker when wired; otherwise fall back to the
+        # dispatcher directly (same answer composition, fired in-process), or as a last
+        # resort an inline blocking invoke (keeps minimal/test compositions usable).
         if self.respond_task is not None:
             await self.respond_task.kiq(
                 project_id=str(project_id),
                 user_id=str(user_id),
                 interaction_id=str(interaction_id),
+                answer=answer,
+            )
+        elif self.interactions_dispatcher is not None:
+            await self.interactions_dispatcher.respond(
+                project_id=UUID(str(project_id)),
+                user_id=UUID(str(user_id)),
+                interaction_id=interaction_id,
                 answer=answer,
             )
         else:
@@ -1672,6 +1685,7 @@ class SessionsRouter:
         turns_service: SessionTurnsService,
         sessions_service: SessionsService,
         respond_task: Optional[Any] = None,
+        interactions_dispatcher: Optional[Any] = None,
     ) -> None:
         self.streams = SessionStreamsRouter(
             service=streams_service,
@@ -1682,6 +1696,7 @@ class SessionsRouter:
             interactions_service=interactions_service,
             workflows_service=workflows_service,
             respond_task=respond_task,
+            interactions_dispatcher=interactions_dispatcher,
         )
         self.attachments = SessionAttachmentsRouter(
             attachments_service=attachments_service,
