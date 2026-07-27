@@ -11,6 +11,7 @@ import {useLivenessPoll} from "../sessions/useLivenessPoll"
 import {ChatHeader} from "./ChatHeader"
 import {ChatEmpty, ChatLoading} from "./states/ChatStates"
 import {TurnRow} from "./TurnRow"
+import {useApprovalActions} from "./useApprovalActions"
 import {useSessionTranscript} from "./useSessionTranscript"
 
 /** Read-only replay screen — mount it with `key={sessionId}` so per-session state resets. */
@@ -32,7 +33,10 @@ export const ChatScreen = ({
         liveness.data?.find((s) => s.session_id === sessionId)?.flags?.is_running,
     )
     const pendingCount = useMemo(() => getPendingApprovals(messages).length, [messages])
-    const nextPollMs = pendingCount > 0 || running ? 7_500 : 0
+    const approvals = useApprovalActions({sessionId, projectId, pendingCount})
+    // ~4s while a fired decision settles (fire-and-forget — records carry the resume).
+    const nextPollMs =
+        approvals.phase === "resuming" ? 4_000 : pendingCount > 0 || running ? 7_500 : 0
     if (nextPollMs !== pollMs) setPollMs(nextPollMs)
     // One identity cache per session mount (the screen is keyed by sessionId).
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -53,7 +57,12 @@ export const ChatScreen = ({
                 {turns
                     .filter((turn) => !turn.hidden)
                     .map((turn) => (
-                        <TurnRow key={turn.message.id} turn={turn} />
+                        <TurnRow
+                            key={turn.message.id}
+                            turn={turn}
+                            approvalActions={approvals}
+                            pendingApprovals={pendingCount}
+                        />
                     ))}
             </div>
         )

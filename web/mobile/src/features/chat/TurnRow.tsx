@@ -1,9 +1,19 @@
 import {partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 
 import {ApprovalCard} from "./ApprovalCard"
+import type {ApprovalActions} from "./useApprovalActions"
 
 /** One transcript turn: raw aligned text parts, one-line tool summaries, raw error line. */
-export const TurnRow = ({turn}: {turn: TurnViewModel}) => (
+export const TurnRow = ({
+    turn,
+    approvalActions,
+    pendingApprovals = 0,
+}: {
+    turn: TurnViewModel
+    /** Resume actions for pending-approval cards (absent = read-only cards). */
+    approvalActions?: ApprovalActions
+    pendingApprovals?: number
+}) => (
     <div className={`flex ${turn.isUser ? "justify-end" : "justify-start"}`}>
         <div
             className={`flex max-w-[85%] flex-col gap-1 ${turn.isUser ? "items-end" : "items-start"}`}
@@ -35,11 +45,16 @@ export const TurnRow = ({turn}: {turn: TurnViewModel}) => (
                             {item.parts.map((part, i) => {
                                 const key = part.toolCallId ?? `${item.index}-${i}`
                                 if (part.state === "approval-requested") {
+                                    const approvalId = (part as {approval?: {id?: string}}).approval
+                                        ?.id
                                     return (
                                         <ApprovalCard
                                             key={key}
                                             toolName={partToolName(part)}
                                             input={part.input}
+                                            approvalId={approvalId}
+                                            pendingCount={pendingApprovals}
+                                            actions={approvalActions}
                                         />
                                     )
                                 }
