@@ -24,8 +24,10 @@ export const TurnRow = ({
                         return (
                             <p
                                 key={item.index}
-                                className={`whitespace-pre-wrap rounded-lg px-3 py-2 text-xs ${
-                                    turn.isUser ? "bg-primary text-primary-foreground" : "bg-muted"
+                                className={`whitespace-pre-wrap text-xs ${
+                                    // Desktop parity: only user messages get a bubble, and the
+                                    // brand accent stays reserved for CTAs — muted fill here.
+                                    turn.isUser ? "bg-muted rounded-lg px-3 py-2" : ""
                                 }`}
                             >
                                 {item.part.text}
