@@ -259,3 +259,13 @@ domain layering per api/AGENTS.md.
    is strictly simpler and the badges' polls are cheap; folding lifecycle in later means
    either a second event type on the same channel (easy) or a project-wide channel for list
    badges (new naming decision).
+
+## 5. Decisions (Arda, 2026-07-27)
+
+1. **Paragraph-level (~1-2s) change-notification SSE: YES** for the current iteration.
+   Token-by-token streaming (runner Redis client + per-delta publishing) stays rejected —
+   revisit only if a future product need demands cursor-level liveness on mobile.
+2. **Lifecycle events on the same channel: YES** — the watch stream also carries turn
+   lifecycle (running/ended/approval-pending), so mobile retires all three polls
+   (records tick, liveness, actionable-interactions) in favor of one EventSource; the
+   polls remain as the documented no-regression fallback when the stream is down.
