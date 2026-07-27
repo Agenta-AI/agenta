@@ -82,4 +82,33 @@ describe("nextCronRuns", () => {
     it("returns an empty list for an invalid expression", () => {
         expect(nextCronRuns("nope", 3)).toEqual([])
     })
+
+    it("unions day-of-month and day-of-week when both are restricted", () => {
+        // `0 0 1 * 1` = midnight on the 1st OR on any Monday (POSIX cron / the
+        // backend croniter). 2026-06-22 is a Monday, so the next fires are the
+        // following Monday, then the 1st, then the next Monday — NOT the rare
+        // 1st-of-month-that-is-also-a-Monday (which would be 2027-02-01).
+        const from = new Date("2026-06-22T08:00:00Z")
+        const runs = nextCronRuns("0 0 1 * 1", 3, from)
+
+        expect(runs.map((r) => r.toISOString())).toEqual([
+            "2026-06-29T00:00:00.000Z", // Monday
+            "2026-07-01T00:00:00.000Z", // 1st of the month
+            "2026-07-06T00:00:00.000Z", // Monday
+        ])
+    })
+
+    it("keeps plain AND semantics when only one day field is restricted", () => {
+        const from = new Date("2026-06-22T08:00:00Z")
+        // Only day-of-month restricted: every 1st of the month.
+        expect(nextCronRuns("0 0 1 * *", 2, from).map((r) => r.toISOString())).toEqual([
+            "2026-07-01T00:00:00.000Z",
+            "2026-08-01T00:00:00.000Z",
+        ])
+        // Only day-of-week restricted: every Monday.
+        expect(nextCronRuns("0 0 * * 1", 2, from).map((r) => r.toISOString())).toEqual([
+            "2026-06-29T00:00:00.000Z",
+            "2026-07-06T00:00:00.000Z",
+        ])
+    })
 })

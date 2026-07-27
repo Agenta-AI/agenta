@@ -5,7 +5,7 @@ import {useAtomValue} from "jotai"
 import {formattedTimestampAtomFamily} from "@/oss/state/newObservability"
 
 interface Props {
-    timestamp?: string
+    timestamp?: string | number
 }
 
 const TimestampCell = memo(({timestamp}: Props) => {

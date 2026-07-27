@@ -405,7 +405,7 @@ export function useAnnotationState({
             const slug = evaluator.slug
             if (!slug) continue
 
-            const requiredKeys: string[] = getOutputsSchema(evaluator)?.required ?? []
+            const requiredKeys = (getOutputsSchema(evaluator)?.required ?? []) as string[]
 
             if (requiredKeys.length === 0) continue
 
@@ -515,7 +515,8 @@ export function useAnnotationState({
             if (!slug || map[slug]) continue // Skip if already found
 
             // Check if annotation has a step reference
-            const stepKey = ann.references?.step?.key
+            // `references` is declared with only `evaluator`; step refs exist on the raw payload.
+            const stepKey = (ann.references as {step?: {key?: string}} | undefined)?.step?.key
             if (stepKey) {
                 map[slug] = stepKey
             }

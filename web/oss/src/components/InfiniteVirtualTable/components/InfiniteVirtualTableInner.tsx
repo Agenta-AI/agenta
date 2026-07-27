@@ -525,8 +525,9 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         active,
     })
 
-    const mergedOnRow = useCallback(
-        (record: RecordType, index: number) => {
+    // Typed as antd's onRow so the merged props object stays assignable to TableProps<RecordType>.
+    const mergedOnRow = useCallback<NonNullable<TableProps<RecordType>["onRow"]>>(
+        (record, index) => {
             const baseOnRow = finalTableProps.onRow
             const baseProps = baseOnRow ? baseOnRow(record, index) : {}
             const shortcutProps = getShortcutRowProps
