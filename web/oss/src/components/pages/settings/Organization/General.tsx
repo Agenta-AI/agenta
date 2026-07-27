@@ -134,7 +134,13 @@ const OrganizationGeneral = () => {
     const handleDelete = useCallback(async () => {
         if (!organizationId || !isDeleteNameMatch) return
 
-        await deleteMutation.mutateAsync()
+        // antd hands onOk straight to the OK button's onClick, so a rejection here would
+        // escape as an unhandled promise; the mutation's onError already surfaces it.
+        try {
+            await deleteMutation.mutateAsync()
+        } catch {
+            return
+        }
         message.success("Organization deleted")
 
         // Latent: GET /organizations list omits default_workspace (details-only field) — typed as-is.
