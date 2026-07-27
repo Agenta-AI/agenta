@@ -50,18 +50,24 @@ stripped), matching `advertisedToolSpec()` in `services/runner/src/tools/public-
    > **Correction.** Drafts before 2026-07-26 (and the 2026-07-17 investigation they came from)
    > claimed "default off" and carried a 10,576-token alternate figure. That was wrong. There is no
    > alternate figure: `test_run` advertises unless someone opts out, so its 7,777 tokens — 42% of
-   > the bill — are real, and Slice 1's win is the full ~12,900.
+   > the bill — are real, and Phase 1's win is the full ~12,900.
 
-## Consequence for slicing
+## Consequence for phasing
 
 | lever | est. after | cut from 18,353 | risk |
 | --- | ---: | ---: | --- |
 | Schema diet on `commit_revision` + `test_run` | ~5,500 | ~70% | near-zero (see below) |
 | \+ trim `query_spans` filter DSL | ~2,970 | ~84% | low |
-| \+ discovery meta-toolset | ~400 | ~98% | **high** — see [security.md](security.md) |
+| \+ lazy schema | ~500 | ~97% | one projection function; no permission change |
+| \+ lazy activation | ~400 | ~98% | **out of scope** — per-harness transport work |
 
-The meta-toolset's *marginal* token win over a completed diet is ~2,600 tokens (~14% of the
-original bill). That is the number its risk must be weighed against — not the full 18,353.
+Two numbers decide the plan's shape:
+
+- **Lazy schema's marginal win over a completed diet is ~2,500 tokens (~13%)** at the cost of one
+  function in `public-spec.ts` — and it is structural, so catalog growth stops inflating the prompt.
+- **Lazy activation's marginal win over lazy schema is ~100 tokens**, which is why it is out of
+  scope ([alternatives.md](alternatives.md#3--lazy-activation-out-of-scope)). Its case is tool *count*
+  (wander), not tokens. Weigh its per-harness transport cost against wander evidence only.
 
 ## Why the diet is near-zero risk
 
@@ -77,11 +83,12 @@ mandatory reading**:
   embedded JSON Schema is not enforcing a server contract — it is model guidance that a
   better-written, on-demand doc already provides.
 
-What is genuinely lost by dieting: the harness's own pre-call JSON-Schema validation of the
-argument shape (Pi passes `inputSchema` to `registerTool({parameters})`,
-`services/runner/src/extensions/agenta.ts:305`). Malformed configs would surface as a server
-error instead of a pre-call harness error. Given the server does not validate the config shape
-anyway, this is a small change in *where* the error appears, not whether it is caught.
+**Required-argument checking is not lost.** The runner re-validates against the **private** spec
+before executing — `assertRequiredArguments(spec, req.args)` at `services/runner/src/tools/relay.ts:327`
+(client shape) and `:369` (endpoint and handler shapes). What moves is *where* a malformed call is
+caught: at the relay rather than pre-call in the harness (Pi passes `inputSchema` to
+`registerTool({parameters})`, `services/runner/src/extensions/agenta.ts:305`). Either way the model
+gets an error before anything executes.
 
 ## Reproducing
 
@@ -104,14 +111,3 @@ for name in OPS:
     print(f"{name:22} {n:>7}")
 print(f"{'TOTAL':22} {total:>7}")
 ```
-
-## Open measurement gap — prompt caching
-
-**Nothing in this project has measured whether these tokens are actually billed per turn.** Tool
-definitions are a stable prompt prefix, which is exactly what provider prompt caching targets, and
-both harnesses (Claude Code, Pi) run their own caching. `grep -ri "cache_control|prompt.cach"` over
-`services/runner/src` and `sdks/python/agenta/sdk/agents` returns nothing, so the runner neither
-sets nor inspects cache behavior — it is entirely the harness's.
-
-If the schemas are cached, the real cost is "18K once, a fraction thereafter", and the ROI of
-everything past the diet drops sharply. **Measure this before committing to the meta-toolset.**

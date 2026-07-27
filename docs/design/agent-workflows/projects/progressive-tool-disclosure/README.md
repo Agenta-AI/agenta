@@ -1,59 +1,95 @@
 # Cheaper platform tools in the playground build kit
 
-Status: PLANNING — design workspace only, no implementation.
-Date: 2026-07-20 · **Revised 2026-07-26** after a re-baseline and a code-grounded security review.
+Status: PLANNING — no implementation.
+Date: 2026-07-20 · Revised 2026-07-27.
 
-The playground advertises 13 platform-op schemas to the model on every turn — **18,353 tokens**
-measured — before the model has done anything. Every always-on tool is also a "wander target" that
-derails runs.
+The playground advertises 13 platform-op schemas on every turn — **18,353 tokens** measured — before
+the model does anything. Every always-on tool is also a wander target.
 
-**What the re-baseline changed.** Three ops are 88% of that bill, and a *single* schema object
-(`_build_agent_template_delta_schema`, 6,441 tokens, embedded in **two** ops) is 70% of it. The
-long tail of ten ops is 2,120 tokens combined. So the win is not spread across the catalog — it is
-concentrated in one duplicated object. See [baseline.md](baseline.md).
+## Strategy
 
-That reordered this project. The **schema diet** — originally a side-slice — is now the headline:
-~84% of the win, no runner change, no wire change, no permission change. The **discovery
-meta-toolset** — originally the headline — is a follow-up worth ~14% more, and it carries by far
-the highest risk in the project ([security.md](security.md)).
+**Diet the schemas, then make them lazy.** Two levers, that's it.
 
-## Decisions (locked)
+| Phase | Lever | From → to | Cut | Effort |
+| --- | --- | ---: | ---: | --- |
+| 1–2 | schema diet | 18,353 → ~3,000 | 84% | 1 Python file |
+| 3 | lazy schema | ~3,000 → ~500 | 97% | 1 runner function |
 
-- **Schema diet ships first, alone, and is independently valuable.** It is the bulk of the win at
-  near-zero risk. The replacement guidance (`references/config-schema.md`) already ships with the
-  skill and the skill already mandates reading it before `commit_revision`.
-- **The meta-toolset is deferred behind evidence**, not cancelled. Gate it on: a measured
-  post-diet baseline, an answer on prompt caching, and a demonstrated reliability problem that
-  fewer visible tools actually fixes.
-- **Seam for the meta-toolset = runner advertisement layer.** `advertisedToolSpecs` in
-  `services/runner/src/tools/public-spec.ts:57`, consumed at exactly two sites
-  (`pi-assets.ts:353`, `environment.ts:721`). Verified 2026-07-26.
-- **Permission fidelity is a four-site problem, not a one-line one.** See
-  [security.md](security.md). This is the project's dominant risk.
-- **Op-set curation is dropped, not deferred.** Hiding the 5-op event pack saves ~1,052 tokens
-  (~5%) and risks the agent being unable to schedule when a user pivots mid-conversation. Not
-  worth a capability regression. Revisit only with hard wander data.
-- **Skills are out of scope.** Already progressive (64-token announcement).
-- **Playground overlay only.** No change to any saved/committed agent.
-- **No commits during planning.** Implementation happens later on its own branch.
+Neither needs a permission change or transport work, and both land on all three harnesses at once.
+Details: [design.md](design.md) · [plan.md](plan.md).
 
-## Deliverables
+## The two levers are different things
 
-- [baseline.md](baseline.md) — **measured** per-op cost, the concentration finding, the caching gap.
-- [security.md](security.md) — what collapsing 13 ops behind one name breaks; the four gate sites.
-- [context.md](context.md) — problem, scope, non-goals, product language, success criteria.
-- [research.md](research.md) — the current advertise/execute path with `file:line`, and the seams.
-- [design.md](design.md) — the diet, then the meta-toolset; execution + permission path.
-- [plan.md](plan.md) — the sliced implementation plan, each slice with an exit check.
-- [status.md](status.md) — living source of truth: locked decisions, open questions, next action.
+| | the schema | the tool entry |
+| --- | --- | --- |
+| Diet | permanently shorter | present |
+| Lazy schema | fetched on request | present |
 
-## Intended outcome
+Both are token levers; the tool *count* is unchanged, so neither addresses wander.
 
-**After the diet (Slices 1–2):** a playground turn carries ~2,970 tokens of platform-op schema
-instead of 18,353, with every tool still visible, every schema still authoritative enough to call
-against, and not one line of permission code touched.
+## Lazy activation is out of scope
 
-**If the meta-toolset later clears its evidence bar (Slice 3):** the model sees two small platform
-tools instead of thirteen, a turn costs a low-hundreds constant that stays flat as the catalog
-grows, and every op still runs with its exact self-targeting binding and approval gate — with the
-four-site permission work done properly and tested per mutating op.
+Deferring the tool entry itself is the only lever that would reduce tool count — and it is **not in
+this plan** until explicitly asked for. It buys ~100 tokens over lazy schema, so its case rests
+entirely on wander, which is asserted rather than measured. It is also the only lever needing
+per-harness transport work: Pi has the API today, but Claude and Codex go over MCP and need
+`notifications/tools/list_changed` — which the local HTTP server cannot send at all, which the stdio
+shim would need re-plumbing to send, and which the pinned third-party ACP clients may ignore
+mid-turn. Full record:
+[alternatives.md](alternatives.md#3--lazy-activation-out-of-scope).
+
+## What the measurement changed
+
+Three ops are 88% of the bill, and one schema object embedded twice is 70% of it
+([baseline.md](baseline.md)). The cost is schema *depth*, not catalog *length* — which is why the
+diet, not the mechanism, is the delivery.
+
+## What the design review changed
+
+The original mechanism was a **card/menu invoker**: one `agenta_op(op, args)` tool proxying all 13
+ops. **Rejected 2026-07-27** — routing every op through one name breaks the permission ladder in
+four fail-closed sites where a missed site fails open.
+
+Eight strategies were weighed in total. All of them, with the win each would deliver and why the
+seven non-adopted ones are closed, are in one file: **[alternatives.md](alternatives.md)**.
+
+## Locked decisions
+
+- Diet ships first, alone.
+- Lazy schema is the mechanism. One projection site, all harnesses, real names.
+- Lazy activation is **out of scope** — not a later phase. Revisit only if asked for.
+- Discovery is **not** lazy — names and one-liners stay in the prompt.
+- Card/menu rejected, recorded, not to be re-proposed.
+- Op-set curation dropped: ~5% of tokens for a real capability regression.
+- Playground overlay only. No saved-agent change. No commits during planning.
+
+## Open questions
+
+Neither blocks the plan; both would only matter if lazy activation is ever asked for.
+
+1. **Wander evidence.** Is there measured evidence that tool *count* causes failures?
+2. **Does a client honor `list_changed` mid-turn?** Only matters if 1 comes back positive.
+
+## Corrections and closed items
+
+- **Handler flag "default off" — wrong.** It defaults **on** (`platform_tools.py:41`, unset and
+  empty both enable). All 13 ops advertise; 18,353 is live. *(CodeRabbit, 2026-07-26.)*
+- **"Malformed args become a server error" — overstated.** `assertRequiredArguments` runs
+  runner-side against the private spec (`relay.ts:327`, `:369`) before execution.
+- **Direct-`call` eligibility heuristic — wrong.** It missed handler-mode `test_run`, 42% of the
+  bill. Moot now: real names need no eligibility rule. *(CodeRabbit, 2026-07-26.)*
+- **Approval leak across ops — not real.** Grant and decision stores key on
+  `approvedCallKey(toolName, args)` — name **plus** args hash.
+- **In-sandbox stdio MCP — already ships.** `tool-mcp-stdio.ts`, bundled and uploaded for Daytona.
+  Earlier notes treated it as future work.
+- **"Disclosure inevitably breaks permission" — overstated.** Only the invoker did.
+
+## Docs
+
+- [baseline.md](baseline.md) — measured per-op cost and the concentration finding.
+- [context.md](context.md) — scope, glossary, success criteria.
+- [research.md](research.md) — how tools reach the model, with `file:line`.
+- [design.md](design.md) — the two levers, in full.
+- [plan.md](plan.md) — phases, each with its win and exit check.
+- [alternatives.md](alternatives.md) — **all 8 strategies, win comparison, and why the rejected ones
+  were rejected.**
