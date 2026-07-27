@@ -13,6 +13,8 @@ import {useRouter} from "next/router"
 import {agentFirstRunSeedAtom} from "@/oss/components/AgentChatSlice/state/firstRunSeed"
 import {urlAtom} from "@/oss/state/url"
 
+import {deriveAgentNameFromMessage} from "../assets/agentName"
+
 interface CreateAgentParams {
     /** Agent name; defaults to the ephemeral factory's name when omitted. */
     name?: string
@@ -62,7 +64,10 @@ export function useCreateAgent() {
             if (inFlightRef.current) return false
             inFlightRef.current = true
             try {
-                const agentName = name?.trim() || "New agent"
+                // Composer paths pass no name; naming from the seed keeps slugs distinguishable
+                // (the slug is minted from the name below and can't be changed afterwards).
+                const agentName =
+                    name?.trim() || deriveAgentNameFromMessage(seedMessage) || "New agent"
                 const ephemeralId =
                     entityId ??
                     (await createEphemeralAppFromTemplate({
