@@ -306,6 +306,23 @@ path for the "approve from the notification" dream, else it just opens the chat 
 7. **Always-allow:** desktop's "always allow this tool" is an app-layer config write-through —
    out of scope for mobile v1? (Approve-all within a turn IS in scope, M1.3.)
 
+## 4b. Decisions (Arda, 2026-07-27)
+
+1. **Stream ownership on mobile answer: ACCEPTED for v1.** ⚠️ **FOLLOW-UP (do not forget):
+   M3 live relay** is the durable fix — an open desktop must eventually live-update a turn
+   the phone resumed.
+2. **Fire-and-forget on approve** — no live SSE consumption on the phone; poll/records
+   refresh the transcript until settle.
+3. **Steer-lite: WAIT** — do not ship deny-with-redirect now; wait for the runner's
+   reject-with-feedback (#5444). ⚠️ **FOLLOW-UP (do not forget): Arda may ask for this
+   implementation next**; the M1.5 task stays specced and unbuilt.
+4. **Warm-park TTL: BUMP** when a pending interaction exists (phone-latency answers should
+   warm-resume, not cold-replay).
+5. **M2: build it in this workstream** ("finish this yourself") — do not hand to JP.
+6. **Always-allow: out of scope** for v1 (approve-all within a turn IS in scope).
+
+Execution scope now: M0 + M1 (minus M1.5 steer) + TTL bump + M2.
+
 ## 5. Dependencies and conflicts
 
 - **`feat/agent-cancel-steer` (unmerged):** M1.4's clean cancel and M1.5's flag/envelope mirror
