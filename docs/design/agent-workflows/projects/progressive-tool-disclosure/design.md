@@ -39,10 +39,26 @@ Schema enforces nothing — it duplicates better guidance the model already has 
 A few hundred tokens instead of 6,441. Implement as a depth limit on `expand_type_refs` so it is
 reusable by Lever 2.
 
-**Cost: none that reaches execution.** Required-argument checking is not lost — the runner
-re-validates against the private spec at `relay.ts:327` and `relay.ts:369`, covering both execution
-shapes, before anything runs. What changes is *where* a malformed call is caught: at the relay
-instead of pre-call in the harness. Either way the model gets an error, not a bad write.
+**Cost: nested required-field checks inside the collapsed subtree.** Be precise about this, because
+the two levers differ. `missingRequiredFields` (`spec-schema.ts`) walks `properties` recursively, so
+a deep schema today enforces nested `required` as well as top-level. The diet edits `op_catalog.py`,
+which changes the **private** spec too, so those nested checks disappear from every layer including
+the relay. Top-level required fields are unaffected.
+
+That is acceptable here and only here: the commit endpoint does not validate the config shape
+either, so a malformed nested config already fails at the server rather than being written. It is
+not a general licence — see Lever 2, where the private schema is untouched and nothing is lost.
+
+**The shallow schema must be permissive.** Harnesses validate against the *advertised* schema before
+the relay sees the call (Pi at `extensions/agenta.ts:318`, MCP at `tool-mcp-http.ts:172`), and Pi's
+own framework may apply its JSON Schema more strictly than our required-only check. So the depth
+limit must not tighten anything:
+
+- no `additionalProperties: false` on a collapsed node,
+- no `required` beyond what the deep schema already required,
+- collapsed subtrees typed as bare `object`, never a narrower type or `enum`.
+
+A depth limit that only *removes* constraints cannot reject a payload the deep schema accepted.
 
 ---
 
@@ -61,8 +77,15 @@ every harness shares — Pi reads it at `pi-assets.ts:353`, the MCP path at `env
 Stub there and all three harnesses get it. No notification, no transport work, no per-harness code.
 
 **Why it is safe:** the tool name never changes, so every permission gate behaves exactly as today.
-And as with Lever 1, `assertRequiredArguments` still runs runner-side against the private spec
-(`relay.ts:327`, `:369`) — the stub is a prompt-side projection, not a weakening of enforcement.
+And unlike Lever 1, the **private spec is untouched** — the stub lives only in the advertisement
+projection, so `assertRequiredArguments` at `relay.ts:327` / `:369` still enforces the full schema,
+nested `required` included. Nothing is lost; the check simply moves from the harness to the relay.
+
+**The stub must be permissive too**, for the same reason as Lever 1 and more so, since it is the
+only schema the harness sees: `{type: "object"}` with no `required` and no
+`additionalProperties: false`. Required fields are then reported by the relay with the exact
+field names, which is a usable error for the model. Do **not** stub client tools
+(`request_connection`, `request_input`) — the browser fulfils them and they are cheap.
 
 There is precedent for exactly this rule. Codex wraps MCP calls as `{server, tool, arguments}`, which
 forced `unwrapCodexMcpArgs` into `storedDecisionKeyShape` (`permission-plan.ts`, PR #5509) so

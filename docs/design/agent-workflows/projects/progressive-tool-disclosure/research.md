@@ -55,8 +55,10 @@ was re-checked on `main` and holds. Paths are current (`services/runner/`; some 
    and `relay.ts:369` (endpoint and handler shapes), before execution. The harness also validates
    pre-call against the *advertised* schema (Pi at `extensions/agenta.ts:318`, MCP at
    `tool-mcp-http.ts:172`), but that is a second, earlier check — not the only one. **Consequence:
-   shrinking or stubbing the advertised schema does not weaken enforcement**; it moves where a
-   malformed call is caught, and the model still gets an error rather than a bad write.
+   stubbing the *advertisement* alone does not weaken enforcement** (lazy schema); it moves where a
+   malformed call is caught. Shrinking the *private* schema does (the diet), because
+   `missingRequiredFields` walks `properties` recursively, so nested `required` is only enforced
+   while the private schema still describes it.
 
 6. **Permission keys on the per-spec gate.** `decide(gate, plan, stored)`
    (`services/runner/src/permission-plan.ts:138`) → `effectivePermission` (`:125`) resolves the

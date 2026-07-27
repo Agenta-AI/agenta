@@ -61,7 +61,9 @@ The tail is *cheap* — ten ops for 2,120 tokens — so catalog growth is not th
 
 1. **Diet:** platform-op prompt cost drops from 18,353 to under ~3,000 tokens with no capability
    loss — a lab agent still commits a valid config and runs a test.
-2. **Lazy schema:** under ~500 tokens, and adding a catalog op no longer grows the prompt.
+2. **Lazy schema:** under ~500 tokens, and adding a catalog op grows the prompt by its index
+   entry only (name + one-liner, ~12 tokens), never by its schema. Discovery stays eager, so the
+   index itself still scales linearly; the target is that *schema* growth stops.
 3. **Session-level, not turn-level:** total platform-op tokens across a full build session
    (discover → wire → commit → test → schedule) drop materially. A no-op turn is *reported*, never
    the target.
