@@ -1,3 +1,4 @@
+import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {atom} from "jotai"
 
 import {navSimplifiedDefaultAtom} from "@/oss/lib/onboarding/atoms"
@@ -27,8 +28,18 @@ export const homeNavInertAtom = atom((get) => get(isOnboardingActiveAtom))
 /**
  * During onboarding, nav links whose pages dead-end on an empty table (no apps/eval data yet) are
  * disabled. Links that work app-less (Observability, Test sets, Evaluators, Prompts) stay live.
+ *
+ * Onboarding alone is not enough: an existing user who starts another agent is onboarding while
+ * their agents still exist, so those pages are not dead ends and greying them out strands them.
+ * Reading the agent list inside the guard (never above it) keeps the query untracked, and so
+ * unfetched, whenever onboarding is off.
  */
-export const deadEndNavDisabledAtom = atom((get) => get(isOnboardingActiveAtom))
+export const deadEndNavDisabledAtom = atom((get) => {
+    if (!get(isOnboardingActiveAtom)) return false
+    const {data, isPending} = get(agentWorkflowsListQueryStateAtom)
+    // Treat "not known yet" as empty: the first agent is still being minted in the common case.
+    return isPending || data.length === 0
+})
 
 /**
  * The simplified, agent-focused sidebar hides advanced areas (Prompts, Evaluation, Registry,
