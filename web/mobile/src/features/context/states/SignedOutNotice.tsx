@@ -3,7 +3,7 @@ import Link from "next/link"
 export const SignedOutNotice = () => (
     <div className="flex grow flex-col items-center justify-center gap-2 p-6 text-center">
         <p className="text-sm font-medium">You are signed out</p>
-        <Link href="/auth" className="text-xs underline underline-offset-4">
+        <Link href="/auth" className="-m-3 p-3 text-xs underline underline-offset-4">
             Sign in
         </Link>
         <p className="text-muted-foreground text-xs">

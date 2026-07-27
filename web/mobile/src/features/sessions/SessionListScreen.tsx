@@ -100,7 +100,7 @@ export const SessionListScreen = ({
             <div
                 ref={scroll.ref}
                 onScroll={scroll.onScroll}
-                className="flex flex-1 flex-col overflow-y-auto overscroll-contain"
+                className="flex flex-1 flex-col overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]"
             >
                 {body}
             </div>

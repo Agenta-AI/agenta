@@ -33,7 +33,7 @@ export const StopButton = ({sessionId, projectId}: {sessionId: string; projectId
         <span className="flex items-center gap-2">
             <button
                 type="button"
-                className="border-destructive text-destructive rounded border px-3 py-1 text-xs"
+                className="border-destructive text-destructive min-h-11 rounded border px-3 py-1 text-xs"
                 onClick={() => void onStop()}
             >
                 Stop

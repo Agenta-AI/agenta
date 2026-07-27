@@ -54,7 +54,7 @@ export const SignInScreen = () => {
                     placeholder="Email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
-                    className="border-border bg-background rounded-md border px-3 py-2 text-sm"
+                    className="border-border bg-background rounded-md border px-3 py-2 text-base"
                 />
                 <input
                     type="password"
@@ -63,13 +63,13 @@ export const SignInScreen = () => {
                     placeholder="Password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
-                    className="border-border bg-background rounded-md border px-3 py-2 text-sm"
+                    className="border-border bg-background rounded-md border px-3 py-2 text-base"
                 />
                 {error ? <p className="text-destructive text-xs">{error}</p> : null}
                 <button
                     type="submit"
                     disabled={pending}
-                    className="border-border rounded-md border px-3 py-2 text-sm disabled:opacity-50"
+                    className="border-border min-h-11 rounded-md border px-3 py-2 text-sm disabled:opacity-50"
                 >
                     {pending ? "Signing in…" : "Sign in"}
                 </button>

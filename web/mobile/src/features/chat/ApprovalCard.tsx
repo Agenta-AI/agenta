@@ -26,14 +26,14 @@ export const ApprovalCard = ({
     return (
         <div className="border-primary flex flex-col gap-2 rounded border p-3">
             <p className="text-xs font-medium">Approval pending — {toolName}</p>
-            <pre className="text-muted-foreground max-h-48 overflow-auto whitespace-pre-wrap break-all text-xs">
+            <pre className="text-muted-foreground max-h-48 overflow-auto overscroll-contain whitespace-pre-wrap break-all text-xs">
                 {JSON.stringify(input, null, 2)}
             </pre>
             <div className="flex items-center gap-2">
                 <button
                     type="button"
                     disabled={disabled}
-                    className="border-border rounded border px-3 py-1 text-xs disabled:opacity-50"
+                    className="border-border min-h-11 rounded border px-3 py-1 text-xs disabled:opacity-50"
                     onClick={() => approvalId && actions?.respond({approvalId, approved: true})}
                 >
                     Approve
@@ -41,7 +41,7 @@ export const ApprovalCard = ({
                 <button
                     type="button"
                     disabled={disabled}
-                    className="border-border rounded border px-3 py-1 text-xs disabled:opacity-50"
+                    className="border-border min-h-11 rounded border px-3 py-1 text-xs disabled:opacity-50"
                     onClick={() => approvalId && actions?.respond({approvalId, approved: false})}
                 >
                     Deny
@@ -50,7 +50,7 @@ export const ApprovalCard = ({
                     <button
                         type="button"
                         disabled={busy}
-                        className="border-border rounded border px-3 py-1 text-xs disabled:opacity-50"
+                        className="border-border min-h-11 rounded border px-3 py-1 text-xs disabled:opacity-50"
                         onClick={() => actions?.approveAll()}
                     >
                         Approve all {pendingCount}

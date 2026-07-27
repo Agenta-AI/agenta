@@ -57,7 +57,7 @@ export const ChatScreen = ({
         body = <ChatEmpty />
     } else {
         body = (
-            <div className="flex grow flex-col gap-3 p-4">
+            <div className="flex grow flex-col gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
                 {turns
                     .filter((turn) => !turn.hidden)
                     .map((turn) => (

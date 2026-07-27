@@ -21,7 +21,7 @@ export const WorkspaceProjectList = ({groups}: {groups: WorkspaceGroup[]}) => {
                         <button
                             key={project.project_id}
                             type="button"
-                            className="border-border rounded-md border px-3 py-2.5 text-left text-xs"
+                            className="border-border min-h-11 rounded-md border px-3 py-2.5 text-left text-xs"
                             onClick={() =>
                                 void router.replace(
                                     `/w/${group.workspaceId}/p/${project.project_id}/sessions`,

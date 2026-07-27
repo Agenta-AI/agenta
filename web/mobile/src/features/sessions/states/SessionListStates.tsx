@@ -14,7 +14,7 @@ export const SessionListError = ({onRetry}: {onRetry: () => void}) => (
         <p className="text-muted-foreground text-xs">Something went wrong.</p>
         <button
             type="button"
-            className="border-border rounded-md border px-3 py-2 text-xs"
+            className="border-border min-h-11 rounded-md border px-3 py-2 text-xs"
             onClick={onRetry}
         >
             Retry
