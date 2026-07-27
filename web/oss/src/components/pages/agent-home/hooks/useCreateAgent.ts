@@ -11,6 +11,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {useRouter} from "next/router"
 
 import {agentFirstRunSeedAtom} from "@/oss/components/AgentChatSlice/state/firstRunSeed"
+import {registerCreatedAgent} from "@/oss/components/pages/agents/store"
 import {urlAtom} from "@/oss/state/url"
 
 interface CreateAgentParams {
@@ -98,6 +99,15 @@ export function useCreateAgent() {
                     )
                     return false
                 }
+
+                // The commit only busts the entities-level workflows cache; the agents list (Home's
+                // first-run decision + the agents table) is a separate query and would stay empty.
+                void registerCreatedAgent({
+                    workflowId: appId,
+                    name: agentName,
+                    createdAt: result.workflow?.created_at ?? null,
+                    createdById: result.workflow?.created_by_id ?? null,
+                })
 
                 if (seedMessage?.trim()) {
                     store.set(agentFirstRunSeedAtom, {
