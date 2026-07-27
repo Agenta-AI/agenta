@@ -487,6 +487,32 @@ class RedactionConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# agenta.sessions
+# ---------------------------------------------------------------------------
+
+
+class SessionsRecordsConfig(BaseModel):
+    """Durable session-record ingest tuning (server-side history reconstruction)."""
+
+    # When a record body exceeds the cap, preserve its structure + partial content (trim only
+    # the large field values) instead of replacing the whole body with {"_truncated": True}.
+    # Off = legacy whole-body drop. On makes reconstruction from records higher-fidelity.
+    smart_truncation: bool = (
+        os.getenv("AGENTA_RECORDS_SMART_TRUNCATION") or "false"
+    ).lower() in _TRUTHY
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class SessionsConfig(BaseModel):
+    """Agenta sessions sub-namespace."""
+
+    records: SessionsRecordsConfig = SessionsRecordsConfig()
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # agenta — top-level Agenta core config.
 # ---------------------------------------------------------------------------
 

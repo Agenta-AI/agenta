@@ -75,7 +75,8 @@ import {
   nextTurnIndex,
   sessionContinuityStore,
 } from "./session-continuity.ts";
-import { priorMessages } from "./transcript.ts";
+import { reconstructHistoryIfNeeded } from "./reconstruct-history.ts";
+import { buildTurnText, priorMessages } from "./transcript.ts";
 import { resolveRunUsage } from "./usage.ts";
 
 /**
@@ -144,9 +145,28 @@ export async function runTurn(
   });
 
   try {
+    // Server-side history reconstruction (flag-gated, no-op by default): when the client sent a
+    // minimal history, rebuild prior turns from the durable record log so a cold turn still has
+    // full context. Runs before the current user turn is persisted, so records hold only prior
+    // turns. Reassigns `request` so every downstream reader (turnText, priorMessages, responder,
+    // otel) sees the same reconstructed history.
+    const reconstructed = await reconstructHistoryIfNeeded(
+      request,
+      sessionId,
+      () => runCredential(request),
+      logger,
+    );
+    if (reconstructed) request = reconstructed;
+
     const promptText = resolvePromptText(request);
-    // Cold: replay the full transcript (plan.turnText). Continuation or loaded: send only new text.
-    const turnText = sendLastMessageOnly(opts) ? promptText : plan.turnText;
+    // Cold: replay the full transcript. Continuation or loaded: send only new text. When history
+    // was rebuilt from records, recompute the transcript from it — the prebuilt plan.turnText
+    // predates the reconstruction.
+    const turnText = sendLastMessageOnly(opts)
+      ? promptText
+      : reconstructed
+        ? buildTurnText(request, logger)
+        : plan.turnText;
 
     const run = (deps.createOtel ?? createSandboxAgentOtel)({
       harness: plan.harness,

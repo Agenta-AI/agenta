@@ -14,7 +14,10 @@
  *  - The run is never blocked on persistence mid-stream (chain is fire-and-forget).
  *  - The run DOES drain before teardown so the last event is not lost to the race.
  *  - A persist failure is logged and swallowed; the SDK's in-memory replay store is the
- *    backstop. Three retries with linear backoff before the event is dropped.
+ *    backstop. Three retries with linear backoff before the event is dropped. With
+ *    `AGENTA_RECORDS_DURABLE=true` the retry is stronger (more attempts, exponential backoff)
+ *    and a drop is COUNTED per session (see `takePersistFailures`), so the turn-end drain can
+ *    tell whether the durable history is complete enough to reconstruct model context from.
  *  - `record_source` marks who authored the record: "agent" for engine-emitted events,
  *    "user" for the inbound user turn persisted at run start.
  */
@@ -26,6 +29,22 @@ import { stableRecordId } from "./record-id.ts";
 
 const INGEST_MAX_RETRIES = 3;
 const INGEST_RETRY_BASE_MS = 100;
+// Durable mode (Phase 1, flag-gated): more attempts with exponential backoff before a drop.
+// 6 attempts ≈ 100+200+400+800+1600ms of backoff (~3.1s) — bounded per event so a real outage
+// can't hang the turn-end drain indefinitely.
+const DURABLE_INGEST_MAX_RETRIES = 6;
+
+/** Durable-records upgrades (stronger retry + drop counting) are opt-in and read at call time
+ * so the flag can be toggled per test. Off → the fire-and-forget legacy path, unchanged. */
+function durableRecordsEnabled(): boolean {
+  return String(process.env.AGENTA_RECORDS_DURABLE ?? "").toLowerCase() === "true";
+}
+
+/** Attempts before a durable-mode drop; env-overridable for ops tuning (and fast tests). */
+function durableMaxRetries(): number {
+  const n = Number(process.env.AGENTA_RECORDS_INGEST_MAX_RETRIES);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : DURABLE_INGEST_MAX_RETRIES;
+}
 
 function log(msg: string): void {
   process.stderr.write(`[sessions/persist] ${msg}\n`);
@@ -33,6 +52,10 @@ function log(msg: string): void {
 
 /** Map session_id → tail of the per-session persist chain. */
 const persistChains = new Map<string, Promise<void>>();
+
+/** Map session_id → count of records that exhausted retries (dropped). Only ever populated in
+ * durable mode; read + cleared at the turn-end drain via `takePersistFailures`. */
+const persistFailures = new Map<string, number>();
 
 /** Send one event to the ingest endpoint with bounded retry. Authenticates AS the invoke
  * caller (the run credential); project scope is resolved server-side, so none is sent. */
@@ -47,8 +70,10 @@ async function postEvent(
   spanId?: string,
 ): Promise<void> {
   const url = `${apiBase()}/sessions/records/ingest`;
+  const durable = durableRecordsEnabled();
+  const maxRetries = durable ? durableMaxRetries() : INGEST_MAX_RETRIES;
   let lastErr: unknown;
-  for (let attempt = 1; attempt <= INGEST_MAX_RETRIES; attempt++) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const res = await fetch(url, {
         method: "POST",
@@ -79,11 +104,22 @@ async function postEvent(
       return;
     } catch (err) {
       lastErr = err;
-      await new Promise((r) => setTimeout(r, INGEST_RETRY_BASE_MS * attempt));
+      if (attempt < maxRetries) {
+        // Durable: exponential (100·2^n, capped by the attempt count). Legacy: linear.
+        const backoff = durable
+          ? INGEST_RETRY_BASE_MS * 2 ** (attempt - 1)
+          : INGEST_RETRY_BASE_MS * attempt;
+        await new Promise((r) => setTimeout(r, backoff));
+      }
     }
   }
+  // Exhausted retries → the record is lost. In durable mode, count it so the turn-end drain
+  // knows the session's history is incomplete (a reconstruction/​fallback signal for later).
+  if (durable) {
+    persistFailures.set(sessionId, (persistFailures.get(sessionId) ?? 0) + 1);
+  }
   log(
-    `DROPPED session=${sessionId} idx=${eventIndex} type=${event.type} after ${INGEST_MAX_RETRIES} retries: ${String(lastErr instanceof Error ? lastErr.message : lastErr).slice(0, 120)}`,
+    `DROPPED session=${sessionId} idx=${eventIndex} type=${event.type} after ${maxRetries} retries: ${String(lastErr instanceof Error ? lastErr.message : lastErr).slice(0, 120)}`,
   );
 }
 
@@ -134,6 +170,18 @@ export async function drainPersist(sessionId: string): Promise<void> {
   if (persistChains.get(sessionId) === tail) {
     persistChains.delete(sessionId);
   }
+}
+
+/**
+ * Read and clear the count of records that were dropped (exhausted retries) for a session.
+ * Only ever non-zero when `AGENTA_RECORDS_DURABLE=true`. Call at the turn-end drain to learn
+ * whether the session's durable history is complete — a zero count means the record log fully
+ * captured the turn and is safe to reconstruct model context from.
+ */
+export function takePersistFailures(sessionId: string): number {
+  const n = persistFailures.get(sessionId) ?? 0;
+  persistFailures.delete(sessionId);
+  return n;
 }
 
 /**
