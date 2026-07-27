@@ -14,6 +14,7 @@ import {StopButton} from "./StopButton"
 import {TurnRow} from "./TurnRow"
 import {useApprovalActions} from "./useApprovalActions"
 import {useSessionTranscript} from "./useSessionTranscript"
+import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
 
 /** Read-only replay screen — mount it with `key={sessionId}` so per-session state resets. */
 export const ChatScreen = ({
@@ -46,6 +47,8 @@ export const ChatScreen = ({
         () => buildTurnViewModels(messages, {busy: false, executedFor}),
         [messages, executedFor],
     )
+    // Keyed on `turns` (new array per poll) so streamed growth also re-pins.
+    const autoScroll = useTranscriptAutoScroll(turns)
 
     let body
     if (state === "loading") {
@@ -78,7 +81,13 @@ export const ChatScreen = ({
                     <StopButton sessionId={sessionId} projectId={projectId} />
                 </div>
             ) : null}
-            <div className="flex flex-1 flex-col overflow-y-auto overscroll-contain">{body}</div>
+            <div
+                ref={autoScroll.ref}
+                onScroll={autoScroll.onScroll}
+                className="flex flex-1 flex-col overflow-y-auto overscroll-contain"
+            >
+                {body}
+            </div>
         </div>
     )
 }
