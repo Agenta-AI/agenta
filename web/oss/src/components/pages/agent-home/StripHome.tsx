@@ -36,6 +36,9 @@ const StripHome: React.FC = () => {
     const posthog = usePostHogAg()
     const {message} = App.useApp()
     const [toastOpen, setToastOpen] = useState(false)
+    // Create is a multi-step async round-trip; on success we navigate away, so we keep the
+    // spinner running (only reset on failure) rather than flashing the label back mid-navigation.
+    const [loading, setLoading] = useState(false)
 
     // Warm the app-templates cache so the ephemeral-create factory resolves the agent template.
     useAtomValue(appTemplatesQueryAtom)
@@ -70,10 +73,13 @@ const StripHome: React.FC = () => {
     )
 
     const handleCreate = useCallback(
-        (markdown?: string) => {
-            onCreate(provenance.resolveTemplateName(), markdown)
+        async (markdown?: string) => {
+            if (loading) return
+            setLoading(true)
+            const ok = await onCreate(provenance.resolveTemplateName(), markdown)
+            if (!ok) setLoading(false)
         },
-        [onCreate, provenance.resolveTemplateName],
+        [loading, onCreate, provenance.resolveTemplateName],
     )
 
     const handleCodingAgentCopy = useCallback(async () => {
@@ -123,6 +129,7 @@ const StripHome: React.FC = () => {
                             onCodingAgentCopy={handleCodingAgentCopy}
                             composerClassName={provenance.composerClassName}
                             onTextChange={provenance.onComposerTextChange}
+                            loading={loading}
                         />
                     </div>
                 </div>

@@ -54,7 +54,8 @@ const TraceLinkedSpans = () => {
                                 onClick={() => handleNavigate(link)}
                             >
                                 <TreeStructureIcon size={14} />{" "}
-                                {link?.trace?.[0]?.span_name || link?.key}
+                                {/* `trace` is not on TraceDrawerSpanLink; dead access kept as-is (falls through to key) */}
+                                {(link as any)?.trace?.[0]?.span_name || link?.key}
                             </Tag>
                         )
                     })}

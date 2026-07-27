@@ -2325,7 +2325,7 @@ const AgentConversation = ({
                                                     <AgentIntentActions
                                                         onCreate={handleCreateAgent}
                                                         onCodingAgentCopy={handleCodingAgentCopy}
-                                                        creating={!!onboarding?.committing}
+                                                        loading={!!onboarding?.committing}
                                                     />
                                                 ) : (
                                                     <div className="flex items-center gap-2">

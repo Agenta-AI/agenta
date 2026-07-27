@@ -135,10 +135,16 @@ export const sessionTracesAtom = atom<TraceSpanNode[]>((get) => {
     if (!data) return []
 
     const transformed: TraceSpanNode[] = []
+    // entities-package TraceSpanNode is the same backend span shape as the OSS type;
+    // align the annotation at the boundary, no data is converted.
     if (isTracesResponse(data)) {
-        transformed.push(...transformTracingResponse(transformTracesResponseToTree(data)))
+        transformed.push(
+            ...(transformTracingResponse(
+                transformTracesResponseToTree(data),
+            ) as unknown as TraceSpanNode[]),
+        )
     } else if (isSpansResponse(data)) {
-        transformed.push(...transformTracingResponse(data.spans))
+        transformed.push(...(transformTracingResponse(data.spans) as unknown as TraceSpanNode[]))
     }
 
     const filtred = transformed.filter((node) => node.trace_type !== "annotation")

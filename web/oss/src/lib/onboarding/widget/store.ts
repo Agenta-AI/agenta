@@ -57,7 +57,13 @@ export const onboardingWidgetUIStateAtom = atom(
         if (!userId) return {isOpen: false, isMinimized: false}
         return get(widgetUIAtomFamily(userId))
     },
-    (get, set, next: OnboardingWidgetUIState) => {
+    (
+        get,
+        set,
+        next:
+            | OnboardingWidgetUIState
+            | ((prev: OnboardingWidgetUIState) => OnboardingWidgetUIState),
+    ) => {
         const userId = get(onboardingStorageUserIdAtom)
         if (!userId) return
         set(widgetUIAtomFamily(userId), next)
