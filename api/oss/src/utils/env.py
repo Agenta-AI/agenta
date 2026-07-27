@@ -1387,6 +1387,12 @@ class SessionsRedisConfig(BaseModel):
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_CONCURRENCY_LIMIT")
         or 1000
     )
+    # API-side only (SSE watch endpoint keep-alive cadence) — NOT part of the
+    # runner golden fixture; safe to tune without touching the TS side.
+    watch_heartbeat_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCH_HEARTBEAT_SECONDS")
+        or 15
+    )
 
     model_config = ConfigDict(extra="ignore")
 
