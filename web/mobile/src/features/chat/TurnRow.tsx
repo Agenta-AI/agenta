@@ -22,19 +22,26 @@ export const TurnRow = ({
                 if (item.kind === "part") {
                     if (item.part.type === "text") {
                         return (
-                            <p key={item.index} className="whitespace-pre-wrap text-xs">
+                            <p
+                                key={item.index}
+                                className={`whitespace-pre-wrap rounded-lg px-3 py-2 text-xs ${
+                                    turn.isUser ? "bg-primary text-primary-foreground" : "bg-muted"
+                                }`}
+                            >
                                 {item.part.text}
                             </p>
                         )
                     }
                     if (item.part.type === "reasoning") {
                         return (
-                            <p
-                                key={item.index}
-                                className="text-muted-foreground whitespace-pre-wrap text-xs italic"
-                            >
-                                {item.part.text}
-                            </p>
+                            <details key={item.index} className="max-w-full">
+                                <summary className="text-muted-foreground cursor-pointer select-none text-xs">
+                                    Thoughts
+                                </summary>
+                                <p className="text-muted-foreground border-border mt-1 border-l-2 pl-2 whitespace-pre-wrap text-xs italic">
+                                    {item.part.text}
+                                </p>
+                            </details>
                         )
                     }
                     return null
