@@ -24,6 +24,10 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
     const sessionRef = useRef(sessionId)
     sessionRef.current = sessionId
     const inFlightRef = useRef(false)
+    // A change event that lands mid-refresh must queue a trailing refresh — dropping it
+    // can strand the FINAL transcript state forever (the turn's `ended` also kills the
+    // tightened poll, so nothing else would ever re-read).
+    const pendingRef = useRef(false)
 
     useEffect(() => {
         let cancelled = false
@@ -48,7 +52,11 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
     }, [sessionId])
 
     const refresh = useCallback(() => {
-        if (document.visibilityState !== "visible" || inFlightRef.current) return
+        if (document.visibilityState !== "visible") return
+        if (inFlightRef.current) {
+            pendingRef.current = true
+            return
+        }
         inFlightRef.current = true
         // Invalidate first so the shared-cache read refetches instead of serving staleTime.
         getDefaultStore().set(revalidateSessionRecordsAtom, sessionId)
@@ -61,6 +69,10 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
             })
             .finally(() => {
                 inFlightRef.current = false
+                if (pendingRef.current) {
+                    pendingRef.current = false
+                    if (sessionRef.current === sessionId) refresh()
+                }
             })
     }, [sessionId])
 

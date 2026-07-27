@@ -9,6 +9,7 @@ Plane: durable Redis — the SSE endpoint subscribes there via
 ``get_streams_engine()``; publisher and subscriber must share one plane.
 """
 
+import asyncio
 import json
 from typing import TYPE_CHECKING, Optional
 
@@ -48,9 +49,15 @@ class SessionsWatchPublisher:
         payload: dict,
     ) -> None:
         try:
-            await self._client().publish(
-                watch_channel(project_id, session_id),
-                json.dumps(payload).encode(),
+            # Bounded: the streams client has no socket timeouts, and these publishes
+            # sit on turn-lifecycle/interaction write paths — a black-holed Redis must
+            # cost at most 1s, never a TCP timeout.
+            await asyncio.wait_for(
+                self._client().publish(
+                    watch_channel(project_id, session_id),
+                    json.dumps(payload).encode(),
+                ),
+                timeout=1.0,
             )
         except Exception:
             # Relay only — the write this notifies about is already committed.
