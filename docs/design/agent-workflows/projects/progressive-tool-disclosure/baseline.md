@@ -64,7 +64,8 @@ stripped), matching `advertisedToolSpec()` in `services/runner/src/tools/public-
 Two numbers decide the plan's shape:
 
 - **Lazy schema's marginal win over a completed diet is ~2,500 tokens (~13%)** at the cost of one
-  function in `public-spec.ts` — and it is structural, so catalog growth stops inflating the prompt.
+  function in `public-spec.ts` — and it is structural: schema growth stops inflating the prompt.
+  (The eager discovery index still grows by ~12 tokens per new op.)
 - **Lazy activation's marginal win over lazy schema is ~100 tokens**, which is why it is out of
   scope ([alternatives.md](alternatives.md#3--lazy-activation-out-of-scope)). Its case is tool *count*
   (wander), not tokens. Weigh its per-harness transport cost against wander evidence only.
@@ -83,12 +84,18 @@ mandatory reading**:
   embedded JSON Schema is not enforcing a server contract — it is model guidance that a
   better-written, on-demand doc already provides.
 
-**Required-argument checking is not lost.** The runner re-validates against the **private** spec
-before executing — `assertRequiredArguments(spec, req.args)` at `services/runner/src/tools/relay.ts:327`
-(client shape) and `:369` (endpoint and handler shapes). What moves is *where* a malformed call is
-caught: at the relay rather than pre-call in the harness (Pi passes `inputSchema` to
-`registerTool({parameters})`, `services/runner/src/extensions/agenta.ts:305`). Either way the model
-gets an error before anything executes.
+**Top-level required-argument checking is not lost.** The runner re-validates against the
+**private** spec before executing — `assertRequiredArguments(spec, req.args)` at
+`services/runner/src/tools/relay.ts:327` (client shape) and `:369` (endpoint and handler shapes).
+What moves is *where* a malformed call is caught: at the relay rather than pre-call in the harness
+(Pi passes `inputSchema` to `registerTool({parameters})`,
+`services/runner/src/extensions/agenta.ts:305`).
+
+**What the diet does cost:** `missingRequiredFields` recurses through `properties`, so today a deep
+schema enforces nested `required` too. The diet edits `op_catalog.py`, which shrinks the *private*
+spec as well, so those nested checks go away at every layer. Bounded by the same fact that makes the
+diet safe: the commit endpoint does not validate the config shape either. Lazy schema does **not**
+have this cost — it stubs only the advertisement and leaves the private spec whole.
 
 ## Reproducing
 

@@ -59,8 +59,9 @@ the server to *push* `notifications/tools/list_changed`. Three problems stack:
    server" design.
 2. **The shim's tool list is a startup snapshot.** `tool-mcp-stdio.ts` reads specs once from
    `AGENTA_AGENT_TOOLS_PUBLIC_SPECS_FILE`. It would need a runner signal over the relay dir to
-   re-read and notify, plus `capabilities: {tools: {listChanged: true}}` at `initialize` — today it
-   sends `{tools: {}}` (`tool-mcp-http.ts:124`).
+   re-read and notify, plus `capabilities: {tools: {listChanged: true}}` at `initialize` — today the
+   shim sends `{tools: {}}` (`tool-mcp-stdio.ts:183`), as does the HTTP server
+   (`tool-mcp-http.ts:124`).
 3. **The clients may ignore the notification mid-turn.** `@agentclientprotocol/claude-agent-acp` and
    `codex-acp` are third-party and version-pinned. Whether either re-lists **mid-turn** is
    unverified. If they only re-list on reconnect, activation lands at a turn boundary — the agent

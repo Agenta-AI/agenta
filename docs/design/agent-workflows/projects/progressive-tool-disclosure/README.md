@@ -74,8 +74,10 @@ Neither blocks the plan; both would only matter if lazy activation is ever asked
 
 - **Handler flag "default off" — wrong.** It defaults **on** (`platform_tools.py:41`, unset and
   empty both enable). All 13 ops advertise; 18,353 is live. *(CodeRabbit, 2026-07-26.)*
-- **"Malformed args become a server error" — overstated.** `assertRequiredArguments` runs
-  runner-side against the private spec (`relay.ts:327`, `:369`) before execution.
+- **"Malformed args become a server error" — overstated, then re-sharpened.**
+  `assertRequiredArguments` runs runner-side against the private spec (`relay.ts:327`, `:369`)
+  before execution, so lazy schema loses nothing. The diet does lose nested `required` checks,
+  because it shrinks the private spec too. *(CodeRabbit, 2026-07-27.)*
 - **Direct-`call` eligibility heuristic — wrong.** It missed handler-mode `test_run`, 42% of the
   bill. Moot now: real names need no eligibility rule. *(CodeRabbit, 2026-07-26.)*
 - **Approval leak across ops — not real.** Grant and decision stores key on
