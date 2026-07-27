@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {atom, useAtomValue} from "jotai"
+import {atom, useAtomValue, type ExtractAtomValue} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "@/oss/components/EvalRunDetails/atoms/table/evaluators"
@@ -11,6 +11,7 @@ import {
     runTemporalMetricKeysAtomFamily,
     runTemporalMetricSeriesAtomFamily,
     TemporalMetricPoint,
+    type RunLevelMetricSelection,
 } from "@/oss/components/Evaluations/atoms/runMetrics"
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 import type {BasicStats} from "@/oss/lib/metricUtils"
@@ -26,7 +27,10 @@ import {
 
 const emptyEvaluatorsAtom = atom({data: [], isPending: false, isFetching: false} as const)
 const emptyLoadableAtom = atom({state: "loading"} as const)
-const emptyRunIndexAtom = atom(null as ReturnType<typeof evaluationRunIndexAtomFamily> | null)
+// Typed as the family atom's unwrapped VALUE (RunIndex | null), not the atom itself.
+const emptyRunIndexAtom = atom(
+    null as ExtractAtomValue<ReturnType<typeof evaluationRunIndexAtomFamily>>,
+)
 const falseAtom = atom(false)
 const emptyTemporalSeriesAtom = atom<Record<string, TemporalMetricPoint[]>>({})
 const emptyMetricSelectionsAtom = atom<RunMetricSelectionEntry[]>([])
@@ -114,7 +118,7 @@ export interface RunMetricSelectionEntry {
         runId: string
         index: number
         runKey: string
-        selection: ReturnType<typeof previewRunMetricStatsSelectorFamily>
+        selection: RunLevelMetricSelection
     }[]
 }
 

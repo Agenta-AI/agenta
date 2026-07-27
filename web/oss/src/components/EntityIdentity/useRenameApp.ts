@@ -45,7 +45,8 @@ export const useRenameApp = () => {
         async ({id, name, description}: RenameAppPayload): Promise<boolean> => {
             try {
                 const {projectId} = getProjectValues()
-                await updateWorkflow(projectId, {
+                // typed as-is: projectId can be null pre-project-scope; the call always sent it through
+                await updateWorkflow(projectId as string, {
                     id,
                     name,
                     description,
@@ -53,7 +54,7 @@ export const useRenameApp = () => {
                 })
                 invalidateWorkflowsListCache()
                 invalidateWorkflowCache(id)
-                await mutate()
+                await mutate?.()
                 await invalidateAppManagementWorkflowQueries()
                 return true
             } catch (error) {

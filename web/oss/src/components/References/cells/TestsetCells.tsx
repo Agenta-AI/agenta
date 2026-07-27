@@ -5,6 +5,7 @@ import {SkeletonLine} from "@agenta/ui/table"
 import {Tag} from "antd"
 import {getDefaultStore} from "jotai"
 import {useAtomValue} from "jotai"
+import type {Atom} from "jotai"
 
 import {
     useRunRowReferences,
@@ -20,7 +21,8 @@ import {revision} from "@/oss/state/entities/testset"
 // scoped Jotai stores (e.g. EvaluationRunsTableStoreProvider) would otherwise
 // read stale defaults from the scoped store's isolated atom graph.
 const defaultStore = getDefaultStore()
-const useDefaultAtomValue: typeof useAtomValue = (atom) => useAtomValue(atom, {store: defaultStore})
+const useDefaultAtomValue = ((atom: Atom<unknown>) =>
+    useAtomValue(atom, {store: defaultStore})) as typeof useAtomValue
 
 const CELL_CLASS = "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2"
 

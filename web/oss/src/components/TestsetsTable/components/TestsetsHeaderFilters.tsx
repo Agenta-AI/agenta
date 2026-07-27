@@ -1,6 +1,6 @@
 import {useCallback, useState} from "react"
 
-import {Input} from "antd"
+import {Input, type PopoverProps} from "antd"
 import {useAtom} from "jotai"
 
 import {FiltersPopoverTrigger} from "@/oss/components/InfiniteVirtualTable"
@@ -46,6 +46,8 @@ const TestsetsHeaderFilters = ({tableMode = "active"}: TestsetsHeaderFiltersProp
                         padding: 0,
                     },
                     arrow: false,
+                    // antd v6 dropped the `body` semantic key (now container/content), so the
+                    // `body` styles are ignored at runtime — typed as-is per WP-4e-2a.
                     styles: {
                         body: {
                             maxWidth: "360px",
@@ -53,7 +55,7 @@ const TestsetsHeaderFilters = ({tableMode = "active"}: TestsetsHeaderFiltersProp
                             boxShadow: "none",
                             border: "none",
                         },
-                    },
+                    } as PopoverProps["styles"],
                 }}
                 renderContent={(close) => (
                     <TestsetsFiltersContent tableMode={tableMode} onClose={close} />

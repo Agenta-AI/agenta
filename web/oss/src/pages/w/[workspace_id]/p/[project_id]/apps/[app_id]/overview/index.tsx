@@ -86,7 +86,9 @@ const AppDetailsSection = memo(() => {
                                               openEditAppModal({
                                                   id: workflowId,
                                                   name: workflowName,
-                                                  onRenamed: () => mutateApps(),
+                                                  onRenamed: async () => {
+                                                      await mutateApps?.()
+                                                  },
                                               }),
                                       },
                                   ]),

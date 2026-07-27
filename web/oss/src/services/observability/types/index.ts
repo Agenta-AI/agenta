@@ -40,6 +40,10 @@ interface TreeContextDTO {
     type?: NodeTreeType | null
 }
 export interface AgentaNodeDTO {
+    // Backend SpanDTO (api/oss/src/core/otel/dtos.py) sends these on every node;
+    // optional here because FE-built partial nodes may omit them.
+    trace_id?: string
+    span_id?: string
     lifecycle?: NodeLifecycleDTO | null
     time: NodeTimeDTO
     status: NodeStatusDTO
