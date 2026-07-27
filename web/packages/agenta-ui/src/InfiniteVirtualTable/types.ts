@@ -187,7 +187,7 @@ export interface InfiniteVirtualTableRowSelection<RecordType> {
         indeterminate?: boolean
     }
     columnWidth?: number
-    fixed?: boolean
+    fixed?: boolean | "left" | "right"
     /** Custom title for the selection column header (replaces checkbox) */
     columnTitle?: React.ReactNode
     /** Custom render for the selection cell */

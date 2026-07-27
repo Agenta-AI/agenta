@@ -46,7 +46,7 @@ export function useAgentHomeActions(
                     intentValue: classifyAgentIntent(message),
                 })
             }
-            void createAgent({name: templateName, seedMessage: message, autoSendSeed})
+            return createAgent({name: templateName, seedMessage: message, autoSendSeed})
         },
         [createAgent, posthog, readPrompt, autoSendSeed],
     )

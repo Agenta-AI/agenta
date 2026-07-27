@@ -17,6 +17,7 @@ import {SortResult} from "@/oss/components/Filters/Sort"
 import type {FilterItem} from "@/oss/components/Filters/types"
 import {fieldConfigByOptionKey} from "@/oss/components/pages/observability/assets/filters/fieldAdapter"
 import AddActionsDropdown from "@/oss/components/SharedActions/AddActionsDropdown"
+import type {TestsetTraceData} from "@/oss/components/SharedDrawers/AddToTestsetDrawer/assets/types"
 import {deleteTraceModalAtom} from "@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal/store/atom"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
@@ -358,11 +359,12 @@ const ObservabilityHeader = ({
 
         const extractData = selectedRowKeys.map((key, idx) => {
             const node = getNodeById(traces, key as string)
-            return {data: getAgData(node) as KeyValuePair, key: node?.key, id: idx + 1}
+            return {data: getAgData(node ?? undefined) as KeyValuePair, key: node?.key, id: idx + 1}
         })
 
         if (extractData.length > 0) {
-            setTestsetDrawerData(extractData)
+            // Latent: `key` can be undefined when a selected row is no longer in `traces`.
+            setTestsetDrawerData(extractData as TestsetTraceData[])
         }
     }, [traces, selectedRowKeys, setTestsetDrawerData])
 

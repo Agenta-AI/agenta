@@ -94,8 +94,9 @@ const Accept: FC = () => {
                         {
                             token,
                             organizationId,
-                            workspaceId,
-                            projectId,
+                            // typed as-is: invite params can be absent; the request URL always interpolated them
+                            workspaceId: workspaceId as string,
+                            projectId: projectId as string,
                             email,
                         },
                         true,
@@ -146,7 +147,7 @@ const Accept: FC = () => {
 
                         const nextPath = buildPostLoginPath({
                             workspaceId: targetWorkspace,
-                            projectId,
+                            projectId: projectId ?? null,
                         })
                         await router.replace(nextPath)
                     } else {
