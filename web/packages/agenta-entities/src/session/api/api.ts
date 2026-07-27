@@ -393,11 +393,10 @@ export interface CommandSessionStreamParams extends SessionScopedParams {
  * delivered out-of-band (see the agent-chat transport). Use `force` to steal the lock,
  * `detached` for fire-and-forget.
  *
- * FOLLOWUP(sessions,lifecycle): steer/cancel/attach are NOT surfaced in the user-facing chat on
- * purpose — on the product path they only edit Redis locks; the runner doesn't cooperatively
- * cancel/steer, and there's no live-turn re-watch, so wiring them into chat would be a no-op stub.
- * The chat's send/stop (via `/invoke` + useChat abort) and `killSession` are the real ops. Revisit
- * when the runner cooperates. See docs/designs/sessions/frontend-integration.md.
+ * FOLLOWUP(sessions,lifecycle): steer/attach remain unwired in the user-facing desktop chat;
+ * cancel IS consumed by the mobile StopButton (cooperative ≤30s; clean "cancelled" settle
+ * arrives with the agent-cancel-steer runner work). There's still no live-turn re-watch.
+ * See docs/designs/sessions/frontend-integration.md.
  */
 export async function commandSessionStream({
     sessionId,

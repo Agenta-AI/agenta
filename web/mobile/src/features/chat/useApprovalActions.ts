@@ -68,6 +68,14 @@ export const useApprovalActions = ({
         }
     }, [pendingCount])
 
+    // Failure-path re-arm: if the resume was accepted but the run dies before the gate
+    // resolves, the poll never settles us — drop back to idle so the buttons re-arm.
+    useEffect(() => {
+        if (phase !== "resuming") return
+        const handle = setTimeout(() => setPhase("idle"), 60_000)
+        return () => clearTimeout(handle)
+    }, [phase])
+
     const submit = useCallback(
         async (target: {all: true} | {all?: false; approvalId: string}, approved: boolean) => {
             if (busyRef.current) return
@@ -93,12 +101,16 @@ export const useApprovalActions = ({
                     projectId,
                     actionableOnly: true,
                 })
-                const references = sanitizeReferences(
-                    interactions?.find(
-                        (row) =>
-                            row.data?.references && Object.keys(row.data.references).length > 0,
-                    )?.data?.references,
+                const withRefs = (interactions ?? []).filter(
+                    (row) => row.data?.references && Object.keys(row.data.references).length > 0,
                 )
+                // Bind to the answered gate's own row when possible — two parked runs on
+                // different revisions in one session must not resume with the wrong config.
+                const answeredId = target.all ? undefined : target.approvalId
+                const matched = answeredId
+                    ? withRefs.find((row) => row.token === answeredId)
+                    : undefined
+                const references = sanitizeReferences((matched ?? withRefs[0])?.data?.references)
                 if (!references) {
                     throw new Error(
                         "This approval carries no workflow reference — answer on desktop.",
@@ -130,9 +142,9 @@ export const useApprovalActions = ({
                 if (!response.ok) {
                     throw new Error(`Resume failed (HTTP ${response.status}).`)
                 }
-                // Fire-and-forget: drain the stream in the background so the browser doesn't
-                // cancel the request; the run continues server-side regardless.
-                void response.text().catch(() => undefined)
+                // Fire-and-forget: release the stream immediately — session runs survive
+                // client disconnect, and holding the SSE open for the whole turn is waste.
+                void response.body?.cancel().catch(() => undefined)
             } catch (err) {
                 setPhase("error")
                 setErrorText(err instanceof Error ? err.message : "Resume failed.")
