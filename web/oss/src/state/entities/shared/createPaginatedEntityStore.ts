@@ -253,7 +253,7 @@ export interface PaginatedEntityStore<
      * refresh() // increments and triggers refetch
      * ```
      */
-    refreshAtom: WritableAtom<number, [], void>
+    refreshAtom: WritableAtom<number, [next?: number | ((prev: number) => number)], void>
 
     /**
      * Meta atom providing the query parameters.
@@ -348,7 +348,7 @@ export interface PaginatedEntityStore<
          * refresh()
          * ```
          */
-        refresh: WritableAtom<number, [], void>
+        refresh: WritableAtom<number, [next?: number | ((prev: number) => number)], void>
     }
 }
 
@@ -417,11 +417,11 @@ export function createPaginatedEntityStore<
         excludeRowIdsAtom,
     })
 
-    // Create writable refresh atom
+    // Create writable refresh atom (setState-style value/updater optional; bare set() bumps the counter)
     const refreshAtom = atom(
         (get) => get(internalRefreshAtom),
-        (_get, set) => {
-            set(internalRefreshAtom, (prev) => prev + 1)
+        (_get, set, next?: number | ((prev: number) => number)) => {
+            set(internalRefreshAtom, next ?? ((prev: number) => prev + 1))
         },
     )
 

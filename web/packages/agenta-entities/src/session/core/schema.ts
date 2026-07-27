@@ -88,7 +88,7 @@ export type SessionInteractionKind = "user_approval" | "user_input" | "client_to
  * client-side.
  */
 export const sessionStreamSchema = z.object({
-    id: z.string(),
+    id: z.string().nullish(),
     project_id: z.string(),
     session_id: z.string(),
     // Header (name/description) + lifecycle carry the durable session's title, order key, and

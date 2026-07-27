@@ -7,7 +7,7 @@ import {SpanCategory} from "@/oss/services/tracing/types"
 import {spanTypeStyles} from "../assets/constants"
 
 interface Props {
-    name: string
+    name?: string
     type?: SpanCategory
 }
 
