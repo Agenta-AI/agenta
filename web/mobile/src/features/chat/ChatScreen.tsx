@@ -10,6 +10,7 @@ import {useLivenessPoll} from "../sessions/useLivenessPoll"
 
 import {ChatHeader} from "./ChatHeader"
 import {ChatEmpty, ChatLoading} from "./states/ChatStates"
+import {StopButton} from "./StopButton"
 import {TurnRow} from "./TurnRow"
 import {useApprovalActions} from "./useApprovalActions"
 import {useSessionTranscript} from "./useSessionTranscript"
@@ -71,6 +72,12 @@ export const ChatScreen = ({
     return (
         <div className="bg-background text-foreground flex min-h-dvh flex-col">
             <ChatHeader sessionId={sessionId} projectId={projectId} workspaceId={workspaceId} />
+            {running ? (
+                <div className="border-border flex items-center justify-between border-b px-4 py-2">
+                    <span className="text-primary text-xs">A turn is running</span>
+                    <StopButton sessionId={sessionId} projectId={projectId} />
+                </div>
+            ) : null}
             {body}
         </div>
     )
