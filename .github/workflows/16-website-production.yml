@@ -51,6 +51,8 @@ jobs:
           # PostHog project key: public by design (ingest-only); analytics also
           # requires the runtime agenta.ai host guard, so previews stay silent.
           PUBLIC_POSTHOG_KEY: phc_cFT4a4081mXuKxYIrhIt6cmDwSjAO8zQlw9CFE05oSI
+          # GA4 measurement ID: public by design, same property as the pre-pivot site.
+          PUBLIC_GA_ID: G-368ZWZSH5D
         run: cd website && pnpm run build
 
       - name: Deploy production
