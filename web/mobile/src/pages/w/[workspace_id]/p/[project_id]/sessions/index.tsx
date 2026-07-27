@@ -1,18 +1,18 @@
 import Head from "next/head"
+import {useRouter} from "next/router"
 
-// Placeholder shell so root context resolution has a navigation target.
-// T5 replaces this with the real sessions list screen.
+import {SessionListScreen} from "@/features/sessions/SessionListScreen"
+
 export default function SessionsPage() {
+    const router = useRouter()
+    const {workspace_id: workspaceId, project_id: projectId} = router.query
+    if (typeof workspaceId !== "string" || typeof projectId !== "string") return null
     return (
         <>
             <Head>
                 <title>Sessions</title>
             </Head>
-            <div className="bg-background text-foreground flex min-h-dvh flex-col">
-                <p className="text-muted-foreground grow p-6 text-center text-xs">
-                    Sessions — coming in T5.
-                </p>
-            </div>
+            <SessionListScreen workspaceId={workspaceId} projectId={projectId} />
         </>
     )
 }
