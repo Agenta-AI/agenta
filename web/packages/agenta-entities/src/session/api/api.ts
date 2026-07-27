@@ -89,7 +89,11 @@ export interface SessionScopedParams {
     abortSignal?: AbortSignal
 }
 
-export interface QueryInteractionsParams extends SessionScopedParams {
+export interface QueryInteractionsParams extends Omit<SessionScopedParams, "sessionId"> {
+    /** Omit for a PROJECT-WIDE query — the backend treats `session_id` as optional, so one call
+     * returns every matching interaction across the project (the pending-approvals badge
+     * primitive). */
+    sessionId?: string
     kind?: SessionInteractionKind
     status?: SessionInteractionStatusCode
     /** Only requests still awaiting an answer. */
@@ -97,9 +101,9 @@ export interface QueryInteractionsParams extends SessionScopedParams {
 }
 
 /**
- * List a session's HITL interactions (pending approvals etc.). Used to know whether a
- * record-rendered request is still actionable — NOT as the render source (the record renders
- * the question; interactions hold the answer-state).
+ * List HITL interactions (pending approvals etc.) — one session's, or the whole project's when
+ * `sessionId` is omitted. Used to know whether a record-rendered request is still actionable —
+ * NOT as the render source (the record renders the question; interactions hold the answer-state).
  */
 export async function queryInteractions({
     sessionId,
@@ -110,7 +114,7 @@ export async function queryInteractions({
     status,
     actionableOnly,
 }: QueryInteractionsParams): Promise<SessionInteraction[] | null> {
-    if (!projectId || !sessionId) return null
+    if (!projectId) return null
 
     const data = await callFern("[queryInteractions]", () =>
         getSessionsClient().queryInteractions(

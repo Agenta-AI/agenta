@@ -21,12 +21,15 @@ export const SessionRow = ({
     session,
     href,
     liveness,
+    pendingApprovals = 0,
 }: {
     session: SessionStream
     href: string
     /** Fresh badge from the shared liveness poll; `undefined` = poll unresolved (fall back to
      * the list row's own flags), `null` = poll resolved and this session is idle. */
     liveness?: SessionLivenessBadge | null
+    /** Pending HITL approvals for this session (project-wide interactions poll). */
+    pendingApprovals?: number
 }) => {
     const agentLabel = session.references?.[0]?.slug ?? session.references?.[0]?.id ?? "—"
     const activity = timeAgo(session.updated_at ?? session.created_at)
@@ -40,6 +43,9 @@ export const SessionRow = ({
                     <span className="text-primary ml-2 font-normal">running</span>
                 ) : badge === "alive" ? (
                     <span className="text-muted-foreground ml-2 font-normal">live</span>
+                ) : null}
+                {pendingApprovals > 0 ? (
+                    <span className="text-primary ml-2 font-normal">needs approval</span>
                 ) : null}
                 {session.deleted_at ? (
                     <span className="text-muted-foreground ml-2 font-normal">ended</span>
