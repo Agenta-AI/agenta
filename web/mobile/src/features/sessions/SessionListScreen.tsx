@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {clearLastContext} from "@/lib/context"
 
@@ -6,6 +6,7 @@ import {classifyPageFailure} from "./pageFailure"
 import {SessionRow} from "./SessionRow"
 import {SessionSearchBar} from "./SessionSearchBar"
 import {SessionListEmpty, SessionListError, SessionListLoading} from "./states/SessionListStates"
+import {livenessBySession, useLivenessPoll} from "./useLivenessPoll"
 import {useSessionsInfinite} from "./useSessionsInfinite"
 
 /** Sessions list: server-side search, id+activity cursor paging, archived rows hidden. */
@@ -24,6 +25,8 @@ export const SessionListScreen = ({
     }, [input])
 
     const query = useSessionsInfinite(projectId, search)
+    const liveness = useLivenessPoll(projectId)
+    const liveBadges = useMemo(() => livenessBySession(liveness.data), [liveness.data])
     const pages = query.data?.pages ?? []
     const {failed, laterPageFailed} = classifyPageFailure(pages, query.isError)
 
@@ -51,6 +54,7 @@ export const SessionListScreen = ({
                         key={session.id}
                         session={session}
                         href={`/w/${workspaceId}/p/${projectId}/sessions/${session.session_id}`}
+                        liveness={liveBadges ? (liveBadges.get(session.session_id) ?? null) : undefined}
                     />
                 ))}
                 {laterPageFailed || query.hasNextPage ? (
