@@ -142,9 +142,22 @@ export const useApprovalActions = ({
                 if (!response.ok) {
                     throw new Error(`Resume failed (HTTP ${response.status}).`)
                 }
-                // Fire-and-forget: release the stream immediately — session runs survive
-                // client disconnect, and holding the SSE open for the whole turn is waste.
-                void response.body?.cancel().catch(() => undefined)
+                // Fire-and-forget, but NEVER cancel: cancelling the body aborts the request,
+                // and the agent service treats that disconnect as "stop" — the resumed run
+                // dies ~200ms in and the gate stays pending (observed live). Drain instead.
+                void (async () => {
+                    const reader = response.body?.getReader()
+                    if (!reader) return
+                    try {
+                        for (;;) {
+                            const {done} = await reader.read()
+                            if (done) return
+                        }
+                    } catch {
+                        // Connection dropped (screen locked, network change) — the run
+                        // continues server-side; records polling picks the result up.
+                    }
+                })()
             } catch (err) {
                 setPhase("error")
                 setErrorText(err instanceof Error ? err.message : "Resume failed.")
