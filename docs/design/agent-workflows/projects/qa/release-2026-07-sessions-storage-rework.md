@@ -123,7 +123,10 @@ summarized here.
 
 | Phase | Status | Notes |
 |---|---|---|
-| 0 gh build | pending | |
+| 0 build gate | PASS | 2026-07-28: OSS and EE typecheck 0 errors; OSS and EE
+  production builds pass under `ignoreBuildErrors: false` (~2m each). Only benign
+  webpack warnings for the AI SDK's optional peer deps (`effect`,
+  `@valibot/to-json-schema`), not type errors. Matches tsc-error-inventory (0/0). |
 | 0 migration | PASS | 2026-07-28, scratch Postgres 16. Main's chain, seeded session
   data, then the branch chain: clean run, no constraint failures; `016` backfill
   extracts `agent_id` correctly; `017` downgrade/re-upgrade round-trips. Confirmed
@@ -160,5 +163,43 @@ summarized here.
   is expected, not a defect. |
 | 3 acceptance suite | PASS | 2026-07-28, 177/177 against the live stack (:8480):
   archive/unarchive, records ingest contract, stream headers, DAO unit+integration. |
+| 3b two-writer race | FINDINGS | Concurrent turns on one session are not gated at
+  start (parallel sandboxes per session); the loser is reaped only at its next 30s
+  heartbeat; a disconnected client's turn runs headless until that same beat; and the
+  turn right after a takeover can land on a pool entry mid-teardown and fail with a
+  user-visible internal error, no retry (1 of 2 attempts; self-heals next turn).
+  Records stayed consistent throughout. Filed #5538 (teardown race, bug) and #5539
+  (characterization). |
+| 3c depth probes | PASS | Memory flood: token planted turn 1 recalled exactly at turn
+  14, in BOTH client modes; with last-message-only the runner reconstructed from a
+  linearly growing record log (159 records by turn 14) with no measurable latency
+  growth at this depth (caveat: does not rule out degradation at much larger depths).
+  Concurrent probe: 4 parallel sessions, each recalled only its own token, no leaks.
+  Records ~12/turn, no truncation drop-ins, order correct. Gmail probe skipped (no
+  Composio connections on the QA project). |
 | 3 REST surface | pending | |
-| 4 UI recording | pending | |
+| 4 UI pass | FINDINGS | 2026-07-28, isolated browser profile. PASS: rail basics
+  (auto-name, rename survives refresh, archive/unarchive, mature delete), always-allow
+  (grant honored next turn, visible under Advanced permissions, draft state shown),
+  warm Stop (clean stop, context-aware follow-up), Steer (deny + redirect executed),
+  cross-tab list sync. FAIL: refreshing while paused on an approval gate loses the
+  gate; turn renders "No response", command never runs (#5542, distinct from #5530).
+  Delete of a ~69s-old session resurrects on reconcile (#5543). Config drawer shows no
+  changed-path/Restore treatment for provider-level changes; dirty section expands to
+  the full form (#5544). Batch approvals not exercisable on the Claude harness (gates
+  arrive one at a time). |
+| 4b batch approvals (Pi) | FINDINGS | Pi genuinely raised 3 simultaneous bash gates
+  (twice), but the dock renders 1 live gate + N "waiting on another approval" cards,
+  so the Approve-all split button (`count > 1`) never appears on any harness: the
+  batch UI is unreachable, not broken (#5545). Sequential stepping works end to end
+  for both approve-all-one-by-one and deny-all-one-by-one. |
+
+## Verdict summary
+
+The always-on surface is release-ready with three UI defects to fix or accept
+(#5542 paused-gate lost on refresh — the sharpest one; #5543 young-delete
+resurrection; #5544 config-drawer what-changed gaps) and one unreachable feature
+(#5545 batch-approval UI). The flag-gated sessions train passed everything thrown at
+it, including depth and differential probes. Runner concurrency has one real bug
+(#5538) and one design decision to make (#5539). Build and migration gates are green.
+Tooling: #5534 (run.sh --env-file).
