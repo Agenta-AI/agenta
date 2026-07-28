@@ -22,6 +22,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamCommandRequest,
 )
 from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 
@@ -246,6 +247,60 @@ async def test_first_beat_of_a_runner_minted_turn_publishes_running(lock_engine)
         ),
     )
     assert publisher.lifecycle_calls == [(str(_PROJECT), session_id, "running")]
+
+
+class _TombstoneDAO:
+    """A killed session: the row is soft-deleted, so `get` and `update` see nothing and
+    `create` loses the (project_id, session_id) unique slot to the tombstone."""
+
+    def __init__(self):
+        self.creates = 0
+        self.updates = 0
+
+    async def get_by_session_id(self, *, project_id: UUID, session_id: str):
+        return None
+
+    async def create(self, *, project_id, user_id, stream):
+        self.creates += 1
+        raise SessionStreamAlreadyExists(session_id=stream.session_id)
+
+    async def update(self, *, project_id, user_id, session_id, stream):
+        self.updates += 1
+        return None
+
+    async def delete_by_session_id(self, *, project_id, session_id):
+        return True
+
+
+@pytest.mark.asyncio
+async def test_beat_on_a_killed_tombstone_publishes_nothing(lock_engine):
+    """A late beat from a killed turn's watchdog resolves to no row at all (create loses the
+    slot to the tombstone, update matches nothing). Announcing `running` for it would light
+    every watcher's badge for a session that cannot run — and nothing ever clears it, because
+    the turn-end beat's `ended` publish is gated on a `running` key that this beat is the only
+    thing to have armed."""
+    publisher = _RecordingPublisher()
+    dao = _TombstoneDAO()
+    svc = SessionStreamsService(
+        streams_dao=dao, lock_engine=lock_engine, watch_publisher=publisher
+    )
+    session_id = _session_id()
+
+    result = await svc.heartbeat(
+        project_id=_PROJECT,
+        request=SessionHeartbeatRequest(
+            session_id=session_id,
+            replica_id="replica-1",
+            turn_id="killed-turn",
+            is_running=True,
+        ),
+    )
+
+    assert (dao.creates, dao.updates) == (1, 1), "both row paths must have been tried"
+    assert result.stream is None, "a killed session resolves to no row"
+    assert publisher.lifecycle_calls == [], (
+        "a dead tombstone must never be announced as running"
+    )
 
 
 @pytest.mark.asyncio
