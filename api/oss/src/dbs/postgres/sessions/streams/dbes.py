@@ -4,12 +4,14 @@ from sqlalchemy import (
     Index,
     PrimaryKeyConstraint,
     String,
+    TIMESTAMP,
     UniqueConstraint,
 )
 
 from oss.src.dbs.postgres.shared.base import Base
 from oss.src.dbs.postgres.shared.dbas import (
     FlagsDBA,
+    HeaderDBA,
     IdentifierDBA,
     LifecycleDBA,
     MetaDBA,
@@ -22,18 +24,21 @@ class SessionStreamDBE(
     Base,
     IdentifierDBA,
     ProjectScopeDBA,
+    HeaderDBA,
     LifecycleDBA,
     FlagsDBA,
     TagsDBA,
     MetaDBA,
 ):
-    """Ephemeral run/liveness facet for a session — the durable mirror of the
-    Redis nest (alive ⊇ running ⊇ attached).
+    """The session's one row: identity (name/description) and run/liveness (the
+    durable mirror of the Redis nest, alive ⊇ running ⊇ attached).
 
     1:1 with session_id per project. Redis is authoritative for the nest bools;
     this row mirrors them in ``flags`` for durability / orphan sweep / observability.
     ``updated_at`` (LifecycleDBA) is the heartbeat timestamp — no separate column.
-    sandbox_id is NOT stored here (it lives in session_states).
+    ``name``/``description`` (HeaderDBA) are written only on the rename edit, never
+    on a flag-mirror write, so heartbeats don't churn them.
+    sandbox_id is NOT stored here (it lives on the latest session_turns row).
     """
 
     __tablename__ = "session_streams"
@@ -44,6 +49,10 @@ class SessionStreamDBE(
     # Current turn (uuid7 minted by the service); the Postgres mirror of the Redis
     # alive/running lock value. Null when idle/ended. Not a pk — a token-like correlator.
     turn_id = Column(String, nullable=True)
+
+    # Archive is distinct from kill: `deleted_at` (LifecycleDBA) marks a killed/ended session
+    # (resumable, still listed); `archived_at` marks a deliberately-hidden one (restorable).
+    archived_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
     __table_args__ = (
         ForeignKeyConstraint(
@@ -61,6 +70,11 @@ class SessionStreamDBE(
             "ix_session_streams_project_id_created_at",
             "project_id",
             "created_at",
+        ),
+        Index(
+            "ix_session_streams_project_id_archived_at",
+            "project_id",
+            "archived_at",
         ),
         Index(
             "ix_session_streams_flags",

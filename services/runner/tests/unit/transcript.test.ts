@@ -7,6 +7,10 @@ import {
   TOOL_RESULT_RENDER_MAX_CHARS,
 } from "../../src/engines/sandbox_agent/transcript.ts";
 import type { AgentRunRequest, ContentBlock } from "../../src/protocol.ts";
+import {
+  APPROVED_EXECUTION_RESULT_UNKNOWN,
+  TOOL_NOT_EXECUTED_PAUSED,
+} from "../../src/tracing/otel.ts";
 
 const COMMIT_TOOL = "mcp__agenta-tools__commit_revision";
 const OTHER_TOOL = "mcp__agenta-tools__summarize";
@@ -102,6 +106,41 @@ describe("messageTranscript", () => {
 
     assert.match(transcript, /APPROVED approval_status/);
     assert.match(transcript, /NOT run yet/);
+  });
+
+  it("renders a deferred sibling as a retry nudge, not an error", () => {
+    const transcript = messageTranscript([
+      {
+        type: "tool_result",
+        toolName: OTHER_TOOL,
+        output: TOOL_NOT_EXECUTED_PAUSED,
+        isError: true,
+      },
+    ]);
+
+    assert.match(transcript, new RegExp(`${OTHER_TOOL} was NOT run`));
+    assert.match(transcript, /skipped, not denied/);
+    assert.match(transcript, /Call .* again with the same arguments now/);
+    // The whole point: it must not read as a tool error/refusal, and must not leak the sentinel.
+    assert.doesNotMatch(transcript, /error:/);
+    assert.doesNotMatch(transcript, /DEFERRED_NOT_EXECUTED/);
+  });
+
+  it("renders an approved-but-unobserved result as a do-not-retry nudge", () => {
+    const transcript = messageTranscript([
+      {
+        type: "tool_result",
+        toolName: OTHER_TOOL,
+        output: APPROVED_EXECUTION_RESULT_UNKNOWN,
+        isError: true,
+      },
+    ]);
+
+    assert.match(transcript, new RegExp(`${OTHER_TOOL} was approved`));
+    assert.match(transcript, /may have already run/);
+    assert.match(transcript, /do NOT retry a side-effecting call/i);
+    assert.doesNotMatch(transcript, /error:/);
+    assert.doesNotMatch(transcript, /APPROVED_EXECUTION_RESULT_UNKNOWN/);
   });
 });
 

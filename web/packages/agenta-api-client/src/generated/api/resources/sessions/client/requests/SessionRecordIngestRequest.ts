@@ -14,4 +14,6 @@ export interface SessionRecordIngestRequest {
     record_type?: string | null;
     record_source?: string | null;
     attributes?: Record<string, unknown> | null;
+    turn_id?: string | null;
+    span_id?: string | null;
 }

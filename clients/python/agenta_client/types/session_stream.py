@@ -9,13 +9,15 @@ from .session_stream_flags import SessionStreamFlags
 
 
 class SessionStream(UniversalBaseModel):
-    id: str
     created_at: typing.Optional[dt.datetime] = None
     updated_at: typing.Optional[dt.datetime] = None
     deleted_at: typing.Optional[dt.datetime] = None
     created_by_id: typing.Optional[str] = None
     updated_by_id: typing.Optional[str] = None
     deleted_by_id: typing.Optional[str] = None
+    name: typing.Optional[str] = None
+    description: typing.Optional[str] = None
+    id: typing.Optional[str] = None
     project_id: str
     session_id: str
     flags: typing.Optional[SessionStreamFlags] = None

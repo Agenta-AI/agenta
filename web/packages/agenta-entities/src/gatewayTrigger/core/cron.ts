@@ -125,15 +125,24 @@ export function nextCronRuns(expression: string, count = 3, from: Date = new Dat
     cursor.setUTCSeconds(0, 0)
     cursor.setUTCMinutes(cursor.getUTCMinutes() + 1)
 
+    // POSIX cron treats day-of-month and day-of-week as a *union* when BOTH are
+    // restricted: `0 0 1 * 1` fires on the 1st OR on Mondays (matching the
+    // backend croniter), not only on Mondays that fall on the 1st. When either
+    // field is `*` it is always-true, so the result collapses to a plain AND.
+    const domRestricted = dom !== "*"
+    const dowRestricted = dow !== "*"
+
     // Cap the scan at one year of minutes to avoid an unbounded loop.
     const MAX_STEPS = 366 * 24 * 60
     for (let step = 0; step < MAX_STEPS && runs.length < count; step++) {
+        const domHit = matchField(cursor.getUTCDate(), dom, FIELD_BOUNDS[2])
+        const dowHit = matchField(cursor.getUTCDay(), dow, FIELD_BOUNDS[4])
+        const dayHit = domRestricted && dowRestricted ? domHit || dowHit : domHit && dowHit
         if (
             matchField(cursor.getUTCMinutes(), minute, FIELD_BOUNDS[0]) &&
             matchField(cursor.getUTCHours(), hour, FIELD_BOUNDS[1]) &&
-            matchField(cursor.getUTCDate(), dom, FIELD_BOUNDS[2]) &&
             matchField(cursor.getUTCMonth() + 1, month, FIELD_BOUNDS[3]) &&
-            matchField(cursor.getUTCDay(), dow, FIELD_BOUNDS[4])
+            dayHit
         ) {
             runs.push(new Date(cursor))
         }
