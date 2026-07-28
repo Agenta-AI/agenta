@@ -118,6 +118,16 @@ class NormalizerMiddleware:
         return normalized
 
     @staticmethod
+    def _resolve_agent_id(ctx: RunningContext) -> Optional[str]:
+        """The running artifact's id (workflow / application / evaluator) —
+        they all resolve through the same WorkflowRevision.artifact_id."""
+        revision = ctx.revision
+        if not isinstance(revision, dict):
+            return None
+        agent_id = revision.get("artifact_id") or revision.get("workflow_id")
+        return str(agent_id) if agent_id else None
+
+    @staticmethod
     def _correlation_ids():
         """trace_id / span_id (from the span link) + session_id — all off the
         TracingContext, the single source for response correlation ids."""
@@ -276,11 +286,16 @@ class NormalizerMiddleware:
         scoped.session_id = session_id
         token = TracingContext.set(scoped)
         try:
-            if session_id:
+            agent_id = self._resolve_agent_id(ctx)
+
+            if session_id or agent_id:
                 import agenta as ag
 
                 if ag.tracing is not None:
-                    ag.tracing.store_session(session_id=session_id)
+                    if session_id:
+                        ag.tracing.store_session(session_id=session_id)
+                    if agent_id:
+                        ag.tracing.store_agent(agent_id=agent_id)
 
             kwargs = await self._normalize_request(request, handler)
 

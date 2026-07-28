@@ -195,10 +195,11 @@
   --section-pad-y-dark: 128px;
 
   /* ── nav pill geometry (scrolled state) ───────────────────────
-     Matched to live agenta.ai: the bar keeps its full 68px height, floats
-     24px below the viewport, and rounds to 16px. Consumed by the
-     nav-scrolled rules in global.css. */
-  --nav-pill-inset: 24px;
+     The bar keeps its full 68px height, floats just below the viewport, and
+     rounds to 16px. Consumed by the nav-scrolled rules in global.css. The
+     inset is intentionally tighter than agenta.ai's 24px so the floating pill
+     reclaims top space instead of eating into the viewport. */
+  --nav-pill-inset: 12px;
   --nav-pill-radius: 16px;
   --nav-pill-max: 1256px;
   --nav-pad-x: 32px;

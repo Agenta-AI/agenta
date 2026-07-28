@@ -21,6 +21,7 @@ dependencies = [
     "sqlalchemy>=2,<3",
     "sqlalchemy-utils>=0.42,<0.43",
     "sqlalchemy-json>=0.7,<0.8",
+    "greenlet>=3,<4",
     "asyncpg>=0.31,<0.32",
     "alembic>=1,<2",
     "orjson>=3,<4",
