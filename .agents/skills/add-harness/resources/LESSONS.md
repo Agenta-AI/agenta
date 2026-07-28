@@ -375,3 +375,10 @@ procedure, this file holds the raw experience that justifies it.
   counts as managed. When rendering credential-mode-dependent config in the SDK, mirror that: default
   to managed unless the resolved connection (or the authored `self_managed` intent) says subscription
   — otherwise an un-migrated or unresolved run silently loses its auth config.
+- 2026-07-28 · **Reports and QA artifacts are public the moment the PR opens — no deployment IPs,
+  hostnames, project ids, or account emails in committed files.** Milestone reports naturally quote
+  the live QA environment ("open http://<ip>:<port>"); once the design workspace ships with the PR,
+  that address is public. Write `http://<dev-host>:<port>` placeholders from the first draft (the
+  real address belongs in the chat/session, or an untracked local note), and check recordings for
+  the browser URL bar before committing them. Scrubbing after the fact still leaves the value in git
+  history and in the PR diff views.

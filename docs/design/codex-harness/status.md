@@ -181,7 +181,7 @@ All five milestones are code-complete and green on `worktree-codex-harness`. The
 
 - Worktree `.claude/worktrees/codex-harness`, branch `worktree-codex-harness`, base
   main commit `7b971d8c10`.
-- Deployment up at http://144.76.237.122:8180 (compose project
+- Deployment up at http://<dev-host>:8180 (compose project
   `agenta-ee-dev-codex-harness`, Postgres 5433).
 - QA account, project, and API key created through the UI; credentials in the
   worktree `.env` (gitignored) together with the OpenAI experiment key.

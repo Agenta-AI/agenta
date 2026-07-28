@@ -96,7 +96,7 @@ The replay test + fixture were authored directly (test code + a captured recordi
   -> **8 passed** (includes the new `test_codex_tool_replay`).
 - `ruff format` + `ruff check` clean.
 
-## Live QA (worktree deployment http://144.76.237.122:8180, project 019f93b7-...)
+## Live QA (worktree deployment http://<dev-host>:8180, project 019f93b7-...)
 
 Driver: `docs/design/codex-harness/spike/scripts/m2-qa.py` (product endpoint
 `POST /services/agent/v0/invoke`, harness codex, model gpt-5.6-luna, managed openai).

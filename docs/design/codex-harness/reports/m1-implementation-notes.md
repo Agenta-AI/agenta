@@ -145,7 +145,7 @@ All driven with `codex exec -m gpt-5.6-sol --cd <worktree> --dangerously-bypass-
   -> **1218 passed (78 files)** (includes the `CODEX_SQLITE_HOME` fix tests). `pnpm run typecheck`
   clean.
 
-## Live QA (worktree deployment http://144.76.237.122:8180, project 019f93b7-8660-...)
+## Live QA (worktree deployment http://<dev-host>:8180, project 019f93b7-8660-...)
 
 Setup performed:
 - Restarted the api and runner containers to load the mounted source (runner runs `tsx src/server.ts`

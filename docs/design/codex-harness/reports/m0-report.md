@@ -22,7 +22,7 @@ Milestones 1, 3, and 4 build on them.
 - `design.md`: the integration design, mirroring the Claude pattern layer by layer.
 - `decisions.md`: D-001 through D-007.
 - The `add-harness` playbook skill (your ask from today), seeded with 14 lessons.
-- Working environment: the worktree deployment at http://144.76.237.122:8180, with a
+- Working environment: the worktree deployment at http://<dev-host>:8180, with a
   QA account, project, and API key created through the UI (which doubled as a signup
   smoke test of main; two minor UI observations noted in the findings, nothing
   blocking).

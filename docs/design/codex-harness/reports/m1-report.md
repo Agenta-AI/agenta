@@ -6,7 +6,7 @@ every implementation task, test commands, QA transcripts).
 
 ## What you can do right now
 
-Open the worktree deployment at http://144.76.237.122:8180, create an agent, and
+Open the worktree deployment at http://<dev-host>:8180, create an agent, and
 pick **Codex** in the harness dialog. It appears between Pi and Claude Code with its
 provider and five models listed, streams answers in the playground, and keeps
 context across turns in a session. The recording shows the whole flow: harness
