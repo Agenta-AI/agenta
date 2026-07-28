@@ -207,10 +207,11 @@ export async function prepareEnvironmentSetup(
   // regardless of provider.
   if (piSessionDir) piExtEnv.PI_CODING_AGENT_SESSION_DIR = piSessionDir;
   configurePiSkillSnapshot(piSkillSnapshot, piExtEnv);
-  // Managed Daytona Codex: set CODEX_HOME + CODEX_SQLITE_HOME (both in-VM, off the durable cwd) here,
-  // because the Daytona daemon env is fixed at sandbox creation and is built from piExtEnv. auth.json
-  // itself is written into the sandbox after it starts (see environment.ts). Non-Daytona / non-codex
-  // runs are no-ops; local Codex uses configureCodexHome below instead.
+  // Managed Daytona Codex: CODEX_HOME stays on the durable cwd (native resume rides its sessions/
+  // rollouts) while CODEX_SQLITE_HOME points in-VM, off the mount (D-002 final ruling). Set here
+  // because the Daytona daemon env is fixed at sandbox creation and is built from piExtEnv. Managed
+  // auth is file-free (env_key provider; no auth.json anywhere). Non-Daytona / non-codex runs are
+  // no-ops; local Codex uses configureCodexHome below instead.
   configureDaytonaCodexEnv(plan, piExtEnv);
   Object.assign(env, piExtEnv); // local daemon inherits it; daytona gets it via envVars
   logger(
