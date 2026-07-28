@@ -86,6 +86,10 @@ Run these as parallel subagents; only stack-state-mutating steps need to be seri
    focused, recorded (GIF/MP4). Cover what only a browser shows: dock/batch flows,
    drawer behavior, refresh/cold-replay fidelity, cross-tab sync. Post the recording on
    the PR, listed first (house rule). Do this after all stack mutations are restored.
+   **Always use an isolated browser profile** (a DevTools-launched instance, a dedicated
+   profile, or incognito) — never the developer's real browser. Cookies are scoped by
+   hostname without the port, so a QA login on one deployment silently logs the
+   developer out of every other deployment they have open on the same host.
 
 **Stack-state discipline:** flag toggles and container recreates run in ONE serial
 chain, never parallel with other stack users. Back up the env file first, diff it back
