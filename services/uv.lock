@@ -57,6 +57,7 @@ requires-dist = [
 dev = [
     { name = "boto3", specifier = ">=1,<2" },
     { name = "click", specifier = ">=8,<9" },
+    { name = "jsonschema", specifier = ">=4,<5" },
     { name = "pexpect", specifier = ">=4,<5" },
     { name = "posthog", specifier = ">=7,<8" },
     { name = "pytest", specifier = ">=9,<10" },
