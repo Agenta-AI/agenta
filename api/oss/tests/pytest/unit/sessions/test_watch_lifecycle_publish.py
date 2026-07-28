@@ -201,3 +201,78 @@ async def test_turn_end_heartbeat_publishes_ended_once(lock_engine):
         ),
     )
     assert publisher.lifecycle_calls == []
+
+
+@pytest.mark.asyncio
+async def test_first_beat_of_a_runner_minted_turn_publishes_running(lock_engine):
+    """The path real runs take: no send/steer command, so `_start_turn` never fires — the
+    runner mints its own turn id and only heartbeats. Without a publish here the relay's
+    `running` lifecycle event never fires for any actual turn."""
+    svc, publisher = _service(lock_engine)
+    session_id = _session_id()
+
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=SessionHeartbeatRequest(
+            session_id=session_id,
+            replica_id="replica-1",
+            turn_id="runner-turn-1",
+            is_running=True,
+        ),
+    )
+    assert publisher.lifecycle_calls == [(str(_PROJECT), session_id, "running")]
+
+    # Every ~30s beat of the SAME turn must stay silent; only the transition publishes.
+    publisher.lifecycle_calls.clear()
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=SessionHeartbeatRequest(
+            session_id=session_id,
+            replica_id="replica-1",
+            turn_id="runner-turn-1",
+            is_running=True,
+        ),
+    )
+    assert publisher.lifecycle_calls == []
+
+    # A new turn on the same session is a fresh transition.
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=SessionHeartbeatRequest(
+            session_id=session_id,
+            replica_id="replica-1",
+            turn_id="runner-turn-2",
+            is_running=True,
+        ),
+    )
+    assert publisher.lifecycle_calls == [(str(_PROJECT), session_id, "running")]
+
+
+@pytest.mark.asyncio
+async def test_send_does_not_double_publish_running_on_its_first_beat(lock_engine):
+    """`_start_turn` already recorded the turn on the row, so the runner's first beat for
+    that same turn must not emit a second `running`."""
+    svc, publisher = _service(lock_engine)
+    session_id = _session_id()
+
+    result = await svc.command(
+        project_id=_PROJECT,
+        user_id=_USER,
+        request=SessionStreamCommandRequest(
+            session_id=session_id,
+            data=WorkflowServiceRequestData(inputs={"messages": ["hi"]}),
+            force=False,
+        ),
+    )
+    publisher.lifecycle_calls.clear()
+
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=SessionHeartbeatRequest(
+            session_id=session_id,
+            replica_id="replica-1",
+            turn_id=result.turn_id,
+            is_running=True,
+        ),
+    )
+    assert publisher.lifecycle_calls == []

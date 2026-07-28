@@ -428,6 +428,17 @@ class SessionStreamsService:
                 stream=SessionStreamEdit(flags=flags, turn_id=request.turn_id),
             )
 
+        # `running` lifecycle for the path that actually runs turns. `_start_turn` publishes it
+        # for send/steer, but the runner mints its own turn id and only ever heartbeats, so
+        # without this the relay's `running` event never fires for a real run. Gated on the
+        # turn being new to this row, so a 30s-interval beat doesn't re-publish it.
+        if request.turn_id and request.is_running and not turn_was_established:
+            await self._publish_lifecycle(
+                project_id=project_id,
+                session_id=request.session_id,
+                state=WATCH_LIFECYCLE_RUNNING,
+            )
+
         return SessionHeartbeatResult(
             stream=stream,
             replica_id=owner,
