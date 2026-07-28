@@ -1,0 +1,478 @@
+{
+  "commit_revision": {
+    "additionalProperties": false,
+    "properties": {
+      "workflow_revision": {
+        "additionalProperties": false,
+        "description": "The revision to append to your variant's history.",
+        "properties": {
+          "delta": {
+            "additionalProperties": false,
+            "description": "Change set applied to your current revision. `set` is deep-merged (omitted fields preserved); `remove` deletes the listed paths.",
+            "properties": {
+              "remove": {
+                "description": "Dotted field paths to delete, e.g. parameters.agent.tools.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "set": {
+                "additionalProperties": true,
+                "description": "Partial workflow revision data to merge. For agent-template updates, include parameters.agent with instructions, llm, tools, mcps, skills, harness, runner, or sandbox fields as needed.",
+                "properties": {
+                  "parameters": {
+                    "additionalProperties": true,
+                    "description": "Workflow revision parameters. Put agent-template edits under `agent`.",
+                    "properties": {
+                      "agent": {
+                        "additionalProperties": false,
+                        "description": "The agent template (`parameters.agent`), summarized one line per key. Full field-by-field shape, allowed values, and worked examples: `references/config-schema.md` (ships with the build-an-agent skill) \u2014 read it before your first commit. Every field is optional; a delta deep-merges onto your current config.",
+                        "properties": {
+                          "harness": {
+                            "description": "The coding agent to drive (`kind`, e.g. `claude`/`pi_core`) plus execution knobs.",
+                            "type": "object"
+                          },
+                          "instructions": {
+                            "description": "Instruction documents; `agents_md` is the one cross-harness file (the harness AGENTS.md).",
+                            "type": "object"
+                          },
+                          "llm": {
+                            "description": "Model selection: `model` as 'provider/model', plus provider and parameters.",
+                            "type": "object"
+                          },
+                          "mcps": {
+                            "description": "Declared MCP servers. Secret env resolves from the vault at run time; never put tokens here. Replaced wholesale, not merged: resend the complete list, and copy any `@ag.embed` entries through unchanged.",
+                            "type": "array"
+                          },
+                          "runner": {
+                            "description": "The engine driving the harness loop (`kind`) plus tool-execution `permissions`.",
+                            "type": "object"
+                          },
+                          "sandbox": {
+                            "description": "Where the agent runs (`kind`) plus its security boundary.",
+                            "type": "object"
+                          },
+                          "skills": {
+                            "description": "Skills the agent ships: inline skill templates or stored-skill references. Replaced wholesale, not merged: resend the complete list, and copy any `@ag.embed` entries through unchanged.",
+                            "type": "array"
+                          },
+                          "tools": {
+                            "description": "Tools the agent can call: harness built-ins, gateway actions, sandboxed code, client-fulfilled tools, or a workflow reference. Replaced wholesale, not merged: resend the complete list, and copy any `@ag.embed` entries through unchanged.",
+                            "type": "array"
+                          }
+                        },
+                        "title": "AgentTemplateSchema",
+                        "type": "object",
+                        "x-ag-type": "agent-template"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "message": {
+            "description": "Commit message describing the change.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "delta"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "workflow_revision"
+    ],
+    "type": "object"
+  },
+  "test_run": {
+    "additionalProperties": false,
+    "properties": {
+      "delta": {
+        "additionalProperties": false,
+        "description": "Optional uncommitted revision delta to apply in memory before the test.",
+        "properties": {
+          "remove": {
+            "description": "Dotted paths to delete from the revision data tree.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "set": {
+            "additionalProperties": true,
+            "description": "Partial revision data tree deep-merged onto the committed revision.",
+            "properties": {
+              "parameters": {
+                "additionalProperties": true,
+                "description": "Workflow revision parameters. Put agent-template edits under `agent`.",
+                "properties": {
+                  "agent": {
+                    "additionalProperties": false,
+                    "description": "The agent template (`parameters.agent`), summarized one line per key. Full field-by-field shape, allowed values, and worked examples: `references/config-schema.md` (ships with the build-an-agent skill) \u2014 read it before your first commit. Every field is optional; a delta deep-merges onto your current config.",
+                    "properties": {
+                      "harness": {
+                        "description": "The coding agent to drive (`kind`, e.g. `claude`/`pi_core`) plus execution knobs.",
+                        "type": "object"
+                      },
+                      "instructions": {
+                        "description": "Instruction documents; `agents_md` is the one cross-harness file (the harness AGENTS.md).",
+                        "type": "object"
+                      },
+                      "llm": {
+                        "description": "Model selection: `model` as 'provider/model', plus provider and parameters.",
+                        "type": "object"
+                      },
+                      "mcps": {
+                        "description": "Declared MCP servers. Secret env resolves from the vault at run time; never put tokens here. Replaced wholesale, not merged: resend the complete list, and copy any `@ag.embed` entries through unchanged.",
+                        "type": "array"
+                      },
+                      "runner": {
+                        "description": "The engine driving the harness loop (`kind`) plus tool-execution `permissions`.",
+                        "type": "object"
+                      },
+                      "sandbox": {
+                        "description": "Where the agent runs (`kind`) plus its security boundary.",
+                        "type": "object"
+                      },
+                      "skills": {
+                        "description": "Skills the agent ships: inline skill templates or stored-skill references. Replaced wholesale, not merged: resend the complete list, and copy any `@ag.embed` entries through unchanged.",
+                        "type": "array"
+                      },
+                      "tools": {
+                        "description": "Tools the agent can call: harness built-ins, gateway actions, sandboxed code, client-fulfilled tools, or a workflow reference. Replaced wholesale, not merged: resend the complete list, and copy any `@ag.embed` entries through unchanged.",
+                        "type": "array"
+                      }
+                    },
+                    "title": "AgentTemplateSchema",
+                    "type": "object",
+                    "x-ag-type": "agent-template"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "expectations": {
+        "additionalProperties": false,
+        "description": "Optional checks that define a passing test run.",
+        "properties": {
+          "terminal_tool": {
+            "description": "Expected final/terminal tool name that must run and return.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputs": {
+        "additionalProperties": false,
+        "properties": {
+          "messages": {
+            "description": "Test conversation messages for the headless run.",
+            "items": {
+              "properties": {
+                "content": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "items": {
+                        "discriminator": {
+                          "mapping": {
+                            "file": "#/$defs/ContentPartFile",
+                            "image_url": "#/$defs/ContentPartImage",
+                            "text": "#/$defs/ContentPartText"
+                          },
+                          "propertyName": "type"
+                        },
+                        "oneOf": [
+                          {
+                            "properties": {
+                              "text": {
+                                "title": "Text",
+                                "type": "string"
+                              },
+                              "type": {
+                                "const": "text",
+                                "default": "text",
+                                "title": "Type",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "text"
+                            ],
+                            "title": "ContentPartText",
+                            "type": "object"
+                          },
+                          {
+                            "properties": {
+                              "image_url": {
+                                "properties": {
+                                  "detail": {
+                                    "anyOf": [
+                                      {
+                                        "enum": [
+                                          "auto",
+                                          "low",
+                                          "high"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "title": "Detail"
+                                  },
+                                  "url": {
+                                    "title": "Url",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "url"
+                                ],
+                                "title": "ImageURL",
+                                "type": "object"
+                              },
+                              "type": {
+                                "const": "image_url",
+                                "default": "image_url",
+                                "title": "Type",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "image_url"
+                            ],
+                            "title": "ContentPartImage",
+                            "type": "object"
+                          },
+                          {
+                            "properties": {
+                              "file": {
+                                "properties": {
+                                  "file_data": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "title": "File Data"
+                                  },
+                                  "file_id": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "title": "File Id"
+                                  },
+                                  "file_name": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "title": "File Name"
+                                  },
+                                  "file_url": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "title": "File Url"
+                                  },
+                                  "format": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "title": "Format"
+                                  },
+                                  "mime_type": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "default": null,
+                                    "title": "Mime Type"
+                                  }
+                                },
+                                "title": "FileInput",
+                                "type": "object"
+                              },
+                              "type": {
+                                "const": "file",
+                                "default": "file",
+                                "title": "Type",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "file"
+                            ],
+                            "title": "ContentPartFile",
+                            "type": "object"
+                          }
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Content"
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Name"
+                },
+                "role": {
+                  "enum": [
+                    "developer",
+                    "system",
+                    "user",
+                    "assistant",
+                    "tool",
+                    "function"
+                  ],
+                  "title": "Role",
+                  "type": "string"
+                },
+                "tool_call_id": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Tool Call Id"
+                },
+                "tool_calls": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "properties": {
+                          "function": {
+                            "properties": {
+                              "arguments": {
+                                "title": "Arguments",
+                                "type": "string"
+                              },
+                              "name": {
+                                "title": "Name",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "arguments"
+                            ],
+                            "title": "ToolFunction",
+                            "type": "object"
+                          },
+                          "id": {
+                            "title": "Id",
+                            "type": "string"
+                          },
+                          "type": {
+                            "const": "function",
+                            "default": "function",
+                            "title": "Type",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "function"
+                        ],
+                        "title": "ToolCall",
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Tool Calls"
+                }
+              },
+              "required": [
+                "role"
+              ],
+              "title": "Message",
+              "type": "object",
+              "x-ag-type": "message"
+            },
+            "title": "Messages",
+            "type": "array",
+            "x-ag-type": "messages"
+          }
+        },
+        "required": [
+          "messages"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "inputs"
+    ],
+    "type": "object"
+  }
+}

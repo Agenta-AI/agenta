@@ -14,12 +14,15 @@ error paths (unknown op, missing API base).
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 import logging
 
+import jsonschema
 import pytest
 from pydantic import ValidationError
 
 from agenta.sdk.agents import PlatformToolConfig
+from agenta.sdk.agents.platform import op_catalog
 from agenta.sdk.agents.platform import (
     PLATFORM_OPS,
     AgentaPlatformToolResolver,
@@ -338,31 +341,88 @@ async def test_query_spans_emits_project_scoped_read_call(connection):
         "rate",
     }.isdisjoint(spec.input_schema["properties"])
 
-    defs = spec.input_schema["$defs"]
-    filtering_schema = defs["Filtering"]
-    assert set(filtering_schema["properties"]) == {"operator", "conditions"}
-    condition_ref = filtering_schema["properties"]["conditions"]["items"]["anyOf"][0]
-    assert condition_ref == {"$ref": "#/$defs/Condition"}
-    condition_schema = defs["Condition"]
-    assert set(condition_schema["properties"]) == {
-        "field",
-        "key",
-        "value",
-        "operator",
-        "options",
-    }
-    assert condition_schema["required"] == ["field"]
-    assert "trace_id" in condition_schema["properties"]["field"]["description"]
+    # The filtering DSL is no longer inlined as `$defs` — it lives in `references/span-queries.md`
+    # and the arguments are advertised as open objects. Nothing may re-expand here.
+    assert "$defs" not in spec.input_schema
+    assert "$ref" not in json.dumps(spec.input_schema)
 
-    assert set(defs["Windowing"]["properties"]) == {
-        "newest",
-        "oldest",
-        "next",
-        "limit",
-        "order",
-        "interval",
-        "rate",
-    }
+
+def test_query_spans_advertises_open_dsl_arguments_with_the_vocabulary_in_prose():
+    """The DSL's *vocabulary* has to survive the trim, or the model cannot write a query.
+
+    ~1,150 tokens of `$defs` became prose on the two arguments that carry the DSL. The operator
+    names and the condition shape stay in the advertisement — enough to write the common
+    verification query without opening the reference — and the reference carries the rest."""
+    schema = get_platform_op("query_spans").resolved_input_schema()
+
+    filtering = schema["properties"]["filtering"]
+    assert filtering["type"] == "object"
+    # Open: no `properties`, no `required`, no closed object.
+    assert set(filtering) == {"type", "description"}
+    for operator in ("is_not", "gte", "startswith", "has_not", "not_in", "not_exists"):
+        assert operator in filtering["description"], operator
+    for logical in ("and", "or", "nand"):
+        assert f"`{logical}`" in filtering["description"], logical
+    assert "trace_id" in filtering["description"]
+    assert "references/span-queries.md" in filtering["description"]
+
+    windowing = schema["properties"]["windowing"]
+    for field in ("oldest", "newest", "limit", "order", "next"):
+        assert field in windowing["description"], field
+
+
+def test_query_spans_accepts_the_full_dsl_it_stopped_describing():
+    """The trim only removes constraints: every query the typed `$defs` accepted still validates."""
+    schema = get_platform_op("query_spans").resolved_input_schema()
+
+    jsonschema.validate(
+        {
+            "filtering": {
+                "operator": "and",
+                "conditions": [
+                    {"field": "trace_id", "operator": "is", "value": "abc"},
+                    {
+                        "operator": "or",
+                        "conditions": [
+                            {
+                                "field": "attributes",
+                                "key": "ag.type",
+                                "operator": "has",
+                                "value": {"x": 1},
+                            },
+                            {
+                                "field": "span_name",
+                                "operator": "contains",
+                                "value": "tool",
+                                "options": {"case_sensitive": False},
+                            },
+                        ],
+                    },
+                ],
+            },
+            "windowing": {
+                "oldest": "2026-07-01T00:00:00Z",
+                "newest": "2026-07-02T00:00:00Z",
+                "limit": 50,
+                "order": "descending",
+            },
+            "query_ref": {"slug": "saved", "version": "1"},
+        },
+        schema,
+    )
+
+
+def test_span_queries_reference_ships_with_the_build_an_agent_skill():
+    # The prose the schema now points at has to actually be on disk for the agent, and the skill
+    # body has to tell it to read the file — the same contract `config-schema.md` has.
+    from agenta.sdk.agents.adapters.agenta_builtins import BUILD_AN_AGENT_SKILL
+
+    by_path = {file.path: file.content for file in BUILD_AN_AGENT_SKILL.files}
+    assert "references/span-queries.md" in by_path
+    reference = by_path["references/span-queries.md"]
+    for operator in ("startswith", "not_exists", "btwn", "nand"):
+        assert operator in reference, operator
+    assert "references/span-queries.md" in BUILD_AN_AGENT_SKILL.body
 
 
 # --- resolver: commit_revision self-update binds + strips ---------------------
@@ -445,29 +505,33 @@ def _test_run_agent_subtree():
     return delta["properties"]["set"]["properties"]["parameters"]["properties"]["agent"]
 
 
-def test_commit_revision_delta_set_carries_agent_template_shape():
-    # (a) The agent-template shape is reachable under delta.set.parameters.agent, so the tool schema
-    # itself (not just prose) tells the model what a `parameters.agent` payload looks like. The
-    # harness `kind` enum is a concrete, low-drift landmark inside it.
+AGENT_TEMPLATE_TOP_LEVEL_KEYS = {
+    "instructions",
+    "llm",
+    "tools",
+    "mcps",
+    "skills",
+    "harness",
+    "runner",
+    "sandbox",
+}
+
+
+def test_commit_revision_delta_set_advertises_the_shallow_agent_template():
+    # (a) The advertised agent shape is the top-level keys plus one-liners — the model still learns
+    # what a `parameters.agent` payload contains from the schema, but the ~6.4k-token expansion of
+    # every subtree is replaced by a pointer to the reference doc that already ships with the skill.
     agent = _commit_agent_subtree()
     assert agent["type"] == "object"
-    assert set(agent["properties"]) >= {
-        "instructions",
-        "llm",
-        "tools",
-        "mcps",
-        "skills",
-        "harness",
-        "runner",
-        "sandbox",
-    }
-    harness_kind = agent["properties"]["harness"]["properties"]["kind"]
-    assert "pi_core" in harness_kind["enum"]
-    assert "claude" in harness_kind["enum"]
-    # The inline skill-template ref was expanded (its typed fields are present), not left as a marker.
-    skills_items = agent["properties"]["skills"]["items"]
-    assert "x-ag-type-ref" not in json.dumps(agent)
-    assert _has_embed_branch(skills_items)
+    assert set(agent["properties"]) == AGENT_TEMPLATE_TOP_LEVEL_KEYS
+    for name, node in agent["properties"].items():
+        # A collapsed node carries its type and a one-liner and nothing else: no `properties`, no
+        # `items`, no `enum`, no `required`, no `additionalProperties`.
+        assert set(node) <= {"type", "description"}, name
+        assert node.get("description", "").strip(), name
+    assert "references/config-schema.md" in agent["description"]
+    # Type-refs are still expanded before the projection, so no marker leaks to the model.
+    assert "x-ag-type-ref" not in json.dumps(agent["properties"])
 
 
 def test_commit_revision_delta_set_agent_subtree_has_no_required():
@@ -478,32 +542,287 @@ def test_commit_revision_delta_set_agent_subtree_has_no_required():
     assert list(_iter_required_lists(agent)) == []
 
 
-def test_commit_revision_delta_set_list_items_accept_embeds():
-    # (c) tools/skills/mcps may hold `@ag.embed` build-kit entries; since the model re-sends the
-    # whole list, each item schema must accept the embed shape or the embeds get mangled.
+def test_commit_revision_delta_set_states_the_wholesale_list_and_embed_rule_in_prose():
+    # (c) tools/skills/mcps may hold `@ag.embed` build-kit entries, and the model re-sends the whole
+    # list. The full schema carried that structurally (an embed arm on each item schema); collapsed,
+    # the one-liner must carry it, or the model drops the embeds and wipes its own build-kit tools.
     agent = _commit_agent_subtree()
     for field in ("tools", "skills", "mcps"):
-        items = agent["properties"][field]["items"]
-        assert "anyOf" in items, field
-        assert _has_embed_branch(items), field
+        description = agent["properties"][field]["description"]
+        assert "wholesale" in description, field
+        assert "@ag.embed" in description, field
 
 
 def test_test_run_delta_set_matches_commit_revision():
-    # (d) test_run's uncommitted delta gets the same typed, deep-partial, embed-tolerant shape.
-    agent = _test_run_agent_subtree()
-    assert set(agent["properties"]) >= {"instructions", "llm", "harness", "sandbox"}
-    assert "pi_core" in agent["properties"]["harness"]["properties"]["kind"]["enum"]
-    assert list(_iter_required_lists(agent)) == []
-    for field in ("tools", "skills", "mcps"):
-        assert _has_embed_branch(agent["properties"][field]["items"]), field
+    # (d) test_run's uncommitted delta advertises the identical projection — one source, two ops.
+    assert _test_run_agent_subtree() == _commit_agent_subtree()
+
+
+def test_shallow_agent_template_summaries_cover_every_key():
+    # The one-liners are written for this schema rather than clipped from the source docstrings, so
+    # a key added to (or dropped from) the catalog type must be reflected here. This is the drift
+    # that matters: a new agent-template field silently missing from the advertised schema.
+    assert (
+        set(op_catalog._AGENT_TEMPLATE_FIELD_SUMMARIES) == AGENT_TEMPLATE_TOP_LEVEL_KEYS
+    )
+    assert (
+        set(op_catalog._AGENT_TEMPLATE_DELTA_SCHEMA_FULL["properties"])
+        == AGENT_TEMPLATE_TOP_LEVEL_KEYS
+    )
 
 
 def test_commit_revision_resolved_schema_size_is_bounded():
-    # (e) Guard against runaway expansion (a self-referential or duplicated type-ref could blow the
-    # schema up and the tools/list payload with it). A generous cap still catches an explosion.
+    # (e) The diet's own regression guard. Pre-diet this schema was ~24k characters (~6.9k tokens)
+    # because it inlined the whole agent-template tree; the projection has to keep it small, and a
+    # re-expansion (or a runaway type-ref) has to fail here rather than in a token bill.
     schema = get_platform_op("commit_revision").resolved_input_schema()
     size = len(json.dumps(schema))
-    assert size < 200_000, size
+    assert size < 6_000, size
+
+
+def test_advertised_op_schemas_match_the_golden(golden):
+    """The cross-language anchor for the two dieted ops.
+
+    The runner's Pi and MCP tests read this same file (`tests/utils/shallow-op-schema.ts`) to
+    check that a deeply nested config is not rejected pre-relay, so a change to either schema has
+    to be made deliberately here rather than silently drifting the two sides apart. Same pattern as
+    the `/run` wire contract goldens. Regenerate with the snippet in that TS module's header."""
+    expected = golden("advertised_op_schemas.json")
+    actual = {
+        op: get_platform_op(op).resolved_input_schema()
+        for op in ("commit_revision", "test_run")
+    }
+    assert actual == expected
+
+
+# --- the depth limit itself ---------------------------------------------------
+#
+# The projection's one load-bearing property: it may only ever REMOVE constraints. Both harnesses
+# validate a call against the advertised schema before it reaches the relay (Pi at
+# extensions/agenta.ts, the MCP client against tools/list), so a projection that tightened anything
+# would reject a payload the model was right to send, with no server-side recourse.
+
+
+def test_shallow_schema_collapses_below_the_depth_limit():
+    source = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["kept"],
+        "properties": {
+            "kept": {
+                "type": "object",
+                "description": "A one-liner.",
+                "additionalProperties": False,
+                "required": ["gone"],
+                "properties": {"gone": {"type": "string", "enum": ["a", "b"]}},
+            }
+        },
+    }
+
+    projected = op_catalog._shallow_schema(source, max_depth=1)
+
+    # The root keeps its own constraints; the child collapses to type + description.
+    assert projected["required"] == ["kept"]
+    assert projected["additionalProperties"] is False
+    assert projected["properties"]["kept"] == {
+        "type": "object",
+        "description": "A one-liner.",
+    }
+    # Pure: the source is not mutated.
+    assert source["properties"]["kept"]["required"] == ["gone"]
+
+
+def test_shallow_schema_counts_items_as_a_level_but_not_union_branches():
+    source = {
+        "type": "object",
+        "properties": {
+            "list": {
+                "type": "array",
+                "items": {"type": "object", "properties": {"deep": {"type": "string"}}},
+            }
+        },
+    }
+
+    # `properties.list` is depth 1, so at max_depth=2 its `items` collapse.
+    projected = op_catalog._shallow_schema(source, max_depth=2)
+    assert projected["properties"]["list"]["items"] == {"type": "object"}
+
+    # A union is one node spelled several ways, so its branches are projected at the SAME depth as
+    # the union itself — otherwise wrapping a subtree in `anyOf` would silently buy it a level.
+    subtree = {
+        "type": "object",
+        "properties": {"deep": {"type": "object", "properties": {"deeper": {}}}},
+    }
+    bare = {"type": "object", "properties": {"x": deepcopy(subtree)}}
+    wrapped = {
+        "type": "object",
+        "properties": {"x": {"anyOf": [deepcopy(subtree), {"type": "null"}]}},
+    }
+
+    projected_bare = op_catalog._shallow_schema(bare, max_depth=2)
+    projected_wrapped = op_catalog._shallow_schema(wrapped, max_depth=2)
+
+    # `deep` sits two levels down either way, so it collapses either way.
+    assert projected_bare["properties"]["x"]["properties"]["deep"] == {"type": "object"}
+    assert projected_wrapped["properties"]["x"]["anyOf"][0]["properties"]["deep"] == {
+        "type": "object"
+    }
+    assert projected_wrapped["properties"]["x"]["anyOf"][1] == {"type": "null"}
+
+
+def test_shallow_schema_drops_type_on_a_collapsed_union():
+    # `anyOf: [object, null]` accepts null. Keeping `type: "object"` while dropping the union would
+    # newly REJECT null — the one way a depth limit can tighten a schema.
+    source = {
+        "type": "object",
+        "properties": {
+            "nullable": {
+                "type": "object",
+                "anyOf": [{"type": "object"}, {"type": "null"}],
+                "description": "May be null.",
+            }
+        },
+    }
+
+    projected = op_catalog._shallow_schema(source, max_depth=1)
+
+    assert projected["properties"]["nullable"] == {"description": "May be null."}
+    assert "type" not in projected["properties"]["nullable"]
+
+
+def test_shallow_agent_template_adds_no_constraint_the_full_schema_lacked():
+    # Statically: below the top level the projection carries no constraint keyword at all, so there
+    # is nothing it could have tightened.
+    shallow = op_catalog._AGENT_TEMPLATE_DELTA_SCHEMA
+    for name, node in shallow["properties"].items():
+        assert "required" not in node, name
+        assert node.get("additionalProperties") is not False, name
+        assert "enum" not in node, name
+    # The root's own `additionalProperties: false` is inherited from the full schema (not added),
+    # and it still lists every key, so no payload the full schema accepted is newly rejected.
+    full = op_catalog._AGENT_TEMPLATE_DELTA_SCHEMA_FULL
+    assert shallow["additionalProperties"] == full["additionalProperties"]
+    assert set(shallow["properties"]) == set(full["properties"])
+
+
+def _required_paths(node, path=""):
+    """Every `required` array under ``node``, keyed by its dotted location."""
+    found = []
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "required" and isinstance(value, list):
+                found.append((path, sorted(value)))
+            else:
+                found += _required_paths(value, f"{path}.{key}")
+    elif isinstance(node, list):
+        for index, item in enumerate(node):
+            found += _required_paths(item, f"{path}[{index}]")
+    return sorted(found)
+
+
+@pytest.mark.parametrize("op_name", ["commit_revision", "test_run"])
+def test_the_diet_drops_no_required_argument_check(op_name):
+    """The diet costs NO required-field enforcement — not even nested.
+
+    The plan anticipated losing nested `required` inside the collapsed subtree (the runner's
+    `missingRequiredFields` walks `properties` recursively, so a shallower private spec checks
+    less). It does not happen here: `_deep_partial_schema` already strips every `required` from the
+    agent-template delta — a delta is a deep partial, so nothing under `parameters.agent` was ever
+    required — and the projection touches nothing outside that subtree. So the advertised schema
+    enforces exactly what the pre-diet schema enforced, at every layer."""
+    advertised = get_platform_op(op_name).resolved_input_schema()
+
+    # The pre-diet schema: the same op with the full agent-template tree put back.
+    pre_diet = deepcopy(advertised)
+    delta = (
+        pre_diet["properties"]["workflow_revision"]["properties"]["delta"]
+        if op_name == "commit_revision"
+        else pre_diet["properties"]["delta"]
+    )
+    delta["properties"]["set"]["properties"]["parameters"]["properties"]["agent"] = (
+        deepcopy(op_catalog._AGENT_TEMPLATE_DELTA_SCHEMA_FULL)
+    )
+
+    assert _required_paths(advertised) == _required_paths(pre_diet)
+    assert _required_paths(op_catalog._AGENT_TEMPLATE_DELTA_SCHEMA_FULL) == []
+
+
+def test_full_agent_template_schema_is_retained_for_on_demand_use():
+    # The projection's input stays whole: it is what a `load_op`-style lazy schema would hand back,
+    # and it is where the embed-tolerant list items still live.
+    full = op_catalog._AGENT_TEMPLATE_DELTA_SCHEMA_FULL
+    assert list(_iter_required_lists(full)) == []
+    for field in ("tools", "skills", "mcps"):
+        assert _has_embed_branch(full["properties"][field]["items"]), field
+
+
+# A real, several-levels-deep agent config using the catalog type's ACTUAL field names, so it is
+# valid under the pre-diet schema too. That is what makes it evidence: if it validates under both,
+# the collapse cost no acceptance.
+DEEP_AGENT_CONFIG = {
+    "instructions": {"agents_md": "# Agent\nDo the thing."},
+    "llm": {
+        "model": "anthropic/claude-opus-4",
+        "provider": "anthropic",
+        "extras": {"temperature": 0.2},
+    },
+    "harness": {
+        "kind": "claude",
+        "permissions": {"default_mode": "default", "allow": ["query_spans"]},
+        "extras": {"max_turns": 12},
+    },
+    "runner": {"kind": "sidecar", "permissions": {"default": "allow_reads"}},
+    "sandbox": {"kind": "local", "permissions": {"network": {"egress": "deny"}}},
+    "tools": [
+        {"type": "builtin", "name": "read"},
+        {"type": "platform", "op": "query_spans"},
+        {"@ag.embed": {"@ag.references": {"workflow": {"slug": "__ag__x"}}}},
+    ],
+    "skills": [{"name": "s", "description": "d", "body": "b"}],
+    "mcps": [{"name": "m", "command": "npx", "args": ["-y", "srv"]}],
+}
+
+
+def _delta_payload(op_name, agent_config):
+    delta = {"set": {"parameters": {"agent": agent_config}}}
+    if op_name == "commit_revision":
+        return {"workflow_revision": {"message": "m", "delta": delta}}
+    return {"inputs": {"messages": [{"role": "user", "content": "hi"}]}, "delta": delta}
+
+
+@pytest.mark.parametrize("op_name", ["commit_revision", "test_run"])
+def test_deeply_nested_agent_config_is_accepted_by_the_advertised_schema(op_name):
+    """The behavioral half of "the diet only removes constraints".
+
+    The harnesses validate a call against the ADVERTISED schema before it reaches the relay, so the
+    question the collapse raises is whether a deep config still gets through. It does — and the
+    second assertion is what makes this evidence rather than a tautology: the same payload is valid
+    under the pre-diet schema, so acceptance was not narrowed, only widened."""
+    payload = _delta_payload(op_name, DEEP_AGENT_CONFIG)
+
+    jsonschema.validate(payload, get_platform_op(op_name).resolved_input_schema())
+    jsonschema.validate(DEEP_AGENT_CONFIG, op_catalog._AGENT_TEMPLATE_DELTA_SCHEMA_FULL)
+
+
+@pytest.mark.parametrize("op_name", ["commit_revision", "test_run"])
+def test_the_advertised_schema_no_longer_rejects_unmodelled_nested_keys(op_name):
+    """The one behavior change, in the safe direction.
+
+    The full schema closed every nested object (`additionalProperties: false`), so a config using a
+    field the catalog type had not modelled was rejected in the harness before the server ever saw
+    it — even though the commit endpoint does not validate this shape at all. Collapsed, those
+    payloads now reach the server, which is the authority on them."""
+    config = deepcopy(DEEP_AGENT_CONFIG)
+    config["llm"]["reasoning_effort"] = "high"  # not in the catalog type
+    config["harness"]["kwargs"] = {"max_turns": 12}
+
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(config, op_catalog._AGENT_TEMPLATE_DELTA_SCHEMA_FULL)
+
+    jsonschema.validate(
+        _delta_payload(op_name, config),
+        get_platform_op(op_name).resolved_input_schema(),
+    )
 
 
 # --- resolver: annotate_trace self-targets its own trace/span -----------------

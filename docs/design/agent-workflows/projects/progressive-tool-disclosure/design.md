@@ -62,7 +62,12 @@ A depth limit that only *removes* constraints cannot reject a payload the deep s
 
 ---
 
-# Lever 2 — lazy schema
+# Lever 2 — lazy schema  ⏸ STASHED, not in the tree
+
+> Built, measured at 82.1%, and held back pending a lab run. This section is the design record for
+> that stashed work; see [results.md](results.md#phase-3-stashed) for what was removed and how to
+> restore it. Lever 1 (the diet) is what ships.
+
 
 Every op stays advertised under its real name with a one-line description and a **stub** schema.
 A `load_op` tool returns the full schema on request.
@@ -81,11 +86,30 @@ And unlike Lever 1, the **private spec is untouched** — the stub lives only in
 projection, so `assertRequiredArguments` at `relay.ts:327` / `:369` still enforces the full schema,
 nested `required` included. Nothing is lost; the check simply moves from the harness to the relay.
 
-**The stub must be permissive too**, for the same reason as Lever 1 and more so, since it is the
-only schema the harness sees: `{type: "object"}` with no `required` and no
-`additionalProperties: false`. Required fields are then reported by the relay with the exact
-field names, which is a usable error for the model. Do **not** stub client tools
-(`request_connection`, `request_input`) — the browser fulfils them and they are cheap.
+**The stub must not constrain MORE than the private spec** — same reason as Lever 1 and more so,
+since it is the only schema the harness sees. That rule says *subset*, not *empty*, and the
+difference is the whole reliability story.
+
+> **Revised 2026-07-28, after the first lab trace.** This section originally read "the stub must be
+> permissive: `{type: "object"}` with no `required`", on the reasoning that the relay would report
+> the missing fields by name anyway. It shipped that way and failed: a model reads "no required
+> fields" as "any object is valid" and invents one — the relay's error then arrives *after* a
+> permission gate and a round trip, and reads as an invitation to guess again. Worse, the stub's
+> description (`call load_op for this tool's schema`) sat in the **arguments** slot, where the
+> model parsed it as schema and sent `{"load_op": "discover_tools", …}`.
+>
+> The stub now carries the private spec's **top-level `required` names and their types** — still a
+> strict subset, so it still cannot reject anything the relay would run, but no longer an open
+> door. Its description spells out a literal `load_op({"op": "<name>"})` call that cannot be
+> misread as a field name.
+
+So: no `additionalProperties: false`, no constraint absent from the private spec, no nested tree
+(that is the cost being deferred). Do **not** stub client tools (`request_connection`,
+`request_input`) — the browser fulfils them and they are cheap.
+
+**Defer by size, and size the threshold in TURNS.** The first ship used 400 characters and deferred
+9 of 13 ops, five of them worth under 210 tokens each — trading a model turn for ~90 tokens. The
+threshold is 2,000 characters: only `test_run` and `commit_revision` defer.
 
 There is precedent for exactly this rule. Codex wraps MCP calls as `{server, tool, arguments}`, which
 forced `unwrapCodexMcpArgs` into `storedDecisionKeyShape` (`permission-plan.ts`, PR #5509) so

@@ -333,14 +333,176 @@ def _build_agent_template_delta_schema() -> Dict[str, Any]:
     return schema
 
 
+# ---------------------------------------------------------------------------
+# Depth-limited schema projection.
+# ---------------------------------------------------------------------------
+#
+# Expanded in full, the agent-template delta schema is ~6,400 tokens and is embedded TWICE
+# (`commit_revision` + `test_run`) — 70% of everything the playground advertises before the model
+# does anything. It is also advisory duplication: `references/config-schema.md` ships with the
+# build-an-agent skill, covers the same shape with worked examples, and the skill already tells the
+# model to read it before its first commit. The commit endpoint does not validate this shape either.
+# So we advertise the top-level keys with one-line descriptions and point at the reference.
+#
+# Written as a generic depth limit rather than a hand-written stub so the projection has one
+# testable rule and Phase 3 (lazy schema) can reuse it.
+# Record: docs/design/agent-workflows/projects/progressive-tool-disclosure/
+
+# A collapsed node's one-liner budget, in characters. Long enough to carry the field's purpose,
+# short enough that eight of them cost ~250 tokens instead of ~6,400.
+_SHALLOW_DESCRIPTION_BUDGET = 150
+
+# Union keywords. A collapsed node that carries one must NOT keep its `type`: the union is what
+# admits the other arms (e.g. `anyOf: [object, null]`), so keeping `type` alone would newly reject
+# a payload the full schema accepted.
+_UNION_KEYS = ("anyOf", "oneOf", "allOf")
+
+
+def _one_line(description: str) -> str:
+    """First paragraph of ``description``, whitespace-collapsed and clipped to the budget.
+
+    Catalog descriptions are model docstrings: a lead paragraph followed by reference detail. The
+    lead states the field's purpose, which is all a shallow schema needs to carry — the rest is what
+    ``references/config-schema.md`` exists for. Clipped on a word boundary, never mid-word."""
+    lead = description.strip().split("\n\n")[0]
+    text = " ".join(lead.split())
+    if len(text) <= _SHALLOW_DESCRIPTION_BUDGET:
+        return text
+    clipped = text[:_SHALLOW_DESCRIPTION_BUDGET].rsplit(" ", 1)[0].rstrip(" ,;:.")
+    return f"{clipped}…"
+
+
+def _collapsed_schema(node: Dict[str, Any]) -> Dict[str, Any]:
+    """A node's shallow stand-in: its ``type`` and a one-line description, nothing else.
+
+    Everything dropped here is a CONSTRAINT (`properties`, `required`,
+    ``additionalProperties: false``, `enum`, `items`) or prose, so the stand-in accepts a superset of
+    what the full node accepted. That direction is the invariant the whole diet rests on: a shallow
+    schema may never reject a payload the deep one allowed, because the harnesses validate against
+    the advertised schema before the call reaches the relay."""
+    collapsed: Dict[str, Any] = {}
+    # `type` is only safe to keep when it is the node's sole type constraint — see `_UNION_KEYS`.
+    node_type = node.get("type")
+    if node_type is not None and not any(key in node for key in _UNION_KEYS):
+        collapsed["type"] = deepcopy(node_type)
+    description = node.get("description")
+    if isinstance(description, str) and description.strip():
+        collapsed["description"] = _one_line(description)
+    return collapsed
+
+
+def _shallow_schema(node: Any, *, max_depth: int, _depth: int = 0) -> Any:
+    """Project a JSON Schema to at most ``max_depth`` levels of nested properties/items.
+
+    Depth counts descents through ``properties.<name>`` and ``items`` — the two edges that grow a
+    schema — so ``max_depth=1`` keeps a root object's own keys and collapses each of their subtrees.
+    Union branches are projected at the SAME depth: an ``anyOf`` is one node spelled several ways,
+    not a level of nesting. Kept nodes keep their constraints verbatim (only their prose is clipped);
+    collapsed nodes go through :func:`_collapsed_schema`. Pure: the input is never mutated."""
+    if not isinstance(node, dict):
+        return deepcopy(node)
+    if _depth >= max_depth:
+        return _collapsed_schema(node)
+
+    projected: Dict[str, Any] = {}
+    for key, value in node.items():
+        if key == "properties" and isinstance(value, dict):
+            projected[key] = {
+                name: _shallow_schema(child, max_depth=max_depth, _depth=_depth + 1)
+                for name, child in value.items()
+            }
+        elif key == "items":
+            projected[key] = _shallow_schema(
+                value, max_depth=max_depth, _depth=_depth + 1
+            )
+        elif key in _UNION_KEYS and isinstance(value, list):
+            projected[key] = [
+                _shallow_schema(branch, max_depth=max_depth, _depth=_depth)
+                for branch in value
+            ]
+        elif key == "description" and isinstance(value, str):
+            projected[key] = _one_line(value)
+        else:
+            projected[key] = deepcopy(value)
+    return projected
+
+
+# The reference that replaces the embedded schema. Ships as a `SkillFile` on
+# `BUILD_AN_AGENT_SKILL` (`adapters/agenta_builtins.py`), which already instructs the model to read
+# it before its first `commit_revision`.
+_CONFIG_SCHEMA_REFERENCE = "references/config-schema.md"
+
+_AGENT_TEMPLATE_DELTA_DESCRIPTION = (
+    "The agent template (`parameters.agent`), summarized one line per key. Full field-by-field "
+    f"shape, allowed values, and worked examples: `{_CONFIG_SCHEMA_REFERENCE}` (ships with the "
+    "build-an-agent skill) — read it before your first commit. Every field is optional; a delta "
+    "deep-merges onto your current config."
+)
+
+# Purpose-written one-liners for the agent-template's top-level keys. The source docstrings are
+# multi-paragraph model documentation whose lead sentence clips mid-thought, so the summaries are
+# written for this schema rather than derived — `_one_line` remains the fallback for a key added
+# without one. `test_shallow_agent_template_summaries_cover_every_key` fails if the catalog type
+# gains or loses a key, which is the drift that matters here.
+_AGENT_TEMPLATE_FIELD_SUMMARIES: Dict[str, str] = {
+    "instructions": (
+        "Instruction documents; `agents_md` is the one cross-harness file (the harness AGENTS.md)."
+    ),
+    "llm": "Model selection: `model` as 'provider/model', plus provider and parameters.",
+    "tools": (
+        "Tools the agent can call: harness built-ins, gateway actions, sandboxed code, "
+        "client-fulfilled tools, or a workflow reference."
+    ),
+    "mcps": (
+        "Declared MCP servers. Secret env resolves from the vault at run time; never put tokens here."
+    ),
+    "skills": "Skills the agent ships: inline skill templates or stored-skill references.",
+    "harness": "The coding agent to drive (`kind`, e.g. `claude`/`pi_core`) plus execution knobs.",
+    "runner": "The engine driving the harness loop (`kind`) plus tool-execution `permissions`.",
+    "sandbox": "Where the agent runs (`kind`) plus its security boundary.",
+}
+
+# `tools`/`skills`/`mcps` items may be `@ag.embed` build-kit references. The full schema said so
+# structurally, via an embed arm on the item schema; collapsed, the one-liner has to say it — the
+# model re-sends these lists wholesale, so a dropped embed wipes its own build-kit tools.
+_WHOLESALE_LIST_FIELDS = ("tools", "skills", "mcps")
+_WHOLESALE_LIST_NOTE = (
+    " Replaced wholesale, not merged: resend the complete list, and copy any `@ag.embed` entries "
+    "through unchanged."
+)
+
+
+def _build_shallow_agent_template_delta_schema() -> Dict[str, Any]:
+    """The advertised agent-template delta: top-level keys only, plus the reference pointer."""
+    schema = _shallow_schema(_AGENT_TEMPLATE_DELTA_SCHEMA_FULL, max_depth=1)
+    schema["description"] = _AGENT_TEMPLATE_DELTA_DESCRIPTION
+    properties = schema.get("properties")
+    if isinstance(properties, dict):
+        for field, field_schema in properties.items():
+            if not isinstance(field_schema, dict):
+                continue
+            summary = _AGENT_TEMPLATE_FIELD_SUMMARIES.get(field)
+            if summary is not None:
+                field_schema["description"] = summary
+            if field in _WHOLESALE_LIST_FIELDS:
+                field_schema["description"] = (
+                    field_schema.get("description", "") + _WHOLESALE_LIST_NOTE
+                )
+    return schema
+
+
 # Built once at import from the catalog's `agent-template` type (the same source the playground
-# renders), so the tool schema and the editor never drift.
-_AGENT_TEMPLATE_DELTA_SCHEMA: Dict[str, Any] = _build_agent_template_delta_schema()
+# renders), so the tool schema and the editor never drift. `_FULL` is the whole shape; the
+# advertised schema is its depth-1 projection.
+_AGENT_TEMPLATE_DELTA_SCHEMA_FULL: Dict[str, Any] = _build_agent_template_delta_schema()
+_AGENT_TEMPLATE_DELTA_SCHEMA: Dict[str, Any] = (
+    _build_shallow_agent_template_delta_schema()
+)
 
 
 def _delta_set_schema(description: str) -> Dict[str, Any]:
     """A `delta.set` object schema: still an open object (other revision-data keys allowed), but
-    with a typed `parameters.agent` = the deep-partial, embed-tolerant agent-template shape."""
+    with a typed `parameters.agent` = the shallow agent-template shape."""
     return {
         "type": "object",
         "additionalProperties": True,
@@ -435,255 +597,68 @@ _QUERY_SPANS_DESCRIPTION = (
     "bracket the test with `windowing.oldest`/`windowing.newest`; then read the tool-call spans "
     "in order and confirm the terminal span completed without an error status."
 )
+# The filtering DSL used to ride here as ~1,150 tokens of `$defs` (every operator enum, the
+# Condition/Filtering recursion, the Windowing fields) — advertised on every turn whether or not the
+# agent ever queried a span. It now lives in `references/span-queries.md`, a `SkillFile` on
+# BUILD_AN_AGENT_SKILL, and the arguments are advertised as open objects whose descriptions carry
+# the vocabulary an agent needs to write the common query without opening the file.
+#
+# Open, not typed, is the same invariant the agent-template diet holds to: the projection only ever
+# REMOVES constraints, so a query the full schema accepted is still accepted. The endpoint validates
+# the real shape server-side (`POST /api/spans/query` parses into the typed request model), which is
+# where a malformed DSL is caught either way.
+_QUERY_SPANS_REFERENCE = "references/span-queries.md"
+
 _QUERY_SPANS_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
-    "$defs": {
-        "ComparisonOperator": {
-            "type": "string",
-            "enum": ["is", "is_not"],
-        },
-        "NumericOperator": {
-            "type": "string",
-            "enum": ["eq", "neq", "gt", "lt", "gte", "lte", "btwn"],
-        },
-        "StringOperator": {
-            "type": "string",
-            "enum": ["startswith", "endswith", "contains", "matches", "like"],
-        },
-        "DictOperator": {
-            "type": "string",
-            "enum": ["has", "has_not"],
-        },
-        "ListOperator": {
-            "type": "string",
-            "enum": ["in", "not_in"],
-        },
-        "ExistenceOperator": {
-            "type": "string",
-            "enum": ["exists", "not_exists"],
-        },
-        "LogicalOperator": {
-            "type": "string",
-            "enum": ["and", "or", "not", "nand", "nor"],
-        },
-        "TextOptions": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "case_sensitive": {
-                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
-                    "default": False,
-                },
-                "exact_match": {
-                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
-                    "default": False,
-                },
-            },
-        },
-        "ListOptions": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "all": {
-                    "anyOf": [{"type": "boolean"}, {"type": "null"}],
-                    "default": False,
-                }
-            },
-        },
-        "Condition": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "field": {
-                    "type": "string",
-                    "description": (
-                        "Span field to filter, such as `trace_id`, `span_name`, "
-                        "`span_type`, `status_code`, `attributes`, or `content`."
-                    ),
-                },
-                "key": {
-                    "anyOf": [{"type": "string"}, {"type": "null"}],
-                    "default": None,
-                    "description": (
-                        "Optional nested key when filtering dictionary fields like "
-                        "`attributes`."
-                    ),
-                },
-                "value": {
-                    "anyOf": [
-                        {"type": "string"},
-                        {"type": "integer"},
-                        {"type": "number"},
-                        {"type": "boolean"},
-                        {"type": "array", "items": {}},
-                        {"type": "object", "additionalProperties": True},
-                        {"type": "null"},
-                    ],
-                    "default": None,
-                    "description": "Comparison value for the condition.",
-                },
-                "operator": {
-                    "anyOf": [
-                        {"$ref": "#/$defs/ComparisonOperator"},
-                        {"$ref": "#/$defs/NumericOperator"},
-                        {"$ref": "#/$defs/StringOperator"},
-                        {"$ref": "#/$defs/ListOperator"},
-                        {"$ref": "#/$defs/DictOperator"},
-                        {"$ref": "#/$defs/ExistenceOperator"},
-                        {"type": "null"},
-                    ],
-                    "default": "is",
-                },
-                "options": {
-                    "anyOf": [
-                        {"$ref": "#/$defs/TextOptions"},
-                        {"$ref": "#/$defs/ListOptions"},
-                        {"type": "null"},
-                    ],
-                    "default": None,
-                },
-            },
-            "required": ["field"],
-        },
-        "Filtering": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "operator": {
-                    "$ref": "#/$defs/LogicalOperator",
-                    "default": "and",
-                    "description": "How to combine conditions.",
-                },
-                "conditions": {
-                    "type": "array",
-                    "items": {
-                        "anyOf": [
-                            {"$ref": "#/$defs/Condition"},
-                            {"$ref": "#/$defs/Filtering"},
-                        ]
-                    },
-                    "default": [],
-                    "description": (
-                        "Filter objects, for example "
-                        '`[{"field": "trace_id", "operator": "is", "value": "..."}]`.'
-                    ),
-                },
-            },
-        },
-        "Windowing": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "newest": {
-                    "anyOf": [
-                        {"type": "string", "format": "date-time"},
-                        {"type": "null"},
-                    ],
-                    "default": None,
-                    "description": "Window end time as an ISO timestamp.",
-                },
-                "oldest": {
-                    "anyOf": [
-                        {"type": "string", "format": "date-time"},
-                        {"type": "null"},
-                    ],
-                    "default": None,
-                    "description": "Window start time as an ISO timestamp.",
-                },
-                "next": {
-                    "anyOf": [
-                        {"type": "string", "format": "uuid"},
-                        {"type": "null"},
-                    ],
-                    "default": None,
-                    "description": "Cursor token returned by a prior query page.",
-                },
-                "limit": {
-                    "anyOf": [{"type": "integer"}, {"type": "null"}],
-                    "default": None,
-                    "description": "Maximum spans to return.",
-                },
-                "order": {
-                    "anyOf": [
-                        {"type": "string", "enum": ["ascending", "descending"]},
-                        {"type": "null"},
-                    ],
-                    "default": None,
-                    "description": "Sort order for the window.",
-                },
-                "interval": {
-                    "anyOf": [{"type": "integer"}, {"type": "null"}],
-                    "default": None,
-                    "description": "Positive bucket interval for aggregate query windows.",
-                },
-                "rate": {
-                    "anyOf": [{"type": "number"}, {"type": "null"}],
-                    "default": None,
-                    "description": "Optional sampling rate between 0.0 and 1.0.",
-                },
-            },
-        },
-        "Reference": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "version": {
-                    "anyOf": [{"type": "string"}, {"type": "null"}],
-                    "default": None,
-                },
-                "slug": {
-                    "anyOf": [{"type": "string"}, {"type": "null"}],
-                    "default": None,
-                },
-                "id": {
-                    "anyOf": [
-                        {"type": "string", "format": "uuid"},
-                        {"type": "null"},
-                    ],
-                    "default": None,
-                },
-            },
-        },
-    },
     "properties": {
         "filtering": {
-            "anyOf": [{"$ref": "#/$defs/Filtering"}, {"type": "null"}],
-            "default": None,
+            "type": "object",
             "description": (
-                "Span-level conditions. For verification, filter on "
-                '`{"field": "trace_id", "operator": "is", "value": "<trace_id>"}` '
-                "when the trace id is known."
+                "Span-level conditions: `{operator, conditions}`, where `operator` is one of "
+                "`and`/`or`/`not`/`nand`/`nor` (default `and`) and each condition is "
+                "`{field, operator, value}` — plus `key` for a nested dictionary field. Fields "
+                "include `trace_id`, `span_id`, `span_name`, `span_type`, `status_code`, "
+                "`attributes`, `content`. Condition operators: `is`/`is_not`, "
+                "`eq`/`neq`/`gt`/`lt`/`gte`/`lte`/`btwn`, "
+                "`startswith`/`endswith`/`contains`/`matches`/`like`, `has`/`has_not`, "
+                "`in`/`not_in`, `exists`/`not_exists`. A condition may itself be a nested "
+                "`{operator, conditions}` group. To verify one run: "
+                '`{"conditions": [{"field": "trace_id", "operator": "is", "value": "<id>"}]}`. '
+                f"Full DSL: `{_QUERY_SPANS_REFERENCE}`."
             ),
         },
         "windowing": {
-            "anyOf": [{"$ref": "#/$defs/Windowing"}, {"type": "null"}],
-            "default": None,
+            "type": "object",
             "description": (
-                "Cursor pagination and time range. Bracket manual verification with "
-                "`oldest`/`newest` and set a sensible `limit`."
+                "Time range and cursor pagination: `oldest`/`newest` as ISO-8601 timestamps, "
+                "`limit` (set one — the default page is small), `order` "
+                "(`ascending`/`descending`), and `next` for the cursor a prior page returned. "
+                "Bracket a manual verification with `oldest`/`newest`."
             ),
         },
         "query_ref": {
-            "anyOf": [{"$ref": "#/$defs/Reference"}, {"type": "null"}],
-            "default": None,
-            "description": "Resolve filtering/windowing from a saved query.",
+            "type": "object",
+            "description": (
+                "Resolve filtering/windowing from a saved query instead: `{id}` or "
+                "`{slug, version}`."
+            ),
         },
         "query_variant_ref": {
-            "anyOf": [{"$ref": "#/$defs/Reference"}, {"type": "null"}],
-            "default": None,
-            "description": "Resolve from the latest revision of a specific query variant.",
+            "type": "object",
+            "description": "As `query_ref`, but the latest revision of a query variant.",
         },
         "query_revision_ref": {
-            "anyOf": [{"$ref": "#/$defs/Reference"}, {"type": "null"}],
-            "default": None,
+            "type": "object",
             "description": (
-                "Resolve from a specific query revision. Returns `409` when the stored query "
-                "has `formatting.focus=trace`."
+                "As `query_ref`, but a specific query revision. Returns `409` when the stored "
+                "query has `formatting.focus=trace`."
             ),
         },
     },
 }
+
 
 # Commit revision (mutating, self-targeting): commit a new revision to the agent's OWN workflow
 # variant — "update myself". ``workflow_revision.workflow_variant_id`` is bound from run context

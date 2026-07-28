@@ -30,12 +30,14 @@ import {
   buildToolMcpServers,
   type ToolMcpServersResult,
 } from "../../src/tools/mcp-bridge.ts";
-import {
-  RELAY_REQ_SUFFIX,
-  RELAY_RES_SUFFIX,
-} from "../../src/tools/relay.ts";
+import { RELAY_REQ_SUFFIX, RELAY_RES_SUFFIX } from "../../src/tools/relay.ts";
 import type { ClientToolRelay } from "../../src/tools/client-tool-relay.ts";
 import type { ResolvedToolSpec } from "../../src/protocol.ts";
+import {
+  DEEP_AGENT_CONFIG,
+  shallowOpSchema,
+  shallowOpSpec,
+} from "../utils/shallow-op-schema.ts";
 
 const relayDir = "/tmp/agenta-tools";
 
@@ -62,7 +64,10 @@ afterEach(async () => {
 
 function authorizationFor(url: string): string {
   const authorization = authorizationByUrl.get(url);
-  assert.ok(authorization, `missing advertised Authorization header for ${url}`);
+  assert.ok(
+    authorization,
+    `missing advertised Authorization header for ${url}`,
+  );
   return authorization;
 }
 
@@ -139,7 +144,11 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
       },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
     });
-    assert.equal(response.status, 401, "a different server's token is rejected");
+    assert.equal(
+      response.status,
+      401,
+      "a different server's token is rejected",
+    );
   });
 
   it("starts the server for a callback run too (executable)", async () => {
@@ -236,8 +245,16 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
           assert.equal(((await response.json()) as any).error.code, -32001);
         }
 
-        assert.deepEqual(readdirSync(dir), [], "the callback executor never publishes a request");
-        assert.equal(clientDispatchCount, 0, "the client relay is never invoked");
+        assert.deepEqual(
+          readdirSync(dir),
+          [],
+          "the callback executor never publishes a request",
+        );
+        assert.equal(
+          clientDispatchCount,
+          0,
+          "the client relay is never invoked",
+        );
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -291,6 +308,63 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
         !JSON.stringify(tools).includes("composio.search"),
         "no callRef in tools/list",
       );
+    });
+
+    it("advertises the depth-limited agent schema permissively (a deep config cannot be rejected)", async () => {
+      // The MCP half of the schema diet's safety check. Unlike the Pi path, the runner does not
+      // validate a callback tool's arguments here — it relays, and the relay checks the PRIVATE
+      // spec. What the MCP client (Claude, Codex) validates against is this `tools/list` payload,
+      // so the guarantee has to hold in the advertisement itself: the collapsed `parameters.agent`
+      // node carries no constraint that could reject a deeply nested config.
+      const { servers } = await build(
+        [shallowOpSpec("commit_revision")],
+        relayDir,
+      );
+
+      const list = await rpc(servers[0].url, {
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/list",
+      });
+      const advertised = list.result.tools[0];
+      assert.equal(advertised.name, "commit_revision");
+
+      const agent =
+        advertised.inputSchema.properties.workflow_revision.properties.delta
+          .properties.set.properties.parameters.properties.agent;
+      assert.deepEqual(
+        Object.keys(agent.properties).sort(),
+        [
+          "harness",
+          "instructions",
+          "llm",
+          "mcps",
+          "runner",
+          "sandbox",
+          "skills",
+          "tools",
+        ],
+        "every agent-template key is still named, so the model knows what it may send",
+      );
+      for (const [name, node] of Object.entries<any>(agent.properties)) {
+        // A collapsed node holds a type and a one-liner. Anything else here would be a constraint
+        // the full schema's payloads might violate.
+        assert.deepEqual(
+          Object.keys(node).sort(),
+          ["description", "type"],
+          `${name} collapsed to type + description`,
+        );
+      }
+      assert.ok(
+        agent.description.includes("references/config-schema.md"),
+        "the advertisement points at the reference that replaced the inlined schema",
+      );
+      // The payload the collapsed nodes no longer describe still satisfies the advertised shape:
+      // each top-level key's declared `type` matches what a real config sends.
+      for (const [name, value] of Object.entries(DEEP_AGENT_CONFIG)) {
+        const expected = Array.isArray(value) ? "array" : typeof value;
+        assert.equal(agent.properties[name].type, expected, name);
+      }
     });
 
     it("advertises a snake-case input_schema as a NON-empty schema (empty-schema regression)", async () => {
@@ -531,7 +605,11 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
       });
       assert.equal(wrong.status, 401);
       assert.equal(((await wrong.json()) as any).error.code, -32001);
-      assert.equal(dispatchCount, 0, "unauthenticated requests dispatch nothing");
+      assert.equal(
+        dispatchCount,
+        0,
+        "unauthenticated requests dispatch nothing",
+      );
     });
 
     it("rejects a batch containing a client tool before executing any item", async () => {
@@ -577,8 +655,16 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
         assert.equal(response.status, 400);
         assert.equal(body.error.code, -32600);
         assert.ok(!Array.isArray(body), "the batch gets one JSON-RPC error");
-        assert.equal(clientDispatchCount, 0, "the client relay is never called");
-        assert.deepEqual(readdirSync(dir), [], "the executable sibling is never dispatched");
+        assert.equal(
+          clientDispatchCount,
+          0,
+          "the client relay is never called",
+        );
+        assert.deepEqual(
+          readdirSync(dir),
+          [],
+          "the executable sibling is never dispatched",
+        );
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -593,7 +679,11 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
         relayDir,
         { clientToolRelay: relay },
       );
-      assert.equal(servers.length, 1, "the server starts even with a client tool present");
+      assert.equal(
+        servers.length,
+        1,
+        "the server starts even with a client tool present",
+      );
       const list = await rpc(servers[0].url, {
         jsonrpc: "2.0",
         id: 1,
@@ -622,30 +712,27 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
       const { servers } = await build([clientSpec], relayDir, {
         clientToolRelay: relay,
       });
-      await assert.rejects(
-        async () => {
-          const res = await fetch(servers[0].url, {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-              accept: "application/json, text/event-stream",
-              authorization: authorizationFor(servers[0].url),
+      await assert.rejects(async () => {
+        const res = await fetch(servers[0].url, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            accept: "application/json, text/event-stream",
+            authorization: authorizationFor(servers[0].url),
+          },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 7,
+            method: "tools/call",
+            params: {
+              name: "request_connection",
+              arguments: { integration: "slack" },
             },
-            body: JSON.stringify({
-              jsonrpc: "2.0",
-              id: 7,
-              method: "tools/call",
-              params: {
-                name: "request_connection",
-                arguments: { integration: "slack" },
-              },
-            }),
-          });
-          // No body is ever written for a paused call; reading it must fail (socket destroyed).
-          await res.text();
-        },
-        "the paused tools/call is aborted with no JSON-RPC result",
-      );
+          }),
+        });
+        // No body is ever written for a paused call; reading it must fail (socket destroyed).
+        await res.text();
+      }, "the paused tools/call is aborted with no JSON-RPC result");
       assert.equal(onClientToolCalls, 1, "the relay was consulted once");
       assert.equal(pauseCount, 1, "onPause fired exactly once");
     });
@@ -692,8 +779,16 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
       };
       await assert.rejects(post, "the first paused tools/call is aborted");
       await assert.rejects(post, "the duplicate (same id) is aborted too");
-      assert.equal(onClientToolCalls, 2, "each POST consults the relay independently");
-      assert.equal(outputsServed, 0, "neither request was ever answered with a result");
+      assert.equal(
+        onClientToolCalls,
+        2,
+        "each POST consults the relay independently",
+      );
+      assert.equal(
+        outputsServed,
+        0,
+        "neither request was ever answered with a result",
+      );
     });
 
     it("validates required args in the client branch (a normal MCP error, not a pause)", async () => {
@@ -713,14 +808,23 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
         method: "tools/call",
         params: { name: "request_connection", arguments: {} }, // missing `integration`
       });
-      assert.equal(out.result.isError, true, "an under-specified call is a tool error");
-      assert.match(out.result.content[0].text, /missing required argument\(s\): integration/);
+      assert.equal(
+        out.result.isError,
+        true,
+        "an under-specified call is a tool error",
+      );
+      assert.match(
+        out.result.content[0].text,
+        /missing required argument\(s\): integration/,
+      );
       assert.equal(pauseCount, 0, "an under-specified call never pauses");
     });
 
     it("resumes: returns the browser's structured output as MCP content", async () => {
       const relay: ClientToolRelay = {
-        onClientTool: async () => ({ output: { connected: true, account: "a" } }),
+        onClientTool: async () => ({
+          output: { connected: true, account: "a" },
+        }),
       };
       const { servers } = await build([clientSpec], relayDir, {
         clientToolRelay: relay,
@@ -734,7 +838,11 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
           arguments: { integration: "slack" },
         },
       });
-      assert.equal(out.result.isError, undefined, "a resolved client tool is not an error");
+      assert.equal(
+        out.result.isError,
+        undefined,
+        "a resolved client tool is not an error",
+      );
       assert.equal(
         out.result.content[0].text,
         JSON.stringify({ connected: true, account: "a" }),

@@ -27,6 +27,10 @@ import factory, {
   readOtlpAuthFile,
   replaceActiveBuiltinTools,
 } from "../../src/extensions/agenta.ts";
+import {
+  DEEP_COMMIT_REVISION_ARGS,
+  shallowOpSpec,
+} from "../utils/shallow-op-schema.ts";
 
 const TOOL_ENV = [
   "AGENTA_AGENT_TOOLS_PUBLIC_SPECS",
@@ -418,6 +422,66 @@ describe("agenta extension: Pi dialog gate (approval parking)", () => {
     await assert.rejects(
       () => tool.execute("call_1", {}, undefined, undefined, ctx),
       /missing required argument\(s\): token/,
+    );
+    assert.equal(calls.length, 0, "the dialog was never raised");
+  });
+
+  it("custom-tool gate: a deeply nested config passes the depth-limited schema and reaches the gate", async () => {
+    // The Pi half of the schema diet's safety check. Pi validates a call against the ADVERTISED
+    // schema before the gate (`assertRequiredArguments` above), and the advertised
+    // `parameters.agent` node is now collapsed to `{type: "object"}` + a one-liner. Reaching the
+    // dialog proves the collapse cost no acceptance: a real, several-levels-deep config with an
+    // `@ag.embed` entry is not rejected pre-relay.
+    clearEnv();
+    process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify([
+      shallowOpSpec("commit_revision"),
+    ]);
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR =
+      "/tmp/agenta-relay-must-not-be-used";
+
+    const pi = fakePi();
+    factory(pi as any);
+    const { calls, ctx } = fakeDialogCtx(false); // deny, so nothing relays
+
+    const result = await pi.registered[0].execute(
+      "call_1",
+      DEEP_COMMIT_REVISION_ARGS,
+      undefined,
+      undefined,
+      ctx,
+    );
+
+    assert.equal(
+      calls.length,
+      1,
+      "validation passed and the call reached the gate",
+    );
+    assert.deepEqual(
+      JSON.parse(calls[0].message).input,
+      DEEP_COMMIT_REVISION_ARGS,
+      "the nested config reaches the gate intact, not flattened or trimmed",
+    );
+    assert.ok(result.content[0].text.toLowerCase().includes("denied"));
+  });
+
+  it("custom-tool gate: the diet keeps enforcing the TOP-LEVEL required argument", async () => {
+    // The other direction: collapsing the subtree must not have relaxed the guard that still
+    // matters. Nested `required` is gone by design (accepted cost, recorded in the plan); the
+    // top-level one is not.
+    clearEnv();
+    process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify([
+      shallowOpSpec("commit_revision"),
+    ]);
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR =
+      "/tmp/agenta-relay-must-not-be-used";
+
+    const pi = fakePi();
+    factory(pi as any);
+    const { calls, ctx } = fakeDialogCtx(true);
+
+    await assert.rejects(
+      () => pi.registered[0].execute("call_1", {}, undefined, undefined, ctx),
+      /missing required argument\(s\): workflow_revision/,
     );
     assert.equal(calls.length, 0, "the dialog was never raised");
   });

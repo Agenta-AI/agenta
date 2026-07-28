@@ -1,10 +1,11 @@
 /**
- * Load the shared cross-language wire fixtures.
+ * Load the shared cross-language fixtures.
  *
- * These JSON files are the single anchor for the `/run` contract. The Python producer asserts
- * them in `sdks/python/oss/tests/pytest/unit/agents/test_wire_contract.py`; the TS consumer
- * asserts the same files here. Read in place via `node:fs` (no copy, no bundler import) so the
- * two sides can never drift against different copies.
+ * These JSON files are the single anchor for each contract that spans both languages: the `/run`
+ * wire types (`test_wire_contract.py`) and the advertised platform-op schemas
+ * (`test_op_catalog.py`, consumed by `shallow-op-schema.ts`). The Python producer asserts them;
+ * the TS consumer asserts the same files here. Read in place via `node:fs` (no copy, no bundler
+ * import) so the two sides can never drift against different copies.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

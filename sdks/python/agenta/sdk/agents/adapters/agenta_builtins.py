@@ -82,6 +82,14 @@ _GETTING_STARTED_BODY = (
     "concise, ask for missing inputs, and prefer the tools and skills the agent was given over "
     "guessing.\n"
     "\n"
+    "## You can configure yourself\n"
+    "\n"
+    "The agent you are running as is defined by a template you can edit and commit, so a request "
+    "to change what you do is work you can carry out, not a limitation to apologize for. When a "
+    "`build-an-agent` skill is available, read it before your first action on any such request — "
+    "it holds the loop, the config shape, and the tools. Do not attempt a change without it, and "
+    "do not read it for anything else.\n"
+    "\n"
     "## Conventions\n"
     "\n"
     "- Greet the user once, then get to work.\n"
@@ -407,6 +415,76 @@ Don't forget:
   changing them; a narrow delta preserves them through the deep merge.
 """
 
+# Bundled reference file: the span-query filtering DSL. It carries the vocabulary that used to be
+# inlined in `query_spans`' advertised JSON Schema as ~1,150 tokens of `$defs` — every operator
+# enum, the Condition/Filtering recursion, and the Windowing fields — paid on every turn whether or
+# not the agent ever queried a span. Mirrors `_QUERY_SPANS_INPUT_SCHEMA` in
+# `agenta/sdk/agents/platform/op_catalog.py`; keep the two in step.
+_SPAN_QUERIES_REFERENCE = """\
+# Querying spans
+
+`query_spans` reads the span records this project has recorded. Its two arguments — `filtering`
+and `windowing` — are open objects; this file is their shape.
+
+## `filtering`
+
+```json
+{"operator": "and", "conditions": [{"field": "trace_id", "operator": "is", "value": "<id>"}]}
+```
+
+- `operator` combines the conditions: `and` (default), `or`, `not`, `nand`, `nor`.
+- `conditions` is a list. Each entry is either a **condition** (below) or a nested `filtering`
+  object with its own `operator`/`conditions`, so groups nest to any depth.
+
+A condition is `{field, operator, value}` plus two optional keys:
+
+| key | meaning |
+|---|---|
+| `field` | **Required.** `trace_id`, `span_id`, `span_name`, `span_type`, `status_code`, `attributes`, `events`, `links`, or `content`. |
+| `key` | Nested key when `field` is a dictionary, e.g. `field: "attributes", key: "ag.type"`. |
+| `value` | What to compare against: string, number, boolean, list, object, or null. |
+| `operator` | How to compare. Defaults to `is`. |
+| `options` | `{"case_sensitive": bool, "exact_match": bool}` for text, or `{"all": bool}` for lists. |
+
+Operators, by the kind of value they take:
+
+- comparison — `is`, `is_not`
+- numeric — `eq`, `neq`, `gt`, `lt`, `gte`, `lte`, `btwn`
+- string — `startswith`, `endswith`, `contains`, `matches`, `like`
+- dictionary — `has`, `has_not`
+- list — `in`, `not_in`
+- existence — `exists`, `not_exists`
+
+## `windowing`
+
+```json
+{"oldest": "2026-07-01T00:00:00Z", "newest": "2026-07-02T00:00:00Z", "limit": 50}
+```
+
+| key | meaning |
+|---|---|
+| `oldest` / `newest` | ISO-8601 timestamps bounding the window. |
+| `limit` | Maximum spans returned. Set one; the default page is small. |
+| `order` | `ascending` or `descending`. |
+| `next` | Cursor token from a previous page's response. |
+| `interval` | Positive bucket interval, for aggregate windows only. |
+| `rate` | Sampling rate between 0.0 and 1.0. |
+
+## Saved queries
+
+`query_ref`, `query_variant_ref`, and `query_revision_ref` each take a
+`{"id": "<uuid>"}` or `{"slug": "<slug>", "version": "<version>"}` reference and resolve
+`filtering`/`windowing` from a stored query instead. `query_revision_ref` returns `409` when the
+stored query has `formatting.focus=trace`.
+
+## Verifying a run
+
+1. You know the trace id (a `test_run` result carries it): filter on it directly.
+2. You do not: bracket the run with `oldest`/`newest` and set a `limit`.
+
+Then read the tool-call spans in order and confirm the terminal span carries no error status.
+"""
+
 # Bundled reference file: the `inputs_fields` template language. Verified against the runtime
 # resolver (agenta.sdk.utils.resolvers.resolve_target_fields / resolve_json_selector) and the
 # triggers dispatcher context builder (api/oss/src/tasks/asyncio/triggers/dispatcher.py +
@@ -587,6 +665,9 @@ Read `references/config-schema.md` before your first `commit_revision`. It gives
 Read `references/trigger-inputs.md` before you write a schedule or subscription's
 `inputs_fields`.
 
+Read `references/span-queries.md` before your first `query_spans`. It gives the `filtering`
+condition shape, the operator vocabulary, and the `windowing` fields.
+
 ## Decision table
 
 | The ask... | Needs | What to add |
@@ -727,13 +808,22 @@ HTTP only when your wired tools cannot do the job, and say so when you do.
 - Trigger inputs must match what the instructions expect, or the run starts empty.
 """
 
+# The description is the ONLY trigger for reading this skill, and it is read as a tool call — a
+# whole model round trip plus ~2,700 tokens of body. It used to say "ALWAYS read this skill at the
+# start of the conversation, before your first reply", which made every conversation cost two LLM
+# calls: a measured "hi" spent 17.6K tokens across two calls, 10.3K of them in the second call that
+# existed only to consume this read. The self-identity context that instruction was loading now
+# lives in `_GETTING_STARTED_BODY` (always in the prompt, ~30 tokens), so the trigger can name the
+# work instead of the turn number.
 BUILD_AN_AGENT_SKILL = SkillTemplate(
     name="build-an-agent",
     description=(
-        "Build or configure an Agenta agent end to end. ALWAYS read this skill at the start "
-        "of the conversation, before your first reply, to load context on what you are and "
-        "how you configure yourself. Then follow it when the user asks to set up, automate, "
-        "connect tools for, schedule, or subscribe an agent."
+        "Build, configure, or change an Agenta agent end to end — its instructions, model, "
+        "tools, MCP servers, skills, schedules, subscriptions, and test runs. Read this skill "
+        "BEFORE your first action whenever the user asks you to build, create, set up, "
+        "configure, change, automate, connect tools for, schedule, or subscribe an agent, or "
+        "asks what you can be configured to do. Do NOT read it for greetings, small talk, or "
+        "questions you can already answer — it costs a round trip."
     ),
     body=_BUILD_AN_AGENT_BODY,
     files=[
@@ -741,6 +831,7 @@ BUILD_AN_AGENT_SKILL = SkillTemplate(
         SkillFile(
             path="references/trigger-inputs.md", content=_TRIGGER_INPUTS_REFERENCE
         ),
+        SkillFile(path="references/span-queries.md", content=_SPAN_QUERIES_REFERENCE),
         # One playbook per template plus the generated router index (references/agent-templates/).
         *build_agent_template_skill_files(),
     ],

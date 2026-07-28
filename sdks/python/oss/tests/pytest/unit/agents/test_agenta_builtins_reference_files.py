@@ -21,7 +21,11 @@ from agenta.sdk.agents.adapters.agent_templates import (
     TemplateEntry,
     _validate_entries,
 )
-from agenta.sdk.agents.adapters.agenta_builtins import BUILD_AN_AGENT_SKILL
+from agenta.sdk.agents.adapters.agenta_builtins import (
+    AGENTA_FORCED_SKILLS,
+    BUILD_AN_AGENT_SKILL,
+    GETTING_STARTED_WITH_AGENTA_SKILL,
+)
 from agenta.sdk.agents.skills import SkillFile
 from agenta.sdk.agents.tools.models import ToolConfig
 from agenta.sdk.utils.types import AgentTemplateSchema
@@ -109,6 +113,49 @@ def _tool_type_discriminators() -> set[str]:
             continue
         types |= set(get_args(type_field.annotation))
     return types
+
+
+def test_build_an_agent_is_read_on_demand_not_on_every_first_reply():
+    """The skill's read is a round trip; its trigger must be the WORK, not the turn number.
+
+    This description used to say "ALWAYS read this skill at the start of the conversation, before
+    your first reply". Every conversation therefore cost two LLM calls: a measured "hi" spent
+    17,606 tokens across two calls, 10,329 of them in a second call that existed only to consume a
+    ~2,700-token skill body the greeting never needed. The self-identity context that instruction
+    was really loading now lives in the always-present getting-started skill.
+
+    Prose cannot be type-checked, so this asserts the two properties that made the regression
+    possible: no unconditional-read phrasing, and a trigger naming what the user asked for.
+    """
+    description = BUILD_AN_AGENT_SKILL.description.lower()
+
+    for unconditional in (
+        "always read",
+        "at the start of the conversation",
+        "before your first reply",
+    ):
+        assert unconditional not in description, (
+            f"{unconditional!r} makes every conversation pay a round trip for this skill"
+        )
+
+    # The trigger has to name the work, or the model has no way to tell when it applies.
+    assert any(verb in description for verb in ("build", "configure", "create")), (
+        "the description must name the requests that warrant reading it"
+    )
+
+
+def test_getting_started_carries_the_self_configuration_context():
+    """The cheap, always-loaded half of the trade above.
+
+    Dropping the unconditional read is only safe if the agent still knows, without reading
+    anything, that it CAN reconfigure itself and where the procedure lives. That fact is ~30 tokens
+    and rides in the forced skill; the 2,700-token procedure stays on demand.
+    """
+    assert GETTING_STARTED_WITH_AGENTA_SKILL in AGENTA_FORCED_SKILLS
+    body = GETTING_STARTED_WITH_AGENTA_SKILL.body
+
+    assert BUILD_AN_AGENT_SKILL.name in body, "it must name the skill to read"
+    assert "configure yourself" in body.lower()
 
 
 def test_build_an_agent_bundles_the_reference_files():

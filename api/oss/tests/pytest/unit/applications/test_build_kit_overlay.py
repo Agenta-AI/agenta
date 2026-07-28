@@ -12,7 +12,7 @@ from agenta.sdk.agents.adapters.agenta_builtins import (
 from agenta.sdk.agents.platform.workflow import REQUEST_CONNECTION_WORKFLOW_SLUG
 from agenta.sdk.agents.dtos import AgentTemplate
 from agenta.sdk.agents.platform import AgentaPlatformToolResolver, PlatformConnection
-from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
+from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS, get_platform_op
 from agenta.sdk.agents.tools.models import ClientToolConfig, PlatformToolConfig
 
 from oss.src.apis.fastapi.applications import router as applications_router_module
@@ -63,6 +63,17 @@ def _embed_slug(entry: dict) -> str | None:
     refs = entry.get("@ag.embed", {}).get("@ag.references", {})
     workflow = refs.get("workflow") or refs.get("workflow_revision") or {}
     return workflow.get("slug")
+
+
+async def _resolve_ops(ops):
+    resolver = AgentaPlatformToolResolver(
+        connection=PlatformConnection(
+            base_url="https://api.example/api",
+            authorization="Access tok",
+        )
+    )
+
+    return await resolver.resolve([PlatformToolConfig(op=op) for op in ops])
 
 
 def test_agent_template_overlay_tools_list_is_pinned_with_builtin_grants_first():
@@ -297,15 +308,90 @@ async def test_resolved_build_kit_overlay_parses_through_from_params():
 
 @pytest.mark.asyncio
 async def test_cut_overlay_ops_still_resolve_when_authored_explicitly():
-    resolver = AgentaPlatformToolResolver(
-        connection=PlatformConnection(
-            base_url="https://api.example/api",
-            authorization="Access tok",
-        )
-    )
-
-    resolution = await resolver.resolve(
-        [PlatformToolConfig(op=op) for op in CUT_BUILD_KIT_OPS]
-    )
+    resolution = await _resolve_ops(CUT_BUILD_KIT_OPS)
 
     assert {spec.name for spec in resolution.tool_specs} == set(CUT_BUILD_KIT_OPS)
+
+
+# --- live advertised set (progressive-tool-disclosure, Phase 0) ----------------
+#
+# Baseline guard for the schema diet / lazy schema work. What the model pays for is the set
+# that survives RESOLUTION, not the set the overlay declares: a handler-mode op is dropped
+# when AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS is explicitly disabled. Asserting the
+# advertisement projection itself would be a tautology (`advertisedToolSpecs` in
+# services/runner/src/tools/public-spec.ts is a pure `specs.map(...)`), so pin the resolution
+# path instead: 13 ops with handlers on, 12 with them off.
+# Record: docs/design/agent-workflows/projects/progressive-tool-disclosure/baseline.md
+
+_HANDLERS_ENV = "AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS"
+
+# The only handler-mode op in the live set — i.e. the whole 13-vs-12 delta.
+HANDLER_MODE_BUILD_KIT_OPS = ("test_run",)
+
+ENDPOINT_MODE_BUILD_KIT_OPS = tuple(
+    op for op in EXPECTED_DEFAULT_BUILD_KIT_OPS if op not in HANDLER_MODE_BUILD_KIT_OPS
+)
+
+
+def test_handler_mode_ops_in_the_live_set_are_pinned():
+    """A new handler-mode op changes the flag-off count, so name them explicitly."""
+    handler_mode = tuple(
+        op for op in DEFAULT_BUILD_KIT_OPS if get_platform_op(op).handler is not None
+    )
+
+    assert handler_mode == HANDLER_MODE_BUILD_KIT_OPS
+    assert len(DEFAULT_BUILD_KIT_OPS) == 13
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "env_value",
+    [None, "", "1", "true", "on", "yes"],
+    ids=["unset", "empty", "1", "true", "on", "yes"],
+)
+async def test_live_build_kit_resolves_all_13_ops_with_handlers_enabled(
+    monkeypatch, env_value
+):
+    """Unset and empty both mean ENABLED, so 13 ops is the live advertised set."""
+    if env_value is None:
+        monkeypatch.delenv(_HANDLERS_ENV, raising=False)
+    else:
+        monkeypatch.setenv(_HANDLERS_ENV, env_value)
+
+    resolution = await _resolve_ops(DEFAULT_BUILD_KIT_OPS)
+
+    assert [spec.name for spec in resolution.tool_specs] == list(DEFAULT_BUILD_KIT_OPS)
+    assert len(resolution.tool_specs) == 13
+    # Every resolved op carries the model-visible schema that the disclosure work shrinks.
+    assert all(
+        spec.input_schema.get("type") == "object" for spec in resolution.tool_specs
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "disabled_value",
+    ["0", "false", "f", "n", "no", "off", "disable", "disabled", " OFF "],
+    ids=[
+        "0",
+        "false",
+        "f",
+        "n",
+        "no",
+        "off",
+        "disable",
+        "disabled",
+        "padded-upper",
+    ],
+)
+async def test_live_build_kit_resolves_12_ops_with_handlers_explicitly_disabled(
+    monkeypatch, disabled_value
+):
+    monkeypatch.setenv(_HANDLERS_ENV, disabled_value)
+
+    resolution = await _resolve_ops(DEFAULT_BUILD_KIT_OPS)
+
+    resolved = [spec.name for spec in resolution.tool_specs]
+    assert resolved == list(ENDPOINT_MODE_BUILD_KIT_OPS)
+    assert len(resolved) == 12
+    assert set(HANDLER_MODE_BUILD_KIT_OPS).isdisjoint(resolved)

@@ -53,6 +53,7 @@ dev = [
     "pexpect>=4,<5",
     "boto3>=1,<2",
     "click>=8,<9",
+    "jsonschema>=4,<5",
     "pytest>=9,<10",
     "pytest-asyncio>=1,<2",
     "pytest-xdist>=3,<4",
