@@ -319,8 +319,9 @@ class SessionStreamsService:
         # `_start_turn` acquire may not have landed yet, or this beat wins a race with it), and
         # that is NOT an interruption. Disambiguate with the durable row's `turn_id`: if it
         # already recorded THIS turn_id as established (a prior heartbeat's write), the key
-        # being gone now is something else's doing; if the row shows no turn yet, or a
-        # different one, this is establishment.
+        # being gone now is something else's doing. A row carrying a DIFFERENT turn_id is not
+        # decisive on its own (it is also what a fresh turn on a previously-run session sees)
+        # — the failed nx re-acquire below is what settles that case.
         prior_stream = await self._dao.get_by_session_id(
             project_id=project_id,
             session_id=request.session_id,
@@ -333,20 +334,25 @@ class SessionStreamsService:
         if request.turn_id and request.is_running:
             # Acquire-then-refresh: the first heartbeat must establish the nest locks
             # itself (acquire_* is nx=True — a no-op if _start_turn already holds them).
+            # A FAILED alive acquire is the unambiguous takeover signal: nx only fails when a
+            # different turn holds the key right now. A successful one means the key was
+            # merely absent, which is an interruption only if this turn had already
+            # established it (`turn_was_established`) rather than establishing it here.
+            # (`acquire_running` is not nx — it overwrites — so it carries no such signal.)
             if not await refresh_alive(
                 self._lock,
                 project_id=str(project_id),
                 session_id=request.session_id,
                 turn_id=request.turn_id,
             ):
-                if turn_was_established:
-                    is_current_turn = False
-                await acquire_alive(
+                acquired = await acquire_alive(
                     self._lock,
                     project_id=str(project_id),
                     session_id=request.session_id,
                     turn_id=request.turn_id,
                 )
+                if not acquired or turn_was_established:
+                    is_current_turn = False
             if not await refresh_running(
                 self._lock,
                 project_id=str(project_id),
@@ -392,11 +398,14 @@ class SessionStreamsService:
             is_attached=liveness["attached"],
         )
 
-        # Nothing between `prior_stream`'s fetch above and here mutates the row, so it is
-        # still the current read — no need to re-fetch.
-        stream = prior_stream
+        # The mirror write is unconditional: create when this beat is the row's first touch,
+        # otherwise UPDATE. Seeding `stream` from `prior_stream` here would skip both branches
+        # for every session whose row already exists (renamed, or created by an earlier beat),
+        # leaving `flags` NULL on named sessions and frozen at is_running=true on the rest —
+        # and `updated_at` NULL, which is the column the orphan sweep filters on.
+        stream: Optional[SessionStream] = None
 
-        if stream is None:
+        if prior_stream is None:
             try:
                 stream = await self._dao.create(
                     project_id=project_id,
@@ -418,6 +427,7 @@ class SessionStreamsService:
                 session_id=request.session_id,
                 stream=SessionStreamEdit(flags=flags, turn_id=request.turn_id),
             )
+
         return SessionHeartbeatResult(
             stream=stream,
             replica_id=owner,
