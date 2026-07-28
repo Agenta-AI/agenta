@@ -9,4 +9,6 @@ import type * as AgentaApi from "../../../../index.js";
 export interface SessionQueryRequest {
     references?: AgentaApi.Reference[] | null;
     windowing?: AgentaApi.Windowing | null;
+    include_ended?: boolean;
+    include_archived?: boolean;
 }
