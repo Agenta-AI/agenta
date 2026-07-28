@@ -24,7 +24,7 @@ from oss.src.dbs.redis.sessions.locks import (
     force_clear_owner,
 )
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 log = get_module_logger(__name__)
 
@@ -34,16 +34,27 @@ ORPHAN_THRESHOLD_SECONDS: int = 300  # 5 minutes
 # How often the sweep runs.
 SWEEP_INTERVAL_SECONDS: int = 60
 
+# Rows swept per pass. A backlog drains over successive passes instead of one huge commit.
+SWEEP_BATCH_SIZE: int = 500
+
 
 async def run_orphan_sweep(engine: TransactionsEngine, lock_engine: LockEngine) -> None:
     """Single sweep pass: mark stale is_alive rows as ended."""
     threshold = datetime.now(timezone.utc) - timedelta(seconds=ORPHAN_THRESHOLD_SECONDS)
 
     async with engine.session() as session:
-        stmt = select(SessionStreamDBE).where(
-            SessionStreamDBE.deleted_at.is_(None),
-            SessionStreamDBE.flags.contains({"is_alive": True}),
-            SessionStreamDBE.updated_at < threshold,
+        stmt = (
+            select(SessionStreamDBE)
+            .where(
+                SessionStreamDBE.deleted_at.is_(None),
+                SessionStreamDBE.flags.contains({"is_alive": True}),
+                # coalesce, not a bare `updated_at <`: a row never updated since creation has
+                # updated_at NULL, and `NULL < threshold` is NULL — such a row could never be
+                # swept, however long it had claimed to be alive.
+                func.coalesce(SessionStreamDBE.updated_at, SessionStreamDBE.created_at)
+                < threshold,
+            )
+            .limit(SWEEP_BATCH_SIZE)
         )
         result = await session.execute(stmt)
         orphans = result.scalars().all()
