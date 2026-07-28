@@ -19,7 +19,7 @@ If conflicts, trust script.
   `bash ./hosting/docker-compose/run.sh --oss --gh`
 
 ## Extensions
-- set env file: append `--env-file <path>`
+- set env file: append `--env-file <path>`; bare names resolve in the edition dir, and paths are normalized before Compose reads service-level `env_file` entries
 - clean rebuild: append `--no-cache` (requires `--build`)
 - skip pull step: append `--no-pull`
 - volume reset: append `--nuke`

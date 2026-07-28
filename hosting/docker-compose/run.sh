@@ -52,7 +52,9 @@ show_usage() {
     echo "  --web-url <URL>         Override AGENTA_WEB_URL"
     echo ""
     echo "Environment:"
-    echo "  -e, --env <path>        Use explicit env file (otherwise stage default)"
+    echo "  -e, --env <path>        Use explicit env file (otherwise stage default). Bare names"
+    echo "                          resolve in the edition dir; paths are normalized before"
+    echo "                          being passed to Compose."
     echo "  --env-file <path>       Alias for --env"
     echo ""
     echo "Compose files:"
@@ -418,11 +420,15 @@ Refusing to start: Docker Compose would silently fall back to its built-in defau
 Pass an existing --env-file (e.g. --env-file .env.$LICENSE.$STAGE.local) or create the file."
 fi
 
-# Export the ENV_FILE to the environment
-export ENV_FILE="$ENV_FILE"
+# Export ENV_FILE as an absolute path for Compose's env_file: ${ENV_FILE:-...}
+# entries. A slash-containing --env-file may be valid from the repo root while the
+# compose file resolves env_file relative to its edition directory; using an
+# absolute value avoids double-joining hosting/docker-compose/<license>/...
+ENV_FILE_ABS_PATH="$(cd "$(dirname "$ENV_FILE_PATH")" && pwd)/$(basename "$ENV_FILE_PATH")"
+export ENV_FILE="$ENV_FILE_ABS_PATH"
 
 # Always append --env-file flag to COMPOSE_CMD
-COMPOSE_CMD+=" --env-file $ENV_FILE_PATH"
+COMPOSE_CMD+=" --env-file $ENV_FILE_ABS_PATH"
 
 if [[ "$WEB_MODE" == "docker" ]]; then
     COMPOSE_CMD+=" --profile with-web"

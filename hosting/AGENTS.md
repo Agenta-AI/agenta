@@ -86,5 +86,7 @@ PROJECT=agenta-ee-dev-wp-b2-rendering hosting/docker-compose/recreate-web.sh
 ```
 
 If you must run `docker compose` directly, pass `ENV_FILE=<file>` **and**
-`--env-file <path>` — both, every time. `run.sh` now also fails loud when its resolved env file
+`--env-file <path>` — both, every time. `run.sh` accepts either a bare env filename
+(from the edition dir) or a path and normalizes it before Compose reads service-level
+`env_file` entries. `run.sh` now also fails loud when its resolved env file
 is missing instead of silently using the port-80 default.
