@@ -106,8 +106,8 @@ shares the stack, check it is idle (request logs) before mutating.
   too); note known/already-filed bugs in the plan so browser agents do not re-file them.
 - Record environment facts the next run needs (stack name, creds file location, minted
   account ids, teardown list) in a session HANDOFF file, not in the committed plan doc.
-  Machine-specific details (hosts, ports, key locations) belong in agent memory or the
-  deploy-worktree-testing skill's registry, never in this doc or the plan.
+  Machine-specific details (hosts, ports, key locations) belong in agent memory or
+  wherever your team records its environments, never in this skill or the plan doc.
 
 ## Orchestration notes
 
