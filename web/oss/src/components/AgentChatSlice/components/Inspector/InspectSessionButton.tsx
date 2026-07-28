@@ -7,11 +7,17 @@ import {MagnifyingGlass} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {playgroundInspectorEnabledAtom} from "@/oss/state/settings/featureFlags"
+
 import {inspectorTargetAtom, toggleInspectorSessionAtom} from "./state"
 
 export default function InspectSessionButton({sessionId}: {sessionId: string | null}) {
+    const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     const toggleSession = useSetAtom(toggleInspectorSessionAtom)
     const open = useAtomValue(inspectorTargetAtom)?.sessionId === sessionId && !!sessionId
+
+    if (!inspectorEnabled) return null
+
     return (
         <Tooltip title={open ? "Hide inspector" : "Inspect session"}>
             <Button
