@@ -11,6 +11,7 @@ import {
 } from "react"
 
 import {
+    commandSessionStream,
     killSession,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
@@ -129,6 +130,8 @@ import {
 import {
     type SessionRunStatus,
     activeSessionIdAtomFamily,
+    autoTitleSessionAtomFamily,
+    firstUserText,
     persistSessionMessagesAtom,
     sessionMessagesAtom,
     setSessionStatusAtom,
@@ -746,6 +749,15 @@ const AgentConversation = ({
     const pendingRun = useAtomValue(simulatedAgentRunAtomFamily(entityId))
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(entityId))
 
+    // Auto-name the session from its first user message so the durable list is labeled everywhere
+    // (cross-tab / cross-device) before it's opened. The atom no-ops once the session has a title,
+    // so this fires at most once and never overwrites an explicit rename.
+    const autoTitleSession = useSetAtom(autoTitleSessionAtomFamily(scopeKey))
+    const firstUserMessage = useMemo(() => firstUserText(messages), [messages])
+    useEffect(() => {
+        if (firstUserMessage) autoTitleSession({id: sessionId, text: firstUserMessage})
+    }, [firstUserMessage, sessionId, autoTitleSession])
+
     // Model connection: is the project vault empty (no key of any kind), the agent not self-managed,
     // and the user never set up a key before? Drives the connect-a-model banner AND disables the
     // composer until connected — see `gateActive` on `useAgentModelKeyStatus` for the full chain.
@@ -1089,11 +1101,21 @@ const AgentConversation = ({
     // in THIS mount marks the resume as live — a restored approval-requested tail the user answers
     // after a reload genuinely auto-resumes, so the queue's pre-resume hold must apply to it.
     const handleApprovalResponse = useCallback(
-        (args: {id: string; approved: boolean}) => {
+        (args: {id: string; approved: boolean; message?: string}) => {
             liveGateInteractionRef.current = {kind: "approval", id: args.id}
-            addToolApprovalResponse(args)
+            addToolApprovalResponse({id: args.id, approved: args.approved})
+            // Steer: a denial that carries a redirect answers the gate AND sends the instruction as a
+            // follow-up turn. It must be its OWN turn, not bundled into the deny-resume: resuming a
+            // parked gate calls `respondPermission(reject)`, which makes the harness CONTINUE the
+            // original prompt (run-turn.ts) — so a note fused into that resume gets subordinated to
+            // the original intent and ignored. As a separate turn it reliably drives the redirect.
+            // (The model still reasons about the bare denial first — the "flail" — because the
+            // harness owns the reject continuation and exposes no reject-with-feedback seam; killing
+            // that flail needs an upstream ACP change, not an FE one.)
+            const steer = args.message?.trim()
+            if (!args.approved && steer) submit({text: steer})
         },
-        [addToolApprovalResponse],
+        [addToolApprovalResponse, submit],
     )
 
     // Pending HITL gates for the paused turn, surfaced in the persistent ApprovalDock above the
@@ -1251,11 +1273,10 @@ const AgentConversation = ({
 
     const handleStop = useCallback(() => {
         markStopped()
-        stop()
-        // Default Stop only aborts the client stream; the runner survives and keeps billing. When the
-        // NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION flag is set, also kill the session so the sandbox
-        // tears down and server-side compute halts. Kill ends the whole session (resume is #5197).
-        if (doesAgentChatStopKillSession() && projectId && sessionId) {
+        stop() // abort the client stream immediately
+        if (!projectId || !sessionId) return
+        // Opt-in hard kill (NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION): tear the whole session down.
+        if (doesAgentChatStopKillSession()) {
             killSession({sessionId, projectId})
                 .then((ok) => {
                     if (ok) {
@@ -1266,7 +1287,13 @@ const AgentConversation = ({
                     }
                 })
                 .catch(() => {})
+            return
         }
+        // Default Stop: cooperatively cancel the CURRENT TURN. The control-plane `cancel` command
+        // (no inputs, no force) drops the alive lock; the runner closes the turn as interrupted and
+        // the session STAYS OPEN so a follow-up prompt resumes it — instead of the old behaviour where
+        // the client stream aborted but the runner kept running and billing.
+        commandSessionStream({sessionId, projectId}).catch(() => {})
     }, [markStopped, stop, projectId, sessionId, queryClient])
 
     // ── D9 teardown: abort the in-flight stream on unmount (tab close / revision swap) ──

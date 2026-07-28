@@ -109,7 +109,17 @@ class RecordsDAO(RecordsDAOInterface):
                     RecordDBE.project_id == project_id,
                     RecordDBE.session_id == session_id,
                 )
-                .order_by(RecordDBE.created_at.asc(), RecordDBE.record_index.asc())
+                # Producer event time first: it is the only key that is monotonic across
+                # turns. `record_index` restarts at 0 every turn, and the worker can batch
+                # records from two turns into one write so they share `created_at` — the old
+                # (created_at, record_index) order then sorted the NEXT turn's first record
+                # ahead of the PREVIOUS turn's later ones, interleaving the conversation.
+                # Rows written before `timestamp` existed sort last within their ingest batch.
+                .order_by(
+                    RecordDBE.timestamp.asc().nullslast(),
+                    RecordDBE.created_at.asc(),
+                    RecordDBE.record_index.asc(),
+                )
             )
 
             dbes = (await session.execute(stmt)).scalars().all()

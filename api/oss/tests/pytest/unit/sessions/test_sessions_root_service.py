@@ -7,13 +7,14 @@ DAO-level integration coverage, e.g. test_turns_dao.py). Covers:
   - delete_session: exact fan-out order and calls (turns, interactions, mounts,
     then the hard stream delete) — records are never touched.
   - archive_session / unarchive_session: soft fan-out including bound mounts,
-    round-trips deleted_at.
+    round-trips archived_at (distinct from delete's hard stream removal).
   - query_sessions: reference filter joins turns -> session_ids, then filters
     the stream query; windowed pass-through; no-match short-circuits to [].
   - fan-out keys off session_id, never stream_id (asserted via the fakes'
     captured call kwargs).
 """
 
+from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import uuid4
 
@@ -29,6 +30,9 @@ from oss.src.core.shared.dtos import Reference, Windowing
 _PROJECT = uuid4()
 _USER = uuid4()
 _SESSION = "session-wp5-root"
+# Both deleted_at and archived_at are Optional[datetime]; model_copy(update=...) does not
+# re-validate, so the fakes must use real datetimes to stay type-faithful to the DAO.
+_TS = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
 def _stream(session_id: str = _SESSION, deleted: bool = False) -> SessionStream:
@@ -36,7 +40,7 @@ def _stream(session_id: str = _SESSION, deleted: bool = False) -> SessionStream:
         id=uuid4(),
         project_id=_PROJECT,
         session_id=session_id,
-        deleted_at="2026-01-01T00:00:00Z" if deleted else None,
+        deleted_at=_TS if deleted else None,
     )
 
 
@@ -84,12 +88,12 @@ class _FakeStreamsService:
         )
         return True
 
-    async def archive(self, *, project_id, session_id):
-        self.archive_calls.append({"project_id": project_id, "session_id": session_id})
+    async def archive(self, *, project_id, user_id, session_id):
+        self.archive_calls.append(
+            {"project_id": project_id, "user_id": user_id, "session_id": session_id}
+        )
         if self.row is not None:
-            self.row = self.row.model_copy(
-                update={"deleted_at": "2026-01-01T00:00:00Z"}
-            )
+            self.row = self.row.model_copy(update={"archived_at": _TS})
         return self.row
 
     async def unarchive(self, *, project_id, user_id, session_id):
@@ -97,7 +101,7 @@ class _FakeStreamsService:
             {"project_id": project_id, "user_id": user_id, "session_id": session_id}
         )
         if self.row is not None:
-            self.row = self.row.model_copy(update={"deleted_at": None})
+            self.row = self.row.model_copy(update={"archived_at": None})
         return self.row
 
 
@@ -236,11 +240,14 @@ async def test_archive_session_soft_archives_stream_and_mounts():
     )
 
     assert result is not None
-    assert result.deleted_at is not None
+    assert result.archived_at is not None
+    assert result.deleted_at is None
     assert mounts.archive_calls == [
         {"project_id": _PROJECT, "user_id": _USER, "session_id": _SESSION}
     ]
-    assert streams.archive_calls == [{"project_id": _PROJECT, "session_id": _SESSION}]
+    assert streams.archive_calls == [
+        {"project_id": _PROJECT, "user_id": _USER, "session_id": _SESSION}
+    ]
 
 
 @pytest.mark.asyncio
@@ -251,14 +258,14 @@ async def test_unarchive_session_reverses_archive_round_trip():
     archived = await svc.archive_session(
         project_id=_PROJECT, user_id=_USER, session_id=_SESSION
     )
-    assert archived.deleted_at is not None
+    assert archived.archived_at is not None
 
     unarchived = await svc.unarchive_session(
         project_id=_PROJECT, user_id=_USER, session_id=_SESSION
     )
 
     assert unarchived is not None
-    assert unarchived.deleted_at is None
+    assert unarchived.archived_at is None
     assert mounts.unarchive_calls == [
         {"project_id": _PROJECT, "user_id": _USER, "session_id": _SESSION}
     ]
