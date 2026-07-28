@@ -15,6 +15,7 @@ import {
     sessionInteractionResponseSchema,
     sessionInteractionsResponseSchema,
     sessionRecordsQueryResponseSchema,
+    sessionsQueryResponseSchema,
     sessionStreamCommandResponseSchema,
     sessionMountsResponseSchema,
     sessionStreamResponseSchema,
@@ -233,6 +234,90 @@ export async function querySessionStreams({
     return validated?.streams ?? null
 }
 
+export interface QuerySessionsParams {
+    projectId: string
+    /** Workflow refs to scope by — pass `[{id: appId}]` for one agent's sessions (JSONB `@>`
+     * containment against the turns' references). Omit for every session in the project. */
+    references?: {id?: string; slug?: string; version?: string}[]
+    /** Include ended (killed) sessions so the list keeps resumable history — default true. With
+     * this, an absent session means hard-deleted, which the reconciler uses to prune the cache. */
+    includeEnded?: boolean
+    /** Include archived sessions — default true so the reconciler can carry an `archived` flag and
+     * hide them by display filter, rather than mistake an archived row for a hard-delete and prune
+     * it. Set false only for a view that wants strictly non-archived rows. */
+    includeArchived?: boolean
+    appId?: string
+    abortSignal?: AbortSignal
+    lowPriority?: boolean
+}
+
+/**
+ * The durable session list for the project: merged stream rows (id, `name` title, flags,
+ * `created_at`, `deleted_at`=ended), filtered by the turns' workflow `references`. This is the
+ * server source the reconciling sidebar merges over its localStorage cache. Returns `null` on
+ * failure / missing project scope.
+ */
+export async function querySessions({
+    projectId,
+    references,
+    includeEnded = true,
+    includeArchived = true,
+    appId,
+    abortSignal,
+    lowPriority,
+}: QuerySessionsParams): Promise<SessionStream[] | null> {
+    if (!projectId) return null
+
+    const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
+    const data = await callFern("[querySessions]", () =>
+        client.querySessions(
+            {references, include_ended: includeEnded, include_archived: includeArchived},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    if (!data) return null
+
+    const validated = safeParseWithLogging(sessionsQueryResponseSchema, data, "[querySessions]")
+    return validated?.sessions ?? null
+}
+
+export interface SetSessionHeaderParams {
+    sessionId: string
+    projectId: string
+    name?: string
+    description?: string
+    appId?: string
+    abortSignal?: AbortSignal
+}
+
+/**
+ * Write a session's durable title/description (the stream `header`) so a rename syncs across
+ * devices and survives a localStorage wipe. Partial: only the fields passed are sent. Creates the
+ * stream row if a rename lands before the session's first run. Best-effort — `false` on failure.
+ */
+export async function setSessionHeader({
+    sessionId,
+    projectId,
+    name,
+    description,
+    appId,
+    abortSignal,
+}: SetSessionHeaderParams): Promise<boolean> {
+    if (!projectId || !sessionId) return false
+
+    const body: {name?: string; description?: string} = {}
+    if (name !== undefined) body.name = name
+    if (description !== undefined) body.description = description
+
+    const data = await callFern("[setSessionHeader]", () =>
+        getSessionsClient().setSessionStreamHeader(
+            {session_id: sessionId, body},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return data !== null
+}
+
 /** Fetch a session's current stream handle (liveness/attach state). Returns `null` if none. */
 export async function fetchSessionStream({
     sessionId,
@@ -320,6 +405,71 @@ export async function killSession({
 
     const data = await callFern("[killSession]", () =>
         getSessionsClient().deleteSessionStream(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return data !== null
+}
+
+/**
+ * DELETE — permanently remove a session (root hard-delete fan-out across turns/streams/
+ * interactions/mounts). Distinct from `killSession` (a soft end that stays resumable). Propagates
+ * the deletion to every device: the reconciler drops a session absent from the server list.
+ * Returns `true` on success, `false` on failure/missing scope.
+ */
+export async function deleteSession({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<boolean> {
+    if (!projectId || !sessionId) return false
+
+    const data = await callFern("[deleteSession]", () =>
+        getSessionsClient().deleteSession(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return data !== null
+}
+
+/**
+ * ARCHIVE — hide a session from the default list without ending or deleting it. Sets the stream's
+ * `archived_at` (distinct from `deleted_at`, which kill uses and which stays resumable), so an
+ * archived session is fully recoverable via `unarchiveSession`. Surfaced only by an archived view
+ * (`querySessions({includeArchived})`). Returns `true` on success, `false` on failure/missing scope.
+ */
+export async function archiveSession({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<boolean> {
+    if (!projectId || !sessionId) return false
+
+    const data = await callFern("[archiveSession]", () =>
+        getSessionsClient().archiveSession(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return data !== null
+}
+
+/** UNARCHIVE — reverse of `archiveSession`: clears `archived_at` so the session returns to the
+ * default list. Returns `true` on success, `false` on failure/missing scope. */
+export async function unarchiveSession({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<boolean> {
+    if (!projectId || !sessionId) return false
+
+    const data = await callFern("[unarchiveSession]", () =>
+        getSessionsClient().unarchiveSession(
             {session_id: sessionId},
             projectScopedRequest(projectId, appId, abortSignal),
         ),

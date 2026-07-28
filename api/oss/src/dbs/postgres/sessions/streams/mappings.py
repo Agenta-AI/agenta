@@ -47,6 +47,7 @@ def map_stream_dbe_to_dto(
         name=stream_dbe.name,
         description=stream_dbe.description,
         turn_id=stream_dbe.turn_id,
+        archived_at=stream_dbe.archived_at,
         flags=SessionStreamFlags.model_validate(stream_dbe.flags)
         if stream_dbe.flags
         else SessionStreamFlags(),
