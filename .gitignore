@@ -85,12 +85,14 @@ services/runner/tests/results/
 !.agents/skills/
 .agents/skills/*
 !.agents/skills/agent-release-gate/
+!.agents/skills/release-qa/
 !.agents/skills/write-template-playbooks/
 !.claude/
 .claude/*
 !.claude/skills/
 .claude/skills/*
 !.claude/skills/agent-release-gate
+!.claude/skills/release-qa
 !.claude/skills/write-template-playbooks
 
 # Temporary SDK copies created by run.sh --local
