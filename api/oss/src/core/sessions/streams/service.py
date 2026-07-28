@@ -393,12 +393,18 @@ class SessionStreamsService:
             ):
                 if turn_was_established:
                     is_current_turn = False
-                await acquire_running(
-                    self._lock,
-                    project_id=str(project_id),
-                    session_id=request.session_id,
-                    turn_id=request.turn_id,
-                )
+                # Only a turn that still believes it owns the session may (re-)arm `running`:
+                # acquire_running overwrites, so a superseded turn's beat would otherwise
+                # stamp its own dead id over the live turn's — corrupting the very key the
+                # takeover check above reads — and a cancelled turn would resurrect the
+                # `running` its cancel just cleared.
+                if is_current_turn:
+                    await acquire_running(
+                        self._lock,
+                        project_id=str(project_id),
+                        session_id=request.session_id,
+                        turn_id=request.turn_id,
+                    )
         elif not request.is_running:
             # Turn ended: drop only `running`. `alive` outlives the turn (own TTL, cleared
             # only by kill) — this is what makes the session reattachable.

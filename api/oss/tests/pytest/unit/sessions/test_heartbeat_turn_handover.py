@@ -150,6 +150,15 @@ async def test_a_live_different_turn_holding_running_is_still_a_takeover(lock_en
     assert await _alive(lock_engine) == "turn-2", (
         "a superseded turn must not force-cancel the live turn's alive lock"
     )
+    assert await _running(lock_engine) == "turn-2", (
+        "`acquire_running` overwrites, so a beat that was just told it is not the current "
+        "turn must not stamp its dead id over the live turn's — that key is what the "
+        "takeover check reads, and clobbering it makes the LIVE turn look superseded"
+    )
+
+    # And the live turn keeps running: the discriminator survived the zombie's beat.
+    live = await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-2"))
+    assert live.is_current_turn is True
 
 
 @pytest.mark.asyncio
