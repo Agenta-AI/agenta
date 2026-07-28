@@ -3,8 +3,12 @@
  * trusting a full inbound history — the server side of "client sends only the last message".
  *
  * Flag-gated (`AGENTA_SESSIONS_RECONSTRUCT`) and a strict no-op until BOTH the flag is on AND the
- * client actually sent a minimal history (`carriesMinimalHistory`). Best-effort — any miss (no
- * session, no records, fetch failure) leaves the inbound history untouched.
+ * client actually sent a minimal history (`carriesMinimalHistory`). When it does not apply, the
+ * inbound history is left untouched.
+ *
+ * When it DOES apply it is no longer best-effort, because the client kept no copy of the
+ * conversation: an unreadable log, or one known to have dropped a record, fails the turn rather
+ * than letting the agent answer as though the conversation had just started.
  *
  * The record log already contains the CURRENT turn by the time this runs: the runner persists the
  * inbound user message before it starts the engine, and acquiring a sandbox takes seconds. Its
@@ -14,6 +18,7 @@
 
 import type { AgentRunRequest } from "../../protocol.ts";
 import { fetchSessionRecords } from "../../sessions/records-query.ts";
+import { recordsIncomplete } from "../../sessions/persist.ts";
 import { reconstructMessages } from "../../sessions/reconstruct.ts";
 import { carriesMinimalHistory } from "./session-identity.ts";
 
@@ -38,8 +43,21 @@ export async function reconstructHistoryIfNeeded(
   // The client still asserts the conversation itself — nothing to rebuild.
   if (!carriesMinimalHistory(request)) return null;
 
+  // The client kept no copy of the conversation, so there is no history to fall back to. Answering
+  // anyway would silently produce an agent that forgot everything, which reads as a correct reply.
+  // Fail the turn instead: `runTurn`'s catch turns this into an error result the caller can see.
+  if (recordsIncomplete(sessionId)) {
+    throw new Error(
+      `session ${sessionId} lost a durable record; refusing to rebuild an incomplete conversation`,
+    );
+  }
+
   const records = await fetchSessionRecords(sessionId, auth);
-  if (!records) return null;
+  if (!records) {
+    throw new Error(
+      `session ${sessionId} record log is unreadable; cannot rebuild the conversation`,
+    );
+  }
 
   // Drop this turn's own records: the inbound message already carries the current prompt.
   const currentTurnId = request.turnId?.trim();

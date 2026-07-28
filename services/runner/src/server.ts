@@ -76,7 +76,11 @@ import { isEntrypoint } from "./entry.ts";
 import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
 import { startAliveWatchdog } from "./sessions/alive.ts";
 import { cancelStaleInteractions } from "./sessions/interactions.ts";
-import { buildPersistingEmitter } from "./sessions/persist.ts";
+import {
+  buildPersistingEmitter,
+  noteRecordsIncomplete,
+  takePersistFailures,
+} from "./sessions/persist.ts";
 import { seedForRun } from "./redaction.ts";
 
 // Server binding (host/port) comes from the typed `RunnerConfig` resolved at boot. The host
@@ -1045,6 +1049,19 @@ async function runAndStreamWithApiBaseResolved(
     if (flushPersist) await flushPersist().catch(() => {});
     result = { ok: false, error: message };
   } finally {
+    // The drain is the only place that knows whether this turn's records all landed. A dropped
+    // record means the log no longer represents the conversation, so mark the session: a later
+    // turn must fail rather than rebuild model context from a log with a hole in it.
+    if (sessionOwned && sessionId) {
+      const dropped = takePersistFailures(sessionId);
+      if (dropped > 0) {
+        noteRecordsIncomplete(sessionId);
+        process.stderr.write(
+          `[sessions] records INCOMPLETE session=${sessionId} dropped=${dropped}; ` +
+            `reconstruction disabled for this session\n`,
+        );
+      }
+    }
     if (aliveWatchdog) await aliveWatchdog.release().catch(() => {});
   }
 
