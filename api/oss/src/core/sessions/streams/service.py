@@ -34,6 +34,8 @@ from oss.src.dbs.redis.sessions.locks import (
     release_running,
     force_cancel_alive,
     force_clear_owner,
+    get_alive_owner,
+    get_running_owner,
     get_session_liveness,
     refresh_alive,
     refresh_running,
@@ -334,11 +336,11 @@ class SessionStreamsService:
         if request.turn_id and request.is_running:
             # Acquire-then-refresh: the first heartbeat must establish the nest locks
             # itself (acquire_* is nx=True — a no-op if _start_turn already holds them).
-            # A FAILED alive acquire is the unambiguous takeover signal: nx only fails when a
-            # different turn holds the key right now. A successful one means the key was
-            # merely absent, which is an interruption only if this turn had already
-            # established it (`turn_was_established`) rather than establishing it here.
-            # (`acquire_running` is not nx — it overwrites — so it carries no such signal.)
+            # A failed nx acquire is NOT by itself a takeover: nx fails whenever ANY value
+            # holds the key, and `alive` outlives its turn (release_alive has no callers, and
+            # the turn-end beat clears only `running`), so every follow-up turn on a warm
+            # session sees the previous turn's key. `running` is the discriminator — a real
+            # takeover (steer/_start_turn) holds it under the usurper's turn id.
             if not await refresh_alive(
                 self._lock,
                 project_id=str(project_id),
@@ -351,6 +353,36 @@ class SessionStreamsService:
                     session_id=request.session_id,
                     turn_id=request.turn_id,
                 )
+                if not acquired:
+                    alive_owner = await get_alive_owner(
+                        self._lock,
+                        project_id=str(project_id),
+                        session_id=request.session_id,
+                    )
+                    running_owner = await get_running_owner(
+                        self._lock,
+                        project_id=str(project_id),
+                        session_id=request.session_id,
+                    )
+                    if alive_owner == request.turn_id:
+                        # Two overlapping beats of this same turn raced; we still own it.
+                        acquired = True
+                    elif running_owner is not None and running_owner != request.turn_id:
+                        pass  # a live different turn holds the session: real takeover
+                    else:
+                        # Stale `alive` from this session's own previous (ended or parked)
+                        # turn — legitimate handover, not an interruption.
+                        await force_cancel_alive(
+                            self._lock,
+                            project_id=str(project_id),
+                            session_id=request.session_id,
+                        )
+                        acquired = await acquire_alive(
+                            self._lock,
+                            project_id=str(project_id),
+                            session_id=request.session_id,
+                            turn_id=request.turn_id,
+                        )
                 if not acquired or turn_was_established:
                     is_current_turn = False
             if not await refresh_running(
@@ -432,7 +464,14 @@ class SessionStreamsService:
         # for send/steer, but the runner mints its own turn id and only ever heartbeats, so
         # without this the relay's `running` event never fires for a real run. Gated on the
         # turn being new to this row, so a 30s-interval beat doesn't re-publish it.
-        if request.turn_id and request.is_running and not turn_was_established:
+        # `stream is None` = the row is a killed tombstone; announcing a dead session as
+        # running would light every watcher's badge for a run that cannot exist.
+        if (
+            request.turn_id
+            and request.is_running
+            and not turn_was_established
+            and stream is not None
+        ):
             await self._publish_lifecycle(
                 project_id=project_id,
                 session_id=request.session_id,
