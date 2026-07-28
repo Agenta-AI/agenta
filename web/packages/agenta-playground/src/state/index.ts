@@ -183,7 +183,7 @@ export {
 } from "./execution"
 export {agentChannelModeAtomFamily, type AgentChannelMode} from "./execution"
 export {createNegotiatingFetch, type NegotiatingFetch} from "./execution"
-export {agentShouldResumeAfterApproval} from "./execution"
+export {agentShouldResumeAfterApproval, type LiveAgentInteraction} from "./execution"
 export {buildRenderMap, renderKindFor, type RenderHintLike} from "./execution"
 export {canReleaseQueuedMessage, isHitlPending} from "./execution"
 export {

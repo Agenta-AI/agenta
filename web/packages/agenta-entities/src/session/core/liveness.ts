@@ -75,8 +75,8 @@ export interface SandboxLiveness {
  * `cold` (disk alive, not warm), or `dead` (disk gone). With no sandbox info the coarse `cold`
  * stands, so existing callers are unaffected until they start passing sandbox data.
  *
- * FOLLOWUP(sessions,#5197): no caller passes `sandbox` yet — wire a sandbox-liveness signal from
- * `getSessionState` through the dot (`sessionDotStatusAtomFamily`) when #5197 exposes it. See
+ * FOLLOWUP(sessions,#5197): no caller passes `sandbox` yet — wire a sandbox-liveness signal
+ * through the dot (`sessionDotStatusAtomFamily`) when #5197 exposes it. See
  * docs/designs/sessions/frontend-integration.md.
  */
 export function refineLifecycleWithSandbox(

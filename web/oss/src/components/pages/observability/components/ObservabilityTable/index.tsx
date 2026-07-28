@@ -16,6 +16,7 @@ import {hasReceivedTracesAtom} from "@/oss/state/newObservability/atoms/controls
 import {
     getDefaultHiddenObservabilityColumnKeys,
     getObservabilityColumns,
+    type TraceRow,
 } from "../../assets/getObservabilityColumns"
 import {AUTO_REFRESH_INTERVAL} from "../../constants"
 
@@ -250,9 +251,9 @@ const ObservabilityTable = () => {
     const showOnboarding = isNewUser && !hasReceivedTraces
 
     // Build pagination object expected by InfiniteVirtualTableFeatureShell
-    const pagination: TableFeaturePagination<TraceSpanNode> = useMemo(
+    const pagination: TableFeaturePagination<TraceRow> = useMemo(
         () => ({
-            rows: traces,
+            rows: traces as TraceRow[],
             loadNextPage: () => fetchMoreTraces(),
             resetPages: resetTracePages,
             paginationInfo: {
@@ -286,10 +287,10 @@ const ObservabilityTable = () => {
             ) : isEmptyState ? (
                 <EmptyObservability showOnboarding={showOnboarding} />
             ) : (
-                <InfiniteVirtualTableFeatureShell
+                <InfiniteVirtualTableFeatureShell<TraceRow>
                     tableScope={tableScope}
                     columns={columns}
-                    rowKey={(record) => record.span_id || record.key}
+                    rowKey={(record) => record.span_id || record.key || ""}
                     pagination={pagination}
                     resizableColumns
                     enableExport={false}
