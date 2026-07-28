@@ -63,6 +63,8 @@ export {
     SectionSkeleton,
     ConfigAccordionSection,
     sectionIndicatorColor,
+    useAccordionSectionOpen,
+    useRecentFlag,
     type SectionCardProps,
     type SectionHeaderRowProps,
     type SectionLabelProps,

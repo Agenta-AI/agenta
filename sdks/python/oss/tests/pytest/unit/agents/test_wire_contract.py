@@ -23,7 +23,7 @@ from agenta.sdk.agents import (
     AgentaAgentTemplate,
     ClaudeAgentTemplate,
     Endpoint,
-    HarnessType,
+    HarnessKind,
     Message,
     PiAgentTemplate,
     ResolvedConnection,
@@ -131,7 +131,7 @@ def _pi_payload():
         append_system="Be terse.",
     )
     return request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
@@ -179,7 +179,7 @@ def _claude_payload():
         },
     )
     return request_to_wire(
-        harness=HarnessType.CLAUDE,
+        harness=HarnessKind.CLAUDE,
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
@@ -201,7 +201,7 @@ def _agenta_payload():
         skills=[dict(_SKILL)],
     )
     return request_to_wire(
-        harness=HarnessType.AGENTA,
+        harness=HarnessKind.AGENTA,
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
@@ -230,7 +230,7 @@ def test_request_to_wire_skills_ride_their_own_seam_not_tools():
 def test_request_to_wire_omits_skills_when_none():
     # No declared skills -> no `skills` key (keeps a skill-free payload byte-identical).
     payload = request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
@@ -313,7 +313,7 @@ def test_request_to_wire_omits_run_context_when_none():
     # No run context passed -> no `runContext` key (a run that needs no `call.context` binding stays
     # byte-identical to before, the same discipline skills/mcpServers/sandboxPermission use).
     payload = request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
@@ -325,7 +325,7 @@ def test_request_to_wire_omits_run_context_when_empty():
     # An entirely-empty run context (no identity to bind) serializes to {} and is dropped, so it
     # never rides the wire as a noise `"runContext": {}` key.
     payload = request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
@@ -336,7 +336,7 @@ def test_request_to_wire_omits_run_context_when_empty():
 
 def test_request_to_wire_carries_turn_id_when_set():
     payload = request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
@@ -348,7 +348,7 @@ def test_request_to_wire_carries_turn_id_when_set():
 
 def test_request_to_wire_omits_turn_id_when_none():
     payload = request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
@@ -358,7 +358,7 @@ def test_request_to_wire_omits_turn_id_when_none():
 
 def test_request_to_wire_carries_project_id_when_set():
     payload = request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
@@ -370,7 +370,7 @@ def test_request_to_wire_carries_project_id_when_set():
 
 def test_request_to_wire_omits_project_id_when_none():
     payload = request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
@@ -442,7 +442,7 @@ def test_author_permission_rules_exclude_mcp_from_wire_but_keep_settings():
         }
     )
     payload = request_to_wire(
-        harness=HarnessType.CLAUDE,
+        harness=HarnessKind.CLAUDE,
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
@@ -472,7 +472,7 @@ def test_request_to_wire_has_no_prompt_key():
     # The serializer emits `messages` only; the TS side derives the latest turn with
     # `resolvePromptText`. This asymmetry is intentional and easy to break, so lock it.
     payload = request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
@@ -507,7 +507,7 @@ def test_request_to_wire_carries_resolved_connection_non_secret_descriptor():
         ),
     )
     payload = request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
@@ -533,7 +533,7 @@ def test_request_to_wire_omits_resolved_connection_when_none():
     # byte-identical to before (the golden contract; the golden fixtures set none).
     config = PiAgentTemplate(model="gpt-5.5")
     payload = request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
@@ -549,7 +549,7 @@ def test_request_to_wire_omits_resolved_connection_when_none():
 def test_pi_permissions_default_to_allow_reads():
     # Pi ships the same default permission plan as the other harnesses.
     payload = request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
@@ -674,7 +674,7 @@ def test_request_to_wire_carries_code_client_and_mcp_specs():
         ],
     )
     payload = request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
@@ -706,7 +706,7 @@ def test_request_to_wire_carries_code_client_and_mcp_specs():
 def test_request_to_wire_omits_mcp_servers_when_none():
     # No declared servers -> no `mcpServers` key (keeps a tool-free payload byte-identical).
     payload = request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
@@ -718,7 +718,7 @@ def test_request_to_wire_omits_sandbox_permission_when_none():
     # No declared boundary -> no `sandboxPermission` key (keeps a boundary-free payload
     # byte-identical, so existing configs/fixtures are unaffected).
     payload = request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
@@ -730,7 +730,7 @@ def test_request_to_wire_omits_harness_files_when_none():
     # No authored options on a Claude config -> the claude adapter renders nothing, so no
     # `harnessFiles` key (a Claude run without harness options is byte-identical to before).
     payload = request_to_wire(
-        harness=HarnessType.CLAUDE,
+        harness=HarnessKind.CLAUDE,
         sandbox="local",
         config=ClaudeAgentTemplate(),
         messages=[Message(role="user", content="hi")],
@@ -744,7 +744,7 @@ def test_request_to_wire_pi_renders_no_harness_files_from_its_options():
     # `appendSystemPrompt`, not a file).
     config = PiAgentTemplate(system="You are Pi.")
     payload = request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
@@ -771,7 +771,7 @@ def test_request_to_wire_claude_renders_settings_from_options_and_boundaries():
         ],
     )
     payload = request_to_wire(
-        harness=HarnessType.CLAUDE,
+        harness=HarnessKind.CLAUDE,
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
@@ -796,7 +796,7 @@ def test_request_to_wire_carries_sandbox_permission_allowlist():
         )
     )
     payload = request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
