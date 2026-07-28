@@ -83,6 +83,7 @@ import CopiedToast from "@/oss/components/TemplateStrip/components/CopiedToast"
 import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {projectIdAtom} from "@/oss/state/project"
+import {playgroundInspectorEnabledAtom} from "@/oss/state/settings/featureFlags"
 
 import {AgentChatTransport} from "./assets/AgentChatTransport"
 import {
@@ -391,17 +392,20 @@ const AgentConversation = ({
     const openInspectorTurn = useSetAtom(openInspectorTurnAtom)
     const closeInspector = useSetAtom(closeInspectorAtom)
     const buildMode = !useAtomValue(chatPanelMaximizedAtom)
-    // The Inspector is a BUILD-mode tool (both scopes) — mode-gated, not env-gated. Chat mode has
-    // no inspector (the context rail owns the right dock there).
-    const inspectorOpen = buildMode && inspectorTarget?.sessionId === sessionId
+    const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
+    // The Inspector is a personal debug tool in BUILD mode. Chat mode has no inspector (the
+    // context rail owns the right dock there).
+    const inspectorOpen = inspectorEnabled && buildMode && inspectorTarget?.sessionId === sessionId
     const turnInspectorOpen = inspectorOpen && inspectorTarget?.focusedTurn != null
     // The assistant turn the panel is focused on. Turn ids are 1-based indices (records group by
     // `done`); the inspected assistant message is the Nth assistant message.
     const inspectedTurn = turnInspectorOpen ? (inspectorTarget?.focusedTurn ?? null) : null
     // Leaving Build for Chat closes the Inspector entirely.
     useEffect(() => {
-        if (!buildMode && inspectorTarget?.sessionId === sessionId) closeInspector()
-    }, [buildMode, inspectorTarget?.sessionId, sessionId, closeInspector])
+        if ((!buildMode || !inspectorEnabled) && inspectorTarget?.sessionId === sessionId) {
+            closeInspector()
+        }
+    }, [buildMode, inspectorEnabled, inspectorTarget?.sessionId, sessionId, closeInspector])
 
     // Map an assistant message to its 1-based turn number (records/turns align 1:1 with the
     // assistant messages — one per `done`).
@@ -1901,7 +1905,7 @@ const AgentConversation = ({
             inspectorOpen && isAssistantTurn
                 ? () => openInspectorTurn({sessionId, turn: turnOfAssistant(message.id)})
                 : undefined
-        const showInspect = buildMode && isAssistantTurn
+        const showInspect = inspectorEnabled && buildMode && isAssistantTurn
         const showWorking =
             isLast && busy && (!isAssistantTurn || message.parts.some(isVisiblePart))
         // Paused on the user (never concurrently with showWorking — hitlPending implies not busy):
