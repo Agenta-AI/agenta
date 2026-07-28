@@ -9,6 +9,8 @@ import {
 } from "@agenta/chat/transport"
 import {queryInteractions} from "@agenta/entities/session"
 
+import {getAuthorizationHeader} from "@/lib/auth"
+
 import {stampApprovalResponses} from "./approvalStamp"
 
 export type ResumePhase = "idle" | "resuming" | "error"
@@ -133,9 +135,14 @@ export const useApprovalActions = ({
                     projectId,
                     applicationId: references.application?.id ?? undefined,
                 })
+                const authHeader = await getAuthorizationHeader()
                 const response = await fetch(request.invocationUrl, {
                     method: "POST",
-                    headers: {...request.headers, "Content-Type": "application/json"},
+                    headers: {
+                        ...request.headers,
+                        ...authHeader,
+                        "Content-Type": "application/json",
+                    },
                     body: JSON.stringify(request.requestBody),
                     credentials: "include",
                 })
