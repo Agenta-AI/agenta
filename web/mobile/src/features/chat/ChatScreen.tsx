@@ -8,6 +8,7 @@ import {
 
 import {useLivenessPoll} from "../sessions/useLivenessPoll"
 
+import {ApprovalDock} from "./ApprovalDock"
 import {ChatHeader} from "./ChatHeader"
 import {ChatEmpty, ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
@@ -39,7 +40,8 @@ export const ChatScreen = ({
     const running = Boolean(
         liveness.data?.find((s) => s.session_id === sessionId)?.flags?.is_running,
     )
-    const pendingCount = useMemo(() => getPendingApprovals(messages).length, [messages])
+    const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
+    const pendingCount = pendingApprovals.length
     const approvals = useApprovalActions({sessionId, projectId, pendingCount})
     // ~4s while a fired decision settles (fire-and-forget — records carry the resume).
     const basePollMs =
@@ -67,12 +69,7 @@ export const ChatScreen = ({
                 {turns
                     .filter((turn) => !turn.hidden)
                     .map((turn) => (
-                        <TurnRow
-                            key={turn.message.id}
-                            turn={turn}
-                            approvalActions={approvals}
-                            pendingApprovals={pendingCount}
-                        />
+                        <TurnRow key={turn.message.id} turn={turn} />
                     ))}
             </div>
         )
@@ -94,6 +91,7 @@ export const ChatScreen = ({
             >
                 {body}
             </div>
+            <ApprovalDock approvals={pendingApprovals} actions={approvals} />
         </div>
     )
 }
