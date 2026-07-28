@@ -16,9 +16,15 @@ user-invocable: true
 
 QA for a release branch is not one test run. It is: understand what ships, split it by
 risk, test each risk class with the cheapest tool that produces hard evidence, and leave
-a written trail someone else can audit. This skill encodes the procedure that worked for
-the v0.106 sessions-storage-rework release (2026-07-28); the worked example lives at
-`docs/design/agent-workflows/projects/qa/release-2026-07-sessions-storage-rework.md`.
+a written trail someone else can audit.
+
+Everything this skill needs ships with it. Load the extras only when you reach the step
+that uses them (progressive disclosure):
+
+- `resources/plan-template.md` — the plan-doc skeleton. Read when you start Phase B.
+- `resources/example-sessions-rework.md` — a sanitized worked example of a full run,
+  with the lessons it generated. Read before your first-ever run, or when unsure how
+  much evidence a log row needs.
 
 ## Phase A — map the branch before planning anything
 
@@ -44,13 +50,14 @@ toward what their scope does not cover; write the division of labor into the pla
 
 ## Phase B — write the plan as a repo doc, not a chat message
 
-Create `docs/design/agent-workflows/projects/qa/release-<date>-<branch-topic>.md` with:
-what the branch ships split into **always-on** versus **flag-gated** (always-on is where
-release risk lives, because every customer gets it on upgrade day regardless of flags);
-the phase list; a numbered targeted-edge-case list derived from the code reading; the
-flags table; and an **execution log** table you fill in as runs complete, with dates,
-verdicts, and one-paragraph evidence summaries. Commit it with the QA changes and open a
-draft PR against the branch under test — the PR is where recordings and findings land.
+Create the plan doc from `resources/plan-template.md`, in the repo location your team
+uses for QA records (in this repo: `docs/design/agent-workflows/projects/qa/`). The two
+structural rules that matter: split what ships into **always-on** versus **flag-gated**
+(always-on is where release risk lives, because every customer gets it on upgrade day
+regardless of flags), and keep an **execution log** table you fill in as runs complete,
+with dates, verdicts, and one-paragraph evidence summaries. Commit it with the QA
+changes and open a draft PR against the branch under test — the PR is where recordings
+and findings land.
 
 ## Phase C — execute in layers, parallel where independent
 
