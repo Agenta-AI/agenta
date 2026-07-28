@@ -9,33 +9,49 @@ your test client behave EXACTLY like the real frontend, or you are testing your 
 
 ---
 
-## 1. The test client must replay history byte-faithfully, or every turn silently goes COLD
+## 1. The test client must replay history byte-faithfully — unless it deliberately sends minimal history instead
 
 **The trap.** Our driver replayed each assistant turn as a text-only message
 (`{role:"assistant", parts:[{type:"text",...}]}`), dropping the assistant's **tool parts**.
 
 The runner fingerprints the conversation over **(ordered user texts, ordered deduped tool-call
-ids, user-turn count)** — `session-pool.ts:226` `historyFingerprint`, and `:252`
-`expectedNextHistoryFingerprint`, which folds in the tool-call ids the runner emitted last turn.
-A replay with no tool-call ids therefore **cannot match** after any tool-using turn:
+ids, user-turn count)** — `historyFingerprint` and `expectedNextHistoryFingerprint` in
+`services/runner/src/engines/sandbox_agent/session-identity.ts:212` and `:238`, the second folding
+in the tool-call ids the runner emitted last turn. A replay with no tool-call ids therefore
+**cannot match** after any tool-using turn:
 
 ```
 [keepalive] mismatch (history) key=…; evict + cold
 ```
 
-**Why it poisons everything.** Every turn goes cold → a fresh harness process → the runner replays
-a hand-rendered transcript instead of the harness's real context. So:
+**Since the sessions rework, this only binds a full-history client.** When the request carries
+minimal history — exactly one message, a fresh user turn, no approval envelope
+(`carriesMinimalHistory`, same file, `:302`) — the keepalive check **skips the history-fingerprint
+comparison entirely** (`server.ts:603` `clientAssertsHistory`) and, with
+`AGENTA_SESSIONS_RECONSTRUCT=true`, the runner rebuilds prior turns from the durable record log
+instead (`reconstruct-history.ts`). The client is no longer asserting the conversation at all, so
+there is nothing to fingerprint-match against.
+
+**Why a full-history driver still poisons everything if it gets this wrong.** Every turn goes cold
+→ a fresh harness process → the runner replays a hand-rendered transcript instead of the harness's
+real context. So:
 - warm/cold numbers are meaningless (nothing was ever warm),
 - **compaction never triggers** (the harness context never accumulates), so a long-context /
   "loses information" test can pass while testing nothing at all.
 
-**The rule.** Echo back the **full** assistant `UIMessage.parts` — text parts *and* `tool-<name>`
-parts with `toolCallId`, `input`, `state`, `output` — exactly as the AI SDK does
-(`web/packages/agenta-playground/src/state/execution/agentRequest.ts:401`). If your driver
-synthesizes assistant turns, it is not testing the product.
+**The rule.** In full-history mode (the default, and the only mode until
+`NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY` is on): echo back the **full** assistant `UIMessage.parts`
+— text parts *and* `tool-<name>` parts with `toolCallId`, `input`, `state`, `output` — exactly as
+the AI SDK does (`web/packages/agenta-playground/src/state/execution/agentRequest.ts:402-413`). In
+last-message-only mode, send exactly the trailing user message and nothing else — a driver that
+sends "most of" the history (say, the last two turns) satisfies neither mode and mismatches either
+way. If your driver synthesizes assistant turns without knowing which mode it is testing, it is not
+testing the product.
 
 **The tell.** `grep 'mismatch (history)'` in the runner log. If it fires on turns your client
-believes are warm, your client is the bug.
+believes are warm, your client is the bug — unless the client is deliberately minimal-history, in
+which case the fingerprint check never runs and this grep is the wrong tell; grep `[reconstruct]`
+instead.
 
 ## 2. Never assert on the model's prose. It will lie to you.
 
@@ -154,7 +170,9 @@ F-9 ("Claude harness never resumes its native session") was CONFIRMED across 72h
 and triaged as a release blocker. A deployment repair landed later the same day, pulling in recent
 upstream fixes. Nobody re-ran F-9 against the rebuilt stack before trusting it — until a decisive
 cold-context experiment on 2026-07-14 showed native session resume now working 4/4 runs, downgrading
-F-9 to a residual resilience concern (see STATUS.md).
+F-9 to a residual resilience concern. (The original STATUS.md write-up of this downgrade did not
+survive the later docs consolidation into `findings.md`/`matrix.md`; this paragraph is the
+surviving record.)
 
 **The trap.** A deployment under active repair invalidates earlier observations made against it.
 Once the repair lands, the finding is stale, not necessarily wrong — but you don't know which
@@ -205,7 +223,9 @@ wire: a `tool-output-available` frame for a tool named `mcp__<server>__<tool>`.
 1. `docker ps` — is anything restarting? If yes, wait.
 2. Does the runner have its harness dirs (`/pi-agent`)? Is it root or not?
 3. Drive the **product path** (`/services/agent/v0/invoke`), not the service `/invoke`.
-4. Echo history **faithfully** (tool parts included), then confirm `hit-continue` in the log.
+4. In full-history mode, echo history **faithfully** (tool parts included), then confirm
+   `hit-continue` in the log; in last-message-only mode, send just the trailing user message and
+   confirm `[reconstruct]` instead.
 5. Assert on frames + side effects. Never on prose.
 6. After every capability passes, grep the log for silent degradation.
 7. Re-run anything that failed once before reporting it.

@@ -12,6 +12,7 @@ constant is baked into a tool's return value, so a matching reply PROVES the too
   uv run qa_product.py --cell C3                 # one cell
   uv run qa_product.py --all                     # every cell
   uv run qa_product.py --cell C3 --only approve  # one journey
+  uv run qa_product.py --cell C3 --last-message-only  # minimal-history differential run
 
 Credentials come from the environment (AGENTA_BASE, AGENTA_PROJECT_ID, AGENTA_API_KEY), falling
 back to --env-file. Results land in ./qa-gate-runs/<timestamp>/ (override with AGENTA_QA_RUNS_DIR)
@@ -27,6 +28,7 @@ import pathlib
 import re
 import time
 import uuid
+from datetime import datetime
 
 import httpx
 
@@ -101,15 +103,39 @@ def resolve_credentials(env_file: str | pathlib.Path | None = None) -> None:
 DEFAULT_MCP_URL = "https://mcp.deepwiki.com/mcp"
 MCP_URL = DEFAULT_MCP_URL
 
+# --last-message-only: mirrors the frontend's minimal-send switch EXACTLY
+# (web/packages/agenta-playground/src/state/execution/agentRequest.ts:401-415
+# `isSessionsLastMessageOnlyEnabled() && opts.sessionId && lastMessage?.role === "user"`). When on,
+# a turn whose trailing message is a fresh USER message sends ONLY that message, letting the
+# runner rebuild prior turns from the durable record log (requires the backend's
+# AGENTA_SESSIONS_RECONSTRUCT=true to actually have context — this driver does not set backend
+# flags, it only shapes the request). An approval RESUME's trailing message is the assistant's
+# paused turn with the decision inlined (role "assistant", see `approval_reply`), never "user", so
+# it is never shortened by this flag — full history rides every resume, exactly like the browser.
+# Applied inside `invoke()` so every journey gets identical behavior with no per-journey plumbing.
+LAST_MESSAGE_ONLY = False
 
-def api_call(method: str, path: str, timeout: float = 60.0, **kwargs) -> httpx.Response:
-    """One REST call to the /api surface (the routes the playground UI drives for config/commits),
-    NOT the SSE /services/agent/v0/invoke turn endpoint. Auth is the same ApiKey header, and
-    project_id rides the query string (never the body), exactly like the browser."""
+
+def api_call(
+    method: str, path: str, timeout: float = 60.0, params: dict | None = None, **kwargs
+) -> httpx.Response:
+    """One REST call to the /api surface (the routes the playground UI drives for config/commits,
+    and the sessions lifecycle routes), NOT the SSE /services/agent/v0/invoke turn endpoint. Auth
+    is the same ApiKey header, and project_id rides the query string (never the body), exactly
+    like the browser.
+
+    `params` merges EXTRA query params (e.g. `session_id` for the sessions routes) alongside
+    `project_id` — httpx does NOT merge a `params=` kwarg with any query string already in `path`,
+    it silently REPLACES it, so a caller-supplied params dict is merged here rather than appended
+    to the path string.
+    """
+    merged_params = {"project_id": PROJECT}
+    if params:
+        merged_params.update(params)
     return httpx.request(
         method,
         f"{BASE}/api{path}",
-        params={"project_id": PROJECT},
+        params=merged_params,
         headers={"Authorization": f"ApiKey {KEY}", "Content-Type": "application/json"},
         timeout=timeout,
         **kwargs,
@@ -309,6 +335,10 @@ class Turn:
         self.committed_revision: dict | None = None
         self.http_status: int = 0
         self.ms: int = 0
+        # The EXACT `messages` array this turn sent on the wire (post --last-message-only
+        # shortening, if any) — set by invoke(). Dumped into summary() so two runs (full-history
+        # vs. last-message-only) can be diffed offline, turn by turn.
+        self.sent_messages: list = []
 
     @property
     def reply(self) -> str:
@@ -371,6 +401,9 @@ class Turn:
             "approval": bool(self.approval),
             "errors": self.errors,
             "reply": self.reply[:400],
+            # Full, untruncated: this is the byte-accurate artifact the --last-message-only
+            # differential is FOR (diff two runs' sent_messages, not just their verdicts).
+            "sent_messages": self.sent_messages,
         }
 
 
@@ -378,9 +411,16 @@ def invoke(
     session_id: str, messages: list, params: dict, timeout: float = 300.0
 ) -> Turn:
     t = Turn()
+    # --last-message-only: send just the trailing message when it's a fresh USER turn — the exact
+    # condition the frontend gates on (see LAST_MESSAGE_ONLY comment above). An approval resume's
+    # trailing message has role "assistant" (approval_reply), so this never fires for a resume.
+    outbound = messages
+    if LAST_MESSAGE_ONLY and messages and messages[-1].get("role") == "user":
+        outbound = [messages[-1]]
+    t.sent_messages = outbound
     body = {
         "session_id": session_id,
-        "data": {"inputs": {"messages": messages}, "parameters": {"agent": params}},
+        "data": {"inputs": {"messages": outbound}, "parameters": {"agent": params}},
     }
     headers = {
         "Authorization": f"ApiKey {KEY}",
@@ -533,9 +573,50 @@ def j3_tool(cell: dict) -> dict:
     }
 
 
-def _approval_flow(cell: dict, approved: bool) -> dict:
+# Records are written by the runner to a Redis stream (`publish_record`) and drained into Postgres
+# by a worker asynchronously — `POST /sessions/records/query` can lag the turn that produced them
+# by a few seconds. Poll instead of asserting immediately (up to ~20s), short backoff. Shared by
+# `_approval_flow`'s followup check and `j8_records`.
+RECORDS_POLL_TIMEOUT_S = 20.0
+RECORDS_POLL_INTERVAL_S = 1.5
+
+
+def _poll_records(session_id: str, until) -> tuple[list, str | None]:
+    """Poll `POST /sessions/records/query` until `until(records)` is truthy or ~20s elapse.
+    Returns whatever the last successful query returned (possibly not satisfying `until`, e.g. on
+    timeout) plus the last HTTP error string, if any query failed outright."""
+    records: list = []
+    last_err: str | None = None
+    deadline = time.time() + RECORDS_POLL_TIMEOUT_S
+    while time.time() < deadline:
+        r = api_call("POST", "/sessions/records/query", json={"session_id": session_id})
+        if r.status_code == 200:
+            records = r.json().get("records", [])
+            if until(records):
+                break
+        else:
+            last_err = f"HTTP {r.status_code}: {r.text[:200]}"
+        time.sleep(RECORDS_POLL_INTERVAL_S)
+    return records, last_err
+
+
+def _approval_flow(cell: dict, approved: bool, check_followup: bool = False) -> dict:
     """J4: with permission default `ask`, a tool call must PAUSE with a tool-approval-request,
-    then resume on the user's decision — the same in-band protocol the browser uses."""
+    then resume on the user's decision — the same in-band protocol the browser uses.
+
+    `check_followup` (the `followup` journey): after an APPROVED resume settles, send ONE more
+    normal user turn on the SAME session that forces a second, independent tool call, then query
+    the session's durable records and assert no `tool_call` record shares its `record_id` with
+    another — the exact shape of an open defect prediction (2026-07-24 review, never exercised
+    until now): a fresh post-approval turn colliding on the prior turn's record id would silently
+    UPSERT over it instead of getting its own row, hiding one of the two executions. Only
+    meaningful when `approved` — a denied gate produced no executed call to disambiguate from.
+
+    Works in both full-history and --last-message-only modes with no extra branching: the
+    followup is a PLAIN user turn, so `invoke()`'s --last-message-only shortening (see the
+    LAST_MESSAGE_ONLY global) applies to it exactly like any other normal turn; the approval
+    RESUME itself is unaffected either way, because its trailing message is the assistant's
+    approval-responded turn, never role "user" (see LESSONS.md #1)."""
     s = str(uuid.uuid4())
     params = template(
         cell,
@@ -578,12 +659,78 @@ def _approval_flow(cell: dict, approved: bool) -> dict:
         # resume can't be misread as a successful deny.
         ok = paused_ok and outcome == "denied" and not t2.errors and not t2.approval
         why = f"denied: the gated command never executed (outcome={outcome})"
+
+    if not check_followup:
+        return {
+            "pass": ok,
+            "why": why,
+            "paused_finish_other": paused_ok,
+            "turn_paused": t1.summary(),
+            "turn_resumed": t2.summary(),
+        }
+
+    if not (approved and ok):
+        return {
+            "pass": False,
+            "why": f"{why} (followup check skipped: the approval resume itself did not succeed)",
+            "paused_finish_other": paused_ok,
+            "turn_paused": t1.summary(),
+            "turn_resumed": t2.summary(),
+        }
+
+    # Followup: ONE more normal user turn, same session, a SECOND independent tool call. Give it
+    # its own `allow` params — the approval gate itself is already proven above; this turn's job
+    # is only to probe for a duplicated/reused record id, not to re-walk the approval protocol.
+    followup_params = template(
+        cell,
+        tools=[BASH_TOOL],
+        instructions="Use the bash tool when asked to run a command. Report only its stdout.",
+        permission_default="allow",
+    )
+    followup_msgs = msgs + [t2.assistant_message(), user_msg(BASH_PROMPT)]
+    t3 = invoke(s, followup_msgs, followup_params)
+    followup_ran = (
+        tool_ran(t3) and bool(BASH_TOKEN_RE.search(t3.reply)) and not t3.errors
+    )
+
+    # Wire-level sanity: the followup must mint a FRESH toolCallId, never the gated call's. NOT a
+    # check that t1's and t2's ids differ from each other — the resume LEGITIMATELY re-reports the
+    # SAME toolCallId while it settles (confirmed live: Claude keeps one id across pause->resume),
+    # so comparing every id turn-to-turn indiscriminately would flag that normal reuse as a false
+    # positive. Only a genuinely NEW call (the followup) reusing an EXISTING id would be the bug.
+    gated_wire_id = t1.approval["toolCallId"]
+    followup_wire_ids = {c["toolCallId"] for c in t3.tool_calls}
+    followup_wire_id_fresh = gated_wire_id not in followup_wire_ids
+
+    # The authoritative check: the DURABLE record, not the wire. Poll until at least the gated
+    # call's and the followup's tool_call records have both landed.
+    records, poll_err = _poll_records(
+        s,
+        lambda recs: sum(1 for r in recs if r.get("record_type") == "tool_call") >= 2,
+    )
+    tool_call_record_ids = [
+        rec.get("record_id") for rec in records if rec.get("record_type") == "tool_call"
+    ]
+    no_dup_record_ids = len(tool_call_record_ids) == len(set(tool_call_record_ids))
+    enough_records = len(tool_call_record_ids) >= 2
+
+    ok2 = (
+        followup_ran and followup_wire_id_fresh and no_dup_record_ids and enough_records
+    )
     return {
-        "pass": ok,
-        "why": why,
-        "paused_finish_other": paused_ok,
+        "pass": ok2,
+        "why": (
+            f"approval resume ok ({why}); followup tool ran cleanly={followup_ran}; "
+            f"followup wire toolCallId is fresh (not the gated call's)={followup_wire_id_fresh}; "
+            f"tool_call record ids={tool_call_record_ids} "
+            f"(no duplicates={no_dup_record_ids}, both landed={enough_records}"
+            f"{f', last poll error={poll_err}' if poll_err and not enough_records else ''})"
+        ),
+        "session_id": s,
         "turn_paused": t1.summary(),
         "turn_resumed": t2.summary(),
+        "turn_followup": t3.summary(),
+        "tool_call_record_ids": tool_call_record_ids,
     }
 
 
@@ -595,13 +742,23 @@ def j4_deny(cell: dict) -> dict:
     return _approval_flow(cell, approved=False)
 
 
+def j10_followup(cell: dict) -> dict:
+    """J10: the turn immediately after an approval resume gets its own durable record — see
+    `_approval_flow`'s `check_followup` docstring for the defect this proves absent."""
+    return _approval_flow(cell, approved=True, check_followup=True)
+
+
 def j6_warm(cell: dict) -> dict:
     """J6 (latency half): three turns in one session; turns 2/3 should be faster than turn 1.
-    The cold/warm TRUTH lives in the runner log — this only measures. See STATUS.md F-2."""
+    Latency alone is a proxy: it is NOT observable from here whether a turn was genuinely warm
+    (harness process reused) or a fast cold start — that truth lives only in the runner log
+    (grep for the session's harness-start line), never in anything the browser or this driver
+    can see on the wire (finding F-2)."""
     s = str(uuid.uuid4())
     params = template(cell)
     msgs: list = []
     times = []
+    turns = []  # every turn's summary (incl. sent_messages), win or lose — the diffable artifact.
     for i, q in enumerate(
         [
             "Reply with exactly: ONE",
@@ -612,15 +769,22 @@ def j6_warm(cell: dict) -> dict:
         msgs = msgs + [user_msg(q)]
         t = invoke(s, msgs, params)
         times.append(t.ms)
+        turns.append(t.summary())
         msgs = msgs + [t.assistant_message()]
         if t.errors:
-            return {"pass": False, "why": f"turn {i + 1} errored", "turn": t.summary()}
+            return {
+                "pass": False,
+                "why": f"turn {i + 1} errored",
+                "turn": t.summary(),
+                "turns": turns,
+            }
     warm_gain = times[0] - min(times[1], times[2])
     return {
         "pass": warm_gain > 0,
         "why": f"turn1={times[0]}ms, turn2={times[1]}ms, turn3={times[2]}ms (warm gain {warm_gain}ms)",
         "session_id": s,
         "times_ms": times,
+        "turns": turns,
     }
 
 
@@ -908,6 +1072,271 @@ def j7_mcp(cell: dict) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Records / sessions REST journeys (sessions-storage rework)
+# ---------------------------------------------------------------------------
+
+# The bare legacy drop-in: the WHOLE record body replaced by this exact dict when
+# AGENTA_RECORDS_SMART_TRUNCATION is off and a record body exceeds the byte cap
+# (`api/oss/src/core/sessions/records/streaming.py` `publish_record`). Smart truncation keeps the
+# event shape (`{"type":..., "id":..., "_truncated": {...}}` or `{"..., "_truncated": True, ...}`
+# with extra keys) so this bare two-key dict is specifically the "content fully dropped" case.
+BARE_TRUNCATION_PLACEHOLDER = {"_truncated": True}
+
+
+def _parse_ts(value) -> datetime | None:
+    """Parse a record's ISO-8601 `timestamp` into a comparable datetime, or None if absent/bad."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def j8_records(cell: dict) -> dict:
+    """J8: the durable session record log has real content, in order — not just envelopes.
+
+    Forces a tool call (the same bash-token proof as J3), then polls
+    `POST /sessions/records/query` (`api/oss/src/apis/fastapi/sessions/router.py`
+    `RecordsRouter.query_records`) until records for the session land. Asserts:
+      (a) record TYPES cover a user message, an assistant message, a tool_call, and a tool_result
+          — the coalesced shapes `services/runner/src/sessions/persist.ts` `buildPersistingEmitter`
+          actually writes (`record_source` "user"/"agent" x `record_type` "message"/"tool_call"/
+          "tool_result"), not raw per-delta events.
+      (b) `timestamp` is monotonically non-decreasing in the order the endpoint returns rows —
+          the DAO's own sort key (`dbs/postgres/sessions/records/dao.py` `get_records`).
+      (c) the unguessable bash token shows up INSIDE a tool_result record's body — proof real tool
+          output persisted, not just a shell of an event with the payload dropped.
+      (d) no record body is the bare legacy truncation placeholder (an oversized body silently
+          replaced wholesale rather than smart-truncated).
+
+    Harness-agnostic (drives session-scoped REST, not a turn's wire shape) — like `commit`, it
+    runs once per selected cell rather than varying its assertions by harness.
+    """
+    s = str(uuid.uuid4())
+    token = f"QA-RECORDS-{uuid.uuid4().hex[:10]}"
+    prompt = (
+        f'Use the bash tool to run exactly: echo "{token}-$(hostname)" '
+        "and reply with only its stdout."
+    )
+    t = invoke(
+        s,
+        [user_msg(prompt)],
+        template(
+            cell,
+            tools=[BASH_TOOL],
+            instructions="Use the bash tool when asked to run a command. Report only its stdout.",
+            permission_default="allow",
+        ),
+    )
+    if not tool_ran(t) or t.errors:
+        return {
+            "pass": False,
+            "why": "setup turn never ran the tool — nothing to verify records against",
+            "turn": t.summary(),
+        }
+
+    def _have_all_types(records: list) -> bool:
+        types = {(rec.get("record_source"), rec.get("record_type")) for rec in records}
+        return (
+            ("user", "message") in types
+            and ("agent", "message") in types
+            and any(rec.get("record_type") == "tool_call" for rec in records)
+            and any(rec.get("record_type") == "tool_result" for rec in records)
+        )
+
+    records, last_err = _poll_records(s, _have_all_types)
+
+    if not records:
+        return {
+            "pass": False,
+            "why": f"no records landed for the session within {RECORDS_POLL_TIMEOUT_S}s (last error: {last_err})",
+            "session_id": s,
+        }
+
+    coverage = {
+        "user_message": any(
+            rec.get("record_source") == "user" and rec.get("record_type") == "message"
+            for rec in records
+        ),
+        "assistant_message": any(
+            rec.get("record_source") == "agent" and rec.get("record_type") == "message"
+            for rec in records
+        ),
+        "tool_call": any(rec.get("record_type") == "tool_call" for rec in records),
+        "tool_result": any(rec.get("record_type") == "tool_result" for rec in records),
+    }
+    coverage_ok = all(coverage.values())
+
+    timestamps = [_parse_ts(rec.get("timestamp")) for rec in records]
+    monotonic_ok = all(ts is not None for ts in timestamps) and all(
+        a <= b for a, b in zip(timestamps, timestamps[1:])
+    )
+
+    token_in_tool_result = any(
+        rec.get("record_type") == "tool_result"
+        and token in json.dumps(rec.get("attributes") or {})
+        for rec in records
+    )
+
+    bare_truncated_ids = [
+        str(rec.get("record_id"))
+        for rec in records
+        if rec.get("attributes") == BARE_TRUNCATION_PLACEHOLDER
+    ]
+
+    ok = (
+        coverage_ok and monotonic_ok and token_in_tool_result and not bare_truncated_ids
+    )
+    return {
+        "pass": ok,
+        "why": (
+            f"type coverage={coverage} (ok={coverage_ok}), timestamps monotonic={monotonic_ok}, "
+            f"token in a tool_result body={token_in_tool_result}, "
+            f"bare-truncated records={bare_truncated_ids or 'none'}"
+        ),
+        "session_id": s,
+        "record_count": len(records),
+        "turn": t.summary(),
+    }
+
+
+def _sessions_query(
+    *, include_ended: bool = False, include_archived: bool = False, limit: int = 200
+) -> list:
+    r = api_call(
+        "POST",
+        "/sessions/query",
+        json={
+            "include_ended": include_ended,
+            "include_archived": include_archived,
+            "windowing": {"limit": limit},
+        },
+    )
+    if r.status_code != 200:
+        raise RuntimeError(f"sessions query HTTP {r.status_code}: {r.text[:200]}")
+    return r.json().get("sessions", [])
+
+
+def _find_session(sessions: list, session_id: str) -> dict | None:
+    return next(
+        (sess for sess in sessions if sess.get("session_id") == session_id), None
+    )
+
+
+def j9_sessions(cell: dict) -> dict:
+    """J9: the REST lifecycle over `/api/sessions/*`
+    (`api/oss/src/apis/fastapi/sessions/router.py` `SessionsRootRouter` + `set_session_stream_header`)
+    — create, list, archive, unarchive, rename, delete. One cheap chat turn creates a live session;
+    everything else is pure REST against session_id.
+
+    Harness-agnostic (drives session-level REST, not a turn's wire shape) — like `commit`, it runs
+    once per selected cell rather than varying its assertions by harness. Cleans up (deletes the QA
+    session) in a `finally`, including on a failure path, so a broken run doesn't leave a
+    renamed/archived session behind in the target project.
+    """
+    s = str(uuid.uuid4())
+    steps: dict = {}
+    try:
+        t = invoke(s, [user_msg("Reply with exactly: PONG")], template(cell))
+        if t.errors or t.finish_reason != "stop":
+            return {
+                "pass": False,
+                "why": "setup turn failed to create the session",
+                "turn": t.summary(),
+            }
+
+        found = _find_session(_sessions_query(), s)
+        steps["created_visible_in_query"] = found is not None
+        if not found:
+            return {
+                "pass": False,
+                "why": "session did not appear in POST /sessions/query after creation",
+                "steps": steps,
+            }
+
+        # Archive: vanishes from the default query, appears only with include_archived.
+        r = api_call("POST", "/sessions/archive", params={"session_id": s})
+        if r.status_code != 200:
+            return {
+                "pass": False,
+                "why": f"archive HTTP {r.status_code}: {r.text[:200]}",
+                "steps": steps,
+            }
+        archived = r.json().get("session") or {}
+        steps["archive_response_sets_archived_at"] = (
+            archived.get("archived_at") is not None
+        )
+        steps["archived_hidden_by_default"] = (
+            _find_session(_sessions_query(), s) is None
+        )
+        steps["archived_visible_with_include_flag"] = (
+            _find_session(_sessions_query(include_archived=True), s) is not None
+        )
+
+        # Unarchive: returns to the default query.
+        r = api_call("POST", "/sessions/unarchive", params={"session_id": s})
+        if r.status_code != 200:
+            return {
+                "pass": False,
+                "why": f"unarchive HTTP {r.status_code}: {r.text[:200]}",
+                "steps": steps,
+            }
+        unarchived = r.json().get("session") or {}
+        steps["unarchive_response_clears_archived_at"] = (
+            unarchived.get("archived_at") is None
+        )
+        steps["unarchived_visible_again"] = (
+            _find_session(_sessions_query(), s) is not None
+        )
+
+        # Rename via the durable stream header endpoint; the query must reflect the new name.
+        new_name = f"qa-session-{uuid.uuid4().hex[:8]}"
+        r = api_call(
+            "PUT",
+            "/sessions/streams/header",
+            params={"session_id": s},
+            json={"name": new_name},
+        )
+        if r.status_code != 200:
+            return {
+                "pass": False,
+                "why": f"rename HTTP {r.status_code}: {r.text[:200]}",
+                "steps": steps,
+            }
+        renamed = r.json().get("stream") or {}
+        steps["rename_response_reflects_name"] = renamed.get("name") == new_name
+        after_rename = _find_session(_sessions_query(), s)
+        steps["rename_query_reflects_name"] = (
+            bool(after_rename) and after_rename.get("name") == new_name
+        )
+
+        # Delete: gone even with every include flag on — a real hard delete, not another soft flag.
+        r = api_call("DELETE", "/sessions/", params={"session_id": s})
+        if r.status_code != 200:
+            return {
+                "pass": False,
+                "why": f"delete HTTP {r.status_code}: {r.text[:200]}",
+                "steps": steps,
+            }
+        steps["deleted_gone_by_default"] = _find_session(_sessions_query(), s) is None
+        steps["deleted_gone_with_include_flags"] = (
+            _find_session(_sessions_query(include_ended=True, include_archived=True), s)
+            is None
+        )
+
+        ok = all(steps.values())
+        return {"pass": ok, "why": f"lifecycle steps: {steps}", "session_id": s}
+    finally:
+        # Best-effort cleanup on every path (including a failure above) so a broken run never
+        # leaves a QA session — possibly renamed or archived — behind in the target project.
+        try:
+            api_call("DELETE", "/sessions/", params={"session_id": s})
+        except Exception:
+            pass
+
+
 JOURNEYS = {
     "chat": j1_chat,
     "mount": j2_mount,
@@ -917,6 +1346,9 @@ JOURNEYS = {
     "commit": j5_commit,
     "warm": j6_warm,
     "mcp": j7_mcp,
+    "records": j8_records,
+    "sessions": j9_sessions,
+    "followup": j10_followup,
 }
 
 
@@ -950,6 +1382,17 @@ def main() -> int:
         "--env-file",
         help=f"credentials file (fallback when the env vars are unset; default {DEFAULT_ENV_FILE})",
     )
+    p.add_argument(
+        "--last-message-only",
+        action="store_true",
+        help=(
+            "send only the trailing user message on a fresh turn (mirrors "
+            "NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY); an approval resume still sends full "
+            "history. Requires the target stack to run with AGENTA_SESSIONS_RECONSTRUCT=true or "
+            "the runner has no context to rebuild from. Every turn's exact `sent_messages` lands "
+            "in results.json for a byte-accurate diff against a full-history run."
+        ),
+    )
     args = p.parse_args()
 
     resolve_credentials(args.env_file)
@@ -972,6 +1415,9 @@ def main() -> int:
     if args.model:
         for cid in cells:
             CELLS[cid]["model"] = args.model
+    if args.last_message_only:
+        global LAST_MESSAGE_ONLY
+        LAST_MESSAGE_ONLY = True
 
     stamp = time.strftime("%Y%m%d-%H%M%S")
     outdir = RUNS / stamp

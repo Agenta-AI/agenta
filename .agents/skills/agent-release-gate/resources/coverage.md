@@ -36,8 +36,36 @@ cell — keep them in sync if a cell changes.
 | `commit` | Save an agent config as a new workflow revision, then fetch it back. | The changed parameter survives the round trip and the version bumps (v0 seed → v1; see LESSONS #14). Harness-agnostic — it drives the config REST API, not a turn. |
 | `warm` | Run three turns, watch latency and the runner log. | Turns 2-3 are faster and the log confirms the session was genuinely **loaded**, not silently cold. |
 | `mcp` | Deliver an MCP server in the agent config and call one of its tools. | A `tool-output-available` frame fires for an `mcp__*` tool. **Claude only** — Pi rejects user MCP, so this `SKIP`s on every Pi cell. Uses the public DeepWiki server by default; override with `--mcp-url`. |
+| `records` | Force a tool call, then poll `POST /sessions/records/query` (ingestion is async, worker-drained off Redis). | Record types cover a user message, an assistant message, a `tool_call`, and a `tool_result`; `timestamp` is non-decreasing in returned order; the unguessable bash token appears inside a `tool_result` body; no record is the bare `{"_truncated": true}` legacy drop-in. Harness-agnostic, like `commit`. |
+| `sessions` | REST lifecycle over `/api/sessions/*`: create (one cheap turn), list, archive, unarchive, rename (`PUT /sessions/streams/header`), delete. | Each step's effect on `POST /sessions/query` is exactly right: archived hides by default and shows with `include_archived`; unarchive restores it; rename shows in the next query; delete is a real hard delete — gone even with every include flag on. Harness-agnostic, like `commit`; cleans up on every path. |
+| `followup` | After an approved resume settles, send ONE more normal user turn on the same session forcing a second tool call. | The followup gets a fresh wire `toolCallId` (never the gated call's) and its own durable `tool_call` record — no `record_id` is shared between the two calls. Probes an open defect prediction (2026-07-24 review: a fresh post-approval turn could silently collide/overwrite the approved call's record) that was never exercised before; live-verified clean in both full-history and `--last-message-only` modes on 2026-07-28. |
+
+**`--last-message-only`** (a global flag, not a journey): mirrors the frontend's minimal-send switch
+(`NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY` / `agentRequest.ts:401-415`) — a fresh user turn sends
+only its trailing message instead of full history, while an approval resume still sends full
+history, exactly like the browser. Every turn's exact `sent_messages` lands in `results.json` so a
+full-history run and a `--last-message-only` run against the same stack can be diffed offline.
 
 Triggers are deliberately **out of scope** for this gate.
+
+## Not covered (sessions rework, as of 2026-07-28)
+
+These feature areas shipped in `feat/sessions-storage-rework` and have no journey in
+`qa_product.py` yet. Listed here so the gap is explicit rather than assumed away — flip a row to
+covered once a journey lands, do not delete it silently.
+
+| Feature | Status | Note |
+|---|---|---|
+| Durable-records readback | covered | `records` journey (J8): polls `POST /sessions/records/query`, asserts type coverage, timestamp order, real tool-result content, and no bare-truncated bodies. |
+| Last-message-only client mode | covered | `--last-message-only` global flag mirrors `NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY`'s minimal-send condition and dumps each turn's exact `sent_messages` for an offline diff against a full-history run. |
+| Sessions REST surface (query/archive/rename/delete/revive) | covered | `sessions` journey (J9): create → query → archive → unarchive → rename → delete, asserting each state transition's effect on `POST /sessions/query`. |
+| Cold-replay approval resume | not covered | The paused-turn + resume transcript fold is UI-side; no wire-level journey exercises it. |
+| Batch approvals | not covered | Approve-all/Deny-all with context peek is UI-side; the `approve`/`deny` journeys are single-gate only. |
+| Warm Stop | not covered | Cooperative cancel that leaves the session resumable (sandbox destroyed) — no journey. |
+| Steer | not covered | Deny + redirect, behind `NEXT_PUBLIC_AGENT_CHAT_STEER` — no journey. |
+
+See `docs/design/agent-workflows/projects/qa/release-2026-07-sessions-storage-rework.md` for the
+full flag-gated risk list this table is a slice of.
 
 ## Optional probes (`qa_longctx.py`)
 
