@@ -416,6 +416,7 @@ export default function TemplateExplorer() {
               {MODELS.map((m) => (
                 <span
                   key={m.name}
+                  role="img"
                   aria-label={m.name}
                   title={m.name}
                   style={{
