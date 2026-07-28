@@ -8,7 +8,7 @@ from agenta.sdk.agents.capabilities import (
     harness_allows_mode,
     harness_allows_provider,
 )
-from agenta.sdk.agents.dtos import CodexAgentTemplate, HarnessType
+from agenta.sdk.agents.dtos import CodexAgentTemplate, HarnessKind
 from agenta.sdk.agents.model_catalog import model_catalog_entries
 from agenta.sdk.agents.utils.wire import request_to_wire
 
@@ -49,7 +49,7 @@ def test_codex_model_catalog_carries_pricing() -> None:
 def test_codex_mode_wire() -> None:
     def serialize(harness_permissions=None):
         return request_to_wire(
-            harness=HarnessType.CODEX,
+            harness=HarnessKind.CODEX,
             sandbox="local",
             config=CodexAgentTemplate(
                 harness_permissions=harness_permissions or {},

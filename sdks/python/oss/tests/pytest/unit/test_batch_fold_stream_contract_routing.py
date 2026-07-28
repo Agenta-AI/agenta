@@ -26,7 +26,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from agenta.sdk.agents import AgentResult, HarnessType
+from agenta.sdk.agents import AgentResult, HarnessKind
 from agenta.sdk.agents.dtos import Event
 from agenta.sdk.agents.fold import fold
 from agenta.sdk.agents.handler import AgentComposition, make_agent_handler
@@ -123,7 +123,7 @@ class _FakeSession(Session):
 
 class _FakeBackend(Backend):
     supported_harnesses = frozenset(
-        {HarnessType.PI, HarnessType.CLAUDE, HarnessType.AGENTA}
+        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.AGENTA}
     )
 
     def __init__(self, *, events: List[Event]) -> None:

@@ -36,8 +36,20 @@ export async function fetchRecords(sessionId: string, projectId?: string | null)
 }
 
 export async function fetchState(sessionId: string, projectId?: string | null) {
-    const res = await getSessionsClient().getState({session_id: sessionId}, scope(projectId))
-    return res.session_state ?? null
+    const res = await getSessionsClient().fetchSessionStream(
+        {session_id: sessionId},
+        scope(projectId),
+    )
+    return res.stream ?? null
+}
+
+// sandbox_id lives on the latest session_turns row, not on the stream (storage rework).
+export async function fetchLatestTurn(sessionId: string, projectId?: string | null) {
+    const res = await getSessionsClient().queryTurns(
+        {query: {session_id: sessionId}, windowing: {order: "descending", limit: 1}},
+        scope(projectId),
+    )
+    return res.turns?.[0] ?? null
 }
 
 export async function fetchMounts(sessionId: string, projectId?: string | null) {

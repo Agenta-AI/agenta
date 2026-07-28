@@ -11,7 +11,7 @@
  *     `tools/call` handler (`tools/tool-mcp-http.ts`).
  *
  * Both consume the `ClientToolRelay` built here, so the pause decision (the responder's verdict
- * ladder), the single `client_tool` payload shape, the pause-latch bookkeeping, and the
+ * ladder), the single `client_tool` payload shape, the pause bookkeeping, and the
  * ACP-tool-call correlation live in ONE place instead of being re-derived per path.
  */
 import type { AgentEvent, RenderHint } from "../../protocol.ts";
@@ -200,11 +200,6 @@ export function emitClientToolInteraction(
   });
 }
 
-/** The one-pause-per-turn latch surface the seam needs (see `PendingApprovalLatch`). */
-interface LatchLike {
-  tryAcquire(): boolean;
-}
-
 /** The pause-controller surface the seam needs (see `PendingApprovalPauseController`). */
 interface PauseLike {
   markPausedToolCall(toolCallId: string): void;
@@ -214,12 +209,14 @@ interface PauseLike {
 export interface BuildClientToolRelayInput {
   responder: Responder;
   run: EmitRun;
-  /** The approval-dialog latch. Client tools do NOT gate on it — each pending client tool parks
-   *  its own widget, and only the approval path (`acp-interactions.ts`) enforces one dialog per
-   *  turn. Kept in the shared input so the wiring stays symmetric; ignored here. */
-  latch?: LatchLike;
   /** The turn-ender: `pause()` cancels the prompt; `markPausedToolCall` suppresses late frames. */
   pause: PauseLike;
+  /**
+   * Flag the turn non-parkable when a browser-fulfilled client tool pauses: it cannot be answered
+   * on the live session across a turn boundary, so a turn that mixes it with an approval gate must
+   * stay on the cold path. Fires once per pending client tool (idempotent counter on the caller).
+   */
+  onNonParkablePause?: () => void;
   /** Seeds the durable interactions plane for the pending call (fire-and-forget). */
   recordPendingInteraction: (
     token: string,
@@ -247,6 +244,7 @@ export function buildClientToolRelay({
   pause,
   recordPendingInteraction,
   toolCallIndex,
+  onNonParkablePause,
   log = () => {},
 }: BuildClientToolRelayInput): ClientToolRelay {
   return {
@@ -281,12 +279,15 @@ export function buildClientToolRelay({
       const correlatedId =
         toolCallIndex?.lookup(request.toolName, request.input) ??
         request.toolCallId;
-      // Every pending client tool parks its OWN widget. Unlike an approval DIALOG (one at a time,
-      // gated by the latch), browser-fulfilled client tools are independent surfaces — an agent may
-      // request several connections in one turn, and each must render. The turn still ends exactly
-      // once: `pause.pause()` (via `onPause`) is idempotent, so N emits pause the turn once, and
-      // `markPausedToolCall` keeps each parked call from being force-settled as a deferred sibling.
+      // Every pending client tool parks its OWN widget: browser-fulfilled client tools are
+      // independent surfaces — an agent may request several connections in one turn, and each must
+      // render. Approval gates now behave the same way (no per-turn cap). The turn still ends
+      // exactly once: `pause.pause()` (via `onPause`) is idempotent, so N emits pause the turn
+      // once, and `markPausedToolCall` keeps each parked call from being force-settled as a sibling.
       pause.markPausedToolCall(correlatedId);
+      // A client-tool pause keeps the whole turn on the cold path: the warm resume cannot answer
+      // a browser-fulfilled call, so a turn that also holds an approval gate must not park.
+      onNonParkablePause?.();
       emitClientToolInteraction(run, {
         id: request.id,
         toolCallId: correlatedId,

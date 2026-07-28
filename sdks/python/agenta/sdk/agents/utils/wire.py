@@ -29,7 +29,7 @@ from ..dtos import (
     AgentResult,
     HarnessAgentTemplate,
     HarnessCapabilities,
-    HarnessType,
+    HarnessKind,
     Message,
     RunContext,
     TraceContext,
@@ -81,7 +81,7 @@ def sanitize_runner_error(error: Any) -> str:
 
 def request_to_wire(
     *,
-    harness: HarnessType,
+    harness: HarnessKind,
     sandbox: str,
     config: HarnessAgentTemplate,
     messages: Sequence[Message],

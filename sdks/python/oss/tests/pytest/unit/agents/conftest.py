@@ -21,7 +21,7 @@ import pytest
 from agenta.sdk.agents import (
     AgentResult,
     Environment,
-    HarnessType,
+    HarnessKind,
 )
 from agenta.sdk.agents.interfaces import Backend, Sandbox, Session
 from agenta.sdk.agents.streaming import AgentStream
@@ -108,7 +108,7 @@ class FakeBackend(Backend):
     def __init__(
         self,
         *,
-        supported: Sequence[HarnessType] = (HarnessType.PI, HarnessType.CLAUDE),
+        supported: Sequence[HarnessKind] = (HarnessKind.PI, HarnessKind.CLAUDE),
         result: Optional[AgentResult] = None,
         result_session_id: Optional[str] = None,
         raise_on_prompt: bool = False,

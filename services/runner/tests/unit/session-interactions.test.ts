@@ -20,7 +20,8 @@ vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
   return new Response(JSON.stringify({ ok: true }), { status: 200 });
 });
 
-const { createInteraction } = await import("../../src/sessions/interactions.ts");
+const { createInteraction, resolveInteraction } =
+  await import("../../src/sessions/interactions.ts");
 
 beforeEach(() => {
   postedBodies.length = 0;
@@ -70,5 +71,36 @@ describe("createInteraction", () => {
     await assert.doesNotReject(() =>
       createInteraction("sess-4", "turn-4", "tok-jkl", "user_input", {}, () => ""),
     );
+  });
+});
+
+describe("resolveInteraction", () => {
+  it("POSTs the approval resolution with full-word verdict fields", async () => {
+    await resolveInteraction(
+      "sess-5",
+      "tok-resolution",
+      () => "Secret t",
+      { verdict: "approved", tool_call_id: "tool-5" },
+    );
+
+    assert.equal(postedBodies.length, 1);
+    const { url, body } = postedBodies[0];
+    assert.ok(url.endsWith("/sessions/interactions/transition"));
+    assert.deepEqual(body, {
+      session_id: "sess-5",
+      token: "tok-resolution",
+      status: "resolved",
+      resolution: { verdict: "approved", tool_call_id: "tool-5" },
+    });
+  });
+
+  it("omits resolution when the transition has no verdict", async () => {
+    await resolveInteraction("sess-6", "tok-client", () => "Secret t");
+
+    assert.deepEqual(postedBodies[0].body, {
+      session_id: "sess-6",
+      token: "tok-client",
+      status: "resolved",
+    });
   });
 });

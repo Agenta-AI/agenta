@@ -21,7 +21,7 @@ from ..dtos import (
     AgentResult,
     EventSink,
     HarnessAgentTemplate,
-    HarnessType,
+    HarnessKind,
     Message,
     RunContext,
     TraceContext,
@@ -63,7 +63,7 @@ class SandboxAgentSession(Session):
         sandbox: SandboxAgentSandbox,
         config: HarnessAgentTemplate,
         *,
-        harness: HarnessType,
+        harness: HarnessKind,
         secrets: Optional[Mapping[str, str]],
         trace: Optional[TraceContext],
         run_context: Optional[RunContext],
@@ -125,10 +125,10 @@ class SandboxAgentBackend(Backend):
 
     supported_harnesses = frozenset(
         {
-            HarnessType.PI,
-            HarnessType.CLAUDE,
-            HarnessType.CODEX,
-            HarnessType.AGENTA,
+            HarnessKind.PI,
+            HarnessKind.CLAUDE,
+            HarnessKind.CODEX,
+            HarnessKind.AGENTA,
         }
     )
 
@@ -160,7 +160,7 @@ class SandboxAgentBackend(Backend):
         sandbox: Sandbox,
         config: HarnessAgentTemplate,
         *,
-        harness: HarnessType,
+        harness: HarnessKind,
         secrets: Optional[Mapping[str, str]] = None,
         trace: Optional[TraceContext] = None,
         run_context: Optional[RunContext] = None,

@@ -100,7 +100,8 @@ export interface ScenarioOutputCardProps {
 
 export interface AnnotationMetricField {
     value: unknown
-    type?: string
+    // string[] when the JSON-schema type is a union (e.g. ["string", "null"]).
+    type?: string | string[]
     minimum?: number
     maximum?: number
     items?: {

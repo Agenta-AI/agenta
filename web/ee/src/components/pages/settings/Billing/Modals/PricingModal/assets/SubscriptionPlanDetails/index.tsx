@@ -7,7 +7,7 @@ import {SubscriptionType} from "@/oss/services/billing/types"
 dayjs.extend(duration)
 dayjs.extend(relativeTime)
 
-const SubscriptionPlanDetails = ({subscription}: {subscription: SubscriptionType}) => {
+const SubscriptionPlanDetails = ({subscription}: {subscription: SubscriptionType | undefined}) => {
     if (!subscription) return null
 
     const end = dayjs.unix(subscription.period_end)

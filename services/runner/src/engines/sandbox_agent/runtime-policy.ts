@@ -39,7 +39,20 @@ export function shouldSuppressPausedToolCallUpdate(
   if (kind !== "tool_call" && kind !== "tool_call_update") return false;
   const toolCallId =
     typeof frame?.toolCallId === "string" ? frame.toolCallId : undefined;
-  return pause.isPausedToolCall(toolCallId);
+  // F-024: a paused (gated) tool call's later frames are teardown artifacts and never reach the
+  // stream.
+  if (pause.isPausedToolCall(toolCallId)) return true;
+  // Answered allows and denies both carry authoritative terminal evidence through a sibling pause.
+  if (
+    kind === "tool_call_update" &&
+    pause.active &&
+    frame?.status === "failed" &&
+    !pause.isAllowedExecution(toolCallId) &&
+    !pause.isAnsweredDeny(toolCallId)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 const CLAUDE_STRICT_DEPLOYMENTS = new Set([
