@@ -19,6 +19,70 @@ export interface TriggerReference {
 }
 export type TriggerReferences = Record<string, TriggerReference> | null | undefined
 
+// Every key a pinned binding can live under, family by family and most specific first —
+// mirrors the prefix scan in `triggers/service.py::_validate_references`.
+const BIND_KEYS = ["application", "evaluator", "workflow"].flatMap((prefix) => [
+    `${prefix}_revision`,
+    `${prefix}_variant`,
+    prefix,
+])
+
+/** First bind key whose ref satisfies `ok`. Both predicates below share this one table. */
+function findBoundRef(
+    references: TriggerReferences,
+    ok: (ref: TriggerReference) => boolean,
+): TriggerReference | null {
+    if (!references) return null
+    for (const key of BIND_KEYS) {
+        const ref = references[key]
+        if (ref && ok(ref)) return ref
+    }
+    return null
+}
+
+/**
+ * Does this stored family already pin a workflow? The picker only understands a leaf
+ * REVISION id, but the backend accepts more: an artifact or variant with no revision
+ * ("resolve latest at trigger time"), and refs keyed by `slug` instead of `id`. Those
+ * bindings can't fill the picker, so the save guard asks this instead of `!workflowRevId`
+ * — otherwise editing an unrelated field on a validly-bound trigger is refused.
+ * A deployed family is excluded: it carries `application.slug` but is not a pin, and
+ * treating it as one would let Pinned save while silently resending the environment ref.
+ */
+export function hasBoundWorkflow(references: TriggerReferences): boolean {
+    if (references?.environment) return false
+    return !!findBoundRef(references, (ref) => !!ref.id || !!ref.slug)
+}
+
+/**
+ * The bound id the picker and the workflow molecule can resolve, most specific first.
+ * Artifact-level ids are included so an artifact-only binding still labels itself; a
+ * slug-only binding has no id and stays null (see {@link hasBoundWorkflow}).
+ */
+export function extractBoundWorkflowId(references: TriggerReferences): string | null {
+    return findBoundRef(references, (ref) => !!ref.id)?.id ?? null
+}
+
+/**
+ * Is the run-version section answered? Pinned counts the picker's leaf OR a stored pin the
+ * picker can't display; Deployed needs an environment. The save guard and the section
+ * header must agree — if they drift, the header reads complete while save refuses.
+ */
+export function isRunVersionBound({
+    bindMode,
+    workflowRevId,
+    environmentSlug,
+    storedReferences,
+}: {
+    bindMode: RunVersionBindMode
+    workflowRevId?: string | null
+    environmentSlug?: string | null
+    storedReferences?: TriggerReferences
+}): boolean {
+    if (bindMode === "environment") return !!environmentSlug
+    return !!workflowRevId || hasBoundWorkflow(storedReferences)
+}
+
 /**
  * Assemble the `data.references` family from the run-version selection — shared by the
  * schedule and subscription save paths. Deployed → `{environment, application(slug)}`.

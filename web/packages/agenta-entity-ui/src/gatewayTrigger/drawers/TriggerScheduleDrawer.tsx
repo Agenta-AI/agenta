@@ -46,7 +46,12 @@ import {useDraftMasterDetail} from "../../drawers/shared/useDraftMasterDetail"
 import {createWorkflowRevisionAdapter, type WorkflowRevisionSelectionResult} from "../../selection"
 
 import {ScheduleBuilderField} from "./ScheduleBuilderField"
-import {RunVersionField, buildRunVersionReferences} from "./shared/RunVersionField"
+import {
+    RunVersionField,
+    buildRunVersionReferences,
+    extractBoundWorkflowId,
+    isRunVersionBound,
+} from "./shared/RunVersionField"
 
 // Weekly (Monday 09:00 UTC) so the builder opens on the Weekly cadence by default.
 const DEFAULT_CRON = "0 9 * * 1"
@@ -85,6 +90,14 @@ function normalizeJson(text: string): string {
     } catch {
         return text
     }
+}
+
+// Seed id for a create-mode default-bind. Variant before revision: the value is written
+// back under `application_variant`, so pinning a revision id here would mislabel it.
+function extractDefaultBindId(
+    refs: Record<string, {id?: string | null} | null | undefined> | null | undefined,
+): string | null {
+    return refs?.application_variant?.id ?? refs?.application_revision?.id ?? null
 }
 
 // ---------------------------------------------------------------------------
@@ -467,12 +480,7 @@ function ScheduleForm({
             setEnvironmentSlug(envRef.slug ?? null)
             setAppSlug(refs?.application?.slug ?? null)
         } else {
-            const wfId =
-                refs?.application_revision?.id ??
-                refs?.application_variant?.id ??
-                refs?.workflow_revision?.id ??
-                null
-            setWorkflowRevId(wfId)
+            setWorkflowRevId(extractBoundWorkflowId(refs))
             // Label is resolved from the revision id below, not stored as the raw id.
         }
         setInputsText(JSON.stringify(schedule.data?.inputs_fields ?? {}, null, 2))
@@ -487,7 +495,7 @@ function ScheduleForm({
         if (isEdit) return
         const refs = state?.defaultReferences
         setAppSlug(refs?.application?.slug ?? null)
-        const variantId = refs?.application_variant?.id ?? refs?.application_revision?.id ?? null
+        const variantId = extractDefaultBindId(refs)
         if (!variantId) return
         const appId = refs?.application?.id ?? null
         const label = state?.defaultBoundLabel ?? appId ?? variantId
@@ -511,6 +519,15 @@ function ScheduleForm({
 
     const cronValidation = useMemo(() => validateCron(cron), [cron])
 
+    // The binding as persisted — the picker's leaf can't represent every shape the BE accepts.
+    const storedReferences = schedule?.data?.references
+    const versionChosen = isRunVersionBound({
+        bindMode,
+        workflowRevId,
+        environmentSlug,
+        storedReferences,
+    })
+
     // Save enables only on draft changes vs the starting point (loaded schedule in
     // edit, defaults in new). Normalized JSON so formatting isn't a change.
     const baselineSnapshot = useMemo(() => {
@@ -525,11 +542,7 @@ function ScheduleForm({
                 enabled: isEntityActive(schedule),
                 bindMode: envRef ? "environment" : "revision",
                 environmentSlug: envRef?.slug ?? null,
-                workflowRevId:
-                    refs?.application_revision?.id ??
-                    refs?.application_variant?.id ??
-                    refs?.workflow_revision?.id ??
-                    null,
+                workflowRevId: extractBoundWorkflowId(refs),
                 inputs: normalizeJson(JSON.stringify(schedule.data?.inputs_fields ?? {})),
             })
         }
@@ -544,7 +557,7 @@ function ScheduleForm({
             enabled: true,
             bindMode: "revision",
             environmentSlug: null,
-            workflowRevId: refs?.application_variant?.id ?? refs?.application_revision?.id ?? null,
+            workflowRevId: extractDefaultBindId(refs),
             inputs: normalizeJson("{}"),
         })
     }, [isEdit, schedule, state?.defaultReferences])
@@ -592,7 +605,7 @@ function ScheduleForm({
             message.error("This schedule isn't linked to an app — use Pinned (a specific revision)")
             return
         }
-        if (bindMode === "revision" && !workflowRevId) {
+        if (bindMode === "revision" && !versionChosen) {
             message.error("Bind a workflow")
             return
         }
@@ -619,7 +632,7 @@ function ScheduleForm({
             appSlug,
             workflowSelection,
             workflowRevId,
-            fallbackReferences: schedule?.data?.references,
+            fallbackReferences: storedReferences,
         })
 
         const data: TriggerScheduleData = {
@@ -688,6 +701,7 @@ function ScheduleForm({
         appSlug,
         workflowRevId,
         workflowSelection,
+        versionChosen,
         inputsText,
         isEdit,
         schedule,
@@ -702,7 +716,6 @@ function ScheduleForm({
     // Per-section header state: icon tint (complete / warning / default) and a
     // collapsed summary of what's configured.
     const cronValid = cronValidation.valid
-    const versionChosen = bindMode === "revision" ? !!workflowRevId : !!environmentSlug
     const versionSummary =
         bindMode === "revision"
             ? (workflowLabel ?? resolvedRevisionName ?? undefined)

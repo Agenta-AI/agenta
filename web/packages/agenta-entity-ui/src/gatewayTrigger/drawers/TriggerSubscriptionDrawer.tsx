@@ -68,7 +68,12 @@ import {createWorkflowRevisionAdapter, type WorkflowRevisionSelectionResult} fro
 
 import {loadRecentSamples, waitForNewDelivery} from "./shared/deliveries"
 import {EventSourcePicker, type SampledEvent} from "./shared/EventSourcePicker"
-import {RunVersionField, buildRunVersionReferences} from "./shared/RunVersionField"
+import {
+    RunVersionField,
+    buildRunVersionReferences,
+    extractBoundWorkflowId,
+    isRunVersionBound,
+} from "./shared/RunVersionField"
 import TriggerConnectDrawer from "./TriggerConnectDrawer"
 
 // How many unsaved drafts can exist at once (config knob; see schedule drawer).
@@ -111,8 +116,8 @@ function normalizeJson(text: string): string {
     }
 }
 
-// The bound revision id can live under any of three reference keys depending on how the
-// subscription was created. Read all three from one place so write/read keys can't drift.
+// Seed id for a create-mode default-bind — narrower than `extractBoundWorkflowId`, which
+// also accepts artifact-level ids that must not be written back under a variant key.
 function extractBoundRevId(
     refs: Record<string, {id?: string | null} | null | undefined> | null | undefined,
 ): string | null {
@@ -467,6 +472,14 @@ function SubscriptionForm({
         workflowMolecule.selectors.data(playgroundEntityId ?? ""),
     )
     const workflowRevId0 = playgroundEntityId ?? null
+    // The binding as persisted — the picker's leaf can't represent every shape the BE accepts.
+    const storedReferences = subscription?.data?.references
+    const versionChosen = isRunVersionBound({
+        bindMode,
+        workflowRevId,
+        environmentSlug,
+        storedReferences,
+    })
     const revisionAdapter = useMemo(() => {
         if (!playgroundEntityId) return applicationRevisionAdapter
         return createWorkflowRevisionAdapter({
@@ -536,8 +549,7 @@ function SubscriptionForm({
             setEnvironmentSlug(envRef.slug ?? null)
             setAppSlug(refs?.application?.slug ?? null)
         } else {
-            const wfId = extractBoundRevId(refs)
-            setWorkflowRevId(wfId)
+            setWorkflowRevId(extractBoundWorkflowId(refs))
             // Don't store the raw revision id as the label — resolve a friendly name from
             // the molecule (resolvedRevisionName) for the picker placeholder instead.
             setWorkflowLabel(null)
@@ -604,7 +616,7 @@ function SubscriptionForm({
                 enabled: isEntityActive(subscription),
                 bindMode: envRef ? "environment" : "revision",
                 environmentSlug: envRef?.slug ?? null,
-                workflowRevId: extractBoundRevId(refs),
+                workflowRevId: extractBoundWorkflowId(refs),
                 inputs: subscription.data?.inputs_fields
                     ? JSON.stringify(subscription.data.inputs_fields)
                     : normalizeJson(DEFAULT_INPUTS_MAPPING),
@@ -667,7 +679,7 @@ function SubscriptionForm({
             message.error("This trigger isn't linked to an app — use Pinned (a specific revision)")
             return null
         }
-        if (bindMode === "revision" && !workflowRevId) {
+        if (bindMode === "revision" && !versionChosen) {
             message.error("Bind a workflow")
             return null
         }
@@ -694,7 +706,7 @@ function SubscriptionForm({
             appSlug,
             workflowSelection,
             workflowRevId,
-            fallbackReferences: subscription?.data?.references,
+            fallbackReferences: storedReferences,
         })
 
         return {
@@ -710,6 +722,7 @@ function SubscriptionForm({
         environmentSlug,
         appSlug,
         workflowRevId,
+        versionChosen,
         inputsText,
         workflowSelection,
         subscription,
@@ -884,7 +897,6 @@ function SubscriptionForm({
               }`
             : eventKey
         : undefined
-    const versionChosen = bindMode === "revision" ? !!workflowRevId : !!environmentSlug
     const versionSummary =
         bindMode === "revision"
             ? (workflowLabel ?? resolvedRevisionName ?? undefined)
