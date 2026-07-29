@@ -39,13 +39,17 @@ _REQUIRED_STRING_FIELDS: Dict[str, List[str]] = {
     "tool-input-available": ["type", "toolCallId", "toolName"],
     "tool-output-available": ["type", "toolCallId"],
     "tool-output-error": ["type", "toolCallId", "errorText"],
+    "tool-output-denied": ["type", "toolCallId"],
     "tool-approval-request": ["type", "toolCallId", "approvalId"],
     "file": ["type", "url", "mediaType"],
     "error": ["type", "errorText"],
 }
-# `tool-approval-request` is the only strict object with an EXACT allowed key set (no extra
-# agenta-only fields may leak onto it).
-_EXACT_KEYS = {"tool-approval-request": {"type", "approvalId", "toolCallId"}}
+# These chunks are strict objects with an EXACT allowed key set (no extra agenta-only fields may
+# leak onto them). `tool-output-denied` is `{type, toolCallId}` only — no errorText/output.
+_EXACT_KEYS = {
+    "tool-approval-request": {"type", "approvalId", "toolCallId"},
+    "tool-output-denied": {"type", "toolCallId"},
+}
 
 
 def assert_conforms(part: Dict[str, Any]) -> None:
@@ -122,6 +126,62 @@ async def test_dev_twin_projection_conforms_to_vendored_schema() -> None:
     assert parts
     for part in parts:
         assert_conforms(part)
+
+
+# A denied gated call: the tool surfaces, then a denied-marked failed result closes it. Both
+# egress paths must project a conforming `tool-output-denied` chunk (not `tool-output-error`).
+_DENY_EVENTS: List[Dict[str, Any]] = [
+    {"type": "tool_call", "data": {"id": "c1", "name": "deleteFile", "input": {}}},
+    {
+        "type": "tool_result",
+        "data": {
+            "id": "c1",
+            "output": "denied by user",
+            "isError": True,
+            "denied": True,
+        },
+    },
+    {"type": "done", "data": {"stopReason": "stop"}},
+]
+
+
+@pytest.mark.asyncio
+async def test_live_deny_projects_conforming_denied_frame() -> None:
+    parts = [
+        part
+        async for part in agent_stream_to_vercel_stream(
+            _records(_DENY_EVENTS), trace_id="td"
+        )
+    ]
+    for part in parts:
+        assert_conforms(part)
+    denied = next(p for p in parts if p["type"] == "tool-output-denied")
+    assert denied["toolCallId"] == "c1"
+    assert not any(p["type"] == "tool-output-error" for p in parts)
+
+
+@pytest.mark.asyncio
+async def test_dev_twin_deny_projects_conforming_denied_frame() -> None:
+    # The dev-twin projects an AgentStream, whose Event.data is the FLAT runner AgentEvent (id /
+    # isError / denied at the top level), unlike the routing path's `{type, data}` envelope.
+    flat_deny_events = [
+        {"type": "tool_call", "id": "c1", "name": "deleteFile", "input": {}},
+        {
+            "type": "tool_result",
+            "id": "c1",
+            "output": "denied by user",
+            "isError": True,
+            "denied": True,
+        },
+        {"type": "done", "stopReason": "stop"},
+    ]
+    run = _run_with(flat_deny_events, result={"output": ""})
+    parts = [part async for part in agent_run_to_vercel_parts(run)]
+    for part in parts:
+        assert_conforms(part)
+    denied = next(p for p in parts if p["type"] == "tool-output-denied")
+    assert denied["toolCallId"] == "c1"
+    assert not any(p["type"] == "tool-output-error" for p in parts)
 
 
 @pytest.mark.asyncio

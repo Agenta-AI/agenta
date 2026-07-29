@@ -1,255 +1,88 @@
 /**
- * FilesDrawer — the chat-mode Files surface as ONE right drawer with two states that transition
- * in place (no drawer-on-drawer stacking):
- *   grid  — the FilesWindow (grid / list, search + sort). A tile opens a file.
- *   preview — a single file's content (the same renderer the Build drawer uses), with ◂ ▸ paging.
+ * FilesDrawer — the ONE Files drawer, used by both hosts (the chat pane and the config panel). A
+ * thin, CONTROLLED, HEADERLESS shell: the host owns the open state + resolves the drive and passes
+ * them in; the drawer owns nothing. The body is {@link DriveExplorer} — the two-pane inspector with
+ * lazy per-directory loading (issue #5367) and the single breadcrumb header — so BOTH surfaces get
+ * those improvements. `DriveExplorer` renders its own header (with this close button); the drawer
+ * chrome stays out of the way.
  *
- * A THIN wrapper: it holds only the open-state atoms + light drawer chrome (title/footer), and
- * `next/dynamic`-imports the heavy {@link FilesDrawerBody} (grid renderers + preview) so that graph
- * loads only when the drawer opens and unmounts on close (`destroyOnClose`). The drive query is
- * gated on `open`, so the always-mounted per-session host does no heavy work while closed.
- *
- * Every opener — tiles, in-thread cards, rail rows, chat links — just sets this session's
- * `driveQuickLookAtomFamily` slot (the file to preview); that also opens the drawer, so a chat link
- * jumps straight to the file and Back reveals the grid behind it. Chat mode is jargon-free and
- * content-first: NO metadata block here (that lives in the Build drawer).
+ * The heavy body is `next/dynamic`-imported so the tree/renderer/pdfjs graph loads only when the
+ * drawer opens (`destroyOnClose` unmounts it again).
  */
 import {useEffect, useState} from "react"
 
-import {CopyButton} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {
-    ArrowLeft,
-    CaretLeft,
-    CaretRight,
-    DownloadSimple,
-    FolderSimple,
-    Info,
-} from "@phosphor-icons/react"
-import {Button, Skeleton, Tooltip} from "antd"
-import {atom, useAtom, useAtomValue} from "jotai"
-import {atomFamily} from "jotai/utils"
 import dynamic from "next/dynamic"
 
-import {chatPanelMaximizedAtom} from "@/oss/components/AgentChatSlice/state/panelLayout"
-import {projectIdAtom} from "@/oss/state/project"
+import {type DriveId, type DriveScope} from "./DriveExplorer"
+import {DriveExplorerSkeleton} from "./DriveExplorerSkeleton"
+import {type SessionDriveData} from "./useSessionDrive"
 
-import {driveFileIcon} from "./driveIcons"
-import {downloadMountFile} from "./driveMedia"
-import {useDriveArtifactId} from "./driveSessionContext"
-import {humanSize, relativeTime} from "./driveTree"
-import {driveQuickLookAtomFamily} from "./quickLook"
-import {useSessionDrive} from "./useSessionDrive"
+// Normal vs. expanded drawer width — the header's expand toggle flips between them, mirroring the
+// full-width pattern the app's other drawers use. Expanded clamps to most of the viewport (with a
+// floor/ceiling) so the file browser gets real room without ever exceeding the screen.
+const NORMAL_WIDTH = 960
+const EXPANDED_WIDTH = "clamp(960px, 92vw, 1800px)"
 
-// Heavy grid + preview — loaded lazily on first open, not with the always-mounted chat pane.
-const FilesDrawerBody = dynamic(() => import("./FilesDrawerBody"), {
+// Heavy body — loaded lazily on first open, not with the always-mounted config panel/chat pane.
+const DriveExplorer = dynamic(() => import("./DriveExplorer").then((m) => m.DriveExplorer), {
     ssr: false,
-    loading: () => (
-        <div className="min-h-0 flex-1 p-3">
-            <Skeleton active paragraph={{rows: 6}} />
-        </div>
-    ),
+    loading: () => <DriveExplorerSkeleton />,
 })
 
-// Keyed by session id — every mounted pane has its own FilesDrawer host, so a shared open flag
-// would leak the drawer's open state across sessions on a tab switch.
-export const filesDrawerOpenAtomFamily = atomFamily((_sessionId: string) => atom(false))
+export interface FilesDrawerProps {
+    open: boolean
+    onClose: () => void
+    /** The resolved (summary) drive — the host fetches it (useConfigDrive / useSessionDriveSummary);
+     * DriveExplorer lazy-loads each directory level from it, so no whole-tree fetch to open. */
+    drive: SessionDriveData
+    /** Raw ids for the header's overflow menu (drive id + session/agent id). */
+    driveIds?: DriveId[]
+    scope?: DriveScope
+    /** Preselect this path on open — and, while open, re-select when it changes (a chat link/tile). */
+    initialPath?: string | null
+}
 
-const matchesTail = (filePath: string, requested: string): boolean =>
-    filePath === requested || requested.endsWith(`/${filePath}`)
-
-export function FilesDrawer({sessionId}: {sessionId: string}) {
-    const [gridOpen, setGridOpen] = useAtom(filesDrawerOpenAtomFamily(sessionId))
-    const [quickLook, setQuickLook] = useAtom(driveQuickLookAtomFamily(sessionId))
-    // Build mode gets the full metadata block; chat mode stays content-first (jargon-free).
-    const buildMode = !useAtomValue(chatPanelMaximizedAtom)
-    const projectId = useAtomValue(projectIdAtom)
-    // Metadata grid visibility — the toggle lives in the drawer header, the grid renders in the body.
-    const [metaExpanded, setMetaExpanded] = useState(false)
-    const open = gridOpen || quickLook != null
-    const inPreview = quickLook != null
-
-    const artifactId = useDriveArtifactId()
-    // Gate BOTH ids on `open`: the agent-mount query keys on artifactId (not sessionId), so passing
-    // a live artifactId while closed would fetch the agent drive before the drawer is ever shown.
-    const drive = useSessionDrive(
-        open ? sessionId : "",
-        open ? (artifactId ?? undefined) : undefined,
-    )
-    const files = drive.recents
-    const index = inPreview ? files.findIndex((f) => matchesTail(f.path, quickLook.path)) : -1
-    const file = index >= 0 ? files[index] : null
-    // A previewed file may live in the cwd mount or the nested agent-files mount — resolve which,
-    // and its path relative to that mount, for the content viewer + download.
-    const resolvedFile = file ? drive.resolveMount(file.path) : null
-
-    const page = (delta: number) => {
-        if (!files.length) return
-        const next = files[(Math.max(index, 0) + delta + files.length) % files.length]
-        setQuickLook({path: next.path})
-    }
-
-    // A preview request opens the drawer AND keeps the grid "open" beneath it, so Back reveals it.
+export function FilesDrawer({
+    open,
+    onClose,
+    drive,
+    driveIds,
+    scope = "session",
+    initialPath,
+}: FilesDrawerProps) {
+    // Expanded (near-full) width, toggled from the drawer header. Reset on close so every open starts
+    // at the normal width.
+    const [expanded, setExpanded] = useState(false)
     useEffect(() => {
-        if (quickLook && !gridOpen) setGridOpen(true)
-    }, [quickLook, gridOpen, setGridOpen])
-
-    // Arrow-key paging while previewing.
-    useEffect(() => {
-        if (!inPreview) return
-        const onKey = (e: KeyboardEvent) => {
-            // The grid (with its search box) stays mounted behind the preview; don't steal Left/Right
-            // from a focused text field, where they move the caret.
-            const target = e.target as HTMLElement | null
-            if (
-                target?.isContentEditable ||
-                /^(input|textarea|select)$/i.test(target?.tagName ?? "")
-            )
-                return
-            if (e.key === "ArrowLeft") page(-1)
-            if (e.key === "ArrowRight") page(1)
-        }
-        window.addEventListener("keydown", onKey)
-        return () => window.removeEventListener("keydown", onKey)
-    }, [inPreview, index, files])
-
-    const back = () => setQuickLook(null)
-    const close = () => {
-        setQuickLook(null)
-        setGridOpen(false)
-    }
-
-    const name = file?.path.split("/").pop() ?? quickLook?.path.split("/").pop() ?? ""
-    const folder = file?.path.includes("/") ? file.path.split("/").slice(0, -1).join("/") : null
+        if (!open) setExpanded(false)
+    }, [open])
 
     return (
         <EnhancedDrawer
             rootClassName="ag-drawer-elevated"
             open={open}
-            onClose={close}
+            onClose={onClose}
             placement="right"
-            width={720}
+            // Two-pane (tree + preview) needs the room; expand for near-full width.
+            width={expanded ? EXPANDED_WIDTH : NORMAL_WIDTH}
             destroyOnClose
             closeOnLayoutClick={false}
-            title={
-                inPreview ? (
-                    <div className="flex min-w-0 items-center gap-1.5">
-                        <Button
-                            type="text"
-                            size="small"
-                            aria-label="Back to files"
-                            icon={<ArrowLeft size={16} />}
-                            onClick={back}
-                            className="!h-7 !w-7 !min-w-0 shrink-0 !p-0"
-                        />
-                        <span className="shrink-0">
-                            {file ? driveFileIcon(file.path, 16) : null}
-                        </span>
-                        <div className="min-w-0">
-                            <div className="truncate font-mono text-sm font-medium">{name}</div>
-                            <div className="truncate text-xs font-normal text-colorTextTertiary">
-                                {folder ? <>{folder} · </> : null}
-                                {file ? humanSize(file.size) : null}
-                                {file?.touchedAt ? <> · {relativeTime(file.touchedAt)}</> : null}
-                            </div>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="flex min-w-0 items-center gap-2">
-                        <FolderSimple size={16} className="shrink-0 text-colorTextSecondary" />
-                        <div className="min-w-0">
-                            <div className="truncate text-sm font-medium">Files</div>
-                            <div className="truncate text-xs font-normal text-colorTextTertiary">
-                                {drive.fileCount} file{drive.fileCount === 1 ? "" : "s"} ·{" "}
-                                {humanSize(drive.totalSize) || "0 B"} · this conversation
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
-            extra={
-                inPreview && file ? (
-                    <div className="flex items-center gap-1">
-                        {/* Secondary actions as borderless icon buttons; Download stays primary. */}
-                        <Tooltip title="Copy path">
-                            <CopyButton
-                                text={file.path}
-                                buttonText={null}
-                                icon
-                                size="small"
-                                aria-label="Copy file path"
-                                successMessage=""
-                                className="!h-7 !w-7 !p-0 !text-colorTextTertiary hover:!text-colorText"
-                            />
-                        </Tooltip>
-                        {/* Details toggle → reveals the metadata grid in the body (the header already
-                            shows name · size · time). Info icon fills + tints primary when open. */}
-                        {buildMode ? (
-                            <Tooltip title="File details">
-                                <Button
-                                    type="text"
-                                    size="small"
-                                    aria-label="File details"
-                                    aria-pressed={metaExpanded}
-                                    onClick={() => setMetaExpanded((v) => !v)}
-                                    icon={
-                                        <Info
-                                            size={16}
-                                            weight={metaExpanded ? "fill" : "regular"}
-                                        />
-                                    }
-                                    className={`!h-7 !w-7 !p-0 ${metaExpanded ? "!text-colorPrimary" : "!text-colorTextTertiary hover:!text-colorText"}`}
-                                />
-                            </Tooltip>
-                        ) : null}
-                        <Button
-                            icon={<DownloadSimple size={13} />}
-                            disabled={!resolvedFile?.mount && !drive.mount}
-                            onClick={() =>
-                                void downloadMountFile({
-                                    mount: resolvedFile?.mount ?? null,
-                                    path: resolvedFile?.path ?? file.path,
-                                    projectId,
-                                })
-                            }
-                        >
-                            Download
-                        </Button>
-                    </div>
-                ) : undefined
-            }
-            footer={
-                inPreview && files.length > 1 ? (
-                    <div className="flex items-center justify-between text-[11px] text-colorTextTertiary">
-                        <Button
-                            type="text"
-                            icon={<CaretLeft size={13} />}
-                            onClick={() => page(-1)}
-                            aria-label="Previous file"
-                        />
-                        <span>
-                            {Math.max(index, 0) + 1} of {files.length}
-                        </span>
-                        <Button
-                            type="text"
-                            icon={<CaretRight size={13} />}
-                            onClick={() => page(1)}
-                            aria-label="Next file"
-                        />
-                    </div>
-                ) : undefined
-            }
-            styles={{body: {padding: 0, display: "flex", minHeight: 0}}}
+            // Headerless: DriveExplorer renders the one header (with its own close button).
+            closable={false}
+            title={null}
+            styles={{
+                body: {padding: 0, display: "flex", flexDirection: "column", minHeight: 0},
+            }}
         >
-            <FilesDrawerBody
-                sessionId={sessionId}
-                inPreview={inPreview}
-                file={file}
-                resolvedFile={resolvedFile}
-                buildMode={buildMode}
-                metaExpanded={metaExpanded}
-                isLoading={drive.isLoading}
-                onNavigate={(p) => setQuickLook({path: p})}
+            <DriveExplorer
+                drive={drive}
+                scope={scope}
+                initialPath={initialPath}
+                onClose={onClose}
+                driveIds={driveIds}
+                expanded={expanded}
+                onToggleExpand={() => setExpanded((v) => !v)}
             />
         </EnhancedDrawer>
     )

@@ -40,6 +40,8 @@ import {
   sweepStaleRelayFiles,
   type RelayHost,
 } from "../../src/tools/relay.ts";
+import type { ClientToolRelay } from "../../src/tools/client-tool-relay.ts";
+import type { ResolvedToolSpec } from "../../src/protocol.ts";
 import {
   RELAY_SAFETY_POLL_MS,
   daytonaRelayActivitySource,
@@ -808,6 +810,86 @@ describe("startToolRelay stage=relay_pickup telemetry", () => {
     );
     assert.ok(pickup?.includes("wake=activity"), `wake tag: ${pickup}`);
     assert.ok(pickup?.includes("pickup_ms=-1"), `no-stat fallback: ${pickup}`);
+
+    await relay.stop();
+  });
+});
+
+describe("startToolRelay client-tool pause (the paused-cold answer)", () => {
+  const clientSpec: ResolvedToolSpec = {
+    name: "request_connection",
+    kind: "client",
+    description: "browser-fulfilled",
+  };
+
+  /** A client-tool seam that always parks: the browser has not answered yet. */
+  function parkingRelay(onParked?: () => void): ClientToolRelay {
+    return {
+      onClientTool: async () => "pendingApproval",
+      onPause: () => onParked?.(),
+    };
+  }
+
+  function putClientRequest(files: Map<string, string>, id: string): void {
+    files.set(
+      `${DIR}/${id}.req.json`,
+      JSON.stringify({
+        toolName: "request_connection",
+        toolCallId: id,
+        args: { integration: "slack" },
+      }),
+    );
+  }
+
+  it("non-Pi shim path (writePausedAnswer) writes { ok: true, paused: true } when a client tool parks", async () => {
+    const { host, files } = fakeHost();
+    const relay = startToolRelay(
+      host,
+      DIR,
+      [clientSpec],
+      undefined,
+      undefined,
+      parkingRelay(),
+      undefined,
+      { writePausedAnswer: true },
+    );
+
+    putClientRequest(files, "call-1");
+    await until(() => files.has(`${DIR}/call-1.res.json`), "the paused answer");
+    const res = JSON.parse(files.get(`${DIR}/call-1.res.json`) ?? "{}");
+    assert.deepEqual(
+      res,
+      { ok: true, paused: true },
+      "the shim path gets a benign paused answer, not an error or an empty success",
+    );
+
+    await relay.stop();
+  });
+
+  it("Pi path (no writePausedAnswer) writes NO answer file when a client tool parks", async () => {
+    const { host, files } = fakeHost();
+    let parked = false;
+    const relay = startToolRelay(
+      host,
+      DIR,
+      [clientSpec],
+      undefined,
+      undefined,
+      parkingRelay(() => {
+        parked = true;
+      }),
+      undefined,
+      {}, // writePausedAnswer defaults OFF -> Pi's native pause, no answer file
+    );
+
+    putClientRequest(files, "call-1");
+    await until(() => parked, "the client tool parked");
+    // Settle long enough that a (wrong) answer write would have landed.
+    await sleep(RELAY_POLL_MS + 50);
+    assert.ok(
+      !files.has(`${DIR}/call-1.res.json`),
+      "Pi parks through its own extension; the loop writes no answer file",
+    );
 
     await relay.stop();
   });

@@ -1,0 +1,604 @@
+---
+slug: "the-guide-to-structured-outputs-and-function-calling-with-llms"
+title: "The guide to structured outputs and function calling with LLMs"
+description: "Get reliable JSON from any LLM using structured outputs, JSON mode, Pydantic, Instructor, and Outlines. Complete production guide with OpenAI, Claude, and Gemini code examples for consistent data extraction."
+category: Article
+date: 2025-09-10
+readingTime: "10 min read"
+heroImage: /blog/the-guide-to-structured-outputs-and-function-calling-with-llms/hero.webp
+ogImage: /blog/the-guide-to-structured-outputs-and-function-calling-with-llms/hero.webp
+author: mahmoud-mabrouk
+featured: false
+tags: ["Article"]
+---
+
+## Introduction
+
+<InlineCTA />
+
+LLMs excel at creative tasks. They write code, summarize documents, and draft emails with impressive results. But ask for structured JSON and you get inconsistent formats, malformed syntax, and unpredictable field names.
+
+The problem gets worse in production. A prompt that works perfectly in testing starts failing after a model update. Your JSON parser breaks on unexpected field types. Your application crashes because the LLM decided to rename `"status"` to `"current_state"` without warning.
+
+Most developers try to solve this with clever prompting or regex fixes. These approaches work temporarily but break when models change or edge cases appear. The real solution is structured outputs that enforce consistent data formats from the start.
+
+This guide covers the systematic approaches to getting reliable structured data from any LLM. You'll learn API-native methods, schema validation, function calling workflows, and the libraries that make structured outputs practical for production systems.
+
+## Why You Need Structured Outputs
+
+Structured outputs solve a basic problem: your code needs predictable data formats. When an LLM generates free-form text, you have to parse it, validate it, and handle errors. Structured outputs skip this step by making the model follow a specific format from the start.
+
+Three main use cases show why this matters:
+
+**Data Storage**: Your app stores LLM responses in databases or sends them to APIs. A support ticket system needs consistent field names and data types. Without structure, `{"priority": "high"}` might become `{"urgency": "HIGH"}` in different requests, breaking your database queries.
+
+**UI Display**: Frontend components expect specific data formats. A user dashboard needs predictable JSON keys and value types. When the structure changes, components break or show wrong information.
+
+**Function Calling**: AI agents often chain multiple steps together. An invoice processor extracts vendor data, then calls a payment function. The extraction returns `{"vendor": "Acme Corp", "amount": 2500.00}` and the payment function expects exactly this format. If the structure varies, the chain breaks.
+
+Function calling is a specific type of structured output where the LLM tells your system which function to run and provides the parameters in a validated format.
+
+## How to get structured output: Summary of approaches
+
+When working with **LLMs**, structured outputs matter. Formats like JSON, key-value pairs, or tables make it possible to pass model outputs directly into your applications without extra cleanup. There are two main ways to do this: using built-in API features (**API-native**) or handling it using **prompt engineering** and extra processing (**non-API-native**). Each comes with trade-offs.
+
+### API native with two options
+
+**API-native approaches** are built-in features from LLM providers like **OpenAI** and **Anthropic** that let your model output structured data—like **JSON**, **function calls**, or **JSON schema**. They make outputs reliable by enforcing strict formats, so no need for fragile post-processing or regex hacks.
+
+**Structured outputs**: Direct JSON schema enforcement where you define the exact structure and the model guarantees compliance.
+
+**Function calls**: The model can call predefined functions with structured parameters, enabling interaction with external tools and APIs.
+
+### Non-API native approaches (libraries)
+
+**Non-native API approaches** don't use built-in LLM features. Instead, they rely on prompt engineering and external code to structure outputs into **JSON**, **YAML**, or **CSV**. This usually means adding instructions in your prompt and then cleaning or validating the output with parsers or regex.
+
+The main advantage: these methods work with almost any model—**OpenAI**, **Anthropic**, **Mistral**, etc. No vendor lock-in, full flexibility to customize formats.
+
+The downside: non-native approaches can be fragile. Models might hallucinate, break the format, or produce inconsistent results.
+
+## What is a JSON schema and how do you get it
+
+JSON Schema is a specification that defines the structure and validation rules for JSON data. Think of it as a contract that describes what your JSON should look like before you actually create it.
+
+A JSON schema specifies required fields, data types, value constraints, and nested object structures. For example, you can require that an `age` field must be an integer between 0 and 150, or that an `email` field must follow email format rules.
+
+Here's a basic schema example:
+
+```javascript
+{
+  "type": "object",
+  "properties": {
+    "name": {"type": "string"},
+    "age": {"type": "integer", "minimum": 0},
+    "email": {"type": "string", "format": "email"}
+  },
+  "required": ["name", "age"],
+  "additionalProperties": false
+}
+```
+
+This schema enforces three rules: name must be a string, age must be a non-negative integer, email must be valid email format, and no extra fields are allowed. When you validate JSON against this schema, you catch errors before they reach your application code.
+
+### Pydantic: Python Classes to JSON Schema
+
+Pydantic converts Python type hints into JSON schemas automatically. You write normal Python classes with type annotations, and Pydantic handles the schema generation and validation.
+
+```python
+from pydantic import BaseModel, Field
+from typing import List
+
+class User(BaseModel):
+    name: str
+    age: int = Field(ge=0, le=150)  # Between 0 and 150
+    email: str
+    skills: List[str] = []
+
+# Generate JSON schema
+schema = User.model_json_schema()
+
+# Validate data
+user = User(name="Alice", age=30, email="alice@example.com")
+```
+
+The generated schema includes all your type constraints and field requirements. You can pass this schema to LLMs as instructions for output format.
+
+### Zod: TypeScript Schema Definition
+
+Zod works similarly for TypeScript, providing both compile-time types and runtime validation:
+
+```typescript
+import { z } from "zod";
+
+const userSchema = z.object({
+  name: z.string(),
+  age: z.number().min(0).max(150),
+  email: z.string().email(),
+  skills: z.array(z.string()).default([])
+});
+
+type User = z.infer<typeof userSchema>;
+
+// Validate at runtime
+const user = userSchema.parse(rawData);
+```
+
+Zod schemas can be converted to JSON Schema format for LLM instructions while maintaining TypeScript type safety in your application code.
+
+### How these work with LLMs
+
+Both libraries follow the same pattern: define your data structure once, generate a JSON schema, send that schema to the LLM as formatting instructions, then validate the response against your original model. This creates a complete pipeline from type definition to validated output, ensuring your application receives exactly the data structure it expects.
+
+## API native approaches
+
+## JSON mode
+
+**JSON mode** forces the model to output responses only in JSON. That means you always get structured, machine-readable data. No extra text, no surprises, just clean JSON you can parse. This is especially useful when building APIs, automation workflows, or data pipelines. With **JSON mode**, you don’t waste time parsing strings, and you can plug outputs straight into validation tools.
+
+### JSON mode with OpenAI
+
+OpenAI's **JSON mode** makes the model return outputs as **JSON objects**. You turn it on by setting the **response_format** parameter to **"json"** in your API call.
+
+```python
+import openai
+
+response = openai.ChatCompletion.create(
+    model="gpt-4o",
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant that only returns valid JSON."},
+        {"role": "user", "content": "Give me the details of a fictional user profile."}
+    ],
+    response_format="json",
+    temperature=0.7,
+)
+
+print(response.choices[0].message.content)
+```
+
+### JSON Mode in Anthropic Claude
+
+Claude **doesn’t** have a **JSON mode.** You **can’t** force it to always return JSON. The only way is to **prompt** it to respond in **JSON** instead of plain text. With clear instructions, Claude will usually generate well-formed JSON, but it’s not guaranteed.
+
+```python
+from anthropic import Anthropic
+
+response = client.messages.create(
+    model="claude-3-opus-20240229",
+    max_tokens=500,
+    temperature=0.2,
+    system="You are an API that returns a user profile in JSON. Only return valid JSON, no explanation.",
+    messages=[
+        {
+            "role": "user",
+            "content": "Generate a fictional user profile with name, age, email, and hobbies."
+        }
+    ]
+)
+
+print(response.content[0].text)
+```
+
+### JSON Mode in Gemini
+
+Google's Gemini has a JSON mode. You can set a MIME type like `application/json` to signal the expected format.
+
+```python
+import google.generativeai as genai
+
+model = genai.GenerativeModel(
+    model_name="models/gemini-1.5-pro-latest",
+    generation_config={"response_mime_type": "application/json"}
+)
+
+response = model.generate_content(prompt)
+print(response.text)
+```
+
+As seen in this section **JSON Mode** accross different **LLMs** ensure valid JSON is produced .It is a way to control and validate the format of JSON responses generated by LLMs, making them reliable and conformant to your specific schema requirements.
+
+However it is recommended to always use Structured Outputs instead of JSON mode when possible. In fact Structured Outputs is the evolution of **JSON** because it strictly enforces adherence to a specified schema, ensuring consistent, valid, and type-safe JSON responses. This reduces errors and simplifies integration by guaranteeing the data format matches exactly what the application expects.
+
+## JSON schema mode
+
+Implementing **JSON Schema** Mode in **OpenAI**, **Claude**, and **Gemini** lets developers enforce structured outputs directly from language models. Each platform offers its own way to validate schemas, helping ensure responses are reliable and predictable. This comparison shows how OpenAI, Anthropic (Claude), and Google (Gemini) handle typed output generation.
+
+### OpenAI SDK for clean and validate Json schema
+
+The OpenAI Python SDK supports structured outputs using JSON Schema by allowing you to define a JSON schema that the model's output should adhere to.
+
+```python
+from pydantic import BaseModel
+from openai import OpenAI
+
+class Person(BaseModel):
+    name: str
+    age: int
+
+schema = Person.model_json_schema()
+
+client = OpenAI()
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Give me a person's name and age."}],
+    functions=[{"name": "get_person", "parameters": schema}],
+    function_call={"name": "get_person"},
+)
+```
+
+### Claude + Schema Validation
+
+**Claude** models from Anthropic **don’t** support structured output the way **OpenAI** does with `response_format`. But you can get the same effect by using tool-based structured output with schema validation. In practice, this means you define a schema that describes the fields and types you expect, using something like Pydantic (Python) or Zod (TypeScript). That schema is converted into JSON Schema and passed to Claude as a tool. When the model generates a response, it “calls” the tool and produces output that matches the schema. On your side, you validate the response against the schema to guarantee type safety and consistent structure. This approach cuts down on parsing errors, enforces strict formats, and makes Claude’s responses much easier to use in production.
+
+```python
+from anthropic import Anthropic
+from pydantic import BaseModel
+
+class WeatherForecast(BaseModel):
+    location: str
+    temperature_celsius: float
+    condition: str
+
+client = Anthropic()
+
+response = client.messages.create(
+    model="claude-3-5-sonnet-20240620",
+    max_tokens=200,
+    messages=[
+        {"role": "user", "content": "Give me the weather forecast for Paris as JSON."}
+    ],
+    tools=[
+        {
+            "name": "get_weather_forecast",
+            "description": "Returns weather forecast in structured format.",
+            "input_schema": WeatherForecast.model_json_schema(),
+        }
+    ]
+)
+```
+
+### Gemini + Schema Definition
+
+Google’s Gemini models support structured outputs through JSON schemas. Developers can define exactly how responses should be formatted—what fields are required, what types are allowed, and whether values must be arrays, objects, or enums. If Gemini’s output doesn’t match the schema, it raises a `JSONSchemaValidationError`. This helps catch issues early and provides clear error messages for debugging. On Vertex AI, schemas are built using tools like `Schema` and `Type`, and Gemini enforces these rules during generation. The result is more reliable outputs ready for production use.
+
+```python
+from pydantic import BaseModel
+from google import genai
+
+class Recipe(BaseModel):
+    recipe_type: str
+    ingredients: list[str]
+
+client = genai.Client()
+
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="Give me a cookie recipe with ingredients.",
+    config={
+        "response_mime_type": "application/json",
+        "response_schema": Recipe,
+    }
+)
+```
+
+**In summary** JSON Schema validation is now supported across the major model providers, but each does it differently:
+
+- **OpenAI** integrates schema validation directly with Pydantic for GPT-4, GPT-4o, and GPT-3.5. It works seamlessly with their API and Python SDK, making it straightforward to return structured outputs.
+- **Anthropic** uses a tool-based approach for Claude models. You define schemas as “tools,” and Claude enforces the structure with type safety.
+- **Google** enforces schemas natively in Gemini through Vertex AI. Developers can specify strict JSON schemas, and Gemini guarantees compliance in generated responses.
+
+The implementation details vary, but the goal is the same: consistent, schema-driven outputs that reduce errors and simplify application development.
+
+## Function calling
+
+### What is Function calling
+
+![What is Function calling](/blog/the-guide-to-structured-outputs-and-function-calling-with-llms/img-1.webp)
+
+**Function calling** allows Large Language Models to interact with external tools and APIs. Instead of only producing text, the model can call a function, pass parameters, and return results automatically.
+
+Models like **GPT-5** can decide when a function call is needed and generate the correct **JSON** inputs. Multiple functions can be called in a single request, enabling more advanced and interactive applications.
+
+This makes it possible to build LLM agents that retrieve live data, run system operations, or complete multi-step tasks by linking natural language to real-world actions.
+
+In summary, function calling extends an LLM from a text generator into an action-taking system. To see how this works in practice, we now look at the step-by-step flow of using function calling with an LLM.
+
+### Function calling workflow
+
+![Function calling workflow](/blog/the-guide-to-structured-outputs-and-function-calling-with-llms/img-2.webp)
+
+This section explains the steps to define the function calling workflow. By following these steps, you can clearly see how natural language requests are transformed into structured actions and useful results.
+
+#### 1-Define the Function Schema
+
+The first step in **function calling** is defining the **function schema**. This is a structured description that tells the model what the function does, what it's called, and what inputs it needs.
+
+```python
+tool = {
+    "type": "function",
+    "function": {
+        "name": "extract_user_info",
+        "description": "Extracts user name and city from a sentence.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "city": {"type": "string"}
+            },
+            "required": ["name", "city"],
+            "additionalProperties": False
+        }
+    }
+}
+```
+
+#### 2-Create the User Message
+
+The user message is the input the model works with. It should clearly state what the user wants and include enough context to guide the model.
+
+```python
+input_messages = [
+    {
+        "role": "user",
+        "content": "Hi, I'm Sarah and I live in Amsterdam!"
+    }
+]
+```
+
+#### 3- Send Request to OpenAI API with tool
+
+The third step is making a request to the OpenAI API with the user’s message and the available function definitions. The model checks if a function should be called and, if needed, returns the function name and parameters. Your app then runs the function and sends the result back to the model. This process connects the user, the model, and external functions so the AI can take real actions in response to the conversation.
+
+```python
+from openai import OpenAI
+
+client = OpenAI()
+
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=input_messages,
+    tools=tools,
+    tool_choice="auto"
+)
+```
+
+#### 4- Extract Function Call Name and Arguments
+
+After the model makes a function call, your app needs to capture the function name and its arguments from the response. In practice, this means parsing the output to see which function the model chose and what inputs it passed. Once extracted, those inputs are sent to the actual function for execution. This step is key because it turns the model’s structured response into actionable data your code can run.
+
+```python
+import json
+
+tool_calls = response.choices[0].message.tool_calls
+
+if tool_calls:
+    function_name = tool_calls[0].function.name
+    arguments_json = tool_calls[0].function.arguments
+    arguments = json.loads(arguments_json)
+
+    print("Function called:", function_name)
+    print("Arguments:", arguments)
+```
+
+#### 5- (Optional) Call Your Backend Function
+
+The final step is to call the backend function with the extracted name and arguments. The system executes the task ,fetching data, running a query, or performing a calculation—and returns the result to the model. This closes the loop between the model’s output and real actions. If no external processing is needed, this step can be skipped.
+
+```python
+def extract_user_info(name, city):
+    return f"{name} lives in {city}"
+
+result = extract_user_info(**arguments)
+print("Result:", result)
+```
+
+### How to define function calling
+
+There are several ways to define schemas for function calls. You can use standard formats that describe the function’s name, inputs, and types, automatically generate schemas from your code, or apply validation libraries for more precise and detailed definitions. The best method depends on your needs for automation, accuracy, and how well it integrates with your system or AI workflow.
+
+#### Tool/ Function Definitions
+
+In OpenAI’s function calling feature, a **function (or tool) definition** is a JSON schema that tells the model exactly: the function name, what it does, and the structure of arguments it needs.
+
+Put simply, it’s a contract between you and the AI:
+
+- **Function Name:** the unique identifier for the function.
+- **Description:** what the function does and when to use it.
+- **Parameters:** the expected arguments, their types, and which ones are required.
+
+This schema tells the model when to call the function, what arguments to send, and what format to expect in return. Functions act as interfaces between the AI and external apps or services, letting the model perform actions or fetch data during a conversation.
+
+Here’s an example showing a tool definition with a JSON schema for a function call.
+
+```python
+import openai
+functions = [
+    {
+        "name": "get_user_info",
+        "description": "Extract user profile information from text",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "The user's full name"},
+                "age": {"type": "integer", "description": "The user's age"},
+                "email": {"type": "string", "description": "The user's email address"}
+            },
+            "required": ["name", "age"]
+        }
+    }
+]
+```
+
+**However** , defining these schemas manually works, but it quickly becomes repetitive if you have many functions. Every time you update a function’s parameters in Python, you’d also need to update the JSON schema by hand.
+
+This is where **automation helps**: instead of maintaining two versions (the Python function and its schema), we can generate the schema directly from the function itself in openAi inputs
+
+#### From Manual Definitions to Automation
+
+There are several approches to automatically generate shema in a function we will explore some of these approches :
+
+- **Automating Schema Generation with Python Inspection**
+
+Python’s built-in `<a href="https://docs.python.org/3/library/inspect.html" target="_blank"><strong>inspect</strong></a>` module can automatically extract a function’s name, parameters, types, and documentation to create a structured JSON schema. This schema clearly defines the function—its inputs, types, and constraints—so LLMs or other applications can call it correctly.
+
+The `<strong>inspect</strong>` module gives you parameter names, default values, and types. By mapping Python types like `<strong>int</strong>`, `<strong>str</strong>`, and `<strong>bool</strong>` to JSON schema types, you get a precise schema. The function’s docstring becomes the description, and parameters without defaults are marked as required. Automating this saves time, reduces mistakes, and makes it easier to link Python functions with AI systems that use function calls.
+
+Here’s an example showing how to generate a JSON schema from a Python function:
+
+```python
+def function_to_json(func) -> dict:
+    """
+    Converts a Python function into a JSON-serializable dictionary
+    that describes the function's signature.
+    """
+    type_map = {
+        str: "string",
+        int: "integer",
+        float: "number",
+        bool: "boolean",
+        list: "array",
+        dict: "object",
+        type(None): "null",
+    }
+
+    signature = inspect.signature(func)
+    parameters = {}
+    for param in signature.parameters.values():
+        param_type = type_map.get(param.annotation, "string")
+        parameters[param.name] = {"type": param_type}
+
+    required = [
+        param.name
+        for param in signature.parameters.values()
+        if param.default == inspect._empty
+    ]
+
+    return {
+        "type": "function",
+        "function": {
+            "name": func.__name__,
+            "description": func.__doc__ or "",
+            "parameters": {
+                "type": "object",
+                "properties": parameters,
+                "required": required,
+            },
+        },
+    }
+```
+
+**Enhancing Data Structure Validation with Pydantic**
+
+Enhanced schema generation with [**Pydantic**](https://docs.pydantic.dev/latest/) uses Python classes with typed fields to automatically create precise **JSON schemas**. These typed fields tell Pydantic what data to expect, including rules like minimum or maximum values. Pydantic then builds detailed schemas that describe data structure, types, required fields, descriptions, and even complex nested objects.
+
+This approach keeps schemas in sync with your code, reduces errors, and saves time by eliminating manual schema writing and updates. Since Pydantic follows official standards, its schemas are easy to use in APIs, AI systems, or any place where structured data definitions matter. Overall, Pydantic makes defining and maintaining function or tool interfaces clearer, more reliable, and simpler to manage.
+
+```python
+from typing import Literal
+from pydantic import BaseModel, Field
+
+class CurrentTemperature(BaseModel):
+    location: str = Field(
+        "New York",
+        description="Get the current temperature for a specific location"
+    )
+    unit: Literal["Celsius", "Fahrenheit"] = Field(
+        "Celsius",
+        description="The temperature unit to use. Infer this from the user's location."
+    )
+
+print(CurrentTemperature.model_json_schema(indent=2))
+```
+
+## Libraries to get structured outputs
+
+### Pydantic AI for Safe and Predictable LLM Responses
+
+[**Pydantic AI**](https://ai.pydantic.dev/) is a Python framework that acts as a bridge between developers and LLMs, providing tools to create **agents** that execute tasks based on system prompts, functions, and structured outputs.
+
+```python
+from pydantic_ai import Agent, RunContext
+from pydantic import BaseModel
+
+class QueryResponse(BaseModel):
+    answer: str
+    confidence: float
+
+agent = Agent(
+    "openai:gpt-4",
+    result_type=QueryResponse,
+    system_prompt="Provide concise answers to user questions."
+)
+
+result = agent.run_sync("What is capital of India?", deps="General Knowledge")
+print(result.data)
+```
+
+### Outlines Tool
+
+[**Outlines**](https://github.com/dottxt-ai/outlines) is a Python library that ensures large language models like **GPT-4** return clean, structured output. You define the data shape using Python types or tools like **Pydantic**, and Outlines makes the model follow it. No messy JSON, no extra parsing.
+
+For example, if you define a `Customer` model with fields like `name`, `urgency` (high, medium, low), and `issue`, Outlines wraps GPT-4 so responses match your model. A prompt like “Alice needs help with login issues ASAP” produces a properly typed `Customer` object ready to use in your code.
+
+Outlines works with multiple LLMs and simplifies integrating model output into apps and workflows reliably.
+
+```python
+from pydantic import BaseModel
+from typing import Literal
+import outlines
+import openai
+
+class Customer(BaseModel):
+    name: str
+    urgency: Literal["high", "medium", "low"]
+    issue: str
+
+client = openai.OpenAI()
+model = outlines.from_openai(client, "gpt-4o")
+
+customer = model(
+    "Alice needs help with login issues ASAP",
+    Customer
+)
+print(customer.model_dump())
+```
+
+### Instructor Tool
+
+[**Instructor**](https://python.useinstructor.com/) is an open-source Python library that makes it easy to get structured outputs from large language models (**LLMs**). Built on **Pydantic**, it ensures type safety, validates data, retries automatically, and supports streaming so you get clean JSON or other structured data straight from model responses. With **Instructor**, you define your output using **Pydantic** models. The library handles validation and retries for you, so you don’t need extra error-handling code. It works with over 15 LLM providers including OpenAI GPT, Anthropic **Claude, Google Gemini,**[**Ollama**](https://ollama.com/), and **DeepSeek** using a single API that lets you switch models with minimal changes. **Instructor** supports both synchronous and asynchronous calls and can stream outputs in real time.
+
+```python
+import instructor
+from pydantic import BaseModel
+from openai import OpenAI
+
+class Person(BaseModel):
+    name: str
+    age: int
+    occupation: str
+
+client = instructor.from_openai(OpenAI())
+person = client.chat.completions.create(
+    model="gpt-4o-mini",
+    response_model=Person,
+    messages=[
+        {"role": "user", "content": "Extract: John is a 30-year-old software engineer"}
+    ],
+)
+print(person)
+```
+
+## Conclusion
+
+Now, as we discussed, we have used LLM native methods or libraries to consistently get structure outputs and function calls from the LLMs. So, what's next? Well, getting structured output is just step one. We need to make sure that the LLM return the right structured output and the right function call to the right request.
+
+How do we do this? Well, we need to engineer our prompts, define clear function calls, and describe your schema keys so the LLM understands exactly what we want.
+
+This is where Agenta comes in. Our open-source LLMOps platform lets you:
+
+- Define and test your schema or function call format instantly
+- Iterate with real data in our Playground
+- Evaluate performance across all major LLM models
+- Get reliable outputs faster through systematic prompt engineering
+
+[Get started now](https://cloud.agenta.ai)and accelerate your AI engineering with Agenta's playground. Join hundreds of teams shipping daily changes and running tens of experiments per day.

@@ -15,7 +15,7 @@ import {
     sessionInteractionResponseSchema,
     sessionInteractionsResponseSchema,
     sessionRecordsQueryResponseSchema,
-    sessionStateResponseSchema,
+    sessionsQueryResponseSchema,
     sessionStreamCommandResponseSchema,
     sessionMountsResponseSchema,
     sessionStreamResponseSchema,
@@ -26,7 +26,6 @@ import {
     type SessionInteractionKind,
     type SessionInteractionStatusCode,
     type SessionRecord,
-    type SessionState,
     type SessionStream,
     type SessionStreamCommandResponse,
 } from "../core/schema"
@@ -86,32 +85,6 @@ export interface SessionScopedParams {
     projectId: string
     appId?: string
     abortSignal?: AbortSignal
-}
-
-/**
- * Read a session's durable state: the opaque SDK `SessionRecord` + the `sandbox_id` resume
- * pointer. Read-only from the FE — the record is owned and written by the runner/SDK, so the
- * FE never calls `setState(data)` (it would clobber the runner's record). Returns `null` when
- * absent (no run has persisted state yet) or on failure.
- */
-export async function getSessionState({
-    sessionId,
-    projectId,
-    appId,
-    abortSignal,
-}: SessionScopedParams): Promise<SessionState | null> {
-    if (!projectId || !sessionId) return null
-
-    const data = await callFern("[getSessionState]", () =>
-        getSessionsClient().getState(
-            {session_id: sessionId},
-            projectScopedRequest(projectId, appId, abortSignal),
-        ),
-    )
-    if (!data) return null
-
-    const validated = safeParseWithLogging(sessionStateResponseSchema, data, "[getSessionState]")
-    return validated?.session_state ?? null
 }
 
 export interface QueryInteractionsParams extends SessionScopedParams {
@@ -261,6 +234,90 @@ export async function querySessionStreams({
     return validated?.streams ?? null
 }
 
+export interface QuerySessionsParams {
+    projectId: string
+    /** Workflow refs to scope by — pass `[{id: appId}]` for one agent's sessions (JSONB `@>`
+     * containment against the turns' references). Omit for every session in the project. */
+    references?: {id?: string; slug?: string; version?: string}[]
+    /** Include ended (killed) sessions so the list keeps resumable history — default true. With
+     * this, an absent session means hard-deleted, which the reconciler uses to prune the cache. */
+    includeEnded?: boolean
+    /** Include archived sessions — default true so the reconciler can carry an `archived` flag and
+     * hide them by display filter, rather than mistake an archived row for a hard-delete and prune
+     * it. Set false only for a view that wants strictly non-archived rows. */
+    includeArchived?: boolean
+    appId?: string
+    abortSignal?: AbortSignal
+    lowPriority?: boolean
+}
+
+/**
+ * The durable session list for the project: merged stream rows (id, `name` title, flags,
+ * `created_at`, `deleted_at`=ended), filtered by the turns' workflow `references`. This is the
+ * server source the reconciling sidebar merges over its localStorage cache. Returns `null` on
+ * failure / missing project scope.
+ */
+export async function querySessions({
+    projectId,
+    references,
+    includeEnded = true,
+    includeArchived = true,
+    appId,
+    abortSignal,
+    lowPriority,
+}: QuerySessionsParams): Promise<SessionStream[] | null> {
+    if (!projectId) return null
+
+    const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
+    const data = await callFern("[querySessions]", () =>
+        client.querySessions(
+            {references, include_ended: includeEnded, include_archived: includeArchived},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    if (!data) return null
+
+    const validated = safeParseWithLogging(sessionsQueryResponseSchema, data, "[querySessions]")
+    return validated?.sessions ?? null
+}
+
+export interface SetSessionHeaderParams {
+    sessionId: string
+    projectId: string
+    name?: string
+    description?: string
+    appId?: string
+    abortSignal?: AbortSignal
+}
+
+/**
+ * Write a session's durable title/description (the stream `header`) so a rename syncs across
+ * devices and survives a localStorage wipe. Partial: only the fields passed are sent. Creates the
+ * stream row if a rename lands before the session's first run. Best-effort — `false` on failure.
+ */
+export async function setSessionHeader({
+    sessionId,
+    projectId,
+    name,
+    description,
+    appId,
+    abortSignal,
+}: SetSessionHeaderParams): Promise<boolean> {
+    if (!projectId || !sessionId) return false
+
+    const body: {name?: string; description?: string} = {}
+    if (name !== undefined) body.name = name
+    if (description !== undefined) body.description = description
+
+    const data = await callFern("[setSessionHeader]", () =>
+        getSessionsClient().setSessionStreamHeader(
+            {session_id: sessionId, body},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return data !== null
+}
+
 /** Fetch a session's current stream handle (liveness/attach state). Returns `null` if none. */
 export async function fetchSessionStream({
     sessionId,
@@ -289,7 +346,6 @@ export async function fetchSessionStream({
 }
 
 export interface CommandSessionStreamParams extends SessionScopedParams {
-    prompt?: string
     /** Steal the run lock from whoever holds it. */
     force?: boolean
     /** Fire-and-forget: start the run without holding a connection. */
@@ -313,15 +369,15 @@ export async function commandSessionStream({
     projectId,
     appId,
     abortSignal,
-    prompt,
     force,
     detached,
 }: CommandSessionStreamParams): Promise<SessionStreamCommandResponse | null> {
     if (!projectId || !sessionId) return null
 
+    // The prompt→request.data (inputs) mapping is defined by the sessions feature owner when the send path gets wired (see PR #5375 body).
     const data = await callFern("[commandSessionStream]", () =>
         getSessionsClient().setSessionStream(
-            {session_id: sessionId, prompt, force, detached},
+            {session_id: sessionId, force, detached},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
@@ -356,6 +412,71 @@ export async function killSession({
     return data !== null
 }
 
+/**
+ * DELETE — permanently remove a session (root hard-delete fan-out across turns/streams/
+ * interactions/mounts). Distinct from `killSession` (a soft end that stays resumable). Propagates
+ * the deletion to every device: the reconciler drops a session absent from the server list.
+ * Returns `true` on success, `false` on failure/missing scope.
+ */
+export async function deleteSession({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<boolean> {
+    if (!projectId || !sessionId) return false
+
+    const data = await callFern("[deleteSession]", () =>
+        getSessionsClient().deleteSession(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return data !== null
+}
+
+/**
+ * ARCHIVE — hide a session from the default list without ending or deleting it. Sets the stream's
+ * `archived_at` (distinct from `deleted_at`, which kill uses and which stays resumable), so an
+ * archived session is fully recoverable via `unarchiveSession`. Surfaced only by an archived view
+ * (`querySessions({includeArchived})`). Returns `true` on success, `false` on failure/missing scope.
+ */
+export async function archiveSession({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<boolean> {
+    if (!projectId || !sessionId) return false
+
+    const data = await callFern("[archiveSession]", () =>
+        getSessionsClient().archiveSession(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return data !== null
+}
+
+/** UNARCHIVE — reverse of `archiveSession`: clears `archived_at` so the session returns to the
+ * default list. Returns `true` on success, `false` on failure/missing scope. */
+export async function unarchiveSession({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<boolean> {
+    if (!projectId || !sessionId) return false
+
+    const data = await callFern("[unarchiveSession]", () =>
+        getSessionsClient().unarchiveSession(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return data !== null
+}
+
 /** List the mounts (drives) bound to one session. Returns `null` on failure/missing scope. */
 export async function querySessionMounts({
     sessionId,
@@ -373,10 +494,11 @@ export async function querySessionMounts({
     if (!projectId || !sessionId) return null
 
     const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
+    // maxRetries 1: a small query; recover a transient blip once, but never a long retry pit.
     const data = await callFern("[querySessionMounts]", () =>
         client.querySessionMounts(
             {session_id: sessionId},
-            projectScopedRequest(projectId, appId, abortSignal),
+            projectScopedRequest(projectId, appId, abortSignal, 1),
         ),
     )
     if (!data) return null
@@ -410,20 +532,136 @@ export async function queryMountFiles({
     appId,
     abortSignal,
     path,
+    includeGitignored,
     lowPriority,
-}: MountFilesParams): Promise<MountFile[] | null> {
+}: MountFilesParams & {includeGitignored?: boolean}): Promise<MountFile[] | null> {
     if (!projectId || !mountId) return null
 
     const client = lowPriority ? getLowPriorityMountsClient() : getMountsClient()
+    // git_aware: the curated developer view (prune `.git` + `.gitignore`d output). It's OFF by
+    // default on the endpoint so a raw `list_files` keeps its "list everything" contract for other
+    // consumers — the playground explicitly opts in on every one of its listing queries.
+    // `includeGitignored` (the drawer's search under a "show git-ignored" toggle) surfaces ignored
+    // files again — but then the WHOLE ignored tree (node_modules, …) is enumerated, hence opt-in.
+    // maxRetries 0: this is the WHOLE-tree object-store LIST; if it times out, a retry just
+    // re-times-out and hammers the store. Fail once, degrade to null (the UI shows unavailable).
     const data = await callFern("[queryMountFiles]", () =>
         client.getMountFiles(
-            {mount_id: mountId, path},
-            projectScopedRequest(projectId, appId, abortSignal),
+            {mount_id: mountId, path, git_aware: true, include_gitignored: includeGitignored},
+            projectScopedRequest(projectId, appId, abortSignal, 0),
         ),
     )
     if (!data) return null
 
     const validated = safeParseWithLogging(mountFileListResponseSchema, data, "[queryMountFiles]")
+    return validated?.files ?? null
+}
+
+/** A bounded, sorted slice of a mount's files plus the true total count. */
+export interface MountFilesPage {
+    files: MountFile[]
+    /** Full file count before the limit — the UI badge shows this, not `files.length`. */
+    total: number
+    /** `total` is a floor (the count-only scan hit its cap) — show "N+". */
+    totalCapped: boolean
+}
+
+export interface LatestMountFilesParams extends MountFilesParams {
+    /** `recent` = newest first (object-store mtime); also `name` / `path`. */
+    order?: "recent" | "name" | "path"
+    limit?: number
+}
+
+/**
+ * Fetch only the latest `limit` files of a mount (sorted by `order`), NOT the whole tree — the
+ * summary surfaces (rail, config, runtime) need a handful of recent files + the total count, so the
+ * backend does the sort/limit and ships just those. `total` keeps the file-count badge accurate.
+ */
+export async function queryLatestMountFiles({
+    mountId,
+    projectId,
+    appId,
+    abortSignal,
+    order,
+    limit,
+    lowPriority,
+}: LatestMountFilesParams): Promise<MountFilesPage | null> {
+    if (!projectId || !mountId) return null
+
+    const client = lowPriority ? getLowPriorityMountsClient() : getMountsClient()
+    // git_aware: opt into the curated view (see queryMountFiles) — the endpoint defaults to a raw
+    // listing so the pruning never surprises other API consumers.
+    // maxRetries 0: the backend must scan the whole listing to produce this slice; a timeout won't
+    // recover on retry. Fail once and let the summary settle to unavailable/empty.
+    const data = await callFern("[queryLatestMountFiles]", () =>
+        client.getMountFiles(
+            {mount_id: mountId, order, limit, git_aware: true},
+            projectScopedRequest(projectId, appId, abortSignal, 0),
+        ),
+    )
+    if (!data) return null
+
+    const validated = safeParseWithLogging(
+        mountFileListResponseSchema,
+        data,
+        "[queryLatestMountFiles]",
+    )
+    if (!validated) return null
+    const files = validated.files ?? []
+    return {
+        files,
+        total: validated.total ?? files.length,
+        totalCapped: validated.total_capped ?? false,
+    }
+}
+
+export interface MountDirParams extends MountFilesParams {
+    /** Attach `item_count` (immediate-child count) to each folder — the lazy drawer wants it on the
+     * tiles; the summary root doesn't and skips the extra per-subdir counting. */
+    withCounts?: boolean
+    /** Surface `.gitignore`-matched files too (still hides `.git`/internal) — the drawer's "show
+     * git-ignored files" toggle. Default (omitted) keeps them pruned. */
+    includeGitignored?: boolean
+}
+
+/**
+ * ONE directory level (`?depth=1`): the immediate files + folders under `path` (root when omitted),
+ * via a single server-side delimiter listing — never the subtree. This is the unit the lazy drawer
+ * loads as you navigate, and the summary's "what's in this drive" fallback, so opening a huge mount
+ * never blocks on enumerating it. `git_aware` prunes `.git`/gitignored/internal; `withCounts` adds
+ * each folder's immediate-child count. Returns `null` on failure/missing scope.
+ */
+export async function queryMountDir({
+    mountId,
+    projectId,
+    appId,
+    abortSignal,
+    path,
+    withCounts,
+    includeGitignored,
+    lowPriority,
+}: MountDirParams): Promise<MountFile[] | null> {
+    if (!projectId || !mountId) return null
+
+    const client = lowPriority ? getLowPriorityMountsClient() : getMountsClient()
+    // maxRetries 0: an object-store listing that times out won't recover on retry — fail once and let
+    // the caller settle (the summary keeps its record-log recents / count; the drawer shows empty).
+    const data = await callFern("[queryMountDir]", () =>
+        client.getMountFiles(
+            {
+                mount_id: mountId,
+                path,
+                depth: 1,
+                with_counts: withCounts,
+                git_aware: true,
+                include_gitignored: includeGitignored,
+            },
+            projectScopedRequest(projectId, appId, abortSignal, 0),
+        ),
+    )
+    if (!data) return null
+
+    const validated = safeParseWithLogging(mountFileListResponseSchema, data, "[queryMountDir]")
     return validated?.files ?? null
 }
 
@@ -437,10 +675,12 @@ export async function readMountFile({
 }: Omit<MountFilesParams, "path" | "lowPriority"> & {path: string}): Promise<string | null> {
     if (!projectId || !mountId || !path) return null
 
+    // maxRetries 1: a single small file read; one transient-recovery, no pit. Also keeps the git
+    // repo probe (`.git/HEAD` on a non-repo folder → 404) from retrying — 404 isn't retryable anyway.
     const data = await callFern("[readMountFile]", () =>
         getMountsClient().getMountFiles(
             {mount_id: mountId, read: path},
-            projectScopedRequest(projectId, appId, abortSignal),
+            projectScopedRequest(projectId, appId, abortSignal, 1),
         ),
     )
     if (!data) return null

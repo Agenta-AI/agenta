@@ -487,6 +487,32 @@ class RedactionConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# agenta.sessions
+# ---------------------------------------------------------------------------
+
+
+class SessionsRecordsConfig(BaseModel):
+    """Durable session-record ingest tuning (server-side history reconstruction)."""
+
+    # When a record body exceeds the cap, preserve its structure + partial content (trim only
+    # the large field values) instead of replacing the whole body with {"_truncated": True}.
+    # Off = legacy whole-body drop. On makes reconstruction from records higher-fidelity.
+    smart_truncation: bool = (
+        os.getenv("AGENTA_RECORDS_SMART_TRUNCATION") or "false"
+    ).lower() in _TRUTHY
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class SessionsConfig(BaseModel):
+    """Agenta sessions sub-namespace."""
+
+    records: SessionsRecordsConfig = SessionsRecordsConfig()
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # agenta — top-level Agenta core config.
 # ---------------------------------------------------------------------------
 
@@ -513,6 +539,7 @@ class AgentaConfig(BaseModel):
     otlp: OTLPConfig = OTLPConfig()
     redaction: RedactionConfig = RedactionConfig()
     services: ServicesConfig = ServicesConfig()
+    sessions: SessionsConfig = SessionsConfig()
     webhooks: WebhooksConfig = WebhooksConfig()
     workers: WorkersConfig = WorkersConfig()
 
@@ -1047,6 +1074,14 @@ class RunnerConfig(BaseModel):
         default_factory=_default_sandbox_provider_default
     )
 
+    # Direct API -> runner hop for `kill` (W7.3): the same base URL and shared-secret token
+    # the Python agent service (services/oss/src/agent/config.py's `runner_url()`) already
+    # uses to reach the runner's HTTP surface. None/blank means kill only edits the Redis
+    # nest + row (best-effort; the runner's own orphan sweep/TTL expiry still reclaims the
+    # sandbox eventually, just not immediately).
+    internal_url: Optional[str] = os.getenv("AGENTA_RUNNER_INTERNAL_URL") or None
+    token: Optional[str] = os.getenv("AGENTA_RUNNER_TOKEN") or None
+
     model_config = ConfigDict(extra="ignore")
 
     @model_validator(mode="after")
@@ -1082,7 +1117,7 @@ class StoreConfig(BaseModel):
     )
     access_key: str | None = os.getenv("AGENTA_STORE_ACCESS_KEY")
     secret_key: str | None = os.getenv("AGENTA_STORE_SECRET_KEY")
-    region: str = os.getenv("AGENTA_STORE_REGION", "us-east-1")
+    region: str = os.getenv("AGENTA_STORE_REGION") or "us-east-1"
     bucket: str | None = os.getenv("AGENTA_STORE_BUCKET") or "agenta-store"
     namespace: str | None = os.getenv("AGENTA_STORE_NAMESPACE") or None
 

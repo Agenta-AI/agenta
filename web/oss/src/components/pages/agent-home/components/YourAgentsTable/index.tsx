@@ -25,6 +25,10 @@ import EmptyAgents from "../EmptyAgents"
 
 import {createAgentColumns, type AgentColumnActions} from "./columns"
 
+// Keep the virtual viewport independent from the page's content height. Without this bound,
+// the table measures its own rendered height and feeds it back into its scroll viewport.
+const AGENT_TABLE_BODY_HEIGHT = 576
+
 interface YourAgentsTableProps {
     /** Force the empty state (first-run preview). */
     forceEmpty?: boolean
@@ -111,6 +115,7 @@ const YourAgentsTable = ({forceEmpty = false}: YourAgentsTableProps) => {
         () => ({
             bordered: true,
             loading: isLoading,
+            scroll: {y: AGENT_TABLE_BODY_HEIGHT},
             onRow: (record) => ({
                 onClick: () => handleOpenPlayground(record),
                 className: "cursor-pointer",

@@ -1,6 +1,14 @@
 import type {Key, ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {
+    InfiniteVirtualTableFeatureShell,
+    useTableExport,
+    EXPORT_RESOLVE_SKIP,
+    type TableFeaturePagination,
+    type TableScopeConfig,
+    type TableExportColumnContext,
+} from "@agenta/ui/table"
 import {useQueryClient} from "@tanstack/react-query"
 import {Grid} from "antd"
 import type {TableProps} from "antd/es/table"
@@ -9,17 +17,9 @@ import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
+import type {DeleteEvaluationKind} from "@/oss/components/DeleteEvaluationModal/types"
 import {activePreviewProjectIdAtom} from "@/oss/components/EvalRunDetails/atoms/run"
 import {clearAllMetricStatsCaches} from "@/oss/components/EvalRunDetails/atoms/runMetrics"
-import {
-    InfiniteVirtualTableFeatureShell,
-    type TableFeaturePagination,
-    type TableScopeConfig,
-} from "@/oss/components/InfiniteVirtualTable"
-import useTableExport, {
-    EXPORT_RESOLVE_SKIP,
-    type TableExportColumnContext,
-} from "@/oss/components/InfiniteVirtualTable/hooks/useTableExport"
 import EmptyStateAllEvaluations from "@/oss/components/pages/evaluations/allEvaluations/EmptyStateAllEvaluations"
 import EmptyStateEvaluation from "@/oss/components/pages/evaluations/autoEvaluation/EmptyStateEvaluation"
 import EmptyStateHumanEvaluation from "@/oss/components/pages/evaluations/humanEvaluation/EmptyStateHumanEvaluation"
@@ -315,7 +315,8 @@ const EvaluationRunsTableActive = ({
     const deletionConfig = useMemo(() => {
         if (!selectionSnapshot.hasSelection) return undefined
         return {
-            evaluationKind: deleteContext.evaluationKind,
+            // EvaluationRunKind includes "all"; delete contexts only carry concrete kinds.
+            evaluationKind: deleteContext.evaluationKind as DeleteEvaluationKind,
             projectId: deleteContext.projectId,
             previewRunIds: selectionSnapshot.previewRunIds,
             invalidateQueryKeys: [EVALUATION_RUNS_QUERY_KEY_ROOT],
@@ -546,7 +547,8 @@ const EvaluationRunsTableActive = ({
 
     const resolveColumnLabel = useCallback(
         ({column}: TableExportColumnContext<EvaluationRunTableRow>) => {
-            const metadata = column?.exportMetadata as
+            // exportMetadata is stamped onto antd columns by createTableColumns (untyped).
+            const metadata = (column as {exportMetadata?: unknown})?.exportMetadata as
                 | EvaluationRunsColumnExportMetadata
                 | undefined
             if (!metadata || metadata.type !== "metric") {
@@ -769,6 +771,7 @@ const EvaluationRunsTableActive = ({
                 primaryActions={createButton}
                 deleteAction={deleteAction}
                 exportAction={exportAction}
+                enableExport={canExportData}
                 autoHeight={autoHeight}
                 rowHeight={ROW_HEIGHT}
                 fallbackControlsHeight={fallbackControlsHeight}

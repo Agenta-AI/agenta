@@ -22,7 +22,7 @@
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { callAgentaTool } from "./callback.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "./code.ts";
-import { relayToolCall } from "./relay-client.ts";
+import { relayToolCall, RELAY_PAUSED } from "./relay-client.ts";
 import { assertRequiredArguments } from "./spec-schema.ts";
 
 // Compatibility re-export: the writer moved to `relay-client.ts`; importers that still
@@ -41,6 +41,22 @@ export interface RunResolvedToolOpts {
   relayDir?: string;
   /** Caller cancellation, combined with the per-tool timeout. */
   signal?: AbortSignal;
+}
+
+/**
+ * This dispatch path (the Pi extension and the local loopback MCP) never opts into the cold-pause
+ * protocol — `writePausedAnswer` is off for Pi and the local MCP parks in-process — so a
+ * `RELAY_PAUSED` reaching here is a contract violation. Fail loud rather than laundering the
+ * sentinel into a string; only the in-sandbox shim handles a pause.
+ */
+function assertNotPaused(
+  name: string,
+  result: string | typeof RELAY_PAUSED,
+): string {
+  if (result === RELAY_PAUSED) {
+    throw new Error(`unexpected paused relay answer for tool '${name}'`);
+  }
+  return result;
 }
 
 /**
@@ -67,13 +83,16 @@ export async function runResolvedTool(
   }
   if (spec.kind === "client") {
     if (opts.relayDir) {
-      return relayToolCall(
-        opts.relayDir,
+      return assertNotPaused(
         spec.name,
-        opts.toolCallId,
-        params,
-        spec.timeoutMs,
-        opts.signal,
+        await relayToolCall(
+          opts.relayDir,
+          spec.name,
+          opts.toolCallId,
+          params,
+          spec.timeoutMs,
+          opts.signal,
+        ),
       );
     }
     throw new Error(
@@ -82,13 +101,16 @@ export async function runResolvedTool(
   }
   // callback (default): route back to Agenta's /tools/call (directly or via the Daytona relay).
   if (opts.relayDir) {
-    return relayToolCall(
-      opts.relayDir,
+    return assertNotPaused(
       spec.name,
-      opts.toolCallId,
-      params,
-      spec.timeoutMs,
-      opts.signal,
+      await relayToolCall(
+        opts.relayDir,
+        spec.name,
+        opts.toolCallId,
+        params,
+        spec.timeoutMs,
+        opts.signal,
+      ),
     );
   }
   return callAgentaTool(

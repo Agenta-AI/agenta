@@ -53,7 +53,7 @@ const syncVariantStateFromUrl = makeLazyUrlSync(() =>
     import("./variant").then((m) => m.syncVariantStateFromUrl),
 )
 
-export {activeInviteAtom, protectedRouteReadyAtom} from "./auth"
+export {activeInviteAtom, protectedRouteLatchedReadyAtom, protectedRouteReadyAtom} from "./auth"
 export {clearSessionParamAtom, clearSessionQueryParam, sessionIdAtom} from "./session"
 export {testcaseIdAtom, clearTestcaseQueryParam, clearTestcaseParamAtom} from "./testcase"
 export {clearTraceParamAtom, clearTraceQueryParam, traceIdAtom} from "./trace"

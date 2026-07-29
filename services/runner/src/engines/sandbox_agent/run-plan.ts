@@ -27,6 +27,7 @@ import {
   resolveSkillDirs as defaultResolveSkillDirs,
 } from "../skills.ts";
 import { assert } from "./capabilities.ts";
+import type { ClientToolPauseDisposition } from "./client-tools.ts";
 import { buildTurnText } from "./transcript.ts";
 import {
   KNOWN_SANDBOX_PROVIDER_IDS,
@@ -69,25 +70,6 @@ export const REMOTE_TOOLS_UNSUPPORTED_MESSAGE =
   "other remote providers fail closed until it is proven there. Run on daytona or the local " +
   "sandbox, use the Pi harness, or remove the tools. Tracked in " +
   "docs/design/agent-workflows/projects/in-sandbox-tool-mcp/.";
-
-/**
- * A non-Pi harness (Claude) on Daytona receives tools through the in-sandbox stdio MCP shim,
- * which advertises only EXECUTABLE (gateway/callback) tools. Client tools are intentionally
- * omitted: the shim's blocking relay call cannot pause for a browser round-trip yet. So a run
- * whose ENTIRE tool set is client-kind has nothing deliverable to advertise on Daytona — it
- * would otherwise proceed, drop every tool silently, and return `ok:true` (the F1 zero-tools
- * drop). `run-plan.ts` is the documented refusal point for this (see `mcp.ts`); refuse it up
- * front, exactly as the non-Daytona remote case is refused. A MIX of client + executable tools
- * is fine (the executable ones are delivered; the client ones are dropped), so this fires only
- * when NO executable tool remains.
- */
-export const DAYTONA_CLIENT_ONLY_TOOLS_UNSUPPORTED_MESSAGE =
-  "Client tools are not deliverable to a non-Pi harness on Daytona: the in-sandbox stdio MCP " +
-  "shim advertises only executable (gateway/callback) tools, and a client tool cannot pause " +
-  "for a browser round-trip through its blocking relay yet. This run's tool set is entirely " +
-  "client-kind, so nothing would be advertised and the run would silently get zero tools. Add " +
-  "an executable tool, use the Pi harness, run on the local sandbox, or remove the tools. " +
-  "Tracked in docs/design/agent-workflows/projects/in-sandbox-tool-mcp/.";
 
 /**
  * `runtime_provided` (subscription) auth means the harness authenticates from explicitly prepared
@@ -153,6 +135,13 @@ export interface RunPlan {
   /** True when Pi builtin grants or permissions need extension enforcement. */
   builtinGatingActive: boolean;
   useToolRelay: boolean;
+  /**
+   * How a parked client tool disposes of the turn and the in-sandbox shim's blocking call (closed
+   * set: `ClientToolPauseDisposition`). Kept on the plan so a future harness, or the reserved warm
+   * hold, is a local change rather than an `!isPi` test scattered across call sites. Today: Pi →
+   * "pi-native", the non-Pi shim (Claude on Daytona) → "cold-acknowledge".
+   */
+  clientToolPauseDisposition: ClientToolPauseDisposition;
   systemPrompt?: string;
   appendSystemPrompt?: string;
   hasSystemPrompt: boolean;
@@ -422,23 +411,11 @@ export function buildRunPlan(
     return { ok: false, error: RESERVED_MCP_SERVER_NAME_MESSAGE };
   }
 
-  // Non-Pi + remote + tools: executable (gateway/callback) tools are DELIVERABLE on Daytona
-  // via the in-sandbox stdio MCP shim (uploaded per run, advertised as the internal typeless
-  // stdio entry, calls relayed to the runner through the file relay). A remote provider that is
-  // not Daytona fails CLOSED because the shim's upload + spawn path is proven for Daytona only.
-  // Client tools are intentionally omitted from the Daytona shim's uploaded public specs: its
-  // blocking relay call cannot pause for a browser round-trip yet. Local Claude and Pi retain
-  // their existing client-tool delivery paths.
-  if (!isPi && isRemoteSandbox && toolSpecs.length > 0) {
-    if (!isDaytona) {
-      return { ok: false, error: REMOTE_TOOLS_UNSUPPORTED_MESSAGE };
-    }
-    // On Daytona the shim advertises only executable tools; client tools are omitted. If the run
-    // carries tools but NONE are executable, nothing would be delivered — refuse instead of
-    // silently advertising an empty tool set (the F1 zero-tools drop mcp.ts's log warns about).
-    if (executableToolSpecsForRun.length === 0) {
-      return { ok: false, error: DAYTONA_CLIENT_ONLY_TOOLS_UNSUPPORTED_MESSAGE };
-    }
+  // Non-Pi + remote + tools: executable and client tools are both deliverable on Daytona via the
+  // in-sandbox stdio MCP shim. A non-Daytona remote provider fails CLOSED because the shim's
+  // upload + spawn path is proven for Daytona only.
+  if (!isPi && isRemoteSandbox && !isDaytona && toolSpecs.length > 0) {
+    return { ok: false, error: REMOTE_TOOLS_UNSUPPORTED_MESSAGE };
   }
 
   // Layer 2: even on Daytona, code/gateway tools run on the RUNNER HOST via the relay, not
@@ -548,6 +525,9 @@ export function buildRunPlan(
       // The relay carries tool EXECUTION only (permission gates ride the extension's
       // `ctx.ui.confirm` dialog onto the ACP plane), so a builtin-gating-only run needs no relay.
       useToolRelay: toolSpecs.length > 0,
+      // Pi parks through its own extension (no answer file); the non-Pi shim blocks on an answer
+      // file, so a parked client tool is acknowledged with a benign paused answer.
+      clientToolPauseDisposition: isPi ? "pi-native" : "cold-acknowledge",
       systemPrompt,
       appendSystemPrompt,
       hasSystemPrompt: !!(systemPrompt || appendSystemPrompt),

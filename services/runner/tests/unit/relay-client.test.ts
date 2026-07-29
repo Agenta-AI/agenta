@@ -24,6 +24,7 @@ import { join } from "node:path";
 import {
   createRelayDirWatch,
   publishRelayRequest,
+  RELAY_PAUSED,
   relayToolCall,
   waitForRelayResponse,
 } from "../../src/tools/relay-client.ts";
@@ -111,6 +112,30 @@ describe("relayToolCall (writer round-trip)", () => {
       assert.equal(out, "round-trip-ok");
       assert.ok(!existsSync(reqPath), "request file was cleaned up");
       assert.ok(!existsSync(resPath), "response file was cleaned up");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("maps a paused answer to the RELAY_PAUSED sentinel and cleans up both files", async () => {
+    const dir = tempDir();
+    try {
+      const reqPath = join(dir, `call-pause${RELAY_REQ_SUFFIX}`);
+      const resPath = join(dir, `call-pause${RELAY_RES_SUFFIX}`);
+      // Play the runner: write the paused answer variant.
+      setTimeout(() => {
+        writeFileSync(resPath, JSON.stringify({ ok: true, paused: true }));
+      }, 50);
+      const out = await relayToolCall(dir, "request_connection", "call-pause", {
+        integration: "slack",
+      });
+      assert.equal(
+        out,
+        RELAY_PAUSED,
+        "a paused answer returns the sentinel, not an empty string and not a throw",
+      );
+      assert.ok(!existsSync(reqPath), "request file was cleaned up on pause");
+      assert.ok(!existsSync(resPath), "response file was cleaned up on pause");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

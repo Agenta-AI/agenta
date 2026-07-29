@@ -90,7 +90,7 @@ const EmailPasswordAuth = ({
                     hasUser: Boolean(user),
                     loginMethodsCount: user?.loginMethods?.length ?? 0,
                 })
-                await handleAuthSuccess({user})
+                await handleAuthSuccess({user}, {authMethod: "email"})
             }
         } catch (error) {
             authErrorMsg(error)

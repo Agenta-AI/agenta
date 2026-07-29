@@ -121,9 +121,9 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
         const onReview = stepperOn && step >= fields.length
         const stepRefs = useRef<(HTMLDivElement | null)[]>([])
         const reviewRef = useRef<HTMLDivElement | null>(null)
-        const prevStepRef = useRef(step)
-        // On step CHANGE (never mount — the composer may own focus), focus the answer surface
-        // so digits/arrows/typing land with zero Tab presses.
+        const prevStepRef = useRef(-1)
+        // When the stepper becomes active or changes step, focus the answer surface so the
+        // shortcuts advertised by its host work immediately without an extra click or Tab.
         useEffect(() => {
             if (!stepperOn || prevStepRef.current === step) return
             prevStepRef.current = step
@@ -853,6 +853,15 @@ function ChoiceCards({
                 aria-checked={otherActive}
                 tabIndex={-1}
                 onClick={focusOther}
+                onKeyDown={(e) => {
+                    // Enter/Space on the focused Other card jumps into its input, mirroring how a
+                    // normal card is keyboard-actionable. Ignore keys bubbling up from the input.
+                    if (e.target !== e.currentTarget) return
+                    if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        focusOther()
+                    }
+                }}
                 className={choiceCardCls(otherActive)}
             >
                 <CardIndicator checked={otherActive} multiple={multiple} />
@@ -882,16 +891,22 @@ function ChoiceCards({
                         value={otherText}
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => typeOther(e.target.value)}
-                        onPressEnter={
-                            multiple
-                                ? (e) => {
-                                      // Handled press — the stepper's Enter-advance must not
-                                      // fire on a chip commit.
-                                      e.preventDefault()
-                                      commitDraft()
-                                  }
-                                : undefined
-                        }
+                        onPressEnter={(e) => {
+                            e.preventDefault()
+                            if (multiple) {
+                                // Handled press — the stepper's Enter-advance must not fire on a
+                                // chip commit.
+                                commitDraft()
+                                return
+                            }
+                            // Single-select parity with picking a listed card: the value already
+                            // commits as the user types; Enter trims it and runs the same post-pick
+                            // step (auto-advance where a host wires onPicked).
+                            const trimmed = otherText.trim()
+                            if (!trimmed) return
+                            if (otherText !== trimmed) typeOther(trimmed)
+                            onPicked?.()
+                        }}
                         onBlur={() => {
                             if (multiple) commitDraft()
                             else if (otherText !== otherText.trim()) typeOther(otherText.trim())

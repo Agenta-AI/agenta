@@ -73,15 +73,16 @@ const AgentNameInline = ({workflowId, name, onRenamed}: AgentNameInlineProps) =>
     return (
         <div className="group/name flex min-w-0 items-center gap-1">
             <Typography
-                className="truncate whitespace-nowrap text-[16px] leading-[18px] font-[600]"
+                className="truncate whitespace-nowrap text-[16px] leading-[18px] font-[600] cursor-pointer"
                 onDoubleClick={startEditing}
+                title="Double-click to rename"
             >
                 {name || "Agent"}
             </Typography>
 
             <PencilSimple
                 size={13}
-                className="shrink-0 opacity-0 transition-opacity group-hover/name:opacity-100 cursor-pointer"
+                className="shrink-0 opacity-0 transition-opacity hover:opacity-100 group-hover/name:opacity-100 cursor-pointer"
                 onClick={(e) => {
                     e.stopPropagation()
                     startEditing()

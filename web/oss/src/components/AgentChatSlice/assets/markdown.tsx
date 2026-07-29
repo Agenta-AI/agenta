@@ -68,6 +68,12 @@ export const MD_CLASS =
 /** Math support ($…$ / $$…$$) via KaTeX — registered once as a marked extension. */
 const LATEX_CONFIG = {extensions: Latex()}
 
+/** Chat content must never restyle the app document, so forbid document-affecting tags.
+ * A pasted HTML doc's <style>/<link> would otherwise mount into the live document and
+ * repaint the whole app. Inline `style` attributes on elements stay allowed (expected in
+ * LLM output). FORBID beats XMarkdown's own ADD_TAGS in DOMPurify, so this wins. */
+const DOMPURIFY_CONFIG = {FORBID_TAGS: ["style", "link", "meta", "base", "title"]}
+
 /** Flatten a code element's children (string / text nodes) to the raw source. */
 const childrenToText = (children: ReactNode): string => {
     if (typeof children === "string") return children
@@ -91,10 +97,11 @@ const InlineCode = ({className, children}: {className?: string; children?: React
     const sessionId = useDriveSessionId()
     const link = useAtomValue(chatFileLinkAtomFamily(sessionId ?? ""))
     const text = childrenToText(children).trim()
-    const path = link && text ? link.resolve(text) : null
-    if (!path || !link) return <code className={className}>{children}</code>
-    // A compact inline chip (not the heavy block card), valid + flowing inside the paragraph.
-    return <>{link.renderInline(path)}</>
+    const fallback = <code className={className}>{children}</code>
+    // The Drives resolver decides link-vs-plain (async: records + on-demand single-file check) and
+    // owns the fallback; no resolver mounted → plain code.
+    if (link && text) return <>{link.renderCode(text, fallback)}</>
+    return fallback
 }
 
 /**
@@ -173,8 +180,10 @@ const MD_COMPONENTS = {code: CodeBlock, pre: PreUnwrap}
  * keep the same `content` string, so this skips re-parsing + re-running Prism on them each token.
  * (Settled messages don't re-render at all; the stable-`onRewind` fix handles those.) */
 // Anchor component ensures all markdown-rendered links open in a new tab safely.
-const Anchor = ({href, children, ...rest}: any) => (
-    <a href={href} target="_blank" rel="noopener noreferrer" {...rest}>
+// Only forward real anchor attributes — XMarkdown/html-react-parser also pass internal
+// props (`domNode`, `node`, `streamStatus`, …) that would leak onto the DOM element.
+const Anchor = ({href, children, title, className}: any) => (
+    <a href={href} title={title} className={className} target="_blank" rel="noopener noreferrer">
         {children}
     </a>
 )
@@ -184,6 +193,7 @@ const Markdown = ({content, className}: {content: string; className?: string}) =
         className={className ? `${MD_CLASS} ${className}` : MD_CLASS}
         content={content}
         config={LATEX_CONFIG}
+        dompurifyConfig={DOMPURIFY_CONFIG}
         components={{...MD_COMPONENTS, a: Anchor}}
     />
 )

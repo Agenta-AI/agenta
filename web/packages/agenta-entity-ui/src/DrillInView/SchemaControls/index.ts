@@ -69,6 +69,15 @@ export {ToolSelectorPopover} from "./ToolSelectorPopover"
 export type {ToolSelectorPopoverProps} from "./ToolSelectorPopover"
 export {TOOL_PROVIDERS_META, TOOL_SPECS} from "./toolUtils"
 export type {ToolObj, ToolFunction} from "./toolUtils"
+export {
+    findGrantableTool,
+    withToolPermission,
+    gateRulePattern,
+    readHarnessAllowList,
+    findGrantableHarnessTool,
+    withHarnessToolAllow,
+} from "./toolPermission"
+export type {GrantableTool, ToolPermission, GrantableHarnessTool} from "./toolPermission"
 
 export {McpServerItemControl} from "./McpServerItemControl"
 export type {McpServerItemControlProps} from "./McpServerItemControl"
@@ -104,8 +113,6 @@ export {McpServerFormView} from "./McpServerFormView"
 export type {McpServerFormViewProps} from "./McpServerFormView"
 export {SkillFormView} from "./SkillFormView"
 export type {SkillFormViewProps} from "./SkillFormView"
-export {agentTemplateLayoutAtom, AGENT_TEMPLATE_LAYOUTS} from "./agentTemplateLayout"
-export type {AgentTemplateLayout} from "./agentTemplateLayout"
 
 // ============================================================================
 // COMPOSITE CONTROLS

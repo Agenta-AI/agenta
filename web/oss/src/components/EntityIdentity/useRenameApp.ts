@@ -1,6 +1,10 @@
 import {useCallback} from "react"
 
-import {invalidateWorkflowsListCache, updateWorkflow} from "@agenta/entities/workflow"
+import {
+    invalidateWorkflowCache,
+    invalidateWorkflowsListCache,
+    updateWorkflow,
+} from "@agenta/entities/workflow"
 
 import {GenericObject} from "@/oss/lib/Types"
 import {useAppsData} from "@/oss/state/app"
@@ -41,14 +45,16 @@ export const useRenameApp = () => {
         async ({id, name, description}: RenameAppPayload): Promise<boolean> => {
             try {
                 const {projectId} = getProjectValues()
-                await updateWorkflow(projectId, {
+                // typed as-is: projectId can be null pre-project-scope; the call always sent it through
+                await updateWorkflow(projectId as string, {
                     id,
                     name,
                     description,
                     flags: {is_application: true},
                 })
                 invalidateWorkflowsListCache()
-                await mutate()
+                invalidateWorkflowCache(id)
+                await mutate?.()
                 await invalidateAppManagementWorkflowQueries()
                 return true
             } catch (error) {

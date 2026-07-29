@@ -177,7 +177,7 @@ export const createEvaluation = async (appId: string, evaluation: CreateEvaluati
     const applicationRevisionIds = revisionIds?.length ? revisionIds : [undefined]
 
     const evaluatorSteps = evaluation.evaluator_revision_ids.reduce(
-        (acc, id) => ({...acc, [id]: "auto"}),
+        (acc, id) => ({...acc, [id]: "auto" as const}),
         {} as Record<string, "auto">,
     )
     const testsetSteps = evaluation.testset_revision_id

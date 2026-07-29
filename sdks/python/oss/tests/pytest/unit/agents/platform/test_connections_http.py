@@ -169,13 +169,13 @@ async def test_missing_provider_hint_is_harness_correct_for_claude(
 
 
 async def test_bare_claude_alias_resolves_to_anthropic(fake_http, connection):
-    # F-031: a bare Claude alias (haiku/sonnet/opus + [1m]) is unambiguously Anthropic, so the
-    # F-017 prefix rule must NOT reject it. It resolves against the vault's anthropic key the
-    # same way the documented `anthropic/haiku` form does, instead of failing loud.
+    # F-031: a bare Claude alias from the curated Claude alias list is unambiguously Anthropic,
+    # so the F-017 prefix rule must NOT reject it. It resolves against the vault's anthropic key
+    # the same way the documented `anthropic/haiku` form does, instead of failing loud.
     fake_http(
         connections, payload=[_provider_key("anthropic-prod", "anthropic", "sk-ant")]
     )
-    for alias in ("haiku", "sonnet", "opus", "opus[1m]"):
+    for alias in ("haiku", "sonnet", "opus[1m]"):
         resolved = await VaultConnectionResolver(connection).resolve(
             model=ModelRef.coerce(alias),
             context=RuntimeAuthContext(harness="claude"),

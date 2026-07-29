@@ -18,12 +18,22 @@ import {
   extractClientToolOutputs,
 } from "../../src/responder.ts";
 import type { ClientToolRelayRequest } from "../../src/tools/client-tool-relay.ts";
-import { PendingApprovalLatch } from "../../src/permission-plan.ts";
 import {
   buildClientToolRelay,
   createToolCallCorrelationIndex,
   emitClientToolInteraction,
+  relayWritesPausedAnswer,
 } from "../../src/engines/sandbox_agent/client-tools.ts";
+
+describe("relayWritesPausedAnswer (client-tool pause disposition)", () => {
+  it("only the cold-acknowledge disposition writes the paused answer", () => {
+    // The single derived switch the relay consumes. The exhaustive mapping is what keeps the
+    // reserved warm hold from silently being treated as cold.
+    assert.equal(relayWritesPausedAnswer("cold-acknowledge"), true);
+    assert.equal(relayWritesPausedAnswer("pi-native"), false);
+    assert.equal(relayWritesPausedAnswer("warm-hold"), false);
+  });
+});
 
 function responderReturning(verdict: ClientToolVerdict): Responder {
   return {
@@ -36,7 +46,7 @@ function responderReturning(verdict: ClientToolVerdict): Responder {
   };
 }
 
-/** A seam harness: fake pause controller + latch + captured events/interactions. */
+/** A seam harness: fake pause controller + captured events/interactions. */
 function seam(verdict: ClientToolVerdict, opts: { index?: boolean } = {}) {
   const events: AgentEvent[] = [];
   const pausedToolCalls: string[] = [];
@@ -46,7 +56,6 @@ function seam(verdict: ClientToolVerdict, opts: { index?: boolean } = {}) {
   const relay = buildClientToolRelay({
     responder: responderReturning(verdict),
     run: { emitEvent: (e) => events.push(e) },
-    latch: new PendingApprovalLatch(),
     pause: {
       markPausedToolCall: (id) => pausedToolCalls.push(id),
       pause: () => {
@@ -316,7 +325,6 @@ describe("buildClientToolRelay", () => {
         },
       },
       run: { emitEvent: () => {} },
-      latch: new PendingApprovalLatch(),
       pause: { markPausedToolCall: () => {}, pause: () => {} },
       recordPendingInteraction: () => {},
     });
@@ -382,7 +390,6 @@ describe("buildClientToolRelay with the real responder (history-driven)", () => 
     const relay = buildClientToolRelay({
       responder,
       run: { emitEvent: (e) => events.push(e) },
-      latch: new PendingApprovalLatch(),
       pause: { markPausedToolCall: (id) => paused.push(id), pause: () => {} },
       recordPendingInteraction: () => {},
     });

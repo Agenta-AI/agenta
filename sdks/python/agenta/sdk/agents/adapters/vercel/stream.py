@@ -236,7 +236,21 @@ async def _agent_run_to_vercel_parts_impl(
                 # and the client throws. The commit-revision side-channel below is a plain
                 # data event, not a tool-result envelope, so it fires regardless.
                 has_tool_part = tool_call_id in seen_tool_calls
-                if has_tool_part and data.get("isError"):
+                if has_tool_part and data.get("denied"):
+                    # A user/policy DENIAL of a gated call. The runner stamps `denied` on the
+                    # closing result (which still rides `isError`, since the harness closes a
+                    # denied call as a failed tool call), so project the AI SDK's dedicated
+                    # `tool-output-denied` chunk — a decline the FE renders differently from a
+                    # breakage. That chunk is a strict object of ONLY `type` + `toolCallId`
+                    # (ai@6 uiMessageChunkSchema), so it carries no errorText/output.
+                    denied_part = {
+                        "type": "tool-output-denied",
+                        "toolCallId": tool_call_id,
+                    }
+                    if _conform(denied_part) is not None:
+                        content_parts_emitted += 1
+                    yield denied_part
+                elif has_tool_part and data.get("isError"):
                     error_part = {
                         "type": "tool-output-error",
                         "toolCallId": tool_call_id,
@@ -502,7 +516,21 @@ async def _agent_stream_to_vercel_stream_impl(
                 # and the client throws. The commit-revision side-channel below is a plain
                 # data event, not a tool-result envelope, so it fires regardless.
                 has_tool_part = tool_call_id in seen_tool_calls
-                if has_tool_part and data.get("isError"):
+                if has_tool_part and data.get("denied"):
+                    # A user/policy DENIAL of a gated call. The runner stamps `denied` on the
+                    # closing result (which still rides `isError`, since the harness closes a
+                    # denied call as a failed tool call), so project the AI SDK's dedicated
+                    # `tool-output-denied` chunk — a decline the FE renders differently from a
+                    # breakage. That chunk is a strict object of ONLY `type` + `toolCallId`
+                    # (ai@6 uiMessageChunkSchema), so it carries no errorText/output.
+                    denied_part = {
+                        "type": "tool-output-denied",
+                        "toolCallId": tool_call_id,
+                    }
+                    if _conform(denied_part) is not None:
+                        content_parts_emitted += 1
+                    yield denied_part
+                elif has_tool_part and data.get("isError"):
                     error_part = {
                         "type": "tool-output-error",
                         "toolCallId": tool_call_id,

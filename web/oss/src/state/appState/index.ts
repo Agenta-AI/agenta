@@ -14,6 +14,7 @@ export {parseRouterState} from "./parse"
 export {
     appStateSnapshotAtom,
     appIdentifiersAtom,
+    appAsPathAtom,
     routeLayerAtom,
     setLocationAtom,
     navigationRequestAtom,

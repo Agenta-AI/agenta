@@ -513,10 +513,13 @@ export function startToolRelay(
   runContext?: RunContext,
   clientToolRelay?: ClientToolRelay,
   guard?: RelayExecutionGuard,
-  opts?: { log?: (msg: string) => void },
+  opts?: { log?: (msg: string) => void; writePausedAnswer?: boolean },
 ): { ready: Promise<void>; stop: () => Promise<void> } {
   let active = true;
   const log = opts?.log ?? (() => {});
+  // Single switch between the two pause outcomes; defaults OFF so an un-flagged caller keeps Pi's
+  // write-no-answer behavior.
+  const writePausedAnswer = opts?.writePausedAnswer ?? false;
   // Telemetry gate: without a log sink there is nowhere for pickup_ms to go, so the
   // stat (a daemon round-trip on Daytona) is skipped entirely.
   const telemetry = opts?.log !== undefined;
@@ -561,8 +564,15 @@ export function startToolRelay(
         clientToolRelay,
         guard,
       );
-      if (text === PAUSED) return;
-      res = { ok: true, text };
+      if (text === PAUSED) {
+        // A client tool parked. Pi writes no answer; the non-Pi shim gets a benign paused answer so
+        // it ends its blocking `tools/call` at once instead of waiting out the per-tool timeout and
+        // emitting a late error frame (see ClientToolPauseDisposition).
+        if (!writePausedAnswer) return;
+        res = { ok: true, paused: true };
+      } else {
+        res = { ok: true, text };
+      }
     } catch (err) {
       res = {
         ok: false,
