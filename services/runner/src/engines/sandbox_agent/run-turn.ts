@@ -414,7 +414,9 @@ export async function runTurn(
           if (pause.active) {
             run.settleOpenToolCalls(
               (id) =>
-                pause.isPausedToolCall(id) || pause.isAllowedExecution(id),
+                pause.isPausedToolCall(id) || 
+            pause.isAllowedExecution(id) || 
+            pause.isInFlightPermission(id),
               TOOL_NOT_EXECUTED_PAUSED,
             );
           }
@@ -582,6 +584,7 @@ export async function runTurn(
       serverPermissions,
       log: logger,
       onPause: () => pause.pause(),
+      onPermissionRequestStarted: (id) => pause.markPermissionRequestStarted(id),
       onPausedToolCall: (id) => pause.markPausedToolCall(id),
       onAllowedExecution: (id) => pause.markAllowedExecution(id),
       onAnsweredDeny: (id) => pause.markAnsweredDeny(id),

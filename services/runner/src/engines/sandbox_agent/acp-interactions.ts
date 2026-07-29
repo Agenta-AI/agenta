@@ -35,6 +35,7 @@ export interface PiToolSpecMeta {
 }
 
 export interface AttachPermissionResponderInput {
+  onPermissionRequestStarted?: (toolCallId: string) => void;
   session: any;
   run: {
     emitEvent: (event: AgentEvent) => void;
@@ -125,6 +126,7 @@ export function attachPermissionResponder({
   onPause,
   log,
   onPausedToolCall,
+  onPermissionRequestStarted,
   onAllowedExecution,
   onAnsweredDeny,
   onNonParkablePause,
@@ -367,6 +369,9 @@ export function attachPermissionResponder({
           }),
       );
     }
+    if (envelope.toolCallId) {
+      onPermissionRequestStarted?.(envelope.toolCallId);
+    }
     const verdict = await responder.onPermission({
       id,
       availableReplies,
@@ -462,6 +467,11 @@ export function attachPermissionResponder({
       return;
     }
 
+    const toolCallId = stringValue(toolCall?.toolCallId);
+    if (toolCallId) {
+      onPermissionRequestStarted?.(toolCallId);
+    }
+
     const verdict = await responder.onPermission({
       id,
       availableReplies,
@@ -476,7 +486,7 @@ export function attachPermissionResponder({
       id,
       verdict.kind,
       availableReplies,
-      stringValue(toolCall?.toolCallId),
+      toolCallId,
       verdict.interactionToken,
     );
   }

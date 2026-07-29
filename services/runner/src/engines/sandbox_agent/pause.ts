@@ -13,6 +13,7 @@ const EVENT_DRAIN_MAX_TICKS = 6;
 
 export class PendingApprovalPauseController {
   private pendingApproval = false;
+  private readonly inFlightPermissionToolCallIds = new Set<string>();
   private readonly pausedToolCallIds = new Set<string>();
   private readonly allowedExecutionToolCallIds = new Set<string>();
   private readonly answeredDenyToolCallIds = new Set<string>();
@@ -72,23 +73,40 @@ export class PendingApprovalPauseController {
    * last word for the call this turn. Later harness frames for the same id are teardown artifacts
    * from cancellation/session disposal and must not reach the event stream.
    */
-  markPausedToolCall(toolCallId: string): void {
-    if (!toolCallId) return;
-    const added = !this.pausedToolCallIds.has(toolCallId);
-    this.pausedToolCallIds.add(toolCallId);
-    // A late gate must extend terminalization long enough for its paused classification to land.
-    if (this.pendingApproval && added) this.gateClassificationVersion += 1;
+ markPausedToolCall(toolCallId: string): void {
+  if (!toolCallId) return;
+
+  this.inFlightPermissionToolCallIds.delete(toolCallId);
+
+  const added = !this.pausedToolCallIds.has(toolCallId);
+  this.pausedToolCallIds.add(toolCallId);
+
+  if (this.pendingApproval && added) {
+    this.gateClassificationVersion += 1;
+  }
+}
+
+  markPermissionRequestStarted(toolCallId: string): void {
+    if (toolCallId) {
+      this.inFlightPermissionToolCallIds.add(toolCallId);
+    }
   }
 
+  isInFlightPermission(toolCallId: string | undefined): boolean {
+    return toolCallId !== undefined && this.inFlightPermissionToolCallIds.has(toolCallId);
+  }
   isPausedToolCall(toolCallId: string | undefined): boolean {
     return toolCallId !== undefined && this.pausedToolCallIds.has(toolCallId);
   }
 
   /** Record that this turn answered allow for the call, so pause cleanup preserves its result. */
   markAllowedExecution(toolCallId: string): void {
-    if (!toolCallId) return;
-    this.allowedExecutionToolCallIds.add(toolCallId);
-  }
+  if (!toolCallId) return;
+
+  this.inFlightPermissionToolCallIds.delete(toolCallId);
+
+  this.allowedExecutionToolCallIds.add(toolCallId);
+}
 
   /** Record an answered deny so its authoritative failed frame survives a sibling pause. */
   markAnsweredDeny(toolCallId: string): void {
