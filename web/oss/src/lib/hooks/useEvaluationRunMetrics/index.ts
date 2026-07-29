@@ -39,7 +39,9 @@ const useEvaluationRunMetrics = (
             const sorted = [...runIds].sort()
             sorted.forEach((id) => queryParams.append("run_ids", id))
         } else {
-            queryParams.append("run_ids", runIds)
+            // Reached with a plain string, or an empty string[] (which URLSearchParams
+            // coerces to "" and the swrKey filter drops) — typed as-is per WP-4e-2a.
+            queryParams.append("run_ids", runIds as string)
         }
     }
     if (options?.limit !== undefined) {
@@ -75,10 +77,11 @@ const useEvaluationRunMetrics = (
         next?: string
     }>(swrKey, fetcher)
 
-    // Convert raw MetricResponse[] to camelCase Metric[]
+    // Latent bug typed as-is per WP-4e-2a: the "conversion" is an identity map, so the
+    // values keep their snake_case keys at runtime despite the camelCase Metric type.
     const rawMetrics = swrData.data?.metrics
     const camelMetrics: Metric[] | undefined = rawMetrics
-        ? rawMetrics.map((item) => item)
+        ? (rawMetrics.map((item) => item) as unknown as Metric[])
         : undefined
 
     const totalCount = swrData.data?.count

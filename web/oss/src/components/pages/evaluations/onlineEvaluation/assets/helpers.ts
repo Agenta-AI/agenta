@@ -1,5 +1,5 @@
 import {inferReferenceOptionKey} from "@/oss/components/pages/observability/assets/filters/referenceUtils"
-import type {Filter, FilterConditions} from "@/oss/lib/Types"
+import type {Filter, FilterConditions, FilterValue} from "@/oss/lib/Types"
 
 import type {
     QueryConditionPayload,
@@ -81,15 +81,17 @@ export const fromFilteringPayload = (payload?: QueryFilteringPayload | null): Fi
     return collectConditions(payload).map((condition) => {
         const rawOperator = (condition.operator ?? "is").trim()
         const operator = (rawOperator || "is") as FilterConditions
+        // Wire payload declares value as unknown; trusted as FilterValue at this boundary
+        const value = condition.value as FilterValue
         const key =
             condition.field === "references"
-                ? inferReferenceOptionKey(condition.value, condition.key)
+                ? inferReferenceOptionKey(value, condition.key)
                 : condition.key
         return {
             field: (condition.field ?? condition.key ?? "") as string,
             key,
             operator,
-            value: condition.value,
+            value,
         }
     })
 }

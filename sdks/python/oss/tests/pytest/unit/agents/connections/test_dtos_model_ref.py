@@ -11,7 +11,7 @@ from __future__ import annotations
 from agenta.sdk.agents import (
     AgentTemplate,
     Connection,
-    HarnessType,
+    HarnessKind,
     Message,
     ModelRef,
     PiAgentTemplate,
@@ -105,7 +105,7 @@ def test_wire_model_ref_emits_self_managed_connection_without_slug():
 def test_string_only_config_wire_has_no_new_keys():
     # The whole point of Slice 1: a string-only config's payload gains no new keys.
     payload = request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=PiAgentTemplate(model="openai-codex/gpt-5.5"),
         messages=[Message(role="user", content="hi")],
@@ -117,7 +117,7 @@ def test_string_only_config_wire_has_no_new_keys():
 
 def test_structured_config_wire_carries_provider_and_connection():
     payload = request_to_wire(
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=PiAgentTemplate(
             model={
