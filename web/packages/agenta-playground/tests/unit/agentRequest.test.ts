@@ -47,6 +47,7 @@ import {
     workflowBuildKitEnabledAtomFamily,
     workflowMolecule,
 } from "@agenta/entities/workflow"
+import {processEnv} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 
 import {
@@ -60,6 +61,10 @@ import {executionHeadersAtom} from "../../src/state/execution/webWorkerIntegrati
 const REAL_APP = "11111111-1111-4111-8111-111111111111"
 const REAL_VARIANT = "22222222-2222-4222-8222-222222222222"
 const REAL_REV = "33333333-3333-4333-8333-333333333333"
+
+type TestRuntimeGlobal = typeof globalThis & {
+    __env?: Record<string, string>
+}
 
 const set = (store: any, sel: any, id: string, value: unknown) =>
     store.set(sel(id) as PrimitiveAtom<unknown>, value)
@@ -184,10 +189,12 @@ describe("buildAgentRequest", () => {
 
         // Runtime override path (getEnv checks globalThis.__env before the build-time snapshot).
         const setFlag = (value: string) => {
-            ;(globalThis as any).__env = {NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY: value}
+            ;(globalThis as TestRuntimeGlobal).__env = {
+                NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY: value,
+            }
         }
         afterEach(() => {
-            delete (globalThis as any).__env
+            delete (globalThis as TestRuntimeGlobal).__env
         })
 
         const outMessages = async (msgs: unknown[], sessionId = "s1") => {
@@ -206,12 +213,23 @@ describe("buildAgentRequest", () => {
         })
 
         it('an empty value (compose "${VAR:-}" passthrough) keeps the default on', async () => {
+            const buildTimeValue = processEnv.NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY
+            processEnv.NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY = "false"
             setFlag("")
-            expect(await outMessages([u1, a1, u2])).toEqual([u2])
+            try {
+                expect(await outMessages([u1, a1, u2])).toEqual([u2])
+            } finally {
+                processEnv.NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY = buildTimeValue
+            }
         })
 
         it('sends the full history when explicitly disabled ("false")', async () => {
             setFlag("false")
+            expect(await outMessages([u1, a1, u2])).toEqual([u1, a1, u2])
+        })
+
+        it("treats trimmed, case-insensitive false as disabled", async () => {
+            setFlag(" FALSE ")
             expect(await outMessages([u1, a1, u2])).toEqual([u1, a1, u2])
         })
 

@@ -49,7 +49,7 @@ export const processEnv = {
 export const getEnv = (envKey: string): string => {
     // Check for runtime config first (browser/worker)
     const runtimeEnv = (globalThis as RuntimeGlobal).__env
-    if (runtimeEnv && Object.keys(runtimeEnv).length > 0 && runtimeEnv[envKey]) {
+    if (runtimeEnv && Object.prototype.hasOwnProperty.call(runtimeEnv, envKey)) {
         return runtimeEnv[envKey]
     }
 
