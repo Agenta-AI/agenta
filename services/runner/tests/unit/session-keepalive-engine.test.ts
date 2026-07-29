@@ -19,10 +19,12 @@ import {
   runTurn,
   type SandboxAgentDeps,
 } from "../../src/engines/sandbox_agent.ts";
+import { SessionContinuityStore } from "../../src/engines/sandbox_agent/session-continuity.ts";
 
 interface FakeOptions {
   probeError?: Error;
   createOtelError?: Error;
+  stopReasons?: string[];
 }
 
 /** One fake otel run per createOtel call, recording which updates it handled. */
@@ -40,9 +42,14 @@ function fakeHarness(options: FakeOptions = {}) {
     sandboxDisposed: 0,
     sessionDestroyed: 0,
     permissionReplies: [] as Array<{ id: string; reply: string }>,
+    startedTurnIndexes: [] as number[],
+    completedTurnIndexes: [] as number[],
+    startedTurns: [] as Array<Record<string, unknown>>,
+    ledgerRows: new Map<number, { startTime?: string; endTime?: string }>(),
     logs: [] as string[],
     runs: [] as FakeRun[],
   };
+  const continuityStore = new SessionContinuityStore();
 
   // Captured session-lifetime handlers, so tests can fire events/permissions at any moment
   // (during a turn, between turns).
@@ -53,6 +60,7 @@ function fakeHarness(options: FakeOptions = {}) {
 
   const session = {
     id: "session-1",
+    agentSessionId: "agent-session-1",
     onEvent(handler: (event: any) => void) {
       captured.onEvent = handler;
     },
@@ -65,7 +73,7 @@ function fakeHarness(options: FakeOptions = {}) {
     async prompt(_blocks: any) {
       calls.promptCount += 1;
       return {
-        stopReason: "complete",
+        stopReason: options.stopReasons?.[calls.promptCount - 1] ?? "complete",
         usage: { inputTokens: 1, outputTokens: 1 },
       };
     },
@@ -116,11 +124,26 @@ function fakeHarness(options: FakeOptions = {}) {
       },
       settleOpenToolCalls() {},
       traceId() {
-        return "trace-1";
+        return "0123456789abcdef0123456789abcdef";
       },
     };
     calls.runs.push(run);
     return run;
+  };
+
+  const sessionTurnClient: NonNullable<
+    SandboxAgentDeps["appendSessionTurn"]
+  > = async (_sessionId, _harness, turnIndex, turn) => {
+    calls.startedTurnIndexes.push(turnIndex);
+    calls.startedTurns.push({ ...turn });
+    if (!calls.ledgerRows.has(turnIndex)) {
+      calls.ledgerRows.set(turnIndex, { startTime: turn.startTime });
+    }
+  };
+  sessionTurnClient.complete = async (_sessionId, turnIndex, turn) => {
+    calls.completedTurnIndexes.push(turnIndex);
+    const row = calls.ledgerRows.get(turnIndex);
+    if (row && !row.endTime) row.endTime = turn.endTime;
   };
 
   const deps: SandboxAgentDeps = {
@@ -163,6 +186,9 @@ function fakeHarness(options: FakeOptions = {}) {
         return { kind: "deny" } as const;
       },
     }),
+    sessionContinuityStore: continuityStore,
+    hydrateHarnessSessionFromDurable: async () => {},
+    appendSessionTurn: sessionTurnClient,
   };
 
   return { calls, deps, captured };
@@ -171,6 +197,22 @@ function fakeHarness(options: FakeOptions = {}) {
 const request: AgentRunRequest = {
   harness: "claude",
   messages: [{ role: "user", content: "hello" }],
+};
+
+const continuityRequest: AgentRunRequest = {
+  ...request,
+  sessionId: "sess-1",
+  streamId: "stream-1",
+  turnId: "turn-execution-1",
+  runContext: {
+    trace: {
+      trace_id: "0123456789abcdef0123456789abcdef",
+      span_id: "a1b2c3d4e5f6a7b8",
+    },
+  },
+  telemetry: {
+    exporters: { otlp: { headers: { authorization: "ApiKey abc" } } },
+  } as any,
 };
 
 function updateEvent(update: Record<string, unknown>) {
@@ -279,6 +321,104 @@ describe("acquireEnvironment / runTurn split", () => {
     assert.equal(calls.sandboxDestroyed, 0);
     await acquired.env.destroy();
     assert.equal(calls.sandboxDestroyed, 1);
+  });
+});
+
+describe("conversation turn indexes", () => {
+  it("advances on every completed turn served by the same warm environment", async () => {
+    const { calls, deps } = fakeHarness();
+    const acquired = await acquireEnvironment(continuityRequest, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    for (let turn = 0; turn < 4; turn += 1) {
+      const result = await runTurn(
+        acquired.env,
+        {
+          ...continuityRequest,
+          messages: [{ role: "user", content: "turn " + turn }],
+        },
+        undefined,
+        undefined,
+        { continuation: turn > 0 },
+      );
+      assert.equal(result.ok, true);
+    }
+
+    assert.deepEqual(calls.startedTurnIndexes, [0, 1, 2, 3]);
+    assert.deepEqual(calls.completedTurnIndexes, [0, 1, 2, 3]);
+    await acquired.env.destroy();
+  });
+
+  it("shares strictly increasing indexes across two environments for one session", async () => {
+    const { calls, deps } = fakeHarness({
+      stopReasons: ["paused", "complete", "complete", "complete"],
+    });
+    const first = await acquireEnvironment(continuityRequest, deps);
+    const second = await acquireEnvironment(continuityRequest, deps);
+    assert.equal(first.ok, true);
+    assert.equal(second.ok, true);
+    if (!first.ok || !second.ok) return;
+
+    const parked = await runTurn(
+      first.env,
+      continuityRequest,
+      undefined,
+      undefined,
+      {},
+    );
+    assert.equal(parked.stopReason, "paused");
+    await runTurn(second.env, continuityRequest, undefined, undefined, {});
+    await runTurn(first.env, continuityRequest, undefined, undefined, {
+      continuation: true,
+    });
+    await runTurn(second.env, continuityRequest, undefined, undefined, {
+      continuation: true,
+    });
+
+    assert.deepEqual(calls.startedTurnIndexes, [0, 0, 1, 2]);
+    assert.deepEqual(calls.completedTurnIndexes, [0, 1, 2]);
+    await first.env.destroy();
+    await second.env.destroy();
+  });
+
+  it("starts a paused turn once across resume and completes that ledger row", async () => {
+    const { calls, deps } = fakeHarness({
+      stopReasons: ["paused", "complete"],
+    });
+    const acquired = await acquireEnvironment(continuityRequest, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    const parked = await runTurn(
+      acquired.env,
+      continuityRequest,
+      undefined,
+      undefined,
+      {},
+    );
+    assert.equal(parked.stopReason, "paused");
+    assert.deepEqual(calls.startedTurnIndexes, [0]);
+    assert.deepEqual(calls.completedTurnIndexes, []);
+    assert.equal(calls.ledgerRows.size, 1);
+    assert.equal(typeof calls.startedTurns[0]["startTime"], "string");
+    assert.equal(calls.startedTurns[0]["traceId"], "0123456789abcdef0123456789abcdef");
+    assert.equal(calls.startedTurns[0]["spanId"], "a1b2c3d4e5f6a7b8");
+    assert.equal(calls.startedTurns[0]["turnId"], "turn-execution-1");
+
+    const resumed = await runTurn(
+      acquired.env,
+      continuityRequest,
+      undefined,
+      undefined,
+      { continuation: true },
+    );
+    assert.equal(resumed.ok, true);
+    assert.deepEqual(calls.startedTurnIndexes, [0, 0]);
+    assert.deepEqual(calls.completedTurnIndexes, [0]);
+    assert.equal(calls.ledgerRows.size, 1);
+    assert.equal(typeof calls.ledgerRows.get(0)?.endTime, "string");
+    await acquired.env.destroy();
   });
 });
 

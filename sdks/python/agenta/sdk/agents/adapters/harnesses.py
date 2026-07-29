@@ -26,7 +26,7 @@ from agenta.sdk.utils.logging import get_module_logger
 from ..dtos import (
     AgentaAgentTemplate,
     ClaudeAgentTemplate,
-    HarnessType,
+    HarnessKind,
     PiAgentTemplate,
     SessionConfig,
 )
@@ -56,7 +56,7 @@ def _normalize_tool_specs(specs: List[Dict[str, Any]]) -> List[ToolSpec]:
 
 
 class PiHarness(Harness):
-    harness_type = HarnessType.PI
+    harness_type = HarnessKind.PI
 
     def _to_harness_config(self, config: SessionConfig) -> PiAgentTemplate:
         # Pi delivers tools natively: built-in names plus resolved specs registered through
@@ -86,7 +86,7 @@ class PiHarness(Harness):
 
 
 class ClaudeHarness(Harness):
-    harness_type = HarnessType.CLAUDE
+    harness_type = HarnessKind.CLAUDE
 
     def _to_harness_config(self, config: SessionConfig) -> ClaudeAgentTemplate:
         # Claude has no Pi built-in tools; drop them rather than ship a name Claude cannot
@@ -125,7 +125,7 @@ class AgentaHarness(Harness):
     forced platform skill(s) are unioned in (de-duped by name) so a custom config that drops the
     default template's ``_agenta`` embed still carries the platform skill."""
 
-    harness_type = HarnessType.AGENTA
+    harness_type = HarnessKind.AGENTA
 
     def _to_harness_config(self, config: SessionConfig) -> AgentaAgentTemplate:
         # The author's Pi options still apply; the pi_agenta harness reads the same harness
@@ -153,15 +153,15 @@ class AgentaHarness(Harness):
         )
 
 
-_HARNESSES: Dict[HarnessType, Type[Harness]] = {
-    HarnessType.PI: PiHarness,
-    HarnessType.CLAUDE: ClaudeHarness,
-    HarnessType.AGENTA: AgentaHarness,
+_HARNESSES: Dict[HarnessKind, Type[Harness]] = {
+    HarnessKind.PI: PiHarness,
+    HarnessKind.CLAUDE: ClaudeHarness,
+    HarnessKind.AGENTA: AgentaHarness,
 }
 
 
 def make_harness(
-    harness_type: "HarnessType | str", environment: Environment
+    harness_type: "HarnessKind | str", environment: Environment
 ) -> Harness:
     """Construct the Harness for a harness type over an environment.
 
@@ -169,7 +169,7 @@ def make_harness(
     :class:`~agenta.sdk.agents.errors.UnsupportedHarnessError` if the environment's backend
     cannot drive it.
     """
-    resolved = HarnessType.coerce(harness_type)
+    resolved = HarnessKind.coerce(harness_type)
     try:
         cls = _HARNESSES[resolved]
     except KeyError as exc:

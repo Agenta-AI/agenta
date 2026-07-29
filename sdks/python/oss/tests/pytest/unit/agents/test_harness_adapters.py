@@ -19,7 +19,7 @@ from agenta.sdk.agents import (
     ClaudeAgentTemplate,
     ClaudeHarness,
     ClientToolSpec,
-    HarnessType,
+    HarnessKind,
     PiAgentTemplate,
     PiHarness,
     SessionConfig,
@@ -50,7 +50,7 @@ def _session_config(**kwargs) -> SessionConfig:
 
 
 def test_pi_keeps_builtins_and_native_tools(make_env):
-    harness = PiHarness(make_env(supported=[HarnessType.PI]))
+    harness = PiHarness(make_env(supported=[HarnessKind.PI]))
     config = _session_config(
         builtin_tools=["read", "write"],
         custom_tools=[{"name": "t", "callRef": "ref"}],
@@ -75,7 +75,7 @@ def test_pi_threads_model_ref_so_connection_reaches_wire(make_env):
     and the runner never sees the connection slug, so it cannot build its ``models.json`` plan
     for an OpenAI-compatible custom connection (the run then falls back to a default provider).
     """
-    harness = PiHarness(make_env(supported=[HarnessType.PI]))
+    harness = PiHarness(make_env(supported=[HarnessKind.PI]))
     agent = AgentTemplate(
         instructions="hi",
         model={
@@ -97,7 +97,7 @@ def test_pi_threads_model_ref_so_connection_reaches_wire(make_env):
 
 def test_agenta_threads_model_ref_so_connection_reaches_wire(make_env):
     """Same guarantee as Pi for the ``pi_agenta`` harness (it also runs Pi)."""
-    harness = AgentaHarness(make_env(supported=[HarnessType.AGENTA]))
+    harness = AgentaHarness(make_env(supported=[HarnessKind.AGENTA]))
     agent = AgentTemplate(
         instructions="hi",
         model={
@@ -116,7 +116,7 @@ def test_agenta_threads_model_ref_so_connection_reaches_wire(make_env):
 
 
 def test_pi_reads_its_harness_extras_slice(make_env):
-    harness = PiHarness(make_env(supported=[HarnessType.PI]))
+    harness = PiHarness(make_env(supported=[HarnessKind.PI]))
     agent = AgentTemplate(
         instructions="hi",
         harness_extras={"system": "You are Pi.", "append_system": "Be terse."},
@@ -135,7 +135,7 @@ def test_pi_reads_its_harness_extras_slice(make_env):
 
 
 def test_pi_drops_blank_harness_extras(make_env):
-    harness = PiHarness(make_env(supported=[HarnessType.PI]))
+    harness = PiHarness(make_env(supported=[HarnessKind.PI]))
     agent = AgentTemplate(
         instructions="hi",
         harness_extras={"system": "   ", "append_system": ""},
@@ -152,7 +152,7 @@ def test_pi_drops_blank_harness_extras(make_env):
 
 
 def test_agenta_forces_tools_preamble_and_persona_and_carries_skills(make_env):
-    harness = AgentaHarness(make_env(supported=[HarnessType.AGENTA]))
+    harness = AgentaHarness(make_env(supported=[HarnessKind.AGENTA]))
     skill = {
         "name": "release-notes",
         "description": "Draft release notes.",
@@ -194,7 +194,7 @@ def test_agenta_forces_tools_preamble_and_persona_and_carries_skills(make_env):
 def test_agenta_forces_platform_skill_on_a_skill_less_config(make_env):
     # The actually-forced behavior: a custom pi_agenta config with NO skills (the default
     # template's `_agenta` embed dropped) still carries the platform skill on every run.
-    harness = AgentaHarness(make_env(supported=[HarnessType.AGENTA]))
+    harness = AgentaHarness(make_env(supported=[HarnessKind.AGENTA]))
     config = _session_config(
         agent=AgentTemplate(instructions="My project rules.", model="m", skills=[])
     )
@@ -207,7 +207,7 @@ def test_agenta_forces_platform_skill_on_a_skill_less_config(make_env):
 def test_agenta_does_not_duplicate_an_already_present_platform_skill(make_env):
     # A config that already carries the resolved platform skill (e.g. via the default template's
     # embed) is not doubled: the author's copy wins on the name clash.
-    harness = AgentaHarness(make_env(supported=[HarnessType.AGENTA]))
+    harness = AgentaHarness(make_env(supported=[HarnessKind.AGENTA]))
     existing = GETTING_STARTED_WITH_AGENTA_SKILL.model_dump(mode="json")
     config = _session_config(
         agent=AgentTemplate(instructions="hi", model="m", skills=[existing])
@@ -235,7 +235,7 @@ def test_force_skills_unions_forced_after_author_skills():
 
 
 def test_agenta_forces_tools_without_duplicates(make_env):
-    harness = AgentaHarness(make_env(supported=[HarnessType.AGENTA]))
+    harness = AgentaHarness(make_env(supported=[HarnessKind.AGENTA]))
     # `read` already configured: it must not be duplicated when forced.
     config = _session_config(builtin_tools=["read"])
 
@@ -245,7 +245,7 @@ def test_agenta_forces_tools_without_duplicates(make_env):
 
 
 def test_agenta_passes_through_user_pi_options(make_env):
-    harness = AgentaHarness(make_env(supported=[HarnessType.AGENTA]))
+    harness = AgentaHarness(make_env(supported=[HarnessKind.AGENTA]))
     agent = AgentTemplate(
         instructions="hi",
         harness_extras={"system": "You are Pi.", "append_system": "Be terse."},
@@ -265,7 +265,7 @@ def test_agenta_is_sandbox_agent_supported():
     # `agenta` run on a non-local sandbox (e.g. daytona) instead of raising.
     from agenta.sdk.agents import SandboxAgentBackend
 
-    assert SandboxAgentBackend(url="http://runner").supports(HarnessType.AGENTA)
+    assert SandboxAgentBackend(url="http://runner").supports(HarnessKind.AGENTA)
 
 
 # ------------------------------------------------------------------------- Claude
@@ -278,7 +278,7 @@ def test_claude_drops_builtins_and_warns(make_env, monkeypatch):
         "log",
         type("L", (), {"warning": lambda self, *a, **k: recorded.append(a)})(),
     )
-    harness = ClaudeHarness(make_env(supported=[HarnessType.CLAUDE]))
+    harness = ClaudeHarness(make_env(supported=[HarnessKind.CLAUDE]))
     config = _session_config(
         builtin_tools=["read"],
         custom_tools=[{"name": "t", "callRef": "ref"}],
@@ -295,7 +295,7 @@ def test_claude_drops_builtins_and_warns(make_env, monkeypatch):
 
 
 def test_claude_carries_skills_for_project_local_materialization(make_env):
-    harness = ClaudeHarness(make_env(supported=[HarnessType.CLAUDE]))
+    harness = ClaudeHarness(make_env(supported=[HarnessKind.CLAUDE]))
     skill = {
         "name": "release-notes",
         "description": "Draft release notes.",
@@ -320,7 +320,7 @@ def test_claude_no_warning_without_builtins(make_env, monkeypatch):
         "log",
         type("L", (), {"warning": lambda self, *a, **k: recorded.append(a)})(),
     )
-    harness = ClaudeHarness(make_env(supported=[HarnessType.CLAUDE]))
+    harness = ClaudeHarness(make_env(supported=[HarnessKind.CLAUDE]))
 
     harness._to_harness_config(_session_config(permission_default="allow_reads"))
 
@@ -330,7 +330,7 @@ def test_claude_no_warning_without_builtins(make_env, monkeypatch):
 def test_claude_threads_permissions_and_renders_settings_file(make_env):
     import json
 
-    harness = ClaudeHarness(make_env(supported=[HarnessType.CLAUDE]))
+    harness = ClaudeHarness(make_env(supported=[HarnessKind.CLAUDE]))
     permissions = {
         "default_mode": "acceptEdits",
         "allow": ["Read"],
@@ -355,7 +355,7 @@ def test_claude_threads_permissions_and_renders_settings_file(make_env):
 
 
 def test_claude_without_permissions_renders_no_files(make_env):
-    harness = ClaudeHarness(make_env(supported=[HarnessType.CLAUDE]))
+    harness = ClaudeHarness(make_env(supported=[HarnessKind.CLAUDE]))
 
     result = harness._to_harness_config(_session_config())
 
@@ -390,7 +390,7 @@ def test_compat_normalize_tool_specs_returns_typed_specs():
 
 
 def test_harness_accepts_typed_tool_specs_without_normalizing_dicts(make_env):
-    harness = PiHarness(make_env(supported=[HarnessType.PI]))
+    harness = PiHarness(make_env(supported=[HarnessKind.PI]))
     spec = ClientToolSpec(name="pick", description="Pick")
     result = harness._to_harness_config(_session_config(tool_specs=[spec]))
     assert result.tool_specs == [spec]
@@ -413,24 +413,24 @@ def test_opt_str_keeps_only_nonempty_strings():
 
 
 def test_make_harness_maps_string_to_class(make_env):
-    env = make_env(supported=[HarnessType.PI, HarnessType.CLAUDE, HarnessType.AGENTA])
+    env = make_env(supported=[HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.AGENTA])
     assert isinstance(make_harness("pi_core", env), PiHarness)
     assert isinstance(
         make_harness("PI_CORE", env), PiHarness
     )  # coerced, case-insensitive
     assert isinstance(make_harness("claude", env), ClaudeHarness)
-    assert isinstance(make_harness(HarnessType.CLAUDE, env), ClaudeHarness)
+    assert isinstance(make_harness(HarnessKind.CLAUDE, env), ClaudeHarness)
     assert isinstance(make_harness("pi_agenta", env), AgentaHarness)
-    assert isinstance(make_harness(HarnessType.AGENTA, env), AgentaHarness)
+    assert isinstance(make_harness(HarnessKind.AGENTA, env), AgentaHarness)
 
 
 def test_make_harness_unsupported_backend_raises(make_env):
-    env = make_env(supported=[HarnessType.PI])  # backend cannot drive Claude
+    env = make_env(supported=[HarnessKind.PI])  # backend cannot drive Claude
     with pytest.raises(UnsupportedHarnessError):
         make_harness("claude", env)
 
 
 def test_make_harness_unknown_name_raises(make_env):
-    env = make_env(supported=[HarnessType.PI])
+    env = make_env(supported=[HarnessKind.PI])
     with pytest.raises(ValueError):
         make_harness("bogus", env)

@@ -17,10 +17,13 @@ const EnhancedDrawer = ({
 
     const drawerStyles = useMemo(() => {
         if (!width) return styles
+        // antd v6 `styles` may also be a resolver function; spreading it has always dropped the
+        // function form, so the width merge only ever applied to the object form (typed as-is)
+        const baseStyles = typeof styles === "function" ? undefined : styles
         return {
-            ...styles,
+            ...baseStyles,
             wrapper: {
-                ...styles?.wrapper,
+                ...baseStyles?.wrapper,
                 width,
             },
         }

@@ -71,7 +71,12 @@ const UseApiContent = ({
     )
 
     const params = useMemo(() => {
-        const synthesized = variableNames.map((name) => ({name, input: name === "messages"}))
+        const synthesized = variableNames.map((name) => ({
+            name,
+            type: "string",
+            input: name === "messages",
+            required: true,
+        }))
 
         return createParams(synthesized, envName || "none", "add_a_value", currentApp, {
             flags: {is_chat: isChat},

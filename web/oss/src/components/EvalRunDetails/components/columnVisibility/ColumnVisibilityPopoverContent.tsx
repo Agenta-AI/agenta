@@ -19,7 +19,7 @@ import {buildSkeletonColumnResult} from "../../utils/buildSkeletonColumns"
 import {resolveGroupLabel, humanizeStepKey, titleize} from "../../utils/labelHelpers"
 import StepGroupHeader from "../TableHeaders/StepGroupHeader"
 
-type EvaluationType = "auto" | "human"
+type EvaluationType = "auto" | "human" | "online"
 
 interface ScenarioColumnVisibilityPopoverContentProps {
     runId: string

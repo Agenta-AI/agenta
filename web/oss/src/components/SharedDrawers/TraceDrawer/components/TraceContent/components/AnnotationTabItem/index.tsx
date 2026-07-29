@@ -45,7 +45,8 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
             const allAnnMetrics = {...outputs.metrics, ...outputs.notes, ...outputs.extra}
             const evaluator = evaluators.find((e) => e.slug === ann.references?.evaluator?.slug)
 
-            const evalMetricsSchema = resolveOutputSchemaProperties(evaluator?.data) ?? {}
+            const evalMetricsSchema: Record<string, any> =
+                resolveOutputSchemaProperties(evaluator?.data) ?? {}
 
             const grouped = Object.entries(allAnnMetrics).reduce(
                 (acc, [key, value]) => {
@@ -189,7 +190,8 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
             {Object.entries(groupedByReference).length > 0 ? (
                 Object.entries(groupedByReference).map(([key, annotations]) => {
                     const [slug, kind] = key.split("::")
-                    const evaluator = annotations?.[0]?.evaluator
+                    // `evaluator` is not on AnnotationDto; dead access kept as-is (falls through to slug)
+                    const evaluator = (annotations?.[0] as any)?.evaluator
                     const evaluatorName = evaluator?.name || slug
                     return (
                         <Space orientation="vertical" key={key} className="w-full @container">

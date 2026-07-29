@@ -18,7 +18,6 @@ import {
   extractClientToolOutputs,
 } from "../../src/responder.ts";
 import type { ClientToolRelayRequest } from "../../src/tools/client-tool-relay.ts";
-import { PendingApprovalLatch } from "../../src/permission-plan.ts";
 import {
   buildClientToolRelay,
   createToolCallCorrelationIndex,
@@ -47,7 +46,7 @@ function responderReturning(verdict: ClientToolVerdict): Responder {
   };
 }
 
-/** A seam harness: fake pause controller + latch + captured events/interactions. */
+/** A seam harness: fake pause controller + captured events/interactions. */
 function seam(verdict: ClientToolVerdict, opts: { index?: boolean } = {}) {
   const events: AgentEvent[] = [];
   const pausedToolCalls: string[] = [];
@@ -57,7 +56,6 @@ function seam(verdict: ClientToolVerdict, opts: { index?: boolean } = {}) {
   const relay = buildClientToolRelay({
     responder: responderReturning(verdict),
     run: { emitEvent: (e) => events.push(e) },
-    latch: new PendingApprovalLatch(),
     pause: {
       markPausedToolCall: (id) => pausedToolCalls.push(id),
       pause: () => {
@@ -327,7 +325,6 @@ describe("buildClientToolRelay", () => {
         },
       },
       run: { emitEvent: () => {} },
-      latch: new PendingApprovalLatch(),
       pause: { markPausedToolCall: () => {}, pause: () => {} },
       recordPendingInteraction: () => {},
     });
@@ -393,7 +390,6 @@ describe("buildClientToolRelay with the real responder (history-driven)", () => 
     const relay = buildClientToolRelay({
       responder,
       run: { emitEvent: (e) => events.push(e) },
-      latch: new PendingApprovalLatch(),
       pause: { markPausedToolCall: (id) => paused.push(id), pause: () => {} },
       recordPendingInteraction: () => {},
     });

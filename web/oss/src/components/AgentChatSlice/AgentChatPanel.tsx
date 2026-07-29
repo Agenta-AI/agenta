@@ -13,6 +13,7 @@ import InspectSessionButton from "./components/Inspector/InspectSessionButton"
 import MountFade from "./components/MountFade"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import {chatPanelMaximizedAtom} from "./state/panelLayout"
+import {useReconcileServerSessions} from "./state/projectSessions"
 import {useChatScopeKey} from "./state/scope"
 import {
     activeSessionIdAtomFamily,
@@ -73,6 +74,9 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
         [renameSession],
     )
     const pruneSessionHusks = useSetAtom(pruneSessionHusksAtomFamily(scope))
+    // Fold the agent's server session list into the local cache (adopt cross-device / post-wipe,
+    // enrich titles, drop remotely-deleted) — the scope key is the agent's appId (artifact id).
+    useReconcileServerSessions(scope)
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
     // The rail pane is `size={0}` + `inert` until maximized, so mounting it on boot renders the
     // whole session list (rows, dots, hover actions) into a zero-width panel. Latch it on first
