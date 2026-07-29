@@ -681,6 +681,18 @@ export interface AgentRunRequest {
    */
   projectId?: string;
   /**
+   * The post-hydration config this turn runs, produced by the SDK (`agents/utils/wire.py`) and
+   * OPAQUE here: the runner never reads inside it and never derives behavior from it. It is
+   * echoed verbatim onto the `data.parameters` of every interaction row this turn writes, so a
+   * client that answers the gate without being able to reproduce the config (mobile, the M2
+   * dispatcher) can replay the exact turn instead of hydrating the referenced variant's HEAD.
+   *
+   * Deliberately NOT part of `configFingerprint` (`session-identity.ts`): it is a projection of
+   * fields already in the fingerprint, so hashing it would let a cosmetic config-serialization
+   * change evict warm sessions. Session runs only; absent otherwise.
+   */
+  effectiveParameters?: Record<string, unknown>;
+  /**
    * The session's `session_streams` row id, captured for free from the alive-watchdog's
    * heartbeat response (`sessions/alive.ts`) and threaded here before the engine runs. Present
    * only for session-owned streaming runs; consumed at the turn-append write site
