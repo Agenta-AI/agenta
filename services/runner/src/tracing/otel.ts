@@ -65,6 +65,16 @@ export const DEFERRED_NOT_EXECUTED_PREFIX = "DEFERRED_NOT_EXECUTED";
 
 export const TOOL_NOT_EXECUTED_PAUSED = `${DEFERRED_NOT_EXECUTED_PREFIX}: paused for another approval; retry the same call if still required.`;
 
+export const APPROVED_EXECUTION_RESULT_UNKNOWN =
+  "APPROVED_EXECUTION_RESULT_UNKNOWN: the approved call started but its result was not observed before the pause ended the turn; do not assume it failed and do not retry a side-effecting call.";
+
+/** Terminal result stamped on every open tool call when the USER stops (cancels) the turn. Unlike
+ *  the pause sentinels this is a deliberate human halt, not a scheduling artifact: the call was cut
+ *  off and may or may not have run, so the model must not silently retry it. Steer (stop + a new
+ *  instruction) surfaces the user's guidance separately as the next turn's prompt. */
+export const INTERRUPTED_BY_USER =
+  "INTERRUPTED_BY_USER: the user stopped the turn before this call finished; it may not have completed. Do not retry it unless the user asks again.";
+
 // ---------------------------------------------------------------------------
 // Shared, process-wide tracing infrastructure
 // ---------------------------------------------------------------------------
@@ -1063,8 +1073,9 @@ export interface SandboxAgentOtel {
    * lands in both the live sink and the batch `events()` log in build order.
    */
   emitEvent(event: AgentEvent): void;
-  /** End all open spans. Returns the accumulated assistant text. */
-  finish(): string;
+  /** End all open spans. Returns the accumulated assistant text. `stopReason` (e.g. "paused")
+   *  is stamped on the terminal `done` record so hydration can distinguish a pause from a boundary. */
+  finish(stopReason?: string): string;
   /**
    * Record a run-level error on the agent span: the user-facing message (F-030) plus the
    * provider that failed, and an OTel exception event, so a trace carries the same diagnostic
@@ -1086,6 +1097,8 @@ export interface SandboxAgentOtel {
     isExcluded: (id: string) => boolean,
     message: string,
   ): void;
+  /** Snapshot the ids whose tool calls have no terminal result yet. */
+  openToolCallIds(): string[];
   /**
    * Mark a tool-call id as DENIED (the runner replied `reject` to its gate). Its closing failed
    * result then carries `denied: true` so the egress projects `tool-output-denied` (a decline)
@@ -1549,7 +1562,7 @@ export function createSandboxAgentOtel(
     }
   }
 
-  function finish(): string {
+  function finish(stopReason?: string): string {
     const text = stripStartupBanner(accumulated.trim());
     // The event log is independent of span emission, so build its tail either way.
     closeText();
@@ -1573,7 +1586,13 @@ export function createSandboxAgentOtel(
     }
     // Stamp the run's trace id on the turn's terminal event so a persisted transcript can link a
     // replayed turn back to its trace (undefined only in span-less mode with no valid traceparent).
-    record({ type: "done", ...(runTraceId ? { traceId: runTraceId } : {}) });
+    // Mark a paused turn's terminal record so a cold reload can tell a pause from a real turn
+    // boundary (the FE adoption heuristic and hydration read this). A completed turn omits it.
+    record({
+      type: "done",
+      ...(stopReason === "paused" ? { stopReason: "paused" } : {}),
+      ...(runTraceId ? { traceId: runTraceId } : {}),
+    });
     if (!emitSpans) return text;
     if (llmSpan) {
       emitMessages(
@@ -1615,6 +1634,7 @@ export function createSandboxAgentOtel(
     output: () => accumulated,
     events: () => events,
     settleOpenToolCalls,
+    openToolCallIds: () => [...toolSpans.keys()],
     markToolCallDenied,
     usage: () => usage,
   };

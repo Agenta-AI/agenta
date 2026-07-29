@@ -35,8 +35,8 @@ QA_RUNS_DIR = (
 )
 
 # The QA captures predate the harness-value rename (``matrix.md``'s 2026-06-25 wire-contract
-# note): the wire moved from ``pi``/``agenta``/``claude`` to today's ``HarnessType`` values
-# ``pi_core``/``pi_agenta``/``claude``. A bare ``"pi"`` no longer parses (``HarnessType("pi")``
+# note): the wire moved from ``pi``/``agenta``/``claude`` to today's ``HarnessKind`` values
+# ``pi_core``/``pi_agenta``/``claude``. A bare ``"pi"`` no longer parses (``HarnessKind("pi")``
 # raises), so this table is required, not cosmetic.
 _HARNESS_RENAME = {"pi": "pi_core", "agenta": "pi_agenta", "claude": "claude"}
 

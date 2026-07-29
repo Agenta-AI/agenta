@@ -8,6 +8,7 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 
 class SessionMountQuery(UniversalBaseModel):
     session_id: str
+    agent_id: typing.Optional[str] = None
     include_archived: typing.Optional[bool] = None
     
     if IS_PYDANTIC_V2:

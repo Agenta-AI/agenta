@@ -1,0 +1,225 @@
+---
+// Ported 1:1 from the design source: "Agenta Landing - Agents (Dark).dc.html"
+// (RELIABILITY section, lines 381-437). Static section — no island needed.
+// The .ag-rel grid + its responsive hairline flips (4→2 cols ≤1100px, 1 col
+// ≤860px) live in global.css; do not re-declare them here.
+import SectionTitle from "./SectionTitle.astro";
+
+// Four columns. Copy VERBATIM from the dc.html renderVals()/copy doc.
+// Column padding/border ported from renderVals(): the first column has no
+// left hairline; each subsequent column carries a 1px column divider.
+const colBase =
+  "display:flex;flex-direction:column;gap:12px;padding:40px 32px 48px;box-sizing:border-box;";
+const colBorder = "border-left:1px solid rgba(255,255,255,0.09);";
+
+// Rising eval bars — heights and per-bar tint ported verbatim; the last bar is
+// the "current" highlight. Static heights read correctly with motion frozen.
+const relEvalBars = [38, 52, 46, 62, 58, 74, 88].map((h, i) => ({
+  style:
+    "width:13px;height:" +
+    h +
+    "px;border-radius:4px;background:" +
+    (i === 6 ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.12)") +
+    ";",
+}));
+---
+
+<section
+  data-screen-label="Reliability"
+  class="ag-relsec"
+  style="background:var(--ag-d-bg-2);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:var(--section-pad-y) 0;"
+>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:88px;">
+    <SectionTitle
+      dark
+      badge="Reliability"
+      title="Build agents you can trust"
+      width="677px"
+    />
+    <div
+      class="ag-rel"
+      style="display:grid;grid-template-columns:repeat(4,1fr);border-block:1px solid rgba(255,255,255,0.09);width:100%;box-sizing:border-box;"
+    >
+      {/* 1 — Human in the loop · approval card */}
+      <div style={colBase}>
+        <div
+          style="height:210px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;"
+        >
+          <div
+            style="border-radius:10px;background:#1B1A1E;box-shadow:0 0 0 1px rgba(255,255,255,0.08);padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-width:200px;"
+          >
+            <span
+              style="font:500 12px/1.3 'Geist',Inter,sans-serif;color:rgba(255,255,255,0.8);"
+              >Waiting for your approval</span
+            >
+            <div style="display:flex;gap:8px;">
+              <span
+                style="display:inline-flex;align-items:center;height:26px;padding:0 11px;border-radius:7px;background:linear-gradient(#F2F25C,#E7E712);box-shadow:inset 0 2px 6.4px rgba(255,255,255,0.8);font:600 11px/1 var(--font-sans);color:#242424;"
+                >Approve &amp; send</span
+              >
+              <span
+                style="display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:7px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);font:500 11px/1 var(--font-sans);color:rgba(255,255,255,0.7);"
+                >Edit</span
+              >
+            </div>
+          </div>
+        </div>
+        <span
+          style="font:400 22px/1.25 'GT Alpina',serif;color:#F7F6F4;text-wrap:pretty;"
+          >Human in the loop</span
+        >
+        <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.5);"
+          >Consequential actions wait for you. Approve, edit, or reject before
+          anything ships.</span
+        >
+      </div>
+
+      {/* 2 — Version every change · git-tree SVG */}
+      <div style={`${colBase}${colBorder}`}>
+        <div
+          style="height:210px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;"
+        >
+          <svg width="170" height="144" viewBox="0 0 170 144" fill="none">
+            <path d="M30 12v120" stroke="rgba(255,255,255,0.16)" stroke-width="1.5"
+            ></path>
+            <path
+              d="M30 56C30 72 62 66 62 82v6c0 16-32 12-32 24"
+              stroke="rgba(255,255,255,0.16)"
+              stroke-width="1.5"></path>
+            <circle
+              cx="30"
+              cy="16"
+              r="4.5"
+              fill="var(--ag-d-bg-2)"
+              stroke="rgba(255,255,255,0.35)"
+              stroke-width="1.5"></circle>
+            <circle
+              cx="30"
+              cy="56"
+              r="4.5"
+              fill="var(--ag-d-bg-2)"
+              stroke="rgba(255,255,255,0.35)"
+              stroke-width="1.5"></circle>
+            <circle
+              cx="62"
+              cy="85"
+              r="4.5"
+              fill="var(--ag-d-bg-2)"
+              stroke="rgba(255,255,255,0.35)"
+              stroke-width="1.5"></circle>
+            <circle
+              cx="30"
+              cy="126"
+              r="5"
+              fill="var(--ag-d-bg-2)"
+              stroke="#F7F6F4"
+              stroke-width="1.5"></circle>
+            <text
+              x="46"
+              y="20"
+              fill="rgba(255,255,255,0.4)"
+              style="font:400 11px 'Geist Mono',monospace;">v12</text
+            >
+            <text
+              x="46"
+              y="60"
+              fill="rgba(255,255,255,0.4)"
+              style="font:400 11px 'Geist Mono',monospace;">v13</text
+            >
+            <rect
+              x="46"
+              y="115"
+              width="94"
+              height="22"
+              rx="6"
+              fill="rgba(255,255,255,0.07)"
+              stroke="rgba(255,255,255,0.12)"></rect>
+            <text
+              x="55"
+              y="130"
+              fill="#F7F6F4"
+              style="font:500 11px 'Geist Mono',monospace;">v14 · current</text
+            >
+          </svg>
+        </div>
+        <span
+          style="font:400 22px/1.25 'GT Alpina',serif;color:#F7F6F4;text-wrap:pretty;"
+          >Version every change</span
+        >
+        <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.5);"
+          >Prompts, skills, and tools are versioned like code. Roll back to any
+          point, anytime.</span
+        >
+      </div>
+
+      {/* 3 — Trace every run · run card on a vertical timeline */}
+      <div style={`${colBase}${colBorder}`}>
+        <div
+          style="height:210px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;"
+        >
+          <div
+            style="position:relative;display:flex;align-items:center;justify-content:center;height:144px;"
+          >
+            <span
+              style="position:absolute;left:50%;top:6px;bottom:6px;width:1px;background:rgba(255,255,255,0.14);"
+            ></span>
+            <span
+              style="position:absolute;left:50%;top:0;transform:translateX(-50%);width:11px;height:11px;border-radius:50%;background:#2A292E;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.2);"
+            ></span>
+            <span
+              style="position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:11px;height:11px;border-radius:50%;background:#2A292E;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.2);"
+            ></span>
+            <div
+              style="position:relative;border-radius:10px;background:#1B1A1E;box-shadow:0 0 0 1px rgba(255,255,255,0.1), 0 8px 24px rgba(0,0,0,0.4);padding:12px 16px;display:flex;flex-direction:column;gap:7px;"
+            >
+              <span
+                style="font:500 12.5px/1 'Geist',Inter,sans-serif;color:rgba(255,255,255,0.85);"
+                >lead-research · run #312</span
+              >
+              <span
+                style="font:400 11px/1 'Geist Mono',monospace;color:rgba(255,255,255,0.45);"
+                >6.2s&nbsp;&nbsp;·&nbsp;&nbsp;$0.041&nbsp;&nbsp;·&nbsp;&nbsp;5
+                steps</span
+              >
+            </div>
+          </div>
+        </div>
+        <span
+          style="font:400 22px/1.25 'GT Alpina',serif;color:#F7F6F4;text-wrap:pretty;"
+          >Trace every run</span
+        >
+        <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.5);"
+          >See each step, its cost, and its outcome — and find the exact failure
+          points.</span
+        >
+      </div>
+
+      {/* 4 — Improve continuously · rising eval bars + quality chip */}
+      <div style={`${colBase}${colBorder}`}>
+        <div
+          style="height:210px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;"
+        >
+          <div
+            style="display:flex;flex-direction:column;align-items:flex-end;gap:14px;"
+          >
+            <span
+              style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:rgba(255,255,255,0.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.12);font:500 11px/1 'Geist',Inter,sans-serif;color:#F7F6F4;white-space:nowrap;"
+              >v14 · quality +3</span
+            >
+            <div style="display:flex;align-items:flex-end;gap:8px;height:88px;">
+              {relEvalBars.map((b) => <span style={b.style} />)}
+            </div>
+          </div>
+        </div>
+        <span
+          style="font:400 22px/1.25 'GT Alpina',serif;color:#F7F6F4;text-wrap:pretty;"
+          >Improve continuously</span
+        >
+        <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.5);"
+          >Feedback becomes test cases; every change is evaluated before it
+          ships.</span
+        >
+      </div>
+    </div>
+  </div>
+</section>

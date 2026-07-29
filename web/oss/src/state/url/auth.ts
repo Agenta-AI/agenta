@@ -13,6 +13,8 @@ import {profileQueryAtom, userAtom} from "@/oss/state/profile/selectors/user"
 import {sessionExistsAtom, sessionLoadingAtom} from "@/oss/state/session"
 import {urlAtom} from "@/oss/state/url"
 
+import {captureTemplateFromUrl} from "./template"
+
 const isBrowser = typeof window !== "undefined"
 
 export interface InvitePayload {
@@ -28,7 +30,22 @@ const INVITE_STORAGE_KEY = "invite"
 const POST_SIGNUP_PENDING_KEY = "postSignupPending"
 const POST_SIGNUP_TTL_MS = 2 * 60 * 1000
 
-export const protectedRouteReadyAtom = atom(false)
+const baseProtectedRouteReadyAtom = atom(false)
+// Sticky once-ready flag so mid-session auth re-resolution flips don't unmount the page (T1.3)
+const protectedRouteReadyLatchAtom = atom(false)
+export const protectedRouteReadyAtom = atom(
+    (get) => get(baseProtectedRouteReadyAtom),
+    (_get, set, next: boolean) => {
+        set(baseProtectedRouteReadyAtom, next)
+        if (next) set(protectedRouteReadyLatchAtom, true)
+    },
+)
+// Gate ProtectedRoute reads: raw readiness, or a still-live session that was ready before
+export const protectedRouteLatchedReadyAtom = atom(
+    (get) =>
+        get(baseProtectedRouteReadyAtom) ||
+        (get(protectedRouteReadyLatchAtom) && get(sessionExistsAtom)),
+)
 export const activeInviteAtom = atom<InvitePayload | null>(null)
 
 export const parseInviteFromUrl = (url: URL): InvitePayload | null => {
@@ -209,6 +226,11 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
         }
         store.set(activeInviteAtom, invite ?? null)
 
+        // Capture a website template deep-link alongside the invite, from the same URL read. Runs
+        // again on a regional host after a region redirect, since the query string survives the
+        // switch but the stored key does not.
+        captureTemplateFromUrl(url)
+
         if (sessionLoading) {
             store.set(protectedRouteReadyAtom, false)
             return
@@ -383,8 +405,10 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
             return
         }
 
+        // Signed out: drop the latch so a dead session can never keep the page visible
         if (isAuthRoute) {
             store.set(protectedRouteReadyAtom, true)
+            store.set(protectedRouteReadyLatchAtom, false)
             return
         }
 
@@ -395,6 +419,7 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
             })
         }
         store.set(protectedRouteReadyAtom, false)
+        store.set(protectedRouteReadyLatchAtom, false)
     } catch (err) {
         console.error("Failed to sync auth state from URL:", nextUrl, err)
     }

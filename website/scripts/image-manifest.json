@@ -1,0 +1,772 @@
+{
+  "convertedAt": "2026-06-27T17:15:39.877Z",
+  "count": 109,
+  "beforeMB": 10.87,
+  "afterMB": 4.22,
+  "savedMB": 6.65,
+  "results": [
+    {
+      "file": "/blog/agenta-achieves-soc2-type-i-certification/hero.png",
+      "originalSize": 159492,
+      "newSize": 30552,
+      "savingPct": "80.8",
+      "originalWidth": 2048
+    },
+    {
+      "file": "/blog/announcing-agenta-launch-week-1-april-15-19/hero.png",
+      "originalSize": 91755,
+      "newSize": 24982,
+      "savingPct": "72.8",
+      "originalWidth": 1920
+    },
+    {
+      "file": "/blog/building-in-public-why-we-re-publishing-our-roadmap/hero.png",
+      "originalSize": 106349,
+      "newSize": 25070,
+      "savingPct": "76.4",
+      "originalWidth": 1920
+    },
+    {
+      "file": "/blog/building-the-data-flywheel-how-to-use-production-data-to-improve-your-llm-application/hero.png",
+      "originalSize": 27155,
+      "newSize": 23844,
+      "savingPct": "12.2",
+      "originalWidth": 2400
+    },
+    {
+      "file": "/blog/cicd-for-llm-prompts/hero.png",
+      "originalSize": 35733,
+      "newSize": 28676,
+      "savingPct": "19.7",
+      "originalWidth": 2400
+    },
+    {
+      "file": "/blog/commercial-open-source-is-hard-our-journey/hero.png",
+      "originalSize": 21807,
+      "newSize": 26684,
+      "savingPct": "-22.4",
+      "originalWidth": 1600
+    },
+    {
+      "file": "/blog/git-vs-prompt-management-tools/hero.png",
+      "originalSize": 23515,
+      "newSize": 26114,
+      "savingPct": "-11.1",
+      "originalWidth": 2400
+    },
+    {
+      "file": "/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/hero.png",
+      "originalSize": 116890,
+      "newSize": 63102,
+      "savingPct": "46.0",
+      "originalWidth": 1600
+    },
+    {
+      "file": "/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-1.png",
+      "originalSize": 156335,
+      "newSize": 34704,
+      "savingPct": "77.8",
+      "originalWidth": 1945
+    },
+    {
+      "file": "/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-10.png",
+      "originalSize": 55326,
+      "newSize": 22388,
+      "savingPct": "59.5",
+      "originalWidth": 1920
+    },
+    {
+      "file": "/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-11.png",
+      "originalSize": 105826,
+      "newSize": 27496,
+      "savingPct": "74.0",
+      "originalWidth": 1920
+    },
+    {
+      "file": "/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-2.png",
+      "originalSize": 56018,
+      "newSize": 25224,
+      "savingPct": "55.0",
+      "originalWidth": 1920
+    },
+    {
+      "file": "/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-3.png",
+      "originalSize": 57456,
+      "newSize": 22232,
+      "savingPct": "61.3",
+      "originalWidth": 1920
+    },
+    {
+      "file": "/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-4.png",
+      "originalSize": 33759,
+      "newSize": 16578,
+      "savingPct": "50.9",
+      "originalWidth": 1920
+    },
+    {
+      "file": "/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-5.png",
+      "originalSize": 106081,
+      "newSize": 27258,
+      "savingPct": "74.3",
+      "originalWidth": 1920
+    },
+    {
+      "file": "/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-6.png",
+      "originalSize": 44027,
+      "newSize": 18068,
+      "savingPct": "59.0",
+      "originalWidth": 1920
+    },
+    {
+      "file": "/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-7.png",
+      "originalSize": 34026,
+      "newSize": 17722,
+      "savingPct": "47.9",
+      "originalWidth": 1920
+    },
+    {
+      "file": "/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-8.png",
+      "originalSize": 29709,
+      "newSize": 16268,
+      "savingPct": "45.2",
+      "originalWidth": 1920
+    },
+    {
+      "file": "/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-9.png",
+      "originalSize": 104723,
+      "newSize": 28986,
+      "savingPct": "72.3",
+      "originalWidth": 1920
+    },
+    {
+      "file": "/blog/humanloop-sunsetting-migration-and-alternative/hero.png",
+      "originalSize": 102778,
+      "newSize": 39382,
+      "savingPct": "61.7",
+      "originalWidth": 1600
+    },
+    {
+      "file": "/blog/introducing-ai-model-hub/hero.png",
+      "originalSize": 196038,
+      "newSize": 54732,
+      "savingPct": "72.1",
+      "originalWidth": 1920
+    },
+    {
+      "file": "/blog/introducing-custom-workflows/hero.png",
+      "originalSize": 124535,
+      "newSize": 42816,
+      "savingPct": "65.6",
+      "originalWidth": 1920
+    },
+    {
+      "file": "/blog/introducing-prompt-registry/hero.png",
+      "originalSize": 72587,
+      "newSize": 51698,
+      "savingPct": "28.8",
+      "originalWidth": 1600
+    },
+    {
+      "file": "/blog/july-2025-product-updates/hero.png",
+      "originalSize": 112061,
+      "newSize": 17222,
+      "savingPct": "84.6",
+      "originalWidth": 1920
+    },
+    {
+      "file": "/blog/launch-week-2-day-1/hero.png",
+      "originalSize": 64446,
+      "newSize": 37354,
+      "savingPct": "42.0",
+      "originalWidth": 2560
+    },
+    {
+      "file": "/blog/launch-week-2-day-1/img-1.png",
+      "originalSize": 195831,
+      "newSize": 59852,
+      "savingPct": "69.4",
+      "originalWidth": 3058
+    },
+    {
+      "file": "/blog/launch-week-2-day-2-online-evaluation/hero.png",
+      "originalSize": 13099,
+      "newSize": 19650,
+      "savingPct": "-50.0",
+      "originalWidth": 1280
+    },
+    {
+      "file": "/blog/launch-week-2-day-3-evaluation-sdk/hero.png",
+      "originalSize": 21474,
+      "newSize": 31900,
+      "savingPct": "-48.6",
+      "originalWidth": 1280
+    },
+    {
+      "file": "/blog/launch-week-2-day-4-open-sourcing-evaluation/hero.png",
+      "originalSize": 91256,
+      "newSize": 46958,
+      "savingPct": "48.5",
+      "originalWidth": 1280
+    },
+    {
+      "file": "/blog/launch-week-2-day-5-jinja2-prompt-templates/hero.png",
+      "originalSize": 22006,
+      "newSize": 21872,
+      "savingPct": "0.6",
+      "originalWidth": 1280
+    },
+    {
+      "file": "/blog/llm-as-a-judge-guide-to-llm-evaluation-best-practices/hero.png",
+      "originalSize": 39939,
+      "newSize": 43180,
+      "savingPct": "-8.1",
+      "originalWidth": 1600
+    },
+    {
+      "file": "/blog/llm-as-a-judge-guide-to-llm-evaluation-best-practices/img-1.png",
+      "originalSize": 97415,
+      "newSize": 22658,
+      "savingPct": "76.7",
+      "originalWidth": 1800
+    },
+    {
+      "file": "/blog/llm-as-a-judge-guide-to-llm-evaluation-best-practices/img-2.png",
+      "originalSize": 52729,
+      "newSize": 13894,
+      "savingPct": "73.7",
+      "originalWidth": 1800
+    },
+    {
+      "file": "/blog/llm-as-a-judge-guide-to-llm-evaluation-best-practices/img-3.png",
+      "originalSize": 157814,
+      "newSize": 19250,
+      "savingPct": "87.8",
+      "originalWidth": 1800
+    },
+    {
+      "file": "/blog/llm-as-a-judge-guide-to-llm-evaluation-best-practices/img-4.png",
+      "originalSize": 53081,
+      "newSize": 18206,
+      "savingPct": "65.7",
+      "originalWidth": 1800
+    },
+    {
+      "file": "/blog/llm-as-a-judge-guide-to-llm-evaluation-best-practices/img-5.png",
+      "originalSize": 183128,
+      "newSize": 56268,
+      "savingPct": "69.3",
+      "originalWidth": 2511
+    },
+    {
+      "file": "/blog/open-source-llm-observability/hero.png",
+      "originalSize": 1169791,
+      "newSize": 44524,
+      "savingPct": "96.2",
+      "originalWidth": 3840
+    },
+    {
+      "file": "/blog/open-source-llm-observability/img-1.png",
+      "originalSize": 191969,
+      "newSize": 32702,
+      "savingPct": "83.0",
+      "originalWidth": 3111
+    },
+    {
+      "file": "/blog/product-update-november-2024/hero.png",
+      "originalSize": 502639,
+      "newSize": 23590,
+      "savingPct": "95.3",
+      "originalWidth": 3840
+    },
+    {
+      "file": "/blog/product-update-november-2024/img-1.png",
+      "originalSize": 109269,
+      "newSize": 50852,
+      "savingPct": "53.5",
+      "originalWidth": 2083
+    },
+    {
+      "file": "/blog/product-update-november-2024/img-2.png",
+      "originalSize": 113141,
+      "newSize": 76840,
+      "savingPct": "32.1",
+      "originalWidth": 1600
+    },
+    {
+      "file": "/blog/product-update-november-2024/img-3.png",
+      "originalSize": 184268,
+      "newSize": 58076,
+      "savingPct": "68.5",
+      "originalWidth": 2511
+    },
+    {
+      "file": "/blog/prompt-drift/hero.png",
+      "originalSize": 27043,
+      "newSize": 28064,
+      "savingPct": "-3.8",
+      "originalWidth": 2400
+    },
+    {
+      "file": "/blog/prompt-management-for-non-engineers/hero.png",
+      "originalSize": 37950,
+      "newSize": 37520,
+      "savingPct": "1.1",
+      "originalWidth": 2400
+    },
+    {
+      "file": "/blog/prompt-playground/hero.png",
+      "originalSize": 1281358,
+      "newSize": 69328,
+      "savingPct": "94.6",
+      "originalWidth": 3840
+    },
+    {
+      "file": "/blog/prompt-versioning-guide/hero.png",
+      "originalSize": 27510,
+      "newSize": 29450,
+      "savingPct": "-7.1",
+      "originalWidth": 2400
+    },
+    {
+      "file": "/blog/soc2-type2/hero.png",
+      "originalSize": 131012,
+      "newSize": 56830,
+      "savingPct": "56.6",
+      "originalWidth": 1600
+    },
+    {
+      "file": "/blog/structured-outputs-playground/hero.png",
+      "originalSize": 107372,
+      "newSize": 46104,
+      "savingPct": "57.1",
+      "originalWidth": 1600
+    },
+    {
+      "file": "/blog/the-ai-engineer-s-guide-to-llm-observability-with-opentelemetry/hero.png",
+      "originalSize": 26561,
+      "newSize": 17148,
+      "savingPct": "35.4",
+      "originalWidth": 3200
+    },
+    {
+      "file": "/blog/the-ai-engineer-s-guide-to-llm-observability-with-opentelemetry/img-1.png",
+      "originalSize": 145409,
+      "newSize": 21244,
+      "savingPct": "85.4",
+      "originalWidth": 2113
+    },
+    {
+      "file": "/blog/the-ai-engineer-s-guide-to-llm-observability-with-opentelemetry/img-2.png",
+      "originalSize": 80428,
+      "newSize": 24428,
+      "savingPct": "69.6",
+      "originalWidth": 1706
+    },
+    {
+      "file": "/blog/the-definitive-guide-to-prompt-management-systems/hero.png",
+      "originalSize": 77904,
+      "newSize": 53340,
+      "savingPct": "31.5",
+      "originalWidth": 3200
+    },
+    {
+      "file": "/blog/the-guide-to-structured-outputs-and-function-calling-with-llms/hero.png",
+      "originalSize": 49053,
+      "newSize": 56374,
+      "savingPct": "-14.9",
+      "originalWidth": 1600
+    },
+    {
+      "file": "/blog/the-guide-to-structured-outputs-and-function-calling-with-llms/img-1.png",
+      "originalSize": 82389,
+      "newSize": 12718,
+      "savingPct": "84.6",
+      "originalWidth": 1800
+    },
+    {
+      "file": "/blog/the-guide-to-structured-outputs-and-function-calling-with-llms/img-2.png",
+      "originalSize": 75152,
+      "newSize": 20720,
+      "savingPct": "72.4",
+      "originalWidth": 1800
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/hero.png",
+      "originalSize": 23263,
+      "newSize": 23808,
+      "savingPct": "-2.3",
+      "originalWidth": 1600
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-1.png",
+      "originalSize": 156790,
+      "newSize": 30128,
+      "savingPct": "80.8",
+      "originalWidth": 2375
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-10.png",
+      "originalSize": 8564,
+      "newSize": 5944,
+      "savingPct": "30.6",
+      "originalWidth": 1522
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-11.png",
+      "originalSize": 10624,
+      "newSize": 9754,
+      "savingPct": "8.2",
+      "originalWidth": 1524
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-12.png",
+      "originalSize": 14325,
+      "newSize": 16092,
+      "savingPct": "-12.3",
+      "originalWidth": 1548
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-13.png",
+      "originalSize": 17537,
+      "newSize": 21064,
+      "savingPct": "-20.1",
+      "originalWidth": 1534
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-14.png",
+      "originalSize": 10818,
+      "newSize": 10352,
+      "savingPct": "4.3",
+      "originalWidth": 1508
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-15.png",
+      "originalSize": 37148,
+      "newSize": 83428,
+      "savingPct": "-124.6",
+      "originalWidth": 1174
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-16.png",
+      "originalSize": 30384,
+      "newSize": 76762,
+      "savingPct": "-152.6",
+      "originalWidth": 681
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-17.png",
+      "originalSize": 740,
+      "newSize": 2796,
+      "savingPct": "-277.8",
+      "originalWidth": 427
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-18.png",
+      "originalSize": 43866,
+      "newSize": 116456,
+      "savingPct": "-165.5",
+      "originalWidth": 1318
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-19.png",
+      "originalSize": 133402,
+      "newSize": 25100,
+      "savingPct": "81.2",
+      "originalWidth": 2224
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-2.png",
+      "originalSize": 4830,
+      "newSize": 15520,
+      "savingPct": "-221.3",
+      "originalWidth": 855
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-20.png",
+      "originalSize": 20694,
+      "newSize": 52044,
+      "savingPct": "-151.5",
+      "originalWidth": 1125
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-21.png",
+      "originalSize": 88026,
+      "newSize": 59032,
+      "savingPct": "32.9",
+      "originalWidth": 1920
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-3.png",
+      "originalSize": 5247,
+      "newSize": 13670,
+      "savingPct": "-160.5",
+      "originalWidth": 859
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-4.png",
+      "originalSize": 51686,
+      "newSize": 120792,
+      "savingPct": "-133.7",
+      "originalWidth": 1015
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-5.png",
+      "originalSize": 6335,
+      "newSize": 19196,
+      "savingPct": "-203.0",
+      "originalWidth": 1147
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-6.png",
+      "originalSize": 8635,
+      "newSize": 22786,
+      "savingPct": "-163.9",
+      "originalWidth": 1162
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-7.png",
+      "originalSize": 279364,
+      "newSize": 40462,
+      "savingPct": "85.5",
+      "originalWidth": 2316
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-8.png",
+      "originalSize": 4621,
+      "newSize": 13534,
+      "savingPct": "-192.9",
+      "originalWidth": 847
+    },
+    {
+      "file": "/blog/the-ultimate-guide-for-chunking-strategies/img-9.png",
+      "originalSize": 3637,
+      "newSize": 11840,
+      "savingPct": "-225.5",
+      "originalWidth": 865
+    },
+    {
+      "file": "/blog/top-10-techniques-to-improve-rag-applications/hero.png",
+      "originalSize": 148612,
+      "newSize": 54258,
+      "savingPct": "63.5",
+      "originalWidth": 1600
+    },
+    {
+      "file": "/blog/top-10-techniques-to-improve-rag-applications/img-1.png",
+      "originalSize": 96237,
+      "newSize": 21840,
+      "savingPct": "77.3",
+      "originalWidth": 1920
+    },
+    {
+      "file": "/blog/top-10-techniques-to-improve-rag-applications/img-10.png",
+      "originalSize": 87676,
+      "newSize": 21598,
+      "savingPct": "75.4",
+      "originalWidth": 1947
+    },
+    {
+      "file": "/blog/top-10-techniques-to-improve-rag-applications/img-2.png",
+      "originalSize": 32935,
+      "newSize": 41540,
+      "savingPct": "-26.1",
+      "originalWidth": 1186
+    },
+    {
+      "file": "/blog/top-10-techniques-to-improve-rag-applications/img-3.png",
+      "originalSize": 35967,
+      "newSize": 103038,
+      "savingPct": "-186.5",
+      "originalWidth": 1744
+    },
+    {
+      "file": "/blog/top-10-techniques-to-improve-rag-applications/img-4.png",
+      "originalSize": 19313,
+      "newSize": 51308,
+      "savingPct": "-165.7",
+      "originalWidth": 1744
+    },
+    {
+      "file": "/blog/top-10-techniques-to-improve-rag-applications/img-5.png",
+      "originalSize": 23489,
+      "newSize": 63648,
+      "savingPct": "-171.0",
+      "originalWidth": 1749
+    },
+    {
+      "file": "/blog/top-10-techniques-to-improve-rag-applications/img-6.png",
+      "originalSize": 6758,
+      "newSize": 14624,
+      "savingPct": "-116.4",
+      "originalWidth": 1141
+    },
+    {
+      "file": "/blog/top-10-techniques-to-improve-rag-applications/img-7.png",
+      "originalSize": 12070,
+      "newSize": 27118,
+      "savingPct": "-124.7",
+      "originalWidth": 1281
+    },
+    {
+      "file": "/blog/top-10-techniques-to-improve-rag-applications/img-8.png",
+      "originalSize": 19963,
+      "newSize": 54456,
+      "savingPct": "-172.8",
+      "originalWidth": 1332
+    },
+    {
+      "file": "/blog/top-10-techniques-to-improve-rag-applications/img-9.png",
+      "originalSize": 43463,
+      "newSize": 116338,
+      "savingPct": "-167.7",
+      "originalWidth": 1402
+    },
+    {
+      "file": "/blog/top-6-techniques-to-manage-context-length-in-llms/hero.png",
+      "originalSize": 135813,
+      "newSize": 52428,
+      "savingPct": "61.4",
+      "originalWidth": 1600
+    },
+    {
+      "file": "/blog/top-llm-gateways/hero.png",
+      "originalSize": 134489,
+      "newSize": 60236,
+      "savingPct": "55.2",
+      "originalWidth": 1600
+    },
+    {
+      "file": "/blog/top-llm-gateways/img-1.png",
+      "originalSize": 146428,
+      "newSize": 52310,
+      "savingPct": "64.3",
+      "originalWidth": 1864
+    },
+    {
+      "file": "/blog/top-llm-gateways/img-2.png",
+      "originalSize": 82066,
+      "newSize": 47224,
+      "savingPct": "42.5",
+      "originalWidth": 1858
+    },
+    {
+      "file": "/blog/top-llm-gateways/img-3.png",
+      "originalSize": 38128,
+      "newSize": 47974,
+      "savingPct": "-25.8",
+      "originalWidth": 1858
+    },
+    {
+      "file": "/blog/top-llm-gateways/img-4.png",
+      "originalSize": 35075,
+      "newSize": 51236,
+      "savingPct": "-46.1",
+      "originalWidth": 1861
+    },
+    {
+      "file": "/blog/top-llm-gateways/img-5.png",
+      "originalSize": 54158,
+      "newSize": 55036,
+      "savingPct": "-1.6",
+      "originalWidth": 1863
+    },
+    {
+      "file": "/blog/top-llm-observability-platforms/hero.png",
+      "originalSize": 32312,
+      "newSize": 26158,
+      "savingPct": "19.0",
+      "originalWidth": 3200
+    },
+    {
+      "file": "/blog/top-llm-observability-platforms/img-1.png",
+      "originalSize": 89247,
+      "newSize": 75312,
+      "savingPct": "15.6",
+      "originalWidth": 1840
+    },
+    {
+      "file": "/blog/top-llm-observability-platforms/img-2.png",
+      "originalSize": 671495,
+      "newSize": 118848,
+      "savingPct": "82.3",
+      "originalWidth": 2986
+    },
+    {
+      "file": "/blog/top-llm-observability-platforms/img-3.png",
+      "originalSize": 74946,
+      "newSize": 38570,
+      "savingPct": "48.5",
+      "originalWidth": 2986
+    },
+    {
+      "file": "/blog/top-llm-observability-platforms/img-4.png",
+      "originalSize": 79778,
+      "newSize": 48146,
+      "savingPct": "39.7",
+      "originalWidth": 2988
+    },
+    {
+      "file": "/blog/top-llm-observability-platforms/img-5.png",
+      "originalSize": 141678,
+      "newSize": 29192,
+      "savingPct": "79.4",
+      "originalWidth": 2986
+    },
+    {
+      "file": "/blog/top-open-source-prompt-management-platforms/hero.png",
+      "originalSize": 47834,
+      "newSize": 46674,
+      "savingPct": "2.4",
+      "originalWidth": 2400
+    },
+    {
+      "file": "/blog/top-open-source-prompt-management-platforms/img-1.png",
+      "originalSize": 59472,
+      "newSize": 51744,
+      "savingPct": "13.0",
+      "originalWidth": 2560
+    },
+    {
+      "file": "/blog/top-open-source-prompt-management-platforms/img-2.png",
+      "originalSize": 37212,
+      "newSize": 27866,
+      "savingPct": "25.1",
+      "originalWidth": 2000
+    },
+    {
+      "file": "/blog/top-open-source-prompt-management-platforms/img-3.jpg",
+      "originalSize": 150859,
+      "newSize": 27660,
+      "savingPct": "81.7",
+      "originalWidth": 2304
+    },
+    {
+      "file": "/blog/what-we-learned-building-a-prompt-management-system/hero.png",
+      "originalSize": 245690,
+      "newSize": 292564,
+      "savingPct": "-19.1",
+      "originalWidth": 1920
+    },
+    {
+      "file": "/authors/ilyes-rezgui.png",
+      "originalSize": 102727,
+      "newSize": 21898,
+      "savingPct": "78.7",
+      "originalWidth": 460
+    },
+    {
+      "file": "/authors/mahmoud-mabrouk.png",
+      "originalSize": 32716,
+      "newSize": 12738,
+      "savingPct": "61.1",
+      "originalWidth": 460
+    },
+    {
+      "file": "/authors/nizar-karkar.png",
+      "originalSize": 133131,
+      "newSize": 18402,
+      "savingPct": "86.2",
+      "originalWidth": 800
+    }
+  ]
+}

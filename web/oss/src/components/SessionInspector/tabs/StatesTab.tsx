@@ -7,7 +7,7 @@ import {useAtomValue} from "jotai"
 import {sessionStatusAtomFamily} from "@/oss/components/AgentChatSlice/state/sessions"
 import {projectIdAtom} from "@/oss/state/project"
 
-import {fetchState} from "../api"
+import {fetchLatestTurn, fetchState} from "../api"
 
 const {Text} = Typography
 
@@ -28,8 +28,21 @@ const StatesTab = ({sessionId}: {sessionId: string}) => {
         refetchInterval: runStatus === "running" ? 2500 : false,
     })
 
+    // sandbox_id moved off the stream row onto the latest turn (storage rework) — fetched
+    // separately since it's a different resource.
+    const turnQueryKey = ["session-inspector", "latest-turn", projectId, sessionId]
+    const {data: latestTurn} = useQuery({
+        queryKey: turnQueryKey,
+        queryFn: () => fetchLatestTurn(sessionId, projectId),
+        enabled: Boolean(sessionId),
+        refetchOnWindowFocus: false,
+        refetchOnMount: "always",
+        refetchInterval: runStatus === "running" ? 2500 : false,
+    })
+
     useEffect(() => {
         void queryClient.invalidateQueries({queryKey})
+        void queryClient.invalidateQueries({queryKey: turnQueryKey})
     }, [runStatus, sessionId, projectId])
 
     if (isLoading) return <Skeleton active />
@@ -46,7 +59,7 @@ const StatesTab = ({sessionId}: {sessionId: string}) => {
                 </dd>
                 <dt className="text-colorTextTertiary">sandbox_id</dt>
                 <dd className="m-0 min-w-0 break-all font-mono text-colorTextSecondary">
-                    {data.sandbox_id ?? "—"}
+                    {latestTurn?.sandbox_id ?? "—"}
                 </dd>
                 <dt className="text-colorTextTertiary">updated_at</dt>
                 <dd className="m-0 min-w-0 break-all text-colorTextSecondary">
@@ -56,7 +69,7 @@ const StatesTab = ({sessionId}: {sessionId: string}) => {
             <div>
                 <div className="mb-1 text-[10px] font-medium text-colorTextTertiary">data</div>
                 <pre className="m-0 max-h-[40vh] overflow-auto whitespace-pre-wrap break-all rounded bg-colorFillQuaternary p-2 text-xs text-colorTextSecondary">
-                    {JSON.stringify(data.data ?? {}, null, 2)}
+                    {JSON.stringify(latestTurn ?? {}, null, 2)}
                 </pre>
             </div>
         </div>
