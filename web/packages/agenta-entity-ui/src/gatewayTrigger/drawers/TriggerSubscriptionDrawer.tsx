@@ -1,9 +1,11 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+/* Unused while the Deployed option is hidden — restore with the call site below.
 import {
     appEnvironmentsQueryAtomFamily,
     environmentsListQueryAtomFamily,
 } from "@agenta/entities/environment"
+*/
 import {
     compileMessageTemplate,
     getScheduleMessagePreview,
@@ -498,6 +500,7 @@ function SubscriptionForm({
         workflowMolecule.selectors.artifactName(workflowRevId ?? ""),
     )
 
+    /* Unused while the Deployed option is hidden — restore with the call site below.
     const envQuery = useAtomValue(environmentsListQueryAtomFamily(false))
     const environments = envQuery.data?.environments ?? []
     const appIdForEnv = playgroundEntityId
@@ -518,6 +521,7 @@ function SubscriptionForm({
                         : (d.name ?? d.slug ?? ""),
             }))
     }, [playgroundEntityId, environments, appDeployments.data])
+    */
 
     const {subscriptions} = useTriggerSubscriptions()
     const alreadySubscribed = useMemo(
@@ -1040,6 +1044,9 @@ function SubscriptionForm({
                                     label = label ? `${label} · v${m.revision}` : `v${m.revision}`
                                 setWorkflowLabel(label || selection.label)
                             }}
+                            hideEnvironment
+                            /* Deployed option temporarily hidden — drop `hideEnvironment`
+                               and uncomment to restore.
                             envOptions={envOptions}
                             envLoading={
                                 playgroundEntityId ? appDeployments.isLoading : envQuery.isLoading
@@ -1051,6 +1058,7 @@ function SubscriptionForm({
                                     ? "This agent isn't deployed to any environment yet."
                                     : undefined
                             }
+                            */
                         />
                     </ConfigAccordionSection>
 

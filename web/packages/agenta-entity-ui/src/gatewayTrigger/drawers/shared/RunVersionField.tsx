@@ -141,6 +141,7 @@ export function RunVersionField({
     revisionPlaceholder,
     onRevisionSelect,
     revisionHint = "Runs one exact variant + revision.",
+    hideEnvironment = false,
     envOptions,
     envLoading,
     environmentSlug,
@@ -155,10 +156,13 @@ export function RunVersionField({
     revisionPlaceholder?: string
     onRevisionSelect: (selection: WorkflowRevisionSelectionResult) => void
     revisionHint?: string
-    envOptions: {value: string; label: string}[]
+    /** TEMPORARY: drop the Deployed option, leaving a Pinned-only rail. Set by the trigger
+     *  drawers; the tool "Reference by" control still offers both. */
+    hideEnvironment?: boolean
+    envOptions?: {value: string; label: string}[]
     envLoading?: boolean
     environmentSlug?: string | null
-    onEnvironmentChange: (slug: string) => void
+    onEnvironmentChange?: (slug: string) => void
     envNotFound?: React.ReactNode
     envHint?: string
     /** Left-rail width (Tailwind class). Override to align with a sibling section's rail. */
@@ -168,13 +172,13 @@ export function RunVersionField({
         <SectionRail
             items={[
                 {value: "revision", label: "Pinned"},
-                {value: "environment", label: "Deployed"},
+                ...(hideEnvironment ? [] : [{value: "environment", label: "Deployed"}]),
             ]}
             value={bindMode}
             onChange={(v) => onBindModeChange(v as RunVersionBindMode)}
             railWidth={railWidth}
         >
-            {bindMode === "revision" ? (
+            {bindMode === "revision" || hideEnvironment ? (
                 <>
                     <Typography.Text type="secondary" className="!text-[11px] leading-snug">
                         {revisionHint}

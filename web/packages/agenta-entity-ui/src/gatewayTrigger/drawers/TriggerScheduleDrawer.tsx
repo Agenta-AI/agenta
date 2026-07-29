@@ -1,9 +1,11 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+/* Unused while the Deployed option is hidden — restore with the call site below.
 import {
     appEnvironmentsQueryAtomFamily,
     environmentsListQueryAtomFamily,
 } from "@agenta/entities/environment"
+*/
 import {
     describeCron,
     getScheduleMessage,
@@ -402,8 +404,10 @@ function ScheduleForm({
     const [bindMode, setBindMode] = useState<"revision" | "environment">("revision")
     const [environmentSlug, setEnvironmentSlug] = useState<string | null>(null)
     const [appSlug, setAppSlug] = useState<string | null>(null)
+    /* Unused while the Deployed option is hidden — restore with the call site below.
     const envQuery = useAtomValue(environmentsListQueryAtomFamily(false))
     const environments = envQuery.data?.environments ?? []
+    */
 
     // Resolve the bound revision id to a human label (edit-mode prefill stores only
     // the id) — app name / variant name · vN. These are sync atoms (null for unknown).
@@ -446,6 +450,7 @@ function ScheduleForm({
 
     // Environment options: in a playground, scope to the environments this agent is
     // actually deployed to (not every project environment); settings lists them all.
+    /* Unused while the Deployed option is hidden — restore with the call site below.
     const appIdForEnv = playgroundEntityId
         ? (playgroundWorkflow?.workflow_id ?? playgroundEntityId)
         : ""
@@ -464,6 +469,7 @@ function ScheduleForm({
                         : (d.name ?? d.slug ?? ""),
             }))
     }, [playgroundEntityId, environments, appDeployments.data])
+    */
 
     // Prefill from the freshly-fetched schedule (edit mode).
     useEffect(() => {
@@ -840,6 +846,9 @@ function ScheduleForm({
                                     label = label ? `${label} · v${m.revision}` : `v${m.revision}`
                                 setWorkflowLabel(label || selection.label)
                             }}
+                            hideEnvironment
+                            /* Deployed option temporarily hidden — drop `hideEnvironment`
+                               and uncomment to restore.
                             envOptions={envOptions}
                             envLoading={
                                 playgroundEntityId ? appDeployments.isLoading : envQuery.isLoading
@@ -851,6 +860,7 @@ function ScheduleForm({
                                     ? "This agent isn't deployed to any environment yet."
                                     : undefined
                             }
+                            */
                         />
                     </ConfigAccordionSection>
 
