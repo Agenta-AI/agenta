@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
 
 /* Unused while the Deployed option is hidden — restore with the call site below.
 import {
@@ -738,7 +738,6 @@ function ScheduleForm({
     // "completion" (flat named inputs). The composer writes to `messages` for chat, or
     // the first string input from the schema (fallback "message") for completion.
     const schemaSourceId = playgroundEntityId ?? workflowRevId ?? ""
-    const schemaReady = !!(playgroundEntityId ? playgroundWorkflow : resolvedRevData)
     const isChatInput =
         useAtomValue(workflowMolecule.selectors.executionMode(schemaSourceId)) === "chat"
     const agentInputSchema = useAtomValue(workflowMolecule.selectors.inputSchema(schemaSourceId))
@@ -876,10 +875,8 @@ function ScheduleForm({
                         <MessageComposer
                             inputsText={inputsText}
                             onChange={setInputsText}
-                            isEdit={isEdit}
                             isChat={isChatInput}
                             primaryKey={primaryInputKey}
-                            schemaReady={schemaReady}
                             disabled={isMutating}
                         />
                     </ConfigAccordionSection>
@@ -1052,43 +1049,25 @@ function WindowField({
 // MessageComposer — friendly "what should the agent do?" message that maps to the
 // agent's primary input (`messages` for chat agents, else a schema string input).
 // "Advanced — raw JSON" swaps to a JSON editor over the full `inputs_fields`; only
-// one editor is mounted at a time so the message and JSON never desync.
+// one editor is mounted at a time so the message and JSON never desync. Always opens
+// on the message — a mapping the composer can't reproduce warns instead of switching.
 // ---------------------------------------------------------------------------
 
 function MessageComposer({
     inputsText,
     onChange,
-    isEdit,
     isChat,
     primaryKey,
-    schemaReady,
     disabled,
 }: {
     inputsText: string
     onChange: (next: string) => void
-    isEdit: boolean
     isChat: boolean
     primaryKey: string
-    /** Has the bound agent's schema resolved? `isChat`/`primaryKey` are meaningless until it has. */
-    schemaReady: boolean
     disabled?: boolean
 }) {
-    // Open in Advanced (raw JSON) when editing a saved mapping the simple composer can't
-    // reproduce, so the first edit doesn't collapse it to a single message.
+    // Always opens on the message; raw JSON is opt-in via "Advanced" below.
     const [rawMode, setRawMode] = useState(false)
-    // Deferred to the first render with a resolved schema: `executionMode` reports
-    // "completion" while the agent loads, which used to latch raw mode on editable payloads.
-    const decided = useRef(false)
-    useEffect(() => {
-        if (decided.current || !schemaReady) return
-        decided.current = true
-        if (
-            isEdit &&
-            inputsText.trim() &&
-            getScheduleMessage(inputsText, isChat, primaryKey) === ""
-        )
-            setRawMode(true)
-    }, [schemaReady, isEdit, inputsText, isChat, primaryKey])
 
     const rawValid = useMemo(() => {
         const t = inputsText.trim()
@@ -1134,6 +1113,8 @@ function MessageComposer({
     }
 
     const message = getScheduleMessage(inputsText, isChat, primaryKey)
+    // The composer writes a single user message, so anything richer would be lost on edit.
+    const wouldReplace = !message && !!inputsText.trim() && inputsText.trim() !== "{}"
     return (
         <div className="flex flex-col gap-1.5">
             <Input.TextArea
@@ -1146,9 +1127,19 @@ function MessageComposer({
                 disabled={disabled}
             />
             <div className="flex items-center justify-between gap-2">
-                <Typography.Text type="secondary" className="!text-[11px] leading-snug">
-                    Sent to the agent{" "}
-                    {isChat ? "as the user message" : `as the "${primaryKey}" input`} on each run.
+                <Typography.Text
+                    type={wouldReplace ? "warning" : "secondary"}
+                    className="!text-[11px] leading-snug"
+                >
+                    {wouldReplace ? (
+                        "This mapping is richer than one message — typing here replaces it. Edit it under Advanced."
+                    ) : (
+                        <>
+                            Sent to the agent{" "}
+                            {isChat ? "as the user message" : `as the "${primaryKey}" input`} on
+                            each run.
+                        </>
+                    )}
                 </Typography.Text>
                 <Typography.Link
                     className="!shrink-0 !text-[11px]"
