@@ -8,6 +8,7 @@ import {
     type TableScopeConfig,
     type TypeChipConfig,
     useTypeChipFeature,
+    type ExtendedColumn,
 } from "@agenta/ui/table"
 import {TypeChip, type ChipVariant} from "@agenta/ui/type-chip"
 import {PlusOutlined} from "@ant-design/icons"
@@ -18,7 +19,6 @@ import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
-import type {ExtendedColumnType} from "@/oss/components/InfiniteVirtualTable"
 import {extractTestcaseUserData, testcaseEntityAtomFamily} from "@/oss/state/entities/testcase"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
 import {objectColumnSubKeysAtom} from "@/oss/state/entities/testcase/columnState"
@@ -671,7 +671,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         }
 
         // Custom actions column with Add Column button in header
-        const actionsColumn: ExtendedColumnType<TestcaseTableRow>[] = [
+        const actionsColumn: ExtendedColumn<TestcaseTableRow>[] = [
             {
                 title: (
                     <div className="flex items-center gap-1 justify-end">
