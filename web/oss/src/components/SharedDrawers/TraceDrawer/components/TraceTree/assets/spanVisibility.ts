@@ -1,4 +1,6 @@
-import {SpanCategory, StatusCode, TraceSpanNode} from "@/oss/services/tracing/types"
+import type {SpanCategory} from "@agenta/entities/trace"
+
+import type {TraceSpanNode} from "@/oss/services/tracing/types"
 
 /**
  * Span tree visibility modes.
@@ -29,14 +31,14 @@ export const SPAN_VISIBILITY_OPTIONS: SpanVisibilityOption[] = [
  * category here to change what counts as a key span across the whole app.
  */
 export const KEY_SPAN_TYPES: ReadonlySet<SpanCategory> = new Set([
-    SpanCategory.AGENT,
-    SpanCategory.LLM,
-    SpanCategory.CHAT,
-    SpanCategory.COMPLETION,
-    SpanCategory.TOOL,
-    SpanCategory.EMBEDDING,
-    SpanCategory.QUERY,
-    SpanCategory.RERANK,
+    "agent",
+    "llm",
+    "chat",
+    "completion",
+    "tool",
+    "embedding",
+    "query",
+    "rerank",
 ])
 
 /**
@@ -78,7 +80,7 @@ export const keySpanRules: KeySpanRule[] = [
     {
         id: "errored-span",
         description: "Spans that ended in an error",
-        test: (node) => node.status_code === StatusCode.STATUS_CODE_ERROR,
+        test: (node) => node.status_code === "STATUS_CODE_ERROR",
     },
 ]
 
