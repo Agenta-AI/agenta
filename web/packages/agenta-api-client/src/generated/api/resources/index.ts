@@ -28,6 +28,7 @@ export * as legacy from "./legacy/index.js";
 export * from "./legacy/types/index.js";
 export * from "./mounts/client/requests/index.js";
 export * as mounts from "./mounts/index.js";
+export * from "./mounts/types/index.js";
 export * from "./organizations/client/requests/index.js";
 export * as organizations from "./organizations/index.js";
 export * from "./projects/client/requests/index.js";

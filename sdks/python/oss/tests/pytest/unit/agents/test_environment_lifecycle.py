@@ -13,7 +13,7 @@ from agenta.sdk.agents import (
     AgentTemplate,
     AgentResult,
     ClaudeHarness,
-    HarnessType,
+    HarnessKind,
     Message,
     PiHarness,
     SessionConfig,
@@ -33,12 +33,12 @@ async def test_fresh_sandbox_per_session(make_env):
 
     await env.create_session(
         PiHarness(env)._to_harness_config(config),
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         session_config=config,
     )
     await env.create_session(
         PiHarness(env)._to_harness_config(config),
-        harness=HarnessType.PI,
+        harness=HarnessKind.PI,
         session_config=config,
     )
 
@@ -52,7 +52,7 @@ async def test_shared_sandbox_when_not_per_session(make_env):
     for _ in range(2):
         await env.create_session(
             PiHarness(env)._to_harness_config(config),
-            harness=HarnessType.PI,
+            harness=HarnessKind.PI,
             session_config=config,
         )
 

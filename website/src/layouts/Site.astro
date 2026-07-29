@@ -56,7 +56,9 @@ const {
     style="width:100%;max-width:1440px;margin:0 auto;background:#0A0A0B;padding:0 12px;box-sizing:border-box;font-family:var(--font-sans);"
   >
     <SiteNav />
-    <slot />
+    <main>
+      <slot />
+    </main>
     {showCta && <CtaBand {...cta} />}
     <SiteFooter />
   </div>

@@ -1,3 +1,6 @@
+import type {ComponentType} from "react"
+
+import type {SpanCategory} from "@agenta/entities/trace"
 import {
     ArrowBendRightDownIcon,
     ArrowBendRightUpIcon,
@@ -17,10 +20,10 @@ import {
     TreeStructureIcon,
     TreeViewIcon,
     WarningOctagonIcon,
+    type IconProps,
 } from "@phosphor-icons/react"
 
 import {FilterMenuNode} from "@/oss/components/Filters/types"
-import {SpanCategory} from "@/oss/services/tracing/types"
 
 import {
     COLLECTION_MEMBERSHIP_OPS,
@@ -699,63 +702,67 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
     // },
 ]
 
-export const spanTypeStyles = {
-    [SpanCategory.AGENT]: {
+/** Keyed by the canonical SpanCategory union, so a new backend category fails the build. */
+export const spanTypeStyles: Record<
+    SpanCategory,
+    {bgColor: string; color: string; icon: ComponentType<IconProps>}
+> = {
+    ["agent"]: {
         bgColor: "var(--ant-blue-1)",
         color: "var(--ant-blue-5)",
         icon: Gear,
     },
-    [SpanCategory.WORKFLOW]: {
+    ["workflow"]: {
         color: "var(--ant-color-text-secondary)",
         bgColor: "var(--ant-color-fill-secondary)",
         icon: TreeStructureIcon,
     },
-    [SpanCategory.CHAIN]: {
+    ["chain"]: {
         bgColor: "var(--ant-blue-1)",
         color: "var(--ant-blue-5)",
         icon: Gear,
     },
-    [SpanCategory.TASK]: {
+    ["task"]: {
         bgColor: "var(--ag-zinc-2)",
         color: "var(--ant-color-text-secondary)",
         icon: TreeStructureIcon,
     },
-    [SpanCategory.TOOL]: {
+    ["tool"]: {
         bgColor: "var(--ant-purple-1)",
         color: "var(--ant-purple-5)",
         icon: Download,
     },
-    [SpanCategory.EMBEDDING]: {
+    ["embedding"]: {
         bgColor: "var(--ant-gold-1)",
         color: "var(--ant-gold-7)",
         icon: LineSegments,
     },
-    [SpanCategory.COMPLETION]: {
+    ["completion"]: {
         bgColor: "var(--ant-cyan-1)",
         color: "var(--ant-cyan-6)",
         icon: Sparkle,
     },
-    [SpanCategory.QUERY]: {
+    ["query"]: {
         bgColor: "var(--ant-gold-1)",
         color: "var(--ant-gold-7)",
         icon: LineSegments,
     },
-    [SpanCategory.CHAT]: {
+    ["chat"]: {
         bgColor: "var(--ant-cyan-1)",
         color: "var(--ant-cyan-6)",
         icon: Sparkle,
     },
-    [SpanCategory.RERANK]: {
+    ["rerank"]: {
         bgColor: "var(--ant-gold-1)",
         color: "var(--ant-gold-7)",
         icon: LineSegments,
     },
-    [SpanCategory.LLM]: {
+    ["llm"]: {
         bgColor: "var(--ant-cyan-1)",
         color: "var(--ant-cyan-6)",
         icon: Sparkle,
     },
-    [SpanCategory.UNDEFINED]: {
+    ["unknown"]: {
         bgColor: "var(--ag-zinc-1)",
         color: "var(--ant-color-text-secondary)",
         icon: TreeStructureIcon,
