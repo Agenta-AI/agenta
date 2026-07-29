@@ -296,6 +296,11 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             trace=comp.trace_context(),
             run_context=rc,
             session_id=session_id,
+            # POST-hydration: the normalizer hands the handler `request.data.parameters` AFTER
+            # the resolver has hydrated references (or kept the caller's inline config), so this
+            # is the config the turn actually runs — the thing a HITL gate must be resumable
+            # under. Carried, redacted and capped at the wire (`utils/effective_config.py`).
+            effective_parameters=parameters,
             tool_specs=resolved_tools.tool_specs,
             tool_callback=resolved_tools.tool_callback,
             mcp_servers=resolved_mcp,
