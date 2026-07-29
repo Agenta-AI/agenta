@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {
     appEnvironmentsQueryAtomFamily,
@@ -732,6 +732,7 @@ function ScheduleForm({
     // "completion" (flat named inputs). The composer writes to `messages` for chat, or
     // the first string input from the schema (fallback "message") for completion.
     const schemaSourceId = playgroundEntityId ?? workflowRevId ?? ""
+    const schemaReady = !!(playgroundEntityId ? playgroundWorkflow : resolvedRevData)
     const isChatInput =
         useAtomValue(workflowMolecule.selectors.executionMode(schemaSourceId)) === "chat"
     const agentInputSchema = useAtomValue(workflowMolecule.selectors.inputSchema(schemaSourceId))
@@ -868,6 +869,7 @@ function ScheduleForm({
                             isEdit={isEdit}
                             isChat={isChatInput}
                             primaryKey={primaryInputKey}
+                            schemaReady={schemaReady}
                             disabled={isMutating}
                         />
                     </ConfigAccordionSection>
@@ -1049,6 +1051,7 @@ function MessageComposer({
     isEdit,
     isChat,
     primaryKey,
+    schemaReady,
     disabled,
 }: {
     inputsText: string
@@ -1056,16 +1059,26 @@ function MessageComposer({
     isEdit: boolean
     isChat: boolean
     primaryKey: string
+    /** Has the bound agent's schema resolved? `isChat`/`primaryKey` are meaningless until it has. */
+    schemaReady: boolean
     disabled?: boolean
 }) {
     // Open in Advanced (raw JSON) when editing a saved mapping the simple composer can't
     // reproduce, so the first edit doesn't collapse it to a single message.
-    const [rawMode, setRawMode] = useState(
-        () =>
+    const [rawMode, setRawMode] = useState(false)
+    // Deferred to the first render with a resolved schema: `executionMode` reports
+    // "completion" while the agent loads, which used to latch raw mode on editable payloads.
+    const decided = useRef(false)
+    useEffect(() => {
+        if (decided.current || !schemaReady) return
+        decided.current = true
+        if (
             isEdit &&
-            !!inputsText.trim() &&
-            getScheduleMessage(inputsText, isChat, primaryKey) === "",
-    )
+            inputsText.trim() &&
+            getScheduleMessage(inputsText, isChat, primaryKey) === ""
+        )
+            setRawMode(true)
+    }, [schemaReady, isEdit, inputsText, isChat, primaryKey])
 
     const rawValid = useMemo(() => {
         const t = inputsText.trim()
