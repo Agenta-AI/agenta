@@ -1,6 +1,16 @@
 # Effective turn config on HITL resume — design & plan
 
-**Status:** PLANNED · **Date:** 2026-07-29 · **Branch:** `feat/agenta-mobile-wave-1`
+**Status:** BACKEND LANDED (T1–T8, T13) · client lanes T9–T12 open ·
+**Date:** 2026-07-29 · **Branch:** `feat/agenta-mobile-wave-1`
+
+> **Landed:** the SDK stamps `effectiveParameters` on the `/run` wire (session runs only,
+> redacted + 64 KB-capped — `sdks/python/agenta/sdk/agents/utils/effective_config.py`); the
+> runner echoes it into the interaction row's `data.parameters`
+> (`buildInteractionData`, `services/runner/src/sessions/interactions.ts`) and it is
+> deliberately excluded from `configFingerprint`; the API declares `parameters` on
+> `SessionInteractionData` and the M2 dispatcher sends it inline. **The runner half needs a
+> runner restart to go live** (no TypeScript hot-reload); the SDK and API halves reload in
+> place and were verified against the live EE dev stack.
 **Goal:** when an approval is answered from a client that cannot reproduce the turn's config
 (mobile, the M2 detached dispatcher), the resumed run must continue under **the config the
 gated turn was actually running**, not under whatever the referenced variant's HEAD revision
