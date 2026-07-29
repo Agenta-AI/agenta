@@ -9,14 +9,14 @@ gains the slug+name structure. These tests pin that contract.
 
 from __future__ import annotations
 
-from agenta.sdk.agents import HARNESS_IDENTITIES, HarnessType
+from agenta.sdk.agents import HARNESS_IDENTITIES, HarnessKind
 from agenta.sdk.utils.types import CATALOG_TYPES
 
 
 def test_one_identity_per_harness_type():
-    # Every HarnessType value has exactly one identity, and nothing extra.
+    # Every HarnessKind value has exactly one identity, and nothing extra.
     by_value = {identity.value: identity for identity in HARNESS_IDENTITIES}
-    assert set(by_value) == {h.value for h in HarnessType}
+    assert set(by_value) == {h.value for h in HarnessKind}
     assert len(by_value) == len(HARNESS_IDENTITIES)
 
 
@@ -28,7 +28,7 @@ def test_slug_follows_the_repo_versioned_slug_grammar():
 
 
 def test_identity_value_is_the_bare_harness_string():
-    # The identity's `value` is the bare HarnessType value (the runtime/wire selector), NOT the
+    # The identity's `value` is the bare HarnessKind value (the runtime/wire selector), NOT the
     # slug — so the wire/runner contract is unchanged.
     values = {identity.value for identity in HARNESS_IDENTITIES}
     assert values == {"pi_core", "pi_agenta", "claude"}

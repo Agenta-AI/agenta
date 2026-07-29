@@ -258,6 +258,26 @@ class Tracing(metaclass=Singleton):
             if user_id:
                 span.set_attribute("id", user_id, namespace="user")
 
+    def store_agent(
+        self,
+        agent_id: Optional[str] = None,
+        span: Optional[Span] = None,
+    ):
+        """Set agent attributes on the current span.
+
+        Args:
+            agent_id: Unique identifier for the running artifact (workflow /
+                application / evaluator id)
+            span: Optional span to set attributes on (defaults to current span)
+        """
+        self._warn_if_not_initialized("store_agent")
+        with suppress():
+            if span is None:
+                span = self.get_current_span()
+
+            if agent_id:
+                span.set_attribute("id", agent_id, namespace="agent")
+
     def extract(
         self,
         *args,

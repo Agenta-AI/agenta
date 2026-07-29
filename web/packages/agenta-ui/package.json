@@ -97,6 +97,7 @@
         "lexical": "^0.46.0",
         "lucide-react": "^0.479.0",
         "marked": "^17.0.4",
+        "motion": "^12.0.0",
         "prismjs": "^1.30.0",
         "react-resizable": "^3.0.5",
         "uuid": "^11.1.1"

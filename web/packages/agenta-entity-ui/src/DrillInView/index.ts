@@ -267,6 +267,12 @@ export {
     normalizeMessages,
     denormalizeMessages,
     getOptionsFromSchema,
+    findGrantableTool,
+    withToolPermission,
+    gateRulePattern,
+    readHarnessAllowList,
+    findGrantableHarnessTool,
+    withHarnessToolAllow,
     type OptionGroup,
 } from "./SchemaControls"
 
@@ -291,6 +297,9 @@ export type {
     ObjectSchemaControlProps,
     SchemaPropertyRendererProps,
     FieldsDetectionContextValue,
+    GrantableTool,
+    ToolPermission,
+    GrantableHarnessTool,
 } from "./SchemaControls"
 
 // Operational panel regions (Triggers, Mounts) — siblings of the Configuration section.
