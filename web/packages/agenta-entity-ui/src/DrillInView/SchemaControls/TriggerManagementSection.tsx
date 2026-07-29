@@ -45,6 +45,7 @@ import {
     CaretRight,
     Clock,
     Flask,
+    GitBranch,
     Lightning,
     ListChecks,
     PencilSimpleLine,
@@ -64,6 +65,8 @@ import {
     EventSourcePicker,
     type SampledEvent,
 } from "../../gatewayTrigger/drawers/shared/EventSourcePicker"
+import {extractBoundVersion} from "../../gatewayTrigger/drawers/shared/RunVersionField"
+import {useLatestVersionLabel} from "../../gatewayTrigger/drawers/shared/VersionHistorySelect"
 import TriggerDeliveriesDrawer from "../../gatewayTrigger/drawers/TriggerDeliveriesDrawer"
 import TriggerScheduleDrawer from "../../gatewayTrigger/drawers/TriggerScheduleDrawer"
 import TriggerSubscriptionDrawer from "../../gatewayTrigger/drawers/TriggerSubscriptionDrawer"
@@ -378,12 +381,51 @@ export function useAgentTriggers(entityId: string | null) {
     }
 }
 
+/**
+ * The bound-version chip for a schedule card, in agent History vocabulary: "v{newest} ·
+ * Latest" when the binding tracks the newest revision (a variant ref), else "v{n}" resolved
+ * from the pinned revision id. Renders nothing when no version is bound (e.g. Deployed).
+ */
+function ScheduleVersionChip({
+    references,
+}: {
+    references: Record<string, TriggerReference> | null | undefined
+}) {
+    const bound = useMemo(() => extractBoundVersion(references), [references])
+    // A latest binding carries the variant id (the agent's variant) — resolve its newest vN.
+    const variantId = (references?.application_variant?.id ??
+        references?.application?.id ??
+        null) as string | null
+    const latestLabel = useLatestVersionLabel(bound?.kind === "latest" ? variantId : null)
+    const revData = useAtomValue(workflowMolecule.selectors.data(bound?.revisionId ?? "")) as {
+        version?: number | null
+    } | null
+    if (!bound) return null
+    const label =
+        bound.kind === "latest"
+            ? latestLabel
+            : revData?.version != null
+              ? `v${revData.version}`
+              : "Pinned"
+    return (
+        <Tooltip
+            title={bound.kind === "latest" ? "Runs the newest version each time" : "Pinned version"}
+        >
+            <span className="flex items-center gap-1 rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[10px] text-[var(--ag-colorTextSecondary)]">
+                <GitBranch size={11} />
+                {label}
+            </span>
+        </Tooltip>
+    )
+}
+
 /** A trigger row: leading status-dot icon, bold name + chevron, subtitle, run + ⋯ menu. */
 function TriggerRow({
     icon,
     name,
     nameMuted,
     chip,
+    extraChip,
     subtitle,
     active,
     disabled,
@@ -396,6 +438,8 @@ function TriggerRow({
     name: string
     nameMuted?: boolean
     chip?: ReactNode
+    /** A second chip after the primary one — e.g. the schedule's bound version. */
+    extraChip?: ReactNode
     subtitle: string
     active: boolean
     disabled?: boolean
@@ -453,6 +497,7 @@ function TriggerRow({
                             {chip}
                         </span>
                     ) : null}
+                    {extraChip ? <span className="shrink-0">{extraChip}</span> : null}
                 </div>
                 <div className="mt-0.5 line-clamp-2 max-w-prose text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
                     {subtitle}
@@ -910,6 +955,9 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                                     name={named ? (record.name as string) : "Untitled schedule"}
                                     nameMuted={!named}
                                     chip={cron ? describeCron(cron) : undefined}
+                                    extraChip={
+                                        <ScheduleVersionChip references={record.data?.references} />
+                                    }
                                     subtitle={message || "No message set"}
                                     active={isEntityActive(record)}
                                     disabled={disabled}

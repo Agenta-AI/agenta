@@ -2,6 +2,7 @@ import {describe, expect, it} from "vitest"
 
 import {
     buildRunVersionReferences,
+    extractBoundVersion,
     extractBoundWorkflowId,
     hasBoundWorkflow,
     isRunVersionBound,
@@ -69,6 +70,54 @@ describe("extractBoundWorkflowId", () => {
     it("returns null when nothing carries an id", () => {
         expect(extractBoundWorkflowId({application: {slug: "technical-writer"}})).toBeNull()
         expect(extractBoundWorkflowId(null)).toBeNull()
+    })
+})
+
+describe("extractBoundVersion", () => {
+    // A pinned revision → "revision" + its resolvable revision id (drawer/card show "v{n}").
+    it("classifies a revision binding as a pinned version", () => {
+        expect(
+            extractBoundVersion({application: {id: "app-1"}, application_revision: {id: "rev-1"}}),
+        ).toEqual({kind: "revision", revisionId: "rev-1"})
+    })
+
+    // A variant or artifact-only binding tracks the newest revision → "latest" (label "Latest").
+    it("classifies a variant or artifact binding as latest", () => {
+        expect(extractBoundVersion({application_variant: {id: "var-1"}})).toEqual({
+            kind: "latest",
+            revisionId: null,
+        })
+        expect(extractBoundVersion({application: {id: "app-1"}})).toEqual({
+            kind: "latest",
+            revisionId: null,
+        })
+        expect(extractBoundVersion({application_variant: {slug: "default"}})).toEqual({
+            kind: "latest",
+            revisionId: null,
+        })
+    })
+
+    // Revision wins over a co-present variant/artifact (most specific pin).
+    it("prefers a revision over a co-present variant", () => {
+        expect(
+            extractBoundVersion({
+                application: {id: "app-1"},
+                application_variant: {id: "var-1"},
+                application_revision: {id: "rev-1"},
+            }),
+        ).toEqual({kind: "revision", revisionId: "rev-1"})
+    })
+
+    it("is null for empty, missing, or deployed families", () => {
+        expect(extractBoundVersion(null)).toBeNull()
+        expect(extractBoundVersion({})).toBeNull()
+        expect(extractBoundVersion({environment: {slug: "production"}})).toBeNull()
+        expect(
+            extractBoundVersion({
+                environment: {slug: "production"},
+                application: {slug: "technical-writer"},
+            }),
+        ).toBeNull()
     })
 })
 

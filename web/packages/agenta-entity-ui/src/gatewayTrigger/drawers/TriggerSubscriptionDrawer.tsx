@@ -76,6 +76,7 @@ import {
     extractBoundWorkflowId,
     isRunVersionBound,
 } from "./shared/RunVersionField"
+import {useLatestVersionLabel} from "./shared/VersionHistorySelect"
 import TriggerConnectDrawer from "./TriggerConnectDrawer"
 
 // How many unsaved drafts can exist at once (config knob; see schedule drawer).
@@ -494,11 +495,36 @@ function SubscriptionForm({
     const playgroundAppName = useAtomValue(
         workflowMolecule.selectors.artifactName(playgroundEntityId ?? ""),
     )
+    // The agent's variant id — its revisions are the History list, and a "Latest"
+    // binding pins to this id (tracks the newest revision at run time).
+    const playgroundVariantId =
+        (playgroundWorkflow as {workflow_variant_id?: string; variant_id?: string} | null)
+            ?.workflow_variant_id ??
+        (playgroundWorkflow as {variant_id?: string} | null)?.variant_id ??
+        null
     // Friendly name for the bound revision (used when no fresh-pick label is set, e.g.
     // after create/edit reload) so the version picker never shows a raw id.
     const resolvedRevisionName = useAtomValue(
         workflowMolecule.selectors.artifactName(workflowRevId ?? ""),
     )
+    // Resolved revision data for the History "v{n}" label (a pinned revision id resolves;
+    // a variant/Latest id does not — handled by the Latest short-circuit below).
+    const resolvedRevData = useAtomValue(workflowMolecule.selectors.data(workflowRevId ?? ""))
+    const latestVersionLabel = useLatestVersionLabel(playgroundVariantId)
+    const historyVersionLabel = useMemo(() => {
+        if (!playgroundEntityId || bindMode !== "revision" || !workflowRevId) return null
+        if (workflowRevId === playgroundVariantId) return latestVersionLabel
+        const v = (resolvedRevData as {version?: number | null} | null)?.version
+        return v != null ? `v${v}` : (workflowLabel ?? null)
+    }, [
+        playgroundEntityId,
+        bindMode,
+        workflowRevId,
+        playgroundVariantId,
+        latestVersionLabel,
+        resolvedRevData,
+        workflowLabel,
+    ])
 
     /* Unused while the Deployed option is hidden — restore with the call site below.
     const envQuery = useAtomValue(environmentsListQueryAtomFamily(false))
@@ -903,7 +929,9 @@ function SubscriptionForm({
         : undefined
     const versionSummary =
         bindMode === "revision"
-            ? (workflowLabel ?? resolvedRevisionName ?? undefined)
+            ? playgroundEntityId
+                ? (historyVersionLabel ?? undefined)
+                : (workflowLabel ?? resolvedRevisionName ?? undefined)
             : environmentSlug
               ? `env: ${environmentSlug}`
               : undefined
@@ -1024,12 +1052,38 @@ function SubscriptionForm({
                             bindMode={bindMode}
                             onBindModeChange={setBindMode}
                             revisionAdapter={revisionAdapter}
+                            historyMode={!!playgroundEntityId}
+                            historyVariantId={playgroundVariantId}
+                            historyValue={workflowRevId}
+                            onHistorySelect={(selection) => {
+                                setWorkflowRevId(selection.id)
+                                const label =
+                                    selection.kind === "latest"
+                                        ? "Latest"
+                                        : selection.version != null
+                                          ? `v${selection.version}`
+                                          : "Pinned version"
+                                setWorkflowLabel(label)
+                                setWorkflowSelection({
+                                    type: "workflowRevision",
+                                    id: selection.id,
+                                    label,
+                                    path: [],
+                                    metadata: {
+                                        workflowId: playgroundWorkflow?.workflow_id ?? "",
+                                        workflowName: "",
+                                        variantId: playgroundVariantId ?? "",
+                                        variantName: "",
+                                        revision: selection.version ?? 0,
+                                    },
+                                })
+                            }}
                             revisionPlaceholder={
-                                workflowLabel ??
-                                resolvedRevisionName ??
-                                (playgroundEntityId
-                                    ? "Select a variant revision"
-                                    : "Select workflow revision")
+                                playgroundEntityId
+                                    ? "Select a version"
+                                    : (workflowLabel ??
+                                      resolvedRevisionName ??
+                                      "Select workflow revision")
                             }
                             onRevisionSelect={(selection) => {
                                 setWorkflowRevId(selection.id)

@@ -7,6 +7,8 @@ import {
     type WorkflowRevisionSelectionResult,
 } from "../../../selection"
 
+import {VersionHistorySelect, type VersionHistorySelection} from "./VersionHistorySelect"
+
 export type RunVersionBindMode = "revision" | "environment"
 
 export interface TriggerReference {
@@ -61,6 +63,34 @@ export function hasBoundWorkflow(references: TriggerReferences): boolean {
  */
 export function extractBoundWorkflowId(references: TriggerReferences): string | null {
     return findBoundRef(references, (ref) => !!ref.id)?.id ?? null
+}
+
+export interface BoundVersion {
+    /** "latest" = a variant/bare binding (tracks newest); "revision" = a pinned point. */
+    kind: "latest" | "revision"
+    /** Revision id when kind is "revision" (molecule-resolvable to a vN); null for latest. */
+    revisionId: string | null
+}
+
+/**
+ * Classify a stored binding as agent "History": a `*_revision` ref is a pinned `vN`
+ * (its id resolves to a version); a `*_variant` or bare ref tracks the latest. Deployed
+ * (environment) is not a version binding. Used for the drawer label and the card chip so
+ * both read in the agent vocabulary — "Latest" / "v5" — instead of an unresolved id.
+ */
+export function extractBoundVersion(references: TriggerReferences): BoundVersion | null {
+    if (!references || references.environment) return null
+    for (const prefix of ["application", "evaluator", "workflow"]) {
+        const revision = references[`${prefix}_revision`]
+        if (revision && (revision.id || revision.slug)) {
+            return {kind: "revision", revisionId: revision.id ?? null}
+        }
+        const variant = references[`${prefix}_variant`]
+        if (variant && (variant.id || variant.slug)) return {kind: "latest", revisionId: null}
+        const bare = references[prefix]
+        if (bare && (bare.id || bare.slug)) return {kind: "latest", revisionId: null}
+    }
+    return null
 }
 
 /**
@@ -149,6 +179,10 @@ export function RunVersionField({
     envNotFound,
     envHint = "Follows the revision deployed to an environment.",
     railWidth = "w-[116px]",
+    historyMode = false,
+    historyVariantId,
+    historyValue,
+    onHistorySelect,
 }: {
     bindMode: RunVersionBindMode
     onBindModeChange: (mode: RunVersionBindMode) => void
@@ -167,7 +201,31 @@ export function RunVersionField({
     envHint?: string
     /** Left-rail width (Tailwind class). Override to align with a sibling section's rail. */
     railWidth?: string
+    /** Agent playground: replace the variant→revision picker (and the Pinned/Deployed rail)
+     *  with a flat "History" dropdown — Latest + vN. Off elsewhere, so settings / evaluator
+     *  flows keep the full EntityPicker unchanged. */
+    historyMode?: boolean
+    historyVariantId?: string | null
+    historyValue?: string | null
+    onHistorySelect?: (selection: VersionHistorySelection) => void
 }) {
+    // Agent History mode: a single flat version list, no bind-mode rail (Latest replaces
+    // "Pinned", Deployed is not offered for agents).
+    if (historyMode) {
+        return (
+            <div className="flex flex-col gap-1.5">
+                <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+                    Runs the newest version, or pin one from history.
+                </Typography.Text>
+                <VersionHistorySelect
+                    variantId={historyVariantId ?? null}
+                    value={historyValue ?? null}
+                    onSelect={(selection) => onHistorySelect?.(selection)}
+                    placeholder={revisionPlaceholder}
+                />
+            </div>
+        )
+    }
     return (
         <SectionRail
             items={[
