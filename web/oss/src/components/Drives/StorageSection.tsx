@@ -15,6 +15,8 @@ import {Typography} from "antd"
 import {useAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
+import {isAgentFileUploadsEnabled} from "@/oss/components/AgentChatSlice/assets/constants"
+
 import {configFilesDrawerAtomFamily, useConfigDrive} from "./configDrive"
 import {type DriveId} from "./DriveExplorer"
 import {DriveFileRow, DriveRetryButton, SKELETON_ROW_COUNT} from "./DriveFileRow"
@@ -84,7 +86,7 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
     // Drop-to-stage: a file drag over the Files peek opens the drawer with the files staged, so the
     // destination folder is chosen there (this flat peek has no folder of its own).
     const {dropActive, dropProps: stageDropProps} = useStageDrop(
-        drive.mount
+        isAgentFileUploadsEnabled() && drive.mount
             ? (files) => setDrawer({open: true, initialPath: null, staged: files})
             : undefined,
     )

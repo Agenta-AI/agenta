@@ -33,6 +33,10 @@ export const processEnv = {
     // dropdown exposes the Virtualization section and the chat can window its settled history. Gated
     // so it's off everywhere unless explicitly enabled while the approach is evaluated.
     NEXT_PUBLIC_AGENT_CHAT_VIRTUALIZATION: process.env.NEXT_PUBLIC_AGENT_CHAT_VIRTUALIZATION,
+    // Agent file uploads/attachments: when "true", the composer attach button + attachment preview
+    // and every drive upload entry point (upload button, drop-to-upload, drop-to-stage) are shown.
+    // Off by default — the composer→model attachment delivery contract is still open on the backend.
+    NEXT_PUBLIC_AGENT_FILE_UPLOADS: process.env.NEXT_PUBLIC_AGENT_FILE_UPLOADS,
     // Template-strip onboarding: when "true", template presentation on Home, playground
     // onboarding, and every agent's empty chat becomes one shared always-visible strip
     // (card click fills the composer + chip instead of creating/opening a drawer). Unset/

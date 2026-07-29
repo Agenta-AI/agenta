@@ -95,7 +95,11 @@ import {
     describeAccepted,
     validateIncoming,
 } from "./assets/attachments"
-import {doesAgentChatStopKillSession, isAgentVoiceInputEnabled} from "./assets/constants"
+import {
+    doesAgentChatStopKillSession,
+    isAgentFileUploadsEnabled,
+    isAgentVoiceInputEnabled,
+} from "./assets/constants"
 import {filesToParts} from "./assets/files"
 import {loadSessionMessages} from "./assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
@@ -1758,6 +1762,9 @@ const AgentConversation = ({
      */
     // Flagged off until the agent service accepts audio parts (`NEXT_PUBLIC_AGENT_VOICE_INPUT`).
     const voiceEnabled = isAgentVoiceInputEnabled()
+    // Attach button + attachment preview + drive uploads (`NEXT_PUBLIC_AGENT_FILE_UPLOADS`). Paste
+    // and drag-to-attach predate the flag and stay on.
+    const uploadsEnabled = isAgentFileUploadsEnabled()
     const [voiceWillSend, setVoiceWillSend] = useState(false)
     const voiceRecorder = useAudioRecorder((file) => {
         if (voiceWillSend) handleSubmit("", [file])
@@ -2118,11 +2125,13 @@ const AgentConversation = ({
                 {modalContextHolder}
                 {quickLookHost}
                 {filesWindowHost}
-                <AttachmentViewerDrawer
-                    uploads={files}
-                    openUid={viewingUid}
-                    onClose={() => setViewingUid(null)}
-                />
+                {uploadsEnabled ? (
+                    <AttachmentViewerDrawer
+                        uploads={files}
+                        openUid={viewingUid}
+                        onClose={() => setViewingUid(null)}
+                    />
+                ) : null}
                 {/* Resizable [chat | right panel] split. The panel (turn inspector OR session content)
                 pushes the chat aside rather than overlaying it, and collapses to 0 when closed. */}
                 <RightPanelSplit
@@ -2522,14 +2531,16 @@ const AgentConversation = ({
                                                             }
                                                         />
                                                     ) : null}
-                                                    {/* Attach button is gated until the agent service is ready for
-                                                inline file parts (big-agents d4b119af26); paste / drag-to-add
-                                                still work. */}
+                                                    {/* Attach button stays dead until the agent service is ready
+                                                for inline file parts (`NEXT_PUBLIC_AGENT_FILE_UPLOADS`);
+                                                paste / drag-to-add still work either way. */}
                                                     <Tooltip
                                                         title={
-                                                            atMax
-                                                                ? `Up to ${limits.maxCount} files`
-                                                                : "Attach files"
+                                                            !uploadsEnabled
+                                                                ? "Attach files coming soon"
+                                                                : atMax
+                                                                  ? `Up to ${limits.maxCount} files`
+                                                                  : "Attach files"
                                                         }
                                                     >
                                                         <Button
@@ -2539,7 +2550,9 @@ const AgentConversation = ({
                                                             // already; leaving the obvious control
                                                             // dead was the odd one out. Gated with
                                                             // them on the composer being usable.
-                                                            disabled={composerDisabled}
+                                                            disabled={
+                                                                !uploadsEnabled || composerDisabled
+                                                            }
                                                             onClick={() =>
                                                                 setAttachmentsOpen((open) => !open)
                                                             }
@@ -2572,7 +2585,11 @@ const AgentConversation = ({
                                                         onDismissRejections={() =>
                                                             setRejections([])
                                                         }
-                                                        onView={setViewingUid}
+                                                        onView={
+                                                            uploadsEnabled
+                                                                ? setViewingUid
+                                                                : undefined
+                                                        }
                                                         onRetry={uploads.retry}
                                                     />
                                                 </HeightCollapse>
@@ -2653,7 +2670,9 @@ const AgentConversation = ({
                             busy={busy}
                             hidden={buildMode || inspectorOpen}
                             onOpenFiles={() => setFilesWindowOpen(true)}
-                            onStageFiles={(files) => setFilesStaged(files)}
+                            onStageFiles={
+                                uploadsEnabled ? (files) => setFilesStaged(files) : undefined
+                            }
                         />
                     </div>
                 </RightPanelSplit>

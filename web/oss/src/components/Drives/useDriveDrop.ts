@@ -32,9 +32,12 @@ export interface DriveDrop {
 }
 
 export function useDriveDrop({
+    enabled = true,
     onUpload,
     onNavigate,
 }: {
+    /** False leaves the hook mounted but inert — no window listeners, nothing to hover. */
+    enabled?: boolean
     onUpload: (files: File[], folder: string) => void
     onNavigate: (folder: string) => void
 }): DriveDrop {
@@ -53,6 +56,7 @@ export function useDriveDrop({
     // dragenter/leave flicker from moving across child elements).
     const depth = useRef(0)
     useEffect(() => {
+        if (!enabled) return
         const has = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files")
         const onEnter = (e: DragEvent) => {
             if (has(e)) {
@@ -80,7 +84,7 @@ export function useDriveDrop({
             window.removeEventListener("drop", onEnd)
             window.removeEventListener("dragend", onEnd)
         }
-    }, [clearSpring])
+    }, [enabled, clearSpring])
 
     const startSpring = useCallback(
         (path: string) => {

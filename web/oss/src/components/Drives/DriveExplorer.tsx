@@ -61,6 +61,7 @@ import {atom, useAtom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {AnimatePresence, animate, motion, useMotionValue} from "motion/react"
 
+import {isAgentFileUploadsEnabled} from "@/oss/components/AgentChatSlice/assets/constants"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {DriveExplorerSkeleton, TileGridSkeleton} from "./DriveExplorerSkeleton"
@@ -1821,8 +1822,10 @@ export function DriveExplorer({
 
     // Upload files INTO the current folder — mount-backed, writable hosts only (never the local-file
     // preview, which has no mount to write to). `mountUpload` is declared above the tree build.
+    // The single switch for every upload affordance here: header button, drop-to-upload on folders
+    // and panes, and the staged-files inbox.
     const uploadInputRef = useRef<HTMLInputElement>(null)
-    const canUpload = !explicitFiles && !!drive.mount
+    const canUpload = isAgentFileUploadsEnabled() && !explicitFiles && !!drive.mount
     const currentFolder = selectedIsFolder
         ? (selectedPath ?? "")
         : selectedPath
@@ -1850,6 +1853,7 @@ export function DriveExplorer({
     // Drag-and-drop uploads: highlight + spring-load into folders, drop to upload. Disabled in the
     // local-file preview (no mount to write to).
     const drop = useDriveDrop({
+        enabled: canUpload,
         onUpload: canUpload ? uploadIntoFolder : () => {},
         onNavigate: select,
     })
