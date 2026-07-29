@@ -27,6 +27,7 @@ import {useDriveArtifactId} from "./driveSessionContext"
 import {relativeTime} from "./driveTree"
 import {driveQuickLookAtomFamily} from "./quickLook"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
+import {type FileDropProps, useStageDrop} from "./useDriveDrop"
 import {driveHasMixedOrigins, useSessionDriveSummary} from "./useSessionDrive"
 
 const {Text} = Typography
@@ -52,6 +53,7 @@ export function ContextRail({
     busy,
     hidden = false,
     onOpenFiles,
+    onStageFiles,
 }: {
     sessionId: string
     /** The conversation is currently running a turn (drives the running indicator). */
@@ -61,8 +63,21 @@ export function ContextRail({
     hidden?: boolean
     /** Open the Files drawer. */
     onOpenFiles: () => void
+    /** Files dropped on the rail → stage them and open the drawer to pick a destination. Omit to
+     * disable drop-to-stage. */
+    onStageFiles?: (files: File[]) => void
 }) {
     const [open, setOpen] = useAtom(contextRailOpenAtom)
+    // Drop-to-stage: a file drag over the rail (strip or expanded) opens the drawer with the files
+    // staged, so the destination is chosen there (recents has no folder of its own).
+    const {dropActive, dropProps: stageDropProps} = useStageDrop(
+        onStageFiles
+            ? (files) => {
+                  setOpen(true)
+                  onStageFiles(files)
+              }
+            : undefined,
+    )
     // A brand-new never-run tab has no server data — hold the queries off until its first run.
     const artifactId = useDriveArtifactId()
     const drive = useSessionDriveSummary(
@@ -93,8 +108,9 @@ export function ContextRail({
                         }
                     }}
                     aria-label="Show files"
-                    className="group flex h-full cursor-pointer flex-col items-center gap-2.5 border-0 border-l border-solid pt-3 transition-colors hover:bg-[var(--ag-colorFillTertiary)]"
+                    className={`group flex h-full cursor-pointer flex-col items-center gap-2.5 border-0 border-l border-solid pt-3 transition-colors hover:bg-[var(--ag-colorFillTertiary)] ${dropActive ? "bg-[var(--ant-color-primary-bg)]" : ""}`}
                     style={{width: STRIP_WIDTH, borderColor: BORDER}}
+                    {...stageDropProps}
                 >
                     <Tooltip title="Show files" placement="left">
                         <span className="flex h-7 w-7 items-center justify-center rounded text-colorTextSecondary transition-colors group-hover:text-colorText">
@@ -144,6 +160,8 @@ export function ContextRail({
                     onOpenFiles={onOpenFiles}
                     onCollapse={() => setOpen(false)}
                     onQuickLook={(path) => openQuickLook({path})}
+                    dropProps={stageDropProps}
+                    dropActive={dropActive}
                 />
             )}
         </div>
@@ -155,11 +173,16 @@ const ExpandedRail = ({
     onOpenFiles,
     onCollapse,
     onQuickLook,
+    dropProps,
+    dropActive,
 }: {
     drive: ReturnType<typeof useSessionDriveSummary>
     onOpenFiles: () => void
     onCollapse: () => void
     onQuickLook: (path: string) => void
+    /** Drop-to-stage handlers + highlight, forwarded from ContextRail (shared with the strip). */
+    dropProps?: FileDropProps
+    dropActive?: boolean
 }) => {
     const now = useRecentChangeClock(drive.lastTouchedAt)
     const showOrigin = driveHasMixedOrigins(drive.recents)
@@ -167,8 +190,9 @@ const ExpandedRail = ({
     const download = useDriveItemDownload(drive)
     return (
         <aside
-            className="flex h-full flex-col overflow-y-auto border-0 border-l border-solid"
+            className={`flex h-full flex-col overflow-y-auto border-0 border-l border-solid transition-colors ${dropActive ? "bg-[var(--ant-color-primary-bg)]" : ""}`}
             style={{width: RAIL_WIDTH, borderColor: BORDER}}
+            {...dropProps}
         >
             <div className="flex items-center gap-1.5 px-3 pt-3">
                 <span className="text-xs font-medium">Files</span>

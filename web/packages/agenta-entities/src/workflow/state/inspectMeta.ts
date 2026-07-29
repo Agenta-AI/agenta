@@ -138,3 +138,18 @@ export function contextWindowForModel(
     const entry = capabilities[harness]?.model_catalog?.find((e) => e.id === modelId)
     return entry?.context_window ?? null
 }
+
+/**
+ * The input modalities a model declares (e.g. `["text", "image"]`), or null when the catalog does
+ * not say. Null means UNKNOWN, never "unsupported" — not every entry carries the field, so callers
+ * must not read a missing value as a capability the model lacks.
+ */
+export function modalitiesForModel(
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+    harness: string | null | undefined,
+    modelId: string | null | undefined,
+): string[] | null {
+    if (!capabilities || !harness || !modelId) return null
+    const entry = capabilities[harness]?.model_catalog?.find((e) => e.id === modelId)
+    return entry?.modalities?.length ? entry.modalities : null
+}
