@@ -283,6 +283,73 @@ describe("transcriptToMessages approval hydration", () => {
             "trace-resume",
         )
     })
+
+    it("settles a resumed turn's gate even when the log has no interaction_response", () => {
+        // Real shape of an approval answered on ANOTHER device (verified against `records`): the
+        // paused turn carries the request, the resume turn carries only thought/usage/message/done —
+        // no `interaction_response`, no re-emitted call, no `tool_result`. The gate must NOT replay
+        // as pending, or the desktop reload keeps showing "Approval needed to continue".
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "create hello.md"}, "user"),
+            record("r-call", {
+                type: "tool_call",
+                id: "tool-1",
+                name: "bash",
+                input: {command: "cat > hello.md"},
+            }),
+            record("r-req", {
+                type: "interaction_request",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-1"},
+            }),
+            record("r-done-paused", {type: "done", stopReason: "paused"}),
+            record("r-thought", {type: "thought", text: "the user approved it"}),
+            record("r-msg", {type: "message", text: "Created hello.md"}),
+            record("r-done", {type: "done"}),
+        ])
+
+        expect(messages).toHaveLength(2)
+        const assistant = messages![1]
+        const parts = assistant.parts as unknown as Record<string, unknown>[]
+        expect(parts.filter((part) => part.state === "approval-requested")).toEqual([])
+        expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
+            state: "approval-responded",
+            approval: {id: "approval-1"},
+        })
+        expect(
+            (assistant as unknown as {metadata?: {paused?: boolean}}).metadata?.paused,
+        ).toBeFalsy()
+    })
+
+    it("keeps a still-parked turn's gate pending (no resume records yet)", () => {
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "create hello.md"}, "user"),
+            ...approvalRecords(),
+            record("r-done-paused", {type: "done", stopReason: "paused"}),
+        ])
+
+        const parts = messages![1].parts as unknown as Record<string, unknown>[]
+        expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
+            state: "approval-requested",
+        })
+    })
+
+    it("leaves a denied call denied across the pause boundary", () => {
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "create hello.md"}, "user"),
+            ...approvalRecords(),
+            record("r-done-paused", {type: "done", stopReason: "paused"}),
+            record("r-result-denied", {type: "tool_result", id: "tool-1", denied: true}),
+            record("r-msg", {type: "message", text: "Okay, skipping it."}),
+            record("r-done", {type: "done"}),
+        ])
+
+        const parts = messages![1].parts as unknown as Record<string, unknown>[]
+        expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
+            state: "output-denied",
+        })
+    })
 })
 
 /**
