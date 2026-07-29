@@ -44,24 +44,23 @@ class ApiPrefixStripMiddleware:
 
         while path == API_PREFIX or path.startswith(API_PREFIX + "/"):
             path = path[len(API_PREFIX) :] or "/"
-            if (
-                isinstance(raw, (bytes, bytearray))
-                and raw[: len(API_PREFIX)] == b"/api"
-            ):
-                raw = bytes(raw)[len(API_PREFIX) :] or b"/"
             changed = True
 
         alternate = path[:-1] if path.endswith("/") and path != "/" else path + "/"
         if alternate and not self._known(scope, path) and self._known(scope, alternate):
-            if isinstance(raw, (bytes, bytearray)):
-                raw = alternate.encode("ascii", "ignore")
             path = alternate
             changed = True
 
         if changed:
             scope = dict(scope)
             scope["path"] = path
-            scope["raw_path"] = raw
+            # `raw_path` is the original, still-encoded bytes (e.g. a percent-encoded prefix
+            # like `/%61pi/foo` decodes to the same `path` a literal `/api/foo` would, but
+            # doesn't share its byte prefix, so it can't be stripped the same way). Re-deriving
+            # it from the now-normalized `path` keeps the two in lockstep instead of risking a
+            # stale/divergent `raw_path` that no longer matches where the request actually routes.
+            if isinstance(raw, (bytes, bytearray)):
+                scope["raw_path"] = path.encode("utf-8")
         return scope
 
     def _known(self, scope, path) -> bool:
