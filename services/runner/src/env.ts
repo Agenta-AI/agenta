@@ -69,18 +69,38 @@ export function envInt(
     return fallback;
   }
 
-  // Truncate first, then clamp: a fractional value like 0.5 would otherwise floor to a 0 that
-  // passes a naive `> 0` check.
-  const truncated = Math.trunc(parsed);
-  if (truncated < min) {
-    warnOnce(name, `${raw} below minimum ${min}; clamped`, log);
-    return min;
+  const clamped = clampInt(parsed, min, max);
+  if (clamped !== Math.trunc(parsed)) {
+    warnOnce(
+      name,
+      clamped === min
+        ? `${raw} below minimum ${min}; clamped`
+        : `${raw} above maximum ${max}; clamped`,
+      log,
+    );
   }
-  if (truncated > max) {
-    warnOnce(name, `${raw} above maximum ${max}; clamped`, log);
-    return max;
-  }
-  return truncated;
+  return clamped;
+}
+
+/**
+ * Force an already-computed delay into the timer domain.
+ *
+ * `envInt` guards the read boundary, but a delay is often *derived* afterwards — a fraction of
+ * another limit, a backoff, a remaining budget — and arithmetic on two in-domain values can
+ * still land outside it (half of the smallest legal delay rounds to 0, which fires instantly).
+ * Run any derived delay through this so the domain holds by construction rather than by
+ * re-deriving the argument at each site.
+ */
+export function clampTimerMs(ms: number, { min = 1 }: { min?: number } = {}): number {
+  return clampInt(ms, min, TIMER_MAX_MS);
+}
+
+/** Truncate before clamping: a fractional value like 0.5 must not floor to a 0 that then
+ *  passes a naive `> 0` check. `NaN` is the only input with no magnitude to clamp toward, so
+ *  it takes the floor; ±Infinity has a direction and lands on the matching end of the range. */
+function clampInt(value: number, min: number, max: number): number {
+  if (Number.isNaN(value)) return min;
+  return Math.min(Math.max(Math.trunc(value), min), max);
 }
 
 /**

@@ -5,7 +5,13 @@
  */
 import { describe, it, beforeEach, assert, vi } from "vitest";
 
-import { envInt, envTimerMs, resetEnvWarnings, TIMER_MAX_MS } from "../../src/env.ts";
+import {
+  clampTimerMs,
+  envInt,
+  envTimerMs,
+  resetEnvWarnings,
+  TIMER_MAX_MS,
+} from "../../src/env.ts";
 
 const NAME = "AGENTA_TEST_ENV_NUM";
 
@@ -92,5 +98,27 @@ describe("envTimerMs", () => {
       resetEnvWarnings();
       assert.isAtLeast(envTimerMs(NAME, 5_000), 1, `raw=${raw}`);
     }
+  });
+});
+
+describe("clampTimerMs", () => {
+  // Guards delays the code DERIVES: arithmetic on two in-domain values can still leave the
+  // domain, and the result is armed just like a value read straight from env.
+  it("keeps a derived fraction off zero", () => {
+    assert.equal(clampTimerMs(Math.floor(1 / 2)), 1);
+    assert.equal(clampTimerMs(0.5), 1);
+    assert.equal(clampTimerMs(-100), 1);
+  });
+
+  it("passes usable delays through, truncated", () => {
+    assert.equal(clampTimerMs(30_000), 30_000);
+    assert.equal(clampTimerMs(1_500.75), 1_500);
+  });
+
+  it("caps at the timer ceiling; ±Infinity lands on the matching end, NaN on the floor", () => {
+    assert.equal(clampTimerMs(Number.MAX_SAFE_INTEGER), TIMER_MAX_MS);
+    assert.equal(clampTimerMs(Number.POSITIVE_INFINITY), TIMER_MAX_MS);
+    assert.equal(clampTimerMs(Number.NEGATIVE_INFINITY), 1);
+    assert.equal(clampTimerMs(NaN), 1);
   });
 });
