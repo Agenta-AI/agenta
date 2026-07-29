@@ -42,9 +42,16 @@ const sanitizeReferences = (
     return Object.keys(out).length > 0 ? out : null
 }
 
+/** The gated turn's stamped effective config, or null when the row predates stamping. */
+const sanitizeParameters = (raw: unknown): Record<string, unknown> | null => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
+    const params = raw as Record<string, unknown>
+    return Object.keys(params).length > 0 ? params : null
+}
+
 /**
  * Approve/deny pending HITL gates from the phone — the lite resume path (plan M1.3):
- * fresh records → stamp `approval-responded` on the tail → ONE references-only invoke POST
+ * fresh records → stamp `approval-responded` on the tail → ONE resume invoke POST
  * (`buildAgentResumeRequest`), fire-and-forget. No live SSE consumption: the response is
  * drained in the background and the tightened records poll repaints the transcript until the
  * turn settles (`phase` drops back to idle once no gate is pending).
@@ -96,8 +103,8 @@ export const useApprovalActions = ({
                 if (stamped === messages) {
                     throw new Error("This approval is no longer pending — refresh and retry.")
                 }
-                // The interaction row stores the run's role-keyed workflow references —
-                // the resolver hydrates config from them server-side (references-only body).
+                // The interaction row stores the run's role-keyed workflow references and,
+                // when the runner stamped it, the turn's effective config.
                 const interactions = await queryInteractions({
                     sessionId,
                     projectId,
@@ -112,7 +119,13 @@ export const useApprovalActions = ({
                 const matched = answeredId
                     ? withRefs.find((row) => row.token === answeredId)
                     : undefined
-                const references = sanitizeReferences((matched ?? withRefs[0])?.data?.references)
+                const row = matched ?? withRefs[0]
+                const references = sanitizeReferences(row?.data?.references)
+                // Replay the turn's own config when the runner stamped it — references alone
+                // hydrate the variant's HEAD, which is a different model and, worse, a
+                // different tool-permission map than the gate was approved under. Rows without
+                // it (legacy, over-cap, pre-restart runner) fall back to hydration silently.
+                const parameters = sanitizeParameters(row?.data?.parameters)
                 if (!references) {
                     throw new Error(
                         "This approval carries no workflow reference — answer on desktop.",
@@ -132,6 +145,7 @@ export const useApprovalActions = ({
                     references,
                     sessionId,
                     messages: stamped,
+                    parameters,
                     projectId,
                     applicationId: references.application?.id ?? undefined,
                 })

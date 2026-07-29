@@ -60,6 +60,11 @@ export const sessionInteractionSchema = z.object({
         .object({
             request: z.record(z.string(), z.unknown()).nullish(),
             references: z.record(z.string(), z.unknown()).nullish(),
+            // The gated turn's stamped effective config; must be declared or zod's default
+            // strip-unknown-keys would silently drop it and the resume falls back to
+            // reference hydration (i.e. the wrong config). Rows written before the runner
+            // started stamping simply have no key.
+            parameters: z.record(z.string(), z.unknown()).nullish(),
             selector: z.record(z.string(), z.unknown()).nullish(),
             resolution: z.record(z.string(), z.unknown()).nullish(),
         })
