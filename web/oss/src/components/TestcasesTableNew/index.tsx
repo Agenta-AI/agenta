@@ -1,10 +1,10 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {useRowHeight} from "@agenta/ui/table"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
-import {useRowHeight} from "@/oss/components/InfiniteVirtualTable"
 import TestcaseEditDrawer from "@/oss/components/SharedDrawers/TestcaseDrawer"
 import useBlockNavigation from "@/oss/hooks/useBlockNavigation"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"

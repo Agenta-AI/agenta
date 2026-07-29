@@ -1,9 +1,9 @@
 import {useMemo} from "react"
 
+import {getColumnViewportVisibilityAtom} from "@agenta/ui/table"
 import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
-import {getColumnViewportVisibilityAtom} from "@/oss/components/InfiniteVirtualTable/atoms/columnVisibility"
 import {evaluatorReferenceAtomFamily} from "@/oss/components/References/atoms/entityReferences"
 import type {EvaluatorReference} from "@/oss/components/References/atoms/entityReferences"
 
