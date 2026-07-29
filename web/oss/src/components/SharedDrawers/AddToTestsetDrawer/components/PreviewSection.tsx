@@ -1,8 +1,8 @@
 import {useMemo} from "react"
 
+import {useRowHeight} from "@agenta/ui/table"
 import {Typography} from "antd"
 
-import {useRowHeight} from "@/oss/components/InfiniteVirtualTable"
 import {TestcasesTableShell} from "@/oss/components/TestcasesTableNew/components/TestcasesTableShell"
 import {useTestcasesTable} from "@/oss/components/TestcasesTableNew/hooks/useTestcasesTable"
 import {
