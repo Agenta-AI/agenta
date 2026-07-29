@@ -75,20 +75,17 @@
 
 import type {Key} from "react"
 
-import {atom} from "jotai"
-import type {Atom, PrimitiveAtom, WritableAtom} from "jotai"
-import {atomFamily} from "jotai/utils"
-
 import {
     createSimpleTableStore,
     type BaseTableMeta,
     type SimpleTableStore,
-} from "@/oss/components/InfiniteVirtualTable/helpers/createSimpleTableStore"
-import type {
-    InfiniteTableFetchResult,
-    InfiniteTableRowBase,
-    WindowingState,
-} from "@/oss/components/InfiniteVirtualTable/types"
+    type InfiniteTableFetchResult,
+    type InfiniteTableRowBase,
+    type WindowingState,
+} from "@agenta/ui/table"
+import {atom} from "jotai"
+import type {Atom, PrimitiveAtom, WritableAtom} from "jotai"
+import {atomFamily} from "jotai/utils"
 
 // ============================================================================
 // TYPES
