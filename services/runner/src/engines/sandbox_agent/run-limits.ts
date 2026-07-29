@@ -10,6 +10,8 @@
  * legitimate, human-timescale wait, not a wedge, and must never be reaped by these deadlines.
  */
 
+import { envTimerMs } from "../../env.ts";
+
 export interface Clock {
   now(): number;
   setTimeout(fn: () => void, ms: number): NodeJS.Timeout;
@@ -21,13 +23,6 @@ const realClock: Clock = {
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (handle) => clearTimeout(handle),
 };
-
-function envMs(name: string, defaultMs: number): number {
-  const raw = process.env[name];
-  if (raw === undefined || raw === "") return defaultMs;
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : defaultMs;
-}
 
 export const TOTAL_DEADLINE_ENV = "AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS";
 export const IDLE_TIMEOUT_ENV = "AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS";
@@ -54,6 +49,8 @@ export interface ResolvedRunLimits {
 export function resolveRunLimits(
   log: (message: string) => void = () => {},
 ): ResolvedRunLimits {
+  const envMs = (name: string, defaultMs: number): number =>
+    envTimerMs(name, defaultMs, { log });
   const totalMs = envMs(TOTAL_DEADLINE_ENV, DEFAULT_TOTAL_DEADLINE_MS);
   let idleMs = envMs(IDLE_TIMEOUT_ENV, DEFAULT_IDLE_TIMEOUT_MS);
   const ttfbMs = envMs(TTFB_TIMEOUT_ENV, DEFAULT_TTFB_TIMEOUT_MS);
