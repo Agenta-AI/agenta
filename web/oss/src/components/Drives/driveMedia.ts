@@ -159,6 +159,38 @@ export function useMountFileObjectUrl(
 }
 
 /** Download one drive file (any type) via the bytes endpoint. */
+/**
+ * Upload a file into a mount folder, reporting real progress via axios `onUploadProgress` (the
+ * Fern client uses fetch, which can't stream upload progress). `destFolder` is the mount-relative
+ * directory ("" = root); the filename is appended.
+ */
+export async function uploadMountFile({
+    mountId,
+    destFolder,
+    file,
+    projectId,
+    onProgress,
+    signal,
+}: {
+    mountId: string
+    destFolder: string
+    file: File
+    projectId?: string | null
+    onProgress?: (percent: number) => void
+    signal?: AbortSignal
+}): Promise<void> {
+    const form = new FormData()
+    form.append("file", file, file.name)
+    const path = destFolder ? `${destFolder.replace(/\/$/, "")}/${file.name}` : file.name
+    await axios.post(`${getAgentaApiUrl()}/mounts/${mountId}/files/upload`, form, {
+        params: {path, project_id: projectId},
+        signal,
+        onUploadProgress: (e) => {
+            if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100))
+        },
+    })
+}
+
 export async function downloadMountFile({
     mount,
     path,

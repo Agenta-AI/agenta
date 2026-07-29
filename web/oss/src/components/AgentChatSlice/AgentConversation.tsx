@@ -20,6 +20,7 @@ import {markTraceAsFresh} from "@agenta/entities/trace"
 import {
     contextWindowForModel,
     harnessCapabilitiesAtomFamily,
+    modalitiesForModel,
     invalidateAgentCommittedRevisionCache,
     workflowBuildKitOverlayReadyAtomFamily,
     workflowMolecule,
@@ -51,6 +52,7 @@ import {type UIMessage} from "ai"
 import {App, Button, Modal, Tag, Tooltip} from "antd"
 import type {UploadFile} from "antd"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
+import {AnimatePresence, motion} from "motion/react"
 import {useRouter} from "next/router"
 import {Virtuoso, type Components, type VirtuosoHandle} from "react-virtuoso"
 
@@ -60,6 +62,7 @@ import {DriveSessionProvider} from "@/oss/components/Drives/driveSessionContext"
 import {
     SessionFilesDrawer,
     filesDrawerOpenAtomFamily,
+    filesDrawerStagedAtomFamily,
 } from "@/oss/components/Drives/SessionFilesDrawer"
 import {
     IDE_INSTALL_COMMAND,
@@ -89,18 +92,25 @@ import {AgentChatTransport} from "./assets/AgentChatTransport"
 import {
     type AttachmentRejection,
     DEFAULT_ATTACHMENT_LIMITS,
+    describeAccepted,
     validateIncoming,
 } from "./assets/attachments"
-import {doesAgentChatStopKillSession} from "./assets/constants"
+import {
+    doesAgentChatStopKillSession,
+    isAgentFileUploadsEnabled,
+    isAgentVoiceInputEnabled,
+} from "./assets/constants"
 import {filesToParts} from "./assets/files"
 import {loadSessionMessages} from "./assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
+import {SESSION_SPRING} from "./assets/sessionMotion"
 import {getMessageTraceId} from "./assets/trace"
 import AgentChatEmptyState from "./components/AgentChatEmptyState"
 import AgentChatHistoryUnavailable from "./components/AgentChatHistoryUnavailable"
 import {ComposerSkeleton, TranscriptSkeleton} from "./components/AgentChatSkeleton"
 import AgentMessage from "./components/AgentMessage"
 import ApprovalDock, {getPendingApprovals} from "./components/ApprovalDock"
+import AttachmentViewerDrawer from "./components/AttachmentViewerDrawer"
 import type {ClientToolOutputHandler} from "./components/clientTools"
 import ComposerAttachments from "./components/ComposerAttachments"
 import ConnectModelBanner from "./components/ConnectModelBanner"
@@ -113,11 +123,16 @@ import {
     openInspectorTurnAtom,
 } from "./components/Inspector/state"
 import InteractionDock, {getPendingConnectInteraction} from "./components/InteractionDock"
+import MicPermissionNotice from "./components/MicPermissionNotice"
 import QueuedMessages from "./components/QueuedMessages"
+import RecordingBar from "./components/RecordingBar"
 import RevealCollapse from "./components/RevealCollapse"
 import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
+import VoiceInputButton from "./components/VoiceInputButton"
 import {useAgentChatQueue, type QueuedMessage} from "./hooks/useAgentChatQueue"
 import {useAgentModelKeyStatus} from "./hooks/useAgentModelKeyStatus"
+import {useAttachmentUploads} from "./hooks/useAttachmentUploads"
+import {useAudioRecorder} from "./hooks/useAudioRecorder"
 import {useFileActivityDetector} from "./hooks/useFileActivityDetector"
 import {expandedKeysForMessages, pruneExpandedAtom} from "./state/expandState"
 import {agentFirstRunSeedAtom} from "./state/firstRunSeed"
@@ -431,6 +446,8 @@ const AgentConversation = ({
     }, [files, sessionId])
     // Files turned away by the guardrails (too big, wrong type, over the count), shown inline.
     const [rejections, setRejections] = useState<AttachmentRejection[]>([])
+    // The attachment currently open in the Files-drawer preview (its uid), or null when closed.
+    const [viewingUid, setViewingUid] = useState<string | null>(null)
     const [attachmentsOpen, setAttachmentsOpen] = useState(false)
     // Single limits object so it can later be swapped for capability-derived limits.
     const limits = DEFAULT_ATTACHMENT_LIMITS
@@ -660,6 +677,7 @@ const AgentConversation = ({
     const quickLookHost = <DriveFileLinkProvider sessionId={sessionId} artifactId={artifactId} />
     const filesWindowHost = <SessionFilesDrawer sessionId={sessionId} />
     const setFilesWindowOpen = useSetAtom(filesDrawerOpenAtomFamily(sessionId))
+    const setFilesStaged = useSetAtom(filesDrawerStagedAtomFamily(sessionId))
 
     // Hybrid history: localStorage holds only the session INDEX; the durable conversation CONTENT
     // lives in the backend record log. Cache-first — when this tab opens with no locally-cached
@@ -794,6 +812,16 @@ const AgentConversation = ({
     // Feature flag: the context-budget meter is hidden from the composer for now. The
     // component and its logic stay wired up; flip this to `true` to bring the UI back.
     const showContextBudget = false
+
+    /**
+     * Whether the selected model can actually take audio in. `null` means the catalog does not
+     * say — treated as unknown, never as "no", so a missing field can't quietly demote voice.
+     * Drives which voice mode leads; it never refuses an attachment (design decision D6).
+     */
+    const audioPerceivable = useMemo(() => {
+        const modalities = modalitiesForModel(harnessCapabilities, modelKey.harness, modelKey.model)
+        return modalities ? modalities.includes("audio") : null
+    }, [harnessCapabilities, modelKey.harness, modelKey.model])
 
     // ── Playground-native onboarding ──────────────────────────────────────────
     // This chat panel IS the onboarding surface while the agent is ephemeral: the empty state shows the
@@ -1698,28 +1726,97 @@ const AgentConversation = ({
         originFileObj: file as UploadFile["originFileObj"],
     })
 
+    // Upload lifecycle for the tray (progress / error / retry). The transport is not wired yet, so
+    // no uploader is passed — files stay "done" and enqueue is a no-op. When upload lands, provide
+    // an uploader here and the whole flow runs; the tray already renders every state.
+    const uploads = useAttachmentUploads(files, setFiles, undefined)
+    // A staged attachment blocks send only once uploads exist: while any is uploading or has failed,
+    // the message isn't ready. All-"done" today, so this is inert until the transport is wired.
+    const attachmentsSettled = !files.some((f) => f.status === "uploading" || f.status === "error")
+
     /** Add files from paste / programmatic sources through the guardrails. */
-    const addFiles = (incoming: File[]) => {
-        const {accepted, rejections: rej} = validateIncoming(incoming, files.length, limits)
+    const addFiles = (incoming: File[], extraRejections: AttachmentRejection[] = []) => {
+        const {accepted, rejections} = validateIncoming(incoming, files.length, limits)
+        const allRejections = [...extraRejections, ...rejections]
         if (accepted.length) {
             setFiles((prev) => [...prev, ...accepted.map(toUploadFile)])
-            setAttachmentsOpen(true)
+            uploads.enqueue(accepted.map((f) => `${f.name}-${f.lastModified}-${f.size}`))
         }
-        setRejections(rej)
+        setRejections(allRejections)
+        // Open for rejections too. Otherwise dropping something unsupported writes a message into
+        // a closed panel and reads as nothing having happened at all.
+        if (accepted.length || allRejections.length) setAttachmentsOpen(true)
     }
 
     const removeFile = (uid: string) => setFiles((prev) => prev.filter((f) => f.uid !== uid))
 
+    // Voice-message recording: the clip lands in the attachment tray like any file. Owned here so
+    // the recording takeover (RecordingBar) can cover the whole composer while capturing.
+    /**
+     * A voice message recorded into an otherwise-empty composer IS the message, so the take is
+     * sent on confirm rather than parked in the tray. With text or other attachments staged, the
+     * person is mid-composition, so it attaches instead and they send when ready.
+     *
+     * Decided when recording STARTS: the composer is covered by the recording bar and drops are
+     * blocked while capturing, so neither the text nor the tray can change in between.
+     */
+    // Flagged off until the agent service accepts audio parts (`NEXT_PUBLIC_AGENT_VOICE_INPUT`).
+    const voiceEnabled = isAgentVoiceInputEnabled()
+    // Attach button + attachment preview + drive uploads (`NEXT_PUBLIC_AGENT_FILE_UPLOADS`). Paste
+    // and drag-to-attach predate the flag and stay on.
+    const uploadsEnabled = isAgentFileUploadsEnabled()
+    const [voiceWillSend, setVoiceWillSend] = useState(false)
+    const voiceRecorder = useAudioRecorder((file) => {
+        if (voiceWillSend) handleSubmit("", [file])
+        else addFiles([file])
+    })
+    const startVoiceMessage = () => {
+        const hasText = !!(richInputRef.current?.getMarkdown() ?? "").trim()
+        setVoiceWillSend(!hasText && files.length === 0)
+        voiceRecorder.start()
+    }
+    // Dictation runs inside the mic button (its transcript changes far too often to lift here), so
+    // it reports failures up for the shared notice.
+    const [dictationError, setDictationError] = useState<string | null>(null)
+    // Locks the editor while speech is coming in, so typing can't interleave with the transcript.
+    const [dictating, setDictating] = useState(false)
+    const micError = voiceRecorder.error ?? dictationError
+    const dismissMicError = () => {
+        setDictationError(null)
+        voiceRecorder.dismissError()
+    }
+
     // Native drag-and-drop onto the whole panel. A depth counter ignores dragenter/leave from
     // nested children so the overlay doesn't flicker; only file drags (not text) are handled.
     const isFileDrag = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes("Files")
+    // While a take is in flight the composer is covered by the recording bar, and a drop landing
+    // now could take the last tray slot — which would reject (and destroy) the recording on
+    // attach. Guarded at the entry points, not in `addFiles`, because the recorder's own
+    // completion goes straight there and must always get through.
+    /**
+     * Attachments are refused while a take is in flight (the composer is covered, and a late drop
+     * could steal the tray slot the recording needs) and while the composer itself is disabled —
+     * accepting files into an input you cannot send from is a dead end.
+     */
+    const composerDisabled = onboardingActive ? ideHandoffActive : modelBlocked
+    const attachmentsBlocked = () => voiceRecorder.active || composerDisabled
+
+    // The panel is ALWAYS a drop target for file drags — preventDefault on enter/over/drop even when
+    // blocked. Otherwise the browser's default action for a file drop is to navigate to it, which
+    // unloads the SPA and discards the whole conversation. Whether we ACCEPT the files is signalled
+    // separately (the overlay + the drop cursor), not by declining to be a drop target.
     const onDragEnter = (e: React.DragEvent) => {
         if (!isFileDrag(e)) return
+        e.preventDefault()
+        if (attachmentsBlocked()) return
         dragDepthRef.current += 1
         setIsDragging(true)
     }
     const onDragOver = (e: React.DragEvent) => {
-        if (isFileDrag(e)) e.preventDefault()
+        if (!isFileDrag(e)) return
+        e.preventDefault()
+        // Honest cursor: "no drop" while blocked — but we stay a target so the drop is still swallowed.
+        e.dataTransfer.dropEffect = attachmentsBlocked() ? "none" : "copy"
     }
     const onDragLeave = (e: React.DragEvent) => {
         if (!isFileDrag(e)) return
@@ -1734,19 +1831,37 @@ const AgentConversation = ({
         e.preventDefault()
         dragDepthRef.current = 0
         setIsDragging(false)
-        const dropped = Array.from(e.dataTransfer.files)
-        if (dropped.length) {
-            addFiles(dropped)
-            setAttachmentsOpen(true)
-        }
+        if (attachmentsBlocked()) return
+
+        // A dropped folder still arrives in `files` — as a typeless, zero-byte entry that the
+        // guardrails would reject as "not a supported file type", which is misleading. Name it.
+        // `webkitGetAsEntry` is only valid synchronously, during this event.
+        const folderNames = Array.from(e.dataTransfer.items ?? [])
+            .map((item) => (item.kind === "file" ? item.webkitGetAsEntry() : null))
+            .filter((entry): entry is FileSystemEntry => !!entry?.isDirectory)
+            .map((entry) => entry.name)
+
+        const dropped = Array.from(e.dataTransfer.files).filter(
+            (f) => !folderNames.includes(f.name),
+        )
+        const folderRejections = folderNames.map((name) => ({
+            name,
+            reason: "is a folder — drop the files inside it",
+        }))
+
+        if (dropped.length || folderRejections.length) addFiles(dropped, folderRejections)
     }
 
-    const handleSubmit = async (text: string) => {
+    const handleSubmit = async (text: string, extraFiles: File[] = []) => {
         const trimmed = text.trim()
-        const fileObjs = files
-            .map((f) => f.originFileObj as File | undefined)
-            .filter((f): f is File => Boolean(f))
+        const fileObjs = [
+            ...files
+                .map((f) => f.originFileObj as File | undefined)
+                .filter((f): f is File => Boolean(f)),
+            ...extraFiles,
+        ]
         if (!trimmed && fileObjs.length === 0) return
+        if (!attachmentsSettled) return
         const fileParts = fileObjs.length ? await filesToParts(fileObjs) : undefined
         // Glide to the bottom; the min-h-full active turn makes that show the new question at the top
         // with the answer streaming below. Park during the glide, follow again on settle. Clear any
@@ -2010,6 +2125,13 @@ const AgentConversation = ({
                 {modalContextHolder}
                 {quickLookHost}
                 {filesWindowHost}
+                {uploadsEnabled ? (
+                    <AttachmentViewerDrawer
+                        uploads={files}
+                        openUid={viewingUid}
+                        onClose={() => setViewingUid(null)}
+                    />
+                ) : null}
                 {/* Resizable [chat | right panel] split. The panel (turn inspector OR session content)
                 pushes the chat aside rather than overlaying it, and collapses to 0 when closed. */}
                 <RightPanelSplit
@@ -2031,15 +2153,31 @@ const AgentConversation = ({
                             beside it keeps a fixed top and doesn't ride the transition upward.
                             box-border so the padding fits inside h-full (preflight is off). */}
                         <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col gap-3 box-border pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
+                            {/* At the limit the overlay says so rather than inviting a drop it is
+                            about to reject wholesale. */}
                             {isDragging && (
-                                <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-colorPrimary bg-[var(--ant-color-primary-bg)]">
-                                    <UploadSimple size={26} className="text-colorPrimary" />
-                                    <span className="text-sm font-medium text-colorPrimary">
-                                        Drop files here
+                                <div
+                                    className={`pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed ${
+                                        atMax
+                                            ? "border-colorError bg-[var(--ant-color-error-bg)]"
+                                            : "border-colorPrimary bg-[var(--ant-color-primary-bg)]"
+                                    }`}
+                                >
+                                    <UploadSimple
+                                        size={26}
+                                        className={atMax ? "text-colorError" : "text-colorPrimary"}
+                                    />
+                                    <span
+                                        className={`text-sm font-medium ${
+                                            atMax ? "text-colorError" : "text-colorPrimary"
+                                        }`}
+                                    >
+                                        {atMax ? "Attachment limit reached" : "Drop files here"}
                                     </span>
                                     <span className="text-xs text-colorTextSecondary">
-                                        {limits.label} · up to {limits.maxCount},{" "}
-                                        {Math.round(limits.maxBytes / 1024 / 1024)} MB each
+                                        {atMax
+                                            ? `Remove one to add another (${limits.maxCount} max)`
+                                            : `${describeAccepted(limits)} · up to ${limits.maxCount} files`}
                                     </span>
                                 </div>
                             )}
@@ -2309,137 +2447,218 @@ const AgentConversation = ({
                                 {/* Composer region hydrates independently (Lexical chunk); the fallback is the
                         same skeleton the pane-level gates render for this slot, so the box never
                         changes shape — the editor just materializes inside it. */}
-                                <Suspense
-                                    fallback={
-                                        <ComposerSkeleton className={`${CHAT_COLUMN} mb-3`} />
-                                    }
-                                >
-                                    <RichChatInput
-                                        ref={richInputRef}
-                                        autoFocus={autoFocusComposer}
-                                        className={`${CHAT_COLUMN} mb-3`}
-                                        // Onboarding: submit = commit the ephemeral — Enter creates the agent
-                                        // (matching the composer's "↵ Send" hint); ⌘/Shift+Enter inserts newlines
-                                        // for longer descriptions.
-                                        onSubmit={
-                                            onboardingActive
-                                                ? () => handleCreateAgent()
-                                                : handleSubmit
-                                        }
-                                        disabled={
-                                            onboardingActive ? ideHandoffActive : modelBlocked
-                                        }
-                                        hideSendButton={onboardingActive}
-                                        placeholder={
-                                            onboardingActive
-                                                ? ideHandoffActive
-                                                    ? "Continue in your IDE from the steps above — or start over."
-                                                    : STRIP_COPY.describeAgentPlaceholder
-                                                : modelBlocked
-                                                  ? "Connect a model to start chatting…"
-                                                  : hitlPending
-                                                    ? "The agent is waiting for your response — new messages will be queued"
-                                                    : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
-                                        }
-                                        initialMarkdown={initialDraft}
-                                        onChange={handleComposerChange}
-                                        onPasteFile={(pasted) => addFiles(Array.from(pasted))}
-                                        sendForceEnabled={files.length > 0}
-                                        streaming={busy}
-                                        onStop={handleStop}
-                                        prefix={
-                                            // Left cluster of the composer toolbar: the (gated) attach
-                                            // button + the context token-budget readout, filling the
-                                            // otherwise-empty left space next to the attachments icon.
-                                            <div className="flex items-center gap-2">
-                                                {/* Attach button is gated until the agent service is ready for
-                                                inline file parts (big-agents d4b119af26); paste / drag-to-add
-                                                still work. */}
-                                                <Tooltip
-                                                    title={
-                                                        atMax
-                                                            ? `Up to ${limits.maxCount} files`
-                                                            : "Attach files coming soon"
-                                                    }
-                                                >
-                                                    <Button
-                                                        type="text"
-                                                        icon={<Paperclip size={16} />}
-                                                        disabled={true}
-                                                        onClick={() =>
-                                                            setAttachmentsOpen((open) => !open)
+                                {voiceEnabled ? (
+                                    <MicPermissionNotice
+                                        className={CHAT_COLUMN}
+                                        open={!!micError && !voiceRecorder.active}
+                                        message={micError}
+                                        onDismiss={dismissMicError}
+                                    />
+                                ) : null}
+                                {/* `mb-3` lives here, not on the input, so the recording overlay
+                                (inset-0) covers the composer box exactly. */}
+                                <div className="relative mb-3">
+                                    <Suspense
+                                        fallback={<ComposerSkeleton className={CHAT_COLUMN} />}
+                                    >
+                                        <RichChatInput
+                                            ref={richInputRef}
+                                            autoFocus={autoFocusComposer}
+                                            dictating={voiceEnabled && dictating}
+                                            className={CHAT_COLUMN}
+                                            // Onboarding: submit = commit the ephemeral — Enter creates the agent
+                                            // (matching the composer's "↵ Send" hint); ⌘/Shift+Enter inserts newlines
+                                            // for longer descriptions.
+                                            onSubmit={
+                                                onboardingActive
+                                                    ? () => handleCreateAgent()
+                                                    : handleSubmit
+                                            }
+                                            disabled={
+                                                onboardingActive ? ideHandoffActive : modelBlocked
+                                            }
+                                            hideSendButton={onboardingActive}
+                                            placeholder={
+                                                onboardingActive
+                                                    ? ideHandoffActive
+                                                        ? "Continue in your IDE from the steps above — or start over."
+                                                        : STRIP_COPY.describeAgentPlaceholder
+                                                    : modelBlocked
+                                                      ? "Connect a model to start chatting…"
+                                                      : hitlPending
+                                                        ? "The agent is waiting for your response — new messages will be queued"
+                                                        : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                                            }
+                                            initialMarkdown={initialDraft}
+                                            onChange={handleComposerChange}
+                                            onPasteFile={(pasted) => {
+                                                if (!attachmentsBlocked())
+                                                    addFiles(Array.from(pasted))
+                                            }}
+                                            sendForceEnabled={
+                                                files.length > 0 && attachmentsSettled
+                                            }
+                                            streaming={busy}
+                                            onStop={handleStop}
+                                            prefix={
+                                                // Left cluster of the composer toolbar: voice mic + the (gated)
+                                                // attach button + the context token-budget readout, filling the
+                                                // otherwise-empty left space next to the attachments icon.
+                                                <div className="flex items-center gap-2">
+                                                    {voiceEnabled ? (
+                                                        <VoiceInputButton
+                                                            inputRef={richInputRef}
+                                                            onStartAudio={startVoiceMessage}
+                                                            // During onboarding the composer commits the
+                                                            // ephemeral via handleCreateAgent, but a voice
+                                                            // MESSAGE routes through handleSubmit → submit,
+                                                            // bypassing that commit. So offer dictation
+                                                            // only (it just fills the description text) —
+                                                            // voice-message returns once the agent exists.
+                                                            audioSupported={
+                                                                !onboardingActive &&
+                                                                voiceRecorder.supported
+                                                            }
+                                                            audioPending={voiceRecorder.pending}
+                                                            audioPerceivable={audioPerceivable}
+                                                            attachmentsFull={atMax}
+                                                            onDictationError={setDictationError}
+                                                            onDictatingChange={setDictating}
+                                                            disabled={
+                                                                onboardingActive
+                                                                    ? ideHandoffActive
+                                                                    : modelBlocked
+                                                            }
+                                                        />
+                                                    ) : null}
+                                                    {/* Attach button stays dead until the agent service is ready
+                                                for inline file parts (`NEXT_PUBLIC_AGENT_FILE_UPLOADS`);
+                                                paste / drag-to-add still work either way. */}
+                                                    <Tooltip
+                                                        title={
+                                                            !uploadsEnabled
+                                                                ? "Attach files coming soon"
+                                                                : atMax
+                                                                  ? `Up to ${limits.maxCount} files`
+                                                                  : "Attach files"
                                                         }
-                                                        aria-label="Attach files"
-                                                    />
-                                                </Tooltip>
-                                                {/* Context-budget meter temporarily hidden from the UI.
+                                                    >
+                                                        <Button
+                                                            type="text"
+                                                            icon={<Paperclip size={16} />}
+                                                            // Paste, drop and voice all attach
+                                                            // already; leaving the obvious control
+                                                            // dead was the odd one out. Gated with
+                                                            // them on the composer being usable.
+                                                            disabled={
+                                                                !uploadsEnabled || composerDisabled
+                                                            }
+                                                            onClick={() =>
+                                                                setAttachmentsOpen((open) => !open)
+                                                            }
+                                                            aria-label="Attach files"
+                                                        />
+                                                    </Tooltip>
+                                                    {/* Context-budget meter temporarily hidden from the UI.
                                                 Logic is retained — flip `showContextBudget` to re-enable.
                                                 Only meaningful in a real conversation, so still gated on
                                                 onboarding (no turns / no usage yet). */}
-                                                {showContextBudget && !onboardingActive ? (
-                                                    <ContextBudgetIndicator
-                                                        messages={messages}
-                                                        maxTokens={contextMaxTokens}
+                                                    {showContextBudget && !onboardingActive ? (
+                                                        <ContextBudgetIndicator
+                                                            messages={messages}
+                                                            maxTokens={contextMaxTokens}
+                                                        />
+                                                    ) : null}
+                                                </div>
+                                            }
+                                            header={
+                                                <HeightCollapse
+                                                    open={attachmentsOpen || files.length > 0}
+                                                >
+                                                    <ComposerAttachments
+                                                        files={files}
+                                                        rejections={rejections}
+                                                        limits={limits}
+                                                        audioPerceivable={audioPerceivable}
+                                                        onAdd={addFiles}
+                                                        onRemove={removeFile}
+                                                        onDismissRejections={() =>
+                                                            setRejections([])
+                                                        }
+                                                        onView={
+                                                            uploadsEnabled
+                                                                ? setViewingUid
+                                                                : undefined
+                                                        }
+                                                        onRetry={uploads.retry}
                                                     />
-                                                ) : null}
-                                            </div>
-                                        }
-                                        header={
-                                            <HeightCollapse
-                                                open={attachmentsOpen || files.length > 0}
-                                            >
-                                                <ComposerAttachments
-                                                    files={files}
-                                                    rejections={rejections}
-                                                    limits={limits}
-                                                    onAdd={addFiles}
-                                                    onRemove={removeFile}
-                                                    onDismissRejections={() => setRejections([])}
-                                                />
-                                            </HeightCollapse>
-                                        }
-                                        trailing={
-                                            onboardingActive ? (
-                                                ideHandoffActive ? (
-                                                    <Button
-                                                        onClick={handleStartOver}
-                                                        className="!shadow-none"
-                                                    >
-                                                        Start over
-                                                    </Button>
-                                                ) : TEMPLATE_STRIP_MODE ? (
-                                                    // Strip era: the SAME action cluster as the home hero composer
-                                                    // (shared component), with the one-click copy + toast handoff.
-                                                    <AgentIntentActions
-                                                        onCreate={handleCreateAgent}
-                                                        onCodingAgentCopy={handleCodingAgentCopy}
-                                                        loading={!!onboarding?.committing}
-                                                    />
-                                                ) : (
-                                                    <div className="flex items-center gap-2">
+                                                </HeightCollapse>
+                                            }
+                                            trailing={
+                                                onboardingActive ? (
+                                                    ideHandoffActive ? (
                                                         <Button
-                                                            icon={<Code size={14} />}
-                                                            onClick={streamIdeBubble}
+                                                            onClick={handleStartOver}
                                                             className="!shadow-none"
                                                         >
-                                                            Continue in IDE
+                                                            Start over
                                                         </Button>
-                                                        <Button
-                                                            type="primary"
-                                                            icon={<ArrowRight size={14} />}
-                                                            iconPosition="end"
+                                                    ) : TEMPLATE_STRIP_MODE ? (
+                                                        // Strip era: the SAME action cluster as the home hero composer
+                                                        // (shared component), with the one-click copy + toast handoff.
+                                                        <AgentIntentActions
+                                                            onCreate={handleCreateAgent}
+                                                            onCodingAgentCopy={
+                                                                handleCodingAgentCopy
+                                                            }
                                                             loading={!!onboarding?.committing}
-                                                            onClick={handleCreateAgent}
-                                                            className="!shadow-none"
-                                                        >
-                                                            Create agent
-                                                        </Button>
-                                                    </div>
-                                                )
-                                            ) : undefined
-                                        }
-                                    />
-                                </Suspense>
+                                                        />
+                                                    ) : (
+                                                        <div className="flex items-center gap-2">
+                                                            <Button
+                                                                icon={<Code size={14} />}
+                                                                onClick={streamIdeBubble}
+                                                                className="!shadow-none"
+                                                            >
+                                                                Continue in IDE
+                                                            </Button>
+                                                            <Button
+                                                                type="primary"
+                                                                icon={<ArrowRight size={14} />}
+                                                                iconPosition="end"
+                                                                loading={!!onboarding?.committing}
+                                                                onClick={handleCreateAgent}
+                                                                className="!shadow-none"
+                                                            >
+                                                                Create agent
+                                                            </Button>
+                                                        </div>
+                                                    )
+                                                ) : undefined
+                                            }
+                                        />
+                                    </Suspense>
+                                    {/* Cross-fades over the composer instead of popping; same spring
+                                    as the rest of the slice's chrome. */}
+                                    <AnimatePresence initial={false}>
+                                        {voiceEnabled && voiceRecorder.takeoverVisible && (
+                                            <motion.div
+                                                key="recording"
+                                                initial={{opacity: 0, y: 4}}
+                                                animate={{opacity: 1, y: 0}}
+                                                exit={{opacity: 0, y: 4}}
+                                                transition={SESSION_SPRING}
+                                                className="pointer-events-none absolute inset-0 flex justify-center"
+                                            >
+                                                <RecordingBar
+                                                    recorder={voiceRecorder}
+                                                    willSend={voiceWillSend}
+                                                    className={`${CHAT_COLUMN} h-full`}
+                                                />
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
                             </Reveal>
                         </div>
                         {/* Chat-mode context rail (spec E1): docked right of the transcript, Files
@@ -2451,6 +2670,9 @@ const AgentConversation = ({
                             busy={busy}
                             hidden={buildMode || inspectorOpen}
                             onOpenFiles={() => setFilesWindowOpen(true)}
+                            onStageFiles={
+                                uploadsEnabled ? (files) => setFilesStaged(files) : undefined
+                            }
                         />
                     </div>
                 </RightPanelSplit>

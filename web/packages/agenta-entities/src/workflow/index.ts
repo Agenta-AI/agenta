@@ -55,6 +55,7 @@ export {
 export {
     harnessCapabilitiesAtomFamily,
     contextWindowForModel,
+    modalitiesForModel,
     type HarnessCapabilities,
     type HarnessCapabilitiesMap,
     type ModelCatalogEntry,
