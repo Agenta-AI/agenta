@@ -417,9 +417,6 @@ const AgentMessage = ({
         }
         renderItems.push({kind: "part", part, index: i})
     })
-    // The tool group's "View full trace" opens the same per-turn trace the action row does.
-    const onViewTrace = traceId ? () => openTraceDrawer({traceId}) : undefined
-
     const renderLeafPart = (part: UIMessage["parts"][number], i: number) => {
         // Stable, globally-unique key per rendered part. The part index alone collides
         // across messages that React reconciles together (duplicate-key warnings); the
@@ -484,7 +481,6 @@ const AgentMessage = ({
                             parts={item.parts}
                             isStreaming={isStreaming}
                             detailed={detailed}
-                            onViewTrace={onViewTrace}
                         />
                     )
                 }
