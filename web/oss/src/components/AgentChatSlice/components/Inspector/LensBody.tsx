@@ -9,6 +9,7 @@ import {CopyButton} from "@agenta/ui/components/presentational"
 import {useAtomValue} from "jotai"
 
 import {ContextLens} from "./lenses/ContextLens"
+import {ResponseLens} from "./lenses/ResponseLens"
 import {RuntimeLens} from "./lenses/RuntimeLens"
 import {TimelineLens} from "./lenses/TimelineLens"
 import type {InspectorLens} from "./state"
@@ -65,5 +66,6 @@ export function LensBody({
             />
         )
     if (lens === "context") return <ContextLens sessionId={sessionId} focusedTurn={focusedTurn} />
+    if (lens === "response") return <ResponseLens sessionId={sessionId} />
     return <RuntimeLens sessionId={sessionId} />
 }

@@ -7,11 +7,14 @@ sidebar_position: 8
 
 ## How do I lock Agenta to a specific version?
 
-Use the `AGENTA_WEB_IMAGE_TAG` and `AGENTA_API_IMAGE_TAG` environment variables.
+Set the image tag for each service. All four default to `latest`.
 
 ```bash
-AGENTA_WEB_IMAGE_TAG=v0.15.0
-AGENTA_API_IMAGE_TAG=v0.15.0
+AGENTA_WEB_IMAGE_TAG=v0.105.6
+AGENTA_API_IMAGE_TAG=v0.105.6
+AGENTA_SERVICES_IMAGE_TAG=v0.105.6
+AGENTA_RUNNER_IMAGE_TAG=v0.105.6
 ```
 
-These are set to `latest` by default.
+Use the same version for all four. To pull an image from a different name, set the matching
+`AGENTA_<service>_IMAGE_NAME` (for example `AGENTA_RUNNER_IMAGE_NAME`).

@@ -95,6 +95,12 @@ class TestFilePathValidation:
         with pytest.raises(MountPathInvalid):
             validate_file_path("/")
 
-    def test_rejects_angle_brackets(self):
+    def test_accepts_punctuation_real_filenames_use(self):
+        # Denylist, not allowlist: only traversal / control chars are unsafe, so real folder names
+        # keep working (route groups, npm scopes, angle brackets, etc.).
+        validate_file_path("path/<injection>")
+        validate_file_path("app/(auth)/[slug]/page.tsx")
+
+    def test_rejects_control_char(self):
         with pytest.raises(MountPathInvalid):
-            validate_file_path("path/<injection>")
+            validate_file_path("path/a\x00b")

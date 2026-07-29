@@ -5,19 +5,26 @@ import SuperTokensReact, {SuperTokensWrapper} from "supertokens-auth-react"
 
 import {installTurnstileFetchPatch} from "@/oss/lib/helpers/auth/turnstile"
 import {getJWT} from "@/oss/services/api"
+import {prewarmBootQueryGraph} from "@/oss/state/boot/prewarmBootQueryGraph"
 
 import {AuthProviderType} from "./types"
+
+// Lazy: `frontendConfig` statically imports the emailpassword/passwordless/
+// thirdparty recipes (the prebuilt-UI-bearing modules); the split keeps them out
+// of the shared `_app` chunk. Warmed at module eval so the chunk downloads during
+// hydration — the init effect's await then resolves without a serial round-trip
+// (this gate blocks the ENTIRE provider tree below AuthProvider).
+const loadFrontendConfig = () => import("@/oss/config/frontendConfig")
+if (typeof window !== "undefined") void loadFrontendConfig()
 
 const AuthProvider: AuthProviderType = ({children, pageProps}) => {
     const [isInitialized, setIsInitialized] = useState(false)
     useEffect(() => {
         const initSuperTokens = async () => {
+            // Overlaps the boot atom graph's first evaluation with the config chunk fetch
+            prewarmBootQueryGraph()
             installTurnstileFetchPatch()
-            // Lazy: `frontendConfig` statically imports the emailpassword/passwordless/
-            // thirdparty recipes (the prebuilt-UI-bearing modules). Init already runs
-            // post-mount in this effect, so importing it here keeps those recipes out of
-            // the shared `_app` chunk. The session recipe stays eager via useSession.
-            const {frontendConfig} = await import("@/oss/config/frontendConfig")
+            const {frontendConfig} = await loadFrontendConfig()
             SuperTokensReact.init(frontendConfig())
             // Wire the shared (`@agenta/shared/api`) axios — used by ALL
             // entities-package queries — with the same SuperTokens auth the OSS

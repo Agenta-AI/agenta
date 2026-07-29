@@ -1,4 +1,4 @@
-import type {TableTabsConfig} from "@/oss/components/InfiniteVirtualTable"
+import type {TableTabsConfig} from "@agenta/ui/table"
 
 import {type EvaluationRunKind} from "../../types"
 

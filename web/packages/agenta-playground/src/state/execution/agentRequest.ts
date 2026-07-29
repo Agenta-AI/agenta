@@ -30,11 +30,12 @@ import {
     workflowMolecule,
     type AgentTemplate,
 } from "@agenta/entities/workflow"
+import {isSessionsLastMessageOnlyEnabled} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 
 import {withBuildKitOverlay} from "./buildKitOverlay"
-import {agentChannelModeAtom} from "./channelMode"
+import {agentChannelModeAtomFamily} from "./channelMode"
 import {executionHeadersAtom} from "./webWorkerIntegration"
 
 // Re-exported so existing consumers keep importing it from the request builder; the merge
@@ -380,7 +381,7 @@ export async function buildAgentRequest(
     // send an explicit Accept.)
     // Negotiation 2 (format): `x-ag-messages-format: vercel` selects the vercel adapter for
     // the UIMessage request body (`data.inputs.messages`) and the response projection.
-    const channelMode = store.get(agentChannelModeAtom)
+    const channelMode = store.get(agentChannelModeAtomFamily(opts.sessionId))
     const headers: Record<string, string> = {
         Accept: channelMode === "batch" ? "application/json" : "text/event-stream",
         "x-ag-messages-format": "vercel",
@@ -400,13 +401,24 @@ export async function buildAgentRequest(
     // Strip answer-less assistant turns so a "no response" turn can't poison the next request.
     const history = messages.filter(hasAnswer)
 
+    // Last-message-only (flag-gated; MUST pair with the backend's AGENTA_SESSIONS_RECONSTRUCT).
+    // On a fresh user turn, send just the trailing user message and let the runner rebuild prior
+    // turns from the durable record log — smaller request + trace payloads. A HITL resume, whose
+    // trailing turn carries the settled answer (not a user turn), keeps the full history so the
+    // answer still binds to its tool call.
+    const lastMessage = history[history.length - 1] as {role?: unknown} | undefined
+    const outboundMessages =
+        isSessionsLastMessageOnlyEnabled() && opts.sessionId && lastMessage?.role === "user"
+            ? [lastMessage]
+            : history
+
     return {
         invocationUrl: url,
         headers,
         requestBody: {
             session_id: opts.sessionId,
             references,
-            data: {inputs: {messages: history}, parameters},
+            data: {inputs: {messages: outboundMessages}, parameters},
         },
     }
 }

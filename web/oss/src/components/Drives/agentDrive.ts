@@ -8,19 +8,13 @@
  * `_ignoreError` keeps the probe silent on deployments without the endpoint. Migrate to the
  * Fern client after regeneration (same note as the PR's own fetcher).
  */
-import {useMemo} from "react"
-
-import {mountFilesQueryFamily, type Mount} from "@agenta/entities/session"
-import {useAtomValue} from "jotai"
+import {type Mount} from "@agenta/entities/session"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {projectIdAtom} from "@/oss/state/project"
-
-import {cleanPath, driveFiles, driveTotalSize} from "./driveTree"
-import type {DriveRecentFile, SessionDriveData} from "./useSessionDrive"
 
 export async function fetchAgentMount({
     artifactId,
@@ -54,46 +48,3 @@ export const agentMountQueryFamily = atomFamily((artifactId: string) =>
         }
     }),
 )
-
-/**
- * The App drive shaped like {@link SessionDriveData} so every drive surface (drawer, explorer,
- * rows) consumes it unchanged. No recency: agent mounts have no activity signals (and no mtime
- * on the wire) — recents are just the alpha listing.
- */
-export function useAgentDrive(artifactId: string): SessionDriveData & {exists: boolean} {
-    const mountQuery = useAtomValue(agentMountQueryFamily(artifactId))
-    const mount = mountQuery.data ?? null
-    const filesQuery = useAtomValue(mountFilesQueryFamily(mount?.id ?? ""))
-
-    return useMemo(() => {
-        const listing = filesQuery.data ?? null
-        const files = driveFiles(listing)
-        const recents: DriveRecentFile[] = [...files].sort((a, b) => a.path.localeCompare(b.path))
-        const isLoading =
-            Boolean(artifactId) && (mountQuery.isPending || Boolean(mount && filesQuery.isPending))
-        const errored = Boolean(mount) && !filesQuery.isPending && listing === null
-
-        return {
-            mount,
-            exists: Boolean(mount),
-            files,
-            fileCount: files.length,
-            totalSize: driveTotalSize(listing),
-            recents,
-            // Single-mount drive: every path maps straight to this mount.
-            resolveMount: (path: string) => (mount ? {mount, path: cleanPath(path)} : null),
-            lastTouchedAt: null,
-            summary: isLoading
-                ? "…"
-                : !mount
-                  ? "Coming soon"
-                  : errored
-                    ? "Unavailable"
-                    : files.length === 0
-                      ? "No files yet"
-                      : `${files.length} file${files.length === 1 ? "" : "s"}`,
-            isLoading,
-            errored,
-        }
-    }, [artifactId, mount, mountQuery.isPending, filesQuery.data, filesQuery.isPending])
-}

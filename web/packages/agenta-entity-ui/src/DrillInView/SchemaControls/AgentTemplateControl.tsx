@@ -21,25 +21,18 @@
  * Sections are schema-driven: each renders only when its field exists in the resolved
  * schema, so the panel tracks the backend contract instead of hard-coding fields.
  */
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {
-    agentCreationPrefsAtom,
-    workflowBuildKitEnabledAtomFamily,
-    workflowMolecule,
-} from "@agenta/entities/workflow"
-import {
-    agentItemIdentity,
-    classifyAgentChanges,
-    stableStringify,
-} from "@agenta/entities/workflow/commitDiff"
-import {agentSelfCommitSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
+import {agentCreationPrefsAtom, workflowBuildKitEnabledAtomFamily} from "@agenta/entities/workflow"
+import {agentItemIdentity, stableStringify} from "@agenta/entities/workflow/commitDiff"
+import {draftConfigChangeSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
+import {HeightCollapse} from "@agenta/ui/components"
 import {
     ConfigAccordionSection,
-    sectionIndicatorColor,
+    useRecentFlag,
     type SectionIndicatorTone,
 } from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -53,10 +46,11 @@ import {
     SlidersHorizontal,
     Wrench,
 } from "@phosphor-icons/react"
-import {Button, Tabs, Tooltip, Typography} from "antd"
+import {Button, Tooltip, Typography} from "antd"
 import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useStore} from "jotai"
 
+import {ChangedPathsProvider} from "../../drawers/shared"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {AddTextLink} from "./AddTextLink"
@@ -67,16 +61,22 @@ import {AgentToolSelectorPopover} from "./agentTemplate/AgentToolSelectorPopover
 import {ConfigItemList} from "./agentTemplate/ConfigItemList"
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
+import {SectionChangeBody} from "./agentTemplate/SectionChangeBody"
+import {
+    revertPathsTo,
+    useAgentSectionChanges,
+    type PanelSectionKey,
+} from "./agentTemplate/sectionChanges"
 import {ToolManagementList} from "./agentTemplate/ToolManagementList"
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
-import {agentTemplateLayoutAtom} from "./agentTemplateLayout"
 import {ConfigItemDrawer} from "./ConfigItemDrawer"
 import {connectionFromConfig, modelIdFromConfig} from "./connectionUtils"
 import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
+import {SectionQuickAction} from "./SectionQuickAction"
 import {parseGatewayTool, type ParsedGatewayTool, type ToolObj} from "./toolUtils"
 import {useAgentTriggers} from "./TriggerManagementSection"
 import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
@@ -107,24 +107,34 @@ export interface AgentTemplateControlProps {
     className?: string
 }
 
-// Draft body for the Model & harness / Advanced section drawers. Isolated into its own component so
-// `useModelHarness` (harness-catalog + vault-secrets + build-kit-overlay subscriptions) runs ONLY
-// while a section drawer is open — `SectionDrawer` uses `destroyOnClose`, so this mounts on open and
-// unmounts on close. Previously a second `useModelHarness` ran in the always-mounted parent,
-// subscribing on every agent-config render even with both drawers shut.
-const ModelHarnessSectionDrawerBody = ({
+// A section's body, in its own component so `useModelHarness` runs HERE rather than in the parent.
+// Two reasons, both load-bearing:
+//  1. Context. The hook itself reads the changed-paths / focus filters (to mark rows, open the group
+//     that changed, and narrow to it). React resolves context at the READER's position, so the hook
+//     must run BELOW the providers — wrapping its output in them does nothing. A body rendered from
+//     the parent's `mh` silently ignores both filters.
+//  2. Cost. `useModelHarness` carries harness-catalog + vault-secrets + build-kit-overlay
+//     subscriptions; mounting it per body keeps them scoped to a body that is actually on screen
+//     (`SectionDrawer` uses `destroyOnClose`; the inline body mounts only while a section has
+//     uncommitted changes).
+const ModelHarnessSectionBody = ({
     section,
     ...params
-}: {section: "model-harness" | "advanced"} & Parameters<typeof useModelHarness>[0]) => {
+}: {
+    section: "model-harness" | "advanced"
+} & Parameters<typeof useModelHarness>[0]) => {
     const mh = useModelHarness(params)
-    return <>{section === "advanced" ? mh.advancedDrawerBody : mh.modelHarnessDrawerBody}</>
+    if (section === "advanced") {
+        return <>{mh.advancedDrawerBody}</>
+    }
+    return <>{mh.modelHarnessDrawerBody}</>
 }
 
 // The four list sections whose open-state is controlled so the accordion can auto-expand when
 // the agent populates them (see `useAutoExpandOnPopulate`).
 const CONTROLLED_SECTION_KEYS = new Set(["tools", "mcp", "skills", "triggers"])
 
-export function AgentTemplateControl({
+export const AgentTemplateControl = memo(function AgentTemplateControl({
     schema,
     value,
     onChange,
@@ -268,9 +278,6 @@ export function AgentTemplateControl({
     // Enable Save only when the draft actually differs from what we opened with (config or build-kit).
     const sectionDirty = isCurrentSectionDirty()
 
-    // Layout (accordion / tabs / cards) is a global persisted preference; the panel only reads it.
-    const layout = useAtomValue(agentTemplateLayoutAtom)
-
     // `config` IS the agent template (`parameters.agent`); `schema` is the `agent-template` type and
     // decides which sections exist. Portable fields (instructions / llm / tools / mcps / skills) are
     // FLAT; execution parts (harness / runner / sandbox) are nested sub-objects (see useModelHarness).
@@ -298,54 +305,60 @@ export function AgentTemplateControl({
     // NEW revision, diff the configs per section and mark the changed ones. The computed
     // set is FROZEN on first non-empty result so the user's own subsequent edits don't
     // drift into the "agent changed this" indication. Dismiss (or the next commit) clears.
-    const commitSignal = useAtomValue(agentSelfCommitSignalAtom)
-    const frozenAgentDiffRef = useRef<{signalAt: number; keys: Set<string>} | null>(null)
-    const agentChangedKeys = useMemo(() => {
-        if (!commitSignal || !revisionId || commitSignal.revisionId !== revisionId) return null
-        if (frozenAgentDiffRef.current?.signalAt === commitSignal.at) {
-            return frozenAgentDiffRef.current.keys
-        }
-        try {
-            const sectionIdToKey: Record<string, string> = {
-                model: "model-harness",
-                instructions: "instructions",
-                tools: "tools",
-                mcps: "mcp",
-                skills: "skills",
-                params: "advanced",
-            }
-            const changed = classifyAgentChanges(commitSignal.prevParameters, {agent: value})
-            const keys = new Set(
-                changed.map((s) => sectionIdToKey[s.id]).filter((k): k is string => Boolean(k)),
-            )
-            if (keys.size === 0) return null
-            frozenAgentDiffRef.current = {signalAt: commitSignal.at, keys}
-            return keys
-        } catch {
-            return null
-        }
-    }, [commitSignal, revisionId, value])
+    // Both change sources for this revision, computed ONCE (see `sectionChanges`): `draft` is the
+    // durable live-vs-committed diff, `agent` is the frozen self-commit diff. Every consumer —
+    // header indicators, the drawers' property marks — reads this same result.
+    const sectionChanges = useAgentSectionChanges(revisionId, config)
+    const agentChangedKeys = sectionChanges.agent?.panelKeys ?? null
     const agentChangeIndicator = useCallback(
         (sectionKey: string) => {
-            if (!agentChangedKeys?.has(sectionKey)) return undefined
-            const raw = commitSignal?.version ? String(commitSignal.version) : null
-            const version = raw ? (raw.startsWith("v") ? raw : `v${raw}`) : null
+            if (!agentChangedKeys?.has(sectionKey as PanelSectionKey)) return undefined
+            const version = sectionChanges.agentVersion
             return {
                 tone: "agent" as const,
                 tooltip: `Updated by the agent${version ? ` in ${version}` : ""}`,
             }
         },
-        [agentChangedKeys, commitSignal?.version],
+        [agentChangedKeys, sectionChanges.agentVersion],
     )
+
+    // ── Draft change from another pane (e.g. "always allow" in the approval dock) ────────
+    // A user-initiated, UNCOMMITTED write to this revision's draft config already shows the
+    // section's static "draft" dot (headerIndicator). When the write came from another pane,
+    // make THAT dot pulse briefly for attention — the user acted in the dock, not here — instead
+    // of adding a competing indicator. Rides on whatever tone the section already carries.
+    const draftSignal = useAtomValue(draftConfigChangeSignalAtom)
+    const draftActive = Boolean(draftSignal && revisionId && draftSignal.revisionId === revisionId)
+    // Covers the two 1.8s pulse sweeps (~3.6s) plus a small buffer, so the ripple/shimmer finish
+    // on their invisible end frame before unmounting — no end-of-pulse flash.
+    const draftRecent = useRecentFlag(draftActive ? draftSignal!.at : null, 3900)
+    const withDraftPulse = useCallback(
+        (
+            sectionKey: string,
+            base: {tone: SectionIndicatorTone; tooltip?: React.ReactNode} | undefined,
+        ): {tone: SectionIndicatorTone; tooltip?: React.ReactNode; pulse?: boolean} | undefined => {
+            if (!draftActive || !draftRecent || !draftSignal!.sectionKeys.includes(sectionKey)) {
+                return base
+            }
+            if (base) return {...base, pulse: true}
+            return {
+                tone: "draft",
+                tooltip: `${draftSignal!.summary ?? "Changed here"} — pending, applies on the next run`,
+                pulse: true,
+            }
+        },
+        [draftActive, draftRecent, draftSignal],
+    )
+
     // Model & harness + Advanced own a lot of coupled, stateful logic (the model/connection state
     // feeds both sections), so they live in their own hook that returns the summaries + bodies.
     //
     // TWO instances, on purpose:
-    //  - `mh` is bound to the LIVE entity — it drives the accordion header summaries + the inline
-    //    tabs bodies. Keeping it live means a section header NEVER reflects the drawer's unsaved draft
+    //  - `mh` is bound to the LIVE entity — it drives the accordion header summaries. Keeping it live
+    //    means a section header NEVER reflects the drawer's unsaved draft
     //    (the reported bug: editing in the open drawer updated the background summary).
     //  - The DRAFT instance (config + build-kit buffer) that drives the OPEN section drawer's body
-    //    now lives inside `ModelHarnessSectionDrawerBody`, mounted only while the drawer is open, so
+    //    now lives inside `ModelHarnessSectionBody`, mounted only while a drawer/inline body is on screen, so
     //    its harness/vault/overlay subscriptions don't run in the background.
     const mh = useModelHarness({schema, config, onChange, disabled, withTooltip, revisionId})
     const draftBuildKitOverride = useMemo(
@@ -446,41 +459,81 @@ export function AgentTemplateControl({
     // ── Draft + validation indicators ─────────────────────────────────────────
     // Committed (server) template to diff the live config against. Null for a never-saved
     // draft — then only validation (not draft) indicators show.
-    const committedConfig = useAtomValue(
-        useMemo(
-            () => workflowMolecule.selectors.serverConfiguration(revisionId ?? ""),
-            [revisionId],
-        ),
-    ) as Record<string, unknown> | null
-    const committed = useMemo(() => {
-        if (!committedConfig) return null
-        const agent = committedConfig.agent
-        const template =
-            agent && typeof agent === "object" && !Array.isArray(agent) ? agent : committedConfig
-        // Strip agenta metadata so it compares like-for-like against the live value.
-        return stripAgentaMetadataDeep(template) as Record<string, unknown>
-    }, [committedConfig])
+    // The same committed baseline the section diff uses (see `useAgentSectionChanges`) — read once
+    // there rather than subscribing to `serverConfiguration` a second time and re-unwrapping it.
+    const committed = sectionChanges.committed
 
-    // Header rollup: which sections changed vs the commit. Reuses the commit-diff classifier so
-    // the grouping matches (model+harness together; advanced = runner/sandbox/params).
-    const draftSectionKeys = useMemo(() => {
-        const keys = new Set<string>()
-        if (!committed) return keys
-        const map: Record<string, string> = {
-            model: "model-harness",
-            instructions: "instructions",
-            tools: "tools",
-            mcps: "mcp",
-            skills: "skills",
-            params: "advanced",
-        }
-        const local = stripAgentaMetadataDeep(config) as Record<string, unknown>
-        for (const s of classifyAgentChanges(local, committed)) {
-            const k = map[s.id]
-            if (k) keys.add(k)
-        }
-        return keys
-    }, [config, committed])
+    // Header rollup: which sections changed vs the commit — from the shared diff above, so the
+    // grouping matches the classifier's (model+harness together; advanced = runner/sandbox/params)
+    // and the indicators, the drawers' property marks, and any summary can never disagree.
+    const draftSectionKeys = sectionChanges.draft.panelKeys
+
+    // Revert for the SECTION DRAWERS: restore the given paths to their committed values through the
+    // drawer's scoped draft (`applyDraftConfig`), never straight to the entity — so an undo behaves
+    // like any other edit in there and Cancel/Save still mean what they say.
+    const drawerChangedPaths = useMemo(
+        () => ({
+            ...sectionChanges.draft,
+            revert: (paths: string[]) =>
+                applyDraftConfig(revertPathsTo(draftConfig ?? config, committed, paths)),
+        }),
+        [sectionChanges.draft, applyDraftConfig, committed, draftConfig, config],
+    )
+
+    // Revert for the PANEL's own inline bodies: writes the entity draft straight through `onChange`,
+    // matching how the panel's other inline sections (Tools, Instructions) already behave. Distinct
+    // from `drawerChangedPaths` above — the drawer has a scoped draft to respect, the panel doesn't.
+    const panelChangedPaths = useMemo(
+        () => ({
+            ...sectionChanges.draft,
+            revert: (paths: string[]) => onChange(revertPathsTo(config, committed, paths)),
+        }),
+        [sectionChanges.draft, onChange, config, committed],
+    )
+    // The inline body for a drawer-backed section: its own controls, narrowed to what changed — the
+    // same affordance as the Connect-key field, with a different filter (see SectionChangeBody).
+    // The body is a COMPONENT rendered inside the providers, never `mh`'s pre-built output: the hook
+    // reads these filters itself, and context resolves at the reader's position.
+    const changeBodyFor = useCallback(
+        (key: PanelSectionKey) => {
+            // The classifier already assigns each changed path to its own section bucket; read this
+            // section's paths from there so Advanced never picks up an instructions/tools/mcp/skills edit.
+            const section = sectionChanges.draft.sectionsByKey.get(key)
+            const sectionPaths = (section?.scalarChanges ?? []).map((c) => c.key)
+            if (!sectionPaths.length) return null
+            return (
+                <SectionChangeBody
+                    paths={sectionPaths}
+                    onOpenDetails={() => openSectionDrawer(key as "model-harness" | "advanced")}
+                    disabled={disabled}
+                    changes={panelChangedPaths}
+                >
+                    <ModelHarnessSectionBody
+                        section={key as "model-harness" | "advanced"}
+                        schema={schema}
+                        config={config}
+                        onChange={onChange}
+                        disabled={disabled}
+                        withTooltip={withTooltip}
+                        revisionId={revisionId}
+                        savedHarnessValue={savedHarnessValue}
+                    />
+                </SectionChangeBody>
+            )
+        },
+        [
+            sectionChanges.draft,
+            openSectionDrawer,
+            panelChangedPaths,
+            disabled,
+            schema,
+            config,
+            onChange,
+            withTooltip,
+            revisionId,
+            savedHarnessValue,
+        ],
+    )
 
     // Match unchanged values before identity so deleting an earlier item cannot make positional
     // identities mark every surviving row as edited. Identity then distinguishes new from edited.
@@ -651,7 +704,7 @@ export function AgentTemplateControl({
         if (invalid) return {tone: "invalid", tooltip: invalid}
         const incomplete = sectionIncompleteTip(key)
         if (incomplete) return {tone: "incomplete", tooltip: incomplete}
-        if (draftSectionKeys.has(key))
+        if (draftSectionKeys.has(key as PanelSectionKey))
             return {
                 tone: "draft",
                 tooltip: DRAFT_TIP[key] ?? "Unsaved changes — not yet committed.",
@@ -708,11 +761,48 @@ export function AgentTemplateControl({
     }
 
     // Compact "+" for a section header's `extra` slot (stops propagation, so it never toggles open).
+    // The header keeps a uniform height regardless of this button — ConfigAccordionSection collapses
+    // the extra slot's vertical footprint (see its `-my-2`), so no per-button sizing is needed here.
     const headerAddButton = (label: string, onClick: () => void) => (
         <Tooltip title={label}>
             <Button type="text" icon={<Plus size={16} />} onClick={onClick} aria-label={label} />
         </Tooltip>
     )
+
+    // The inline "what changed" bodies for the two drawer-backed sections. Null when the section is
+    // clean (or the variant is off), which is what keeps it a plain drawer-opening row.
+    const modelChangeBody = changeBodyFor("model-harness")
+    const advancedChangeBody = changeBodyFor("advanced")
+
+    /**
+     * Only a BLOCKING problem opens a section by itself. "Can't run without a provider key" is a
+     * demand and earns the interruption; "you changed something" is an answer to a question the
+     * reader may not be asking — the header indicator already says a change is there, and expanding
+     * every changed section on mount would greet them with an unfolded panel every edit. So the
+     * change body is what the section shows WHEN OPENED, not a reason to open it.
+     */
+    const needsProviderKeyInline = Boolean(mh.needsProviderKey && mh.providerCredentialsInline)
+
+    // Graceful exit: when the key lands, `needsProviderKeyInline` flips false and the section would
+    // swap straight to its resolved (drawer-opening) row — the inline pane vanishing in one frame.
+    // Hold the inline branch mounted for one collapse cycle so the pane can animate closed instead.
+    // The transition is detected during render (not in an effect) so there's never an un-held frame
+    // where the pane has already been replaced by the resolved row.
+    const KEY_PANE_EXIT_MS = 320
+    const prevNeedsKeyInlineRef = useRef(needsProviderKeyInline)
+    const [keyPaneExiting, setKeyPaneExiting] = useState(false)
+    if (prevNeedsKeyInlineRef.current !== needsProviderKeyInline) {
+        if (prevNeedsKeyInlineRef.current && !needsProviderKeyInline) setKeyPaneExiting(true)
+        prevNeedsKeyInlineRef.current = needsProviderKeyInline
+    }
+    useEffect(() => {
+        if (!keyPaneExiting) return
+        const t = window.setTimeout(() => setKeyPaneExiting(false), KEY_PANE_EXIT_MS)
+        return () => window.clearTimeout(t)
+    }, [keyPaneExiting])
+    // Show (and keep mounting) the inline pane while it's needed OR animating out.
+    const showKeyPane =
+        (needsProviderKeyInline || keyPaneExiting) && Boolean(mh.providerCredentialsInline)
 
     // Each config section as a descriptor, so it can be rendered in any layout (accordion /
     // tabs / cards) without duplicating the content. Schema-gated, like before.
@@ -723,10 +813,37 @@ export function AgentTemplateControl({
             title: "Model & harness",
             summary: mh.modelSummary,
             indicator: headerIndicator("model-harness"),
-            defaultOpen: true,
-            onOpen: () => openSectionDrawer("model-harness"),
-            content: mh.modelHarnessDrawerBody,
-            inlineContent: mh.modelHarnessInline,
+            defaultOpen: needsProviderKeyInline,
+            // What the section surfaces inline, in precedence order. Dropping `onOpen` is what makes
+            // a section expand inline instead of routing to the drawer.
+            //   1. Required info missing (no provider key) — BLOCKING, so it wins: the same key field
+            //      the drawer uses, right here.
+            //   2. Uncommitted changes — informational: what changed (see `changeBodyFor`).
+            //   3. Neither — the plain drawer row it has always been.
+            ...(showKeyPane
+                ? {
+                      // The body owns its padding (inside the collapse) so it can collapse to zero
+                      // height with no residual — the section body wrapper adds none.
+                      bodyClassName: "",
+                      content: (
+                          <HeightCollapse open={needsProviderKeyInline} fade>
+                              <div className="flex flex-col gap-3 pb-4 pt-1">
+                                  <SectionQuickAction
+                                      onOpenDetails={() => openSectionDrawer("model-harness")}
+                                      disabled={disabled}
+                                  >
+                                      {mh.providerCredentialsInline}
+                                  </SectionQuickAction>
+                              </div>
+                          </HeightCollapse>
+                      ),
+                  }
+                : modelChangeBody
+                  ? {content: modelChangeBody}
+                  : {
+                        onOpen: () => openSectionDrawer("model-harness"),
+                        content: mh.modelHarnessDrawerBody,
+                    }),
         },
         hasInstructions && {
             key: "instructions",
@@ -849,11 +966,17 @@ export function AgentTemplateControl({
             icon: <SlidersHorizontal size={16} />,
             title: "Advanced",
             indicator: headerIndicator("advanced"),
+            // Never self-opening: nothing in Advanced blocks a run (see `needsProviderKeyInline`).
             defaultOpen: false,
             summary: mh.advancedSummary,
-            onOpen: () => openSectionDrawer("advanced"),
-            content: mh.advancedDrawerBody,
-            inlineContent: mh.advancedInline,
+            // Uncommitted changes → show them inline (dropping `onOpen` is what expands a section
+            // instead of routing to the drawer). Nothing changed → the plain drawer row.
+            ...(advancedChangeBody
+                ? {content: advancedChangeBody}
+                : {
+                      onOpen: () => openSectionDrawer("advanced"),
+                      content: mh.advancedDrawerBody,
+                  }),
         },
     ].filter(Boolean) as {
         key: string
@@ -864,15 +987,9 @@ export function AgentTemplateControl({
         indicator?: {tone: SectionIndicatorTone; tooltip?: string}
         defaultOpen?: boolean
         onOpen?: () => void
+        bodyClassName?: string
         content: React.ReactNode
-        // Trimmed single-column body for the tabs layout (drawer sections only); falls back to
-        // `content` when a section has no separate inline form.
-        inlineContent?: React.ReactNode
     }[]
-
-    // Each config section is a contained card on the raised Config panel — the surface tokens give
-    // it depth against the panel (see theme-variables.css "Agent Playground surface ladder").
-    const sectionCardClass = "ag-surface-card rounded-[11px] px-4"
 
     // Keep the item + instruction drawers MOUNTED while they animate closed. Their editing state
     // goes null on close; retaining the last value and driving `open` off the live state lets the
@@ -890,72 +1007,6 @@ export function AgentTemplateControl({
                 <Typography.Text type="secondary" className="text-xs">
                     No agent configuration fields are available for this schema.
                 </Typography.Text>
-            ) : layout === "tabs" ? (
-                // Tabs renders each section's body inline (no drawer), so edits are live. Drawer
-                // sections supply a trimmed `inlineContent` so the tab shows just their controls.
-                <Tabs
-                    items={sections.map((s) => ({
-                        key: s.key,
-                        label: (
-                            <span className="inline-flex items-center gap-1.5">
-                                <Tooltip title={s.indicator?.tooltip}>
-                                    <span
-                                        className="relative inline-flex items-center"
-                                        style={
-                                            s.indicator
-                                                ? {
-                                                      color: `color-mix(in srgb, ${sectionIndicatorColor(s.indicator.tone)} 45%, var(--ag-colorTextTertiary))`,
-                                                  }
-                                                : undefined
-                                        }
-                                    >
-                                        {s.icon}
-                                        {s.indicator ? (
-                                            <span
-                                                className="absolute -right-1 -top-0.5 h-1.5 w-1.5 rounded-full"
-                                                style={{
-                                                    background: sectionIndicatorColor(
-                                                        s.indicator.tone,
-                                                    ),
-                                                }}
-                                            />
-                                        ) : null}
-                                    </span>
-                                </Tooltip>
-                                <span className="truncate">{s.title}</span>
-                                {sectionBadge(s.key)}
-                            </span>
-                        ),
-                        children: (
-                            // Render `extra` (the add-action) here too, else tab users can't add
-                            // items. Body is the trimmed `inlineContent` or `content`.
-                            <div className="flex flex-col gap-3 pt-1">
-                                {s.extra ? <div className="flex justify-end">{s.extra}</div> : null}
-                                {s.inlineContent ?? s.content}
-                            </div>
-                        ),
-                    }))}
-                />
-            ) : layout === "cards" ? (
-                <div className="flex flex-col gap-3 pt-1">
-                    {sections.map((s) => (
-                        <ConfigAccordionSection
-                            key={s.key}
-                            icon={s.icon}
-                            title={s.title}
-                            titleBadge={sectionBadge(s.key)}
-                            summary={s.summary}
-                            extra={s.extra}
-                            indicator={s.indicator ?? agentChangeIndicator(s.key)}
-                            onOpen={s.onOpen}
-                            collapsible={false}
-                            noDivider
-                            className={sectionCardClass}
-                        >
-                            {s.content}
-                        </ConfigAccordionSection>
-                    ))}
-                </div>
             ) : (
                 sections.map((s, index) => {
                     // Controlled keys drive `open`/`onOpenChange` so the agent can auto-expand them;
@@ -969,8 +1020,17 @@ export function AgentTemplateControl({
                             titleBadge={sectionBadge(s.key)}
                             summary={s.summary}
                             extra={s.extra}
-                            indicator={s.indicator ?? agentChangeIndicator(s.key)}
+                            indicator={withDraftPulse(
+                                s.key,
+                                s.indicator ?? agentChangeIndicator(s.key),
+                            )}
                             onOpen={s.onOpen}
+                            bodyClassName={s.bodyClassName}
+                            // The panel body sits in the config section's `px-4` field wrapper
+                            // (PlaygroundConfigSection), so the expanded header's fill bleeds 16px
+                            // each side to the panel edges while its text stays aligned with the
+                            // content below.
+                            headerBand="-mx-4 px-4"
                             noDivider={index === sections.length - 1}
                             {...(controlled
                                 ? {
@@ -1063,17 +1123,24 @@ export function AgentTemplateControl({
                 dirty={sectionDirty}
                 width={mh.modelHarnessDrawerWidth}
             >
-                <ModelHarnessSectionDrawerBody
-                    section="model-harness"
-                    schema={schema}
-                    config={draftConfig ?? config}
-                    onChange={applyDraftConfig}
-                    disabled={disabled}
-                    withTooltip={withTooltip}
-                    revisionId={revisionId}
-                    buildKitEnabledOverride={draftBuildKitOverride}
-                    savedHarnessValue={savedHarnessValue}
-                />
+                {/* Marks the exact properties that changed since the commit (and opens the
+                    sub-sections holding them). Must sit ABOVE the body: `useModelHarness` reads the
+                    context at its own position, so a provider rendered *by* the body wouldn't reach
+                    it. Scoped to the draft diff — the drawer's own unsaved edits are its Save gate's
+                    business, not "what changed since the commit". */}
+                <ChangedPathsProvider changes={drawerChangedPaths}>
+                    <ModelHarnessSectionBody
+                        section="model-harness"
+                        schema={schema}
+                        config={draftConfig ?? config}
+                        onChange={applyDraftConfig}
+                        disabled={disabled}
+                        withTooltip={withTooltip}
+                        revisionId={revisionId}
+                        buildKitEnabledOverride={draftBuildKitOverride}
+                        savedHarnessValue={savedHarnessValue}
+                    />
+                </ChangedPathsProvider>
             </SectionDrawer>
 
             <SectionDrawer
@@ -1086,17 +1153,19 @@ export function AgentTemplateControl({
                 dirty={sectionDirty}
                 width={880}
             >
-                <ModelHarnessSectionDrawerBody
-                    section="advanced"
-                    schema={schema}
-                    config={draftConfig ?? config}
-                    onChange={applyDraftConfig}
-                    disabled={disabled}
-                    withTooltip={withTooltip}
-                    revisionId={revisionId}
-                    buildKitEnabledOverride={draftBuildKitOverride}
-                    savedHarnessValue={savedHarnessValue}
-                />
+                <ChangedPathsProvider changes={drawerChangedPaths}>
+                    <ModelHarnessSectionBody
+                        section="advanced"
+                        schema={schema}
+                        config={draftConfig ?? config}
+                        onChange={applyDraftConfig}
+                        disabled={disabled}
+                        withTooltip={withTooltip}
+                        revisionId={revisionId}
+                        buildKitEnabledOverride={draftBuildKitOverride}
+                        savedHarnessValue={savedHarnessValue}
+                    />
+                </ChangedPathsProvider>
             </SectionDrawer>
 
             {workflowReference?.enabled && (
@@ -1127,4 +1196,4 @@ export function AgentTemplateControl({
             )}
         </div>
     )
-}
+})

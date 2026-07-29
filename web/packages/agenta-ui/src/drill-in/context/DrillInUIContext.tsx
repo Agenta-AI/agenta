@@ -19,6 +19,9 @@ import {
     type ReactElement,
 } from "react"
 
+import type {EditorProps} from "../../Editor"
+import type {SharedEditorProps} from "../../SharedEditor"
+
 /**
  * Inline provider option/group types to avoid importing from @agenta/ui.
  * These mirror the canonical types in @agenta/ui/select-llm-provider.
@@ -220,30 +223,13 @@ export interface DrillInUIComponents {
      * Editor provider component (wraps rich text editor)
      * Used by: TextField, JsonEditorWithLocalState
      */
-    EditorProvider?: ComponentType<{
-        children: ReactNode
-        id?: string
-        initialValue?: string
-        showToolbar?: boolean
-        enableTokens?: boolean
-        codeOnly?: boolean
-        language?: string
-        [key: string]: unknown
-    }>
+    EditorProvider?: ComponentType<EditorProps & {children: ReactNode}>
 
     /**
      * Shared editor component (rich text/JSON editor)
      * Used by: TextField, JsonEditorWithLocalState
      */
-    SharedEditor?: ComponentType<{
-        editorType?: string
-        initialValue?: string
-        onChange?: (value: string) => void
-        onPropertyClick?: (path: string) => void
-        placeholder?: string
-        readOnly?: boolean
-        [key: string]: unknown
-    }>
+    SharedEditor?: ComponentType<SharedEditorProps>
 
     /**
      * Chat message list component
@@ -340,6 +326,9 @@ export interface DrillInUIComponents {
 
     /** Workflow-as-tool reference integration for the tool selector (#4860) */
     workflowReference?: WorkflowReferenceBridge
+
+    /** Open a trace in the host application. */
+    openTrace?: (params: {traceId: string; spanId?: string | null}) => void
 
     /**
      * Lexical editor context hook

@@ -45,9 +45,9 @@ const WorkflowPicker = memo(({collapsed}: WorkflowPickerProps) => {
                 aria-label="Switch workflow"
                 className={clsx(
                     "flex items-center justify-between overflow-hidden transition-[width,height,padding,gap,border-color] duration-300 ease-in-out",
-                    collapsed
-                        ? "!w-8 !h-8 !p-1 gap-0"
-                        : "w-full pl-2 pr-3 py-3 h-12 gap-2 border border-solid border-gray-200",
+                    // No border when expanded: the header row it sits in is already
+                    // framed by the rail's own line, so a box inside a box reads wrong.
+                    collapsed ? "!w-8 !h-8 !p-1 gap-0" : "w-full h-full pl-1.5 pr-2 gap-2",
                 )}
             >
                 <WorkflowIdentity

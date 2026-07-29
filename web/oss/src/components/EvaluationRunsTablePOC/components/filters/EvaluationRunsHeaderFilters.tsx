@@ -1,10 +1,10 @@
 import {MouseEvent, useMemo, useState, useCallback} from "react"
 
-import {Input, Tag, Tooltip, Typography} from "antd"
+import {FiltersPopoverTrigger} from "@agenta/ui/table"
+import {Input, Tag, Tooltip, Typography, type PopoverProps} from "antd"
 import clsx from "clsx"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 
-import {FiltersPopoverTrigger} from "@/oss/components/InfiniteVirtualTable"
 import {
     getReferenceToneColors,
     type ReferenceTone,
@@ -451,6 +451,8 @@ const EvaluationRunsHeaderFilters = () => {
                 onOpenChange={handleFiltersOpenChange}
                 popoverProps={{
                     arrow: false,
+                    // antd v6 dropped the `body` semantic key (now container/content), so the
+                    // `body` styles are ignored at runtime — typed as-is per WP-4e-2a.
                     styles: {
                         body: {
                             maxWidth: "360px",
@@ -463,7 +465,7 @@ const EvaluationRunsHeaderFilters = () => {
                             boxShadow: "none",
                             padding: 0,
                         },
-                    },
+                    } as PopoverProps["styles"],
                 }}
                 renderContent={(close) => (
                     <EvaluationRunsFiltersContent isOpen={isFiltersOpen} onClose={close} />

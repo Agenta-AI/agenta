@@ -7,7 +7,7 @@ import type * as OpenApiPlugin from "docusaurus-plugin-openapi-docs";
 
 const config: Config = {
   title: "Docs - Agenta",
-  tagline: "The LLMOps platform.",
+  tagline: "The open-source workspace for your agents.",
   favicon: "images/favicon.ico",
   // Local development configuration
   url: "http://localhost:5000",

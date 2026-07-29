@@ -345,6 +345,14 @@ export type AgentEvent =
       /** Structured output (object), used for generative UI; `output` stays the text form. */
       data?: unknown;
       isError?: boolean;
+      /**
+       * The result is a USER/POLICY DENIAL of a gated call, not a genuine tool failure. A denied
+       * call still rides `isError: true` (the harness closes it as a failed tool call), so this
+       * structural marker is the only reliable way for the egress to project `tool-output-denied`
+       * (a decline) instead of `tool-output-error` (a breakage). Set by the runner at the deny
+       * mapping, never inferred from the error text.
+       */
+      denied?: boolean;
       render?: RenderHint;
     }
   // A human-in-the-loop request the harness raised (ACP reverse-RPC). The kind is our own
@@ -355,6 +363,14 @@ export type AgentEvent =
       type: "interaction_request";
       id: string;
       kind: "user_approval" | "user_input" | "client_tool";
+      payload?: unknown;
+    }
+  // The durable answer half of an interaction_request, emitted when the runner forwards the
+  // human decision to the harness. Its id matches the request so hydration can overlay the answer.
+  | {
+      type: "interaction_response";
+      id: string;
+      kind: "user_approval";
       payload?: unknown;
     }
   // One-way generative-UI payloads (not tied to a tool result). `data` -> Vercel `data-<name>`,
@@ -511,6 +527,13 @@ export interface AgentRunRequest {
    * the runner can include it in heartbeat and record-ingest calls. Absent otherwise.
    */
   projectId?: string;
+  /**
+   * The session's `session_streams` row id, captured for free from the alive-watchdog's
+   * heartbeat response (`sessions/alive.ts`) and threaded here before the engine runs. Present
+   * only for session-owned streaming runs; consumed at the turn-append write site
+   * (`engines/sandbox_agent.ts`) as `session_turns.stream_id`.
+   */
+  streamId?: string;
 }
 
 export interface AgentRunResult {

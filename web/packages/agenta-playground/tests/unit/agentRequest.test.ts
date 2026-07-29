@@ -13,7 +13,7 @@
  * headers + project come from the real `executionHeadersAtom` / `projectIdAtom`.
  */
 import {createStore, type PrimitiveAtom} from "jotai"
-import {describe, expect, it, beforeEach, vi} from "vitest"
+import {describe, expect, it, beforeEach, afterEach, vi} from "vitest"
 
 vi.mock("@agenta/entities/workflow", async (importOriginal) => {
     const actual = (await importOriginal()) as any
@@ -54,7 +54,7 @@ import {
     buildAgentRequest,
     buildAgentReferences,
 } from "../../src/state/execution/agentRequest"
-import {agentChannelModeAtom} from "../../src/state/execution/channelMode"
+import {agentChannelModeAtomFamily} from "../../src/state/execution/channelMode"
 import {executionHeadersAtom} from "../../src/state/execution/webWorkerIntegration"
 
 const REAL_APP = "11111111-1111-4111-8111-111111111111"
@@ -175,6 +175,48 @@ describe("buildAgentRequest", () => {
     it("returns null when the entity has no invocation URL", async () => {
         seed(store, "e", {url: null})
         expect(await buildAgentRequest("e", [], {sessionId: "s1", store})).toBeNull()
+    })
+
+    describe("last-message-only (NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY)", () => {
+        const u1 = {role: "user", parts: [{type: "text", text: "q1"}]}
+        const a1 = {role: "assistant", parts: [{type: "text", text: "a1"}]}
+        const u2 = {role: "user", parts: [{type: "text", text: "q2"}]}
+
+        // Runtime override path (getEnv checks globalThis.__env before the build-time snapshot).
+        const enableFlag = () => {
+            ;(globalThis as any).__env = {NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY: "true"}
+        }
+        afterEach(() => {
+            delete (globalThis as any).__env
+        })
+
+        const outMessages = async (msgs: unknown[], sessionId = "s1") => {
+            seed(store, "e", {})
+            const req = await buildAgentRequest("e", msgs, {sessionId, store})
+            return (req!.requestBody.data as any).inputs.messages
+        }
+
+        it("sends only the trailing user message when enabled", async () => {
+            enableFlag()
+            expect(await outMessages([u1, a1, u2])).toEqual([u2])
+        })
+
+        it("sends the full history by default (flag off)", async () => {
+            const out = await outMessages([u1, a1, u2])
+            expect(out).toEqual([u1, a1, u2])
+        })
+
+        it("keeps the full history on a resume (trailing assistant) even when enabled", async () => {
+            enableFlag()
+            const out = await outMessages([u1, a1])
+            expect(out.length).toBeGreaterThan(1)
+            expect(out[out.length - 1].role).toBe("assistant")
+        })
+
+        it("sends the full history when there is no session id", async () => {
+            enableFlag()
+            expect(await outMessages([u1, a1, u2], "")).toEqual([u1, a1, u2])
+        })
     })
 
     it("nests messages under data.inputs + draft-aware parameters under data, with session_id", async () => {
@@ -506,13 +548,13 @@ describe("buildAgentRequest", () => {
     })
 
     it("requests batch JSON via Accept when the channel toggle is `batch`", async () => {
-        // Negotiation 1 (transport): the channel toggle drives Accept. `batch` asks /invoke
-        // for a single WorkflowBatchResponse, which AgentChatTransport replays as one frame.
-        store.set(agentChannelModeAtom, "batch")
+        // Negotiation 1 (transport): the per-session channel toggle drives Accept. `batch` asks
+        // /invoke for a single WorkflowBatchResponse, which AgentChatTransport replays as one frame.
+        store.set(agentChannelModeAtomFamily("s1"), "batch")
         seed(store, "e", {})
         const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
         expect(req!.headers.Accept).toBe("application/json")
-        store.set(agentChannelModeAtom, "stream")
+        store.set(agentChannelModeAtomFamily("s1"), "stream")
     })
 
     it("declares the Vercel message format via x-ag-messages-format", async () => {

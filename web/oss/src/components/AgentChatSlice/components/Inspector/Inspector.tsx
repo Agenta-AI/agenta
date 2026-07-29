@@ -88,9 +88,11 @@ export function Inspector({sessionId}: {sessionId: string}) {
     const [rawOpen, setRawOpen] = useAtom(inspectorRawOpenAtom)
     const revalidateRecords = useSetAtom(revalidateSessionRecordsAtom)
     const queryClient = useQueryClient()
-    const records = useAtomValue(sessionRecordsQueryFamily(sessionId))
 
     const active = target?.sessionId === sessionId ? target : null
+    // Empty key disables the query while closed — subscribing with the real id
+    // here made a closed inspector fetch 226KB of records on every cold load.
+    const records = useAtomValue(sessionRecordsQueryFamily(active ? sessionId : ""))
     const focusedTurn = active?.focusedTurn ?? null
 
     // Gate all record-heavy work behind the open-slide settle (see BODY_READY_MS). Mount-scoped, so

@@ -227,6 +227,13 @@ export async function waitForRelayResponse(
  * Daytona tool call: the in-sandbox process can't reach Agenta, so write the request to a
  * file the runner watches and poll for the response it writes back (see tools/relay.ts).
  */
+/**
+ * Sentinel returned by `relayToolCall` when a browser-fulfilled client tool parked. A distinct
+ * value (not a throw, not an empty string) so the shim can tell a pause apart from a normal result
+ * or a failure and return a benign wait result to the harness (see tool-mcp-stdio.ts).
+ */
+export const RELAY_PAUSED = Symbol("relay-paused");
+
 export async function relayToolCall(
   dir: string,
   toolName: string,
@@ -234,7 +241,7 @@ export async function relayToolCall(
   params: unknown,
   timeoutMs?: number,
   signal?: AbortSignal,
-): Promise<string> {
+): Promise<string | typeof RELAY_PAUSED> {
   const { reqPath, resPath } = publishRelayRequest(dir, {
     toolName,
     toolCallId,
@@ -255,6 +262,8 @@ export async function relayToolCall(
     }
     throw err;
   }
+  // Cleanup runs for every answer variant, pause included; the turn-start stale sweep is only the
+  // backstop for a torn-down shim that never reached this line.
   try {
     unlinkSync(reqPath);
   } catch {
@@ -265,6 +274,9 @@ export async function relayToolCall(
   } catch {
     /* best-effort cleanup */
   }
+  // Check the pause before the ok/text path: a paused answer is `ok: true` with no text, and the
+  // shim must not read it as an empty success.
+  if (res.paused) return RELAY_PAUSED;
   if (res.ok) return res.text ?? "";
   throw new Error(res.error || `tool relay failed for ${toolName}`);
 }

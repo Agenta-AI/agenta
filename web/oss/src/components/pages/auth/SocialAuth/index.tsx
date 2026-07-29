@@ -1,6 +1,6 @@
 import {useRef} from "react"
 
-import {Button} from "antd"
+import clsx from "clsx"
 import {useRouter} from "next/router"
 import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 
@@ -14,6 +14,9 @@ const SocialAuth = ({
     setIsLoading,
     disabled,
     providers,
+    variant = "default",
+    yellow = false,
+    lastUsed = false,
 }: SocialAuthProps) => {
     const router = useRouter()
     const inFlight = useRef(false)
@@ -38,30 +41,36 @@ const SocialAuth = ({
         }
     }
 
-    const hasAnyProvider = providers.length > 0
-
-    if (!hasAnyProvider) {
+    if (providers.length === 0) {
         return null
     }
 
     return (
-        <>
-            <div className="flex flex-col gap-2">
-                {providers.map((provider) => (
-                    <Button
-                        key={provider.id}
-                        icon={provider.icon}
-                        size="large"
-                        className="w-full"
-                        onClick={() => providerSignInClicked(provider.id)}
-                        loading={isLoading}
-                        disabled={disabled}
-                    >
-                        Continue with {provider.label}
-                    </Button>
-                ))}
-            </div>
-        </>
+        <div className="flex flex-col gap-[10px]">
+            {providers.map((provider) => (
+                <button
+                    key={provider.id}
+                    type="button"
+                    className={clsx(
+                        "relative",
+                        yellow
+                            ? "auth-btn-yellow"
+                            : clsx(
+                                  "auth-surface-btn",
+                                  variant === "promoted" && "auth-surface-btn-promoted",
+                              ),
+                    )}
+                    onClick={() => providerSignInClicked(provider.id)}
+                    disabled={disabled || isLoading}
+                >
+                    {provider.icon}
+                    <span>Continue with {provider.label}</span>
+                    {lastUsed && (
+                        <span className="auth-last-used-tag absolute right-3">Last used</span>
+                    )}
+                </button>
+            ))}
+        </div>
     )
 }
 

@@ -1,5 +1,7 @@
+import {catalogPersister} from "@agenta/shared/api/persist"
 import {logAtom} from "@agenta/shared/state"
 import type {User} from "@agenta/shared/types"
+import type {QueryKey} from "@tanstack/react-query"
 import type {AxiosError} from "axios"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -35,6 +37,10 @@ export const profileQueryAtom = atomWithQuery<User | null>((get) => ({
     retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
     experimental_prefetchInRender: true,
     enabled: get(sessionExistsAtom),
+    // Head-of-line gate for the level-2 fanout: paint from disk, always revalidate
+    // (no staleTime ⇒ restored data is stale ⇒ one background refetch). Logout
+    // clears the IDB store, and nullish results are never persisted.
+    persister: catalogPersister.persisterFn<User | null, QueryKey>,
 }))
 
 const logProfile = process.env.NEXT_PUBLIC_LOG_PROFILE_ATOMS === "true"

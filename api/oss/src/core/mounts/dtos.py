@@ -25,6 +25,7 @@ class MountFlags(BaseModel):
 class Mount(Identifier, Slug, Header, Lifecycle):
     project_id: UUID
     session_id: Optional[str] = None
+    agent_id: Optional[str] = None
     #
     data: MountData = Field(default_factory=MountData)
     #
@@ -35,6 +36,7 @@ class Mount(Identifier, Slug, Header, Lifecycle):
 
 class MountCreate(Slug, Header):
     session_id: Optional[str] = None
+    agent_id: Optional[str] = None
     #
     flags: MountFlags = Field(default_factory=MountFlags)
     tags: Optional[Dict[str, Any]] = None
@@ -49,6 +51,7 @@ class MountEdit(Identifier, Header):
 
 class MountQuery(BaseModel):
     session_id: Optional[str] = None
+    agent_id: Optional[str] = None
     include_archived: bool = False
 
 
@@ -63,10 +66,32 @@ class MountFile(BaseModel):
     # Object-store LastModified as epoch milliseconds; None when the store omits it. Lets the UI
     # order files by recency regardless of how they were created (bash, Write tool, upload).
     mtime: Optional[int] = None
+    # Direct-child count for a folder entry — only set when the recency view rolls a whole
+    # freshly-written directory (e.g. a `git clone`) up into ONE folder row instead of flooding the
+    # "recent files" list with its leaves. None for real files.
+    item_count: Optional[int] = None
 
 
 class MountFileList(BaseModel):
     files: List[MountFile] = Field(default_factory=list)
+    # Entries this view would return BEFORE any limit — so a limited "latest N" listing still reports
+    # the true total (the UI badge) without shipping the whole tree. Its unit follows the view: leaf
+    # files only in the recency listing (order/limit set), files-plus-folders in the shallow (depth=1)
+    # and browse modes.
+    total: int = 0
+    # `total` is a FLOOR, not exact — the count-only scan hit its cap on a very large tree, so the UI
+    # shows "N+". False for an exhaustive count.
+    total_capped: bool = False
+
+
+class MountArchiveSource(BaseModel):
+    """One mount to include in a download-all archive: which mount, which folder within it
+    (`source_path`; "" = the whole mount), and the prefix its files sit under in the zip (the folded
+    drive layout)."""
+
+    mount_id: UUID
+    source_path: str = ""
+    archive_prefix: str = ""
 
 
 class MountFileContent(BaseModel):

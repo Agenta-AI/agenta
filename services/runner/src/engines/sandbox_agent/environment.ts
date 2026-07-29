@@ -93,16 +93,13 @@ import {
   combineAppendSystemPrompt,
   type ClaudeSystemPromptMeta,
 } from "./agent-mount-guidance.ts";
+import { claudeThinkingMeta } from "./claude-thinking.ts";
 import {
   routePermissionRequestToActiveTurn,
   routeSessionEventToActiveTurn,
 } from "./session-events.ts";
 import { buildSandboxProvider } from "./provider.ts";
-import {
-  clearSandboxPointer,
-  readStoredSandboxPointer,
-  writeSandboxPointer,
-} from "./sandbox-reconnect.ts";
+import { readStoredSandboxPointer } from "./sandbox-reconnect.ts";
 import type {
   AcquireEnvironmentResult,
   SandboxAgentDeps,
@@ -116,7 +113,6 @@ import {
 import { hydrateHarnessSessionFromDurable } from "./session-continuity-durable.ts";
 import {
   eligibleAgentSessionId,
-  nextTurnIndex,
   sessionContinuityStore,
 } from "./session-continuity.ts";
 import { projectScopeFor } from "./session-identity.ts";
@@ -641,31 +637,13 @@ export async function acquireEnvironment(
         logger(
           `reconnect failed sandbox=${storedSandboxPointer.sandboxId}, creating fresh: ${conciseError(err, plan.harness)}`,
         );
-        if (
-          err instanceof DaytonaReconnectTerminalError &&
-          sessionForMount &&
-          runCred
-        ) {
-          // The post-hydrate write later in acquire is authoritative. This clear only prevents
-          // repeated doomed reconnects if acquire fails before reaching that write. Hydrate
-          // first: after a runner restart the in-memory store is behind the durable
-          // latest_turn_index, and an unhydrated guard token would be rejected as stale.
-          await (
-            deps.hydrateHarnessSessionFromDurable ??
-            hydrateHarnessSessionFromDurable
-          )(
-            sessionForMount,
-            plan.harness,
-            deps.sessionContinuityStore ?? sessionContinuityStore,
-            { authorization: runCred, log: logger },
-          );
-          await (deps.clearSandboxPointer ?? clearSandboxPointer)(
-            sessionForMount,
-            nextTurnIndex(
-              sessionForMount,
-              deps.sessionContinuityStore ?? sessionContinuityStore,
-            ),
-            { authorization: runCred, log: logger },
+        // No explicit pointer clear needed: turns are append-only, so the fresh sandbox this
+        // turn creates below gets its own turn row at completion, and that row's higher
+        // turn_index naturally supersedes the dead one on the next `latest_turn` read — the
+        // staleness guard the old states model needed dissolves with the ordering.
+        if (err instanceof DaytonaReconnectTerminalError) {
+          logger(
+            `terminal Daytona state '${err.state}' for sandbox=${storedSandboxPointer.sandboxId}, not retrying reconnect`,
           );
         }
       } finally {
@@ -709,13 +687,15 @@ export async function acquireEnvironment(
       if (plan.isPi && plan.builtinGatingActive && !daytonaExtensionInstalled) {
         throw new Error(PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE);
       }
-      if (!plan.isPi && plan.executableToolSpecs.length > 0) {
+      if (!plan.isPi && plan.toolSpecs.length > 0) {
+        // Advertise the FULL tool set to the shim, client tools included: a parked client tool
+        // resolves through the relay's paused answer (see startToolRelay / tool-mcp-stdio.ts).
         internalToolMcp = await (
           deps.uploadToolMcpAssets ?? uploadToolMcpAssets
         )(
           environment.sandbox,
           plan.toolMcpDir,
-          advertisedToolSpecs(plan.executableToolSpecs),
+          advertisedToolSpecs(plan.toolSpecs),
           logger,
         );
       }
@@ -927,10 +907,21 @@ export async function acquireEnvironment(
       environment.agentMountedPath && plan.acpAgent === "claude"
         ? claudeMountSystemPromptMeta(AGENT_MOUNT_SYSTEM_PROMPT_SEGMENT)
         : undefined;
+    // Claude-only: request visible ("summarized") extended-thinking display so the model's
+    // reasoning reaches the runner (and the playground). Without it, recent Claude models
+    // return signature-only thinking and no reasoning surfaces. See `claude-thinking.ts`.
+    const claudeThinking =
+      plan.acpAgent === "claude" ? claudeThinkingMeta() : undefined;
+    // Disjoint `_meta` keys (`systemPrompt` vs `claudeCode`), so a shallow merge keeps both.
+    // A future second `claudeCode` producer would need a deep merge here.
+    const claudeMeta =
+      claudeSystemPromptMeta || claudeThinking
+        ? { ...(claudeSystemPromptMeta ?? {}), ...(claudeThinking ?? {}) }
+        : undefined;
     const sessionInit = {
       cwd: plan.cwd,
       mcpServers: sessionMcp.servers,
-      ...(claudeSystemPromptMeta ? { _meta: claudeSystemPromptMeta } : {}),
+      ...(claudeMeta ? { _meta: claudeMeta } : {}),
     };
 
     // If this harness authored the conversation's most recent turn (staleness-guarded) and we
@@ -965,29 +956,9 @@ export async function acquireEnvironment(
     const localSessionId = continuitySessionKey
       ? `${continuitySessionKey}:${plan.harness}`
       : undefined;
-    // The index THIS turn will occupy once it completes: recorded post-turn against the SAME
-    // index read here, so a turn that authors turn N leaves the store agreeing with itself.
-    environment.continuityTurnIndex = continuitySessionKey
-      ? nextTurnIndex(continuitySessionKey, continuityStore)
-      : undefined;
-    // Daytona only: a local run must not overwrite a conversation's remote pointer (switching
-    // sandboxes mid-conversation would strand the parked Daytona instance).
-    if (plan.isDaytona && sessionForMount && runCred) {
-      const liveSandboxId = environment.sandbox?.sandboxId ?? plan.sandboxId;
-      const pointerWriteOutcome = await (
-        deps.writeSandboxPointer ?? writeSandboxPointer
-      )(
-        sessionForMount,
-        {
-          sandboxId: liveSandboxId,
-          turnIndex: environment.continuityTurnIndex ?? 0,
-        },
-        { authorization: runCred, log: logger },
-      );
-      logger(
-        `sandbox pointer write ${pointerWriteOutcome} session=${sessionForMount} sandbox=${liveSandboxId}`,
-      );
-    }
+    // The live sandbox id rides forward as a field on the turn-append row written at turn end
+    // (see `appendSessionTurn` call in `runTurn`), not a separate pre-turn pointer PUT: the
+    // turns table is append-only, so there is nothing to overwrite mid-conversation.
     let loadedFromContinuity = false;
     if (priorAgentSessionId && localSessionId) {
       await persist.updateSession({

@@ -6,8 +6,37 @@ import {atomFamily} from "jotai/utils"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {TraceSpanNode} from "@/oss/services/tracing/types/index"
 
+// Minimal runtime shape of `attributes.ag` (backend extra="allow" data).
+interface AgMetricBuckets {
+    total?: number
+    prompt?: number
+    completion?: number
+    [key: string]: unknown
+}
+
+interface AgAttributes {
+    metrics?: {
+        tokens?: {cumulative?: AgMetricBuckets; incremental?: AgMetricBuckets}
+        costs?: {cumulative?: AgMetricBuckets; incremental?: AgMetricBuckets}
+        duration?: {cumulative?: number}
+        [key: string]: unknown
+    }
+    data?: {
+        inputs?: unknown
+        outputs?: unknown
+        internals?: unknown
+        parameters?: unknown
+        [key: string]: unknown
+    }
+    meta?: {configuration?: unknown; [key: string]: unknown}
+    node?: {type?: string; [key: string]: unknown}
+    [key: string]: unknown
+}
+
+const getAg = (span?: TraceSpanNode) => span?.attributes?.ag as AgAttributes | undefined
+
 // Metric extraction helpers ----------------------------------------------------
-const getTokenMetrics = (span?: TraceSpanNode) => span?.attributes?.ag?.metrics?.tokens ?? null
+const getTokenMetrics = (span?: TraceSpanNode) => getAg(span)?.metrics?.tokens ?? null
 
 export const getTokens = (span?: TraceSpanNode) => {
     const tokens = getTokenMetrics(span)
@@ -25,14 +54,14 @@ export const getCompletionTokens = (span?: TraceSpanNode) => {
 }
 
 export const getCost = (span?: TraceSpanNode) => {
-    const costs = span?.attributes?.ag?.metrics?.costs
+    const costs = getAg(span)?.metrics?.costs
     return costs?.cumulative?.total ?? costs?.incremental?.total ?? null
 }
 
 export const getLatency = (span?: TraceSpanNode) =>
-    span?.attributes?.ag?.metrics?.duration?.cumulative ?? null
+    getAg(span)?.metrics?.duration?.cumulative ?? null
 
-export const getTraceInputs = (span?: TraceSpanNode) => span?.attributes?.ag?.data?.inputs ?? null
+export const getTraceInputs = (span?: TraceSpanNode) => getAg(span)?.data?.inputs ?? null
 
 // A streamed agent run's ROOT span returns a generator, so its `ag.data.outputs` is the
 // generator object's repr (`<async_generator object ... at 0x...>`), not the reply — the span
@@ -40,7 +69,7 @@ export const getTraceInputs = (span?: TraceSpanNode) => span?.attributes?.ag?.da
 // `agent`-type span (`invoke_agent`).
 const GENERATOR_REPR = /^<(?:async_)?generator object/
 
-const spanOutputs = (span: TraceSpanNode): unknown => (span.attributes as any)?.ag?.data?.outputs
+const spanOutputs = (span: TraceSpanNode): unknown => getAg(span)?.data?.outputs
 
 export const getTraceOutputs = (span?: TraceSpanNode): unknown => {
     if (!span) return null
@@ -63,9 +92,9 @@ export const getTraceOutputs = (span?: TraceSpanNode): unknown => {
 
 // General attribute helpers ----------------------------------------------------
 export const getAgMetaConfiguration = (span?: TraceSpanNode) =>
-    span?.attributes?.ag?.meta?.configuration ?? null
+    getAg(span)?.meta?.configuration ?? null
 
-export const getAgData = (span?: TraceSpanNode) => span?.attributes?.ag?.data ?? null
+export const getAgData = (span?: TraceSpanNode) => getAg(span)?.data ?? null
 
 export const getAgDataInputs = (span?: TraceSpanNode) => getAgData(span)?.inputs ?? null
 
@@ -75,7 +104,7 @@ export const getAgDataInternals = (span?: TraceSpanNode) => getAgData(span)?.int
 
 export const getAgDataParameters = (span?: TraceSpanNode) => getAgData(span)?.parameters ?? null
 
-export const getAgNodeType = (span?: TraceSpanNode) => span?.attributes?.ag?.node?.type ?? null
+export const getAgNodeType = (span?: TraceSpanNode) => getAg(span)?.node?.type ?? null
 
 export const getSpanException = (span?: TraceSpanNode) =>
     span?.events?.find((event) => event.name === "exception") ?? null

@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useState} from "react"
 
-import {useVirtualTableScrollContainer} from "@/oss/components/InfiniteVirtualTable"
+import {useVirtualTableScrollContainer} from "@agenta/ui/table"
 
 // Fixed buffer values - no need for dynamic calculation per cell
 // These provide generous lookahead for smooth scrolling

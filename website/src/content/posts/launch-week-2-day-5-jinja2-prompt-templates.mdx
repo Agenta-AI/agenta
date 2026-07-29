@@ -1,0 +1,77 @@
+---
+slug: "launch-week-2-day-5-jinja2-prompt-templates"
+title: "Launch Week #2 Day 5: Jinja2 Prompt Templates"
+description: "Agenta prompt playground now supports Jinja2 prompt templates. Create dynamic LLM prompts with conditional logic. Prompt management with Jinja2 templating support.
+"
+category: Article
+date: 2025-11-14
+readingTime: "5 min read"
+heroImage: /blog/launch-week-2-day-5-jinja2-prompt-templates/hero.webp
+ogImage: /blog/launch-week-2-day-5-jinja2-prompt-templates/hero.webp
+author: mahmoud-mabrouk
+featured: false
+tags: ["Product Update"]
+---
+
+Hello everyone, and welcome to the final day of our launch week!
+
+Before we get to today's announcement, here's a quick recap of what we launched this week:
+
+- [**Day 1**](/blog/launch-week-2-day-1): Evaluation Dashboard for comprehensive evaluation insights
+- [**Day 2**](/blog/launch-week-2-day-2-online-evaluation): Online Evaluation for production monitoring
+- [**Day 3**](/blog/launch-week-2-day-3-evaluation-sdk): Evaluation SDK for programmatic evaluation workflows
+- [**Day 4**](/blog/launch-week-2-day-4-open-sourcing-evaluation): We open sourced all core evaluation functionality in Agenta
+
+## Today: Jinja2 Template Support in the Playground
+
+<InlineCTA />
+
+We're excited to announce a powerful update to the [Agenta prompt playground](https://agenta.ai/docs/prompt-engineering/playground/using-playground). You can now use [**Jinja2 templating**](https://agenta.ai/docs/prompt-engineering/playground/using-playground#switching-template-formats) in your prompts.
+
+This means you can add sophisticated logic directly into your prompt templates. Use conditional statements, apply filters to variables, and transform data on the fly.
+
+### Example
+
+Here's a prompt template that uses [Jinja2](https://jinja.palletsprojects.com/en/stable/) to adapt based on user expertise level:
+
+```markdown
+You are {% if expertise_level == "beginner" %}a friendly teacher who explains concepts in simple terms{% else %}a technical expert providing detailed analysis{% endif %}.
+
+Explain {{ topic }} {% if include_examples %}with practical examples{% endif %}.
+
+{% if False %} {{expertise_level}} {{include_examples}} {% endif %}
+```
+
+**Note**: The `{% if False %}` block makes variables available to the playground without including them in the final prompt.
+
+### Using Jinja2 Prompts
+
+When you fetch a Jinja2 prompt via the SDK, you get the template format included in the configuration:
+
+```python
+{
+  "prompt": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "You are {% if expertise_level == \"beginner\" %}a friendly teacher...{% endif %}"
+      }
+    ],
+    "llm_config": {
+      "model": "gpt-4",
+      "temperature": 0.7
+    },
+    "template_format": "jinja2"
+  }
+}
+```
+
+The `template_format` field tells Agenta how to process your variables. This works both when invoking prompts through Agenta as an [LLM gateway](https://agenta.ai/docs/prompt-engineering/integrating-prompts/proxy-calls) and when [fetching prompts programmatically via the SDK](https://agenta.ai/docs/prompt-engineering/integrating-prompts/fetch-prompt-programatically).
+
+That wraps up our [launch week](/launch-week-2)! We hope you explore these updates and find them useful. If you try them out, we'd love your feedback.
+
+You can check our roadmap and vote on upcoming features at [https://docs.agenta.ai/roadmap](https://docs.agenta.ai/roadmap). You can also [request new features](https://github.com/Agenta-AI/agenta/discussions/new?category=ideas) directly on GitHub.
+
+**One last thing**: We're launching on Product Hunt on Friday, November 28. We'd really appreciate your support! You can follow [our page](https://www.producthunt.com/products/agenta?launch=agenta)now at Product Hunt.
+
+Thanks, and happy prompting!

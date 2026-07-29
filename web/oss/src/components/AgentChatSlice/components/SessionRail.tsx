@@ -1,6 +1,14 @@
-import {useRef, useState} from "react"
+import {memo, useCallback, useRef, useState} from "react"
 
-import {MagnifyingGlass, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
+import {
+    Archive,
+    ArrowCounterClockwise,
+    CaretRight,
+    MagnifyingGlass,
+    PencilSimple,
+    Plus,
+    Trash,
+} from "@phosphor-icons/react"
 import {Button, Empty, Input, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -12,6 +20,8 @@ import {
     type AgentChatSession,
     activeSessionIdAtomFamily,
     addSessionAtomFamily,
+    archiveSessionAtomFamily,
+    archivedSessionHistoryAtomFamily,
     deleteSessionAtomFamily,
     firstUserText,
     isSessionHusk,
@@ -21,34 +31,110 @@ import {
     sessionHistoryAtomFamily,
     sessionMessagesAtom,
     timeAgo,
+    unarchiveSessionAtomFamily,
 } from "../state/sessions"
 
 import SessionTabLabel, {type SessionTabLabelHandle} from "./SessionTabLabel"
 import {SessionStatusDot} from "./SessionTagBar"
 
+// Static icon elements: an inline `<Icon />` prop is a fresh element every render, which defeats
+// antd Button's own memoization and shows up as a changed `icon` prop on every row.
+const PENCIL_ICON = <PencilSimple size={12} />
+const TRASH_ICON = <Trash size={12} />
+const ARCHIVE_ICON = <Archive size={12} />
+const RESTORE_ICON = <ArrowCounterClockwise size={12} />
+
+// Stable no-op for an archived row's `onSelect` (archived rows aren't openable) — keeps the
+// id-taking setter identity stable so the memoized row doesn't re-render.
+const NOOP = () => {}
+
 interface SessionRailRowProps {
     session: AgentChatSession
     label: string
     active: boolean
-    onSelect: () => void
-    onDelete: () => void
-    onRename: (title: string) => void
+    // Id-taking so the parent can pass stable setters; a per-row closure would change identity
+    // every render and re-render the whole row (Tooltip/Button/status-dot subtree) with it.
+    onSelect: (id: string) => void
+    onDelete: (id: string) => void
+    onRename: (id: string, title: string) => void
+    onArchive: (id: string) => void
+    onUnarchive: (id: string) => void
+    /** Archived rows swap the rename/archive actions for a single restore action. */
+    archived?: boolean
 }
 
 /** History row: status dot, label (double-click or pencil to rename), timestamp, with an inspect
- * action on the active row and hover-revealed rename/delete; collapses its height + gap margin on
- * enter/exit so nothing snaps. */
-const SessionRailRow = ({
+ * action on the active row and hover-revealed rename/archive/delete; collapses its height + gap
+ * margin on enter/exit so nothing snaps. */
+const SessionRailRow = memo(function SessionRailRow({
     session,
     label,
     active,
     onSelect,
     onDelete,
     onRename,
-}: SessionRailRowProps) => {
+    onArchive,
+    onUnarchive,
+    archived = false,
+}: SessionRailRowProps) {
     const labelRef = useRef<SessionTabLabelHandle>(null)
     // Hide the action cluster while the inline rename input owns the row, so it gets full width.
     const [renaming, setRenaming] = useState(false)
+    // The rename/delete cluster is hover-only. Mount it on hover/focus instead of rendering it
+    // hidden behind `opacity-0`: each button drags a Tooltip + Trigger + icon subtree, and a full
+    // history of rows paid all of that on boot for pixels nobody sees.
+    const [hot, setHot] = useState(false)
+    const onEnter = useCallback(() => setHot(true), [])
+    const onLeave = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        // Don't unmount the cluster out from under keyboard focus: a mixed mouse+keyboard user
+        // can tab into a button, then move the mouse off the row. Symmetric with onBlurRow.
+        if (!e.currentTarget.contains(document.activeElement)) setHot(false)
+    }, [])
+    const onBlurRow = useCallback((e: React.FocusEvent<HTMLDivElement>) => {
+        // Keep the cluster while focus moves INTO it (row → rename button).
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setHot(false)
+    }, [])
+    const sessionId = session.id
+    const handleSelect = useCallback(() => onSelect(sessionId), [onSelect, sessionId])
+    const handleDelete = useCallback(() => onDelete(sessionId), [onDelete, sessionId])
+    const handleRename = useCallback(
+        (title: string) => onRename(sessionId, title),
+        [onRename, sessionId],
+    )
+    const startRename = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation()
+        labelRef.current?.startEditing()
+    }, [])
+    const confirmDelete = useCallback(
+        (e: React.MouseEvent) => {
+            e.stopPropagation()
+            handleDelete()
+        },
+        [handleDelete],
+    )
+    const handleArchive = useCallback(
+        (e: React.MouseEvent) => {
+            e.stopPropagation()
+            onArchive(sessionId)
+        },
+        [onArchive, sessionId],
+    )
+    const handleUnarchive = useCallback(
+        (e: React.MouseEvent) => {
+            e.stopPropagation()
+            onUnarchive(sessionId)
+        },
+        [onUnarchive, sessionId],
+    )
+    const onKeyDown = useCallback(
+        (e: React.KeyboardEvent) => {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                handleSelect()
+            }
+        },
+        [handleSelect],
+    )
     return (
         <motion.div
             variants={ROW_VARIANTS}
@@ -64,13 +150,12 @@ const SessionRailRow = ({
                 role="tab"
                 aria-selected={active}
                 tabIndex={0}
-                onClick={onSelect}
-                onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault()
-                        onSelect()
-                    }
-                }}
+                onClick={handleSelect}
+                onKeyDown={onKeyDown}
+                onMouseEnter={onEnter}
+                onMouseLeave={onLeave}
+                onFocus={onEnter}
+                onBlur={onBlurRow}
                 className={clsx(
                     "group flex cursor-pointer items-center gap-2 rounded-md border border-solid px-2 py-1.5 transition-colors",
                     active ? "ag-surface-selected" : "ag-row-hover border-transparent",
@@ -81,50 +166,74 @@ const SessionRailRow = ({
                     <SessionTabLabel
                         ref={labelRef}
                         label={label}
-                        onRename={onRename}
+                        onRename={handleRename}
                         onEditingChange={setRenaming}
                         className={clsx(
                             "block min-w-0 truncate text-xs",
                             active ? "text-colorText" : "text-colorTextSecondary",
                         )}
                     />
-                    {timeAgo(session.createdAt) && (
-                        <span className="text-[11px] text-colorTextTertiary">
+                    {(session.ended || timeAgo(session.createdAt)) && (
+                        <span className="flex items-center gap-1.5 text-[11px] text-colorTextTertiary">
+                            {session.ended && (
+                                <span className="rounded bg-colorFillTertiary px-1 text-[10px] leading-4">
+                                    Ended
+                                </span>
+                            )}
                             {timeAgo(session.createdAt)}
                         </span>
                     )}
                 </div>
-                <div className={clsx("flex shrink-0 items-center gap-0.5", renaming && "hidden")}>
-                    {/* Inspection is build-mode only, so the chat-mode rail has no inspect entry. */}
-                    <Tooltip title="Rename session">
-                        <Button
-                            type="text"
-                            aria-label="Rename session"
-                            icon={<PencilSimple size={12} />}
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                labelRef.current?.startEditing()
-                            }}
-                            className="!h-5 !w-5 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-                        />
-                    </Tooltip>
-                    <Tooltip title="Delete session">
-                        <Button
-                            type="text"
-                            aria-label="Delete session"
-                            icon={<Trash size={12} />}
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                onDelete()
-                            }}
-                            className="!h-5 !w-5 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-                        />
-                    </Tooltip>
-                </div>
+                {hot && !renaming && (
+                    <div className="flex shrink-0 items-center gap-0.5">
+                        {/* Inspection is build-mode only, so the chat-mode rail has no inspect entry. */}
+                        {archived ? (
+                            <Tooltip title="Unarchive session">
+                                <Button
+                                    type="text"
+                                    aria-label="Unarchive session"
+                                    icon={RESTORE_ICON}
+                                    onClick={handleUnarchive}
+                                    className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
+                                />
+                            </Tooltip>
+                        ) : (
+                            <>
+                                <Tooltip title="Rename session">
+                                    <Button
+                                        type="text"
+                                        aria-label="Rename session"
+                                        icon={PENCIL_ICON}
+                                        onClick={startRename}
+                                        className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
+                                    />
+                                </Tooltip>
+                                <Tooltip title="Archive session">
+                                    <Button
+                                        type="text"
+                                        aria-label="Archive session"
+                                        icon={ARCHIVE_ICON}
+                                        onClick={handleArchive}
+                                        className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
+                                    />
+                                </Tooltip>
+                            </>
+                        )}
+                        <Tooltip title="Delete session">
+                            <Button
+                                type="text"
+                                aria-label="Delete session"
+                                icon={TRASH_ICON}
+                                onClick={confirmDelete}
+                                className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
+                            />
+                        </Tooltip>
+                    </div>
+                )}
             </div>
         </motion.div>
     )
-}
+})
 
 export interface SessionRailProps {
     /** The resolved active session id (source of truth for the chat), used for row highlight. */
@@ -138,11 +247,12 @@ export interface SessionRailProps {
  * Vertical session navigator for the full-screen agent chat. Lists the full session HISTORY
  * (`sessionHistoryAtomFamily`, newest first) — the same data as the session-history popover — so
  * the two stay consistent, and uses the space freed by maximizing to make every past session
- * directly reachable. Clicking a row reopens it as the active tab; rename inline, delete permanently.
+ * directly reachable. Clicking a row reopens it as the active tab; rename inline, archive/delete.
  */
 const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProps) => {
     const scope = useChatScopeKey()
     const history = useAtomValue(sessionHistoryAtomFamily(scope))
+    const archivedHistory = useAtomValue(archivedSessionHistoryAtomFamily(scope))
     const openIds = useAtomValue(openSessionIdsAtomFamily(scope))
     const allMessages = useAtomValue(sessionMessagesAtom)
     const resolvedActiveId = useAtomValue(activeSessionIdAtomFamily(scope))
@@ -150,9 +260,18 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
     const addSession = useSetAtom(addSessionAtomFamily(scope))
     const deleteSession = useSetAtom(deleteSessionAtomFamily(scope))
     const renameSession = useSetAtom(renameSessionAtomFamily(scope))
+    const archiveSession = useSetAtom(archiveSessionAtomFamily(scope))
+    const unarchiveSession = useSetAtom(unarchiveSessionAtomFamily(scope))
 
     const [query, setQuery] = useState("")
+    const [showArchived, setShowArchived] = useState(false)
     const q = query.trim().toLowerCase()
+    // `openSession`/`deleteSession`/`archiveSession`/`unarchiveSession` are already stable id-taking
+    // setters; rename needs a wrapper to reshape its two args into the atom's payload.
+    const handleRename = useCallback(
+        (id: string, title: string) => renameSession({id, title}),
+        [renameSession],
+    )
     const currentActiveId = activeId ?? resolvedActiveId
 
     // Hide never-initiated husks (untitled, no messages) unless they're an open tab — so a blank
@@ -165,6 +284,14 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
             label: session.title || firstUserText(allMessages[session.id]) || "Untitled chat",
         }))
     const filtered = q ? rows.filter((r) => r.label.toLowerCase().includes(q)) : rows
+
+    const archivedRows = archivedHistory.map((session) => ({
+        session,
+        label: session.title || firstUserText(allMessages[session.id]) || "Untitled chat",
+    }))
+    const filteredArchived = q
+        ? archivedRows.filter((r) => r.label.toLowerCase().includes(q))
+        : archivedRows
 
     return (
         <MotionConfig reducedMotion="user">
@@ -233,12 +360,50 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
                                 session={session}
                                 label={label}
                                 active={session.id === currentActiveId}
-                                onSelect={() => openSession(session.id)}
-                                onDelete={() => deleteSession(session.id)}
-                                onRename={(title) => renameSession({id: session.id, title})}
+                                onSelect={openSession}
+                                onDelete={deleteSession}
+                                onRename={handleRename}
+                                onArchive={archiveSession}
+                                onUnarchive={unarchiveSession}
                             />
                         ))}
                     </AnimatePresence>
+
+                    {filteredArchived.length > 0 && (
+                        <div className="mt-1 flex flex-col">
+                            <button
+                                type="button"
+                                onClick={() => setShowArchived((v) => !v)}
+                                className="flex cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[11px] text-colorTextTertiary transition-colors hover:bg-colorFillTertiary"
+                            >
+                                <CaretRight
+                                    size={10}
+                                    className={clsx(
+                                        "transition-transform",
+                                        showArchived && "rotate-90",
+                                    )}
+                                />
+                                Archived ({filteredArchived.length})
+                            </button>
+                            <AnimatePresence initial={false}>
+                                {showArchived &&
+                                    filteredArchived.map(({session, label}) => (
+                                        <SessionRailRow
+                                            key={session.id}
+                                            session={session}
+                                            label={label}
+                                            active={false}
+                                            archived
+                                            onSelect={NOOP}
+                                            onDelete={deleteSession}
+                                            onRename={handleRename}
+                                            onArchive={archiveSession}
+                                            onUnarchive={unarchiveSession}
+                                        />
+                                    ))}
+                            </AnimatePresence>
+                        </div>
+                    )}
                 </div>
             </div>
         </MotionConfig>

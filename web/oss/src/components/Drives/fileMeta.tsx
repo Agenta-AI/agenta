@@ -128,7 +128,7 @@ function useMediaMetadata(
     return info
 }
 
-const MetaRow = ({label, value}: {label: string; value: React.ReactNode}) =>
+export const MetaRow = ({label, value}: {label: string; value: React.ReactNode}) =>
     value ? (
         <>
             <dt className="text-colorTextTertiary">{label}</dt>

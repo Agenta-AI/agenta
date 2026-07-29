@@ -11,6 +11,10 @@ export {openAgentConfigSectionAtom} from "./openConfigSection"
 export type {AgentConfigSection} from "./openConfigSection"
 export {agentSelfCommitSignalAtom} from "./agentCommitSignal"
 export type {AgentSelfCommitSignal} from "./agentCommitSignal"
+export {draftConfigChangeSignalAtom} from "./draftConfigChangeSignal"
+export type {DraftConfigChangeSignal} from "./draftConfigChangeSignal"
+export {providerKeyAddedSignalAtom} from "./providerKeyAddedSignal"
+export type {ProviderKeyAddedSignal} from "./providerKeyAddedSignal"
 export {atomWithRefresh} from "jotai/utils"
 export {
     atomWithCompare,
@@ -29,3 +33,6 @@ export {devLog} from "./devLog"
 
 // Storage adapters for atomWithStorage
 export {stringStorage} from "./stringStorage"
+
+// Boot-phase idle gate for non-critical bootstrap queries
+export {idleReadyAtom} from "./idleReady"

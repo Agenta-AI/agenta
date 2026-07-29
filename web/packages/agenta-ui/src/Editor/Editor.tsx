@@ -811,6 +811,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
         )
     },
 )
+EditorInner.displayName = "EditorInner"
 
 export const EditorProvider = ({
     id: idProp,

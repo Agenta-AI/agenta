@@ -63,6 +63,7 @@ export {
     ON_CHANGE_LANGUAGE,
     PropertyClickPlugin,
 } from "./plugins/code"
+export type {CodeLanguage} from "./plugins/code/types"
 export {$getEditorCodeAsString, constructJsonFromSchema} from "./plugins/code/utils/editorCodeUtils"
 export {$isCodeBlockNode, $createCodeBlockNode} from "./plugins/code/nodes/CodeBlockNode"
 export {$createCodeLineNode} from "./plugins/code/nodes/CodeLineNode"
