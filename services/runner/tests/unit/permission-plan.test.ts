@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import {
-  PendingApprovalLatch,
   decide,
   effectivePermission,
   permissionsFromRequest,
@@ -288,17 +287,6 @@ describe("permissionsFromRequest", () => {
         process.env.SANDBOX_AGENT_DENY_PERMISSIONS = previous;
       }
     }
-  });
-});
-
-describe("PendingApprovalLatch", () => {
-  it("lets only the first caller acquire", () => {
-    const latch = new PendingApprovalLatch();
-    assert.equal(latch.held, false);
-    assert.equal(latch.tryAcquire(), true);
-    assert.equal(latch.held, true);
-    assert.equal(latch.tryAcquire(), false);
-    assert.equal(latch.held, true);
   });
 });
 

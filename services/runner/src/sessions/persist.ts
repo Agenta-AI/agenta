@@ -14,7 +14,10 @@
  *  - The run is never blocked on persistence mid-stream (chain is fire-and-forget).
  *  - The run DOES drain before teardown so the last event is not lost to the race.
  *  - A persist failure is logged and swallowed; the SDK's in-memory replay store is the
- *    backstop. Three retries with linear backoff before the event is dropped.
+ *    backstop. Three retries with linear backoff before the event is dropped. With
+ *    `AGENTA_RECORDS_DURABLE=true` the retry is stronger (more attempts, exponential backoff)
+ *    and a drop is COUNTED per session (see `takePersistFailures`), so the turn-end drain can
+ *    tell whether the durable history is complete enough to reconstruct model context from.
  *  - `record_source` marks who authored the record: "agent" for engine-emitted events,
  *    "user" for the inbound user turn persisted at run start.
  */
@@ -26,6 +29,22 @@ import { stableRecordId } from "./record-id.ts";
 
 const INGEST_MAX_RETRIES = 3;
 const INGEST_RETRY_BASE_MS = 100;
+// Durable mode (Phase 1, flag-gated): more attempts with exponential backoff before a drop.
+// 6 attempts ≈ 100+200+400+800+1600ms of backoff (~3.1s) — bounded per event so a real outage
+// can't hang the turn-end drain indefinitely.
+const DURABLE_INGEST_MAX_RETRIES = 6;
+
+/** Durable-records upgrades (stronger retry + drop counting) are opt-in and read at call time
+ * so the flag can be toggled per test. Off → the fire-and-forget legacy path, unchanged. */
+function durableRecordsEnabled(): boolean {
+  return String(process.env.AGENTA_RECORDS_DURABLE ?? "").toLowerCase() === "true";
+}
+
+/** Attempts before a durable-mode drop; env-overridable for ops tuning (and fast tests). */
+function durableMaxRetries(): number {
+  const n = Number(process.env.AGENTA_RECORDS_INGEST_MAX_RETRIES);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : DURABLE_INGEST_MAX_RETRIES;
+}
 
 function log(msg: string): void {
   process.stderr.write(`[sessions/persist] ${msg}\n`);
@@ -33,6 +52,10 @@ function log(msg: string): void {
 
 /** Map session_id → tail of the per-session persist chain. */
 const persistChains = new Map<string, Promise<void>>();
+
+/** Map session_id → count of records that exhausted retries (dropped). Only ever populated in
+ * durable mode; read + cleared at the turn-end drain via `takePersistFailures`. */
+const persistFailures = new Map<string, number>();
 
 /** Send one event to the ingest endpoint with bounded retry. Authenticates AS the invoke
  * caller (the run credential); project scope is resolved server-side, so none is sent. */
@@ -43,10 +66,14 @@ async function postEvent(
   eventIndex: number,
   sender: string,
   recordId?: string,
+  turnId?: string,
+  spanId?: string,
 ): Promise<void> {
   const url = `${apiBase()}/sessions/records/ingest`;
+  const durable = durableRecordsEnabled();
+  const maxRetries = durable ? durableMaxRetries() : INGEST_MAX_RETRIES;
   let lastErr: unknown;
-  for (let attempt = 1; attempt <= INGEST_MAX_RETRIES; attempt++) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const res = await fetch(url, {
         method: "POST",
@@ -64,6 +91,10 @@ async function postEvent(
           record_source: sender,
           record_type: event.type,
           attributes: event,
+          // Tags the record for turn-grouping; span_id bridges to observability when
+          // the run has one in scope (both forward-fill only, absent is expected).
+          ...(turnId ? { turn_id: turnId } : {}),
+          ...(spanId ? { span_id: spanId } : {}),
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -73,11 +104,22 @@ async function postEvent(
       return;
     } catch (err) {
       lastErr = err;
-      await new Promise((r) => setTimeout(r, INGEST_RETRY_BASE_MS * attempt));
+      if (attempt < maxRetries) {
+        // Durable: exponential (100·2^n, capped by the attempt count). Legacy: linear.
+        const backoff = durable
+          ? INGEST_RETRY_BASE_MS * 2 ** (attempt - 1)
+          : INGEST_RETRY_BASE_MS * attempt;
+        await new Promise((r) => setTimeout(r, backoff));
+      }
     }
   }
+  // Exhausted retries → the record is lost. In durable mode, count it so the turn-end drain
+  // knows the session's history is incomplete (a reconstruction/​fallback signal for later).
+  if (durable) {
+    persistFailures.set(sessionId, (persistFailures.get(sessionId) ?? 0) + 1);
+  }
   log(
-    `DROPPED session=${sessionId} idx=${eventIndex} type=${event.type} after ${INGEST_MAX_RETRIES} retries: ${String(lastErr instanceof Error ? lastErr.message : lastErr).slice(0, 120)}`,
+    `DROPPED session=${sessionId} idx=${eventIndex} type=${event.type} after ${maxRetries} retries: ${String(lastErr instanceof Error ? lastErr.message : lastErr).slice(0, 120)}`,
   );
 }
 
@@ -94,12 +136,23 @@ export function persistEvent(
   sender: string = "agent",
   recordId?: string,
   redactor?: Redactor,
+  turnId?: string,
+  spanId?: string,
 ): void {
   // Redact at the sink: the durable copy is scrubbed; the live/in-memory event the harness
   // and the client stream still hold is untouched.
   const durable = redactor ? redactor.redactJson(event, "records") : event;
   const tail = (persistChains.get(sessionId) ?? Promise.resolve()).then(() =>
-    postEvent(sessionId, auth, durable, eventIndex, sender, recordId),
+    postEvent(
+      sessionId,
+      auth,
+      durable,
+      eventIndex,
+      sender,
+      recordId,
+      turnId,
+      spanId,
+    ),
   );
   persistChains.set(sessionId, tail);
 }
@@ -120,6 +173,36 @@ export async function drainPersist(sessionId: string): Promise<void> {
 }
 
 /**
+ * Read and clear the count of records that were dropped (exhausted retries) for a session.
+ * Only ever non-zero when `AGENTA_RECORDS_DURABLE=true`. Call at the turn-end drain to learn
+ * whether the session's durable history is complete — a zero count means the record log fully
+ * captured the turn and is safe to reconstruct model context from.
+ */
+export function takePersistFailures(sessionId: string): number {
+  const n = persistFailures.get(sessionId) ?? 0;
+  persistFailures.delete(sessionId);
+  return n;
+}
+
+/** Sessions whose record log is known to have lost at least one record. */
+const incompleteSessions = new Set<string>();
+
+/**
+ * Mark a session's record log as incomplete, permanently for this process. Once a record is
+ * dropped the log no longer represents the conversation, so it must never be used to rebuild
+ * model context: the turn would silently run with a hole in its history. Set at the turn-end
+ * drain; read by the reconstruction seam, which fails the turn instead of reconstructing.
+ */
+export function noteRecordsIncomplete(sessionId: string): void {
+  incompleteSessions.add(sessionId);
+}
+
+/** Whether this session has lost a record and can no longer be reconstructed from. */
+export function recordsIncomplete(sessionId: string): boolean {
+  return incompleteSessions.has(sessionId);
+}
+
+/**
  * A tool call streams as many `tool_call` events with a growing partial-args snapshot for
  * one id. Idle window after which an open, un-closed tool call is flushed as-is — the
  * substitute for a close signal the harness may never send (a call that streams then
@@ -137,14 +220,16 @@ const OPEN_TOOL_TTL_MS = Number(process.env.AGENTA_RECORD_TOOL_TTL_MS ?? 3000);
  *  - message_start/delta/end and thought_* accumulate text, persisted once on *_end.
  *  - tool_call snapshots for one id accumulate (latest args win) into a single open slot,
  *    persisted once when a non-continuation event arrives, the TTL fires, or the turn
- *    drains. The record carries a stable uuid5 id so a re-sent snapshot (or a resume)
- *    upserts the same row rather than appending.
+ *    drains. The record carries a turn-scoped stable uuid5 id so retries upsert within
+ *    one execution without overwriting the same tool call from another execution.
  */
 export function buildPersistingEmitter(
   sessionId: string,
   auth: () => string,
   liveEmit?: (event: AgentEvent) => void,
   redactor?: Redactor,
+  turnId?: string,
+  spanId?: string,
 ): {
   emit: (event: AgentEvent) => void;
   /** Persist an out-of-band record (e.g. the inbound user turn) through the same
@@ -177,8 +262,10 @@ export function buildPersistingEmitter(
       event,
       index,
       "agent",
-      stableRecordId(sessionId, id, "tool_call"),
+      stableRecordId(sessionId, id, "tool_call", turnId),
       redactor,
+      turnId,
+      spanId,
     );
   };
 
@@ -234,6 +321,8 @@ export function buildPersistingEmitter(
           "agent",
           undefined,
           redactor,
+          turnId,
+          spanId,
         );
         return;
       }
@@ -262,15 +351,19 @@ export function buildPersistingEmitter(
           "agent",
           undefined,
           redactor,
+          turnId,
+          spanId,
         );
         return;
       }
     }
 
-    // A tool_result / interaction_request carries the same tool-call id as its tool_call;
-    // give it its own stable id (keyed on the record type) so it lands on a distinct row.
+    // Related tool and interaction events share correlation ids but need distinct, retry-stable
+    // rows, so the record type remains part of the stable id.
     if (
-      (event.type === "tool_result" || event.type === "interaction_request") &&
+      (event.type === "tool_result" ||
+        event.type === "interaction_request" ||
+        event.type === "interaction_response") &&
       event.id
     ) {
       persistEvent(
@@ -279,8 +372,10 @@ export function buildPersistingEmitter(
         event,
         eventIndex++,
         "agent",
-        stableRecordId(sessionId, event.id, event.type),
+        stableRecordId(sessionId, event.id, event.type, turnId),
         redactor,
+        turnId,
+        spanId,
       );
       return;
     }
@@ -294,6 +389,8 @@ export function buildPersistingEmitter(
       "agent",
       undefined,
       redactor,
+      turnId,
+      spanId,
     );
   };
 
@@ -308,6 +405,8 @@ export function buildPersistingEmitter(
       sender,
       undefined,
       redactor,
+      turnId,
+      spanId,
     );
   };
 

@@ -23,8 +23,9 @@ const COMMON_CONFIG: NextConfig = {
     eslint: {
         ignoreDuringBuilds: true,
     },
+    // Type errors fail the build (tsc reached 0 on ts-chore/fix-tsc-issues; keep it there)
     typescript: {
-        ignoreBuildErrors: true,
+        ignoreBuildErrors: false,
     },
     async redirects() {
         return [

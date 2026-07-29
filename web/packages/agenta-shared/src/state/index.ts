@@ -11,6 +11,10 @@ export {openAgentConfigSectionAtom} from "./openConfigSection"
 export type {AgentConfigSection} from "./openConfigSection"
 export {agentSelfCommitSignalAtom} from "./agentCommitSignal"
 export type {AgentSelfCommitSignal} from "./agentCommitSignal"
+export {draftConfigChangeSignalAtom} from "./draftConfigChangeSignal"
+export type {DraftConfigChangeSignal} from "./draftConfigChangeSignal"
+export {providerKeyAddedSignalAtom} from "./providerKeyAddedSignal"
+export type {ProviderKeyAddedSignal} from "./providerKeyAddedSignal"
 export {atomWithRefresh} from "jotai/utils"
 export {
     atomWithCompare,

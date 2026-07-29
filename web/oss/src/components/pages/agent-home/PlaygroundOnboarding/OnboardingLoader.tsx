@@ -6,7 +6,8 @@ import PlaygroundLoadingShell from "@/oss/components/PlaygroundRouter/Playground
 
 interface OnboardingLoaderProps {
     /** Mint failed — show a retry affordance instead of an endless skeleton. */
-    error?: boolean
+    // Error | null covers next/dynamic's DynamicOptionsLoadingProps when used as a `loading` fallback.
+    error?: boolean | Error | null
     onRetry?: () => void
 }
 

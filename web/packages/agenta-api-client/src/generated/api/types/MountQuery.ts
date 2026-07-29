@@ -2,5 +2,6 @@
 
 export interface MountQuery {
     session_id?: (string | null) | undefined;
+    agent_id?: (string | null) | undefined;
     include_archived?: boolean | undefined;
 }

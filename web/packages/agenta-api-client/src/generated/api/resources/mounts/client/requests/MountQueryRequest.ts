@@ -8,6 +8,7 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface MountQueryRequest {
     session_id?: string | null;
+    agent_id?: string | null;
     include_archived?: boolean;
     mount?: AgentaApi.MountQuery | null;
     windowing?: AgentaApi.Windowing | null;
