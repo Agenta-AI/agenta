@@ -10,6 +10,7 @@ export {
     queryInteractions,
     fetchInteraction,
     respondInteraction,
+    isInteractionConflict,
     querySessionStreams,
     querySessions,
     setSessionHeader,
