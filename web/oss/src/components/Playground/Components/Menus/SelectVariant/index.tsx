@@ -17,6 +17,7 @@ import {
     workflowLatestRevisionIdAtomFamily,
     createLocalDraftFromWorkflowRevision,
     workflowVariantsListDataAtomFamily,
+    workflowVariantsCachedListAtomFamily,
 } from "@agenta/entities/workflow"
 import {
     createWorkflowRevisionAdapter,
@@ -307,6 +308,18 @@ const SelectVariant = ({
     // so hooks are always called in the same order.
     const [singlePopoverOpen, setSinglePopoverOpen] = useState(false)
 
+    // Sticky latch: the variants-list query mounts only after a picker popover
+    // has been opened once; until then the trigger label peeks the cache passively.
+    const [variantsListActivated, setVariantsListActivated] = useState(false)
+    const handleSinglePopoverOpenChange = useCallback((open: boolean) => {
+        if (open) setVariantsListActivated(true)
+        setSinglePopoverOpen(open)
+    }, [])
+    const handleComparePopoverOpenChange = useCallback((open: boolean) => {
+        if (open) setVariantsListActivated(true)
+        setComparePopoverOpen(open)
+    }, [])
+
     const handleSingleSelect = useCallback(
         (result: WorkflowRevisionSelectionResult) => {
             handleSelect(result)
@@ -337,13 +350,40 @@ const SelectVariant = ({
             } | null
         )?.variant_id ??
         ""
-    const workflowVariants = useAtomValue(workflowVariantsListDataAtomFamily(selectedWorkflowId))
+    // Before first open: passive cache peek only, so this label never fires the fetch.
+    const workflowVariants = useAtomValue(
+        useMemo(
+            () =>
+                variantsListActivated
+                    ? workflowVariantsListDataAtomFamily(selectedWorkflowId)
+                    : workflowVariantsCachedListAtomFamily(selectedWorkflowId),
+            [variantsListActivated, selectedWorkflowId],
+        ),
+    )
     const selectedVariantName = useMemo(() => {
         if (!selectedVariantId) return null
         const variant = workflowVariants.find((item) => item.id === selectedVariantId)
         const name = variant?.name?.trim()
         return name && name.length > 0 ? name : null
     }, [selectedVariantId, workflowVariants])
+
+    // Variant slug carried on the revision body — label fallback when the
+    // variants list isn't cached yet (variant label = name, then slug).
+    const selectedVariantSlug = useMemo(() => {
+        const entity = rawWorkflowEntity as {
+            workflow_variant_slug?: string | null
+            variant_slug?: string | null
+            workflow_slug?: string | null
+            artifact_slug?: string | null
+        } | null
+        const slug = entity?.workflow_variant_slug ?? entity?.variant_slug ?? null
+        if (!slug) return null
+        const parentSlug = entity?.workflow_slug ?? entity?.artifact_slug ?? null
+        // Variant slugs are "<workflow_slug>.<variant>" — strip the prefix for display.
+        return parentSlug && slug.startsWith(`${parentSlug}.`)
+            ? slug.slice(parentSlug.length + 1)
+            : slug
+    }, [rawWorkflowEntity])
 
     // Look up the parent workflow name for the browse-mode trigger label. Only
     // BROWSE mode uses this (scoped mode returns null below), so gate the
@@ -368,7 +408,11 @@ const SelectVariant = ({
             return selectedVariantName ?? selectedRevisionData?.name ?? "Draft"
         }
         if (selectedRevisionQuery.isPending) return "Loading..."
-        const variantName = selectedVariantName ?? selectedRevisionData?.name ?? selectPlaceholder
+        const variantName =
+            selectedVariantName ??
+            selectedRevisionData?.name ??
+            selectedVariantSlug ??
+            selectPlaceholder
         // In browse mode, keep workflow context available only when the variant
         // label cannot disambiguate on its own.
         if (
@@ -383,6 +427,7 @@ const SelectVariant = ({
     }, [
         singleSelectedValue,
         selectedVariantName,
+        selectedVariantSlug,
         selectedRevisionData,
         selectedRevisionQuery.isPending,
         selectPlaceholder,
@@ -433,7 +478,7 @@ const SelectVariant = ({
                         />
                     }
                     open={comparePopoverOpen}
-                    onOpenChange={setComparePopoverOpen}
+                    onOpenChange={handleComparePopoverOpenChange}
                     trigger="click"
                     placement="bottomRight"
                     arrow={false}
@@ -513,7 +558,7 @@ const SelectVariant = ({
                     </div>
                 }
                 open={singlePopoverOpen}
-                onOpenChange={setSinglePopoverOpen}
+                onOpenChange={handleSinglePopoverOpenChange}
                 trigger="click"
                 placement="bottomLeft"
                 arrow={false}

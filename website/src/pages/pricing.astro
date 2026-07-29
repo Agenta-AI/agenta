@@ -1,0 +1,392 @@
+---
+import Site from "../layouts/Site.astro";
+import SectionTitle from "../components/SectionTitle.astro";
+import HostingToggle from "../components/HostingToggle.tsx";
+import PlanCard from "../components/PlanCard.astro";
+import { linkify, type PricingLink } from "../lib/pricingLinks";
+
+// Single source of truth for ALL pricing-page content. No content literals below.
+import pricing from "../data/pricing.json";
+
+const { hero, hostingToggle, plansByMode, comparisonByMode, faqs } = pricing;
+const links = (pricing.links ?? []) as PricingLink[];
+type Plan = (typeof plansByMode.cloud)[number];
+
+// Hero / CTA-band destinations (not plan CTAs, which come from the data file).
+const CLOUD = "https://cloud.agenta.ai/";
+const DEMO = "https://cal.com/mahmoud-mabrouk-ogzgey/demo";
+
+// Both comparison tables render server-side; the hosting toggle swaps them with the
+// same data-hosting CSS mechanism as the plan grids (correct pre-hydration / no JS).
+const comparisonModes = [
+  { mode: "cloud" as const, cls: "mode-cloud", data: comparisonByMode.cloud },
+  {
+    mode: "selfHosted" as const,
+    cls: "mode-selfhosted",
+    data: comparisonByMode.selfHosted,
+  },
+];
+
+const linkStyle =
+  "color:var(--yellow-400);text-decoration:underline;text-underline-offset:2px;";
+---
+
+<Site
+  title="Pricing — Agenta"
+  description="Simple pricing that scales with your team. Self-host the open-source platform for free, or run on Agenta Cloud with prompt management, evaluation, and observability built in."
+  cta={{
+    title: "Start free, scale when you're ready",
+    body: "Open-source and self-hostable forever. Sign up in seconds, no credit card required.",
+    primaryLabel: "Get started",
+    primaryHref: CLOUD,
+    secondaryLabel: "Book a demo",
+    secondaryHref: DEMO,
+  }}
+>
+  <!-- #pricing-root carries data-hosting; the HostingToggle island flips it and
+       the CSS below swaps the cloud / self-hosted plan sets. Default is cloud so
+       the page is correct before hydration / without JS. -->
+  <div id="pricing-root" data-hosting={hostingToggle.defaultMode === "selfHosted" ? "selfhosted" : "cloud"}>
+    <!-- ============ HERO + HOSTING TOGGLE ============ -->
+    <section class="pricing-hero" data-screen-label="Pricing hero">
+      <div
+        style="display:flex;flex-direction:column;align-items:center;gap:28px;"
+      >
+        <div
+          style="display:flex;flex-direction:column;align-items:center;gap:22px;"
+        >
+          <span
+            style="display:inline-flex;align-items:center;height:24px;padding:0 13px;border-radius:999px;background:rgba(255,255,255,0.06);box-shadow:0 0 0 1px rgba(255,255,255,0.14);font:var(--text-caption);letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.7);"
+            >{hero.eyebrow}</span
+          >
+          <h1
+            style="margin:0;font:var(--text-display-lg);color:#F7F6F4;max-width:760px;text-wrap:pretty;"
+          >
+            {hero.headline}
+          </h1>
+          <p
+            style="margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.6);max-width:560px;text-wrap:pretty;"
+          >
+            {hero.description}
+          </p>
+        </div>
+
+        <HostingToggle
+          client:visible
+          targetId="pricing-root"
+          defaultMode={hostingToggle.defaultMode as "cloud" | "selfHosted"}
+          options={hostingToggle.options as { mode: "cloud" | "selfHosted"; label: string; sublabel?: string }[]}
+        />
+      </div>
+    </section>
+
+    <!-- ============ PLAN CARDS ============ -->
+    <section class="cards-section" data-screen-label="Plan cards">
+      <div class="plan-grid plan-grid-cloud mode-cloud">
+        {plansByMode.cloud.map((plan: Plan) => <PlanCard plan={plan} links={links} />)}
+      </div>
+      <div class="plan-grid plan-grid-self mode-selfhosted">
+        {plansByMode.selfHosted.map((plan: Plan) => <PlanCard plan={plan} links={links} />)}
+      </div>
+    </section>
+
+    <!-- ============ COMPARISON TABLE ============ -->
+    <!-- One comparison table per hosting mode, both server-rendered and swapped by the
+         same data-hosting CSS as the plan grids. Cloud has 4 plan columns, self-hosted
+         has 2 — each uses its own grid template so the 2-column table fills the width
+         cleanly instead of leaving empty plan columns. -->
+    <section class="cmp-section" data-screen-label="Comparison">
+      {
+        comparisonModes.map(({ cls, data }) => {
+          const cols = data.columns.length;
+          const COLS = `grid-template-columns:1.4fr repeat(${cols}, 1fr);`;
+          // Wide (cloud/4-col) table keeps full-size columns and scrolls sideways on
+          // narrow viewports; the 2-col table is capped narrower so it reads cleanly.
+          const tableStyle =
+            cols >= 3
+              ? "min-width:920px;max-width:1336px;margin:0 auto;"
+              : "min-width:520px;max-width:900px;margin:0 auto;";
+          return (
+            <div class={`cmp-wrap ${cls}`}>
+              <SectionTitle dark badge="Compare" title={data.title} />
+
+              <div class="cmp-scroll" data-scroll="dark">
+                <div class="cmp-table" style={tableStyle}>
+                  {/* header row */}
+                  <div
+                    style={`display:grid;${COLS}align-items:end;padding:0 24px 18px;border-bottom:1px solid rgba(255,255,255,0.12);`}
+                  >
+                    <span style="font:var(--text-label);color:rgba(255,255,255,0.5);">
+                      Features
+                    </span>
+                    {data.columns.map((c) => (
+                      <div style="display:flex;flex-direction:column;gap:3px;">
+                        <span style="font:300 19px/1.1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;">
+                          {c.name}
+                        </span>
+                        <span style="font:var(--text-caption);color:rgba(255,255,255,0.5);">
+                          {c.price}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {data.groups.map((g) => (
+                    <Fragment>
+                      <div style="padding:22px 24px 10px;">
+                        <span style="font:var(--text-caption);letter-spacing:0.08em;text-transform:uppercase;color:var(--yellow-400);">
+                          {g.title}
+                        </span>
+                      </div>
+                      {g.rows.map((r) => (
+                        <div
+                          style={`display:grid;${COLS}align-items:center;padding:14px 24px;border-top:1px solid rgba(255,255,255,0.07);`}
+                        >
+                          <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.78);">
+                            {linkify(r.label, links).map((part) => (part.href ? <a href={part.href} target={part.href.startsWith("mailto:") ? undefined : "_blank"} rel={part.href.startsWith("mailto:") ? undefined : "noopener"} style={linkStyle}>{part.text}</a> : <Fragment>{part.text}</Fragment>))}
+                          </span>
+                          {r.cells.map((cell) => (
+                            <span style="display:flex;align-items:center;">
+                              {cell === true ? (
+                                <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
+                                  <circle cx="9" cy="9" r="9" fill="var(--yellow-400)" />
+                                  <path
+                                    d="M5 9.2 7.6 11.8 13 6.4"
+                                    stroke="var(--ink-900)"
+                                    stroke-width="1.7"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                  />
+                                </svg>
+                              ) : cell === false ? (
+                                <span style="width:14px;height:1.5px;background:rgba(255,255,255,0.2);border-radius:2px;" />
+                              ) : (
+                                <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.78);">
+                                  {cell}
+                                </span>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                      ))}
+                    </Fragment>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })
+      }
+    </section>
+
+    <!-- ============ FAQ ============ -->
+    <section class="faq-section" data-screen-label="FAQ">
+      <div class="faq-wrap">
+        <SectionTitle
+          dark
+          badge="FAQ"
+          title="Frequently asked questions"
+          subtitle="Everything about plans, limits, and self-hosting. Still curious? Talk to the team."
+        />
+        <div class="faq-col">
+          {
+            faqs.map((f, i) => (
+              <details class="faq-item" open={i === 0}>
+                <summary>
+                  <span class="faq-q">{f.question}</span>
+                  <svg
+                    class="faq-icon"
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                  >
+                    <path
+                      d="M12 5v14M5 12h14"
+                      stroke="rgba(255,255,255,0.55)"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </summary>
+                <p class="faq-a">
+                  {linkify(f.answer, links).map((part) => (part.href ? <a href={part.href} target={part.href.startsWith("mailto:") ? undefined : "_blank"} rel={part.href.startsWith("mailto:") ? undefined : "noopener"} style={linkStyle}>{part.text}</a> : <Fragment>{part.text}</Fragment>))}
+                </p>
+              </details>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+  </div>
+</Site>
+
+<style>
+  /* ── section shells (backgrounds + responsive padding) ── */
+  .pricing-hero {
+    background: #0e0d0f;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    margin-top: -1px;
+    text-align: center;
+    padding: 80px 24px 56px;
+  }
+  .cards-section {
+    background: #0a090a;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    margin-top: -1px;
+    padding: 56px 0 96px;
+  }
+  .cmp-section {
+    background: #0e0d0f;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    margin-top: -1px;
+    padding: 112px 0;
+  }
+  .faq-section {
+    background: #161518;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    margin-top: -1px;
+    padding: 112px 0;
+  }
+
+  /* ── plan cards grid ── */
+  .plan-grid {
+    display: grid;
+    gap: 16px;
+    margin: 0 auto;
+    align-items: stretch;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0 24px;
+  }
+  /* Cloud mode: four plans. Cards are subgrid children (PlanCard.astro); the grid
+     defines no explicit rows, so the four row tracks are implicit and shared across a
+     card row, which is what keeps every card's CTA divider on one line. */
+  .plan-grid-cloud {
+    grid-template-columns: repeat(4, 1fr);
+    max-width: 1240px;
+  }
+  /* Self-hosted mode: two plans, centered (not stretched full width). */
+  .plan-grid-self {
+    grid-template-columns: repeat(2, 1fr);
+    max-width: 720px;
+  }
+
+  /* ── hosting-mode swap (driven by #pricing-root[data-hosting]) ── */
+  [data-hosting="cloud"] .mode-selfhosted {
+    display: none;
+  }
+  [data-hosting="selfhosted"] .mode-cloud {
+    display: none;
+  }
+
+  /* ── comparison table ── */
+  .cmp-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 56px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .cmp-scroll {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 24px;
+    box-sizing: border-box;
+  }
+  /* The table never collapses: it keeps full-size columns and scrolls sideways
+     when the viewport is narrower than its min-width (see RESPONSIVE.md). */
+  .cmp-table {
+    min-width: 920px;
+    max-width: 1336px;
+    margin: 0 auto;
+  }
+
+  /* ── FAQ accordion (native <details>) ── */
+  .faq-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 48px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .faq-col {
+    width: 100%;
+    max-width: 768px;
+    padding: 0 24px;
+    box-sizing: border-box;
+  }
+  .faq-item {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 24px 0;
+  }
+  .faq-item summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+  }
+  .faq-item summary::-webkit-details-marker {
+    display: none;
+  }
+  .faq-q {
+    font: 300 20px/1.3 var(--font-display, "GT Alpina", serif);
+    color: #f7f6f4;
+  }
+  .faq-icon {
+    flex: 0 0 auto;
+    margin-top: 2px;
+    transition: transform 0.16s ease;
+  }
+  .faq-item[open] .faq-icon {
+    transform: rotate(45deg);
+  }
+  .faq-a {
+    margin: 12px 0 0;
+    max-width: 680px;
+    font: var(--text-body-md);
+    color: rgba(255, 255, 255, 0.6);
+  }
+  .faq-item[open] .faq-a {
+    animation: accordion-in 0.2s ease both;
+  }
+
+  /* ── responsive: mirror agenta.ai/pricing — 4-across on desktop, halving to a
+     two-up tablet grid, then a single column on phones (self-hosted keeps two). ── */
+  @media (max-width: 900px) {
+    .plan-grid-cloud {
+      grid-template-columns: repeat(2, 1fr);
+      max-width: 720px;
+    }
+  }
+  @media (max-width: 760px) {
+    .pricing-hero {
+      padding: 52px 20px 40px;
+    }
+    .cards-section {
+      padding: 40px 0 64px;
+    }
+    .cmp-section,
+    .faq-section {
+      padding: 72px 0;
+    }
+    .plan-grid,
+    .cmp-scroll,
+    .faq-col {
+      padding-left: 16px;
+      padding-right: 16px;
+    }
+  }
+  @media (max-width: 680px) {
+    .plan-grid-cloud,
+    .plan-grid-self {
+      grid-template-columns: 1fr;
+      max-width: 420px;
+    }
+  }
+</style>

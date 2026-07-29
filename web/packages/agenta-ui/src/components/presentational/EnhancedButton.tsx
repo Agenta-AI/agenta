@@ -10,14 +10,16 @@ export interface EnhancedButtonProps extends ButtonProps {
 
 const EnhancedButton = forwardRef<HTMLButtonElement, EnhancedButtonProps>(
     ({label, tooltipProps, ...props}: EnhancedButtonProps, ref) => {
-        return (
-            <Tooltip {...tooltipProps}>
-                <Button ref={ref} {...props}>
-                    {label}
-                </Button>
-            </Tooltip>
+        const button = (
+            <Button ref={ref} {...props}>
+                {label}
+            </Button>
         )
+        // No tooltip content → skip the Tooltip/Trigger wrapper (a per-button render cost).
+        if (tooltipProps?.title == null || tooltipProps.title === "") return button
+        return <Tooltip {...tooltipProps}>{button}</Tooltip>
     },
 )
+EnhancedButton.displayName = "EnhancedButton"
 
 export default EnhancedButton

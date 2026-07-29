@@ -28,20 +28,24 @@ function uuid5(name: string, namespace: string): string {
 
 // Project-wide root uuid5(NAMESPACE_DNS, "agenta"), sub-namespaced under "records" — the
 // same construction the API uses for other domains (e.g. meters). Deriving a record's id as
-// uuid5(this, key) makes it deterministic, so every streamed snapshot of one tool call — and
-// a resume that re-announces it — maps to one id and upserts onto one row. Non-stable records
+// uuid5(this, key) makes it deterministic, so every streamed snapshot or retry within one
+// execution maps to one id and upserts onto one row. Non-stable records
 // send no id; the backend mints a uuid4 fallback.
 const RECORD_NAMESPACE = uuid5("records", uuid5("agenta", NAMESPACE_DNS));
 
 /**
- * Stable record id for a tool-family record, keyed on (session, tool-call id, type). The
- * `type` is part of the key so a `tool_call` and its closing `tool_result` — which share a
- * tool-call id — land on two distinct rows instead of overwriting each other.
+ * Stable record id for a tool-family record, keyed on (session, tool-call id, type, turn).
+ * The turn keeps later executions from overwriting prior history, while a retry within one
+ * execution still upserts the same row.
  */
 export function stableRecordId(
   sessionId: string,
   toolCallId: string,
   recordType: string,
+  turnId?: string,
 ): string {
-  return uuid5(`${sessionId}:${toolCallId}:${recordType}`, RECORD_NAMESPACE);
+  return uuid5(
+    `${sessionId}:${toolCallId}:${recordType}:${turnId ?? ""}`,
+    RECORD_NAMESPACE,
+  );
 }

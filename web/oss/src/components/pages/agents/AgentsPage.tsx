@@ -135,11 +135,12 @@ export default function AgentsPage() {
             scroll: {x: "max-content"},
             loading: isLoading,
             onRow: (record) => ({
-                onClick: () => router.push(`${baseAppURL}/${record.workflowId}/overview`),
+                // Primary click opens the agent in the playground (its main surface), not overview.
+                onClick: () => goToPlayground(undefined, {appId: record.workflowId}),
                 className: "cursor-pointer",
             }),
         }),
-        [baseAppURL, isLoading, router],
+        [goToPlayground, isLoading],
     )
 
     return (

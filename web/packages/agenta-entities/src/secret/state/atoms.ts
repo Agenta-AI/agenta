@@ -37,6 +37,7 @@ import {
     llmAvailableProvidersToken,
     removeEmptyFromObjects,
 } from "@agenta/shared/utils"
+import type {QueryKey} from "@tanstack/react-query"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomWithMutation, atomWithQuery} from "jotai-tanstack-query"
@@ -53,6 +54,8 @@ import {
     type NamedSecretRow,
     type VaultMigrationStatus,
 } from "../core/types"
+
+import {vaultSecretsPersister} from "./persistence"
 
 interface CreateMutationArgs {
     projectId: string
@@ -92,8 +95,13 @@ export const providerKeySetupDoneAtom = atomWithStorage<boolean>(
  * The query key includes `user?.id` so that switching users invalidates
  * the cache (a different user's secrets must not leak through React Query's
  * cache).
+ *
+ * Persistence (Class C): paints from a REDACTED IndexedDB projection (secret
+ * values replaced with a truthy sentinel — see `./persistence`) and ALWAYS
+ * fires one background refetch on restore, so real values only ever live in
+ * memory.
  */
-export const vaultSecretsQueryAtom = atomWithQuery((get) => {
+export const vaultSecretsQueryAtom = atomWithQuery<LlmProvider[]>((get) => {
     const user = get(userAtom)
     // Read migration status to keep this atom subscribed to migration changes
     // (matches OSS behavior — migration completion can trigger a refetch).
@@ -114,6 +122,7 @@ export const vaultSecretsQueryAtom = atomWithQuery((get) => {
         refetchOnReconnect: false,
         refetchOnMount: true,
         enabled: !!user && !!projectId,
+        persister: vaultSecretsPersister.persisterFn<LlmProvider[], QueryKey>,
     }
 })
 

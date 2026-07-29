@@ -11,12 +11,15 @@ import {
 } from "react"
 
 import {
+    commandSessionStream,
     killSession,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
 } from "@agenta/entities/session"
 import {markTraceAsFresh} from "@agenta/entities/trace"
 import {
+    contextWindowForModel,
+    harnessCapabilitiesAtomFamily,
     invalidateAgentCommittedRevisionCache,
     workflowBuildKitOverlayReadyAtomFamily,
     workflowMolecule,
@@ -26,6 +29,7 @@ import {
     buildAgentRequest,
     buildTurnCapture,
     playgroundController,
+    type LiveAgentInteraction,
 } from "@agenta/playground"
 import {agentSelfCommitSignalAtom, simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
@@ -37,6 +41,7 @@ import {
     ArrowDown,
     ArrowRight,
     Code,
+    Hourglass,
     Paperclip,
     TreeStructure,
     UploadSimple,
@@ -78,6 +83,7 @@ import CopiedToast from "@/oss/components/TemplateStrip/components/CopiedToast"
 import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {projectIdAtom} from "@/oss/state/project"
+import {playgroundInspectorEnabledAtom} from "@/oss/state/settings/featureFlags"
 
 import {AgentChatTransport} from "./assets/AgentChatTransport"
 import {
@@ -98,6 +104,7 @@ import ApprovalDock, {getPendingApprovals} from "./components/ApprovalDock"
 import type {ClientToolOutputHandler} from "./components/clientTools"
 import ComposerAttachments from "./components/ComposerAttachments"
 import ConnectModelBanner from "./components/ConnectModelBanner"
+import ContextBudgetIndicator from "./components/ContextBudgetIndicator"
 import {Inspector} from "./components/Inspector/Inspector"
 import {invalidateSessionInspector} from "./components/Inspector/invalidate"
 import {
@@ -105,6 +112,7 @@ import {
     inspectorTargetAtom,
     openInspectorTurnAtom,
 } from "./components/Inspector/state"
+import InteractionDock, {getPendingConnectInteraction} from "./components/InteractionDock"
 import QueuedMessages from "./components/QueuedMessages"
 import RevealCollapse from "./components/RevealCollapse"
 import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
@@ -125,6 +133,8 @@ import {
 import {
     type SessionRunStatus,
     activeSessionIdAtomFamily,
+    autoTitleSessionAtomFamily,
+    firstUserText,
     persistSessionMessagesAtom,
     sessionMessagesAtom,
     setSessionStatusAtom,
@@ -346,6 +356,20 @@ const WorkingDots = () => (
     </span>
 )
 
+/** The WorkingDots slot while the run is PARKED on the user (approval / connect / elicitation).
+ * The stream reads "ready" there, so without this the turn looks finished while the queue silently
+ * holds new sends. Deliberately static: motion says "the agent is working" — here it's your move. */
+const WaitingForInput = () => (
+    <span
+        role="status"
+        aria-label="Agent is waiting for your input"
+        className="flex items-center gap-1.5 px-1 py-0.5 text-xs text-colorTextTertiary"
+    >
+        <Hourglass size={12} />
+        Waiting for your input
+    </span>
+)
+
 const AgentConversation = ({
     entityId,
     sessionId,
@@ -368,17 +392,20 @@ const AgentConversation = ({
     const openInspectorTurn = useSetAtom(openInspectorTurnAtom)
     const closeInspector = useSetAtom(closeInspectorAtom)
     const buildMode = !useAtomValue(chatPanelMaximizedAtom)
-    // The Inspector is a BUILD-mode tool (both scopes) — mode-gated, not env-gated. Chat mode has
-    // no inspector (the context rail owns the right dock there).
-    const inspectorOpen = buildMode && inspectorTarget?.sessionId === sessionId
+    const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
+    // The Inspector is a personal debug tool in BUILD mode. Chat mode has no inspector (the
+    // context rail owns the right dock there).
+    const inspectorOpen = inspectorEnabled && buildMode && inspectorTarget?.sessionId === sessionId
     const turnInspectorOpen = inspectorOpen && inspectorTarget?.focusedTurn != null
     // The assistant turn the panel is focused on. Turn ids are 1-based indices (records group by
     // `done`); the inspected assistant message is the Nth assistant message.
     const inspectedTurn = turnInspectorOpen ? (inspectorTarget?.focusedTurn ?? null) : null
     // Leaving Build for Chat closes the Inspector entirely.
     useEffect(() => {
-        if (!buildMode && inspectorTarget?.sessionId === sessionId) closeInspector()
-    }, [buildMode, inspectorTarget?.sessionId, sessionId, closeInspector])
+        if ((!buildMode || !inspectorEnabled) && inspectorTarget?.sessionId === sessionId) {
+            closeInspector()
+        }
+    }, [buildMode, inspectorEnabled, inspectorTarget?.sessionId, sessionId, closeInspector])
 
     // Map an assistant message to its 1-based turn number (records/turns align 1:1 with the
     // assistant messages — one per `done`).
@@ -567,6 +594,8 @@ const AgentConversation = ({
 
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
+    // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
+    const liveGateInteractionRef = useRef<LiveAgentInteraction | null>(null)
 
     const {
         messages,
@@ -587,7 +616,14 @@ const AgentConversation = ({
         experimental_throttle: 50,
         // Approve AND deny both resume — a deny-only decision must re-send so the runner
         // gets the denial round-trip and the model continues (no `approval-responded` limbo).
-        sendAutomaticallyWhen: agentShouldResumeAfterApproval,
+        sendAutomaticallyWhen: ({messages}) => {
+            const shouldDispatch = agentShouldResumeAfterApproval({
+                messages,
+                liveInteraction: liveGateInteractionRef.current,
+            })
+            if (shouldDispatch) liveGateInteractionRef.current = null
+            return shouldDispatch
+        },
         // The turn's trace may not be ingested yet when the row asks for its summary —
         // marking it fresh lets the trace queries retry through the ingestion lag
         // (historical traces get no such grace; a 404 there means the trace is gone).
@@ -606,6 +642,13 @@ const AgentConversation = ({
     })
 
     const busy = status === "submitted" || status === "streaming"
+
+    // `messages`/`busy` change every token; consumers that must stay referentially stable
+    // (`handleRewind`, the hydration/SWR adoption guards) read them through refs instead.
+    const messagesRef = useRef(messages)
+    messagesRef.current = messages
+    const busyRef = useRef(busy)
+    busyRef.current = busy
 
     // Mid-stream drive signals: settled write-ish tool calls append file-activity entries (and
     // throttle-revalidate the drives) as the turn streams, not just at onFinish.
@@ -644,7 +687,23 @@ const AgentConversation = ({
         // StrictMode's mount→unmount→mount cycle re-runs the fetch (the first run is cancelled)
         // instead of latching a ref that leaves the transcript blank.
         let cancelled = false
-        loadSessionMessages(sessionId)
+        // Post-restore revalidation: the first result may be the disk-restored log (paints
+        // instantly); when the guaranteed background refetch lands, adopt it under the same
+        // guards as the SWR effect below — never mid-stream, only when strictly ahead.
+        const adoptRefreshed = (freshMsgs: UIMessage[]) => {
+            if (cancelled || busyRef.current) return
+            if (freshMsgs.length <= messagesRef.current.length) return
+            freshMsgs.forEach((m) => {
+                seenIdsRef.current.add(m.id)
+                restoredIdsRef.current.add(m.id)
+            })
+            armBottomRef.current = true
+            // The restore said "no records" but the server has some — clear the notice.
+            setHydratedEmpty(false)
+            setMessages(freshMsgs)
+            persistMessages({id: sessionId, messages: freshMsgs})
+        }
+        loadSessionMessages(sessionId, adoptRefreshed)
             .then((msgs) => {
                 if (cancelled) return
                 if (!msgs || msgs.length === 0) {
@@ -671,20 +730,13 @@ const AgentConversation = ({
         // Seed once per mounted session tab; `sessionId` is stable for this instance.
     }, [sessionId])
 
-    // True once the user settles a gate (approval response / client-tool output) in THIS mount —
-    // i.e. the SDK's auto-resume genuinely is imminent, so the queue's pre-resume hold applies.
-    // Without a live interaction, a tail that READS as "resume imminent" is an orphan restored
-    // from storage (reload / remount killed the run mid-resume): nothing will ever fire that
-    // resume, and holding for it froze the composer forever (AGE-3937).
-    const liveGateInteractionRef = useRef(false)
-
     // Settle a parked client tool (#4920). The dispatcher calls this from a widget (e.g. the connect
     // widget) with the structured reference; `addToolOutput` matches the part by `toolCallId` on the
     // last turn and the resume predicate auto-resends. `tool` is only the typed-tools key — matching
     // is by id — so a cast onto the untyped UIMessage tool map is safe.
     const handleClientToolOutput = useCallback<ClientToolOutputHandler>(
         ({toolName, toolCallId, output, errorText}) => {
-            liveGateInteractionRef.current = true
+            liveGateInteractionRef.current = {kind: "client_tool", id: toolCallId}
             if (errorText !== undefined) {
                 addToolOutput({
                     state: "output-error",
@@ -717,11 +769,31 @@ const AgentConversation = ({
     const pendingRun = useAtomValue(simulatedAgentRunAtomFamily(entityId))
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(entityId))
 
+    // Auto-name the session from its first user message so the durable list is labeled everywhere
+    // (cross-tab / cross-device) before it's opened. The atom no-ops once the session has a title,
+    // so this fires at most once and never overwrites an explicit rename.
+    const autoTitleSession = useSetAtom(autoTitleSessionAtomFamily(scopeKey))
+    const firstUserMessage = useMemo(() => firstUserText(messages), [messages])
+    useEffect(() => {
+        if (firstUserMessage) autoTitleSession({id: sessionId, text: firstUserMessage})
+    }, [firstUserMessage, sessionId, autoTitleSession])
+
     // Model connection: is the project vault empty (no key of any kind), the agent not self-managed,
     // and the user never set up a key before? Drives the connect-a-model banner AND disables the
     // composer until connected — see `gateActive` on `useAgentModelKeyStatus` for the full chain.
     const modelKey = useAgentModelKeyStatus(entityId)
     const modelBlocked = modelKey.gateActive
+
+    // Context-window denominator for the token-budget indicator: the SDK model catalog's own
+    // `context_window`, delivered on the (global) harness-capabilities document — never hardcoded.
+    const harnessCapabilities = useAtomValue(harnessCapabilitiesAtomFamily(""))
+    const contextMaxTokens = useMemo(
+        () => contextWindowForModel(harnessCapabilities, modelKey.harness, modelKey.model),
+        [harnessCapabilities, modelKey.harness, modelKey.model],
+    )
+    // Feature flag: the context-budget meter is hidden from the composer for now. The
+    // component and its logic stay wired up; flip this to `true` to bring the UI back.
+    const showContextBudget = false
 
     // ── Playground-native onboarding ──────────────────────────────────────────
     // This chat panel IS the onboarding surface while the agent is ephemeral: the empty state shows the
@@ -942,14 +1014,6 @@ const AgentConversation = ({
     }, [firstRunSeed, entityId, activeSessionId, sessionId, messages.length, setFirstRunSeed])
     const consumedRunNonceRef = useRef<number | null>(null)
 
-    // `handleRewind` is passed to every memo'd `AgentMessage`, so it must stay referentially
-    // stable — a streamed token must not recreate it and re-render the whole list. `messages`/
-    // `busy` change every token, so read them through refs instead of capturing them.
-    const messagesRef = useRef(messages)
-    messagesRef.current = messages
-    const busyRef = useRef(busy)
-    busyRef.current = busy
-
     // SWR revalidate-on-open: a cached session paints instantly from localStorage; in the background
     // we refetch the durable records ONCE (low-priority) and adopt the server transcript ONLY IF it's
     // strictly ahead of what we're showing (a turn finished on another device). We never clobber a
@@ -963,10 +1027,29 @@ const AgentConversation = ({
         // As with the hydration effect above: no persistent ref, so StrictMode's double-mount
         // re-runs the revalidation rather than latching it out.
         let cancelled = false
-        loadSessionMessages(sessionId).then((serverMsgs) => {
+        const adopt = (serverMsgs: UIMessage[] | null) => {
             if (cancelled || !serverMsgs || serverMsgs.length === 0) return
             const prev = messagesRef.current
-            if (busyRef.current || serverMsgs.length <= prev.length) return
+            if (busyRef.current) return
+            // Adopt the server transcript when it is strictly ahead by count, OR when our LOCAL tail
+            // is stuck paused (mid-approval) while the server has moved past it to a terminal turn — a
+            // resume that completed on another device. Count alone misses the latter (same bubble
+            // count) and was silently propped up by the now-removed duplicate user row; the server's
+            // `paused` flag rides the runner's `done.stopReason` through `transcriptToMessages`.
+            const serverAheadByCount = serverMsgs.length > prev.length
+            const localTailPaused = getPendingApprovals(prev).length > 0
+            const serverTail = serverMsgs[serverMsgs.length - 1] as
+                | {role?: string; metadata?: {paused?: boolean}}
+                | undefined
+            // The paused-tail exception adopts a resume that completed elsewhere, so the server must
+            // NOT be behind (>= guards against a lagging snapshot discarding newer local approval
+            // state) and its tail must be a finished assistant turn — not a shorter, older stream.
+            const serverTailComplete =
+                serverMsgs.length >= prev.length &&
+                serverTail?.role === "assistant" &&
+                !serverTail.metadata?.paused &&
+                getPendingApprovals(serverMsgs).length === 0
+            if (!serverAheadByCount && !(localTailPaused && serverTailComplete)) return
             serverMsgs.forEach((m) => {
                 seenIdsRef.current.add(m.id)
                 restoredIdsRef.current.add(m.id)
@@ -974,7 +1057,10 @@ const AgentConversation = ({
             armBottomRef.current = true
             setMessages(serverMsgs)
             persistMessages({id: sessionId, messages: serverMsgs})
-        })
+        }
+        // The first result may itself be the disk-restored records log; the callback re-applies
+        // the same guarded adoption when the guaranteed background revalidation lands.
+        loadSessionMessages(sessionId, adopt).then(adopt)
         return () => {
             cancelled = true
         }
@@ -1035,11 +1121,21 @@ const AgentConversation = ({
     // in THIS mount marks the resume as live — a restored approval-requested tail the user answers
     // after a reload genuinely auto-resumes, so the queue's pre-resume hold must apply to it.
     const handleApprovalResponse = useCallback(
-        (args: {id: string; approved: boolean}) => {
-            liveGateInteractionRef.current = true
-            addToolApprovalResponse(args)
+        (args: {id: string; approved: boolean; message?: string}) => {
+            liveGateInteractionRef.current = {kind: "approval", id: args.id}
+            addToolApprovalResponse({id: args.id, approved: args.approved})
+            // Steer: a denial that carries a redirect answers the gate AND sends the instruction as a
+            // follow-up turn. It must be its OWN turn, not bundled into the deny-resume: resuming a
+            // parked gate calls `respondPermission(reject)`, which makes the harness CONTINUE the
+            // original prompt (run-turn.ts) — so a note fused into that resume gets subordinated to
+            // the original intent and ignored. As a separate turn it reliably drives the redirect.
+            // (The model still reasons about the bare denial first — the "flail" — because the
+            // harness owns the reject continuation and exposes no reject-with-feedback seam; killing
+            // that flail needs an upstream ACP change, not an FE one.)
+            const steer = args.message?.trim()
+            if (!args.approved && steer) submit({text: steer})
         },
-        [addToolApprovalResponse],
+        [addToolApprovalResponse, submit],
     )
 
     // Pending HITL gates for the paused turn, surfaced in the persistent ApprovalDock above the
@@ -1047,6 +1143,13 @@ const AgentConversation = ({
     // opens the paused turn's own trace drawer.
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
+    // Parked connect interaction on the paused turn → the InteractionDock owns its actions (the
+    // inline row is a passive marker). Gated off while busy (`input-streaming` isn't parked yet)
+    // and after a user stop (the run is dead, nothing to settle — matches the queue's stop void).
+    const pendingInteraction = useMemo(
+        () => (busy || stopped ? null : getPendingConnectInteraction(messages)),
+        [messages, busy, stopped],
+    )
     const openPausedTurnTrace = useMemo(() => {
         const last = messages[messages.length - 1]
         const traceId = last ? getMessageTraceId(last) : undefined
@@ -1197,11 +1300,10 @@ const AgentConversation = ({
 
     const handleStop = useCallback(() => {
         markStopped()
-        stop()
-        // Default Stop only aborts the client stream; the runner survives and keeps billing. When the
-        // NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION flag is set, also kill the session so the sandbox
-        // tears down and server-side compute halts. Kill ends the whole session (resume is #5197).
-        if (doesAgentChatStopKillSession() && projectId && sessionId) {
+        stop() // abort the client stream immediately
+        if (!projectId || !sessionId) return
+        // Opt-in hard kill (NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION): tear the whole session down.
+        if (doesAgentChatStopKillSession()) {
             killSession({sessionId, projectId})
                 .then((ok) => {
                     if (ok) {
@@ -1212,7 +1314,13 @@ const AgentConversation = ({
                     }
                 })
                 .catch(() => {})
+            return
         }
+        // Default Stop: cooperatively cancel the CURRENT TURN. The control-plane `cancel` command
+        // (no inputs, no force) drops the alive lock; the runner closes the turn as interrupted and
+        // the session STAYS OPEN so a follow-up prompt resumes it — instead of the old behaviour where
+        // the client stream aborted but the runner kept running and billing.
+        commandSessionStream({sessionId, projectId}).catch(() => {})
     }, [markStopped, stop, projectId, sessionId, queryClient])
 
     // ── D9 teardown: abort the in-flight stream on unmount (tab close / revision swap) ──
@@ -1797,9 +1905,12 @@ const AgentConversation = ({
             inspectorOpen && isAssistantTurn
                 ? () => openInspectorTurn({sessionId, turn: turnOfAssistant(message.id)})
                 : undefined
-        const showInspect = buildMode && isAssistantTurn
+        const showInspect = inspectorEnabled && buildMode && isAssistantTurn
         const showWorking =
             isLast && busy && (!isAssistantTurn || message.parts.some(isVisiblePart))
+        // Paused on the user (never concurrently with showWorking — hitlPending implies not busy):
+        // the "waiting" chip keeps the turn from reading as finished while the queue holds sends.
+        const showWaiting = isLast && isAssistantTurn && !busy && hitlPending
         return (
             <MessageRow
                 key={message.id}
@@ -1849,7 +1960,7 @@ const AgentConversation = ({
                     unmount — no settle-time layout shift. An EMPTY streaming assistant turn
                     already renders its own loading bubble (AgentMessage), so the dots skip it —
                     exactly one indicator while busy. */}
-                {(showWorking || showInspect) && (
+                {(showWorking || showInspect || showWaiting) && (
                     <div className="flex items-center gap-2 self-start">
                         {showInspect && (
                             <button
@@ -1867,6 +1978,7 @@ const AgentConversation = ({
                             </button>
                         )}
                         {showWorking && <WorkingDots />}
+                        {showWaiting && <WaitingForInput />}
                     </div>
                 )}
             </MessageRow>
@@ -2119,6 +2231,7 @@ const AgentConversation = ({
                                         queued={queued}
                                         onRemove={removeQueued}
                                         onClear={clearQueue}
+                                        held={hitlPending}
                                     />
                                 </div>
                             </RevealCollapse>
@@ -2166,6 +2279,14 @@ const AgentConversation = ({
                                     onApprovalResponse={handleApprovalResponse}
                                     onViewTrace={openPausedTurnTrace}
                                     entityId={entityId}
+                                />
+                                {/* Parked client-tool interactions (connect): same placement contract as the
+                        approval dock — the paused gate can't scroll out of reach, and "Not now"
+                        is the escape hatch that resumes the run without connecting. */}
+                                <InteractionDock
+                                    className={CHAT_COLUMN}
+                                    pending={pendingInteraction}
+                                    onOutput={handleClientToolOutput}
                                 />
                                 {/* Owner call: a template pick must not shift the composer, so no chip renders here
                         (unlike the home surface) — the strip card's own selected state is the
@@ -2216,7 +2337,9 @@ const AgentConversation = ({
                                                     : STRIP_COPY.describeAgentPlaceholder
                                                 : modelBlocked
                                                   ? "Connect a model to start chatting…"
-                                                  : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                                                  : hitlPending
+                                                    ? "The agent is waiting for your response — new messages will be queued"
+                                                    : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
                                         }
                                         initialMarkdown={initialDraft}
                                         onChange={handleComposerChange}
@@ -2225,25 +2348,41 @@ const AgentConversation = ({
                                         streaming={busy}
                                         onStop={handleStop}
                                         prefix={
-                                            // Attach button is gated until the agent service is ready for inline
-                                            // file parts (big-agents d4b119af26); paste / drag-to-add still work.
-                                            <Tooltip
-                                                title={
-                                                    atMax
-                                                        ? `Up to ${limits.maxCount} files`
-                                                        : "Attach files coming soon"
-                                                }
-                                            >
-                                                <Button
-                                                    type="text"
-                                                    icon={<Paperclip size={16} />}
-                                                    disabled={true}
-                                                    onClick={() =>
-                                                        setAttachmentsOpen((open) => !open)
+                                            // Left cluster of the composer toolbar: the (gated) attach
+                                            // button + the context token-budget readout, filling the
+                                            // otherwise-empty left space next to the attachments icon.
+                                            <div className="flex items-center gap-2">
+                                                {/* Attach button is gated until the agent service is ready for
+                                                inline file parts (big-agents d4b119af26); paste / drag-to-add
+                                                still work. */}
+                                                <Tooltip
+                                                    title={
+                                                        atMax
+                                                            ? `Up to ${limits.maxCount} files`
+                                                            : "Attach files coming soon"
                                                     }
-                                                    aria-label="Attach files"
-                                                />
-                                            </Tooltip>
+                                                >
+                                                    <Button
+                                                        type="text"
+                                                        icon={<Paperclip size={16} />}
+                                                        disabled={true}
+                                                        onClick={() =>
+                                                            setAttachmentsOpen((open) => !open)
+                                                        }
+                                                        aria-label="Attach files"
+                                                    />
+                                                </Tooltip>
+                                                {/* Context-budget meter temporarily hidden from the UI.
+                                                Logic is retained — flip `showContextBudget` to re-enable.
+                                                Only meaningful in a real conversation, so still gated on
+                                                onboarding (no turns / no usage yet). */}
+                                                {showContextBudget && !onboardingActive ? (
+                                                    <ContextBudgetIndicator
+                                                        messages={messages}
+                                                        maxTokens={contextMaxTokens}
+                                                    />
+                                                ) : null}
+                                            </div>
                                         }
                                         header={
                                             <HeightCollapse
@@ -2274,7 +2413,7 @@ const AgentConversation = ({
                                                     <AgentIntentActions
                                                         onCreate={handleCreateAgent}
                                                         onCodingAgentCopy={handleCodingAgentCopy}
-                                                        creating={!!onboarding?.committing}
+                                                        loading={!!onboarding?.committing}
                                                     />
                                                 ) : (
                                                     <div className="flex items-center gap-2">
@@ -2315,6 +2454,7 @@ const AgentConversation = ({
                         />
                     </div>
                 </RightPanelSplit>
+
                 {TEMPLATE_STRIP_MODE ? (
                     <CopiedToast
                         open={copiedToastOpen}
