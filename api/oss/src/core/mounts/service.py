@@ -54,6 +54,12 @@ _MOUNTS_NAMESPACE = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "mounts")
 # The single session-bound mount: the agent's durable working directory.
 _SESSION_CWD_NAME = "cwd"
 
+# The name the runner symlinks the agent mount into the cwd as (runner: `AGENT_FILES_LINK_NAME`).
+# The runner unlinks whatever else sits at that path on every attach, so the name is reserved AT THE
+# CWD MOUNT ROOT and nowhere else. geesefs degrades the symlink to a plain object of the same name in
+# the cwd store; that object is a runner artifact, never user content.
+_AGENT_FILES_LINK_NAME = "agent-files"
+
 # Default TTL (seconds) for signed mount credentials. Covers the mount lifetime for a
 # turn; geesefs holds the creds without refresh, so a turn outliving this hits ExpiredToken.
 _CREDENTIALS_TTL_SECONDS = 3600
@@ -149,6 +155,50 @@ def _safe_zip_segments(path: str) -> List[str]:
     """Segments safe to place in a zip entry name: drop empty / `.` / `..` (both separators) so a
     prefix can't mint a `../x` or `..\\x` entry."""
     return [s for s in _zip_segments(path) if s not in ("", ".", "..")]
+
+
+def _is_session_cwd_mount(mount: Mount) -> bool:
+    """The session's durable working directory — the one mount the runner links `agent-files` into."""
+    return mount.session_id is not None and mount.name == _SESSION_CWD_NAME
+
+
+def _resolve_zip_namespace(
+    work: List[Tuple[str, str, int, Optional[int]]],
+) -> List[Tuple[str, str, int, Optional[int]]]:
+    """Drop members that cannot coexist in ONE zip namespace.
+
+    The archive carries no directory entries: `a/b` IMPLIES the directory `a`, so a member that is a
+    FILE named `a` blocks it and everything under `a/` is lost on extraction. An object store holds
+    `a` and `a/b` side by side happily, and the drive merges several mounts into one zip (cwd at the
+    root, the agent mount under `agent-files/`), so the collision is reachable across sources — it is
+    how the degraded `agent-files` symlink swallowed the agent's files (#5482). Directories win; a
+    duplicate path keeps the first member.
+    """
+    directories: set[str] = set()
+    for zip_path, *_rest in work:
+        segments = zip_path.split("/")
+        for i in range(1, len(segments)):
+            directories.add("/".join(segments[:i]))
+
+    resolved: List[Tuple[str, str, int, Optional[int]]] = []
+    seen: set[str] = set()
+    for member in work:
+        zip_path = member[0]
+        if zip_path in directories:
+            log.warning(
+                "mounts.archive: skipping file member shadowed by a directory",
+                zip_path=zip_path,
+            )
+            continue
+        if zip_path in seen:
+            log.warning(
+                "mounts.archive: skipping duplicate member",
+                zip_path=zip_path,
+            )
+            continue
+        seen.add(zip_path)
+        resolved.append(member)
+    return resolved
 
 
 def _is_internal_mount_path(path: str) -> bool:
@@ -1200,6 +1250,10 @@ class MountsService:
         all"); ``zip_prefix`` places its files under ``prefix/`` in the zip (e.g. "agent-files" for
         the folded agent mount). Folder markers are skipped. Each work item is a
         ``(zip_path, storage_key, size, mtime)`` tuple.
+
+        The sources share ONE zip namespace, so the merged list is passed through
+        ``_resolve_zip_namespace`` — a member the store allows but a zip cannot carry alongside its
+        neighbours (a file shadowing a directory, a duplicate path) is dropped there.
         """
         bucket = self._bucket()
 
@@ -1213,6 +1267,7 @@ class MountsService:
                 project_id=project_id, mount_id=source.mount_id
             )
             mount_base = self._storage_key(project_id=project_id, mount=mount)
+            is_session_cwd = _is_session_cwd_mount(mount)
             pfx_segments = _safe_zip_segments(source.archive_prefix)
             src = source.source_path.strip("/")
             # Scope the listing to a folder when `source_path` is set (folder download); the
@@ -1229,6 +1284,11 @@ class MountsService:
                     if obj.key.startswith(mount_base)
                     else obj.key
                 )
+                # The runner's `agent-files` link, degraded by geesefs into an object in the cwd
+                # store. A runner artifact, not user content (the runner unlinks anything else at
+                # that path), and the drive hides it — so it has no place in the zip either.
+                if is_session_cwd and rel.strip("/") == _AGENT_FILES_LINK_NAME:
+                    continue
                 rel_segments = _zip_segments(rel)
                 # Store keys come from signed-credential writers, so `rel` can carry `..` or a
                 # backslash. Don't REWRITE such a key — `a/../report.txt` would collapse onto a real
@@ -1242,7 +1302,7 @@ class MountsService:
                 zip_path = "/".join([*pfx_segments, *rel_segments])
                 work.append((zip_path, obj.key, obj.size or 0, obj.mtime))
 
-        return work
+        return _resolve_zip_namespace(work)
 
     async def iter_archive_members(
         self,
