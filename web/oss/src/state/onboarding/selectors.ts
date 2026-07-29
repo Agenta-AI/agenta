@@ -1,14 +1,31 @@
+import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {atom} from "jotai"
+
+import {navSimplifiedDefaultAtom, navSimplifiedOverrideAtom} from "@/oss/lib/onboarding/atoms"
 
 import {onboardingSessionAtom} from "./atoms"
 
 /**
  * Pre-commit onboarding is the current surface (minting or describing an agent, no real agent
- * yet). The one truth every app-behavior adjustment below derives from.
+ * yet). The truth the session-driven adjustments below derive from (the signup-era nav default
+ * that drives {@link advancedNavHiddenAtom} is separate).
  */
 export const isOnboardingActiveAtom = atom((get) => {
     const {active, committedRevisionId} = get(onboardingSessionAtom)
     return active && !committedRevisionId
+})
+
+/**
+ * Pre-commit onboarding in a project that has NO agents yet — the genuine first run, and the only
+ * state where the agent-dependent pages are actually dead ends. The list is read only while
+ * onboarding is active (jotai tracks dependencies lazily), and it's the same query the sidebar's
+ * agents group already mounts. An unresolved list counts as first-run so nothing flashes enabled
+ * then disabled.
+ */
+export const isFirstRunOnboardingAtom = atom((get) => {
+    if (!get(isOnboardingActiveAtom)) return false
+    const {data, isPending} = get(agentWorkflowsListQueryStateAtom)
+    return isPending || data.length === 0
 })
 
 // ── App-behavior adjustments driven by onboarding ────────────────────────────
@@ -18,11 +35,24 @@ export const isOnboardingActiveAtom = atom((get) => {
 /** During onboarding, Home IS the current surface → the sidebar shows it selected. */
 export const homeNavHighlightedAtom = atom((get) => get(isOnboardingActiveAtom))
 
-/** During onboarding, clicking Home navigates to where you already are → make it a no-op. */
-export const homeNavInertAtom = atom((get) => get(isOnboardingActiveAtom))
+/** On a first run, clicking Home only bounces back here → make it a no-op. Once an agent exists
+ * Home is a real destination (the agents list), so it stays clickable. */
+export const homeNavInertAtom = atom((get) => get(isFirstRunOnboardingAtom))
 
 /**
- * During onboarding, nav links whose pages dead-end on an empty table (no apps/eval data yet) are
+ * On a first run, nav links whose pages dead-end on an empty table (no apps/eval data yet) are
  * disabled. Links that work app-less (Observability, Test sets, Evaluators, Prompts) stay live.
  */
-export const deadEndNavDisabledAtom = atom((get) => get(isOnboardingActiveAtom))
+export const deadEndNavDisabledAtom = atom((get) => get(isFirstRunOnboardingAtom))
+
+/**
+ * The simplified, agent-focused sidebar hides advanced areas (Prompts, Evaluation, Registry,
+ * Evaluations, Overview). Unlike the selectors above, this derives from the durable signup-era
+ * default ({@link navSimplifiedDefaultAtom}) — set once at signup, not the live session — so
+ * existing users keep the full nav. Stable seam: Phase 2 layers a user override here
+ * (`override ?? default`) without touching consumers.
+ */
+export const advancedNavHiddenAtom = atom((get) => {
+    const override = get(navSimplifiedOverrideAtom)
+    return override ?? get(navSimplifiedDefaultAtom)
+})

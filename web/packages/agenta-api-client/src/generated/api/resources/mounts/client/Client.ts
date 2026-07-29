@@ -1010,7 +1010,7 @@ export class MountsClient {
         const _queryParams: Record<string, unknown> = {
             path,
             read,
-            order,
+            order: order !== undefined ? order : undefined,
             limit,
             depth,
             with_counts: withCounts,

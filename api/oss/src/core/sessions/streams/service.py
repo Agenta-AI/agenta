@@ -498,17 +498,15 @@ class SessionStreamsService:
         self,
         *,
         project_id: UUID,
+        user_id: Optional[UUID],
         session_id: str,
     ) -> Optional[SessionStream]:
-        """Soft-archive the stream row (S7/F2 archive fan-out, WP5). Returns the
-        archived row (`deleted_at` set) as the caller's confirmation read."""
+        """Soft-archive the stream row: set `archived_at` (hidden but restorable), distinct from
+        kill's `deleted_at` so a killed session stays listed. Returns the archived confirmation."""
         _validate_session_id(session_id)
-        await self._dao.delete_by_session_id(
+        return await self._dao.set_archived_by_session_id(
             project_id=project_id,
-            session_id=session_id,
-        )
-        return await self._dao.get_by_session_id_including_archived(
-            project_id=project_id,
+            user_id=user_id,
             session_id=session_id,
         )
 
@@ -519,9 +517,9 @@ class SessionStreamsService:
         user_id: Optional[UUID],
         session_id: str,
     ) -> Optional[SessionStream]:
-        """Reverse of `archive`: clears `deleted_at` on the stream row."""
+        """Reverse of `archive`: clears `archived_at`, restoring the session to the list."""
         _validate_session_id(session_id)
-        return await self._dao.unarchive_by_session_id(
+        return await self._dao.clear_archived_by_session_id(
             project_id=project_id,
             user_id=user_id,
             session_id=session_id,
@@ -579,15 +577,39 @@ class SessionStreamsService:
                 )
                 created = True
             except SessionStreamAlreadyExists:
-                # A concurrent first touch won; its row is the one we wanted.
+                # The unique slot is held by either a concurrent first touch (live row) or a
+                # soft-deleted tombstone (STOP_KILLS_SESSION / archive). The update reconciles
+                # the live case; a None result means the tombstone case, handled below.
                 pass
         if not created:
-            await self._dao.update(
+            updated = await self._dao.update(
                 project_id=project_id,
                 user_id=user_id,
                 session_id=session_id,
                 stream=SessionStreamEdit(flags=flags, turn_id=turn_id),
             )
+            if updated is None:
+                # No live row matched: a killed tombstone occupies the slot. Resume must
+                # re-nest that same row (keeps its id + header) — clear deleted_at, then re-flag it.
+                await self._dao.unarchive_by_session_id(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+                updated = await self._dao.update(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    stream=SessionStreamEdit(flags=flags, turn_id=turn_id),
+                )
+            # New activity un-hides an archived session: a live row must never stay archived, or it
+            # would be running yet absent from the default list. Clears only when actually archived.
+            if updated is not None and updated.archived_at is not None:
+                await self._dao.clear_archived_by_session_id(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
         return turn_id
 
     async def _mirror_flags(

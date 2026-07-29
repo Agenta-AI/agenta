@@ -1444,6 +1444,27 @@ function updateEvent(update: Record<string, unknown>) {
 }
 
 describe("runTurn: real approval park + respondPermission resume", () => {
+  it("a user Stop (signal abort) ends the turn cleanly as cancelled, not an error", async () => {
+    const { deps } = pausableHarness();
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    // A turn is in flight; the user hits Stop → the control-plane cancel drops the alive lock →
+    // the heartbeat aborts the run signal (the fake harness prompt stays pending, as a severed
+    // fetch would). The turn must resolve to a CLEAN cancel, not fall through to the error catch.
+    const controller = new AbortController();
+    const p = runTurn(acquired.env, engineReq, undefined, controller.signal, {
+      approvalParkMode: true,
+    });
+    await flush();
+    controller.abort();
+    const r = await p;
+
+    assert.equal(r.ok, true, "a clean cancel is not an error");
+    assert.equal(r.stopReason, "cancelled");
+  });
+
   it("parks a Claude ACP gate (session alive), then answers it live and streams the continuation", async () => {
     const { calls, deps, captured } = pausableHarness();
     const acquired = await acquireEnvironment(engineReq, deps);

@@ -68,7 +68,10 @@ class SessionsService:
 
         return await self.streams_service.query_streams(
             project_id=project_id,
-            filter=SessionStreamQuery(),
+            filter=SessionStreamQuery(
+                include_ended=bool(query and query.include_ended),
+                include_archived=bool(query and query.include_archived),
+            ),
             windowing=windowing,
             session_ids=session_ids,
         )
@@ -122,6 +125,7 @@ class SessionsService:
         )
         return await self.streams_service.archive(
             project_id=project_id,
+            user_id=user_id,
             session_id=session_id,
         )
 

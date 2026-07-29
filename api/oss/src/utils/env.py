@@ -539,6 +539,7 @@ class AgentaConfig(BaseModel):
     otlp: OTLPConfig = OTLPConfig()
     redaction: RedactionConfig = RedactionConfig()
     services: ServicesConfig = ServicesConfig()
+    sessions: SessionsConfig = SessionsConfig()
     webhooks: WebhooksConfig = WebhooksConfig()
     workers: WorkersConfig = WorkersConfig()
 

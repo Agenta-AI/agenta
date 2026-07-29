@@ -1,8 +1,8 @@
+import type {EvaluationRun} from "@agenta/entities/evaluationRun"
+
 import type {InfiniteTableRowBase} from "@/oss/components/InfiniteVirtualTable/types"
 import type {WindowingState} from "@/oss/components/InfiniteVirtualTable/types"
 import type {SnakeToCamelCaseKeys} from "@/oss/lib/Types"
-
-import type {EvaluationRun} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/types"
 
 // The original `@/oss/state/evaluations/legacyAtoms` module no longer exists, and `legacy`
 // is only ever read through `any` casts — represented as an opaque record (per WP-4i).
