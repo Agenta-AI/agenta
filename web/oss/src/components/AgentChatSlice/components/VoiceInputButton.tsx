@@ -18,7 +18,9 @@ import {useVoiceInput} from "../hooks/useVoiceInput"
 
 type VoiceMode = "transcribe" | "audio"
 
-const voiceModeAtom = atomWithStorage<VoiceMode>("agenta:agent-chat:voice-mode", "audio")
+/** `null` = the person has not picked a mode, so capability decides which one leads. An explicit
+ * choice always wins and is never overridden. */
+const voiceModeAtom = atomWithStorage<VoiceMode | null>("agenta:agent-chat:voice-mode.v2", null)
 
 const MODE_LABEL: Record<VoiceMode, string> = {
     audio: "Voice message",
@@ -46,6 +48,7 @@ const VoiceInputButton = ({
     onStartAudio,
     audioSupported,
     audioPending,
+    audioPerceivable,
     attachmentsFull,
     onDictationError,
     onDictatingChange,
@@ -65,9 +68,15 @@ const VoiceInputButton = ({
     /** Awaiting the browser's mic prompt — shown here rather than as a composer takeover, since
      * the prompt is the browser's own UI and a page cannot dismiss it. */
     audioPending: boolean
+    /** Whether the model can take audio in; `null` when the catalog does not say. Decides which
+     * mode leads and explains itself in the menu — it never blocks recording (D6). */
+    audioPerceivable: boolean | null
     disabled?: boolean
 }) => {
-    const [mode, setMode] = useAtom(voiceModeAtom)
+    const [chosenMode, setMode] = useAtom(voiceModeAtom)
+    // Dictation produces text, so it works against any model; a voice message needs one that can
+    // hear. With no explicit choice, lead with whichever the model can actually use.
+    const mode: VoiceMode = chosenMode ?? (audioPerceivable === false ? "transcribe" : "audio")
     const transcribe = useVoiceInput()
 
     useEffect(() => {
@@ -120,11 +129,26 @@ const VoiceInputButton = ({
         }
     }
 
+    // A voice message on a model that can't take audio still records and attaches (the agent can
+    // use the file with its tools) — it just won't be heard. Say so where the mode is chosen,
+    // rather than blocking it (D6).
+    const audioNotHeard = audioPerceivable === false
+
     // Icons in the menu too, so the mapping between a mode and the button's icon is taught here.
     const menuItems: MenuProps["items"] = available.map((m) => ({
         key: m.key,
-        label: MODE_LABEL[m.key],
         icon: modeIcon(m.key),
+        label:
+            m.key === "audio" && audioNotHeard ? (
+                <span className="flex flex-col">
+                    <span>{MODE_LABEL[m.key]}</span>
+                    <span className="text-[11px] text-colorTextTertiary">
+                        This model can’t listen to audio
+                    </span>
+                </span>
+            ) : (
+                MODE_LABEL[m.key]
+            ),
     }))
 
     // Dictation writes into the editor, so it is unaffected by the attachment limit.
