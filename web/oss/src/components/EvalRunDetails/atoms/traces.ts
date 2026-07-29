@@ -3,11 +3,12 @@ import {
     traceEntityAtomFamily,
     transformTracesResponseToTree,
 } from "@agenta/entities/trace"
+import type {TracesResponse} from "@agenta/entities/trace"
 import {uuidToTraceId} from "@agenta/shared/utils"
 import {atomFamily, selectAtom} from "jotai/utils"
 
 import type {TraceData, TraceNode, TraceTree} from "@/oss/lib/evaluations"
-import type {TraceSpanNode, TracesResponse} from "@/oss/services/tracing/types"
+import type {TraceSpanNode} from "@/oss/services/tracing/types"
 
 import {resolveInvocationTraceValue} from "../utils/traceValue"
 
