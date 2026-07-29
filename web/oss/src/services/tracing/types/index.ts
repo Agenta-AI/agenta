@@ -1,6 +1,4 @@
-// Span types have a single source of truth: the zod schemas in @agenta/entities,
-// which validate the backend payload at the boundary. Import them from
-// @agenta/entities/trace directly; this module owns only the OSS-only additions.
+// Span types live in @agenta/entities/trace; this module adds only OSS extras.
 
 import type {TraceSpanNode as EntityTraceSpanNode} from "@agenta/entities/trace"
 
