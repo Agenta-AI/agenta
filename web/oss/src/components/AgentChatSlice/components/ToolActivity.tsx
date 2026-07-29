@@ -3,7 +3,6 @@ import {memo} from "react"
 import {detectFileActivity, type FileActivity} from "@agenta/entities/session"
 import {HeightCollapse} from "@agenta/ui"
 import {
-    ArrowSquareOut,
     CaretRight,
     CheckCircle,
     Clock,
@@ -22,6 +21,10 @@ import {DriveFileCard} from "@/oss/components/Drives/DriveFileCard"
 import {partToolName, resolveToolDisplay, type ToolDisplay} from "../assets/toolDisplay"
 import {formatToolValue, stripFence} from "../assets/toolFormat"
 import {
+    APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX,
+    DEFERRED_NOT_EXECUTED_PREFIX,
+} from "../assets/transcriptToMessages"
+import {
     expandedValueAtomFamily,
     setExpandedAtom,
     toolGroupKey,
@@ -35,9 +38,12 @@ const {Text} = Typography
 const SETTLED = new Set(["output-available", "output-error", "output-denied"])
 const isSettled = (state: string) => SETTLED.has(state)
 
-const DEFERRED_PREFIX = "DEFERRED_NOT_EXECUTED:"
 const isDeferredError = (errorText: string | undefined): boolean =>
-    !!errorText && errorText.startsWith(DEFERRED_PREFIX)
+    !!errorText && errorText.startsWith(DEFERRED_NOT_EXECUTED_PREFIX)
+const isUnknownResultError = (errorText: string | undefined): boolean =>
+    !!errorText && errorText.startsWith(APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX)
+const isNonFinalRunnerError = (errorText: string | undefined): boolean =>
+    isDeferredError(errorText) || isUnknownResultError(errorText)
 
 const isNotHandledOutput = (output: unknown): boolean =>
     !!output &&
@@ -85,7 +91,9 @@ const rowSummary = (part: ToolUIPart, display?: ToolDisplay): string | null => {
     }
     if (part.state === "output-error") {
         const errorText = (part as {errorText?: string}).errorText
-        return isDeferredError(errorText) ? "waiting on another approval" : "failed"
+        if (isDeferredError(errorText)) return "waiting on another approval"
+        if (isUnknownResultError(errorText)) return "approved, result unknown"
+        return "failed"
     }
     if (part.state === "output-denied") return "denied"
     return null
@@ -100,7 +108,7 @@ const StatusIcon = ({part}: {part: ToolUIPart}) => {
         return <CheckCircle size={13} weight="fill" className="shrink-0 text-colorSuccess" />
     }
     if (state === "output-error") {
-        if (isDeferredError((part as {errorText?: string}).errorText))
+        if (isNonFinalRunnerError((part as {errorText?: string}).errorText))
             return <Clock size={13} className="shrink-0 text-colorTextTertiary" />
         return <Warning size={13} weight="fill" className="shrink-0 text-colorError" />
     }
@@ -153,7 +161,7 @@ const ToolRow = ({
     const input = (part as {input?: unknown}).input
     const output = (part as {output?: unknown}).output
     const errorText = (part as {errorText?: string}).errorText
-    const deferred = state === "output-error" && isDeferredError(errorText)
+    const nonFinalError = state === "output-error" && isNonFinalRunnerError(errorText)
     const notHandled = state === "output-available" && isNotHandledOutput(output)
     // `approval-responded` is resolved (the user answered) — not "running". Its execution shows on
     // a sibling part, so this must not spin forever (the cold-replay lingering-gate spinner).
@@ -169,8 +177,8 @@ const ToolRow = ({
               : live && running
                 ? "running…"
                 : detailed
-                  ? deferred
-                      ? "waiting on another approval"
+                  ? nonFinalError
+                      ? rowSummary(part, display)
                       : state === "output-error"
                         ? "failed"
                         : state === "output-denied"
@@ -207,7 +215,7 @@ const ToolRow = ({
             ) : null}
             {midText ? (
                 <Text
-                    type={state === "output-error" && !deferred ? "danger" : "secondary"}
+                    type={state === "output-error" && !nonFinalError ? "danger" : "secondary"}
                     className="!text-xs min-w-0 truncate"
                     title={typeof midText === "string" ? midText : undefined}
                 >
@@ -245,9 +253,9 @@ const ToolRow = ({
                         {hasInput ? <IOBlock label="input" value={formatToolValue(input)} /> : null}
                         {hasError ? (
                             <IOBlock
-                                label={deferred ? "note" : "error"}
+                                label={nonFinalError ? "note" : "error"}
                                 value={stripFence(errorText)}
-                                danger={!deferred}
+                                danger={!nonFinalError}
                             />
                         ) : hasOutput ? (
                             <IOBlock label="output" value={formatToolValue(output)} />
@@ -267,8 +275,6 @@ interface ToolActivityProps {
     /** Build mode: render the full step log (per-tool input + output/error inline), instead of the
      * calm collapsed "Used N tools" summary Chat mode shows. */
     detailed?: boolean
-    /** Open the turn's trace drawer (full input/output). Absent if the turn has no trace yet. */
-    onViewTrace?: () => void
 }
 
 /**
@@ -282,12 +288,7 @@ interface ToolActivityProps {
  * An `approval-requested` tool is marked "Awaiting approval" in every mode; the Approve/Deny action
  * lives in the persistent ApprovalDock. The FE only renders tool calls — it never executes them.
  */
-const ToolActivity = ({
-    parts,
-    isStreaming = false,
-    detailed = false,
-    onViewTrace,
-}: ToolActivityProps) => {
+const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivityProps) => {
     const anyUnsettled = parts.some((p) => !isSettled(p.state as string))
     const live = isStreaming && anyUnsettled
     const approvalPending = parts.some((p) => (p.state as string) === "approval-requested")
@@ -333,16 +334,6 @@ const ToolActivity = ({
                         ))}
                     </div>
                 ) : null}
-                {detailed && onViewTrace ? (
-                    <button
-                        type="button"
-                        onClick={onViewTrace}
-                        className="mt-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-0 py-0.5 text-xs text-colorPrimary transition-colors hover:underline"
-                    >
-                        <ArrowSquareOut size={12} />
-                        View full trace
-                    </button>
-                ) : null}
             </div>
         )
     }
@@ -351,7 +342,7 @@ const ToolActivity = ({
     const failed = parts.filter(
         (p) =>
             (p.state as string) === "output-error" &&
-            !isDeferredError((p as {errorText?: string}).errorText),
+            !isNonFinalRunnerError((p as {errorText?: string}).errorText),
     ).length
     const count = parts.length
     const single = count === 1 ? resolveToolDisplay(partToolName(parts[0])) : null
@@ -402,16 +393,6 @@ const ToolActivity = ({
                             live={false}
                         />
                     ))}
-                    {onViewTrace && (
-                        <button
-                            type="button"
-                            onClick={onViewTrace}
-                            className="mt-1 flex w-fit cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-0 py-0.5 text-xs text-colorPrimary transition-colors hover:underline"
-                        >
-                            <ArrowSquareOut size={12} />
-                            View full trace
-                        </button>
-                    )}
                 </div>
             </HeightCollapse>
         </div>

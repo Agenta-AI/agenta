@@ -133,7 +133,9 @@ const EvaluatorCard = ({
     differs?: boolean
     defaultCollapsed?: boolean
 }) => {
-    const rawEvaluator = evaluator.raw
+    const rawEvaluator = evaluator.raw as
+        | ({id?: string; slug?: string; name?: string} & Record<string, unknown>)
+        | undefined
     const [view, setView] = useState<"details" | "json">("details")
     const [collapsed, setCollapsed] = useState(defaultCollapsed)
 

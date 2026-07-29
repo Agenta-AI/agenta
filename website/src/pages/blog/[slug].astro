@@ -1,0 +1,274 @@
+---
+import type { GetStaticPaths } from "astro";
+import Site from "../../layouts/Site.astro";
+import PostCard from "../../components/PostCard.astro";
+import InlineCTA from "../../components/InlineCta.astro";
+import BlogImage from "../../components/BlogImage.astro";
+import { getCollection, getEntry, render } from "astro:content";
+import { authorRefs, formatDate, relatedPosts } from "../../lib/blog";
+
+export const getStaticPaths = (async () => {
+  const posts = await getCollection("posts");
+  return posts.map((post) => ({ params: { slug: post.id }, props: { post } }));
+}) satisfies GetStaticPaths;
+
+const { post } = Astro.props;
+const { title, description, date, heroImage, ogImage, readingTime } =
+  post.data;
+
+// Resolve every contributor (primary first, then co-authors) for the byline.
+// The live site shows multi-author bylines on the guest-written posts.
+const authors = (
+  await Promise.all(authorRefs(post).map((ref) => getEntry(ref)))
+).filter((a): a is NonNullable<typeof a> => Boolean(a));
+const primaryAuthor = authors[0];
+const { Content } = await render(post);
+
+const all = await getCollection("posts");
+const related = relatedPosts(post, all);
+
+const dateLabel = formatDate(date);
+// Post share image: explicit ogImage, else the hero, else the layout default.
+const ogPath = ogImage ?? heroImage;
+const ogUrl = ogPath ? new URL(ogPath, Astro.site).toString() : undefined;
+const defaultOgUrl = new URL("/og/default.png", Astro.site).toString();
+
+// Canonical URL for this post (no trailing slash — the live blog-post rule).
+const canonicalUrl = new URL(
+  Astro.url.pathname.replace(/\/$/, ""),
+  Astro.site,
+).toString();
+
+// Article structured data (schema.org JSON-LD). Author list includes co-authors;
+// publisher is the Agenta Organization with its logo. datePublished is the post
+// date (ISO). Crawlers use this for rich results and authorship.
+const articleJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  headline: title,
+  description,
+  image: ogUrl ?? defaultOgUrl,
+  datePublished: date.toISOString(),
+  url: canonicalUrl,
+  mainEntityOfPage: { "@type": "WebPage", "@id": canonicalUrl },
+  author: authors.map((a) => ({
+    "@type": "Person",
+    name: a.data.name,
+    url: new URL(`/authors/${a.id}/`, Astro.site).toString(),
+  })),
+  publisher: {
+    "@type": "Organization",
+    name: "Agenta",
+    url: "https://agenta.ai",
+    logo: {
+      "@type": "ImageObject",
+      url: new URL("/logos/Agenta-logo-full-dark.svg", Astro.site).toString(),
+    },
+  },
+};
+
+const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;";
+---
+
+<Site
+  title={`${title} — Agenta Blog`}
+  description={description}
+  ogType="article"
+  ogImage={ogPath}
+>
+  <Fragment slot="head">
+    <script
+      type="application/ld+json"
+      is:inline
+      set:html={JSON.stringify(articleJsonLd)}
+    />
+  </Fragment>
+
+  <article style={`background:#0E0D0F;${sectionBorder}padding:0 0 24px;`}>
+    <!-- header -->
+    <div
+      class="ag-pad ag-post-head"
+      style="max-width:760px;margin:0 auto;padding:56px 24px 44px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:20px;"
+    >
+      <a
+        href="/blog"
+        style="display:inline-flex;align-items:center;gap:7px;font:var(--text-label);color:rgba(255,255,255,0.55);text-decoration:none;"
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
+          ><path
+            d="M8.5 3.5 5 7l3.5 3.5"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"></path></svg
+        >All blogs
+      </a>
+      <h1
+        class="ag-h1"
+        style="margin:0;font:300 52px/1.08 var(--font-display);color:#F7F6F4;text-wrap:pretty;"
+      >
+        {title}
+      </h1>
+      <p
+        style="margin:0;font:400 19px/1.5 var(--font-sans);letter-spacing:-0.011em;color:rgba(255,255,255,0.62);max-width:600px;text-wrap:pretty;"
+      >
+        {description}
+      </p>
+
+      <!-- date · reading time: quiet single line directly below the subtitle -->
+      <div
+        style="display:flex;align-items:center;justify-content:center;gap:9px;margin-top:-8px;font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.45);"
+      >
+        <span>{dateLabel}</span>
+        {readingTime && (
+          <>
+            <span style="width:3px;height:3px;border-radius:50%;background:rgba(255,255,255,0.3);" />
+            <span>{readingTime}</span>
+          </>
+        )}
+      </div>
+
+      <!-- byline: stacked avatars · author name(s), vertically centered -->
+      {
+        primaryAuthor && (
+          <div
+            class="ag-author"
+            style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:4px;"
+          >
+            <div style="flex:0 0 auto;display:flex;align-items:center;">
+              {authors.map((a, i) => (
+                <a
+                  href={`/authors/${a.id}`}
+                  aria-label={a.data.name}
+                  style={`display:block;${i > 0 ? "margin-left:-12px;" : ""}`}
+                >
+                  <img
+                    src={a.data.avatar}
+                    alt={a.data.name}
+                    width="40"
+                    height="40"
+                    style="display:block;width:40px;height:40px;border-radius:50%;object-fit:cover;box-shadow:inset 0 0 0 2px #0E0D0F,inset 0 0 0 3px rgba(255,255,255,0.1);"
+                  />
+                </a>
+              ))}
+            </div>
+            <span style="font:var(--text-label);color:#F7F6F4;">
+              {authors.map((a, i) => (
+                <>
+                  {i > 0 && <span style="color:rgba(255,255,255,0.45);"> & </span>}
+                  <a
+                    href={`/authors/${a.id}`}
+                    style="color:#F7F6F4;text-decoration:none;"
+                  >
+                    {a.data.name}
+                  </a>
+                </>
+              ))}
+            </span>
+          </div>
+        )
+      }
+    </div>
+
+    <!-- hero image -->
+    {
+      heroImage && (
+        <div
+          class="ag-pad"
+          style="max-width:1016px;margin:0 auto;padding:0 24px;"
+        >
+          <img
+            class="ag-hero-img"
+            src={heroImage}
+            alt={title}
+            width="968"
+            height="544"
+            loading="eager"
+            fetchpriority="high"
+            decoding="async"
+            style="display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:14px;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.07);"
+          />
+        </div>
+      )
+    }
+
+    <!-- body -->
+    <div
+      class="ag-prose ag-pad ag-post-body"
+      style="max-width:720px;margin:0 auto;padding:48px 24px 8px;"
+    >
+      <Content components={{ InlineCTA, img: BlogImage }} />
+    </div>
+  </article>
+
+  <!-- More from the blog -->
+  {
+    related.length > 0 && (
+      <section
+        class="ag-pad"
+        style={`background:#0A0A0B;${sectionBorder}padding:72px 64px 88px;`}
+      >
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:32px;flex-wrap:wrap;">
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <h2 class="ag-dlg" style="margin:0;font:var(--text-display-lg);color:#F7F6F4;">
+              More from the blog
+            </h2>
+            <p style="margin:0;font:var(--text-body-sm);color:rgba(255,255,255,0.55);">
+              The latest updates and insights from Agenta
+            </p>
+          </div>
+          <a
+            href="/blog"
+            style="display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 18px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);text-decoration:none;"
+          >
+            View all blogs
+            <svg width="13" height="13" viewBox="0 0 12 12" fill="none">
+              <path
+                d="M3 2.5 6.5 6 3 9.5"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </a>
+        </div>
+        <div
+          id="post-related-grid"
+          class="ag-grid"
+          style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;"
+        >
+          {related.map((p) => (
+            <PostCard post={p} variant="related" />
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  <style is:global>
+    /* "More from the blog" grid collapse: 4 → 2 (≤1024) → 1 (≤600). */
+    @media (max-width: 1024px) {
+      #post-related-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+    }
+    @media (max-width: 600px) {
+      #post-related-grid {
+        grid-template-columns: 1fr !important;
+      }
+      .ag-pad {
+        padding-left: 20px !important;
+        padding-right: 20px !important;
+      }
+      /* Hero image breathes proportionally less on phones. */
+      .ag-post-head {
+        padding-top: 44px !important;
+        padding-bottom: 30px !important;
+      }
+      .ag-post-body {
+        padding-top: 32px !important;
+      }
+    }
+  </style>
+</Site>

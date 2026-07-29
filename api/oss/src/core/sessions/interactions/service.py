@@ -89,3 +89,15 @@ class SessionInteractionsService:
             query=query,
             windowing=windowing,
         )
+
+    async def delete_by_session_id(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> int:
+        """Hard delete every interaction for a session (S7 delete fan-out, WP5)."""
+        return await self.interactions_dao.delete_by_session_id(
+            project_id=project_id,
+            session_id=session_id,
+        )

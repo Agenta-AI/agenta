@@ -1,4 +1,4 @@
-import {type ReactNode} from "react"
+import {type ReactElement, type ReactNode} from "react"
 
 import {Spin} from "antd"
 
@@ -43,7 +43,7 @@ function RequireWorkflowKind({
 
     if (ctx.isResolving) {
         return (
-            (fallback as JSX.Element | null) ?? (
+            (fallback as ReactElement | null) ?? (
                 <div className="flex items-center justify-center w-full h-full min-h-[240px]">
                     <Spin />
                 </div>
@@ -60,7 +60,7 @@ function RequireWorkflowKind({
         // in error state, let the page try to render — its own data atoms will
         // probably fail loudly, which is fine. Caller may pass `errorFallback`
         // to override.
-        return (errorFallback as JSX.Element | null) ?? <>{children}</>
+        return (errorFallback as ReactElement | null) ?? <>{children}</>
     }
 
     if (!ctx.workflowKind) {

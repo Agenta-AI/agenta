@@ -17,7 +17,7 @@ from agenta.sdk.agents.dtos import (
     AgentResult,
     EventSink,
     HarnessAgentTemplate,
-    HarnessType,
+    HarnessKind,
     Message,
     RunContext,
     TraceContext,
@@ -53,7 +53,7 @@ class FakeRunnerSession(Session):
         backend: "FakeRunnerBackend",
         config: HarnessAgentTemplate,
         *,
-        harness: HarnessType,
+        harness: HarnessKind,
         secrets: Optional[Mapping[str, str]],
         trace: Optional[TraceContext],
         run_context: Optional[RunContext],
@@ -120,7 +120,7 @@ class FakeRunnerBackend(Backend):
     """
 
     supported_harnesses = frozenset(
-        {HarnessType.PI, HarnessType.CLAUDE, HarnessType.AGENTA}
+        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.AGENTA}
     )
 
     def __init__(
@@ -149,7 +149,7 @@ class FakeRunnerBackend(Backend):
         sandbox: Sandbox,
         config: HarnessAgentTemplate,
         *,
-        harness: HarnessType,
+        harness: HarnessKind,
         secrets: Optional[Mapping[str, str]] = None,
         trace: Optional[TraceContext] = None,
         run_context: Optional[RunContext] = None,

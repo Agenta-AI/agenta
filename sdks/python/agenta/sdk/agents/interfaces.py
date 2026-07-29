@@ -25,7 +25,7 @@ from .dtos import (
     AgentResult,
     EventSink,
     HarnessAgentTemplate,
-    HarnessType,
+    HarnessKind,
     Message,
     RunContext,
     SessionConfig,
@@ -101,9 +101,9 @@ class Backend(ABC):
     """
 
     #: The single source of truth for what this engine can run.
-    supported_harnesses: ClassVar[FrozenSet[HarnessType]] = frozenset()
+    supported_harnesses: ClassVar[FrozenSet[HarnessKind]] = frozenset()
 
-    def supports(self, harness: HarnessType) -> bool:
+    def supports(self, harness: HarnessKind) -> bool:
         return harness in self.supported_harnesses
 
     async def setup(self) -> None:
@@ -124,7 +124,7 @@ class Backend(ABC):
         sandbox: Sandbox,
         config: HarnessAgentTemplate,
         *,
-        harness: HarnessType,
+        harness: HarnessKind,
         secrets: Optional[Mapping[str, str]] = None,
         trace: Optional[TraceContext] = None,
         run_context: Optional[RunContext] = None,
@@ -178,7 +178,7 @@ class Environment:
         self,
         config: HarnessAgentTemplate,
         *,
-        harness: HarnessType,
+        harness: HarnessKind,
         session_config: SessionConfig,
         provisioning: Optional[Mapping[str, bytes]] = None,
     ) -> Session:
@@ -211,7 +211,7 @@ class Harness(ABC):
     the per-harness knowledge lives here.
     """
 
-    harness_type: ClassVar[HarnessType]
+    harness_type: ClassVar[HarnessKind]
 
     def __init__(self, environment: Environment) -> None:
         if not environment.backend.supports(self.harness_type):
@@ -245,7 +245,7 @@ class Harness(ABC):
         instructions = config.agent.instructions
         if instructions and instructions.strip():
             filename = (
-                "CLAUDE.md" if self.harness_type is HarnessType.CLAUDE else "AGENTS.md"
+                "CLAUDE.md" if self.harness_type is HarnessKind.CLAUDE else "AGENTS.md"
             )
             files[filename] = instructions.encode("utf-8")
         return files
