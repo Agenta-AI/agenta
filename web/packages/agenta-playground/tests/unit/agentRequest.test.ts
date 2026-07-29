@@ -183,8 +183,8 @@ describe("buildAgentRequest", () => {
         const u2 = {role: "user", parts: [{type: "text", text: "q2"}]}
 
         // Runtime override path (getEnv checks globalThis.__env before the build-time snapshot).
-        const enableFlag = () => {
-            ;(globalThis as any).__env = {NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY: "true"}
+        const setFlag = (value: string) => {
+            ;(globalThis as any).__env = {NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY: value}
         }
         afterEach(() => {
             delete (globalThis as any).__env
@@ -196,25 +196,32 @@ describe("buildAgentRequest", () => {
             return (req!.requestBody.data as any).inputs.messages
         }
 
-        it("sends only the trailing user message when enabled", async () => {
-            enableFlag()
+        it("sends only the trailing user message by default (flag absent)", async () => {
             expect(await outMessages([u1, a1, u2])).toEqual([u2])
         })
 
-        it("sends the full history by default (flag off)", async () => {
-            const out = await outMessages([u1, a1, u2])
-            expect(out).toEqual([u1, a1, u2])
+        it("sends only the trailing user message when explicitly enabled", async () => {
+            setFlag("true")
+            expect(await outMessages([u1, a1, u2])).toEqual([u2])
         })
 
-        it("keeps the full history on a resume (trailing assistant) even when enabled", async () => {
-            enableFlag()
+        it('an empty value (compose "${VAR:-}" passthrough) keeps the default on', async () => {
+            setFlag("")
+            expect(await outMessages([u1, a1, u2])).toEqual([u2])
+        })
+
+        it('sends the full history when explicitly disabled ("false")', async () => {
+            setFlag("false")
+            expect(await outMessages([u1, a1, u2])).toEqual([u1, a1, u2])
+        })
+
+        it("keeps the full history on a resume (trailing assistant) even when on", async () => {
             const out = await outMessages([u1, a1])
             expect(out.length).toBeGreaterThan(1)
             expect(out[out.length - 1].role).toBe("assistant")
         })
 
         it("sends the full history when there is no session id", async () => {
-            enableFlag()
             expect(await outMessages([u1, a1, u2], "")).toEqual([u1, a1, u2])
         })
     })
