@@ -197,7 +197,11 @@
     --ag-strip-card-border: #eaeff5;
     --ag-strip-card-border-hover: #bdc7d1;
     --ag-strip-card-hover-shadow: 0 2px 8px -2px rgba(28, 44, 61, 0.12);
-    --ag-sidebar-bg: var(--ag-surface-raised);
+    --ag-shell-rail-bg: #ffffff;
+    --ag-shell-line: #e3e5e9;
+    --ag-scroll-thumb: rgba(15, 23, 42, 0.22);
+    --ag-scroll-thumb-hover: rgba(15, 23, 42, 0.38);
+    --ag-sidebar-bg: var(--ag-shell-rail-bg);
 
     /* --- legacy --ag-c-* shim (light = original hex) --- */
     --ag-c-051729: #051729;
@@ -507,7 +511,11 @@
     --ag-strip-card-border: #232327;
     --ag-strip-card-border-hover: #3a3a40;
     --ag-strip-card-hover-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.45);
-    --ag-sidebar-bg: var(--ag-surface-raised);
+    --ag-shell-rail-bg: #121316;
+    --ag-shell-line: #2b2d32;
+    --ag-scroll-thumb: rgba(255, 255, 255, 0.20);
+    --ag-scroll-thumb-hover: rgba(255, 255, 255, 0.34);
+    --ag-sidebar-bg: var(--ag-shell-rail-bg);
 
     /* --- legacy --ag-c-* shim (dark aliased to roles where possible) --- */
     --ag-c-051729: rgba(255, 255, 255, 0.88);

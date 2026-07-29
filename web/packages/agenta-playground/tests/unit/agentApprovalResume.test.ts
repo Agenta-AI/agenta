@@ -43,6 +43,30 @@ const assistantWithClientTool = (state: string, output?: unknown) => ({
     ],
 })
 
+const warmResumedSecondApproval = () => ({
+    id: "a1",
+    role: "assistant",
+    parts: [
+        {type: "step-start"},
+        {
+            type: "tool-bash",
+            toolCallId: "call_1",
+            state: "output-error",
+            input: {command: "command a"},
+            errorText: "APPROVED_EXECUTION_RESULT_UNKNOWN: result was not observed",
+            approval: {id: "perm_1", approved: true},
+        },
+        {
+            type: "tool-bash",
+            toolCallId: "call_2",
+            state: "approval-responded",
+            input: {command: "command b"},
+            approval: {id: "perm_2", approved: true},
+        },
+        {type: "step-start"},
+    ],
+})
+
 describe("agentShouldResumeAfterApproval", () => {
     it("RESUMES on a deny-only decision (the F-036 dead-end fix)", () => {
         const messages = [user("do it"), assistantWithTool("approval-responded", false)]
@@ -52,6 +76,11 @@ describe("agentShouldResumeAfterApproval", () => {
     it("resumes on an approve decision too", () => {
         const messages = [user("do it"), assistantWithTool("approval-responded", true)]
         expect(agentShouldResumeAfterApproval({messages})).toBe(true)
+    })
+
+    it("does NOT resume a rebuilt answered conversation without a live interaction", () => {
+        const messages = [user("do it"), assistantWithTool("approval-responded", true)]
+        expect(agentShouldResumeAfterApproval({messages, liveInteraction: null})).toBe(false)
     })
 
     it("does NOT resume while a gate is still pending (approval-requested)", () => {
@@ -72,7 +101,7 @@ describe("agentShouldResumeAfterApproval", () => {
         expect(agentShouldResumeAfterApproval({messages})).toBe(false)
     })
 
-    it("does NOT resume when a sibling tool on the turn is unsettled", () => {
+    it("resumes when one approval is answered and a sibling approval remains pending", () => {
         const messages = [
             user("do two"),
             {
@@ -97,7 +126,12 @@ describe("agentShouldResumeAfterApproval", () => {
                 ],
             },
         ]
-        expect(agentShouldResumeAfterApproval({messages})).toBe(false)
+        expect(
+            agentShouldResumeAfterApproval({
+                messages,
+                liveInteraction: {kind: "approval", id: "perm_1"},
+            }),
+        ).toBe(true)
     })
 
     it("resumes when a responded gate sits alongside an already-completed tool", () => {
@@ -121,6 +155,117 @@ describe("agentShouldResumeAfterApproval", () => {
                         state: "output-available",
                         input: {path: "/y"},
                         output: {ok: true},
+                    },
+                ],
+            },
+        ]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(true)
+    })
+
+    it("RESUMES per card while another concurrent approval is pending", () => {
+        // One live answer dispatches immediately; the runner carries the untouched gate forward.
+        const messages = [
+            user("do two"),
+            {
+                id: "a1",
+                role: "assistant",
+                parts: [
+                    {type: "step-start"},
+                    {
+                        type: "tool-deleteFile",
+                        toolCallId: "call_1",
+                        state: "approval-responded",
+                        input: {path: "/x"},
+                        approval: {id: "perm_1", approved: true},
+                    },
+                    {
+                        type: "tool-deleteFile",
+                        toolCallId: "call_2",
+                        state: "approval-requested",
+                        input: {path: "/y"},
+                        approval: {id: "perm_2"},
+                    },
+                ],
+            },
+        ]
+        expect(
+            agentShouldResumeAfterApproval({
+                messages,
+                liveInteraction: {kind: "approval", id: "perm_1"},
+            }),
+        ).toBe(true)
+    })
+
+    it("matches the clicked approval when a later client-tool result exists", () => {
+        const messages = [
+            user("approve one while connection result is present"),
+            {
+                id: "a1",
+                role: "assistant",
+                parts: [
+                    {type: "step-start"},
+                    {
+                        type: "tool-deleteFile",
+                        toolCallId: "call_clicked",
+                        state: "approval-responded",
+                        input: {path: "/x"},
+                        approval: {id: "perm_clicked", approved: true},
+                    },
+                    {
+                        type: "tool-writeFile",
+                        toolCallId: "call_pending",
+                        state: "approval-requested",
+                        input: {path: "/y"},
+                        approval: {id: "perm_pending"},
+                    },
+                    {
+                        type: "tool-request_connection",
+                        toolCallId: "call_client",
+                        state: "output-available",
+                        input: {integration: "github"},
+                        output: {connected: true},
+                    },
+                ],
+            },
+        ]
+
+        expect(
+            agentShouldResumeAfterApproval({
+                messages,
+                liveInteraction: {kind: "approval", id: "perm_clicked"},
+            }),
+        ).toBe(true)
+        expect(
+            agentShouldResumeAfterApproval({
+                messages,
+                liveInteraction: {kind: "approval", id: "perm_missing"},
+            }),
+        ).toBe(false)
+    })
+
+    it("RESUMES once BOTH concurrent approval cards are answered", () => {
+        // Same two-gate turn, now both answered (one approve, one deny). Every card is settled
+        // (`approval-responded`), so the run resumes and the runner gets both round-trips.
+        const messages = [
+            user("do two"),
+            {
+                id: "a1",
+                role: "assistant",
+                parts: [
+                    {type: "step-start"},
+                    {
+                        type: "tool-deleteFile",
+                        toolCallId: "call_1",
+                        state: "approval-responded",
+                        input: {path: "/x"},
+                        approval: {id: "perm_1", approved: true},
+                    },
+                    {
+                        type: "tool-deleteFile",
+                        toolCallId: "call_2",
+                        state: "approval-responded",
+                        input: {path: "/y"},
+                        approval: {id: "perm_2", approved: false},
                     },
                 ],
             },
@@ -160,6 +305,33 @@ describe("agentShouldResumeAfterApproval", () => {
 
     it("does NOT resume while a client tool is still streaming its input", () => {
         const messages = [user("connect github"), assistantWithClientTool("input-streaming")]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(false)
+    })
+
+    it("keeps the all-settled rule when an approval sits beside a pending client tool", () => {
+        const messages = [
+            user("connect then approve"),
+            {
+                id: "a1",
+                role: "assistant",
+                parts: [
+                    {type: "step-start"},
+                    {
+                        type: "tool-request_connection",
+                        toolCallId: "call_c",
+                        state: "input-available",
+                        input: {integration: "github"},
+                    },
+                    {
+                        type: "tool-deleteFile",
+                        toolCallId: "call_1",
+                        state: "approval-responded",
+                        input: {path: "/x"},
+                        approval: {id: "perm_1", approved: true},
+                    },
+                ],
+            },
+        ]
         expect(agentShouldResumeAfterApproval({messages})).toBe(false)
     })
 
@@ -283,6 +455,23 @@ describe("agentShouldResumeAfterApproval", () => {
                 ],
             },
         ]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(false)
+    })
+
+    it("dispatches a live second-card answer before a warm-resume step tail", () => {
+        const messages = [user("run two commands"), warmResumedSecondApproval()]
+
+        expect(
+            agentShouldResumeAfterApproval({
+                messages,
+                liveInteraction: {kind: "approval", id: "perm_2"},
+            }),
+        ).toBe(true)
+    })
+
+    it("keeps the same warm-resume step tail inert without a live marker", () => {
+        const messages = [user("run two commands"), warmResumedSecondApproval()]
+
         expect(agentShouldResumeAfterApproval({messages})).toBe(false)
     })
 

@@ -11,7 +11,7 @@ import {Skeleton} from "antd"
 import {useSetAtom} from "jotai"
 
 import {configFilesDrawerAtomFamily, useConfigDrive} from "./configDrive"
-import {FOCUS_RING} from "./DriveFileRow"
+import {DriveWarningBadge, FOCUS_RING} from "./DriveFileRow"
 
 export default function StorageFilesHeader({revisionId}: {revisionId?: string | null}) {
     const {drive} = useConfigDrive(revisionId)
@@ -31,6 +31,26 @@ export default function StorageFilesHeader({revisionId}: {revisionId?: string | 
     const label = count === 1 && !drive.fileCountCapped ? "1 file" : `${shown} files`
 
     if (count === 0) {
+        // Zero files but a mount failed (e.g. the agent mount errored over an empty session) → a plain
+        // "No files" would hide the failure, so badge the folder icon and keep it a button into the
+        // drawer (where the retry lives). A clean empty just reads "No files".
+        if (drive.partialErrored) {
+            return (
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.currentTarget.blur()
+                        setDrawer({open: true, initialPath: null})
+                    }}
+                    className={`flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-[var(--ag-colorTextTertiary)] transition-colors hover:text-[var(--ag-colorText)] ${FOCUS_RING}`}
+                >
+                    No files
+                    <DriveWarningBadge show>
+                        <FolderOpen size={13} />
+                    </DriveWarningBadge>
+                </button>
+            )
+        }
         return <span className="text-xs text-[var(--ag-colorTextTertiary)]">No files</span>
     }
 
@@ -53,8 +73,11 @@ export default function StorageFilesHeader({revisionId}: {revisionId?: string | 
             ) : null}
             {label}
             {/* Opens the Files drawer (a side panel), NOT a new tab — a folder-open glyph, not the
-                external-link arrow that read as "leaves the page". */}
-            <FolderOpen size={13} />
+                external-link arrow that read as "leaves the page". A mount failure badges this folder
+                (the button already opens the drawer, where the retry lives). */}
+            <DriveWarningBadge show={drive.partialErrored}>
+                <FolderOpen size={13} />
+            </DriveWarningBadge>
         </button>
     )
 }

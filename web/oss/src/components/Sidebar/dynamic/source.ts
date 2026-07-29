@@ -1,4 +1,5 @@
 import type {ListQueryState} from "@agenta/entities/shared"
+import {idleReadyAtom} from "@agenta/shared/state"
 import {atom, type Atom} from "jotai"
 
 import {sidebarOpenGroupsAtomFamily, sidebarPopupGroupsAtomFamily} from "@/oss/lib/atoms/sidebar"
@@ -22,6 +23,11 @@ export const gatedSidebarSource = <TRef extends SidebarEntityRef>(
 
         if (!inlineOpen && !popupOpen) {
             return {status: "idle", refs: []}
+        }
+
+        // Sidebar chrome — hold the catalog queries until the first idle moment after load.
+        if (!get(idleReadyAtom)) {
+            return {status: "loading", refs: []}
         }
 
         const query = get(listAtom)

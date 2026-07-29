@@ -137,10 +137,6 @@ from oss.src.core.invocations.service import InvocationsService
 from oss.src.core.ai_services.service import AIServicesService
 from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
 
-from oss.src.dbs.postgres.sessions.states.dbes import SessionStateDBE  # noqa: F401
-from oss.src.dbs.postgres.sessions.states.dao import SessionStatesDAO
-from oss.src.core.sessions.states.service import SessionStatesService
-
 from oss.src.core.accounts.service import PlatformAdminAccountsService
 from oss.src.apis.fastapi.accounts.router import PlatformAdminAccountsRouter
 from oss.src.dbs.postgres.gateway.connections.dao import ConnectionsDAO
@@ -178,10 +174,15 @@ from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.tasks.asyncio.sessions.orphan_sweep import orphan_sweep_loop
 from oss.src.dbs.redis.shared.engine import get_lock_engine
 
+from oss.src.dbs.postgres.sessions.turns.dbes import SessionTurnDBE  # noqa: F401
+from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
+from oss.src.core.sessions.turns.service import SessionTurnsService
+
 # Interactions
 from oss.src.dbs.postgres.sessions.interactions.dbes import SessionInteractionDBE  # noqa: F401
 from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.core.sessions.service import SessionsService
 from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
     InteractionsDispatcher,
 )
@@ -549,6 +550,7 @@ environments_dao = GitDAO(
 evaluations_dao = EvaluationsDAO(engine=_transactions_engine)
 folders_dao = FoldersDAO(engine=_transactions_engine)
 session_streams_dao = SessionStreamsDAO(engine=_transactions_engine)
+session_turns_dao = SessionTurnsDAO(engine=_transactions_engine)
 
 connections_dao = ConnectionsDAO(engine=_transactions_engine)
 mounts_dao = MountsDAO(engine=_transactions_engine)
@@ -614,6 +616,10 @@ _lock_engine = get_lock_engine()
 session_streams_service = SessionStreamsService(
     streams_dao=session_streams_dao,
     lock_engine=_lock_engine,
+)
+
+session_turns_service = SessionTurnsService(
+    turns_dao=session_turns_dao,
 )
 
 workflows_service = WorkflowsService(
@@ -1026,22 +1032,26 @@ ai_services = AIServicesRouter(
     ai_services_service=ai_services_service,
 )
 
-# SESSION STATES ---------------------------------------------------------------
+# SESSIONS ---------------------------------------------------------------------
+# Session header rename (name/description) lives on the streams router
+# (PUT /sessions/streams/header) via streams_service.set_header.
 
-session_states_dao = SessionStatesDAO(engine=_transactions_engine)
-
-session_states_service = SessionStatesService(
-    session_states_dao=session_states_dao,
+sessions_service = SessionsService(
+    streams_service=session_streams_service,
+    turns_service=session_turns_service,
+    interactions_service=interactions_service,
+    mounts_service=mounts_service,
 )
 
 sessions = SessionsRouter(
     streams_service=session_streams_service,
-    states_service=session_states_service,
     records_service=records_service,
     interactions_service=interactions_service,
     workflows_service=workflows_service,
     session_mounts_service=session_mounts_service,
     mounts_service=mounts_service,
+    turns_service=session_turns_service,
+    sessions_service=sessions_service,
     respond_task=_interactions_worker.respond_interaction,
 )
 
@@ -1480,14 +1490,19 @@ app.include_router(
 )
 
 app.include_router(
+    router=sessions.turns.router,
+    prefix="/sessions/turns",
+    tags=["Sessions"],
+)
+
+app.include_router(
     router=platform_admin_accounts.router,
     prefix="/admin",
     tags=["Admin"],
 )
 
 app.include_router(
-    router=sessions.states.router,
-    prefix="/sessions",
+    router=sessions.root.router,
     tags=["Sessions"],
 )
 

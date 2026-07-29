@@ -8,7 +8,7 @@ import "dotenv/config";
 
 const config: Config = {
   title: "Docs - Agenta",
-  tagline: "The LLMOps platform.",
+  tagline: "The open-source workspace for your agents.",
   favicon: "images/favicon.ico",
   // Public site lives on the main domain under /docs
   url: "https://agenta.ai",
@@ -690,7 +690,7 @@ const config: Config = {
       "docusaurus-plugin-llms-txt",
       {
         title: "Agenta Documentation",
-        description: "The LLMOps platform for building and deploying LLM applications.",
+        description: "The open-source workspace for your agents — build them through chat, improve them with feedback, and share them with your team.",
         fullLLMsTxt: true,
       },
     ],

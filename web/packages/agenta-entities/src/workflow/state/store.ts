@@ -11,6 +11,7 @@
  * @packageDocumentation
  */
 
+import {catalogPersister, immutablePersister} from "@agenta/shared/api/persist"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {createBatchFetcher, stripEmptyCollectionsDeep} from "@agenta/shared/utils"
 import isEqual from "fast-deep-equal"
@@ -62,8 +63,6 @@ import {
     withLatestAgentFlags,
 } from "./helpers"
 import {writePersistedAgentType} from "./persistedAgentType"
-import {persistedCatalogSeed, writePersistedCatalog} from "./persistedCatalog"
-import {persistedInspectSeed, writePersistedInspect} from "./persistedInspect"
 
 // ============================================================================
 // HELPERS
@@ -127,7 +126,12 @@ function primeWorkflowRevisionDetailCache(
     workflow: Workflow | null | undefined,
 ): void {
     if (!workflow?.id) return
-    queryClient.setQueryData(["workflows", "revision", workflow.id, projectId], workflow)
+    const queryKey = ["workflows", "revision", workflow.id, projectId]
+    queryClient.setQueryData(queryKey, workflow)
+    // setQueryData bypasses the persister — mirror full bodies (only revisions carry `data`) to IDB.
+    if (workflow.data) {
+        void immutablePersister.persistQueryByKey(queryKey, queryClient).catch(() => undefined)
+    }
 }
 
 /**
@@ -445,6 +449,7 @@ export const appWorkflowsListQueryAtom = atomWithQuery((get) => {
 export const workflowDetailQueryAtomFamily = atomFamily((workflowId: string | null) =>
     atomWithQuery((get) => {
         const projectId = get(workflowProjectIdAtom)
+        const queryClient = get(queryClientAtom)
         return {
             queryKey: ["workflows", "detail", projectId, workflowId],
             queryFn: async (): Promise<Workflow | null> => {
@@ -459,10 +464,23 @@ export const workflowDetailQueryAtomFamily = atomFamily((workflowId: string | nu
                     workflowRefs: [{id: workflowId}],
                     includeArchived: true,
                 })
-                return (response.workflows?.[0] as Workflow | undefined) ?? null
+                const workflow = (response.workflows?.[0] as Workflow | undefined) ?? null
+                // Same endpoint + body as the artifact query, under a different key. Prime it so
+                // whichever of the two runs first satisfies the other (this fired twice on boot:
+                // once from the boot prewarm, once when the playground mounted).
+                if (workflow?.id) {
+                    queryClient.setQueryData(
+                        ["workflows", "artifact", workflow.id, projectId],
+                        workflow,
+                    )
+                }
+                return workflow
             },
             enabled: get(sessionAtom) && !!projectId && !!workflowId,
             staleTime: 30_000,
+            // Class C paint-fast: PlaygroundRouter branches on this tiny artifact, so serve it
+            // from disk on reload; restored entries older than staleTime revalidate in background.
+            persister: catalogPersister.persisterFn<Workflow | null, (string | null)[]>,
         }
     }),
 )
@@ -567,6 +585,24 @@ export const workflowVariantsListDataAtomFamily = atomFamily((workflowId: string
     }),
 )
 
+const EMPTY_WORKFLOW_VARIANTS: WorkflowVariant[] = []
+
+// Passive peek at the cached variants list — never mounts/fetches the query.
+// Non-reactive to cache writes; swap to the mounting atom once data is needed.
+export const workflowVariantsCachedListAtomFamily = atomFamily((workflowId: string) =>
+    atom<WorkflowVariant[]>((get) => {
+        const projectId = get(workflowProjectIdAtom)
+        if (!projectId || !workflowId) return EMPTY_WORKFLOW_VARIANTS
+        const cached = get(queryClientAtom).getQueryData<WorkflowVariantsResponse>([
+            "workflows",
+            "variants",
+            workflowId,
+            projectId,
+        ])
+        return cached?.workflow_variants ?? EMPTY_WORKFLOW_VARIANTS
+    }),
+)
+
 // ============================================================================
 // REVISION LIST QUERY BY WORKFLOW (for 2-level hierarchy: Workflow → Revision)
 // ============================================================================
@@ -615,10 +651,13 @@ export const workflowRevisionsByWorkflowQueryAtomFamily = atomFamily((workflowId
                 const revisions = response.workflow_revisions ?? []
                 const latestByRecency = pickMostRecentWorkflowRevision(revisions)
                 if (latestByRecency) {
-                    queryClient.setQueryData(
-                        ["workflows", "latestRevision", workflowId, projectId],
-                        latestByRecency,
-                    )
+                    const latestKey = ["workflows", "latestRevision", workflowId, projectId]
+                    queryClient.setQueryData(latestKey, latestByRecency)
+                    // setQueryData bypasses the persister; mirror to IDB so a warm reload paints the
+                    // latest from disk even when this prime keeps the dedicated query disabled.
+                    void catalogPersister
+                        .persistQueryByKey(latestKey, queryClient)
+                        .catch(() => undefined)
                     // Persist agent-ness for the next cold load (playgroundEarlyAgentStateAtom).
                     // This priming DISABLES the dedicated latest-revision query (its only other
                     // writer), so without writing here the map starves and every cold load
@@ -918,6 +957,12 @@ export const workflowLatestRevisionQueryAtomFamily = atomFamily((workflowId: str
             initialData: detailCached ?? undefined,
             enabled: get(sessionAtom) && !!projectId && !!workflowId && !detailCached,
             staleTime: 30_000,
+            // Class B paint-fast: a warm reload resolves the fallback selector + "latest" tag from
+            // disk instead of blocking on the (backend-slow) revisions round-trip; the restored
+            // entry is older than staleTime so exactly one background revalidate fires. Live commits
+            // stay correct via invalidateAgentCommittedRevisionCache (prefix-invalidates this key).
+            // The setQueryData prime paths below bypass the persister, so they mirror to disk too.
+            persister: catalogPersister.persisterFn<Workflow | null, (string | null)[]>,
         }
     }),
 )
@@ -946,11 +991,18 @@ export const workflowLatestRevisionIdAtomFamily = atomFamily((workflowId: string
         const query = get(workflowLatestRevisionQueryAtomFamily(workflowId))
         if (query.data?.id) return query.data.id
 
-        // Fall back to the revisions-by-workflow cache (e.g. primed by the
-        // revisions table). The raw refs are NOT guaranteed to be ordered, so
-        // sort descending by recency and skip v0 before picking the first.
-        const revisionsQuery = get(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
-        const refs = revisionsQuery.data?.refs
+        // Fall back to the revisions-by-workflow cache via a PASSIVE peek —
+        // get() on the query atom mounts it and fires the full-list fetch on
+        // every cold load while the dedicated latest query is still in flight.
+        // Reactivity is provided by branch 1 (both writers prime its cache).
+        const projectId = get(workflowProjectIdAtom)
+        const listData = get(queryClientAtom).getQueryData<WorkflowRevisionRefsResponse>([
+            "workflows",
+            "revisionsByWorkflow",
+            workflowId,
+            projectId,
+        ])
+        const refs = listData?.refs
         if (refs && refs.length > 0) {
             const sorted = [...refs]
                 .filter((r) => (r.version ?? 0) !== 0)
@@ -1045,11 +1097,19 @@ const workflowArtifactBatchFetcher = createBatchFetcher<WorkflowArtifactRequest,
  */
 export const workflowArtifactScopedQueryAtomFamily = atomFamily(
     ({projectId, workflowId}: WorkflowArtifactRequest) =>
-        atomWithQuery(() => ({
+        atomWithQuery((get) => ({
             queryKey: ["workflows", "artifact", workflowId, projectId],
             queryFn: async (): Promise<Workflow | null> => {
                 if (!projectId || !workflowId) return null
-                return workflowArtifactBatchFetcher({projectId, workflowId})
+                const workflow = await workflowArtifactBatchFetcher({projectId, workflowId})
+                // Reverse of the priming in `workflowDetailQueryAtomFamily`: same request, other key.
+                if (workflow) {
+                    get(queryClientAtom).setQueryData(
+                        ["workflows", "detail", projectId, workflowId],
+                        workflow,
+                    )
+                }
+                return workflow
             },
             enabled:
                 !!projectId &&
@@ -1115,7 +1175,7 @@ export function primeWorkflowArtifactCacheImperative(
  * via the batch fetcher because the playground stores revision IDs, not workflow IDs.
  */
 export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
-    atomWithQuery((get) => {
+    atomWithQuery<Workflow | null>((get) => {
         const projectId = get(workflowProjectIdAtom)
         const queryClient = get(queryClientAtom)
         const detailCached =
@@ -1169,6 +1229,8 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
                 return persistType(await workflowRevisionBatchFetcher({projectId, revisionId}))
             },
             initialData: detailCached ?? undefined,
+            // detailCached/enabled evaluate synchronously; the persister restores only inside a fetch they allowed, so no race.
+            persister: immutablePersister.persisterFn,
             enabled:
                 get(sessionAtom) &&
                 !!projectId &&
@@ -1176,7 +1238,8 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
                 !detailCached &&
                 !isLocalDraftId(revisionId) &&
                 !isPlaceholderId(revisionId),
-            staleTime: 30_000,
+            staleTime: Infinity,
+            gcTime: 60 * 60_000,
         }
     }),
 )
@@ -1197,7 +1260,7 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
  * `http://host/services/completion` → `agenta:builtin:completion:v0`).
  */
 export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
-    atomWithQuery((get) => {
+    atomWithQuery<InspectWorkflowResponse | null>((get) => {
         const projectId = get(workflowProjectIdAtom)
         const revisionQuery = get(workflowQueryAtomFamily(revisionId))
         const serverData = revisionQuery.data ?? null
@@ -1248,24 +1311,20 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
             hasUrl &&
             (isAgent || !hasAllSchemas)
 
-        // Per-SERVICE cache key (inspect is keyed by uri+serviceUrl, shared across revisions), so one
-        // persisted entry serves every revision of an agent. Only seed when inspect actually runs.
-        const inspectCacheKey =
-            isEnabled && uri && serviceUrl ? `${projectId}::${uri}::${serviceUrl}` : ""
-        const inspectSeed = persistedInspectSeed<InspectWorkflowResponse>(inspectCacheKey)
-        // Disk seed present → the config sections already painted, so this is a background
-        // revalidation; demote it to low priority so it yields to the critical-path queries.
-        const lowPriority = inspectSeed.initialData !== undefined
+        const queryClient = get(queryClientAtom)
+        // Service-scoped key (no revisionId): inspect depends only on uri+serviceUrl+projectId,
+        // and local draft ids rotate per reload — keying by them broke persister restores.
+        const queryKey = ["workflows", "inspect", uri, serviceUrl, projectId]
         return {
-            queryKey: ["workflows", "inspect", revisionId, uri, serviceUrl, projectId],
+            queryKey,
             queryFn: async (): Promise<InspectWorkflowResponse | null> => {
                 if (!projectId || !uri || !serviceUrl) return null
-                const result = await inspectWorkflow(uri, projectId, serviceUrl, {lowPriority})
-                if (result) writePersistedInspect(inspectCacheKey, result)
-                return result
+                // In-memory data present ⇒ this is a background revalidate ⇒ low network priority.
+                const lowPriority = queryClient.getQueryData(queryKey) !== undefined
+                return inspectWorkflow(uri, projectId, serviceUrl, {lowPriority})
             },
-            // Disk seed → paint config sections instantly on reload, then revalidate once (SWR).
-            ...inspectSeed,
+            // IDB-persisted (per uri+serviceUrl+project): paint from disk, then one revalidate when stale.
+            persister: catalogPersister.persisterFn,
             enabled: isEnabled,
             staleTime: 60_000,
         }
@@ -1310,7 +1369,7 @@ export const simpleApplicationQueryAtomFamily = atomFamily((applicationId: strin
     }),
 )
 
-export const agentBuildKitOverlayAtom = atomWithQuery((get) => {
+export const agentBuildKitOverlayAtom = atomWithQuery<AgentBuildKitOverlay | null>((get) => {
     const projectId = get(workflowProjectIdAtom)
     return {
         queryKey: ["agentBuildKitOverlay", AGENT_BUILD_KIT_WORKFLOW_SLUG, projectId],
@@ -1319,8 +1378,10 @@ export const agentBuildKitOverlayAtom = atomWithQuery((get) => {
             return fetchAgentBuildKitOverlay(projectId)
         },
         enabled: get(sessionAtom) && !!projectId,
-        staleTime: Infinity,
+        // Platform-managed slug (Class B): paint from disk, revalidate when >5m old.
+        staleTime: 5 * 60_000,
         refetchOnWindowFocus: false,
+        persister: catalogPersister.persisterFn,
     }
 })
 
@@ -1394,27 +1455,23 @@ export const workflowBuildKitOverlayReadyAtomFamily = atomFamily((revisionId: st
  * When the frontend encounters a schema property with `x-ag-type-ref` but no
  * sub-properties, it calls this to get the full schema from the backend.
  *
- * Persisted to localStorage (`persistedCatalogSeed`) so a cold reload paints the
+ * Persisted to IndexedDB (`catalogPersister`) so a cold reload paints the
  * agent-template config sections from disk instantly, then revalidates once in the
- * background. NOT `staleTime: Infinity` — the agent-template schema is still evolving,
- * so the disk seed is treated as stale-on-reload; the finite `staleTime` only dedupes
- * in-session remounts (e.g. revision switches).
+ * background when stale. NOT `staleTime: Infinity` — the agent-template schema is still
+ * evolving; the finite `staleTime` only dedupes in-session remounts (e.g. revision switches).
  */
 export const agTypeSchemaAtomFamily = atomFamily((agType: string) =>
-    atomWithQuery((_get) => {
-        const cacheKey = `ag-type-schema:${agType}`
-        const seed = persistedCatalogSeed<Record<string, unknown>>(cacheKey)
-        // With a disk seed the UI already painted, so this fetch is a background revalidation —
-        // demote it to low network priority so it doesn't compete with the critical-path queries.
-        const lowPriority = seed.initialData !== undefined
+    atomWithQuery<Record<string, unknown>>((get) => {
+        const queryClient = get(queryClientAtom)
+        const queryKey = ["workflows", "schemas", "ag-types", agType]
         return {
-            queryKey: ["workflows", "schemas", "ag-types", agType],
+            queryKey,
             queryFn: async (): Promise<Record<string, unknown>> => {
-                const schema = await fetchAgTypeSchema(agType, {lowPriority})
-                writePersistedCatalog(cacheKey, schema)
-                return schema
+                // In-memory data present ⇒ this is a background revalidate ⇒ low network priority.
+                const lowPriority = queryClient.getQueryData(queryKey) !== undefined
+                return fetchAgTypeSchema(agType, {lowPriority})
             },
-            ...seed,
+            persister: catalogPersister.persisterFn,
             staleTime: 5 * 60_000,
             refetchOnWindowFocus: false,
         }
@@ -2643,7 +2700,11 @@ export function seedCreatedWorkflowCache(
 
     store.set(workflowLocalServerDataAtomFamily(revision.id), revision)
     queryClient.setQueryData(["workflows", "revision", revision.id, projectId], revision)
-    queryClient.setQueryData(["workflows", "latestRevision", appId, projectId], revision)
+    const latestKey = ["workflows", "latestRevision", appId, projectId]
+    queryClient.setQueryData(latestKey, revision)
+    // Mirror to IDB (setQueryData bypasses the persister) so a warm reload after a commit paints
+    // the just-committed latest from disk.
+    void catalogPersister.persistQueryByKey(latestKey, queryClient).catch(() => undefined)
 
     queryClient.setQueryData<WorkflowRevisionRefsResponse>(
         ["workflows", "revisionsByWorkflow", appId, projectId],

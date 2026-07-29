@@ -3,10 +3,13 @@ import {useEffect, useMemo} from "react"
 import {
     Buildings,
     ClockCounterClockwise,
+    Flag,
+    FolderSimple,
     Key,
     Lightning,
     Link,
     Receipt,
+    ShieldCheck,
     Sparkle,
     User,
     UsersThree,
@@ -20,6 +23,8 @@ import {
     getSettingsSidebarTabs,
     isSettingsTabKey,
     resolveSettingsTab,
+    SETTINGS_SCOPES,
+    type SettingsScopeKey,
     type SettingsTabKey,
 } from "@/oss/components/pages/settings/assets/navigation"
 import {useSettingsAccess} from "@/oss/components/pages/settings/hooks/useSettingsAccess"
@@ -43,8 +48,6 @@ interface SettingsScopeOptions {
     lastPath?: string
 }
 
-const SETTINGS_TAB_DIVIDERS = new Set<SettingsTabKey>(["webhooks", "account"])
-
 const getSettingsSidebarIcon = (key: SettingsTabKey) => {
     switch (key) {
         case "apiKeys":
@@ -61,16 +64,20 @@ const getSettingsSidebarIcon = (key: SettingsTabKey) => {
             return <Link size={16} className="mt-0.5" />
         case "workspace":
             return <UsersThree size={16} className="mt-0.5" />
-        case "organization":
+        case "organizationGeneral":
             return <Buildings size={16} className="mt-0.5" />
+        case "organization":
+            return <ShieldCheck size={16} className="mt-0.5" />
         case "auditLog":
             return <ClockCounterClockwise size={16} className="mt-0.5" />
         case "billing":
             return <Receipt size={16} className="mt-0.5" />
         case "account":
             return <User size={16} className="mt-0.5" />
+        case "featureFlags":
+            return <Flag size={16} className="mt-0.5" />
         case "projects":
-            return <Buildings size={16} className="mt-0.5" />
+            return <FolderSimple size={16} className="mt-0.5" />
         default: {
             const exhaustiveCheck: never = key
             return exhaustiveCheck
@@ -78,20 +85,27 @@ const getSettingsSidebarIcon = (key: SettingsTabKey) => {
     }
 }
 
-const useSettingsTabs = (): SidebarConfig[] => {
+const useSettingsTabs = (): Record<SettingsScopeKey, SidebarConfig[]> => {
     const access = useSettingsAccess()
 
-    return useMemo<SidebarConfig[]>(
-        () =>
-            getSettingsSidebarTabs(access).map(({key, title, isHidden}) => ({
+    return useMemo<Record<SettingsScopeKey, SidebarConfig[]>>(() => {
+        const items: Record<SettingsScopeKey, SidebarConfig[]> = {
+            project: [],
+            organization: [],
+            personal: [],
+        }
+
+        getSettingsSidebarTabs(access).forEach(({key, scope, title, isHidden}) => {
+            items[scope].push({
                 key,
                 title,
                 icon: getSettingsSidebarIcon(key),
-                divider: SETTINGS_TAB_DIVIDERS.has(key),
                 isHidden,
-            })),
-        [access],
-    )
+            })
+        })
+
+        return items
+    }, [access])
 }
 
 const useSettingsSidebarSelection = (): SidebarSelection => {
@@ -123,10 +137,26 @@ const useSettingsSidebarSelection = (): SidebarSelection => {
 }
 
 const useSettingsSidebarSections = (): SidebarSection[] => {
-    const items = useSettingsTabs()
+    const tabsByScope = useSettingsTabs()
     const bottomSection = useSidebarBottomSection({includeSettingsLink: false})
 
-    return useMemo(() => [{key: "settings", items}, bottomSection], [bottomSection, items])
+    return useMemo(
+        () => [
+            ...SETTINGS_SCOPES.map(({key, title}, index) => ({
+                key: `settings-${key}`,
+                items: tabsByScope[key],
+                dividerBefore: index > 0,
+                before: ({collapsed}: SidebarSlotContext) =>
+                    collapsed ? null : (
+                        <div className="px-3 pb-1 pt-1 text-xs font-medium text-colorTextTertiary">
+                            {title}
+                        </div>
+                    ),
+            })),
+            bottomSection,
+        ],
+        [bottomSection, tabsByScope],
+    )
 }
 
 const SettingsSidebarHeader = ({collapsed, lastPath}: SidebarSlotContext) => (
