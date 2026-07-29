@@ -4,7 +4,7 @@ import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
-import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/pages/agents/store"
+import {useAgentsFirstRun} from "@/oss/components/pages/agents/store"
 import {urlAtom} from "@/oss/state/url"
 
 import OnboardingLoader from "./PlaygroundOnboarding/OnboardingLoader"
@@ -17,16 +17,15 @@ import AgentHome from "./index"
  *  - first-run (no agents yet) → redirect to the ephemeral onboarding playground (`/playground`);
  *  - returning (has agents)    → the agent-home list, as before.
  *
- * The decision needs the agents query, so a loading state covers both the query and the redirect
- * (a blank wait would be jarring). `!loading` = the query resolved (`isPending` false), so an empty
- * list only counts as first-run once we've actually loaded it — no false redirect during the fetch.
+ * While the list is empty we're either still confirming it or already redirecting, and the loader
+ * covers both so we never flash the wrong surface. A non-empty list is conclusive immediately, so
+ * returning users never wait. `useAgentsFirstRun` (not `agentsWorkflowsAtom`) because the decision
+ * happens on mount — see its docs.
  */
 const OnboardingEntry = () => {
     const router = useRouter()
-    const agents = useAtomValue(agentsWorkflowsAtom)
-    const loading = useAtomValue(agentsWorkflowsLoadingAtom)
+    const {resolving, firstRun} = useAgentsFirstRun()
     const {projectURL} = useAtomValue(urlAtom)
-    const firstRun = !loading && agents.length === 0
 
     // Warm the agent-template cache now so the ephemeral mint on `/playground` finds it cached (no
     // fetch) — overlaps that network with the agents query + redirect. Same cache agent-home warms.
@@ -39,13 +38,12 @@ const OnboardingEntry = () => {
     }, [])
 
     useEffect(() => {
-        if (loading || !firstRun || !projectURL) return
+        if (!firstRun || !projectURL) return
         void router.replace(`${projectURL}/playground`)
-    }, [loading, firstRun, projectURL, router])
+    }, [firstRun, projectURL, router])
 
-    // Loading the agents query, or redirecting a first-run user — the shared onboarding loader, so the
-    // whole flow reads as one continuous "setting up" screen (never the wrong surface, never blank).
-    if (loading || firstRun) {
+    // The shared onboarding loader, so the whole flow reads as one continuous "setting up" screen.
+    if (resolving) {
         return <OnboardingLoader />
     }
 
