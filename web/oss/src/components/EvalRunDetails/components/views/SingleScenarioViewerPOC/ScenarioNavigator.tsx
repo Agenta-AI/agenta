@@ -1,9 +1,8 @@
 import {memo, useCallback, useEffect, useMemo} from "react"
 
+import {useInfiniteTablePagination} from "@agenta/ui/table"
 import {LeftOutlined, RightOutlined} from "@ant-design/icons"
 import {Button, Select, SelectProps, Tag, Typography} from "antd"
-
-import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 
 import {evaluationPreviewTableStore} from "../../../evaluationPreviewTableStore"
 

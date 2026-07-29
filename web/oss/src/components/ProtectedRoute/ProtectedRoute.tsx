@@ -32,8 +32,8 @@ const BootShell = memo(function BootShell({shell}: {shell: "app" | "blank"}) {
         <div className="flex h-dvh w-full">
             <div
                 className={clsx(
-                    "h-full shrink-0 border-0 border-r border-solid border-[var(--ag-surface-divider)] bg-[var(--ag-sidebar-bg)]",
-                    collapsed ? "w-[80px]" : "w-[236px]",
+                    "h-full shrink-0 border-0 border-r border-solid border-[var(--ag-shell-line)] bg-[var(--ag-sidebar-bg)]",
+                    collapsed ? "w-[48px]" : "w-[236px]",
                 )}
             />
             <div className="grow" />

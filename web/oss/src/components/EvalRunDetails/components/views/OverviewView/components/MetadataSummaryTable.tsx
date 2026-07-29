@@ -1,4 +1,4 @@
-import {memo, useMemo, type ReactNode} from "react"
+import {memo, useMemo, type ComponentType, type ReactNode} from "react"
 
 import {Table, Typography} from "antd"
 import type {ColumnsType} from "antd/es/table"
@@ -8,6 +8,10 @@ import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 import {previewRunMetricStatsSelectorFamily} from "@/oss/components/Evaluations/atoms/runMetrics"
 import useEvaluatorReference from "@/oss/components/References/hooks/useEvaluatorReference"
 import type {BasicStats} from "@/oss/lib/metricUtils"
+import type {
+    QueryConditionPayload,
+    QueryFilteringPayload,
+} from "@/oss/services/onlineEvaluations/api"
 import {useProjectData} from "@/oss/state/project"
 
 import {evaluationQueryRevisionAtomFamily} from "../../../../atoms/query"
@@ -22,10 +26,6 @@ import {
     evaluationRunIndexAtomFamily,
     evaluationRunQueryAtomFamily,
 } from "../../../../atoms/table/run"
-import type {
-    QueryConditionPayload,
-    QueryFilteringPayload,
-} from "../../../../services/onlineEvaluations/api"
 import {buildFrequencyChartData} from "../../../EvaluatorMetricsChart/utils/chartData"
 import {ApplicationReferenceLabel, TestsetTagList, VariantRevisionLabel} from "../../../references"
 import {useRunMetricData} from "../hooks/useRunMetricData"
@@ -109,7 +109,7 @@ const QuerySummaryCell = ({runId}: MetadataCellProps) => {
 interface MetadataRowRecord {
     key: string
     label: ReactNode
-    Cell: (props: MetadataCellProps) => JSX.Element
+    Cell: ComponentType<MetadataCellProps>
     shouldDisplay?: (context: MetadataRowContext) => boolean
 }
 
@@ -425,7 +425,7 @@ const METADATA_ROWS: MetadataRowRecord[] = [
     {key: "invocation_errors", label: "Errors", Cell: InvocationErrorsCell},
 ]
 
-const EvaluatorNameLabel = ({evaluatorId}: {evaluatorId: string}) => {
+const EvaluatorNameLabel = ({evaluatorId}: {evaluatorId?: string | null}) => {
     const projectId = useProjectData()?.projectId
     const x = useEvaluatorReference({evaluatorId, projectId})
     return x?.reference?.name ?? "--"

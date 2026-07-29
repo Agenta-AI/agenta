@@ -1,4 +1,5 @@
 import {$convertToMarkdownStringCustom, PLAYGROUND_TRANSFORMERS, $isCodeBlockNode} from "@agenta/ui"
+import type {CodeLanguage} from "@agenta/ui/editor"
 import {$isCodeNode} from "@lexical/code"
 import {load as yamlLoad, dump as yamlDump, type DumpOptions} from "js-yaml"
 import JSON5 from "json5"
@@ -150,7 +151,10 @@ export function formatYAML(input: string, opts?: DumpOptions): string {
     })
 }
 
-export function getDisplayedContent(editor: LexicalEditor, language: Format): string {
+export function getDisplayedContent(
+    editor: LexicalEditor,
+    language: Format | CodeLanguage,
+): string {
     return editor.getEditorState().read(() => {
         const root = $getRoot()
 

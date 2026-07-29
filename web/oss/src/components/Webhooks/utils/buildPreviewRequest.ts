@@ -173,18 +173,6 @@ export const buildPreviewRequest = (
     formValues: WebhookFormValues,
     ctx?: PreviewContext,
 ): PreviewRequest => {
-    const {
-        provider,
-        url,
-        auth_mode,
-        auth_value,
-        github_sub_type,
-        github_repo,
-        github_pat,
-        github_workflow,
-        github_branch,
-    } = formValues
-
     // Form stores headers as header_list (array of {key, value}), convert to Record
     const headerList = (formValues as any).header_list as {key: string; value: string}[] | undefined
     const customHeaders: Record<string, string> = {}
@@ -211,7 +199,8 @@ export const buildPreviewRequest = (
         ...authHeader,
     })
 
-    if (provider === "webhook") {
+    if (formValues.provider === "webhook") {
+        const {url, auth_mode, auth_value} = formValues
         const previewHeaders: Record<string, string> = buildSystemHeaders(
             auth_mode === "authorization"
                 ? {
@@ -233,7 +222,9 @@ export const buildPreviewRequest = (
             headers: finalHeaders,
             body: eventContext,
         }
-    } else if (provider === "github") {
+    } else if (formValues.provider === "github") {
+        const {github_sub_type, github_repo, github_pat, github_workflow, github_branch} =
+            formValues
         const subType = github_sub_type || "repository_dispatch"
         const repo = github_repo || "<owner>/<repo>"
         let finalUrl = GITHUB_URL_TEMPLATES[subType].replace("{repo}", repo)

@@ -59,7 +59,7 @@ const TestcaseRowActionsDropdown = ({
         await copyToClipboard(testcaseId)
     }, [testcaseId])
 
-    const handleMenuClick = useCallback<MenuProps["onClick"]>(
+    const handleMenuClick = useCallback<NonNullable<MenuProps["onClick"]>>(
         ({key, domEvent}) => {
             domEvent.stopPropagation()
             setDropdownOpen(false)

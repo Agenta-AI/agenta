@@ -120,7 +120,8 @@ const SessionsTable: React.FC = () => {
     const isEmptyState = sessionIds.length === 0 && !isLoading
 
     return (
-        <SessionStoreProvider>
+        // Page store == default store (GlobalStateProvider), so this matches the prior fallback.
+        <SessionStoreProvider value={store}>
             <div className="flex h-full min-h-0 flex-col gap-2">
                 <ObservabilityHeader
                     columns={columns}

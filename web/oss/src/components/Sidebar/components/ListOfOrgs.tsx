@@ -24,6 +24,7 @@ import Session from "supertokens-auth-react/recipe/session"
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {useSession} from "@/oss/hooks/useSession"
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
+import type {OrgDetails} from "@/oss/lib/Types"
 import {checkOrganizationAccess} from "@/oss/services/organization/api"
 import {useOrgData} from "@/oss/state/org"
 import {resetOrganizationData} from "@/oss/state/org"
@@ -175,7 +176,8 @@ const ListOfOrgs = ({
                 label: (
                     <div className="flex items-center gap-2 justify-between w-full">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <InitialsAvatar size="small" name={organization.name} />
+                            {/* typed as-is: org list entries always carry a name in practice */}
+                            <InitialsAvatar size="small" name={organization.name as string} />
                             <span className="truncate">{organization.name}</span>
                             {isDemo && <Tag className="bg-[var(--ag-c-0517290F)] m-0">demo</Tag>}
                         </div>
@@ -798,7 +800,10 @@ const ListOfOrgs = ({
 
                     await deleteMutation.mutateAsync(orgToDelete)
                     const deletedOrg = organizations.find((org) => org.id === orgToDelete)
-                    const deletedWorkspaceId = deletedOrg?.default_workspace?.id || null
+                    // Latent: GET /organizations list omits default_workspace (details-only field) — typed as-is.
+                    const deletedWorkspaceId =
+                        (deletedOrg as Partial<OrgDetails> | undefined)?.default_workspace?.id ||
+                        null
                     clearWorkspaceOrgCache(deletedWorkspaceId)
                     clearLastUsedProjectId(deletedWorkspaceId)
                     // If we deleted the current org, select another one

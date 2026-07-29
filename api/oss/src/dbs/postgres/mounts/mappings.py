@@ -38,6 +38,7 @@ def map_mount_dto_to_dbe_upsert(
         "deleted_by_id": None,
         "slug": mount_create.slug,
         "session_id": mount_create.session_id,
+        "agent_id": mount_create.agent_id,
         "name": mount_create.name,
         "description": mount_create.description,
         "flags": mount_create.flags.model_dump(),
@@ -61,6 +62,7 @@ def map_mount_dto_to_dbe_create(
         #
         slug=mount_create.slug,
         session_id=mount_create.session_id,
+        agent_id=mount_create.agent_id,
         #
         name=mount_create.name,
         description=mount_create.description,
@@ -90,6 +92,7 @@ def map_mount_dbe_to_dto(
         project_id=mount_dbe.project_id,
         slug=mount_dbe.slug,
         session_id=mount_dbe.session_id,
+        agent_id=mount_dbe.agent_id,
         #
         name=mount_dbe.name,
         description=mount_dbe.description,

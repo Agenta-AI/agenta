@@ -23,6 +23,12 @@ export const processEnv = {
     // object-store-backed cwd/agent mounts survive and remount on resume (#5197 merged).
     NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION:
         process.env.NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION,
+    // Agent chat Steer (deny + redirect): when "true", the approval dock shows the "Redirect"
+    // control — deny a step and send a redirect note. Off by default: the UI is complete, but the
+    // redirect runs as a FOLLOW-UP turn, so the model reasons about the bare denial before it lands
+    // (the harness always continues the original prompt on reject and exposes no reject-with-feedback
+    // channel). Gated until the runner-level "reject-and-redirect" lands.
+    NEXT_PUBLIC_AGENT_CHAT_STEER: process.env.NEXT_PUBLIC_AGENT_CHAT_STEER,
     // Agent chat message virtualization (react-virtuoso spike): when "true", the playground settings
     // dropdown exposes the Virtualization section and the chat can window its settled history. Gated
     // so it's off everywhere unless explicitly enabled while the approach is evaluated.
@@ -32,6 +38,10 @@ export const processEnv = {
     // (card click fills the composer + chip instead of creating/opening a drawer). Unset/
     // false keeps the current three separate template UIs untouched.
     NEXT_PUBLIC_AGENT_TEMPLATE_STRIP: process.env.NEXT_PUBLIC_AGENT_TEMPLATE_STRIP,
+    // Agent chat voice input (composer mic: dictation + voice messages): off by default. The
+    // recorded clip rides along as an audio attachment, which the agent service does not accept
+    // yet — set to "true" to preview the UI.
+    NEXT_PUBLIC_AGENT_VOICE_INPUT: process.env.NEXT_PUBLIC_AGENT_VOICE_INPUT,
     NEXT_PUBLIC_AGENTA_AUTHN_EMAIL: process.env.NEXT_PUBLIC_AGENTA_AUTHN_EMAIL,
     NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID:
         process.env.NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID,

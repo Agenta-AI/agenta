@@ -13,3 +13,21 @@ export const isAgentChatSliceEnabled = (): boolean =>
  */
 export const doesAgentChatStopKillSession = (): boolean =>
     (getEnv("NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION") || "").toLowerCase() === "true"
+
+/**
+ * Agent chat Steer (deny + redirect): gates the approval dock's "Redirect" control. Off by default
+ * (opt in with `NEXT_PUBLIC_AGENT_CHAT_STEER=true`). The UI is complete, but the redirect note runs
+ * as a FOLLOW-UP turn, so the model reasons about the bare denial before the note lands — the harness
+ * always continues the original prompt on reject and exposes no reject-with-feedback channel. Kept
+ * behind the flag until the runner-level "reject-and-redirect" lands (see the steer proposal, #5444).
+ */
+export const isAgentChatSteerEnabled = (): boolean =>
+    (getEnv("NEXT_PUBLIC_AGENT_CHAT_STEER") || "").toLowerCase() === "true"
+
+/**
+ * Composer voice input — the mic that dictates into the editor and records voice messages. Off by
+ * default: a voice message is sent as an audio attachment, which the agent service does not accept
+ * yet. Enable with `NEXT_PUBLIC_AGENT_VOICE_INPUT=true` to preview the UI.
+ */
+export const isAgentVoiceInputEnabled = (): boolean =>
+    (getEnv("NEXT_PUBLIC_AGENT_VOICE_INPUT") || "").toLowerCase() === "true"
