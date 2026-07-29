@@ -31,3 +31,10 @@ class MountDBA(
         String,
         nullable=True,
     )
+
+    # agent_id is a bare column — not an FK. Populated only for agent mounts,
+    # mirroring session_id (populated only for session mounts).
+    agent_id = Column(
+        String,
+        nullable=True,
+    )

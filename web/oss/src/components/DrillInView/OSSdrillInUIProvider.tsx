@@ -52,6 +52,7 @@ import {
 } from "@agenta/entities/workflow"
 import {
     DrillInUIProvider,
+    type DrillInUIComponents,
     type GatewayToolsBridge,
     type WorkflowConfigPart,
     type WorkflowConfigPayload,
@@ -678,25 +679,29 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
     const {llmProviderConfig, overlay: llmProviderOverlay} = useLLMProviderConfig()
     const toolsEnabled = isToolsEnabled()
     const workflowReference = useWorkflowReferenceBridge()
-    // Deployment policy, never changes at runtime — not memoized. Gates the Provider credentials
-    // section's "Use subscription" toggle (design.md D6, docs/design/connect-model-drawer).
-    const deployment = {isCloud: isDemo()}
+    // Deployment policy never changes at runtime; a stable identity keeps the context value stable.
+    const deployment = useMemo(() => ({isCloud: isDemo()}), [])
+
+    // Stable context value: every DrillInUIContext consumer re-renders when this identity changes.
+    const baseComponents = useMemo(
+        () =>
+            ({
+                llmProviderConfig,
+                EditorProvider,
+                SharedEditor,
+                workflowReference,
+                openTrace,
+                deployment,
+                // Rich concrete components vs the context's index-signature slots (pre-existing gap)
+            }) as DrillInUIComponents,
+        // openTrace is a module-level const (stable) — no dep needed.
+        [llmProviderConfig, workflowReference, deployment],
+    )
 
     if (!toolsEnabled) {
         return (
             <>
-                <DrillInUIProvider
-                    components={{
-                        llmProviderConfig,
-                        EditorProvider,
-                        SharedEditor,
-                        workflowReference,
-                        openTrace,
-                        deployment,
-                    }}
-                >
-                    {children}
-                </DrillInUIProvider>
+                <DrillInUIProvider components={baseComponents}>{children}</DrillInUIProvider>
                 {llmProviderOverlay}
             </>
         )
@@ -773,9 +778,10 @@ function GatewayToolsEnabledProvider({
         [connections, isLoading, error, setCatalogDrawerOpen],
     )
 
-    return (
-        <DrillInUIProvider
-            components={{
+    // Stable context value — see the note in OSSdrillInUIProvider.
+    const components = useMemo(
+        () =>
+            ({
                 llmProviderConfig,
                 EditorProvider,
                 SharedEditor,
@@ -783,11 +789,12 @@ function GatewayToolsEnabledProvider({
                 workflowReference,
                 openTrace,
                 deployment,
-            }}
-        >
-            {children}
-        </DrillInUIProvider>
+                // Rich concrete components vs the context's index-signature slots (pre-existing gap)
+            }) as DrillInUIComponents,
+        [llmProviderConfig, gatewayTools, workflowReference, deployment],
     )
+
+    return <DrillInUIProvider components={components}>{children}</DrillInUIProvider>
 }
 
 export default OSSdrillInUIProvider

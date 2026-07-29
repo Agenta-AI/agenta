@@ -23,13 +23,17 @@ export const SkeletonSectionRow = ({
 }) => (
     <div
         className={
-            "flex items-center gap-3 overflow-hidden py-6" +
+            // Mirror the real ConfigAccordionSection header row exactly: `gap-2`, a 16px leading
+            // icon, title + summary + chevron, and the same 44px text-driven header height (min-h
+            // pins it so the 16px placeholders don't collapse the row) — a divider row then totals
+            // 45px like a real bordered section, and the last (no-divider) row is 44px like Advanced.
+            "flex min-h-[44px] items-center gap-2 overflow-hidden py-3" +
             (divider ? " border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]" : "")
         }
     >
-        <Skeleton.Avatar active size={22} shape="square" />
+        <Skeleton.Avatar active size={16} shape="square" />
         <Skeleton.Button active size="small" style={{width: title, height: 16}} />
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2">
             <Skeleton.Button active size="small" style={{width: value, height: 14}} />
             {withAdd ? <Skeleton.Avatar active size={16} shape="circle" /> : null}
             <Skeleton.Avatar active size={14} shape="circle" />
