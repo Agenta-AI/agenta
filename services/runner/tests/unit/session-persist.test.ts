@@ -482,15 +482,46 @@ describe("durable records (AGENTA_RECORDS_DURABLE)", () => {
     vi.stubEnv("AGENTA_RECORDS_DURABLE", "true");
     vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "2"); // keep the test fast
     fetchFailCount = 99;
-    const { emit, flush } = buildPersistingEmitter("sess-durable", () => "t");
+    const { emit } = buildPersistingEmitter("sess-durable", () => "t");
     emit({ type: "message", text: "x" });
     emit({ type: "done" });
-    await flush();
+    // Drain directly (not flush): flush's turn-end consumer would read + clear the count.
+    await drainPersist("sess-durable");
 
     assert.equal(postedBodies.length, 0); // both records dropped
     assert.equal(takePersistFailures("sess-durable"), 2);
     // take clears the count.
     assert.equal(takePersistFailures("sess-durable"), 0);
+  });
+
+  it("durable: the turn-end flush consumes the drop count (warns + clears)", async () => {
+    vi.stubEnv("AGENTA_RECORDS_DURABLE", "true");
+    vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "2");
+    fetchFailCount = 99;
+    const warns: string[] = [];
+    const writeSpy = vi
+      .spyOn(process.stderr, "write")
+      .mockImplementation((chunk: string | Uint8Array) => {
+        warns.push(String(chunk));
+        return true;
+      });
+    try {
+      const { emit, flush } = buildPersistingEmitter("sess-flush", () => "t");
+      emit({ type: "message", text: "x" });
+      await flush();
+
+      // The drain surfaced the incomplete durable log at turn end...
+      assert.equal(
+        warns.some(
+          (w) => w.includes("sess-flush") && w.includes("durable log incomplete"),
+        ),
+        true,
+      );
+    } finally {
+      writeSpy.mockRestore();
+    }
+    // ...and cleared the counter, so nothing accumulates unread.
+    assert.equal(takePersistFailures("sess-flush"), 0);
   });
 
   it("durable: a transient failure recovers within the retry budget (no drop counted)", async () => {
