@@ -336,6 +336,43 @@ describe("buildAgentRequest", () => {
         expect(config).toEqual(before)
     })
 
+    it("does not duplicate Pi built-ins the default template already carries", async () => {
+        // The shipped default grants Pi's four built-ins (issue #5590) and the kit overlay
+        // prepends `read` and `bash`. The `name:<name>` identity merge is what keeps the two
+        // copies from both landing in the run's tools list.
+        const builtin = (name: string) => ({type: "builtin", name})
+        const config = {
+            agent: {
+                tools: [builtin("read"), builtin("bash"), builtin("edit"), builtin("write")],
+            },
+        }
+        seed(store, "e", {
+            config,
+            overlay: {
+                tools: [
+                    builtin("read"),
+                    builtin("bash"),
+                    {type: "platform", op: "commit_revision"},
+                ],
+            },
+            buildKitEnabled: true,
+        })
+
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const template = (req!.requestBody.data as any).parameters.agent
+
+        expect(template.tools).toEqual([
+            builtin("read"),
+            builtin("bash"),
+            builtin("edit"),
+            builtin("write"),
+            {type: "platform", op: "commit_revision"},
+        ])
+        for (const name of ["read", "bash", "edit", "write"]) {
+            expect(template.tools.filter((tool: any) => tool?.name === name)).toHaveLength(1)
+        }
+    })
+
     it("applies the build-kit overlay to a BARE template (no agent wrapper)", async () => {
         // `withAgentRunDefaults` leaves a config with no `agent` key as a bare template, so the
         // overlay must merge at the top level — not no-op (the bare published default case).

@@ -7,6 +7,8 @@ from __future__ import annotations
 import logging
 
 
+from agenta.sdk.agents.pi_builtins import PI_DEFAULT_ACTIVE_BUILTINS
+
 from oss.src.agent import config as agent_config
 
 
@@ -21,6 +23,18 @@ def test_load_config_uses_real_template_when_present():
     assert template.agents_md != agent_config.DEFAULT_AGENTS_MD
 
 
+def test_on_disk_template_grants_pi_default_builtins():
+    """The on-disk `agent.json` is a second copy of the shipped default (issue #5590). An empty
+    `tools` list there reaches the runner as "grant no built-ins", so a request that carries no
+    template of its own would run with no read, bash, edit or write."""
+    expected = [
+        {"type": "builtin", "name": name} for name in PI_DEFAULT_ACTIVE_BUILTINS
+    ]
+
+    assert agent_config.load_config().tools == expected
+    assert agent_config.DEFAULT_TOOLS == expected
+
+
 def test_missing_template_logs_warning_and_falls_back(monkeypatch, tmp_path, caplog):
     monkeypatch.setenv("AGENTA_AGENT_TEMPLATE_DIR", str(tmp_path / "does-not-exist"))
 
@@ -29,7 +43,7 @@ def test_missing_template_logs_warning_and_falls_back(monkeypatch, tmp_path, cap
 
     assert template.agents_md == agent_config.DEFAULT_AGENTS_MD
     assert template.model == agent_config.DEFAULT_MODEL
-    assert template.tools == []
+    assert template.tools == agent_config.DEFAULT_TOOLS
 
     messages = [
         record.message % record.args if record.args else record.message

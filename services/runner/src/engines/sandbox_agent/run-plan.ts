@@ -192,7 +192,12 @@ function hasCodeTool(specs: ResolvedToolSpec[]): boolean {
   return specs.some((spec) => spec.kind === "code");
 }
 
-const PI_DEFAULT_ACTIVE_BUILTINS = ["read", "bash", "edit", "write"];
+/**
+ * Pi's own default active built-in set. Exported so the cross-language parity test can pin it
+ * against the shared golden the Python `PI_DEFAULT_ACTIVE_BUILTINS` also asserts; not part of the
+ * engine's public surface.
+ */
+export const PI_DEFAULT_ACTIVE_BUILTINS = ["read", "bash", "edit", "write"];
 const PI_BUILTIN_TOOL_NAMES = Object.keys(PI_BUILTIN_TOOL_IDENTITY);
 const PI_BUILTIN_TOOL_NAME_SET = new Set<string>(PI_BUILTIN_TOOL_NAMES);
 

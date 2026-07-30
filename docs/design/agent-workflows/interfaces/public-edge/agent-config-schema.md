@@ -21,7 +21,7 @@ The fields and the full schema follow.
 |---|---|---|---|
 | `agents_md` | string (textarea) | hello-world prompt | The agent's system prompt, its AGENTS.md. |
 | `model` | string (`grouped_choice`) | `"gpt-5.5"` | Model the agent runs on. A plain id (`"gpt-5.5"`) or a structured `{provider, connection}` ref. See [Model connection resolution](../in-service/model-connection-resolution.md). |
-| `tools` | `(ToolConfig \| EmbedRef)[]` | `[]` | Runnable tools: `builtin`, `gateway`, `code`, `client`, `reference` (a workflow referenced as a tool — `type: "reference"` — the service runs server-side as a callback tool), or `platform` (an existing Agenta endpoint exposed to the agent — `type: "platform"` — the runner calls it directly). A workflow value can also be inlined via `@ag.embed`. See [Tool models and resolution](../in-service/tool-models-and-resolution.md). |
+| `tools` | `(ToolConfig \| EmbedRef)[]` | four `builtin` entries: `read`, `bash`, `edit`, `write` (the schema's own default is `[]`; the shipped template fills it) | Runnable tools: `builtin`, `gateway`, `code`, `client`, `reference` (a workflow referenced as a tool — `type: "reference"` — the service runs server-side as a callback tool), or `platform` (an existing Agenta endpoint exposed to the agent — `type: "platform"` — the runner calls it directly). A workflow value can also be inlined via `@ag.embed`. See [Tool models and resolution](../in-service/tool-models-and-resolution.md). |
 | `mcp_servers` | `MCPServerConfig[]` | `[]` | External HTTP MCP servers; named header-secret references resolve from the vault per run. See [MCP models and resolution](../in-service/mcp-models-and-resolution.md). |
 | `harness` | `"pi_core" \| "claude" \| "pi_agenta"` (see slug+name note) | `"pi_core"` | The coding agent to drive. `pi_core` and `pi_agenta` both drive the `pi` ACP agent; `pi_agenta` adds Agenta's forced skills, prompt, and policy. |
 | `sandbox` | `"local" \| "daytona"` | `"local"` | Where it runs. |
@@ -72,7 +72,12 @@ every field in its default state:
 {
   "agents_md": "You are a friendly hello-world agent running on the Agenta agent service.\n\n- Greet the user warmly.\n- Answer the user's message in one or two short sentences.",
   "model": "gpt-5.5",
-  "tools": [],
+  "tools": [
+    { "type": "builtin", "name": "read" },
+    { "type": "builtin", "name": "bash" },
+    { "type": "builtin", "name": "edit" },
+    { "type": "builtin", "name": "write" }
+  ],
   "mcp_servers": [],
   "harness": "pi_core",
   "sandbox": "local",
@@ -91,6 +96,20 @@ every field in its default state:
   ]
 }
 ```
+
+The four `builtin` entries are Pi's own default active set, held in Python as
+`PI_DEFAULT_ACTIVE_BUILTINS` (`sdks/python/agenta/sdk/agents/pi_builtins.py`) and pinned against
+the runner's TypeScript constant of the same name by the shared golden fixture
+`sdks/python/oss/tests/pytest/unit/agents/golden/pi_default_active_builtins.json`. Granting a
+built-in is not the same as allowing it to run: under the default `permissions.default` of
+`allow_reads`, `read` runs without asking, and `bash`, `edit`, and `write` raise an approval on
+every call. The `/run` wire field is unchanged; the runner still reads `tools: []` as "grant
+nothing" and an omitted `tools` as "Pi's defaults". See
+[Tools](../../documentation/tools.md) for the grant list and the permission relay.
+
+Agents saved before this default shipped still carry an empty `tools` list. Nothing repairs them
+automatically. Their author has to open the agent, expand Advanced, select the built-ins in the
+"Built-in tools" control, and commit.
 
 The skill embed above comes from the playground **build-kit overlay**
 (`build_agent_template_overlay` in `api/oss/src/apis/fastapi/applications/overlay.py`), not
@@ -270,6 +289,8 @@ not `SKILL.md` itself.
   `agenta:builtin:agent:v0`, whose default calls the same builder bare.
 - `sdks/python/agenta/sdk/agents/dtos.py`: the permissive runtime `AgentConfig` parser and
   `SandboxPermission`.
+- `sdks/python/agenta/sdk/agents/pi_builtins.py`: `PI_DEFAULT_ACTIVE_BUILTINS`, the built-in
+  names the default `tools` list is built from.
 
 ## Watch for when changing
 
@@ -279,6 +300,12 @@ not `SKILL.md` itself.
   without updating the catalog breaks the form silently.
 - **The default config.** It is shipped on `/inspect` and is what an untouched form runs. It
   has one source, `build_agent_v0_default`; change a default field there, not in each consumer.
+- **The default built-in tools.** The `tools` default is built from
+  `PI_DEFAULT_ACTIVE_BUILTINS`, which must stay equal to the runner's TypeScript constant of the
+  same name. Both are pinned against
+  `sdks/python/oss/tests/pytest/unit/agents/golden/pi_default_active_builtins.json`; change the
+  fixture and both languages, or the parity tests fail. Widening the set past Pi's own defaults
+  also turns the runner's built-in gating relay on for agents that would otherwise skip it.
 - **Nested shapes.** `tools`, `mcp_servers`, `skills`, and `sandbox_permission` each have
   their own page and their own wire fields. A change here usually means a change there and a
   golden fixture.

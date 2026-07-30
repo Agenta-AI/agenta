@@ -749,7 +749,15 @@ def j5_commit(cell: dict) -> dict:
             "agent": {
                 "instructions": {"agents_md": "seed"},
                 "llm": {"model": cell["model"], "provider": cell["provider"]},
-                "tools": [],
+                # Pi's default active built-ins, matching the shipped default agent template. An
+                # empty list means "grant nothing" to the runner, so committing `[]` would gate
+                # the release on a configuration no real agent commits (issue #5590).
+                "tools": [
+                    {"type": "builtin", "name": "read"},
+                    {"type": "builtin", "name": "bash"},
+                    {"type": "builtin", "name": "edit"},
+                    {"type": "builtin", "name": "write"},
+                ],
                 "harness": {"kind": cell["harness"]},
                 "sandbox": {"kind": cell["sandbox"]},
             }

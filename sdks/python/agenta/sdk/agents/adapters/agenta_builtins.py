@@ -127,7 +127,12 @@ shape right from this reference, and verify with `test_run` after every commit.
 {
   "instructions": { "agents_md": "<who you are and what you do>" },
   "llm": { "model": "gpt-5.5", "provider": "openai", "connection": { "mode": "agenta" } },
-  "tools": [],
+  "tools": [
+    { "type": "builtin", "name": "read" },
+    { "type": "builtin", "name": "bash" },
+    { "type": "builtin", "name": "edit" },
+    { "type": "builtin", "name": "write" }
+  ],
   "mcps": [],
   "skills": [],
   "harness": { "kind": "pi_agenta" },
@@ -173,7 +178,10 @@ optional fields: `render` (a UI hint) and `permission` (`allow` / `ask` / `deny`
 runner default for that one tool). The six `type` values:
 
 - `builtin` — a harness built-in: `{ "type": "builtin", "name": "read" }`. (A per-builtin
-  `permission` is dropped — builtins are granted by selection, not gated.)
+  `permission` is dropped — builtins are granted by selection, not gated.) A new agent starts
+  with Pi's four defaults (`read`, `bash`, `edit`, `write`), as shown above. Keep them unless the
+  user asks you to drop one: an empty `tools` list grants NO built-ins, so an agent that ships
+  with `[]` cannot read or write a file at all.
 - `gateway` — a server-side gateway action (Composio). Do not hand-write it: run `discover_tools`
   and copy what it returns, adding the `connection` slug once the connection is ready.
   `{ "type": "gateway", "provider": "composio", "integration": "github",

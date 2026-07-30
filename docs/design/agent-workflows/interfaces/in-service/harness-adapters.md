@@ -18,8 +18,12 @@ Each adapter implements `_to_harness_config(...)` and emits a different `/run` w
   harnesses. Pi has no native permission gate of its own (no `.claude/settings.json` equivalent),
   so the runner's tool relay enforces `permissions` for Pi at execution time; an `ask` verdict
   pauses the run and Pi gets the same human-in-the-loop approval Claude gets at its gate.
-- **`ClaudeHarness`** delivers tools over MCP, not natively, and has no Pi built-ins (it warns
-  if any are set). It carries `permissions` and renders `.claude/settings.json` from four
+- **`ClaudeHarness`** delivers tools over MCP, not natively, and has no Pi built-ins: it drops
+  the names. It warns only when the set differs from `PI_DEFAULT_ACTIVE_BUILTINS`, because the
+  shipped default template carries exactly that set and warning on it would fire on nearly every
+  Claude run. A set the author touched (a subset, a superset, an unrelated name) still warns, and
+  the message names the dropped tools. It carries `permissions` and renders
+  `.claude/settings.json` from four
   sources — the author's `harness_kwargs["claude"]["permissions"]` slice, the sandbox permission,
   each user MCP server's permission (`mcp__<server>` rules), and each resolved EXECUTABLE tool's
   permission (`mcp__agenta-tools__<name>` rules; F-046) — shipped as `harnessFiles`. It carries
@@ -45,6 +49,8 @@ The wire shapes, side by side:
 - `sdks/python/agenta/sdk/agents/adapters/harnesses.py`: the three adapters.
 - `sdks/python/agenta/sdk/agents/dtos.py`: the `PiAgentConfig`/`ClaudeAgentConfig`/
   `AgentaAgentConfig` wire emitters.
+- `sdks/python/agenta/sdk/agents/pi_builtins.py`: `PI_DEFAULT_ACTIVE_BUILTINS`, the set
+  `ClaudeHarness` stays silent about.
 
 ## Watch for when changing
 
@@ -52,6 +58,10 @@ The wire shapes, side by side:
   tools natively; everyone else gets them over the MCP bridge.
 - **Prompt override behavior.** Pi replaces or appends; Claude reads options; Agenta composes.
 - **Forced Agenta behavior.** Instruction composition and the forced tool set are deliberate.
+- **The Claude built-in warning predicate.** It is exact-set equality against
+  `PI_DEFAULT_ACTIVE_BUILTINS`, not a per-name filter. A per-name filter would silence an
+  authored subset such as `["bash"]`, which is exactly the case the warning exists for. If the
+  default template's built-in set changes, this predicate changes with it.
 - **Claude skill delivery.** Claude wires inline skills like the other harnesses; the runner
   materializes them under `.claude/skills`. (An earlier revision suppressed Claude's
   `wire_skills()` to `{}`; that override is gone, and `test_claude_carries_skills_for_project_local_materialization`

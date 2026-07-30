@@ -79,7 +79,15 @@ def agent_template(harness: str, sandbox: str, model: str, provider: str) -> dic
             "connection": {"mode": "agenta", "slug": None},
             "extras": {},
         },
-        "tools": [],
+        # Pi's default active built-ins, matching the shipped default agent template. An empty
+        # list means "grant nothing" to the runner, so seeding `[]` would gate the release on a
+        # configuration no real agent uses (issue #5590).
+        "tools": [
+            {"type": "builtin", "name": "read"},
+            {"type": "builtin", "name": "bash"},
+            {"type": "builtin", "name": "edit"},
+            {"type": "builtin", "name": "write"},
+        ],
         "mcps": [],
         "skills": [],
         "harness": {"kind": harness},
