@@ -55,6 +55,62 @@ describe("buildRunPlan", () => {
     assert.equal(created, false);
   });
 
+  it("still refuses a request whose only message is an unresolved tool call", () => {
+    // No user text AND no approval envelope: a caller bug, not an approval reply.
+    const result = buildRunPlan(
+      {
+        messages: [
+          {
+            role: "assistant",
+            content: [
+              { type: "tool_call", toolCallId: "tc-1", toolName: "Write" },
+            ],
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/unused" },
+    );
+
+    assert.deepEqual(result, {
+      ok: false,
+      error: "No user message to send (prompt/messages empty).",
+    });
+  });
+
+  it("accepts an out-of-band approval reply that carries no user text", () => {
+    // What a caller answering from the durable interaction row sends: the parked call plus its
+    // {approved} envelope, and nothing else. The conversation is rebuilt from the record log
+    // inside runTurn, which happens after this plan is built.
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        sessionId: "s1",
+        messages: [
+          {
+            role: "assistant",
+            content: [
+              { type: "tool_call", toolCallId: "tc-1", toolName: "Write" },
+              {
+                type: "tool_result",
+                toolCallId: "tc-1",
+                toolName: "Write",
+                output: { approved: true, interactionToken: "tok-1" },
+              },
+            ],
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.ok && result.plan.prompt, "");
+    assert.ok(
+      result.ok && result.plan.turnText.includes("user APPROVED Write"),
+      "the plan's turn text carries the approval-resume frame",
+    );
+  });
+
   it("normalizes an Agenta/Pi local run and filters executable tools", () => {
     process.env.PI_CODING_AGENT_DIR = "/tmp/pi-agent";
     const logs: string[] = [];

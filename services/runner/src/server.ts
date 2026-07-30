@@ -49,6 +49,7 @@ import {
   computeCredentialEpoch,
   configFingerprint,
   credentialEpochMismatch,
+  carriesApprovalReplyOnly,
   carriesMinimalHistory,
   installedMountLease,
   leaseExpiresBy,
@@ -733,7 +734,8 @@ export async function runWithKeepalive(
     // park would evict a perfectly good live session on every approval (the "approve twice" bug).
     //
     // We keep the checks that DO bound the parked environment: the approval-decision match, the
-    // history fingerprint (an edited transcript must not continue wrongly), and a hard mount-expiry
+    // history fingerprint (an edited transcript must not continue wrongly, but only for a client
+    // that asserts a transcript at all — see `clientAssertsHistory` below), and a hard mount-expiry
     // bound — if the parked session's mount credentials are past expiry, its durable cwd can no
     // longer be written, so evict to cold.
     // Split parallel parked gates by tool-call id. Any non-empty answer set resumes live; untouched
@@ -773,8 +775,16 @@ export async function runWithKeepalive(
       }
     }
     const priorFp = historyFingerprint(priorConversation(request));
+    // An out-of-band answer (an inbox, a webhook, a CLI) builds its reply from the durable
+    // interaction row and carries no conversation at all, so its prior fingerprint can never equal
+    // the parked one and comparing it would evict the very session that could resume — the
+    // idle branch's `clientAssertsHistory` escape hatch, which this branch lacked. It cannot reuse
+    // `carriesMinimalHistory`: that helper wants a fresh user tail, and an approval reply is never
+    // one. The parked gate's tool-call id, matched above, is what binds this answer to this
+    // session; the history check only guards a client that DID assert a transcript.
+    const clientAssertsHistory = !carriesApprovalReplyOnly(request);
     if (!mismatch) {
-      if (priorFp !== existing.historyFingerprint) {
+      if (clientAssertsHistory && priorFp !== existing.historyFingerprint) {
         mismatch = "history";
       } else if (mountCredentialsExpired(existing.credentialEpoch)) {
         mismatch = "credentials-expired";

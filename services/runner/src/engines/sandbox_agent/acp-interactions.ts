@@ -63,12 +63,18 @@ export interface AttachPermissionResponderInput {
    * the cold path can multiplex that mixed set. An approval gate does NOT fire it.
    */
   onNonParkablePause?: () => void;
-  /** Called on pause to record the pending gate as an interaction (fire-and-forget). */
+  /**
+   * Called on pause to record the pending gate as an interaction (fire-and-forget). `toolCallId`
+   * is the harness's id for the gated call, which is NOT the interaction token (that is the
+   * permission gate's id). Both ride the live `interaction_request` event; persisting the tool-call
+   * id too is what lets a caller working from the durable row alone name the right call.
+   */
   onCreateInteraction?: (
     token: string,
     toolName: string | undefined,
     toolArgs: unknown,
     kind: "user_approval" | "client_tool",
+    toolCallId: string | undefined,
   ) => void;
   /** Called after a stored decision was successfully forwarded to the harness. */
   onResolveInteraction?: (
@@ -195,7 +201,13 @@ export function attachPermissionResponder({
       },
     });
     createdInteractionIds.add(eventId);
-    onCreateInteraction?.(eventId, gate.toolName, gate.args, "user_approval");
+    onCreateInteraction?.(
+      eventId,
+      gate.toolName,
+      gate.args,
+      "user_approval",
+      toolCallId,
+    );
     onPause?.();
   };
 
@@ -224,7 +236,13 @@ export function attachPermissionResponder({
       },
     });
     createdInteractionIds.add(eventId);
-    onCreateInteraction?.(eventId, gate.toolName, gate.args, "client_tool");
+    onCreateInteraction?.(
+      eventId,
+      gate.toolName,
+      gate.args,
+      "client_tool",
+      toolCallId,
+    );
     onPause?.();
   };
 

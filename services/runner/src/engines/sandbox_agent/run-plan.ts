@@ -28,6 +28,7 @@ import {
 } from "../skills.ts";
 import { assert } from "./capabilities.ts";
 import type { ClientToolPauseDisposition } from "./client-tools.ts";
+import { carriesApprovalReplyOnly } from "./session-identity.ts";
 import { buildTurnText } from "./transcript.ts";
 import {
   KNOWN_SANDBOX_PROVIDER_IDS,
@@ -311,7 +312,12 @@ export function buildRunPlan(
   );
 
   const prompt = resolvePromptText(request);
-  if (!prompt) {
+  // An out-of-band approval reply legitimately carries no user text: the human answered a parked
+  // gate from the durable interaction row, not from the conversation. Its prior turns are rebuilt
+  // from the record log inside `runTurn` (`reconstructHistoryIfNeeded`), which runs AFTER this
+  // plan is built — so rejecting here would kill the run before the conversation could be
+  // supplied. Every other empty-prompt request is still a caller bug and fails loudly.
+  if (!prompt && !carriesApprovalReplyOnly(request)) {
     return {
       ok: false,
       error: "No user message to send (prompt/messages empty).",

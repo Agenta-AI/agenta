@@ -889,6 +889,67 @@ describe("runWithKeepalive: approval resume validation degrades to cold", () => 
     assert.equal(calls.acquire, 2);
     assert.equal(calls.resumes.length, 0);
   });
+
+  it("an out-of-band answer carrying NO history resumes live instead of evicting", async () => {
+    // What an inbox / webhook / CLI sends: the parked call and its {approved} envelope, built
+    // from the durable interaction row, with no conversation attached. Its prior-history
+    // fingerprint can never equal the parked session's, so comparing it would evict the only
+    // session that could resume — issue #5593's "approval-mismatch (history)".
+    const outOfBand: AgentRunRequest = {
+      harness: "claude",
+      model: "m1",
+      sessionId: "s1",
+      ...auth,
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_call", toolCallId: "tc-gate", toolName: "commit" },
+            {
+              type: "tool_result",
+              toolCallId: "tc-gate",
+              toolName: "commit",
+              output: { approved: true, interactionToken: "tok-1" },
+            },
+          ],
+        },
+      ],
+    };
+    const { calls, env1 } = await parkThenResume(outOfBand);
+    assert.equal(env1.destroyed, 0, "the parked session was NOT evicted");
+    assert.equal(calls.acquire, 1, "no cold re-acquire");
+    assert.equal(calls.resumes.length, 1, "the gate was answered live");
+    assert.equal(calls.resumes[0].reply, "once");
+    assert.equal(calls.resumes[0].permissionId, "perm-1");
+  });
+
+  it("an out-of-band DENY carrying no history also resumes live", async () => {
+    const outOfBand: AgentRunRequest = {
+      harness: "claude",
+      model: "m1",
+      sessionId: "s1",
+      ...auth,
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_call", toolCallId: "tc-gate", toolName: "commit" },
+            {
+              type: "tool_result",
+              toolCallId: "tc-gate",
+              toolName: "commit",
+              output: { approved: false, interactionToken: "tok-1" },
+            },
+          ],
+        },
+      ],
+    };
+    const { calls, env1 } = await parkThenResume(outOfBand);
+    assert.equal(env1.destroyed, 0);
+    assert.equal(calls.acquire, 1);
+    assert.equal(calls.resumes.length, 1);
+    assert.equal(calls.resumes[0].reply, "reject");
+  });
 });
 
 describe("runWithKeepalive: approval resume ignores re-minted credentials/config", () => {
@@ -1714,6 +1775,14 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       assert.equal(createCall.body["turn_id"], "turn-no-workflow-start");
       const createData = createCall.body["data"] as Record<string, unknown>;
       assert.equal("references" in createData, false);
+      // The row's `token` is the permission gate's id; `tool_call_id` is the harness's id for the
+      // gated call. An answer built from this row alone needs the latter (issue #5593).
+      assert.equal(createCall.body["token"], "perm-no-workflow");
+      assert.deepEqual(createData["request"], {
+        tool: "commit",
+        args: { message: "hi" },
+        tool_call_id: "tc-no-workflow",
+      });
 
       const parked = env.parkedApprovals.get("tc-no-workflow");
       assert.ok(parked);
