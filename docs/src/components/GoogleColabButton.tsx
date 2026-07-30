@@ -1,4 +1,5 @@
 import React from 'react';
+import useBaseUrl from '@docusaurus/useBaseUrl';
 import styles from './GoogleColabButton.module.css';
 
 interface GoogleColabButtonProps {
@@ -9,6 +10,7 @@ interface GoogleColabButtonProps {
 const GoogleColabButton: React.FC<GoogleColabButtonProps> = ({ notebookPath, children }) => {
   const baseUrl = 'https://colab.research.google.com/github/Agenta-AI/agenta/blob/main';
   const colabUrl = `${baseUrl}/${notebookPath}`;
+  const logoUrl = useBaseUrl('/images/google_collab.png');
 
   return (
     <div className="margin-bottom--lg">
@@ -19,8 +21,8 @@ const GoogleColabButton: React.FC<GoogleColabButtonProps> = ({ notebookPath, chi
         className={styles.colabButton}
       >
         {/* Google Colab Logo */}
-        <img 
-          src="/docs/images/google_collab.png" 
+        <img
+          src={logoUrl}
           alt="Google Colaboratory"
           className={styles.logo}
         />

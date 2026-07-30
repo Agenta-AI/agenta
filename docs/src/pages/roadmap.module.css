@@ -115,6 +115,18 @@
     gap: 0.35rem;
 }
 
+@media (max-width: 600px) {
+    .featureTitleRow {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.35rem;
+    }
+
+    .featureTitleRight {
+        margin-left: 0;
+    }
+}
+
 /* removed neutral variant to allow data-defined colors */
 
 .discussionsIntro {

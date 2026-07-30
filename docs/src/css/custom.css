@@ -574,6 +574,22 @@ a[class*="cardContainer"]:hover {
   .two-row-navbar :global(.navbarTopRow) {
     padding: 0 !important;
   }
+
+  /* Slightly smaller logo and hamburger on mobile */
+  .navbar__logo,
+  .navbar__logo img {
+    height: 26px;
+  }
+
+  .navbar__toggle {
+    width: 24px;
+    height: 24px;
+  }
+
+  .navbar__toggle svg {
+    width: 24px;
+    height: 24px;
+  }
 }
 
 .navbar__link {
@@ -606,6 +622,13 @@ a[class*="cardContainer"]:hover {
   color: var(--ifm-color-primary-darkest);
 }
 
+/* In dark mode the primary color scale is not remapped, so the icons would
+   inherit a near-black value equal to the navbar background. Force a light,
+   theme-aware content color so the GitHub/Slack icons stay visible. */
+[data-theme="dark"] .theme-icon {
+  color: var(--contentprimary);
+}
+
 .navbar__item:has(.nav_slack_icons) {
   margin-right: 3px;
 }
@@ -624,7 +647,7 @@ a[class*="cardContainer"]:hover {
 
 .nav_secondary_button {
   background-color: transparent;
-  color: var(--ifm-color-primary);
+  color: var(--contentsecondary);
   margin-left: 10px;
   padding: 8px 12px;
 }
@@ -642,50 +665,146 @@ a[class*="cardContainer"]:hover {
   cursor: pointer;
 }
 
+/* ===== Hamburger sidebar (custom PrimaryMenu with pinned footer) ===== */
+
+/* Hide the desktop-navbar social icons; on the hamburger breakpoint they are
+   surfaced inside the sidebar footer instead. */
 @media (max-width: 995px) {
   .navbar__item:has(.nav_github_icons),
   .navbar__item:has(.nav_slack_icons) {
     display: none;
   }
+}
 
-  .navbar-sidebar .menu__link:has(.nav_github_icons),
-  .navbar-sidebar .menu__link:has(.nav_slack_icons) {
-    position: absolute;
-    top: -48px;
-    left: 172px;
-  }
+/* --- Header: compact controls grouped on the right --- */
+.navbar-sidebar__brand > .margin-right--md {
+  margin-left: auto;
+  margin-right: 6px !important;
+}
 
-  .navbar-sidebar .menu__link:has(.nav_slack_icons) {
-    left: 215px;
-  }
+.navbar-sidebar__brand > .margin-right--md > button,
+.navbar-sidebar__close {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: var(--border-radius-md);
+}
 
-  .navbar-sidebar .menu__link:has(.nav_secondary_button),
-  .navbar-sidebar .menu__link:has(.nav_primary_button) {
-    padding: 0px;
-    position: absolute;
-    bottom: 15px;
-    width: 95%;
-    left: 50%;
-    transform: translateX(-50%);
-  }
+/* Theme toggle: no border, small icon */
+.navbar-sidebar__brand > .margin-right--md > button {
+  border: none;
+}
 
-  .navbar-sidebar .menu__link:has(.nav_secondary_button) {
-    bottom: 65px;
-  }
+.navbar-sidebar__brand > .margin-right--md > button svg {
+  width: 15px;
+  height: 15px;
+}
 
-  .navbar-sidebar .menu__link:has(.nav_secondary_button):hover,
-  .navbar-sidebar .menu__link:has(.nav_primary_button):hover,
-  .navbar-sidebar .menu__link:has(.nav_github_icons):hover,
-  .navbar-sidebar .menu__link:has(.nav_slack_icons):hover {
-    background: transparent;
-  }
+/* Close (X): bordered box with a smaller icon. Drop the default
+   margin-left:auto so it sits right next to the theme toggle instead of
+   splitting the free space and leaving a gap between them. */
+.navbar-sidebar__close {
+  border: 1px solid var(--borderdefault);
+  margin-left: 0;
+}
 
-  .nav_primary_button,
-  .nav_secondary_button {
-    width: 100%;
-    text-align: center;
-    margin: 0px !important;
-  }
+.navbar-sidebar__close svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* --- Body: pin the footer to the bottom of the primary panel only --- */
+.navbar-sidebar__item:has(.mobileSidebarFooter) {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.navbar-sidebar__item:has(.mobileSidebarFooter) > .menu__list {
+  flex: 0 0 auto;
+}
+
+.mobileSidebarFooter {
+  margin-top: auto;
+  /* The primary panel has asymmetric padding (0 left, 8px right); cancel the
+     right side and pad symmetrically so the footer aligns on both edges. */
+  margin-right: -8px;
+  padding: 16px 12px 14px;
+}
+
+/* CTA buttons: two equal buttons side by side */
+.mobileSidebarActions {
+  display: flex;
+  gap: 10px;
+}
+
+.mobileSidebarActions .nav_primary_button,
+.mobileSidebarActions .nav_secondary_button {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 11px 16px;
+  margin: 0 !important;
+  text-align: center;
+  text-decoration: none !important;
+  border-radius: var(--border-radius-md);
+}
+
+.mobileSidebarActions .nav_secondary_button {
+  border: 1px solid var(--borderdefault) !important;
+}
+
+/* Community row: label on the left, social icons on the right */
+.mobileSidebarCommunity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--borderlight);
+}
+
+[data-theme="dark"] .mobileSidebarCommunity {
+  border-top-color: var(--borderdefault);
+}
+
+.mobileSidebarCommunityLabel {
+  font-size: 12px;
+  font-weight: var(--ifm-font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--contenttertiary);
+}
+
+.mobileSidebarCommunityIcons {
+  display: flex;
+  gap: 8px;
+}
+
+.mobileSidebarSocialIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--borderdefault);
+  border-radius: var(--border-radius-md);
+  color: var(--contentprimary);
+  text-decoration: none !important;
+}
+
+.mobileSidebarSocialIcon:hover {
+  border-color: var(--borderdark);
+  background: transparent;
+}
+
+.mobileSidebarSocialIcon .theme-icon {
+  width: 20px;
+  height: 20px;
 }
 
 /************************** Nav searchbar **************************/
@@ -734,9 +853,33 @@ a[class*="cardContainer"]:hover {
   width: 100% !important;
 }
 
-@media (max-width: 768px) {
-  .DocSearch-Button {
-    padding: 0 8px 0px 8px !important;
+/* On the single-row mobile navbar, collapse the search into a compact,
+   square icon button instead of a wide box that reads as an empty input. */
+@media (max-width: 996px) {
+  .two-row-navbar .navbar__search,
+  .two-row-navbar .DocSearch {
+    flex: 0 0 auto !important;
+    width: auto !important;
+  }
+
+  .two-row-navbar .DocSearch-Button {
+    min-width: 30px !important;
+    width: 30px !important;
+    max-width: 30px !important;
+    height: 30px !important;
+    padding: 0 !important;
+    justify-content: center;
+  }
+
+  .two-row-navbar .DocSearch-Button .DocSearch-Button-Placeholder,
+  .two-row-navbar .DocSearch-Button .DocSearch-Button-Keys {
+    display: none !important;
+  }
+
+  .two-row-navbar .DocSearch-Search-Icon {
+    margin: 0 !important;
+    width: 15px !important;
+    height: 15px !important;
   }
 }
 
@@ -857,6 +1000,21 @@ div[class*="docSidebarContainer"] {
   justify-content: space-between;
 }
 
+/* Doc-page video embeds: several pages hardcode <iframe height="400|450">,
+   which renders portrait/stretched on narrow screens (fixed height + fluid
+   width). Force a responsive 16:9 box so videos scale correctly on mobile.
+   (Blog/changelog pages are handled separately below.) */
+.theme-doc-markdown iframe[src*="youtube"],
+.theme-doc-markdown iframe[src*="youtu.be"],
+.theme-doc-markdown iframe[src*="youtube-nocookie"] {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  max-width: 100%;
+  border-radius: 8px;
+}
+
 .markdown img {
   margin-bottom: 24px;
 }
@@ -895,6 +1053,38 @@ h1[class*="title_"] {
 
 .breadcrumbs__item--active > span {
   padding: 3px 15px;
+}
+
+/**************************** Prev/Next pagination ****************************/
+/* Keep the default card structure, but the stock typography is oversized and
+   heavy. Shrink the title, mute the sub-label, and align the border/colors
+   with the rest of the site so it reads as mature in both themes. */
+.pagination-nav__link {
+  border-color: var(--borderlight);
+  border-radius: var(--border-radius-md);
+  padding: 12px 16px;
+  transition: border-color var(--ifm-transition-fast) ease;
+}
+
+.pagination-nav__link:hover {
+  border-color: var(--borderdark);
+}
+
+[data-theme="dark"] .pagination-nav__link {
+  border-color: var(--borderdefault);
+}
+
+.pagination-nav__sublabel {
+  font-size: 12px;
+  font-weight: var(--ifm-font-weight-normal);
+  color: var(--contenttertiary);
+  margin-bottom: 4px;
+}
+
+.pagination-nav__label {
+  font-size: 15px;
+  font-weight: var(--ifm-font-weight-semibold);
+  letter-spacing: 0;
 }
 
 /**************************** Heading lists ****************************/
