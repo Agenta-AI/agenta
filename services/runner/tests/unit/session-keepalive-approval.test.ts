@@ -2082,6 +2082,187 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     }
   });
 
+  it("resolves an in-band answer the harness never re-gated (the orphan fix)", async () => {
+    // The live orphan: a mobile resume trips `approval-mismatch (history)`, evicts, and runs
+    // COLD. The transcript already holds the human's answer, so the agent just proceeds and no
+    // permission request is ever raised — nothing calls the reply path. Meanwhile the turn-start
+    // stale sweep EXEMPTED this token on the promise that the resume would resolve it, so the
+    // row is left `pending` forever, actionable in both inboxes. The turn must settle it itself.
+    const posted: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        posted.push({
+          url: String(input),
+          body: JSON.parse(init?.body as string) as Record<string, unknown>,
+        });
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      });
+
+    try {
+      const { calls, deps } = pausableHarness();
+      deps.hydrateHarnessSessionFromDurable = async () => {};
+      const coldResume: AgentRunRequest = {
+        harness: "claude",
+        model: "m1",
+        sessionId: "sess-orphan",
+        turnId: "turn-cold-replay",
+        ...auth,
+        messages: [
+          { role: "user", content: "do X" },
+          {
+            role: "assistant",
+            content: [
+              { type: "tool_call", toolCallId: "tc-gate", toolName: "commit" },
+            ],
+          },
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_result",
+                toolCallId: "tc-gate",
+                toolName: "commit",
+                output: { approved: true, interactionToken: "tok-orphan" },
+              },
+            ],
+          },
+        ],
+      };
+      const acquired = await acquireEnvironment(coldResume, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const env = acquired.env;
+
+      // No `resume` opts and NO permission request: exactly a cold replay whose agent proceeds.
+      const turn = runTurn(env, coldResume, undefined, undefined, {
+        approvalParkMode: true,
+      });
+      await flush();
+      calls.resolvePrompt!({
+        stopReason: "complete",
+        usage: { inputTokens: 1, outputTokens: 1 },
+      });
+      const result = await turn;
+      assert.equal(result.ok, true);
+      assert.notEqual(result.stopReason, "paused");
+      for (
+        let attempt = 0;
+        attempt < 10 &&
+        !posted.some(({ url }) =>
+          url.endsWith("/sessions/interactions/transition"),
+        );
+        attempt += 1
+      ) {
+        await flush();
+      }
+
+      const settled = posted.filter(({ url }) =>
+        url.endsWith("/sessions/interactions/transition"),
+      );
+      assert.equal(settled.length, 1, JSON.stringify(posted));
+      // `resolved` with the human's real verdict — NOT `cancelled`, which would record a granted
+      // approval as abandoned.
+      assert.deepEqual(settled[0].body, {
+        session_id: "sess-orphan",
+        token: "tok-orphan",
+        status: "resolved",
+        resolution: { verdict: "approved", tool_call_id: "tc-gate" },
+      });
+      await env.destroy();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("does not double-settle a gate the reply path already resolved", async () => {
+    const posted: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        posted.push({
+          url: String(input),
+          body: JSON.parse(init?.body as string) as Record<string, unknown>,
+        });
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      });
+
+    try {
+      const { calls, deps, captured } = pausableHarness();
+      deps.hydrateHarnessSessionFromDurable = async () => {};
+      const coldResume: AgentRunRequest = {
+        harness: "claude",
+        model: "m1",
+        sessionId: "sess-once",
+        turnId: "turn-cold-regate",
+        ...auth,
+        messages: [
+          { role: "user", content: "do X" },
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_call",
+                toolCallId: "tc-gate",
+                toolName: "commit",
+                input: { message: "hi" },
+              },
+            ],
+          },
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_result",
+                toolCallId: "tc-gate",
+                toolName: "commit",
+                input: { message: "hi" },
+                output: { approved: true, interactionToken: "tok-once" },
+              },
+            ],
+          },
+        ],
+      };
+      const acquired = await acquireEnvironment(coldResume, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const env = acquired.env;
+
+      const turn = runTurn(env, coldResume, undefined, undefined, {
+        approvalParkMode: true,
+      });
+      await flush();
+      // The harness DOES re-raise the same call: the stored decision map answers it and the reply
+      // path resolves the row. The turn-end settle must then be a no-op, not a second write.
+      captured.onPermissionRequest!({
+        id: "perm-regate",
+        availableReplies: ["once", "reject"],
+        toolCall: {
+          toolCallId: "tc-gate",
+          name: "commit",
+          rawInput: { message: "hi" },
+        },
+      });
+      await flush();
+      calls.resolvePrompt!({
+        stopReason: "complete",
+        usage: { inputTokens: 1, outputTokens: 1 },
+      });
+      const result = await turn;
+      assert.equal(result.ok, true);
+      for (let attempt = 0; attempt < 10; attempt += 1) await flush();
+
+      const settled = posted.filter(({ url }) =>
+        url.endsWith("/sessions/interactions/transition"),
+      );
+      assert.equal(settled.length, 1, JSON.stringify(settled));
+      assert.equal(settled[0].body["token"], "tok-once");
+      await env.destroy();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("preserves a denied call failed frame while a sibling gate is carried", async () => {
     const { calls, deps, captured } = pausableHarness();
     const acquired = await acquireEnvironment(engineReq, deps);

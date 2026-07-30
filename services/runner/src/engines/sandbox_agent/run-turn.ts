@@ -17,6 +17,7 @@ import {
   ConversationDecisions,
   extractApprovalDecisions,
   extractClientToolOutputs,
+  extractInBandApprovalAnswers,
 } from "../../responder.ts";
 import {
   buildInteractionData,
@@ -132,6 +133,10 @@ export async function runTurn(
   // stop this turn's relay on EVERY exit path (a cleared sink must never orphan it).
   let otel: ReturnType<typeof createSandboxAgentOtel> | undefined;
   let activeTurn: CurrentTurn | undefined;
+  // Assigned once the turn's interaction plumbing exists; called from the `finally` so EVERY exit
+  // path (done, paused, cancelled, error) settles the durable rows this turn's in-band answers
+  // consumed. Without it, a resume the harness does not re-gate leaves them `pending` forever.
+  let settleInBandInteractions: (() => void) | undefined;
 
   // Time-based run deadlines (total/idle/TTFB/per-tool-call) for THIS turn: an idle/wedged harness
   // has no deadline anywhere, so a silent or hung turn would hold its sandbox forever. Tripping a
@@ -607,10 +612,12 @@ export async function runTurn(
     // interactions-plane answer already transitioned it to responded, and an in-band answer is
     // detected at sweep time (`inBandAnswerToken`) and exempted via the sweep's `tokens` — the
     // row stays pending until this resolve lands it as resolved, never cancelled.
+    const resolvedInteractionTokens = new Set<string>();
     const resolveInteractionToken = (
       token: string,
       verdict?: { approved: boolean; toolCallId: string },
     ): void => {
+      resolvedInteractionTokens.add(token);
       if (verdict) {
         run.emitEvent({
           type: "interaction_response",
@@ -632,6 +639,33 @@ export async function runTurn(
             }
           : undefined,
       );
+    };
+    // A resume's approval envelope is a CONSUMED decision even when the harness never re-raises
+    // the gate: on a cold replay the transcript already contains the human's answer, so the agent
+    // just proceeds and no reply path ever reaches `resolveInteractionToken`. That is exactly how a
+    // gate outlives its turn as a forever-actionable `pending` row. Settle the leftovers here, with
+    // the verdict the human actually gave, so the row lands `resolved` and not `cancelled`. A row
+    // already terminal (resolved by the reply path, or cancelled by the turn-start sweep) simply
+    // 404s the transition — the CAS is the arbiter, this is only a last writer.
+    //
+    // Deliberately does NOT go through `resolveInteractionToken`: this runs after `run.finish()`
+    // has closed the turn's event stream, so emitting an `interaction_response` event here would
+    // land a record after the turn's terminal `done`. The durable row is the only thing to fix.
+    settleInBandInteractions = (): void => {
+      const cred = runCredential(request);
+      if (!cred) return;
+      for (const answer of extractInBandApprovalAnswers(request)) {
+        if (resolvedInteractionTokens.has(answer.token)) continue;
+        resolvedInteractionTokens.add(answer.token);
+        logger(
+          `[HITL] settling in-band answer with no harness gate token=${answer.token} ` +
+            `approved=${answer.approved}`,
+        );
+        void resolveInteraction(sessionId, answer.token, () => cred, {
+          verdict: answer.approved ? "approved" : "denied",
+          tool_call_id: answer.toolCallId,
+        });
+      }
     };
     const serverPermissions = serverPermissionsFromRequest(request);
     // The SAME name->spec index the relay execute loop hands to the relay execution guard, so
@@ -1134,6 +1168,10 @@ export async function runTurn(
     await otel?.flush().catch(() => {});
     return { ok: false, error };
   } finally {
+    // Settle the durable rows this turn's in-band answers consumed but no harness gate resolved.
+    // Idempotent (guarded by the resolved-token set) and never throws, so it is safe on the error
+    // and cancel paths too — a row whose gate is gone is unanswerable however the turn ended.
+    settleInBandInteractions?.();
     // Release every run-limits timer (idempotent, never re-arms on a late event) on EVERY path.
     runLimits.dispose();
     // This turn owns its relay: stop it on EVERY exit path (the happy path already stopped it
