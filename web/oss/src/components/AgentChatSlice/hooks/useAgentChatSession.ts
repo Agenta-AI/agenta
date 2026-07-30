@@ -187,7 +187,7 @@ export const useAgentChatSession = ({
     // throttle-revalidate the drives) as the turn streams, not just at onFinish.
     useFileActivityDetector({sessionId, messages})
 
-    const {isHydrating, hydratedEmpty} = useSessionHydration({
+    const {isHydrating, hydratedEmpty, runningElsewhere} = useSessionHydration({
         sessionId,
         initialMessages,
         messagesRef,
@@ -195,6 +195,7 @@ export const useAgentChatSession = ({
         seenIdsRef,
         restoredIdsRef,
         recordWatermarkRef,
+        busy,
         setMessages,
         persistMessages,
         intent,
@@ -418,6 +419,7 @@ export const useAgentChatSession = ({
         busyRef,
         isHydrating,
         hydratedEmpty,
+        runningElsewhere,
         stopped,
         setStopped,
         handleStop,

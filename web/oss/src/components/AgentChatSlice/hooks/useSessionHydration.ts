@@ -2,11 +2,24 @@ import {type MutableRefObject, useCallback, useEffect, useState} from "react"
 
 import {shouldAdoptServerTranscript} from "@agenta/entities/session"
 import {type UIMessage} from "ai"
+import {useAtomValue} from "jotai"
 
 import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
+import {sessionLivenessAtomFamily} from "../state/liveness"
 import {isSessionFresh} from "../state/sessionEphemera"
 
 import {type ScrollIntent} from "./useScrollIntent"
+
+/** Catch-up cadence while a session runs elsewhere — matches the records query's own staleTime and
+ * the liveness poll, so a tick refetches instead of resolving from a still-fresh cache. */
+const REMOTE_RUN_POLL_MS = 15_000
+
+/** Ceiling once the log goes quiet. `is_running` is Redis-TTL'd at an hour (the runner clears it at
+ * turn end; the TTL is only the crash backstop), so a runner that dies mid-turn leaves the flag set
+ * for a long time — without a backoff that is a full-log refetch every 15s for an hour. Real growth
+ * resets to the fast cadence, so a long turn that is simply quiet (a slow tool call emits no
+ * records until it returns) is still followed. */
+const REMOTE_RUN_POLL_MAX_MS = 60_000
 
 /**
  * Hybrid history for one session tab. localStorage holds only the session INDEX; the durable
@@ -23,6 +36,7 @@ export const useSessionHydration = ({
     seenIdsRef,
     restoredIdsRef,
     recordWatermarkRef,
+    busy,
     setMessages,
     persistMessages,
     intent,
@@ -35,6 +49,8 @@ export const useSessionHydration = ({
     restoredIdsRef: MutableRefObject<Set<string>>
     /** Records the rendered transcript was built from; `undefined` once a live turn supersedes it. */
     recordWatermarkRef: MutableRefObject<number | undefined>
+    /** THIS browser is streaming the turn — reactive, so the catch-up poll can start/stop on it. */
+    busy: boolean
     setMessages: (messages: UIMessage[]) => void
     persistMessages: (args: {id: string; messages: UIMessage[]; recordCount?: number}) => void
     intent: ScrollIntent
@@ -75,7 +91,10 @@ export const useSessionHydration = ({
                 seenIdsRef.current.add(m.id)
                 restoredIdsRef.current.add(m.id)
             })
-            if (armJump) intent.armJump()
+            // Opening a session jumps to the live edge; a background catch-up must NOT — it would
+            // yank a reader who scrolled up. Following the growth is `stickRef`'s call, the same
+            // rule the live stream uses.
+            if (armJump || intent.stickRef.current) intent.armJump()
             recordWatermarkRef.current = recordCount
             setMessages(serverMsgs)
             persistMessages({id: sessionId, messages: serverMsgs, recordCount})
@@ -157,5 +176,44 @@ export const useSessionHydration = ({
         // Once per mounted session tab; `sessionId` is stable for this instance.
     }, [sessionId])
 
-    return {isHydrating, hydratedEmpty}
+    // ── Follow a run happening somewhere else (#5530) ──────────────────────────
+    // There is no push channel to browsers: the runner publishes every event to Redis, but the only
+    // consumer is the ingest worker that writes them to the DB. So a session driven from another tab
+    // or device is followed by re-reading the durable log on a timer, and the adoption guard above
+    // decides whether anything actually changed. `isRunning` also covers OUR stream, so exclude the
+    // case where this browser is the one driving.
+    const {nest} = useAtomValue(sessionLivenessAtomFamily(sessionId))
+    const runningElsewhere = nest.isRunning && !busy
+
+    useEffect(() => {
+        if (!runningElsewhere) return
+        let cancelled = false
+        let timer: ReturnType<typeof setTimeout> | undefined
+        let delay = REMOTE_RUN_POLL_MS
+        const poll = async () => {
+            let grew = false
+            try {
+                const transcript = await loadSessionMessages(sessionId, (fresh) => {
+                    if (!cancelled && adoptServerTranscript(fresh, {armJump: false})) grew = true
+                })
+                if (!cancelled && adoptServerTranscript(transcript, {armJump: false})) grew = true
+            } catch {
+                // `loadSessionMessages` already swallows + logs; keep polling regardless.
+            } finally {
+                // Chained, not `setInterval`: the log is ~200KB and backend-slow, so a slow fetch
+                // must never stack requests on top of itself.
+                if (!cancelled) {
+                    delay = grew ? REMOTE_RUN_POLL_MS : Math.min(delay * 2, REMOTE_RUN_POLL_MAX_MS)
+                    timer = setTimeout(poll, delay)
+                }
+            }
+        }
+        timer = setTimeout(poll, delay)
+        return () => {
+            cancelled = true
+            if (timer) clearTimeout(timer)
+        }
+    }, [runningElsewhere, sessionId, adoptServerTranscript])
+
+    return {isHydrating, hydratedEmpty, runningElsewhere}
 }

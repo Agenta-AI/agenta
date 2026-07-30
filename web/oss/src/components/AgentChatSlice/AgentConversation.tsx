@@ -149,6 +149,7 @@ const AgentConversation = ({
         markLiveGate,
         resumeOrphaned,
         isSeen,
+        runningElsewhere,
     } = useAgentChatSession({entityId, sessionId, initialMessages, intent: scrollIntent})
 
     // Turn Inspector: open state, the focused turn, and the assistant → turn-number mapping.
@@ -636,6 +637,7 @@ const AgentConversation = ({
                                 entityId={entityId}
                                 messages={messages}
                                 busy={busy}
+                                runningElsewhere={runningElsewhere}
                                 hitlPending={hitlPending}
                                 queue={{queued, removeQueued, clearQueue}}
                                 modelKey={modelKey}
