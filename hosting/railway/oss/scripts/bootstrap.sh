@@ -24,6 +24,104 @@ GATEWAY_IMAGE="${AGENTA_GATEWAY_IMAGE:-}"
 # Pin a 4.37-era SeaweedFS: its advanced IAM (the STS path mounts need) regressed in other releases.
 SEAWEEDFS_IMAGE="${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.37}"
 
+EXPECTED_SERVICES=(
+    gateway
+    web
+    api
+    services
+    runner
+    worker-streams
+    worker-queues
+    cron
+    alembic
+    supertokens
+    Postgres
+    redis
+    seaweedfs
+)
+
+list_service_names() {
+    railway_call status --json | jq -r --arg env "$ENV_NAME" \
+        '[.environments.edges[].node | select(.name == $env)
+          | .serviceInstances.edges[].node.serviceName] | .[]'
+}
+
+service_exists() {
+    local name="$1"
+    local service_names
+
+    service_names="$(list_service_names)" || return 2
+    printf "%s\n" "$service_names" | grep -Fxq -- "$name"
+}
+
+ensure_service() {
+    local name="$1"
+    local image="${2:-}"
+    local exists_status
+
+    if service_exists "$name"; then
+        return 0
+    else
+        exists_status=$?
+    fi
+    if [ "$exists_status" -ne 1 ]; then
+        printf "Could not determine whether Railway service '%s' already exists.\n" "$name" >&2
+        return "$exists_status"
+    fi
+
+    # `railway add` is non-idempotent, so railway_call intentionally does not
+    # retry an ambiguous timeout. Log the failure, then let final verification
+    # confirm whether Railway created the service before the request failed.
+    if [ -n "$image" ]; then
+        railway_call add --service "$name" --image "$image" --json || {
+            printf "Failed to create missing Railway service '%s'; verifying final service state.\n" \
+                "$name" >&2
+            return 0
+        }
+    else
+        railway_call add --service "$name" --json || {
+            printf "Failed to create missing Railway service '%s'; verifying final service state.\n" \
+                "$name" >&2
+            return 0
+        }
+    fi
+}
+
+verify_expected_services() {
+    local attempts="${RAILWAY_SERVICE_RESOLVE_ATTEMPTS:-6}"
+    local delay="${RAILWAY_SERVICE_RESOLVE_DELAY:-5}"
+    local attempt service_names service
+    local missing_services=()
+
+    for ((attempt = 1; attempt <= attempts; attempt++)); do
+        service_names="$(list_service_names)" || {
+            printf "Could not verify Railway services after bootstrap.\n" >&2
+            return 1
+        }
+
+        missing_services=()
+        for service in "${EXPECTED_SERVICES[@]}"; do
+            if ! printf "%s\n" "$service_names" | grep -Fxq -- "$service"; then
+                missing_services+=("$service")
+            fi
+        done
+
+        if [ "${#missing_services[@]}" -eq 0 ]; then
+            return 0
+        fi
+
+        if [ "$attempt" -lt "$attempts" ]; then
+            printf "Railway services not visible yet: %s. Retrying in %ds (attempt %d/%d)\n" \
+                "${missing_services[*]}" "$delay" "$attempt" "$attempts" >&2
+            sleep "$delay"
+        fi
+    done
+
+    printf "Railway bootstrap is incomplete; missing expected service(s): %s.\n" \
+        "${missing_services[*]}" >&2
+    return 1
+}
+
 require_cmd() {
     if ! command -v "$1" >/dev/null 2>&1; then
         printf "Missing required command: %s\n" "$1" >&2
@@ -103,14 +201,11 @@ create_env_if_missing() {
 }
 
 add_service() {
-    local name="$1"
-    railway_call add --service "$name" --json >/dev/null 2>&1 || true
+    ensure_service "$1"
 }
 
 add_service_image() {
-    local name="$1"
-    local image="$2"
-    railway_call add --service "$name" --image "$image" --json >/dev/null 2>&1 || true
+    ensure_service "$1" "$2"
 }
 
 ensure_volume() {
@@ -157,12 +252,14 @@ main() {
     add_service_image supertokens "$SUPERTOKENS_IMAGE"
 
     add_service_image Postgres "$POSTGRES_IMAGE"
-    ensure_volume Postgres /var/lib/postgresql/data
 
     add_service_image redis "$REDIS_IMAGE"
-    ensure_volume redis /data
-
     add_service_image seaweedfs "$SEAWEEDFS_IMAGE"
+
+    verify_expected_services
+
+    ensure_volume Postgres /var/lib/postgresql/data
+    ensure_volume redis /data
     ensure_volume seaweedfs /data
 
     railway_call domain --service gateway --json >/dev/null 2>&1 || true

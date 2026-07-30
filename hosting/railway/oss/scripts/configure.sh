@@ -32,6 +32,13 @@ RAILWAY_PROJECT_ID=""
 RAILWAY_ENVIRONMENT_ID=""
 RAILWAY_STATUS_JSON=""
 
+print_missing_service_recovery() {
+    local service="$1"
+
+    printf "Railway preview environment is missing service '%s'. Re-run ALL jobs (not just failed jobs) so bootstrap can repair it.\n" \
+        "$service" >&2
+}
+
 resolve_postgres_password() {
     if [ -n "$POSTGRES_PASSWORD" ]; then
         return 0
@@ -146,6 +153,9 @@ _cli_set_vars() {
             continue
         fi
         [ -n "$output" ] && printf '%s\n' "$output" >&2
+        if printf '%s' "$output" | grep -qi "not found"; then
+            print_missing_service_recovery "$service"
+        fi
         return 1
     done
 }
@@ -470,4 +480,6 @@ main() {
     printf "Configuration completed for project '%s' environment '%s'\n" "$PROJECT_NAME" "$ENV_NAME"
 }
 
-main "$@"
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    main "$@"
+fi

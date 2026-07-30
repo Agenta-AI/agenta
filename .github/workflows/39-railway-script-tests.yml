@@ -1,0 +1,26 @@
+name: "39 - railway script tests"
+
+on:
+  pull_request:
+    paths:
+      - 'hosting/railway/oss/scripts/**'
+      - '.github/workflows/39-railway-script-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Validate Railway scripts
+        run: |
+          bash -n hosting/railway/oss/scripts/bootstrap.sh
+          bash -n hosting/railway/oss/scripts/configure.sh
+          bash hosting/railway/oss/scripts/tests/test_preview_bootstrap.sh
