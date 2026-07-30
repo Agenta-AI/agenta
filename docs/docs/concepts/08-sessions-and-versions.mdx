@@ -1,0 +1,42 @@
+---
+title: "Sessions and versions"
+sidebar_label: "Sessions and versions"
+description: "A session is one conversation with an agent, and an agent can have many. An agent's configuration is versioned, so every change to it is recorded and can be compared."
+---
+
+An agent has two kinds of history. A session is one conversation with it. A version is one state of its configuration. This page explains what belongs to each.
+
+{/* VIDEO: two sessions of the same agent side by side, showing that the conversation and downloaded files differ while the instructions, skills, and tools are the same, then the version history of that agent's configuration */}
+
+## Sessions
+
+A session is one conversation with an agent. An agent can have many sessions, and they run independently of each other.
+
+Each session carries its own conversation. When you start a new session, the agent begins with no memory of what was said in an earlier one. What it does carry into every session is its configuration: the [instructions](/concepts/agents), [skills](/concepts/skills), [tools](/concepts/tools-and-integrations), and [permissions](/concepts/permissions) you gave it.
+
+### What is scoped to a session, and what belongs to the agent
+
+| Scoped to one session | Belongs to the agent |
+|---|---|
+| The conversation and its messages | The instructions |
+| The session folder and anything the agent downloads or writes into it | The skills |
+| | The connected tools and MCP servers |
+| | The permission settings |
+| | The harness and model it runs on |
+| | The agent folder and everything in it |
+
+An agent has folders on both sides of that line. The session folder is scratch space that goes away when the session ends. The agent folder is shared by every session of that agent and persists. [Files and knowledge](/concepts/files-and-knowledge) covers both, and covers the pattern of writing what the agent learns into the agent folder so later sessions can find it.
+
+## Versions
+
+An agent's configuration is versioned. Each change is committed, so the agent has a history you can review and compare, the same way you would with code.
+
+This matters because an agent's behavior is the product of its configuration. When an agent starts answering differently, refusing work it used to do, or reaching for the wrong tool, the cause is usually something that changed: a line added to the instructions, a new skill, a tool that was removed, a different model. Version history is how you find out which.
+
+In Agenta you build an agent by chatting with it, and the agent can change its own configuration as you do. You describe what you want, it edits itself, and those edits are recorded like any other change. The history is what lets you see what it did and go back.
+
+## Related
+
+- [Files and knowledge](/concepts/files-and-knowledge) explains the session folder and the agent folder in full.
+- [Agents](/concepts/agents) covers what makes up the configuration that gets versioned.
+- [Cost and usage](/concepts/cost-and-usage) explains why a long session costs more per turn than a short one.

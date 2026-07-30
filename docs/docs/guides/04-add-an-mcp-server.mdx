@@ -1,0 +1,75 @@
+---
+title: "Add an MCP server"
+sidebar_label: "Add an MCP server"
+description: "Connect an agent to an HTTP MCP server: what to have ready, where the form is, and how to pass an API key without pasting it into the config."
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+An MCP server publishes a set of actions your agent can call. This page covers connecting one over HTTP. For what MCP is and when to reach for it instead of a built-in integration, see [Tools and integrations](/concepts/tools-and-integrations).
+
+{/* VIDEO: Adding an MCP server by pasting its URL, picking a project secret for its auth header, and the agent then calling one of that server's tools. */}
+
+## Before you start
+
+Have these ready:
+
+- **The server's HTTP URL**, the full endpoint, such as `https://example.com/mcp`. HTTP is the only connection type an agent takes today. A server that runs as a local process over stdio is not supported.
+- **The header the server authenticates with**, if it needs one, such as `x-api-key`, and the key itself. Check the server's own documentation for the header name.
+- **An agent on the Claude Code harness.** MCP servers are available on Claude Code. If the agent runs on Pi, the **MCP servers** section does not appear in its configuration. See [Choose a harness and model](/guides/choose-a-harness-and-model).
+
+## Store the key as a project secret first
+
+Skip this if the server needs no authentication.
+
+The MCP form does not take a key by value. It takes a reference to a project secret, which is resolved when the agent runs.
+
+1. Go to `Settings` in the sidebar, then `Secrets`.
+2. Click `+ Create` and save the key.
+
+## Add the server
+
+1. In the playground, set **Playground mode** to `Build`.
+2. In the **Configuration** column, find **MCP servers**, between **Tools** and **Skills**. Its summary reads `None` when the agent has no MCP servers yet.
+3. Click the `+` button on that row, labelled `Add MCP server`. A drawer titled `New MCP server` opens.
+4. Fill in the fields below, then click `Create`.
+5. Click `Commit` in the **Configuration** header to make the server part of a version.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/mcp-section.png")}
+  alt="The Configuration column of a Claude Code agent, with the MCP servers section between Tools and Skills and the Add MCP server tooltip on its plus button"
+  loading="lazy"
+/>
+
+| Field | What to enter |
+|---|---|
+| `Server name` | Letters, numbers, dots, hyphens, or underscores, up to 128 characters, such as `exa`. The server's tools are labelled with this name. |
+| `MCP URL` | The server's HTTP endpoint, such as `https://example.com/mcp`. |
+| `Authentication` | `None` when the server is open. `Secret header` when it needs a key in a request header. `OAuth` is listed but not available yet. |
+| `Header name` | Shown for `Secret header`. The header the server requires, such as `x-api-key`. |
+| `Project secret` | Shown for `Secret header`. Pick the secret you created. The list reads `No project secrets found` when the project has none, so go back and create one in `Settings > Secrets`. |
+
+The drawer title changes to the server name as soon as you type one, so it stops reading `New MCP server`.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/mcp-new-server-drawer.png")}
+  alt="The New MCP server drawer with Server name, MCP URL, Authentication set to Secret header, Header name, and Project secret, and a Create button in the footer"
+  loading="lazy"
+/>
+
+## After it is added
+
+The server's actions become tools the agent can call, each labelled with the server name you chose. You see them in the conversation when the agent calls one, and on the approval card when a call needs your say-so.
+
+:::note
+MCP tools are governed by the agent's `Policy` in the **Advanced** dialog, not by a per-tool `Permission`, and they cannot be added to `Auto-approve`. Under the default `Allow reads` policy the agent asks before every MCP call. To let them run without asking, including on a schedule, set `Policy` to `Allow all`. See [Control what an agent can do](/guides/control-what-an-agent-can-do).
+:::
+
+## Next
+
+- [Control what an agent can do](/guides/control-what-an-agent-can-do) covers the policy that decides when an MCP call waits for you.
+- [Choose a harness and model](/guides/choose-a-harness-and-model) covers switching an agent to Claude Code.

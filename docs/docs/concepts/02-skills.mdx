@@ -1,0 +1,65 @@
+---
+title: "Skills"
+sidebar_label: "Skills"
+description: "A skill is a short handbook telling an agent how to do one kind of task. The agent sees only its name and description until it needs the rest."
+---
+
+A skill teaches an agent how to do one kind of task. This page covers what a skill contains, why it is loaded differently from the instructions, and what makes a skill fire at the right moment.
+
+{/* VIDEO: An agent asked for a PDF report. It names the skill it is loading, reads the skill, and follows the steps in it to produce the file. */}
+
+## What a skill is
+
+A skill is a recipe, or a short handbook, for one kind of thing the agent does. How to write a PDF. How to run a particular analysis. How to open a pull request the way your team does.
+
+It is written as text, the same as the instructions. The difference is not the content. It is when the agent reads it.
+
+## Skills are not preloaded
+
+The [instructions](/concepts/agents) are sent in full at the start of every session. Skills are not.
+
+At the start of a session the agent sees only each skill's **name** and **description**. The body stays on disk. When the agent decides that a skill applies to the task in front of it, it loads the body and follows what it says.
+
+That difference is the whole point. An agent can carry twenty skills and pay for nothing but their names and descriptions until one is needed. The instructions are the always-loaded budget; skills are what you put outside it. See [one budget: the context window](/concepts/agents#one-budget-the-context-window).
+
+## The description decides whether a skill fires
+
+Because the description is all the agent sees up front, the description is what triggers the skill. It has to say **when** to use it, not only what it contains.
+
+A description that names the situations the agent can recognize:
+
+> Use when someone asks for a PDF, a printable report, or a document to send to a client. Covers page layout, fonts, and the export step.
+
+A description that only names the subject leaves the agent guessing:
+
+> Instructions for producing PDF documents.
+
+The second one is not wrong. It is just not a trigger. The agent has no situation to match it against, so the skill sits unused while the agent improvises the task from scratch.
+
+The rest of the skill can be as long as it needs to be.
+
+## Where skills come from
+
+**The wider ecosystem.** Skills are plain folders of text in a format shared across the agent ecosystem, so skills written for other tools work in Agenta. Many are published online. Quality varies widely, and a published skill encodes whatever process its author had in mind, which may not be yours. The body is plain text, so you can read it before you give it to an agent.
+
+**Your own.** A skill that describes how your company does a thing has to be written by someone who knows. One common route: you explain a process to the agent in chat, it works, and you save that explanation as a skill so it does not have to be typed again.
+
+[Manage skills](/guides/manage-skills) covers adding, writing, and removing them.
+
+## Skill, instruction, or file
+
+Three places can hold the same paragraph of text, and they differ only in when the agent reads them.
+
+| | Loaded | Use it for |
+|---|---|---|
+| **Instructions** | Every turn, in full | Context that must be present every time: who you are, what the agent is for, how it should talk |
+| **Skill** | Name and description every turn, body when the agent needs it | A procedure for one kind of task the agent does sometimes |
+| **File** | Only when the agent opens it | Reference material: data, notes, a wiki, anything that grows |
+
+See [Files and knowledge](/concepts/files-and-knowledge) for the third row.
+
+## Related
+
+- [Agents](/concepts/agents) and their instructions.
+- [Tools and integrations](/concepts/tools-and-integrations), which give the agent the actions a skill tells it to take.
+- [Manage skills](/guides/manage-skills).

@@ -1,0 +1,100 @@
+---
+title: "Manage skills"
+sidebar_label: "Manage skills"
+description: "Add a skill to an agent by dropping a folder or archive, or write one in the New skill dialog, and write the description that decides when it fires."
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+A skill is a short handbook the agent loads when it needs it. This page covers adding one you already have, writing one from scratch, and writing the description that decides when the agent reaches for it. For how skills are loaded, see [Skills](/concepts/skills).
+
+{/* VIDEO: Dropping a skill folder into the New skill dialog, watching the name and description fill in, then asking the agent to do the task the skill covers. */}
+
+## Open the New skill dialog
+
+1. In the playground, set **Playground mode** to `Build`.
+2. In the **Configuration** column, find **Skills**. Its summary reads `None` when the agent has no skills yet.
+3. Click `Add skill`.
+
+`Add skill` goes straight to an authoring form titled `New skill`. There is no catalog of existing skills to browse, so a skill comes either from a folder you already have or from what you write here.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/skills-new-skill-dialog.png")}
+  alt="The New skill dialog, with the Files column and drop target on the left and the Name, Description, and SKILL.md fields on the right"
+  loading="lazy"
+/>
+
+## Add a skill you already have
+
+If you have a skill as a folder or an archive, drop it on the target inside the dialog that reads `Drag a skill folder, .zip, or .skill here`, or click `Browse files`. Skills are plain folders in a format shared across the agent ecosystem, so a skill written for another tool works here.
+
+The dialog fills itself in from what you dropped:
+
+- `Name` and `Description` come from the YAML frontmatter at the top of `SKILL.md`.
+- Everything after the frontmatter becomes the `SKILL.md` body.
+- Any files sitting beside `SKILL.md` come in as supporting files, keeping their relative paths.
+
+The `SKILL.md` body is plain text, so you can read exactly what you are handing the agent before you click `Create`.
+
+If you have the text but not the folder, paste a whole `SKILL.md`, frontmatter included, anywhere in the dialog. It fills the same fields.
+
+## Write a skill from scratch
+
+Fill in three fields:
+
+| Field | What to put in it |
+|---|---|
+| `Name` | Lowercase words joined by hyphens, such as `refund-request`. |
+| `Description` | When the agent should reach for this skill. See the next section. |
+| `SKILL.md` | The steps the agent follows. Imperative, numbered where order matters. |
+
+A short one, end to end:
+
+```markdown
+# Handling a refund request
+
+1. Look up the account in the billing app and read the plan and the start date.
+2. A refund is in scope when the request is within 30 days of the last charge and
+   the account has had no prior refund.
+3. Up to $200 you can decide. Above that, draft the reply and tell me it needs
+   Dana's sign-off before it goes out.
+4. Reply in the customer's own language. Lead with the decision, then the reason,
+   then the date the money lands.
+```
+
+Click `Create`, then `Commit` in the **Configuration** header to make the skill part of a version.
+
+## Write the description
+
+The description is the only part of the skill the agent sees before it decides to use it, so it decides whether the skill fires. Name the situations the agent can recognize, not the subject the skill is about.
+
+A description that gives the agent something to match against:
+
+> Use when a customer asks for a refund, a credit, or to cancel mid-term. Covers the eligibility check, the amount you can approve without a manager, and how to word the reply.
+
+A description that names the subject and nothing else:
+
+> Our refund policy.
+
+The second one is accurate and the agent still has no situation to match it to, so the skill sits unused while the agent improvises the task.
+
+Keep the description to a sentence or two, since it is sent on every turn. The body is read only once the skill fires, so it can be as long as the task needs.
+
+## Add supporting files
+
+The `Files` column on the left of the dialog holds `SKILL.md` plus anything else the skill needs, such as a template or an example output. Click `Add file` to add one, and refer to it by name from `SKILL.md`.
+
+## The two toggles
+
+| Toggle | Effect |
+|---|---|
+| `Hide from prompt` | The skill is not listed to the agent, so it never picks the skill on its own. It runs only when invoked by name. |
+| `Allow executable files` | Bundled files may be executed. The sandbox policy in **Advanced** must also allow execution. |
+
+## Next
+
+- [Write your agent's instructions](/guides/write-your-agents-instructions) covers the other place text goes, the one that is loaded every turn.
+- [Build a knowledge base for your agent](/guides/build-a-knowledge-base) covers reference files, which the agent opens only when the instructions send it there.

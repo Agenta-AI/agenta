@@ -1,0 +1,100 @@
+---
+title: "Write your agent's instructions"
+sidebar_label: "Write instructions"
+description: "Edit an agent's AGENTS.md file in the playground, write a first version, and fold corrections back into it."
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+An agent's instructions live in a file called `AGENTS.md`, sent to the agent at the start of every session. This page covers where to edit that file, what a first version looks like, and how to fold a correction back into it. For what belongs in the instructions rather than in a file or a skill, see [Agents](/concepts/agents).
+
+{/* VIDEO: Opening the AGENTS.md editor, saving a short first version, running the agent, and adding one line after the agent answers in the wrong tone. */}
+
+## Open the editor
+
+1. Go to `Agents` in the sidebar and pick your agent.
+2. In the playground, set **Playground mode** to `Build`.
+3. In the **Configuration** column, open **Instructions** and click the `AGENTS.md` row.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/instructions-agents-md-editor.png")}
+  alt="The AGENTS.md editor dialog, with the Edit and Preview control, the formatting toolbar, and the tips rail on the right"
+  loading="lazy"
+/>
+
+The dialog has an `Edit` / `Preview` control and a formatting toolbar. `Source` on that toolbar switches to raw Markdown, which is the fastest way to paste a version in or copy one out. The `SUGGESTED` chips on the right (`+ Output format`, `+ Tone & style`, `+ Guardrails`) each insert an empty heading.
+
+## Write a first version
+
+Keep it to the facts the agent cannot work without: who you are, what it is for, who it talks to, and what it must not do.
+
+A first version for a marketing coworker:
+
+```markdown
+# Role
+
+You are the marketing coworker at Northwind, which sells scheduling software to
+independent dental practices. You draft copy, review drafts I write, and answer
+questions about what we have shipped.
+
+## Audience
+
+Practice owners and office managers. Busy, not technical. They buy to save the front
+desk time.
+
+## How to talk to me
+
+Answer in under 150 words unless I ask for a draft. No preamble and no restating my
+question.
+
+## Hard limits
+
+Never publish or send anything. Show me the draft and wait.
+```
+
+Then:
+
+1. Click `Save`. The dialog closes and the playground header state reads `Draft`.
+2. Click `Commit` in the **Configuration** header.
+3. Pick `New version`, keep or edit the commit message, and click `Commit`.
+
+## Fold a correction back in
+
+Instructions grow against real failures. When the agent gets something wrong, write the rule that would have prevented it, and put it in the section it belongs to.
+
+Say the agent drafts a LinkedIn post that opens with "In today's fast-paced world" and carries three emoji. Reopen `AGENTS.md` and extend the tone section rather than adding a new one:
+
+```markdown
+## How to talk to me
+
+Answer in under 150 words unless I ask for a draft. No preamble and no restating my
+question. In social copy: no emoji, and never open with a scene-setting sentence.
+Open with the claim.
+```
+
+Save and commit again. Every commit is a version, so you can read back what changed and when on the **Registry** page.
+
+## Ask the agent to edit them
+
+You can also describe the change in chat instead of opening the editor. While `Playground build kit` is on in the **Advanced** dialog (it is on by default), the agent can revise its own configuration as you talk to it, including its instructions. Everything the build kit adds is removed on commit, so none of it ships with the agent.
+
+## Keep them short
+
+Every word in `AGENTS.md` goes to the model again on every turn of every session, so a long identity is a recurring charge rather than a one-time one. See [Cost and usage](/concepts/cost-and-usage).
+
+Two ways to keep the file short while the agent still knows more:
+
+- Move a procedure into a [skill](/concepts/skills), which the agent loads only when it needs it. See [Manage skills](/guides/manage-skills).
+- Move reference material into the agent folder and point at it from the instructions in one line, such as "the style guide is in `agent-files/writing/style.md`, read it before drafting". See [Build a knowledge base for your agent](/guides/build-a-knowledge-base).
+
+:::note
+`AGENTS.md` is the only instruction file an agent has today. The `Add instruction file` button next to **Instructions** is disabled, with the tooltip `Multiple instruction files coming soon`.
+:::
+
+## Next
+
+- [Build a knowledge base for your agent](/guides/build-a-knowledge-base) covers folder-level `AGENTS.md` files, which carry rules for one area of work.
+- [Control what an agent can do](/guides/control-what-an-agent-can-do) covers the limits that are settings rather than sentences.

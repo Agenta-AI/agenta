@@ -1,0 +1,92 @@
+---
+title: "Trigger an automation from an app"
+sidebar_label: "Trigger from an app"
+description: "Start an agent run when an event fires in a connected app: connect the app, pick the event, filter it, and write the message the agent receives."
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+An event trigger starts an agent run when something happens in an app you connected, with nobody in the chat. This page sets one up. Prepare the agent first with [Create an automation](/guides/create-an-automation), because the run cannot ask you anything once it starts.
+
+{/* VIDEO: picking GitHub in Choose a trigger, selecting an event, inserting event fields into the message, and creating the trigger. */}
+
+## Connect the app first
+
+An event trigger fires from an app this project is connected to. To connect one, go to `Sidebar > Settings > Triggers` and click `+ Connect` on the `Connections` section. Connected apps are listed there with their `Integration`, `Name`, `Slug`, `Status`, and `Created at`.
+
+The trigger picker shows your connections in its left rail, under `YOUR CONNECTIONS`, and each app card has a `+ Connect another account` button for adding a second account.
+
+## Commit before you subscribe
+
+An event trigger runs one pinned variant and revision. Commit the agent first, so the trigger can pin the version you want it to run. In the `Configuration` header, click `Commit`, keep `New version`, and confirm.
+
+## Pick the app and the event
+
+Two ways in, both opening the same picker.
+
+**From the agent.** `Sidebar > Agents > <agent name>`, set `Playground mode` to `Build`, scroll the `Configuration` column to the `Triggers` heading, and click `Add subscription` on the `Subscriptions` section.
+
+**From project settings.** `Sidebar > Settings > Triggers`, then `+ Subscribe` on the `Event triggers` section.
+
+The `Choose a trigger` dialog opens with your connections in the left rail, a `Search apps…` box, and the `ALL APPS` grid.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/triggers-choose-a-trigger.png")}
+  alt="The Choose a trigger dialog with the YOUR CONNECTIONS rail and the ALL APPS grid"
+  loading="lazy"
+/>
+
+Click the app. Its card shows the connection, then `CHOOSE AN EVENT` with a `Search events` box and the events that app can fire. Click the event you want.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/triggers-github-events.png")}
+  alt="The GitHub event list under CHOOSE AN EVENT"
+  loading="lazy"
+/>
+
+## Fill in the trigger
+
+Picking an event opens the `New trigger` dialog.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/subscription-event-form.png")}
+  alt="The New trigger form with its Name, When this happens, Which version runs, and What the agent gets sections"
+  loading="lazy"
+/>
+
+### 1. Name
+
+Type a `Trigger name`. It is what identifies this trigger in the `Event triggers` table.
+
+### 2. When this happens
+
+The event you chose is shown here with the app it comes from. Below it, `Event filters` narrows which occurrences start a run. The fields depend on the event. A GitHub event asks for `Owner` and `Repo`, and for an `Interval` in minutes, which is how often the event is checked.
+
+Fill in every field marked with an asterisk.
+
+### 3. Which version runs?
+
+Choose `Pinned`, which runs one exact variant and revision, then select the variant. Every run of this trigger uses that revision.
+
+### 4. What the agent gets
+
+Write the message the agent receives when the event fires. The left column, `EVENT FIELDS`, lists the fields the event carries. Click a field to drop its live value into the message, so each run tells the agent which issue, branch, or record it is about.
+
+To see real values in that column, use `Test event`.
+
+## Test it, then switch it on
+
+Click `Run in playground` in the footer to run the agent with the message you built. Once the run does what you want, set the `Active` toggle and click `Create`.
+
+To create the trigger without arming it, leave `Active` off.
+
+## Related
+
+- [Automations](/concepts/automations) explains what an unattended run needs to be given up front.
+- [Schedule an automation](/guides/schedule-an-automation) starts a run on a clock instead of an event.
+- [Tools and integrations](/concepts/tools-and-integrations) covers giving the agent actions in the same connected apps.

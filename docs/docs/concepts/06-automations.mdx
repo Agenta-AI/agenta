@@ -1,0 +1,36 @@
+---
+title: "Automations"
+sidebar_label: "Automations"
+description: "An automation is an agent that runs without anyone in the chat, started by a schedule or by an event in a connected app."
+---
+
+An automation is an agent that runs with nobody in the chat. Instead of you opening a session and typing, something else starts the run: a clock, or something that happened in an app you connected. The agent does the work and leaves the result somewhere.
+
+{/* VIDEO: a schedule fires, the agent runs on its own, and the result arrives in a Slack channel. */}
+
+## What starts a run
+
+**On a schedule.** The run happens at a time you set: every weekday at eight, the first of the month, every hour. See [Schedule an automation](/guides/schedule-an-automation).
+
+**On an event in a connected app.** Something happens in an app the agent is connected to and the run starts in response: a new row in a sheet, a new issue, a message in a channel. See [Trigger an automation from an app](/guides/trigger-an-automation-from-an-app).
+
+Either way the agent is the same agent. Same [instructions](/concepts/agents), same [skills](/concepts/skills), same [tools](/concepts/tools-and-integrations), same agent folder. What changes is who starts it and who is watching.
+
+## What changes when nobody is watching
+
+In a chat you fill in the gaps as they appear. The agent asks which quarter you meant, you tell it, and it moves on. An automation has nobody to ask, so three things have to be settled before it runs.
+
+**The instructions have to answer the questions you would have answered.** Which report, which format, how to handle the case where the data is missing. In a chat that comes out in conversation. In an automation it has to be written down, in the instructions or in the files the agent reads.
+
+**Permissions have to be decided up front.** An agent that stops to request approval waits for an answer that is not coming, and the run does not finish. See [Permissions](/concepts/permissions).
+
+**The output has to go somewhere you will look.** Give the agent a way to deliver: a message in a channel, an email, a row in a sheet, a page in a doc. That means giving it the [tool](/concepts/tools-and-integrations) for that destination and saying in the instructions where the result goes.
+
+Anything a run should leave behind for later runs goes in the agent folder, which every session shares and which outlives any single run. See [Files and knowledge](/concepts/files-and-knowledge).
+
+## Next
+
+- [Create an automation](/guides/create-an-automation) sets one up.
+- [Schedule an automation](/guides/schedule-an-automation) runs it on a clock.
+- [Trigger an automation from an app](/guides/trigger-an-automation-from-an-app) runs it on an event.
+- [Build a marketing coworker](/learn/build-a-marketing-coworker) builds an agent and puts it on a schedule end to end.

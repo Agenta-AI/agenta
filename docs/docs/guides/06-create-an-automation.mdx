@@ -1,0 +1,96 @@
+---
+title: "Create an automation"
+sidebar_label: "Create an automation"
+description: "Prepare an agent to run with nobody in the chat: settle its instructions and permissions, commit a version, then attach a schedule or an app event."
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+An automation is an agent that runs with nobody in the chat. This page covers what to settle on the agent first, and where to attach the trigger. For what an automation is, see [Automations](/concepts/automations).
+
+{/* VIDEO: an agent that works in chat being prepared to run unattended, then a trigger attached to it from the Triggers section of the configuration. */}
+
+## Before you attach a trigger
+
+An unattended run cannot ask you anything. Three parts of the agent have to carry what you would have carried in the chat.
+
+### 1. Put the answers in the instructions
+
+Open `Sidebar > Agents > <agent name>`, set `Playground mode` to `Build`, and open `Instructions` in the `Configuration` column. Click the `AGENTS.md` row and write down the choices the agent would otherwise ask you about: which source to read, which format to produce, what to do when the data is missing, and where the result goes. Click `Save`.
+
+[Write your agent's instructions](/guides/write-your-agents-instructions) covers the writing itself.
+
+### 2. Give it somewhere to put the result
+
+A run that finishes with nobody watching has to leave the result where you will see it.
+
+Open `Tools`, click `Add tool`, and choose `Third-party integration`. In the `Add app tools` dialog pick the app you want to deliver into, choose the action under `CHOOSE AN ACTION`, and click `Done`. Then name that destination in the instructions.
+
+If a run should leave something behind for later runs, have the agent write it into the agent folder. See [Build a knowledge base for your agent](/guides/build-a-knowledge-base).
+
+### 3. Settle the permissions
+
+Open `Advanced`, then the `Permissions` section, and set `Policy`:
+
+| Option | What it does |
+|---|---|
+| `Allow reads` | Reads run, writes ask. This is the default |
+| `Allow all` | Every tool runs without asking |
+| `Ask` | A human approves every tool call |
+| `Deny all` | Every tool call is refused |
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/advanced-permissions-policy-options.png")}
+  alt="The Policy dropdown in the Permissions section, open on Allow reads, Allow all, Ask, and Deny all"
+  loading="lazy"
+/>
+
+:::warning
+Under `Ask`, and under `Allow reads` when the agent needs to write, the run stops at the first gated tool call and waits for an approval. With nobody in the chat, that answer never arrives and the run does not finish. Decide what the agent may do on its own before you attach a trigger.
+:::
+
+The `Auto-approve` field in the same section lists the tools that run without asking. Entries land there when you use `Always allow` on an approval card during a chat, and a grant reaches a trigger only after you commit.
+
+For the wider set of controls, see [Control what an agent can do](/guides/control-what-an-agent-can-do).
+
+## Commit a version
+
+A trigger runs one pinned variant and revision, so it runs what you committed, not your current draft.
+
+Click `Commit` in the `Configuration` header, keep `New version`, write a commit message, and click `Commit`.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/commit-dialog.png")}
+  alt="The commit dialog with What's changing on the left and the New version chooser and commit message on the right"
+  loading="lazy"
+/>
+
+## Attach the trigger
+
+In `Configuration`, below `Advanced`, the `Triggers` heading holds two sections.
+
+- **`Schedules`** runs the agent on a clock. Click `Add schedule`. See [Schedule an automation](/guides/schedule-an-automation).
+- **`Subscriptions`** runs the agent when an event fires in a connected app. Click `Add subscription`. See [Trigger an automation from an app](/guides/trigger-an-automation-from-an-app).
+
+Both dialogs ask `Which version runs?` and pin the variant and revision you choose. Both carry a `Run in playground` button in the footer, which runs the agent with the message you configured, and an `Active` toggle that decides whether the trigger is live when you click `Create`.
+
+## Where automations are listed
+
+`Sidebar > Settings > Triggers` lists every trigger in the project. `Event triggers` has the columns `Name`, `Connection`, `Event`, `Status`, `Created at`. `Scheduled runs` has `Name`, `Schedule`, `Window (UTC)`, `Bound workflow`, `Status`, `Created at`. You can create either kind from this page too, with `+ Subscribe` and `+ Schedule`.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/settings-triggers.png")}
+  alt="Settings then Triggers, showing the Connections, Event triggers, and Scheduled runs sections"
+  loading="lazy"
+/>
+
+## Related
+
+- [Automations](/concepts/automations) explains what changes when nobody is watching.
+- [Build a marketing coworker](/learn/build-a-marketing-coworker) builds an agent and puts it on a schedule end to end.
+- [Analyze cost and usage](/guides/analyze-cost-and-usage) shows what an agent is costing.
