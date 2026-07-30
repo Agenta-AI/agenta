@@ -1393,6 +1393,14 @@ class SessionsRedisConfig(BaseModel):
         _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCH_HEARTBEAT_SECONDS")
         or 15
     )
+    # API-side only (turn-supersession tombstones) — NOT part of the runner golden
+    # fixture; the runner never reads this key, it learns supersession from
+    # `is_current_turn`. Defaults to the alive TTL so a tombstone always outlives the
+    # lock whose displacement created it.
+    superseded_ttl_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_SUPERSEDED_TTL_SECONDS")
+        or 3600
+    )
 
     model_config = ConfigDict(extra="ignore")
 

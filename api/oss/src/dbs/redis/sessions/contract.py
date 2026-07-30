@@ -11,6 +11,10 @@ Key namespace — every key is project-scoped:
   owner:<project_id>:session:<session_id>      — which replica currently owns this session
   displaced:<project_id>:session:<session_id>  — pub/sub for attach-steal notifications
   watch:<project_id>:session:<session_id>      — pub/sub for the live relay (SSE watch)
+  superseded:<project_id>:session:<session_id>:turn:<turn_id>
+                                               — tombstone: this turn lost the nest and is
+                                                 dead forever (API-side only; the runner
+                                                 learns it through `is_current_turn`)
 
 `session_id` is caller-supplied and Postgres uniqueness is (project_id, session_id), so two
 projects may legitimately hold the same one. The `project_id` segment is the tenant boundary:
@@ -37,6 +41,10 @@ OWNER_TTL_SECONDS: int = env.sessions.owner_ttl_seconds
 HEARTBEAT_INTERVAL_SECONDS: int = env.sessions.heartbeat_interval_seconds
 HEARTBEAT_WRITE_THRESHOLD_SECONDS: int = env.sessions.heartbeat_write_threshold_seconds
 
+# API-side only — the runner never reads the tombstone key, so this constant is
+# deliberately absent from the shared golden fixture (like `watch_heartbeat_seconds`).
+SUPERSEDED_TTL_SECONDS: int = env.sessions.superseded_ttl_seconds
+
 # ---------------------------------------------------------------------------
 # Key builders
 # ---------------------------------------------------------------------------
@@ -56,6 +64,10 @@ def attached_key(project_id: str, session_id: str) -> str:
 
 def owner_key(project_id: str, session_id: str) -> str:
     return f"owner:{project_id}:session:{session_id}"
+
+
+def superseded_key(project_id: str, session_id: str, turn_id: str) -> str:
+    return f"superseded:{project_id}:session:{session_id}:turn:{turn_id}"
 
 
 def displaced_channel(project_id: str, session_id: str) -> str:

@@ -346,7 +346,7 @@ Execution scope now: M0 + M1 (minus M1.5 steer) + TTL bump + M2.
   noted slow). The M0.3/M1.3 tightened cadence must be foreground-only + only while
   running/pending; back off on `visibilitychange`.
 
-## 6. Tracked residual: parked-session lock ambiguity (found 2026-07-28)
+## 6. CLOSED: parked-session lock ambiguity (found 2026-07-28, closed 2026-07-30)
 
 Live QA of approvals surfaced a dead liveness mirror in `SessionStreamsService.heartbeat`
 (fixed: b0281c5788, 6761727847, 2174162d80, 5d2ed61e9f, 076dc41b7e — see the memory entry
@@ -365,11 +365,49 @@ reports `is_current_turn=False` and aborts. Narrow today (`_start_turn` is off t
 path; cross-container zombies are blocked by the non-stealing `claim_owner` affinity key),
 but real.
 
-**Fix options (pick when the send/steer path gets wired):** store `alive` as
-`{turn_id, state}` or add a sibling `parked:` key so a parked/starting holder is
-distinguishable from a lapsed one; or give `release_alive` an actual caller so `alive` stops
-outliving its turn (the root cause). Either way the runner's `startAliveWatchdog` must be
-updated in lockstep.
+**The fix that landed (2026-07-30): supersession tombstones.** Neither option originally
+sketched here survives contact with the failure:
+
+- *Self-describing `alive` (`{turn_id, state}` / a sibling `parked:` key)* tells a parked
+  holder from a lapsed one, but that is not the decision the heartbeat has to make. The
+  approval RESUME is itself a different turn that MUST displace the parked holder, and it is
+  indistinguishable from the zombie at the lock layer — so "parked ⇒ don't steal" blocks the
+  resume, which is the shipped-Critical failure mode ("every follow-up turn aborts") in a new
+  costume. Making it work needs the resume to announce itself on the heartbeat wire = a
+  runner wire change + restart.
+- *Giving `release_alive` a caller* does not fix the zombie at all (the zombie then simply
+  takes an EMPTY nest and the resume still reads `is_current_turn=False`), and it makes a
+  parked session `is_alive=false` — which flips the SEND gate open mid-park, inviting the
+  very concurrent-turn state that produces zombies. It trades one gap for a worse one.
+
+What is actually knowable, at the exact moment it happens, is that a turn was **displaced**.
+So every displacement — the heartbeat handover, cancel, steer, kill, orphan sweep — now
+tombstones the turn it displaced (`superseded:<project>:session:<sid>:turn:<turn>`,
+TTL-refreshed on every hit so a long-lived zombie never outlives its own death certificate),
+and a tombstoned turn's beats are refused before they touch any lock or the row. A zombie is
+by definition a turn that already lost the nest, so `displaced ⇒ dead` is precisely the
+discriminator the locks cannot provide. The ambiguous state keeps resolving as (a) — no
+regression risk to the warm-session handover — but only a never-displaced turn can reach it.
+
+Side effects worth knowing: a superseded turn's own `is_running=false` beat no longer clears
+the LIVE turn's `running` (`clear_running` is unconditional), and a cancelled turn's beat no
+longer re-acquires `alive` under its dead id.
+
+**The runner needed no change.** The heartbeat wire is unchanged and `is_current_turn: false`
+already means "you lost the session, abort" — a refused beat is exactly that. Nothing here
+requires a runner restart. Runner-side tests were extended to pin its half of the contract
+(no beats after `release()`; a refused beat aborts).
+
+Code: `api/oss/src/dbs/redis/sessions/{contract,locks}.py`,
+`api/oss/src/core/sessions/streams/service.py`,
+`api/oss/src/tasks/asyncio/sessions/orphan_sweep.py`, `api/oss/src/utils/env.py`.
+Tests: `api/oss/tests/pytest/unit/sessions/test_heartbeat_parked_zombie.py` (+ the orphan
+sweep and runner alive suites).
+
+**Residual, accepted and narrower:** `_start_turn` acquires `alive` then `running` in two
+Redis round-trips; a never-displaced turn beating inside that sub-millisecond window would
+still read the state as a handover. Only reachable with two genuinely concurrent turns on one
+session — an un-gated-concurrent-`/invoke` hazard, not a lock-contract one.
 
 **Also worth knowing:** `updated_at` is bumped by non-heartbeat writers (attach/detach,
 rename), so watcher churn can hold an orphan's sweep clock open — now a 30-minute window for

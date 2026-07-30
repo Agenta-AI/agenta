@@ -13,7 +13,7 @@ from datetime import datetime, timezone, timedelta
 
 import pytest
 
-from oss.src.dbs.redis.sessions.locks import get_session_liveness
+from oss.src.dbs.redis.sessions.locks import get_session_liveness, is_turn_superseded
 from oss.src.core.sessions.streams.types import SessionTurnInUse
 from oss.src.tasks.asyncio.sessions.orphan_sweep import run_orphan_sweep
 
@@ -148,6 +148,38 @@ async def test_orphan_sweep_clears_alive_lock_and_unblocks_send(anyio_backend):
             raise SessionTurnInUse(session_id=_SESSION_ID, liveness=liveness)
 
     _send_gate(liveness_after)  # must not raise
+
+
+@pytest.mark.anyio
+async def test_orphan_sweep_tombstones_the_turn_it_swept(anyio_backend):
+    """A swept turn is declared dead. Without a tombstone its next beat would find the nest
+    empty, re-acquire `alive` under its own id, and put the session straight back into the
+    orphaned state the sweep just cleaned up.
+    """
+    assert anyio_backend == "asyncio"
+
+    lock_engine = _FakeRedis()
+    await lock_engine.set(
+        f"alive:{_PROJECT_ID}:session:{_SESSION_ID}", b"turn-1", ex=3600
+    )
+    await lock_engine.set(
+        f"running:{_PROJECT_ID}:session:{_SESSION_ID}", b"turn-1", ex=3600
+    )
+    stale_row = _FakeRow(
+        session_id=_SESSION_ID,
+        updated_at=datetime.now(timezone.utc) - timedelta(seconds=600),
+    )
+
+    await run_orphan_sweep(_FakeTransactionsEngine([stale_row]), lock_engine)
+
+    assert (
+        await is_turn_superseded(
+            lock_engine,
+            project_id=_PROJECT_ID,
+            session_id=_SESSION_ID,
+            turn_id="turn-1",
+        )
+    ) is True
 
 
 @pytest.mark.anyio
