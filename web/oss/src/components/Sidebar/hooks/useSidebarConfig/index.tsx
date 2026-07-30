@@ -176,7 +176,7 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 icon: <LightningIcon size={14} />,
                 disabled: !hasProjectURL,
                 dataTour: "registry-nav",
-                workflowCategories: ["app", "agent"],
+                workflowCategories: ["app"],
             },
             {
                 key: "app-evaluations-link",

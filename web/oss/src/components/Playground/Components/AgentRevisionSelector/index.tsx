@@ -63,6 +63,7 @@ const AgentRevisionSelector = ({variantId}: {variantId: string}) => {
                 onChange={(value) => handleSwitchVariant(value)}
                 value={_variantId ?? undefined}
                 borderlessTrigger
+                versioning="linear"
             />
             {variantRevision !== null && variantRevision !== undefined && (
                 <Tooltip

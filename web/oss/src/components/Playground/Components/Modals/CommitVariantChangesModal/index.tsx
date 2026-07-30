@@ -22,6 +22,7 @@ import {
     clearRegistryVariantNameCache,
 } from "@/oss/components/VariantsComponents/store/registryStore"
 import {selectedAppIdAtom} from "@/oss/state/app"
+import {currentWorkflowAtom} from "@/oss/state/workflow"
 
 import {CommitVariantChangesModalProps} from "./assets/types"
 
@@ -43,6 +44,8 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     const isEphemeral = useAtomValue(workflowMolecule.selectors.isEphemeral(variantId || ""))
     const isEvaluator = useAtomValue(workflowMolecule.selectors.isEvaluator(variantId || ""))
     const isApplication = useAtomValue(workflowMolecule.selectors.isApplication(variantId || ""))
+    const isAgent = useAtomValue(workflowMolecule.selectors.isAgent(variantId || ""))
+    const currentWorkflow = useAtomValue(currentWorkflowAtom)
 
     const appId = useAtomValue(selectedAppIdAtom)
     const commitRevision = useSetAtom(playgroundController.actions.commitRevision)
@@ -51,6 +54,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     const {mutateAsync: publish} = useAtomValue(publishMutationAtom)
 
     const variantName = runnableData?.name || "Variant"
+    const commitTargetName = isAgent ? currentWorkflow?.name || "Agent" : variantName
     const variantSlug = runnableData?.slug
 
     // Environments offered in the footer's "Commit & deploy to …" split-button dropdown.
@@ -73,7 +77,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             deployEnvironments: string[] | undefined,
             deployMessage?: string,
         ) => {
-            if (!deployEnvironments || deployEnvironments.length === 0) return
+            if (isAgent || !deployEnvironments || deployEnvironments.length === 0) return
             const newRevisionData = workflowMolecule.get.data(newRevisionId)
             const refs = {
                 revisionId: newRevisionId,
@@ -105,7 +109,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 message.error(`Couldn't publish ${label} to ${failed.join(", ")}`)
             }
         },
-        [publish, runnableData, appId],
+        [publish, runnableData, appId, isAgent],
     )
 
     const handleSubmit = useCallback(
@@ -145,7 +149,9 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 return {success: true, newRevisionId: result.newRevisionId}
             }
 
-            const selectedMode = mode === "variant" ? "variant" : "version"
+            // Agents always append to their one persisted timeline. Ignore a stale
+            // or externally supplied branching mode as a mechanical guardrail.
+            const selectedMode = !isAgent && mode === "variant" ? "variant" : "version"
             const note = commitMessage ?? undefined
 
             if (selectedMode === "variant") {
@@ -221,6 +227,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         },
         [
             isEphemeral,
+            isAgent,
             createFromEphemeral,
             createVariant,
             variantId,
@@ -234,13 +241,13 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
 
     const commitModes = useMemo(
         () =>
-            isEvaluator
+            isEvaluator || isAgent
                 ? [{id: "version", label: "As a new version"}]
                 : [
                       {id: "version", label: `Update ${variantName}`},
                       {id: "variant", label: "Save as a new variant"},
                   ],
-        [isEvaluator, variantName],
+        [isEvaluator, isAgent, variantName],
     )
 
     // For ephemeral entities, render a simplified "Create" modal with editable name.
@@ -284,11 +291,11 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             entity={{
                 type: "variant",
                 id: variantId,
-                name: variantName,
+                name: commitTargetName,
             }}
             commitModes={commitModes}
             defaultCommitMode="version"
-            commitDeployOptions={isEvaluator ? undefined : commitDeployOptions}
+            commitDeployOptions={isEvaluator || isAgent ? undefined : commitDeployOptions}
             canSubmit={({mode, entityName}) => {
                 if (mode === "variant") {
                     if (!entityName?.trim()) return false

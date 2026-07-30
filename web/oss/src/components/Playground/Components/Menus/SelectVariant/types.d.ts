@@ -24,6 +24,11 @@ export interface SelectVariantProps extends TreeSelectProps {
      * header so the revision picker reads as an identity, not a form switch.
      */
     borderlessTrigger?: boolean
+    /**
+     * Controls how revisions are presented. Linear versioning hides the persisted
+     * variant level and deployment badges and labels the control as History.
+     */
+    versioning?: "linear" | "branching"
 }
 
 export interface TreeSelectItemRendererProps {
