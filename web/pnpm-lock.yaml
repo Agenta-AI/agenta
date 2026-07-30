@@ -284,6 +284,9 @@ importers:
       react-resizable:
         specifier: ^3.0.5
         version: 3.1.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      react-syntax-highlighter:
+        specifier: ^16.1.1
+        version: 16.1.1(react@19.2.6)
       react-virtuoso:
         specifier: ^4.18.10
         version: 4.18.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
