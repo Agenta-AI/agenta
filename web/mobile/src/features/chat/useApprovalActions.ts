@@ -7,6 +7,7 @@ import {
 } from "@agenta/entities/session"
 
 import {selectApprovalTargets, type ApprovalTarget} from "./approvalTargets"
+import {buildApprovalAnswer} from "./steer"
 
 export type ResumePhase = "idle" | "resuming" | "error"
 
@@ -19,8 +20,12 @@ const respondErrorText = (error: unknown): string => {
 export interface ApprovalActions {
     phase: ResumePhase
     errorText: string | null
-    /** Answer one gate. Deny also resumes (the runner needs the denial round-trip). */
-    respond: (args: {approvalId: string; approved: boolean}) => void
+    /**
+     * Answer one gate. Deny also resumes (the runner needs the denial round-trip). `message` is
+     * the steer-lite redirect note that rides with a denial — see [[isSteerEnabled]] for where it
+     * is actually delivered.
+     */
+    respond: (args: {approvalId: string; approved: boolean; message?: string}) => void
     /** Approve every pending gate — one respond call per gate (the endpoint is per-interaction). */
     approveAll: () => void
 }
@@ -66,7 +71,7 @@ export const useApprovalActions = ({
     }, [phase])
 
     const submit = useCallback(
-        async (target: ApprovalTarget, approved: boolean) => {
+        async (target: ApprovalTarget, approved: boolean, message?: string) => {
             if (busyRef.current) return
             busyRef.current = true
             setPhase("resuming")
@@ -92,7 +97,7 @@ export const useApprovalActions = ({
                         await respondInteraction({
                             interactionId: row.id as string,
                             projectId,
-                            answer: {approved},
+                            answer: buildApprovalAnswer(approved, message),
                         })
                         answered += 1
                     } catch (err) {
@@ -114,8 +119,16 @@ export const useApprovalActions = ({
     )
 
     const respond = useCallback(
-        ({approvalId, approved}: {approvalId: string; approved: boolean}) => {
-            void submit({approvalId}, approved)
+        ({
+            approvalId,
+            approved,
+            message,
+        }: {
+            approvalId: string
+            approved: boolean
+            message?: string
+        }) => {
+            void submit({approvalId}, approved, message)
         },
         [submit],
     )
