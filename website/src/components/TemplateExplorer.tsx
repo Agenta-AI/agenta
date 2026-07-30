@@ -351,6 +351,9 @@ export default function TemplateExplorer() {
               <div
                 style={{
                   display: "inline-flex",
+                  // Wrap so the 3-option switch can't overflow a narrow (~335px)
+                  // mobile panel and clip "pi.dev"; stays one row where it fits.
+                  flexWrap: "wrap",
                   gap: 3,
                   padding: 3,
                   borderRadius: 9,
