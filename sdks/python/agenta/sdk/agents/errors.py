@@ -41,7 +41,7 @@ class LocalSandboxNotAllowedError(ErrorStatus):
     """A sandbox provider not in `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`; maps to HTTP 403."""
 
     code: int = 403
-    type: str = f"{ERRORS_BASE_URL}#v0:agent:local-sandbox-not-allowed"
+    LEGACY_TYPE: str = f"{ERRORS_BASE_URL}#v0:agent:local-sandbox-not-allowed"
 
     def __init__(
         self,
@@ -52,4 +52,7 @@ class LocalSandboxNotAllowedError(ErrorStatus):
             f"sandbox '{sandbox}' is not enabled on this deployment "
             f"(add it to AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS to enable)"
         )
-        super().__init__(code=self.code, type=self.type, message=resolved)
+        resolved_type = (
+            f"{ERRORS_BASE_URL}#v0:agent:sandbox-provider-not-allowed:{sandbox}"
+        )
+        super().__init__(code=self.code, type=resolved_type, message=resolved)
