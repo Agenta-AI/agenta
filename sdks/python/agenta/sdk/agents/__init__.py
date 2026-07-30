@@ -85,6 +85,7 @@ from .dtos import (
 from .errors import (
     AgentRunnerConfigurationError,
     LocalSandboxNotAllowedError,
+    SandboxNotAllowedError,
     ToolResolutionError,
     UnsupportedHarnessError,
 )
@@ -262,6 +263,7 @@ __all__ = [
     "Harness",
     # Errors
     "AgentRunnerConfigurationError",
+    "SandboxNotAllowedError",
     "LocalSandboxNotAllowedError",
     "UnsupportedHarnessError",
     "ToolResolutionError",
