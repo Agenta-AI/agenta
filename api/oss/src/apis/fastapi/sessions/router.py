@@ -554,6 +554,11 @@ class SessionStreamsRouter:
 
         Auth is the standard middleware (cookie ``sAccessToken``, ApiKey, or
         Bearer) evaluated once at connect; scope is the credential's project.
+        Browsers authenticate by cookie — ``EventSource`` cannot set headers —
+        so a connect landing on an expired access token 401s like any other
+        request. There is no interceptor to refresh-and-retry a stream, so the
+        client must refresh the session itself and reopen (see the web hooks).
+
         The stream has no replay/cursor semantics — ``EventSource`` reconnects
         and clients revalidate once on every ``open``, which covers any missed
         notifications.
@@ -581,6 +586,7 @@ class SessionStreamsRouter:
             # teardown story; revisit with a shared listener if counts grow).
             pubsub_factory=lambda: get_streams_engine().get_redis().pubsub(),
             heartbeat_seconds=env.sessions.watch_heartbeat_seconds,
+            retry_milliseconds=env.sessions.watch_retry_milliseconds,
         )
         return StreamingResponse(
             stream,
