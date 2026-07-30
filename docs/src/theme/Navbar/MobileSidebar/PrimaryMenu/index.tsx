@@ -14,7 +14,17 @@ function hasClass(item: unknown, cls: string): boolean {
 }
 
 function stripTags(html: string | undefined): string {
-  return (html ?? "").replace(/<[^>]*>/g, "").trim();
+  // Strip repeatedly until stable so nested/malformed tags can't survive a
+  // single pass (satisfies CodeQL's incomplete-sanitization check). The input
+  // is our own static navbar config, but the loop keeps the label extraction
+  // robust regardless.
+  let out = html ?? "";
+  let prev;
+  do {
+    prev = out;
+    out = out.replace(/<[^>]*>/g, "");
+  } while (out !== prev);
+  return out.trim();
 }
 
 /**
