@@ -16,7 +16,11 @@
         "format": "prettier --check .",
         "format-fix": "prettier --write .",
         "types:check": "tsc",
-        "types:watch": "tsc -w"
+        "types:watch": "tsc -w",
+        "test": "pnpm run test:unit",
+        "test:unit": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage"
     },
     "dependencies": {
         "@agenta/annotation": "workspace:../packages/agenta-annotation",
@@ -140,8 +144,12 @@
         "@types/node": "^20.19.20",
         "@types/prismjs": "^1.26.5",
         "@types/semver": "^7.7.1",
+        "@vitejs/plugin-react-swc": "^4.3.2",
+        "@vitest/coverage-v8": "^4.1.4",
+        "jsdom": "^26.1.0",
         "node-mocks-http": "^1.17.2",
         "prettier": "^3.7.4",
-        "tailwind-scrollbar": "^3"
+        "tailwind-scrollbar": "^3",
+        "vitest": "^4.1.4"
     }
 }
