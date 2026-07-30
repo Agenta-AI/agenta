@@ -36,15 +36,20 @@ export function useDriveDownloadAll({
         setDownloadingAll(true)
         const key = "drive-download-all"
         message.open({type: "loading", key, content: "Preparing download…", duration: 0})
-        const result = await downloadMountArchive({
-            mounts: archiveMounts,
-            projectId,
-            filename: `${driveRootLabel(drive.mount)}-files.zip`,
-        })
-        if (result.cancelled) message.destroy(key)
-        else if (result.ok) message.open({type: "success", key, content: "Download ready"})
-        else message.open({type: "error", key, content: result.error ?? "Download failed"})
-        setDownloadingAll(false)
+        // `finally`: the in-flight flag gates every retry (above) and the loading toast has no
+        // duration, so anything that skips the reset leaves the button dead and the toast pinned.
+        try {
+            const result = await downloadMountArchive({
+                mounts: archiveMounts,
+                projectId,
+                filename: `${driveRootLabel(drive.mount)}-files.zip`,
+            })
+            if (result.cancelled) message.destroy(key)
+            else if (result.ok) message.open({type: "success", key, content: "Download ready"})
+            else message.open({type: "error", key, content: result.error ?? "Download failed"})
+        } finally {
+            setDownloadingAll(false)
+        }
     }, [archiveMounts, drive.mount, projectId, downloadingAll, message])
 
     return {archiveMounts, downloadingAll, handleDownloadAll}

@@ -14,8 +14,8 @@ import {
 import {Button, Dropdown, type MenuProps, Tag, Tooltip} from "antd"
 
 import {DriveBreadcrumb} from "./DriveBreadcrumb"
+import {DriveFileDownloadButton} from "./DriveFileContentViewer"
 import {DriveRetryButton} from "./DriveFileRow"
-import {downloadMountFile} from "./driveMedia"
 import {humanSize} from "./driveTree"
 import {type DriveId} from "./driveTypes"
 import {fileOrigin} from "./useSessionDrive"
@@ -44,7 +44,6 @@ export const DriveHeader = ({
     ids,
     downloadMount,
     downloadPath,
-    projectId,
     onDownloadAll,
     downloadingAll,
     expanded,
@@ -82,7 +81,6 @@ export const DriveHeader = ({
     ids: DriveId[]
     downloadMount: Mount | null
     downloadPath: string
-    projectId: string | null
     /** Download the whole drive as a zip (the overflow "Download all"); omitted → item disabled. */
     onDownloadAll?: () => void
     downloadingAll?: boolean
@@ -110,7 +108,9 @@ export const DriveHeader = ({
                 </div>
             ),
         })),
-        {type: "divider" as const},
+        // Only a separator when there IS something above it — a host without drive ids (the ids
+        // resolve async, and the local-file drive never has any) otherwise opens on a stray rule.
+        ...(ids.length ? [{type: "divider" as const}] : []),
         {
             key: "download-all",
             label: downloadingAll ? "Preparing download…" : "Download all",
@@ -241,19 +241,7 @@ export const DriveHeader = ({
                     </Tooltip>
                 ) : null}
                 {!isFolder && selectedPath ? (
-                    <Button
-                        icon={<DownloadSimple size={13} />}
-                        disabled={!downloadMount}
-                        onClick={() =>
-                            void downloadMountFile({
-                                mount: downloadMount,
-                                path: downloadPath,
-                                projectId,
-                            })
-                        }
-                    >
-                        Download
-                    </Button>
+                    <DriveFileDownloadButton mount={downloadMount} path={downloadPath} />
                 ) : null}
                 <Dropdown
                     trigger={["click"]}

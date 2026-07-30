@@ -57,7 +57,7 @@ export function DriveToolbar({
             >
                 <Button
                     type="text"
-                    aria-label={showTree ? "Hide file tree" : "Show file tree"}
+                    aria-label="Show file tree"
                     aria-pressed={treeVisible}
                     disabled={searchActive}
                     icon={
@@ -107,8 +107,8 @@ export function DriveToolbar({
             <Tooltip title={showHidden ? "Hide hidden files" : "Show hidden files"}>
                 <Button
                     type="text"
-                    aria-label={showHidden ? "Hide hidden files" : "Show hidden files"}
-                    aria-pressed={!showHidden}
+                    aria-label="Show hidden files"
+                    aria-pressed={showHidden}
                     icon={
                         showHidden ? (
                             <Eye size={16} className="block" />
@@ -127,9 +127,7 @@ export function DriveToolbar({
                 >
                     <Button
                         type="text"
-                        aria-label={
-                            showGitignored ? "Hide git-ignored files" : "Show git-ignored files"
-                        }
+                        aria-label="Show git-ignored files"
                         aria-pressed={showGitignored}
                         icon={<FileDashed size={16} className="block" />}
                         onClick={() => setShowGitignored((v) => !v)}

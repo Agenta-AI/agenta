@@ -76,6 +76,15 @@ export const flattenTree = (
     return out
 }
 
+/** Best-effort "is this a FILE?" from the NAME alone: a real extension, but not a bare dot-name
+ * (`.claude` is a folder, `.gitignore`-style names are indistinguishable and lose here). Only for the
+ * window BEFORE the listing lands — a path's real kind is the backend's `is_folder`, and every caller
+ * corrects itself the moment the level resolves. */
+export const looksLikeFilePath = (path: string): boolean => {
+    const leaf = path.split("/").pop() ?? ""
+    return /\.[a-z0-9]{1,8}$/i.test(leaf) && !leaf.startsWith(".")
+}
+
 /** A row's horizontal-scroll GROUP key = its parent folder path ("" for a top-level row). */
 export const parentOf = (path: string): string => {
     const i = path.lastIndexOf("/")

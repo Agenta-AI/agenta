@@ -5,12 +5,12 @@
  * path→index map, the per-path node lookup, and the one-shot reveal sets. Pure derivation — it owns
  * no user intent.
  */
-import {useCallback, useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {type MountFile} from "@agenta/entities/session"
 
 import {buildDriveTree, filterDriveTree, isHiddenPath, type DriveTreeNode} from "./driveTree"
-import {EMPTY_STR_SET, collectFolderPaths, flattenTree} from "./driveTreeView"
+import {EMPTY_STR_SET, collectFolderPaths, flattenTree, looksLikeFilePath} from "./driveTreeView"
 import {useLazyDriveTree} from "./useLazyDriveTree"
 import {fileOrigin, type FileOrigin, type SessionDriveData} from "./useSessionDrive"
 
@@ -39,16 +39,26 @@ export function useDriveTreeData({
     showHidden: boolean
     showGitignored: boolean
 }) {
-    // Directories to keep loaded: the root, every expanded folder, and the open folder. A selection
-    // that LOOKS like a file (has an extension) is skipped — its preview reads by path, no dir needed.
+    // Whether the SELECTION is a folder — the backend's `is_folder` answers it as soon as the
+    // selection's own level is present in the tree, so the name heuristic below covers only the cold
+    // window before that (a restored deep path, nothing loaded yet). Adjusted during render, not in an
+    // effect, so a wrong guess is corrected BEFORE its directory subscriber ever mounts.
+    const [knownKind, setKnownKind] = useState<{path: string; isFolder: boolean} | null>(null)
+    const selectionIsFolder =
+        selectedPath == null
+            ? false
+            : knownKind?.path === selectedPath
+              ? knownKind.isFolder
+              : !looksLikeFilePath(selectedPath)
+    // Directories to keep loaded: the root, every expanded folder, and the OPEN folder — which stays
+    // subscribed even when its tree row is collapsed, since the content pane is still showing it. A
+    // selected FILE needs no directory; its preview reads by path.
     const activePaths = useMemo(() => {
         const set = new Set<string>([""])
         for (const p of expanded) set.add(p)
-        if (selectedPath && !/\.[a-z0-9]{1,8}$/i.test(selectedPath.split("/").pop() ?? "")) {
-            set.add(selectedPath)
-        }
+        if (selectedPath && selectionIsFolder) set.add(selectedPath)
         return [...set]
-    }, [expanded, selectedPath])
+    }, [expanded, selectedPath, selectionIsFolder])
     // LAZY: load one directory level at a time (root instant, each folder on demand) instead of the
     // whole-tree fetch that blocked the drawer open on huge mounts (#5367). Falls back to the full
     // folded tree ONLY while searching. The tree builder below consumes its accumulated `files`.
@@ -160,6 +170,17 @@ export function useDriveTreeData({
         walk(tree)
         return map
     }, [tree])
+    // …which is where the selection's real kind comes from: once its node is in the tree, replace the
+    // name guess above with the backend's flag. Render-phase update — React re-runs this render with
+    // the corrected `activePaths`, so a misjudged path never gets a directory query.
+    const selectedIsFolderNode = selectedPath ? nodeByPath.get(selectedPath)?.isFolder : undefined
+    if (
+        selectedPath &&
+        selectedIsFolderNode !== undefined &&
+        (knownKind?.path !== selectedPath || knownKind.isFolder !== selectedIsFolderNode)
+    ) {
+        setKnownKind({path: selectedPath, isFolder: selectedIsFolderNode})
+    }
     return {
         lazyTree,
         inGitScope,

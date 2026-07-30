@@ -32,6 +32,7 @@ import {useRepoInfo} from "./driveRepo"
 import {DriveToolbar} from "./DriveToolbar"
 import {DriveTreeList} from "./DriveTreeList"
 import {DriveTreePane} from "./DriveTreePane"
+import {looksLikeFilePath} from "./driveTreeView"
 import {type DriveId, type DriveScope} from "./driveTypes"
 import {FolderView} from "./FolderView"
 import {useDriveDownloadAll} from "./useDriveDownloadAll"
@@ -225,10 +226,9 @@ export function DriveExplorer({
         body = <DriveErrorState drive={drive} />
     } else if (drive.isLoading || (drive.mount && lazyTree.rootLoading)) {
         // The right pane will be a FILE preview if we're opening onto a file, else the browse GRID.
-        // A real extension marks a file; a dot-DIR (`.claude`) or extensionless path is a folder.
+        // Nothing is loaded yet, so the name is all we have to go on.
         const target = initialPath ?? persistedSelection
-        const leaf = target ? (target.split("/").pop() ?? "") : ""
-        const isFilePreview = /\.[a-z0-9]{1,8}$/i.test(leaf) && !leaf.startsWith(".")
+        const isFilePreview = target ? looksLikeFilePath(target) : false
         body = (
             <DriveExplorerSkeleton
                 mode={isFilePreview ? "preview" : "grid"}
@@ -357,7 +357,6 @@ export function DriveExplorer({
                                 ? (drive.resolveMount(selectedPath)?.path ?? selectedPath)
                                 : ""
                         }
-                        projectId={projectId}
                         onDownloadAll={archiveMounts.length ? handleDownloadAll : undefined}
                         downloadingAll={downloadingAll}
                         expanded={drawerExpanded}
