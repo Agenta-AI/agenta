@@ -52,6 +52,24 @@ a {
     transform: translateX(0);
   }
 }
+/* Announcement badge "aura": the outer glow breathes between the two brand
+   yellows (yellow-400 #f2f25c → yellow-500 #e7e712) for a premium, non-neon
+   shimmer. The 0%/100% frame equals the badge's resting inline box-shadow, so the
+   loop is seamless and reduced-motion users (animation neutralized below) keep
+   that subtle static glow. */
+@keyframes ag-badge-aura {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.14),
+      0 0 14px -2px rgba(242, 242, 92, 0.35);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(242, 242, 92, 0.35),
+      0 0 26px 0 rgba(231, 231, 18, 0.55);
+  }
+}
 
 /* ── reduced motion: honor the OS setting (WCAG 2.3.3) ────────
    Neutralizes the looping play-button pulse, the marquees, and one-shot
