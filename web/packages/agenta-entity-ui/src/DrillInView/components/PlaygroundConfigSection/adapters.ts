@@ -159,23 +159,9 @@ function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
             },
         },
         selectors: {
-            schemaAtPath: memoAtom((key: string) => {
-                // key is serialized "{id}:{path}" — parse it
-                // But the interface takes {id, path}, so we use a wrapper below
-                return atom(() => null)
-            }) as unknown as ConfigSectionMoleculeAdapter["selectors"]["schemaAtPath"],
-        },
-    }
-}
-
-function buildDefaultAdapter(): ConfigSectionMoleculeAdapter {
-    const base = buildWorkflowMoleculeAdapter()
-    return {
-        ...base,
-        selectors: {
             schemaAtPath: moleculeSchemaAtPath,
         },
     }
 }
 
-export const defaultAdapter = buildDefaultAdapter()
+export const defaultAdapter = buildWorkflowMoleculeAdapter()

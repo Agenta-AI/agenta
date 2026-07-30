@@ -67,21 +67,7 @@ export function moleculeSchemaAtPath(params: {
             }
             const schema = get(workflowMolecule.selectors.parametersSchema(params.id))
             if (!isEntitySchema(schema)) return null
-            const resolved = getSchemaAtPathUtil(schema, params.path) ?? null
-            if (params.path.length === 0) {
-                console.debug("[PlaygroundConfigSection] root schema", params.id.slice(0, 8), {
-                    schemaType: schema?.type,
-                    schemaHasProperties: !!schema?.properties,
-                    schemaPropertyKeys: schema?.properties
-                        ? Object.keys(schema.properties as Record<string, unknown>)
-                        : null,
-                    resolvedType: resolved?.type,
-                    resolvedPropertyKeys: resolved?.properties
-                        ? Object.keys(resolved.properties as Record<string, unknown>)
-                        : null,
-                })
-            }
-            return resolved
+            return getSchemaAtPathUtil(schema, params.path) ?? null
         })
         moleculeSchemaAtPathCache.set(key, cached)
     }

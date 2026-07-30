@@ -4,8 +4,8 @@
  * the actions slot and the content slot (sibling controls vs schema renderer).
  *
  * Extracted as a hook rather than components so the `useCallback` dependency
- * arrays — and therefore the drill-in provider's context identity — stay
- * byte-identical to the monolithic version.
+ * arrays — and therefore the drill-in provider's context identity — keep the
+ * same churn profile as the monolithic version.
  */
 
 import {useCallback, useMemo, type ReactNode} from "react"
@@ -47,13 +47,11 @@ interface UseFieldSlotsParams {
     onRefinePrompt?: (promptKey: string) => void
     parameters: Record<string, unknown>
     promptModelInfo: PromptModelInfo
-    revisionId: string
     schema: PathSchema | null
     setFeedbackMode: (mode: "basic" | "advanced") => void
     siblingGroups: Record<string, unknown>
     stickyHeaderTop: number
     toggleSection: (key: string) => void
-    updatePromptRootField: (key: string, nextValue: unknown) => void
 }
 
 export function useFieldSlots({
@@ -70,13 +68,11 @@ export function useFieldSlots({
     onRefinePrompt,
     parameters,
     promptModelInfo,
-    revisionId,
     schema,
     setFeedbackMode,
     siblingGroups,
     stickyHeaderTop,
     toggleSection,
-    updatePromptRootField,
 }: UseFieldSlotsParams) {
     // ========== FIELD ACTIONS SLOT ==========
     const fieldActionsSlot = useCallback((props: FieldActionsSlotProps) => {
@@ -274,17 +270,17 @@ export function useFieldSlots({
             disabled,
             parameters,
             schema,
-            revisionId,
             feedbackMode,
             setFeedbackMode,
             handleConfigureOpenChange,
             configurePopoverContent,
             onRefinePrompt,
-            updatePromptRootField,
             siblingGroups,
             isPresentSiblingGroup,
             codeRuntime,
             handleRuntimeChange,
+            stickyHeaderTop,
+            // activeData omitted: its only use is hasParameters(activeData), which `parameters` tracks.
         ],
     )
 

@@ -713,7 +713,6 @@ export function useModelConfigurePopover({
         handleConfigureOpenChange,
         isModelConfigOpen,
         promptModelInfo,
-        updatePromptRootField,
     }
 }
 
