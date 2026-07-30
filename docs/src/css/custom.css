@@ -636,7 +636,7 @@ a[class*="cardContainer"]:hover {
 .nav_primary_button {
   background-color: var(--ifm-color-primary-darkest);
   color: var(--ifm-color-primary-lightest);
-  margin-right: 25px;
+  margin-right: 12px;
   padding: 8px 16px;
 }
 
@@ -663,6 +663,42 @@ a[class*="cardContainer"]:hover {
   outline: none;
   border: none;
   cursor: pointer;
+  transition: background-color var(--ifm-transition-fast) ease, opacity
+      var(--ifm-transition-fast) ease;
+}
+
+/* Same hover treatment as the mobile footer CTAs: primary fades slightly,
+   secondary picks up a subtle background. Applies on desktop and mobile. */
+.nav_primary_button:hover {
+  opacity: 0.88;
+}
+
+.nav_secondary_button:hover {
+  background-color: var(--bgelevated2);
+}
+
+/* ===== Back-to-top button ===== */
+/* Match the secondary product button (Book a demo): a bordered outline
+   button with the standard radius, not a fully-round grey circle. All colors
+   are theme-aware, so light and dark are handled by the same rule. */
+.theme-back-to-top-button {
+  width: 2.5rem !important;
+  height: 2.5rem !important;
+  border-radius: var(--border-radius-md) !important;
+  background-color: var(--bgdefault) !important;
+  border: 1px solid var(--borderdefault) !important;
+}
+
+.theme-back-to-top-button::after {
+  background-color: var(--contentsecondary) !important;
+  mask-size: 1.3rem 1.3rem !important;
+  -webkit-mask-size: 1.3rem 1.3rem !important;
+}
+
+@media (hover: hover) {
+  .theme-back-to-top-button:hover {
+    background-color: var(--bgelevated2) !important;
+  }
 }
 
 /* ===== Hamburger sidebar (custom PrimaryMenu with pinned footer) ===== */
@@ -699,8 +735,8 @@ a[class*="cardContainer"]:hover {
 }
 
 .navbar-sidebar__brand > .margin-right--md > button svg {
-  width: 15px;
-  height: 15px;
+  width: 17px;
+  height: 17px;
 }
 
 /* Close (X): bordered box with a smaller icon. Drop the default
@@ -709,11 +745,17 @@ a[class*="cardContainer"]:hover {
 .navbar-sidebar__close {
   border: 1px solid var(--borderdefault);
   margin-left: 0;
+  transition: background-color var(--ifm-transition-fast) ease,
+    border-color var(--ifm-transition-fast) ease;
+}
+
+.navbar-sidebar__close:hover {
+  background-color: var(--bgelevated2);
 }
 
 .navbar-sidebar__close svg {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
 }
 
 /* --- Body: pin the footer to the bottom of the primary panel only --- */
@@ -752,10 +794,21 @@ a[class*="cardContainer"]:hover {
   text-align: center;
   text-decoration: none !important;
   border-radius: var(--border-radius-md);
+  transition: background-color var(--ifm-transition-fast) ease,
+    border-color var(--ifm-transition-fast) ease, opacity
+      var(--ifm-transition-fast) ease;
+}
+
+.mobileSidebarActions .nav_primary_button:hover {
+  opacity: 0.88;
 }
 
 .mobileSidebarActions .nav_secondary_button {
   border: 1px solid var(--borderdefault) !important;
+}
+
+.mobileSidebarActions .nav_secondary_button:hover {
+  background-color: var(--bgelevated2);
 }
 
 /* Community row: label on the left, social icons on the right */
@@ -795,16 +848,30 @@ a[class*="cardContainer"]:hover {
   border-radius: var(--border-radius-md);
   color: var(--contentprimary);
   text-decoration: none !important;
+  transition: background-color var(--ifm-transition-fast) ease,
+    border-color var(--ifm-transition-fast) ease;
 }
 
 .mobileSidebarSocialIcon:hover {
-  border-color: var(--borderdark);
-  background: transparent;
+  background-color: var(--bgelevated2);
 }
 
 .mobileSidebarSocialIcon .theme-icon {
   width: 20px;
   height: 20px;
+}
+
+/* Primary nav items: full-width padded rows so the active/hover highlight
+   stretches across the row (stopping just before the menu edge) instead of
+   hugging the label. Scoped to the hamburger primary panel so the desktop
+   doc sidebar and the mobile doc-sidebar panel are unaffected. */
+.navbar-sidebar__item:has(.mobileSidebarFooter) .menu__list .menu__link {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  margin: 1px 8px 1px 0;
+  border-radius: var(--border-radius-md);
+  transition: background-color var(--ifm-transition-fast) ease;
 }
 
 /************************** Nav searchbar **************************/
@@ -816,19 +883,128 @@ a[class*="cardContainer"]:hover {
   background-color: var(--bgelevated2);
 }
 
+/* Frosted-glass modal: a mostly-opaque translucent panel with a backdrop
+   blur. The opacity is high enough that busy page content stays obscured and
+   doesn't clash with the muted text. */
+.DocSearch-Modal {
+  border-radius: 8px !important;
+  /* 92% of the theme background so busy page content stays obscured behind the
+     muted text; color-mix keeps it linked to the palette in both themes. */
+  background-color: color-mix(in srgb, var(--bgdefault) 92%, transparent) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
 [data-theme="dark"] .DocSearch-Modal {
-  background-color: var(--bgdefault);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
-[data-theme="dark"] .DocSearch-Footer {
-  background-color: var(--bgelevated1);
-  opacity: 0.9;
+.DocSearch-SearchBar,
+.DocSearch-Form,
+.DocSearch-Footer {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
 }
 
-[data-theme="dark"] .DocSearch-Form {
-  background-color: var(--bgdefault);
-  box-shadow: none;
-  border: 2px solid --borderdefault;
+/* Neutralize DocSearch's blue/lavender accents and use the doc palette.
+   These variables drive the placeholder, the "Clear the query"/"Ask AI"
+   accents, the matched-text highlight, focus, and the selected result. All
+   values are theme-aware, so light and dark are both handled. */
+:root,
+[data-theme="dark"] {
+  /* !important because Docusaurus's Algolia CSS sets these on :root after us */
+  --docsearch-muted-color: var(--contenttertiary) !important;
+  --docsearch-primary-color: var(--contentsecondary) !important;
+  --docsearch-highlight-color: var(--contentprimary) !important;
+  --docsearch-focus-color: var(--contentsecondary) !important;
+  /* Lavender tint used for action-button (Close/Clear) hover backgrounds. */
+  --docsearch-soft-primary-color: rgba(0, 0, 0, 0.05) !important;
+  /* Neutral overlay scrim (was a lavender rgba(101,108,133,.8)). */
+  --docsearch-container-background: rgba(20, 20, 22, 0.5) !important;
+  /* Results/searchbox/footer sit directly on the frosted modal panel. */
+  --docsearch-hit-background: transparent !important;
+  --docsearch-searchbox-background: transparent !important;
+  --docsearch-footer-background: transparent !important;
+}
+
+/* Keep the modal-background transparent so surfaces that use it (e.g. the
+   sticky section headers) blend with the frosted modal instead of showing a
+   lighter band. Floating popovers that need a solid surface are handled
+   directly (see .DocSearch-Menu-content). */
+:root,
+[data-theme="dark"] {
+  --docsearch-modal-background: transparent !important;
+}
+
+[data-theme="dark"] {
+  --docsearch-soft-primary-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+/* Sticky section headers: transparent so they show the modal's frosted panel
+   exactly (no lighter/white band). */
+.DocSearch-Hit-source {
+  background-color: transparent !important;
+}
+
+/* Selected/hovered result: a subtle neutral-grey highlight with normal text,
+   instead of a solid blue fill with white text. A translucent grey reads as
+   neutral (the --bgelevated* greys are warm-tinted and look muddy here). */
+.DocSearch-Hit[aria-selected="true"] a {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+[data-theme="dark"] .DocSearch-Hit[aria-selected="true"] a {
+  background-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+.DocSearch-Hit[aria-selected="true"] .DocSearch-Hit-title,
+.DocSearch-Hit[aria-selected="true"] .DocSearch-Hit-path,
+.DocSearch-Hit[aria-selected="true"] mark {
+  color: var(--contentprimary) !important;
+}
+
+.DocSearch-Hit[aria-selected="true"] .DocSearch-Hit-icon,
+.DocSearch-Hit[aria-selected="true"] .DocSearch-Hit-action {
+  color: var(--contenttertiary) !important;
+}
+
+/* Matched keyword: emphasize with a semibold weight (in the normal content
+   color) instead of a colored highlight. */
+.DocSearch-Hit mark,
+.DocSearch-Hit-title mark,
+.DocSearch-Hit-path mark {
+  font-weight: 600 !important;
+  color: var(--contentprimary) !important;
+  background: transparent !important;
+}
+
+/* "Ask AI" suggestion row: neutral grey tint instead of the hardcoded
+   Algolia blue (rgba(0, 61, 255, 0.1)). */
+.DocSearch-Hit--AskAI {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+[data-theme="dark"] .DocSearch-Hit--AskAI {
+  background-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+/* No-results / screen icons have a hardcoded lavender stroke (#5a5e9a);
+   neutralize them to a muted grey (the paths inherit the svg's stroke). */
+.DocSearch-Screen-Icon svg,
+.DocSearch-Screen-Icon svg * {
+  stroke: var(--contenttertiary) !important;
+}
+
+/* The "Ask AI" conversation menu popover floats outside the modal and was
+   fully transparent, so page content bled through its items. Give it a solid
+   opaque surface. */
+.DocSearch-Menu-content {
+  background-color: var(--bgdefault) !important;
+  border: 1px solid var(--borderdefault) !important;
+  border-radius: var(--border-radius-md) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18) !important;
 }
 
 .DocSearch-Button {
@@ -896,6 +1072,64 @@ a[class*="cardContainer"]:hover {
   background: transparent !important;
   padding: 0 !important;
   width: 18px !important;
+  /* Override DocSearch's default blue/lavender key color with a neutral one. */
+  color: var(--contenttertiary) !important;
+}
+
+/*********************** Search results page (/search) ***********************/
+/* "Search results for ..." heading → h3 size instead of the full h1. */
+.container:has([class*="searchQueryInput"]) > h1 {
+  font-size: var(--ifm-heading-h3-font-size) !important;
+  font-weight: var(--ifm-h3-font-weight) !important;
+  line-height: 1.35;
+}
+
+/* Refined, smaller result titles without the article underline. The extra
+   :not()s match the global h2 rule's specificity so this size wins. */
+h2[class*="searchResultItemHeading"]:not([class*="openapi"]):not(
+    [class*="cardTitle"]
+  ) {
+  font-size: 16px !important;
+  font-weight: var(--ifm-font-weight-semibold) !important;
+  line-height: 1.45 !important;
+  margin-bottom: 4px;
+}
+
+[class*="searchResultItemHeading"] a {
+  color: var(--contentprimary) !important;
+  text-decoration: none !important;
+}
+
+[class*="searchResultItemHeading"] a:hover {
+  text-decoration: underline !important;
+  text-decoration-color: var(--contentprimary) !important;
+  text-underline-offset: 3px !important;
+}
+
+/* Matched keyword: semibold neutral, no yellow highlight (matches the modal). */
+.search-result-match {
+  background-color: transparent !important;
+  color: var(--contentprimary) !important;
+  font-weight: 600 !important;
+}
+
+/* "N documents found" → muted, normal weight. */
+[class*="searchResultsColumn"] {
+  color: var(--contenttertiary) !important;
+  font-weight: var(--ifm-font-weight-normal) !important;
+  font-size: 14px !important;
+}
+
+/* Tighter vertical rhythm between results (was 16px top/bottom). */
+[class*="searchResultItem_"] {
+  padding: 9px 0 !important;
+}
+
+/* Source/breadcrumb path: muted (it renders white in dark by default). */
+[class*="searchResultItemPath"],
+[class*="searchResultItemPath"] .breadcrumbs__item,
+[class*="searchResultItemPath"] .search-result-match {
+  color: var(--contenttertiary) !important;
 }
 
 /*************************** Sidebar ***************************/
