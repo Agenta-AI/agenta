@@ -706,6 +706,9 @@ importers:
       '@types/semver':
         specifier: ^7.7.1
         version: 7.7.1
+      fflate:
+        specifier: 0.4.8
+        version: 0.4.8
       node-mocks-http:
         specifier: ^1.17.2
         version: 1.17.2(@types/node@20.19.39)
