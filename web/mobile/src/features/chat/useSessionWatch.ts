@@ -2,13 +2,16 @@ import {useEffect, useRef, useState} from "react"
 
 import {useQueryClient} from "@tanstack/react-query"
 
+import {tryRefreshSession} from "@/lib/auth"
+
 import {actionableInteractionsQueryKey} from "../sessions/useActionableInteractions"
 import {livenessQueryKey} from "../sessions/useLivenessPoll"
 
-import {sessionWatchUrl} from "./watchRelay"
+import {sessionWatchUrl, watchRetryDelayMs} from "./watchRelay"
 
-/** Fatal-close retry cadence (EventSource does NOT auto-retry from CLOSED). */
-const RETRY_MS = 60_000
+/** Minimum spacing between two reconnect revalidations, so a reconnect loop can't fan out
+ * into one full records refetch per attempt. */
+const MIN_INTERVAL_MS = 3_000
 
 /**
  * One EventSource per foregrounded chat screen (M3 live relay). Events carry no payloads —
@@ -20,8 +23,11 @@ const RETRY_MS = 60_000
  *   queries (no duplicated state; the badges' own queries refetch).
  *
  * Foreground-only: the source closes on `visibilitychange → hidden` and reopens on visible.
- * Transient errors ride EventSource's built-in reconnect; a fatal CLOSED (endpoint missing,
- * proxy reset) drops to the callers' poll cadence and retries every 60s while visible.
+ * Transient errors ride EventSource's built-in reconnect (the server pins its delay with an
+ * SSE `retry:` preamble). A fatal CLOSED drops to the callers' poll cadence and reopens on a
+ * jittered backoff — after first attempting a session refresh, because the usual fatal cause
+ * is a 401 at the access-token refresh boundary and a stream has no interceptor to
+ * refresh-and-retry the way the Fern/axios calls do.
  */
 export const useSessionWatch = ({
     sessionId,
@@ -44,6 +50,16 @@ export const useSessionWatch = ({
         let source: EventSource | null = null
         let retryHandle: number | undefined
         let disposed = false
+        let attempt = 0
+        let lastNotifiedAt = 0
+
+        /** Reconnect coverage only — real `records-changed` events are never throttled. */
+        const notifyOnConnect = () => {
+            const now = Date.now()
+            if (now - lastNotifiedAt < MIN_INTERVAL_MS) return
+            lastNotifiedAt = now
+            onRecordsChangedRef.current()
+        }
 
         const invalidateBadges = () => {
             void queryClient.invalidateQueries({queryKey: livenessQueryKey(projectId)})
@@ -60,10 +76,15 @@ export const useSessionWatch = ({
 
         const scheduleRetry = () => {
             if (disposed || retryHandle !== undefined) return
+            const delay = watchRetryDelayMs(attempt)
+            attempt += 1
             retryHandle = window.setTimeout(() => {
                 retryHandle = undefined
-                open()
-            }, RETRY_MS)
+                // A fatal close is most often an expired access token; refresh before
+                // reopening or every attempt 401s again. Reopen either way — a network
+                // failure is not a reason to stop watching.
+                void tryRefreshSession().finally(open)
+            }, delay)
         }
 
         const open = () => {
@@ -74,9 +95,10 @@ export const useSessionWatch = ({
             source = es
             es.onopen = () => {
                 setConnected(true)
+                attempt = 0
                 // Missed-event coverage: one revalidation per (re)connect replaces
                 // any replay/cursor semantics on the server.
-                onRecordsChangedRef.current()
+                notifyOnConnect()
                 invalidateBadges()
             }
             es.addEventListener("records-changed", () => onRecordsChangedRef.current())

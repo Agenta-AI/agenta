@@ -1,6 +1,11 @@
 import {afterEach, describe, expect, it} from "vitest"
 
-import {sessionWatchUrl, watchAwarePollMs} from "../../src/features/chat/watchRelay"
+import {
+    WATCH_RETRY_MAX_MS,
+    sessionWatchUrl,
+    watchAwarePollMs,
+    watchRetryDelayMs,
+} from "../../src/features/chat/watchRelay"
 
 const ENV_KEY = "NEXT_PUBLIC_AGENTA_API_URL"
 const priorEnv = process.env[ENV_KEY]
@@ -40,5 +45,34 @@ describe("watchAwarePollMs", () => {
 
     it("never wakes an idle screen just because the stream is open", () => {
         expect(watchAwarePollMs(0, true)).toBe(0)
+    })
+})
+
+describe("watchRetryDelayMs", () => {
+    it("reopens within seconds on the first fatal close, not a blind minute", () => {
+        // A 401 at the token-refresh boundary is the common fatal cause; the relay must
+        // come back fast enough that the chat stays live.
+        expect(watchRetryDelayMs(0, () => 1)).toBe(1_000)
+        expect(watchRetryDelayMs(0, () => 0)).toBe(500)
+    })
+
+    it("backs off exponentially so a persistent failure stops hammering the API", () => {
+        const noJitter = () => 1
+        expect(watchRetryDelayMs(1, noJitter)).toBe(2_000)
+        expect(watchRetryDelayMs(2, noJitter)).toBe(4_000)
+        expect(watchRetryDelayMs(3, noJitter)).toBe(8_000)
+    })
+
+    it("caps the delay so a recovered API is picked up promptly", () => {
+        expect(watchRetryDelayMs(20, () => 1)).toBe(WATCH_RETRY_MAX_MS)
+    })
+
+    it("jitters 50-100% so a fleet of tabs never reconnects in lockstep", () => {
+        expect(watchRetryDelayMs(2, () => 0)).toBe(2_000)
+        expect(watchRetryDelayMs(2, () => 1)).toBe(4_000)
+    })
+
+    it("treats a negative attempt as the first one", () => {
+        expect(watchRetryDelayMs(-3, () => 1)).toBe(1_000)
     })
 })
