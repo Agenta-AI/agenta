@@ -620,9 +620,15 @@ export const bumpSessionActivityAtomFamily = atomFamily((key: string) =>
         const all = get(sessionsByAppAtom)
         const list = all[key] ?? []
         if (!list.some((s) => s.id === id)) return
+        // Keep the freshest time: a server heartbeat may already lead the local clock (skew).
+        const now = Date.now()
         set(sessionsByAppAtom, {
             ...all,
-            [key]: list.map((s) => (s.id === id ? {...s, lastMessageAt: Date.now()} : s)),
+            [key]: list.map((s) =>
+                s.id === id
+                    ? {...s, lastMessageAt: Math.max(s.lastMessageAt ?? 0, now) || undefined}
+                    : s,
+            ),
         })
     }),
 )
