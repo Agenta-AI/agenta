@@ -10,7 +10,11 @@ import {
     vaultSecretsQueryAtom,
 } from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
+import {
+    harnessCapabilitiesAtomFamily,
+    harnessCatalogFailedAtom,
+    retryHarnessCatalogAtom,
+} from "@agenta/entities/workflow"
 import {getEnabledSandboxProviders} from "@agenta/shared/api"
 import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
@@ -26,8 +30,8 @@ import {
     Sparkle,
     Warning,
 } from "@phosphor-icons/react"
-import {Button, Popconfirm, Select, Typography} from "antd"
-import {atom, useAtomValue} from "jotai"
+import {Alert, Button, Popconfirm, Select, Typography} from "antd"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {useHasChangedUnder, useRevertUnder} from "../../../drawers/shared/ChangedPathsContext"
 import {useFocusPaths, useHasFocusUnder} from "../../../drawers/shared/FocusPathsContext"
@@ -197,6 +201,11 @@ export function useModelHarness({
         useMemo(() => harnessCapabilitiesAtomFamily(harnessRefKey ?? ""), [harnessRefKey]),
     )
     const capabilities = harnessRefKey ? capabilitiesFromCatalog : null
+    const catalogFailed = useAtomValue(harnessCatalogFailedAtom)
+    const retryCatalog = useSetAtom(retryHarnessCatalogAtom)
+    // The schema asked for the catalog and we could not fetch it: say so instead of silently
+    // falling through to the pre-catalog controls, which look like an old build.
+    const catalogUnavailable = Boolean(harnessRefKey) && !capabilities && catalogFailed
     const mcpSupported = harnessSupportsUserMcp(capabilities, harnessValue)
 
     // Narrowed to the loaded flag (all this hook reads) — the raw query atom churns identity on
@@ -747,6 +756,20 @@ export function useModelHarness({
         </div>
     )
 
+    const catalogUnavailableNotice = (
+        <Alert
+            type="warning"
+            showIcon
+            message="Couldn't load the model catalog"
+            description="The harness and model options come from the server. Until it responds, only the basic controls are available."
+            action={
+                <Button size="small" onClick={() => retryCatalog()}>
+                    Retry
+                </Button>
+            }
+        />
+    )
+
     const modelHarnessControls = capabilities ? (
         <>
             {harnessKindInFocus ? (
@@ -808,6 +831,7 @@ export function useModelHarness({
         </>
     ) : (
         <>
+            {catalogUnavailable ? catalogUnavailableNotice : null}
             {harnessKindInFocus && harnessProps.kind && (
                 <RailField label="Harness" align="center" path="harness.kind">
                     <HarnessSelectControl

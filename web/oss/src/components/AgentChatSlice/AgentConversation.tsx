@@ -149,6 +149,7 @@ import {
     type SessionRunStatus,
     activeSessionIdAtomFamily,
     autoTitleSessionAtomFamily,
+    bumpSessionActivityAtomFamily,
     firstUserText,
     persistSessionMessagesAtom,
     sessionMessagesAtom,
@@ -791,6 +792,7 @@ const AgentConversation = ({
     // (cross-tab / cross-device) before it's opened. The atom no-ops once the session has a title,
     // so this fires at most once and never overwrites an explicit rename.
     const autoTitleSession = useSetAtom(autoTitleSessionAtomFamily(scopeKey))
+    const bumpSessionActivity = useSetAtom(bumpSessionActivityAtomFamily(scopeKey))
     const firstUserMessage = useMemo(() => firstUserText(messages), [messages])
     useEffect(() => {
         if (firstUserMessage) autoTitleSession({id: sessionId, text: firstUserMessage})
@@ -1256,6 +1258,17 @@ const AgentConversation = ({
         if (status === "streaming") return
         persistMessages({id: sessionId, messages})
     }, [messages, status, sessionId, persistMessages])
+
+    // Stamp last-message time when a live turn finishes streaming (issue #5553: order history by
+    // last message). Gated on the streaming→settled transition so hydration/restore — which sets
+    // messages while `status` stays "ready" — never back-dates an old session to "now".
+    const prevStatusRef = useRef(status)
+    useEffect(() => {
+        if (prevStatusRef.current === "streaming" && status !== "streaming") {
+            bumpSessionActivity(sessionId)
+        }
+        prevStatusRef.current = status
+    }, [status, sessionId, bumpSessionActivity])
 
     // Bound the in-message expand-state store: on settle, drop entries whose owning message is gone
     // (rewound / evicted / closed). Live = every open session's persisted messages ∪ this active one.
