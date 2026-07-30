@@ -217,7 +217,7 @@ upsert_service_vars() {
 
     if [ -z "${RAILWAY_API_TOKEN:-}" ] || [ -z "$RAILWAY_PROJECT_ID" ]; then
         _cli_set_vars "$service" "$@"
-        return 0
+        return $?
     fi
 
     local svc_id
@@ -228,7 +228,7 @@ upsert_service_vars() {
         # back to it.
         printf "Could not resolve service id for '%s'; falling back to CLI variable set.\n" "$service" >&2
         _cli_set_vars "$service" "$@"
-        return 0
+        return $?
     fi
 
     # replace:false makes the merge intent explicit: configure.sh calls set_vars

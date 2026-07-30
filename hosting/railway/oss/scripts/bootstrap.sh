@@ -201,6 +201,8 @@ verify_services_exist() {
 ensure_volume() {
     local service="$1"
     local mount_path="$2"
+    local attempts="${RAILWAY_VOLUME_ADD_ATTEMPTS:-3}"
+    local delay="${RAILWAY_VOLUME_ADD_DELAY:-15}"
 
     # Select the service so the volume commands below target it. The service's
     # existence was already checked by verify_services_exist, so a failure here
@@ -210,19 +212,34 @@ ensure_volume() {
         return 1
     fi
 
-    # Check if a volume already exists for this service before adding.
-    # Adding a duplicate volume on the same mount path causes the container to
-    # fail with "Failed to create deployment".
-    local existing
-    existing="$(railway_call volume list --json 2>/dev/null | jq -r --arg mp "$mount_path" '.[] | select(.mountPath == $mp) | .id' 2>/dev/null || true)"
-    if [ -n "$existing" ]; then
-        return 0
-    fi
+    # Creating several volumes back-to-back trips Railway's volume-creation
+    # throttle ("You are creating volumes too quickly"), a clean rejection that
+    # railway_call's generic rate-limit matcher does not recognize — so retry
+    # here. Re-checking for the volume before EVERY attempt keeps the retry
+    # safe: an add that succeeded server-side despite a reported error is seen
+    # by the next check, and adding a duplicate volume on the same mount path
+    # would make the container fail with "Failed to create deployment".
+    local attempt existing
+    for ((attempt = 1; attempt <= attempts; attempt++)); do
+        existing="$(railway_call volume list --json 2>/dev/null | jq -r --arg mp "$mount_path" '.[] | select(.mountPath == $mp) | .id' 2>/dev/null || true)"
+        if [ -n "$existing" ]; then
+            return 0
+        fi
 
-    if ! railway_call volume add --mount-path "$mount_path" --json >/dev/null; then
-        printf "Failed to create volume at %s for service '%s'.\n" "$mount_path" "$service" >&2
-        return 1
-    fi
+        if railway_call volume add --mount-path "$mount_path" --json >/dev/null; then
+            return 0
+        fi
+
+        if [ "$attempt" -lt "$attempts" ]; then
+            printf "Volume add at %s for service '%s' failed (Railway often throttles volume creation); retrying in %ds (attempt %d/%d).\n" \
+                "$mount_path" "$service" "$delay" "$attempt" "$attempts" >&2
+            sleep "$delay"
+        fi
+    done
+
+    printf "Failed to create volume at %s for service '%s' after %d attempts.\n" \
+        "$mount_path" "$service" "$attempts" >&2
+    return 1
 }
 
 main() {
