@@ -102,22 +102,113 @@ create_env_if_missing() {
     railway_call link --project "$PROJECT_NAME" --environment "$ENV_NAME" --json >/dev/null
 }
 
+# Services the bootstrap must end up with, recorded as "name=image" ("name="
+# when Railway picks the source). Populated by add_service/add_service_image
+# and re-checked by verify_services_exist.
+EXPECTED_SERVICES=()
+
+_attempt_add_service() {
+    local name="$1"
+    local image="${2:-}"
+
+    local args=(add --service "$name")
+    if [ -n "$image" ]; then
+        args+=(--image "$image")
+    fi
+
+    # A failure here is tolerated because re-bootstrapping an existing project
+    # makes `railway add` fail on every service that already exists. It is NOT
+    # silently swallowed: verify_services_exist re-checks that every expected
+    # service actually exists and fails the bootstrap if one is missing.
+    if ! railway_call "${args[@]}" --json >/dev/null; then
+        printf "railway add --service %s did not succeed (expected if the service already exists; verified after creation).\n" \
+            "$name" >&2
+    fi
+}
+
 add_service() {
     local name="$1"
-    railway_call add --service "$name" --json >/dev/null 2>&1 || true
+    EXPECTED_SERVICES+=("${name}=")
+    _attempt_add_service "$name"
 }
 
 add_service_image() {
     local name="$1"
     local image="$2"
-    railway_call add --service "$name" --image "$image" --json >/dev/null 2>&1 || true
+    EXPECTED_SERVICES+=("${name}=${image}")
+    _attempt_add_service "$name" "$image"
+}
+
+# List the service names present in the target environment, one per line.
+list_environment_services() {
+    railway_call status --json 2>/dev/null \
+        | jq -r --arg e "$ENV_NAME" \
+            '.environments.edges[].node | select(.name == $e)
+             | .serviceInstances.edges[].node.serviceName' 2>/dev/null \
+        || true
+}
+
+# verify_services_exist: the `railway add` calls above tolerate failure for the
+# re-bootstrap path, so a transient Railway API failure during creation would
+# otherwise go unnoticed until every later deploy fails with
+# "Service '<name>' not found" — and the green setup job never re-runs (#5566).
+# Verify that every expected service exists in the environment, re-attempt
+# creation for any that are missing, and fail the bootstrap loudly if a service
+# still cannot be found.
+verify_services_exist() {
+    local attempts="${RAILWAY_SERVICE_VERIFY_ATTEMPTS:-3}"
+    local delay="${RAILWAY_SERVICE_VERIFY_DELAY:-10}"
+    local attempt existing entry name image
+    local missing=()
+
+    for ((attempt = 1; attempt <= attempts; attempt++)); do
+        existing="$(list_environment_services)"
+
+        missing=()
+        for entry in "${EXPECTED_SERVICES[@]}"; do
+            name="${entry%%=*}"
+            if ! printf '%s\n' "$existing" | grep -Fxq "$name"; then
+                missing+=("$entry")
+            fi
+        done
+
+        if [ "${#missing[@]}" -eq 0 ]; then
+            return 0
+        fi
+
+        if [ "$attempt" -lt "$attempts" ]; then
+            for entry in "${missing[@]}"; do
+                name="${entry%%=*}"
+                image="${entry#*=}"
+                printf "Service '%s' is missing after creation; re-attempting (attempt %d/%d).\n" \
+                    "$name" "$attempt" "$attempts" >&2
+                _attempt_add_service "$name" "$image"
+            done
+            sleep "$delay"
+        fi
+    done
+
+    local names=()
+    for entry in "${missing[@]}"; do
+        names+=("${entry%%=*}")
+    done
+    printf "Bootstrap failed: service(s) missing from project '%s' environment '%s' after %d attempts: %s\n" \
+        "$PROJECT_NAME" "$ENV_NAME" "$attempts" "${names[*]}" >&2
+    printf "Railway service creation likely hit a transient API failure. Re-run this job (for previews: 'Re-run all jobs', so the setup job runs bootstrap again).\n" >&2
+    return 1
 }
 
 ensure_volume() {
     local service="$1"
     local mount_path="$2"
 
-    railway_call service "$service" >/dev/null 2>&1 || return 0
+    # Select the service so the volume commands below target it. The service's
+    # existence was already checked by verify_services_exist, so a failure here
+    # is a real error, not a missing service to skip.
+    if ! railway_call service "$service" >/dev/null; then
+        printf "Could not select service '%s' to set up its volume.\n" "$service" >&2
+        return 1
+    fi
 
     # Check if a volume already exists for this service before adding.
     # Adding a duplicate volume on the same mount path causes the container to
@@ -128,7 +219,10 @@ ensure_volume() {
         return 0
     fi
 
-    railway_call volume add --mount-path "$mount_path" --json >/dev/null 2>&1 || true
+    if ! railway_call volume add --mount-path "$mount_path" --json >/dev/null; then
+        printf "Failed to create volume at %s for service '%s'.\n" "$mount_path" "$service" >&2
+        return 1
+    fi
 }
 
 main() {
@@ -157,12 +251,15 @@ main() {
     add_service_image supertokens "$SUPERTOKENS_IMAGE"
 
     add_service_image Postgres "$POSTGRES_IMAGE"
-    ensure_volume Postgres /var/lib/postgresql/data
-
     add_service_image redis "$REDIS_IMAGE"
-    ensure_volume redis /data
-
     add_service_image seaweedfs "$SEAWEEDFS_IMAGE"
+
+    # A service that silently failed to create breaks every later deploy of
+    # this environment, so confirm all of them exist before wiring volumes.
+    verify_services_exist
+
+    ensure_volume Postgres /var/lib/postgresql/data
+    ensure_volume redis /data
     ensure_volume seaweedfs /data
 
     railway_call domain --service gateway --json >/dev/null 2>&1 || true

@@ -184,6 +184,10 @@ _cli_set_vars() {
             continue
         fi
         [ -n "$output" ] && printf '%s\n' "$output" >&2
+        if printf '%s' "$output" | grep -qi "not found"; then
+            printf "Service '%s' is missing from the Railway environment — bootstrap likely failed to create it.\n" "$service" >&2
+            printf "Fix: use 'Re-run all jobs' (re-running only failed jobs skips the green setup job, so bootstrap never gets a chance to recreate the missing service).\n" >&2
+        fi
         return 1
     done
 }
