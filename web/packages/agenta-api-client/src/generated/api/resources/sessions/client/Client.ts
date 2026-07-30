@@ -1289,28 +1289,19 @@ export class SessionsClient {
     }
 
     /**
-     * @param {AgentaApi.DownloadSessionMountFileRequest} request
-     * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
      * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.sessions.downloadSessionMountFile({
-     *         mount_id: "mount_id",
-     *         path: "path"
-     *     })
      */
     public downloadSessionMountFile(
         request: AgentaApi.DownloadSessionMountFileRequest,
         requestOptions?: SessionsClient.RequestOptions,
-    ): core.HttpResponsePromise<unknown> {
+    ): core.HttpResponsePromise<core.BinaryResponse> {
         return core.HttpResponsePromise.fromPromise(this.__downloadSessionMountFile(request, requestOptions));
     }
 
     private async __downloadSessionMountFile(
         request: AgentaApi.DownloadSessionMountFileRequest,
         requestOptions?: SessionsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<unknown>> {
+    ): Promise<core.WithRawResponse<core.BinaryResponse>> {
         const { mount_id: mountId, path } = request;
         const _queryParams: Record<string, unknown> = {
             path,
@@ -1321,7 +1312,7 @@ export class SessionsClient {
             this._options?.headers,
             requestOptions?.headers,
         );
-        const _response = await core.fetcher({
+        const _response = await core.fetcher<core.BinaryResponse>({
             url: core.url.join(
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
@@ -1331,6 +1322,7 @@ export class SessionsClient {
             method: "GET",
             headers: _headers,
             queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            responseType: "binary-response",
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,

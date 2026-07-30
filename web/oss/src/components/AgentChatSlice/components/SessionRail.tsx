@@ -173,14 +173,14 @@ const SessionRailRow = memo(function SessionRailRow({
                             active ? "text-colorText" : "text-colorTextSecondary",
                         )}
                     />
-                    {(session.ended || timeAgo(session.createdAt)) && (
+                    {(session.ended || timeAgo(session.lastMessageAt ?? session.createdAt)) && (
                         <span className="flex items-center gap-1.5 text-[11px] text-colorTextTertiary">
                             {session.ended && (
                                 <span className="rounded bg-colorFillTertiary px-1 text-[10px] leading-4">
                                     Ended
                                 </span>
                             )}
-                            {timeAgo(session.createdAt)}
+                            {timeAgo(session.lastMessageAt ?? session.createdAt)}
                         </span>
                     )}
                 </div>

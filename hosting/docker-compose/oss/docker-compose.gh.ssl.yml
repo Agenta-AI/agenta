@@ -56,6 +56,8 @@ services:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
             - SCRIPT_NAME=/api
+            # Unset leaves the code default (3600s) in place.
+            - AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS=${AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
@@ -289,6 +291,8 @@ services:
         build:
             context: ../../../services/runner
             dockerfile: docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        init: true
         # === CONFIGURATION ======================================== #
         environment:
             AGENTA_RUNNER_PORT: "8765"
@@ -306,6 +310,9 @@ services:
             AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
             AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: ${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}
             AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER: ${AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER:-local}
+            # Worst-case turn duration. Keep AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS (API) above it
+            # plus 60s of skew, or every dispatch rebuilds the environment cold.
+            AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS: ${AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS:-}
             AGENTA_RUNNER_DAYTONA_API_KEY: ${AGENTA_RUNNER_DAYTONA_API_KEY:-}
             AGENTA_RUNNER_DAYTONA_API_URL: ${AGENTA_RUNNER_DAYTONA_API_URL:-}
             AGENTA_RUNNER_DAYTONA_TARGET: ${AGENTA_RUNNER_DAYTONA_TARGET:-}

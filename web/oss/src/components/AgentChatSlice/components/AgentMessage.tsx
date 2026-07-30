@@ -40,6 +40,7 @@ import {
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
 import {messageCreatedAtAtomFamily, nowTickAtom, timeAgo} from "../state/sessions"
 
+import AudioPlayer from "./AudioPlayer"
 import {ClientToolPart, isClientToolPart, type ClientToolOutputHandler} from "./clientTools"
 import ToolActivity from "./ToolActivity"
 
@@ -417,9 +418,6 @@ const AgentMessage = ({
         }
         renderItems.push({kind: "part", part, index: i})
     })
-    // The tool group's "View full trace" opens the same per-turn trace the action row does.
-    const onViewTrace = traceId ? () => openTraceDrawer({traceId}) : undefined
-
     const renderLeafPart = (part: UIMessage["parts"][number], i: number) => {
         // Stable, globally-unique key per rendered part. The part index alone collides
         // across messages that React reconciles together (duplicate-key warnings); the
@@ -449,6 +447,17 @@ const AgentMessage = ({
         if (part.type === "file") {
             const file = part as FileUIPart
             const kind = fileKind(file.mediaType)
+            // A voice message is playable in the transcript, not an inert card.
+            if (kind === "audio") {
+                return (
+                    <AudioPlayer
+                        key={partKey}
+                        src={file.url}
+                        name={filePartName(file)}
+                        className="max-w-[320px] rounded-lg border border-solid border-colorBorderSecondary px-2 py-1.5"
+                    />
+                )
+            }
             return (
                 <FileCard
                     key={partKey}
@@ -484,7 +493,6 @@ const AgentMessage = ({
                             parts={item.parts}
                             isStreaming={isStreaming}
                             detailed={detailed}
-                            onViewTrace={onViewTrace}
                         />
                     )
                 }

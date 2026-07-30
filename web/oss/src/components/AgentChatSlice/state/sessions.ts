@@ -42,8 +42,11 @@ export interface AgentChatSession {
     id: string
     /** User-set title. When empty, the UI falls back to the first user message / "Chat N". */
     title?: string
-    /** Creation time (ms epoch). Orders the history picker; absent on pre-upgrade sessions. */
+    /** Creation time (ms epoch). Fallback ordering key; absent on pre-upgrade sessions. */
     createdAt?: number
+    /** Last-message time (ms epoch): server heartbeat `updated_at`, or a local turn settling.
+     * Primary ordering key for the history picker so recently-active chats float to the top. */
+    lastMessageAt?: number
     /** Set once the server list confirms this session exists. Distinguishes a remotely-deleted
      * session (was true, now absent from the server → drop) from a purely-local optimistic one. */
     serverKnown?: boolean
@@ -145,20 +148,24 @@ export const isSessionHusk = (
     messages: Record<string, UIMessage[]>,
 ): boolean => !session.serverKnown && !session.title?.trim() && !messages[session.id]?.length
 
-/** Active (non-archived) sessions for a scope, newest first. Backs the main history picker. */
+/** Ordering key: most-recent message first, falling back to creation time, then 0 (pre-upgrade
+ * sessions with neither sort last, preserving their order). */
+const sessionActivity = (s: AgentChatSession): number => s.lastMessageAt ?? s.createdAt ?? 0
+
+/** Active (non-archived) sessions for a scope, most-recently-active first. Backs the main history
+ * picker (see issue #5553: order by last message, not creation). */
 export const sessionHistoryAtomFamily = atomFamily((key: string) =>
     atom((get) => {
         const list = (get(sessionsByAppAtom)[key] ?? []).filter((s) => !s.archived)
-        // Newest first; pre-upgrade sessions (no createdAt) sort last, preserving their order.
-        return [...list].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+        return [...list].sort((a, b) => sessionActivity(b) - sessionActivity(a))
     }),
 )
 
-/** Archived sessions for a scope, newest first. Backs the archived view. */
+/** Archived sessions for a scope, most-recently-active first. Backs the archived view. */
 export const archivedSessionHistoryAtomFamily = atomFamily((key: string) =>
     atom((get) => {
         const list = (get(sessionsByAppAtom)[key] ?? []).filter((s) => s.archived)
-        return [...list].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+        return [...list].sort((a, b) => sessionActivity(b) - sessionActivity(a))
     }),
 )
 
@@ -374,6 +381,8 @@ export interface ServerSessionSummary {
     id: string
     title?: string
     createdAt?: number
+    /** Server heartbeat `updated_at` (ms epoch) — the last-activity time used to order history. */
+    lastMessageAt?: number
     ended?: boolean
     archived?: boolean
 }
@@ -405,6 +414,10 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
                     serverKnown: true,
                     title: s.title?.trim() ? s.title : remote.title,
                     createdAt: s.createdAt ?? remote.createdAt,
+                    // Keep the freshest activity time: a local turn just settled may lead the
+                    // server heartbeat, and vice-versa across devices.
+                    lastMessageAt:
+                        Math.max(s.lastMessageAt ?? 0, remote.lastMessageAt ?? 0) || undefined,
                     ended: remote.ended,
                     archived: remote.archived,
                 })
@@ -420,6 +433,7 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
                 id: s.id,
                 title: s.title,
                 createdAt: s.createdAt,
+                lastMessageAt: s.lastMessageAt,
                 serverKnown: true,
                 ended: s.ended,
                 archived: s.archived,
@@ -435,6 +449,7 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
                     e.id !== m.id ||
                     e.title !== m.title ||
                     e.createdAt !== m.createdAt ||
+                    e.lastMessageAt !== m.lastMessageAt ||
                     e.serverKnown !== m.serverKnown ||
                     e.ended !== m.ended ||
                     e.archived !== m.archived
@@ -594,6 +609,27 @@ export const autoTitleSessionAtomFamily = atomFamily((key: string) =>
         // Sync to the durable header so other devices/tabs see the label (mirrors rename).
         const projectId = get(projectIdAtom)
         if (projectId) void setSessionHeader({sessionId: id, projectId, name: title})
+    }),
+)
+
+/** Stamp `now` as a session's last-message time (a local turn just settled), so the history picker
+ * floats it to the top immediately — ahead of the next server heartbeat/reconcile. No-op if the id
+ * isn't in this scope's history yet. */
+export const bumpSessionActivityAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, id: string) => {
+        const all = get(sessionsByAppAtom)
+        const list = all[key] ?? []
+        if (!list.some((s) => s.id === id)) return
+        // Keep the freshest time: a server heartbeat may already lead the local clock (skew).
+        const now = Date.now()
+        set(sessionsByAppAtom, {
+            ...all,
+            [key]: list.map((s) =>
+                s.id === id
+                    ? {...s, lastMessageAt: Math.max(s.lastMessageAt ?? 0, now) || undefined}
+                    : s,
+            ),
+        })
     }),
 )
 

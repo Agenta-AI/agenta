@@ -335,6 +335,7 @@ export async function prepareEnvironmentSetup(
     sessionDestroyRequested: false,
     mountedCwd: undefined,
     agentMountedPath: undefined,
+    installedMountExpiries: {},
     durableCwdSafeToDelete: true,
     // Local runs get a plain rmSync cleanup for the throwaway cwd; Daytona has none on this host.
     workspace: plan.isDaytona

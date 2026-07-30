@@ -2,7 +2,16 @@ from functools import wraps
 from typing import Literal, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
+from fastapi.responses import StreamingResponse
 
 from oss.src.utils.exceptions import intercept_exceptions
 
@@ -42,6 +51,8 @@ from oss.src.apis.fastapi.mounts.models import (
     MountsResponse,
 )
 from oss.src.apis.fastapi.mounts.utils import (
+    BINARY_RESPONSE,
+    ZIP_RESPONSE,
     download_mount_file,
     merge_mount_query,
     sign_mount_credentials,
@@ -200,6 +211,8 @@ class MountsRouter:
             methods=["POST"],
             operation_id="export_mount_files",
             response_model=None,
+            response_class=StreamingResponse,
+            responses=ZIP_RESPONSE,
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
@@ -247,6 +260,8 @@ class MountsRouter:
             methods=["GET"],
             operation_id="download_mount_file",
             response_model=None,
+            response_class=Response,
+            responses=BINARY_RESPONSE,
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(

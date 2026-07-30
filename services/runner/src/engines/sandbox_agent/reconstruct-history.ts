@@ -2,9 +2,9 @@
  * Seam that lets the runner rebuild prior conversation from the durable record log instead of
  * trusting a full inbound history — the server side of "client sends only the last message".
  *
- * Flag-gated (`AGENTA_SESSIONS_RECONSTRUCT`) and a strict no-op until BOTH the flag is on AND the
- * client actually sent a minimal history (`carriesMinimalHistory`). When it does not apply, the
- * inbound history is left untouched.
+ * Flag-gated (`AGENTA_SESSIONS_RECONSTRUCT`, ON unless set to the literal "false") and a strict
+ * no-op until BOTH the flag is on AND the client actually sent a minimal history
+ * (`carriesMinimalHistory`). When it does not apply, the inbound history is left untouched.
  *
  * When it DOES apply it is no longer best-effort, because the client kept no copy of the
  * conversation: an unreadable log, or one known to have dropped a record, fails the turn rather
@@ -22,9 +22,11 @@ import { recordsIncomplete } from "../../sessions/persist.ts";
 import { reconstructMessages } from "../../sessions/reconstruct.ts";
 import { carriesMinimalHistory } from "./session-identity.ts";
 
+// ON unless the literal "false"; absent AND empty both mean on (compose passes `${VAR:-}`,
+// which sets an empty string when the shell has no value).
 function reconstructEnabled(): boolean {
   return (
-    String(process.env.AGENTA_SESSIONS_RECONSTRUCT ?? "").toLowerCase() === "true"
+    String(process.env.AGENTA_SESSIONS_RECONSTRUCT ?? "").trim().toLowerCase() !== "false"
   );
 }
 

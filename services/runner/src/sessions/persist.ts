@@ -14,15 +14,17 @@
  *  - The run is never blocked on persistence mid-stream (chain is fire-and-forget).
  *  - The run DOES drain before teardown so the last event is not lost to the race.
  *  - A persist failure is logged and swallowed; the SDK's in-memory replay store is the
- *    backstop. Three retries with linear backoff before the event is dropped. With
- *    `AGENTA_RECORDS_DURABLE=true` the retry is stronger (more attempts, exponential backoff)
- *    and a drop is COUNTED per session (see `takePersistFailures`), so the turn-end drain can
- *    tell whether the durable history is complete enough to reconstruct model context from.
+ *    backstop. By default (durable mode, on unless `AGENTA_RECORDS_DURABLE=false`) the retry
+ *    is strong (more attempts, exponential backoff) and a drop is COUNTED per session (see
+ *    `takePersistFailures`), so the turn-end drain can tell whether the durable history is
+ *    complete enough to reconstruct model context from. With the flag set to "false", three
+ *    retries with linear backoff before the event is dropped, uncounted (legacy path).
  *  - `record_source` marks who authored the record: "agent" for engine-emitted events,
  *    "user" for the inbound user turn persisted at run start.
  */
 
 import { apiBase } from "../apiBase.ts";
+import { envInt, envTimerMs } from "../env.ts";
 import type { AgentEvent } from "../protocol.ts";
 import type { Redactor } from "../redaction.ts";
 import { stableRecordId } from "./record-id.ts";
@@ -33,17 +35,26 @@ const INGEST_RETRY_BASE_MS = 100;
 // 6 attempts ≈ 100+200+400+800+1600ms of backoff (~3.1s) — bounded per event so a real outage
 // can't hang the turn-end drain indefinitely.
 const DURABLE_INGEST_MAX_RETRIES = 6;
+// Ceiling on the override: the backoff doubles per attempt, so each extra attempt doubles the
+// worst-case drain wait. 12 attempts ≈ 3.4 min of backoff — the point past which "retry harder"
+// stops being a tuning knob and becomes a hung turn.
+const DURABLE_INGEST_MAX_RETRIES_CAP = 12;
 
-/** Durable-records upgrades (stronger retry + drop counting) are opt-in and read at call time
- * so the flag can be toggled per test. Off → the fire-and-forget legacy path, unchanged. */
+/** Durable-records upgrades (stronger retry + drop counting) are ON unless the flag is the
+ * literal "false"; read at call time so the flag can be toggled per test. Absent AND empty both
+ * mean on — the compose files pass the var through as `${AGENTA_RECORDS_DURABLE:-}`, which sets
+ * an empty string when unset. "false" → the fire-and-forget legacy path, unchanged. */
 function durableRecordsEnabled(): boolean {
-  return String(process.env.AGENTA_RECORDS_DURABLE ?? "").toLowerCase() === "true";
+  return String(process.env.AGENTA_RECORDS_DURABLE ?? "").trim().toLowerCase() !== "false";
 }
 
 /** Attempts before a durable-mode drop; env-overridable for ops tuning (and fast tests). */
 function durableMaxRetries(): number {
-  const n = Number(process.env.AGENTA_RECORDS_INGEST_MAX_RETRIES);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : DURABLE_INGEST_MAX_RETRIES;
+  return envInt("AGENTA_RECORDS_INGEST_MAX_RETRIES", DURABLE_INGEST_MAX_RETRIES, {
+    min: 1,
+    max: DURABLE_INGEST_MAX_RETRIES_CAP,
+    log,
+  });
 }
 
 function log(msg: string): void {
@@ -208,7 +219,7 @@ export function recordsIncomplete(sessionId: string): boolean {
  * substitute for a close signal the harness may never send (a call that streams then
  * stalls without a `tool_result`).
  */
-const OPEN_TOOL_TTL_MS = Number(process.env.AGENTA_RECORD_TOOL_TTL_MS ?? 3000);
+const OPEN_TOOL_TTL_MS = envTimerMs("AGENTA_RECORD_TOOL_TTL_MS", 3_000, { log });
 
 /**
  * Build an emitter that persists every event via the ingest chain AND calls the
@@ -410,10 +421,20 @@ export function buildPersistingEmitter(
     );
   };
 
-  const flush = (): Promise<void> => {
+  const flush = async (): Promise<void> => {
     // A paused call ends the turn with its slot still open — persist it before draining.
     flushOpenTool();
-    return drainPersist(sessionId);
+    await drainPersist(sessionId);
+    // Consume the drop signal at the turn-end drain: records that exhausted retries mean the durable
+    // log is incomplete, so next turn's reconstruction may be missing context. Reading here also
+    // clears the per-session counter so it can't accumulate unread. (Only ever non-zero in durable
+    // mode.)
+    const dropped = takePersistFailures(sessionId);
+    if (dropped > 0) {
+      log(
+        `WARN session=${sessionId} durable log incomplete: ${dropped} record(s) dropped this turn; reconstruction may lack context`,
+      );
+    }
   };
 
   return { emit, persist, flush };

@@ -60,6 +60,11 @@ export AGENTA_RUNNER_TOKEN="$(openssl rand -hex 32)"
 export POSTGRES_PASSWORD="$(openssl rand -hex 24)"
 ```
 
+`configure.sh` creates the bundled mount store credentials on a fresh Railway
+project and reuses them on later deployments. You can provide
+`AGENTA_STORE_ACCESS_KEY`, `AGENTA_STORE_SECRET_KEY`,
+`AGENTA_STORE_SIGNING_KEY`, and `AGENTA_STORE_JWT_PRIVATE_KEY` to override them.
+
 ## Quick Start
 
 ```bash

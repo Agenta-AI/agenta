@@ -478,10 +478,10 @@ describe("credential epoch", () => {
   });
 
   it("valid until the mount expiry elapses; invalid once expired", () => {
-    const parked = computeCredentialEpoch(
-      { secrets: { A: "1" } },
-      "2026-01-01T00:00:10.000Z",
-    );
+    const parked = {
+      ...computeCredentialEpoch({ secrets: { A: "1" } }),
+      mountExpiresAtMs: Date.parse("2026-01-01T00:00:10.000Z"),
+    };
     const incoming = computeCredentialEpoch({ secrets: { A: "1" } });
     const before = Date.parse("2026-01-01T00:00:05.000Z");
     const after = Date.parse("2026-01-01T00:00:15.000Z");
@@ -500,10 +500,10 @@ describe("credential epoch", () => {
   });
 
   it("credentialEpochMismatch splits the reason: expired vs rotated vs none", () => {
-    const parked = computeCredentialEpoch(
-      { secrets: { A: "1" } },
-      "2026-01-01T00:00:10.000Z",
-    );
+    const parked = {
+      ...computeCredentialEpoch({ secrets: { A: "1" } }),
+      mountExpiresAtMs: Date.parse("2026-01-01T00:00:10.000Z"),
+    };
     const same = computeCredentialEpoch({ secrets: { A: "1" } });
     const rotated = computeCredentialEpoch({ secrets: { A: "2" } });
     const before = Date.parse("2026-01-01T00:00:05.000Z");
@@ -525,10 +525,10 @@ describe("credential epoch", () => {
   });
 
   it("mountCredentialsExpired checks only the mount lifetime, ignoring the secret hash", () => {
-    const parked = computeCredentialEpoch(
-      { secrets: { A: "1" } },
-      "2026-01-01T00:00:10.000Z",
-    );
+    const parked = {
+      ...computeCredentialEpoch({ secrets: { A: "1" } }),
+      mountExpiresAtMs: Date.parse("2026-01-01T00:00:10.000Z"),
+    };
     const before = Date.parse("2026-01-01T00:00:05.000Z");
     const after = Date.parse("2026-01-01T00:00:15.000Z");
     assert.equal(mountCredentialsExpired(parked, before), false);
