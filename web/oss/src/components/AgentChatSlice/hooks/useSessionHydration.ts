@@ -1,9 +1,9 @@
-import {type MutableRefObject, useEffect, useState} from "react"
+import {type MutableRefObject, useCallback, useEffect, useState} from "react"
 
+import {shouldAdoptServerTranscript} from "@agenta/entities/session"
 import {type UIMessage} from "ai"
 
-import {loadSessionMessages} from "../assets/loadSession"
-import {getPendingApprovals} from "../components/ApprovalDock"
+import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
 import {isSessionFresh} from "../state/sessionEphemera"
 
 import {type ScrollIntent} from "./useScrollIntent"
@@ -12,7 +12,8 @@ import {type ScrollIntent} from "./useScrollIntent"
  * Hybrid history for one session tab. localStorage holds only the session INDEX; the durable
  * conversation CONTENT lives in the backend record log — so a tab either paints from cache and
  * revalidates (SWR), or hydrates from the server once (cache miss). Both paths adopt the server
- * transcript under the same guards: never mid-stream, and never behind what's on screen.
+ * transcript through the SAME guard: never mid-stream, and only when the record log has grown past
+ * what's on screen.
  */
 export const useSessionHydration = ({
     sessionId,
@@ -21,6 +22,7 @@ export const useSessionHydration = ({
     busyRef,
     seenIdsRef,
     restoredIdsRef,
+    recordWatermarkRef,
     setMessages,
     persistMessages,
     intent,
@@ -31,8 +33,10 @@ export const useSessionHydration = ({
     busyRef: MutableRefObject<boolean>
     seenIdsRef: MutableRefObject<Set<string>>
     restoredIdsRef: MutableRefObject<Set<string>>
+    /** Records the rendered transcript was built from; `undefined` once a live turn supersedes it. */
+    recordWatermarkRef: MutableRefObject<number | undefined>
     setMessages: (messages: UIMessage[]) => void
-    persistMessages: (args: {id: string; messages: UIMessage[]}) => void
+    persistMessages: (args: {id: string; messages: UIMessage[]; recordCount?: number}) => void
     intent: ScrollIntent
 }) => {
     // Cache-first — when this tab opens with no locally-cached messages (a session this browser
@@ -48,6 +52,48 @@ export const useSessionHydration = ({
     // durable history was pruned by retention or never persisted. Drives the "history unavailable"
     // notice so a wiped session isn't mistaken for a brand-new chat.
     const [hydratedEmpty, setHydratedEmpty] = useState(false)
+
+    /**
+     * The ONE adoption guard, shared by both paths below (they used to carry divergent copies, and
+     * the hydration one had the same #5530 blind spot). Adopts the durable transcript when the
+     * record log has grown past what we're rendering. Returns whether it adopted.
+     */
+    const adoptServerTranscript = useCallback(
+        (transcript: SessionTranscript | null, {armJump = true} = {}): boolean => {
+            if (!transcript) return false
+            const {messages: serverMsgs, recordCount} = transcript
+            const adopt = shouldAdoptServerTranscript({
+                serverRecordCount: recordCount,
+                serverMessageCount: serverMsgs.length,
+                localMessageCount: messagesRef.current.length,
+                watermark: recordWatermarkRef.current,
+                busy: busyRef.current,
+            })
+            if (!adopt) return false
+            // Restored history renders settled (no live fade-in) and pinned to the bottom.
+            serverMsgs.forEach((m) => {
+                seenIdsRef.current.add(m.id)
+                restoredIdsRef.current.add(m.id)
+            })
+            if (armJump) intent.armJump()
+            recordWatermarkRef.current = recordCount
+            setMessages(serverMsgs)
+            persistMessages({id: sessionId, messages: serverMsgs, recordCount})
+            return true
+        },
+        [
+            sessionId,
+            messagesRef,
+            busyRef,
+            seenIdsRef,
+            restoredIdsRef,
+            recordWatermarkRef,
+            setMessages,
+            persistMessages,
+            intent,
+        ],
+    )
+
     useEffect(() => {
         // A session created brand-new in this browser and not yet run has no backend records —
         // skip the guaranteed-empty query (cleared on first send; after a reload it re-hydrates).
@@ -60,38 +106,21 @@ export const useSessionHydration = ({
         // instead of latching a ref that leaves the transcript blank.
         let cancelled = false
         // Post-restore revalidation: the first result may be the disk-restored log (paints
-        // instantly); when the guaranteed background refetch lands, adopt it under the same
-        // guards as the SWR effect below — never mid-stream, only when strictly ahead.
-        const adoptRefreshed = (freshMsgs: UIMessage[]) => {
-            if (cancelled || busyRef.current) return
-            if (freshMsgs.length <= messagesRef.current.length) return
-            freshMsgs.forEach((m) => {
-                seenIdsRef.current.add(m.id)
-                restoredIdsRef.current.add(m.id)
-            })
-            intent.armJump()
+        // instantly); adopt the background refetch when it lands.
+        loadSessionMessages(sessionId, (fresh) => {
+            if (cancelled) return
             // The restore said "no records" but the server has some — clear the notice.
-            setHydratedEmpty(false)
-            setMessages(freshMsgs)
-            persistMessages({id: sessionId, messages: freshMsgs})
-        }
-        loadSessionMessages(sessionId, adoptRefreshed)
-            .then((msgs) => {
+            if (adoptServerTranscript(fresh)) setHydratedEmpty(false)
+        })
+            .then((transcript) => {
                 if (cancelled) return
-                if (!msgs || msgs.length === 0) {
+                if (!transcript || transcript.messages.length === 0) {
                     // Known session, but the server has no records for it → history was pruned or
                     // never persisted. Flag it so the transcript shows the "unavailable" notice.
                     setHydratedEmpty(true)
                     return
                 }
-                // Restored history renders settled (no live fade-in) and pinned to the bottom.
-                msgs.forEach((m) => {
-                    seenIdsRef.current.add(m.id)
-                    restoredIdsRef.current.add(m.id)
-                })
-                intent.armJump()
-                setMessages(msgs)
-                persistMessages({id: sessionId, messages: msgs})
+                adoptServerTranscript(transcript)
             })
             .finally(() => {
                 if (!cancelled) setIsHydrating(false)
@@ -103,48 +132,21 @@ export const useSessionHydration = ({
     }, [sessionId])
 
     // SWR revalidate-on-open: a cached session paints instantly from localStorage; in the background
-    // we refetch the durable records ONCE (low-priority) and adopt the server transcript ONLY IF it's
-    // strictly ahead of what we're showing (a turn finished on another device). We never clobber a
-    // transcript that's live (`busyRef`), or that the server isn't strictly ahead of — so a local
-    // optimistic/unsent tail is safe. Cache-MISS sessions are hydrated by the effect above; fresh
-    // never-run sessions have no server records. Reconciliation is by message COUNT, not content:
-    // detecting a same-length server-side edit/regenerate is deferred, as is focus/interval
-    // revalidation. FOLLOWUP(sessions,swr): see docs/designs/sessions/frontend-integration.md.
+    // we refetch the durable records ONCE (low-priority) and adopt the server transcript when the
+    // record log has grown past ours. Cache-MISS sessions are hydrated by the effect above; fresh
+    // never-run sessions have no server records.
+    //
+    // The old count-based guard also carried a special case for "local tail paused, server tail
+    // complete" — a resume that finished on another device, invisible to a message count. The
+    // record watermark sees that growth directly, so the special case is gone rather than extended.
     useEffect(() => {
         if (initialMessages.length === 0 || isSessionFresh(sessionId)) return
         // As with the hydration effect above: no persistent ref, so StrictMode's double-mount
         // re-runs the revalidation rather than latching it out.
         let cancelled = false
-        const adopt = (serverMsgs: UIMessage[] | null) => {
-            if (cancelled || !serverMsgs || serverMsgs.length === 0) return
-            const prev = messagesRef.current
-            if (busyRef.current) return
-            // Adopt the server transcript when it is strictly ahead by count, OR when our LOCAL tail
-            // is stuck paused (mid-approval) while the server has moved past it to a terminal turn — a
-            // resume that completed on another device. Count alone misses the latter (same bubble
-            // count) and was silently propped up by the now-removed duplicate user row; the server's
-            // `paused` flag rides the runner's `done.stopReason` through `transcriptToMessages`.
-            const serverAheadByCount = serverMsgs.length > prev.length
-            const localTailPaused = getPendingApprovals(prev).length > 0
-            const serverTail = serverMsgs[serverMsgs.length - 1] as
-                | {role?: string; metadata?: {paused?: boolean}}
-                | undefined
-            // The paused-tail exception adopts a resume that completed elsewhere, so the server must
-            // NOT be behind (>= guards against a lagging snapshot discarding newer local approval
-            // state) and its tail must be a finished assistant turn — not a shorter, older stream.
-            const serverTailComplete =
-                serverMsgs.length >= prev.length &&
-                serverTail?.role === "assistant" &&
-                !serverTail.metadata?.paused &&
-                getPendingApprovals(serverMsgs).length === 0
-            if (!serverAheadByCount && !(localTailPaused && serverTailComplete)) return
-            serverMsgs.forEach((m) => {
-                seenIdsRef.current.add(m.id)
-                restoredIdsRef.current.add(m.id)
-            })
-            intent.armJump()
-            setMessages(serverMsgs)
-            persistMessages({id: sessionId, messages: serverMsgs})
+        const adopt = (transcript: SessionTranscript | null) => {
+            if (cancelled) return
+            adoptServerTranscript(transcript)
         }
         // The first result may itself be the disk-restored records log; the callback re-applies
         // the same guarded adoption when the guaranteed background revalidation lands.

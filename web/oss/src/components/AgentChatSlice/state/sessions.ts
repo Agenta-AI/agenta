@@ -143,6 +143,24 @@ export const sessionMessagesAtom = atomWithStorage<Record<string, UIMessage[]>>(
     STORAGE_OPTS,
 )
 
+/**
+ * Per-session adoption watermark: how many durable records the CACHED transcript above was built
+ * from. Absent means "not server-derived" (a locally-streamed turn, or a pre-#5530 cache) and reads
+ * as 0, so the next open re-syncs from the server once.
+ *
+ * Private on purpose — it must only ever move together with `sessionMessagesAtom`, so every write
+ * goes through `persistSessionMessagesAtom` and every delete through `dropSessionMessages`.
+ */
+const sessionRecordCountsAtom = atomWithStorage<Record<string, number>>(
+    "agenta:agent-chat:record-counts",
+    {},
+    tabLocalStorage(),
+    STORAGE_OPTS,
+)
+
+/** Read-only view of the watermarks; the guards read one non-reactively via `store.get`. */
+export const sessionRecordCountsReadAtom = atom((get) => get(sessionRecordCountsAtom))
+
 /** Open tab ids for a scope, with the pre-upgrade fallback (everything open). Pure read helper
  * for the writers below — never mutates. */
 const currentOpenIds = (get: Getter, key: string): string[] => {
@@ -328,11 +346,7 @@ export const deleteSessionAtomFamily = atomFamily((key: string) =>
             set(activeByAppAtom, {...active, [key]: open.filter((x) => x !== id)[0] ?? ""})
         }
 
-        const messages = {...get(sessionMessagesAtom)}
-        if (id in messages) {
-            delete messages[id]
-            set(sessionMessagesAtom, messages)
-        }
+        dropSessionMessages(get, set, [id])
 
         clearSessionEphemera(id)
 
@@ -484,16 +498,8 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
             if (active[key] && droppedSet.has(active[key])) {
                 set(activeByAppAtom, {...active, [key]: nextOpen[0] ?? ""})
             }
-            const messages = {...get(sessionMessagesAtom)}
-            let msgsChanged = false
-            for (const id of dropped) {
-                if (id in messages) {
-                    delete messages[id]
-                    msgsChanged = true
-                }
-                clearSessionEphemera(id)
-            }
-            if (msgsChanged) set(sessionMessagesAtom, messages)
+            dropSessionMessages(get, set, dropped)
+            for (const id of dropped) clearSessionEphemera(id)
         }
     }),
 )
@@ -567,18 +573,8 @@ export const resetScopeAtomFamily = atomFamily((key: string) =>
             delete next[key]
             set(activeByAppAtom, next)
         }
-        if (ids.length) {
-            const messages = {...get(sessionMessagesAtom)}
-            let changed = false
-            for (const id of ids) {
-                if (id in messages) {
-                    delete messages[id]
-                    changed = true
-                }
-                clearSessionEphemera(id)
-            }
-            if (changed) set(sessionMessagesAtom, messages)
-        }
+        dropSessionMessages(get, set, ids)
+        for (const id of ids) clearSessionEphemera(id)
     }),
 )
 
@@ -672,12 +668,13 @@ const writeMessagesWithQuotaGuard = (
     set: Setter,
     next: Record<string, UIMessage[]>,
     keepId: string,
-): void => {
+): string[] => {
     let candidate = next
+    const evicted: string[] = []
     for (;;) {
         try {
             set(sessionMessagesAtom, candidate)
-            return
+            return evicted
         } catch (e) {
             if (!isQuotaExceeded(e)) throw e
             // Object keys keep insertion order, so the first non-active id is the oldest.
@@ -685,19 +682,64 @@ const writeMessagesWithQuotaGuard = (
             if (oldest === undefined) {
                 // Even the active session alone won't fit — keep it in memory, skip persistence.
                 console.warn("[agent-chat] message store over quota; skipping persistence")
-                return
+                return evicted
             }
+            evicted.push(oldest)
             candidate = {...candidate}
             delete candidate[oldest]
         }
     }
 }
 
-/** Write a session's messages to the persisted store (called when its stream settles). */
+/**
+ * Drop cached transcripts AND their watermarks for `ids` — the two stores must never diverge, or a
+ * re-adopted session would be judged against a watermark belonging to a transcript that's gone.
+ * The single deletion path for both; every caller that forgets a session routes through here.
+ */
+const dropSessionMessages = (get: Getter, set: Setter, ids: string[]): void => {
+    if (ids.length === 0) return
+    const messages = {...get(sessionMessagesAtom)}
+    const counts = {...get(sessionRecordCountsAtom)}
+    let messagesChanged = false
+    let countsChanged = false
+    for (const id of ids) {
+        if (id in messages) {
+            delete messages[id]
+            messagesChanged = true
+        }
+        if (id in counts) {
+            delete counts[id]
+            countsChanged = true
+        }
+    }
+    if (messagesChanged) set(sessionMessagesAtom, messages)
+    if (countsChanged) set(sessionRecordCountsAtom, counts)
+}
+
+/**
+ * Write a session's messages to the persisted store (called when its stream settles), together with
+ * the record watermark the transcript reflects. Pass `recordCount: undefined` for a locally-streamed
+ * transcript — we can't know how many records the server logged for it, and clearing the watermark
+ * makes the next open re-sync from the durable log rather than trust a stale number.
+ */
 export const persistSessionMessagesAtom = atom(
     null,
-    (get, set, {id, messages}: {id: string; messages: UIMessage[]}) => {
-        writeMessagesWithQuotaGuard(set, {...get(sessionMessagesAtom), [id]: messages}, id)
+    (
+        get,
+        set,
+        {id, messages, recordCount}: {id: string; messages: UIMessage[]; recordCount?: number},
+    ) => {
+        const evicted = writeMessagesWithQuotaGuard(
+            set,
+            {...get(sessionMessagesAtom), [id]: messages},
+            id,
+        )
+        const counts = {...get(sessionRecordCountsAtom)}
+        if (recordCount === undefined) delete counts[id]
+        else counts[id] = recordCount
+        // A quota eviction dropped those transcripts, so their watermarks go too.
+        for (const evictedId of evicted) delete counts[evictedId]
+        set(sessionRecordCountsAtom, counts)
     },
 )
 

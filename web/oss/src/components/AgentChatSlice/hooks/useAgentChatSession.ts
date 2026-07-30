@@ -34,6 +34,7 @@ import {expandedKeysForMessages, pruneExpandedAtom} from "../state/expandState"
 import {
     persistSessionMessagesAtom,
     sessionMessagesAtom,
+    sessionRecordCountsReadAtom,
     stampMessagesCreatedAtAtom,
 } from "../state/sessions"
 import {captureTurnRequestAtom} from "../state/turnCaptures"
@@ -74,6 +75,15 @@ export const useAgentChatSession = ({
     // Immutable snapshot of the restored ids (seenIdsRef grows) — the first-seen stamping
     // effect below skips these so a reload can't masquerade as the turns' send time.
     const restoredIdsRef = useRef<Set<string>>(new Set(initialMessages.map((m) => m.id)))
+    // How many durable records the transcript we're RENDERING was built from — the exact test for
+    // "has the server moved on?" (issue #5530). Message counts can't see a turn growing in place:
+    // `transcriptToMessages` folds a paused turn into its resume and only closes a message on
+    // `done`, so a mid-turn snapshot and the finished turn have the SAME count and a count-based
+    // guard rejects the finished server copy forever. Cleared the moment a live turn starts, since
+    // we can't know what the server logged for it — the next open then re-syncs from the log.
+    const recordWatermarkRef = useRef<number | undefined>(
+        store.get(sessionRecordCountsReadAtom)[sessionId],
+    )
     // Whether the LAST assistant turn was user-stopped. You can only cancel the in-flight (last) turn,
     // so this is a single boolean gated on position at render time — independent of message ids (which
     // can be missing/duplicated in restore/error paths and would otherwise smear the tag onto every
@@ -184,6 +194,7 @@ export const useAgentChatSession = ({
         busyRef,
         seenIdsRef,
         restoredIdsRef,
+        recordWatermarkRef,
         setMessages,
         persistMessages,
         intent,
@@ -266,10 +277,19 @@ export const useAgentChatSession = ({
         })
     }, [error, setMessages])
 
+    // A live turn makes the transcript no longer a copy of the server's, and we can't know how many
+    // records the runner logged for it — so drop the watermark and let the next open re-sync from
+    // the durable log. MUST stay declared above the persist effect: on the commit where `status`
+    // flips to "submitted", effects run in declaration order, so clearing here is what stops the
+    // persist below from filing a locally-extended transcript under a server watermark.
+    useEffect(() => {
+        if (status === "submitted" || status === "streaming") recordWatermarkRef.current = undefined
+    }, [status])
+
     // Persist the conversation whenever its stream settles (skip mid-stream).
     useEffect(() => {
         if (status === "streaming") return
-        persistMessages({id: sessionId, messages})
+        persistMessages({id: sessionId, messages, recordCount: recordWatermarkRef.current})
     }, [messages, status, sessionId, persistMessages])
 
     // Bound the in-message expand-state store: on settle, drop entries whose owning message is gone
