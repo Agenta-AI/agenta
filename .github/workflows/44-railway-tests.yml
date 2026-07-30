@@ -377,6 +377,7 @@ jobs:
       AGENTA_LICENSE: oss
       AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
       AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
+      AGENTA_TEST_REQUIRE_MOUNT_STORAGE: "true"
     steps:
       - uses: actions/checkout@v6
 

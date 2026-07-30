@@ -23,3 +23,21 @@ export const doesAgentChatStopKillSession = (): boolean =>
  */
 export const isAgentChatSteerEnabled = (): boolean =>
     (getEnv("NEXT_PUBLIC_AGENT_CHAT_STEER") || "").toLowerCase() === "true"
+
+/**
+ * Composer voice input — the mic that dictates into the editor and records voice messages. Off by
+ * default: a voice message is sent as an audio attachment, which the agent service does not accept
+ * yet. Enable with `NEXT_PUBLIC_AGENT_VOICE_INPUT=true` to preview the UI.
+ */
+export const isAgentVoiceInputEnabled = (): boolean =>
+    (getEnv("NEXT_PUBLIC_AGENT_VOICE_INPUT") || "").toLowerCase() === "true"
+
+/**
+ * File uploads and attachments — the composer attach button + attachment preview, and every drive
+ * upload entry point (upload button, drop-to-upload in the Files drawer, drop-to-stage on a recents
+ * peek). Off by default: the composer→model delivery contract is still open on the backend. Enable
+ * with `NEXT_PUBLIC_AGENT_FILE_UPLOADS=true`. Paste/drag-to-attach on the composer predates this and
+ * is not gated.
+ */
+export const isAgentFileUploadsEnabled = (): boolean =>
+    (getEnv("NEXT_PUBLIC_AGENT_FILE_UPLOADS") || "").toLowerCase() === "true"

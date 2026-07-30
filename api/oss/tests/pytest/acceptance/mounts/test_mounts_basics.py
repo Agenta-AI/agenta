@@ -6,6 +6,8 @@ path-injection rejection. Requires a running API (OSS or EE).
 
 from uuid import uuid4
 
+from oss.tests.pytest.utils.mounts import skip_if_mount_storage_unavailable
+
 
 def _mount_payload(*, name=None, session_id=None):
     # Storage location is derived server-side (bucket from env, key = project_id/mount_id);
@@ -231,8 +233,8 @@ class TestSessionsMountsQuery:
 # File ops (durable store contents)
 #
 # Require a configured object store (AGENTA_STORE_* → SeaweedFS in the dev
-# stack). A 503 means the backend isn't configured in this env — skip rather
-# than fail so the suite stays green where no store is wired.
+# stack). Environments that require mount storage fail on a 503; other
+# environments skip these checks.
 # ---------------------------------------------------------------------------
 
 
@@ -241,13 +243,6 @@ def _create_mount(authed_api):
     resp = authed_api("POST", "/mounts/", json=payload)
     assert resp.status_code == 200, resp.text
     return resp.json()["mount"]["id"]
-
-
-def _skip_if_no_store(resp):
-    import pytest
-
-    if resp.status_code == 503:
-        pytest.skip("Mount storage backend not configured in this environment")
 
 
 class TestMountFileOps:
@@ -260,7 +255,7 @@ class TestMountFileOps:
             params={"path": "notes.txt"},
             data=b"hello world",
         )
-        _skip_if_no_store(write)
+        skip_if_mount_storage_unavailable(write)
         assert write.status_code == 200, write.text
         assert write.json()["path"] == "notes.txt"
 
@@ -291,7 +286,7 @@ class TestMountFileOps:
         folder = authed_api(
             "POST", f"/mounts/{mount_id}/files/folder", params={"path": "workspace"}
         )
-        _skip_if_no_store(folder)
+        skip_if_mount_storage_unavailable(folder)
         assert folder.status_code == 200, folder.text
         assert folder.json()["path"] == "workspace"
 
@@ -342,7 +337,7 @@ class TestMountFileOps:
             f"/mounts/{mount_id}/files/upload",
             files={"file": ("report.txt", b"content", "text/plain")},
         )
-        _skip_if_no_store(upload)
+        skip_if_mount_storage_unavailable(upload)
         assert upload.status_code == 200, upload.text
         assert upload.json()["path"] == "report.txt"
 

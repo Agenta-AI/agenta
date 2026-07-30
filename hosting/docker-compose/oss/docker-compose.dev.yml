@@ -375,6 +375,7 @@ services:
         # === IMAGE ================================================ #
         image: agenta-oss-dev-runner:latest
         # === EXECUTION ============================================ #
+        init: true
         # The Pi login is bind-mounted read-write at /pi-agent and the harness runs directly out
         # of it, so a refreshed OAuth token persists to the host login instead of dying with the
         # container.

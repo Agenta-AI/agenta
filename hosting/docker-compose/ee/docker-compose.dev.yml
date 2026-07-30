@@ -382,6 +382,7 @@ services:
         # === IMAGE ================================================ #
         image: agenta-ee-dev-runner:latest
         # === EXECUTION ============================================ #
+        init: true
         # No file watcher (the box's inotify limit is shared across stacks). The Pi login is
         # bind-mounted read-write at /pi-agent and the harness runs directly out of it, so a
         # refreshed OAuth token persists to the host login instead of dying with the container.
