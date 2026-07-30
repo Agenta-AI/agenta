@@ -7,6 +7,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import {projectIdAtom} from "@/oss/state/project"
 
+import {ONBOARDING_SCOPE_KEY} from "./scope"
 import {
     GLOBAL_APP_KEY,
     reconcileServerSessionsAtomFamily,
@@ -21,10 +22,14 @@ import {
  *
  * Mirrors `liveness.ts`: ONE low-priority query per agent backs the whole list, revalidated on tab
  * refocus and on a slow interval, so it stays out of the live conversation's way. Disabled for the
- * non-agent scopes (`__global__`, the revision drawer) where there is no artifact id to match.
+ * non-agent scopes (`__global__`, the revision drawer, the pre-commit onboarding) where there is no
+ * artifact id to match — a synthetic key sent as a reference id would just 422 on the API.
  */
 const isQueryableScope = (appId: string): boolean =>
-    Boolean(appId) && appId !== GLOBAL_APP_KEY && !appId.startsWith("drawer:")
+    Boolean(appId) &&
+    appId !== GLOBAL_APP_KEY &&
+    appId !== ONBOARDING_SCOPE_KEY &&
+    !appId.startsWith("drawer:")
 
 export const projectSessionsQueryAtomFamily = atomFamily((appId: string) =>
     atomWithQuery<SessionStream[] | null>((get) => {
