@@ -1,35 +1,37 @@
-"""Regression test: LocalSandboxNotAllowedError.type must name the refused sandbox
-provider, not a hardcoded 'local' slug, so clients branching on `type` see the
-provider that was actually rejected."""
+"""Regression tests for LocalSandboxNotAllowedError.
+
+The error type slug is provider-neutral and remains identical regardless
+of which sandbox provider was rejected. The provider name is carried in
+the human-readable message.
+"""
 
 from __future__ import annotations
 
-from agenta.sdk.agents.errors import LocalSandboxNotAllowedError
+from agenta.sdk.agents.errors import (
+    ERRORS_BASE_URL,
+    LocalSandboxNotAllowedError,
+)
 
 
-def test_type_slug_reflects_refused_provider() -> None:
-    err = LocalSandboxNotAllowedError(sandbox="daytona")
-    assert "daytona" in err.type
-    assert "local-sandbox-not-allowed" not in err.type
+def test_type_slug_is_provider_neutral() -> None:
+    local_err = LocalSandboxNotAllowedError(sandbox="local")
+    daytona_err = LocalSandboxNotAllowedError(sandbox="daytona")
 
+    expected = f"{ERRORS_BASE_URL}#v0:agent:sandbox-provider-not-allowed"
 
-def test_type_slug_defaults_to_local() -> None:
-    err = LocalSandboxNotAllowedError()
-    assert "local" in err.type
+    assert local_err.type == expected
+    assert daytona_err.type == expected
+    assert local_err.type == daytona_err.type
 
 
 def test_message_names_refused_provider() -> None:
     err = LocalSandboxNotAllowedError(sandbox="daytona")
+
     assert "daytona" in err.message
     assert "AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS" in err.message
 
 
 def test_code_is_403() -> None:
     err = LocalSandboxNotAllowedError(sandbox="daytona")
+
     assert err.code == 403
-
-
-def test_legacy_type_attribute_still_present() -> None:
-    # Backward-compat surface: no current consumer in web/ or sdks/ matches on this
-    # directly, but external/downstream code may, so the old slug stays available.
-    assert LocalSandboxNotAllowedError.LEGACY_TYPE.endswith("local-sandbox-not-allowed")
