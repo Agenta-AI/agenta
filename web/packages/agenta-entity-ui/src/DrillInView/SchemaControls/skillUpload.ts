@@ -12,6 +12,7 @@
  * keep only the body. `version` (present in some early mockups) has no schema home and is dropped.
  */
 import {strFromU8, unzipSync} from "fflate"
+import {load as loadYaml} from "js-yaml"
 
 export interface SkillFileEntry {
     path: string
@@ -46,11 +47,20 @@ export function parseSkillMarkdown(md: string): {
     if (!m) return {body: clean.trim()}
     const fm = m[1] ?? ""
     const body = (m[2] ?? "").replace(/^[\r\n]+/, "")
+    let metadata: unknown
+    try {
+        metadata = loadYaml(fm)
+    } catch {
+        return {body}
+    }
+    const record =
+        metadata && typeof metadata === "object" && !Array.isArray(metadata)
+            ? (metadata as Record<string, unknown>)
+            : {}
     const read = (key: string): string | undefined => {
-        const r = fm.match(new RegExp(`^${key}\\s*:\\s*(.*)$`, "im"))
-        if (!r) return undefined
-        const v = r[1].trim().replace(/^["']|["']$/g, "")
-        return v || undefined
+        const value = record[key]
+        if (typeof value !== "string") return undefined
+        return value.trim() || undefined
     }
     return {name: read("name"), description: read("description"), body}
 }

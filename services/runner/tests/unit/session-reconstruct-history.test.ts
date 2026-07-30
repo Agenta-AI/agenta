@@ -1,7 +1,8 @@
 /**
  * Unit tests for the reconstruction seam (reconstruct-history.ts).
  *
- * The safety contract: a strict no-op until BOTH the flag is on AND the client sent a minimal
+ * The safety contract: the flag is ON by default (only the literal "false" disables it), and
+ * reconstruction is a strict no-op until BOTH the flag is on AND the client sent a minimal
  * history. Anything else leaves the inbound history untouched (returns null).
  */
 import { describe, it, beforeEach, vi } from "vitest";
@@ -30,14 +31,41 @@ beforeEach(() => {
   recordsToReturn = [];
   fetchShouldFail = false;
   vi.unstubAllEnvs();
+  // The hermetic setup pins the flag off for the engine suites; this file tests the real
+  // default, so drop the pin (absent = on).
+  delete process.env.AGENTA_SESSIONS_RECONSTRUCT;
 });
 
 describe("reconstructHistoryIfNeeded", () => {
-  it("no-op when the flag is off (never even queries)", async () => {
+  it('no-op when the flag is explicitly "false" (never even queries)', async () => {
+    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "false");
     const req = { messages: [userTurn] } as never;
     const out = await reconstructHistoryIfNeeded(req, "sess-1", auth);
     assert.equal(out, null);
     assert.equal(fetchCalls, 0);
+  });
+
+  it("on by default: an absent flag reconstructs a minimal history", async () => {
+    recordsToReturn = [
+      { record_source: "user", attributes: { type: "message", text: "q1" } },
+      { record_source: "agent", attributes: { type: "message", text: "a1" } },
+    ];
+    const req = { messages: [userTurn], harness: "pi" } as never;
+    const out = await reconstructHistoryIfNeeded(req, "sess-1", auth);
+    assert.notEqual(out, null);
+    assert.equal(fetchCalls, 1);
+  });
+
+  it('an empty flag (compose "${VAR:-}" passthrough) still means on', async () => {
+    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "");
+    recordsToReturn = [
+      { record_source: "user", attributes: { type: "message", text: "q1" } },
+      { record_source: "agent", attributes: { type: "message", text: "a1" } },
+    ];
+    const req = { messages: [userTurn], harness: "pi" } as never;
+    const out = await reconstructHistoryIfNeeded(req, "sess-1", auth);
+    assert.notEqual(out, null);
+    assert.equal(fetchCalls, 1);
   });
 
   it("no-op when the client already sent a full history", async () => {

@@ -14,10 +14,11 @@
  *  - The run is never blocked on persistence mid-stream (chain is fire-and-forget).
  *  - The run DOES drain before teardown so the last event is not lost to the race.
  *  - A persist failure is logged and swallowed; the SDK's in-memory replay store is the
- *    backstop. Three retries with linear backoff before the event is dropped. With
- *    `AGENTA_RECORDS_DURABLE=true` the retry is stronger (more attempts, exponential backoff)
- *    and a drop is COUNTED per session (see `takePersistFailures`), so the turn-end drain can
- *    tell whether the durable history is complete enough to reconstruct model context from.
+ *    backstop. By default (durable mode, on unless `AGENTA_RECORDS_DURABLE=false`) the retry
+ *    is strong (more attempts, exponential backoff) and a drop is COUNTED per session (see
+ *    `takePersistFailures`), so the turn-end drain can tell whether the durable history is
+ *    complete enough to reconstruct model context from. With the flag set to "false", three
+ *    retries with linear backoff before the event is dropped, uncounted (legacy path).
  *  - `record_source` marks who authored the record: "agent" for engine-emitted events,
  *    "user" for the inbound user turn persisted at run start.
  */
@@ -39,10 +40,12 @@ const DURABLE_INGEST_MAX_RETRIES = 6;
 // stops being a tuning knob and becomes a hung turn.
 const DURABLE_INGEST_MAX_RETRIES_CAP = 12;
 
-/** Durable-records upgrades (stronger retry + drop counting) are opt-in and read at call time
- * so the flag can be toggled per test. Off → the fire-and-forget legacy path, unchanged. */
+/** Durable-records upgrades (stronger retry + drop counting) are ON unless the flag is the
+ * literal "false"; read at call time so the flag can be toggled per test. Absent AND empty both
+ * mean on — the compose files pass the var through as `${AGENTA_RECORDS_DURABLE:-}`, which sets
+ * an empty string when unset. "false" → the fire-and-forget legacy path, unchanged. */
 function durableRecordsEnabled(): boolean {
-  return String(process.env.AGENTA_RECORDS_DURABLE ?? "").toLowerCase() === "true";
+  return String(process.env.AGENTA_RECORDS_DURABLE ?? "").trim().toLowerCase() !== "false";
 }
 
 /** Attempts before a durable-mode drop; env-overridable for ops tuning (and fast tests). */

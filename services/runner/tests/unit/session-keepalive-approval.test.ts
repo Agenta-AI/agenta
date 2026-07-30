@@ -25,7 +25,12 @@ import {
   type KeepaliveEngine,
 } from "../../src/server.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
-import type { KeepaliveConfig } from "../../src/engines/sandbox_agent/session-identity.ts";
+import {
+  computeCredentialEpoch,
+  mountExpiryMs,
+  type InstalledMountExpiries,
+  type KeepaliveConfig,
+} from "../../src/engines/sandbox_agent/session-identity.ts";
 import type { MountCredentials } from "../../src/engines/sandbox_agent/mount.ts";
 import {
   acquireEnvironment,
@@ -40,6 +45,7 @@ import {
   DEFERRED_NOT_EXECUTED_PREFIX,
   TOOL_NOT_EXECUTED_PAUSED,
 } from "../../src/tracing/otel.ts";
+import { captureStderr } from "../utils/capture-stderr.ts";
 
 function flush(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
@@ -94,6 +100,8 @@ interface DispatchFakeEnv {
   turnsCleared: number;
   lastTurnToolCallIds: string[];
   parkedApprovals: Map<string, ParkedApproval>;
+  /** Stamped at acquire from the credentials this env "mounted", as the real helpers do. */
+  installedMountExpiries: InstalledMountExpiries;
   parkedApproval?: ParkedApproval;
   approvalGateCount: number;
   nonParkablePauseCount: number;
@@ -133,6 +141,7 @@ function makeApprovalEngine(
       turnsCleared: 0,
       lastTurnToolCallIds: [],
       parkedApprovals: new Map(),
+      installedMountExpiries: {},
       parkedApproval: undefined,
       approvalGateCount: 0,
       nonParkablePauseCount: 0,
@@ -241,6 +250,8 @@ function makeApprovalEngine(
     async acquireEnvironment(_request, _signal, _presigned) {
       calls.acquire += 1;
       const env = makeEnv();
+      const expiry = mountExpiryMs(mountOpts.expiresAt);
+      if (expiry !== undefined) env.installedMountExpiries.cwd = expiry;
       calls.acquiredEnvs.push(env);
       return { ok: true, env: env as unknown as SessionEnvironment };
     },
@@ -363,24 +374,6 @@ function approveResumeMulti(
     ],
   };
 }
-
-function captureStderr() {
-  const lines: string[] = [];
-  const orig = process.stderr.write.bind(process.stderr);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (process.stderr as any).write = (chunk: any) => {
-    lines.push(String(chunk));
-    return true;
-  };
-  return {
-    lines,
-    restore: () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (process.stderr as any).write = orig;
-    },
-  };
-}
-
 describe("runWithKeepalive: approval park + resume", () => {
   it("parks a paused Claude gate in awaiting_approval, then answers it live on the resume (approve)", async () => {
     const { engine, calls } = makeApprovalEngine([
@@ -959,6 +952,58 @@ describe("runWithKeepalive: approval resume ignores re-minted credentials/config
     assert.equal(calls.acquire, 1, "no cold re-acquire");
     assert.equal(env1.destroyed, 0, "the parked session was reused");
     assert.equal(calls.resumes.length, 1, "answered live exactly once");
+  });
+
+  it("the repark after a resume keeps the parked secrets hash AND the installed mount lease", async () => {
+    // Six hours out, so neither the expiry bound nor the expiring-lease bound fires here.
+    const installedExpiresAt = new Date(
+      Date.now() + 6 * 3_600_000,
+    ).toISOString();
+    const { engine, calls } = makeApprovalEngine(
+      [
+        {
+          approvalPause: {
+            permissionId: "perm-1",
+            toolCallId: "tc-gate",
+            toolName: "commit",
+          },
+          toolCallIds: ["tc-gate"],
+        },
+        { result: { ok: true, output: "resumed", stopReason: "complete" } },
+      ],
+      { expiresAt: installedExpiresAt },
+    );
+    const ctx = makeCtx(engine);
+    const paused: AgentRunRequest = {
+      ...pauseTurn(),
+      secrets: { ANTHROPIC_API_KEY: "baked-at-acquire" },
+    };
+    await runWithKeepalive(paused, undefined, undefined, ctx);
+    assert.equal(ctx.pool.get(POOL_KEY)!.state, "awaiting_approval");
+
+    const resume = approveResume(true, {
+      secrets: { ANTHROPIC_API_KEY: "re-minted-on-the-resume" },
+    });
+    const r2 = await runWithKeepalive(resume, undefined, undefined, ctx);
+    assert.equal(r2.ok, true);
+    assert.equal(calls.acquire, 1, "the resume ran on the live environment");
+
+    const parked = ctx.pool.get(POOL_KEY)!;
+    assert.equal(
+      parked.credentialEpoch.secretsHash,
+      computeCredentialEpoch(paused).secretsHash,
+      "the repark keeps the hash of the secrets the environment actually baked",
+    );
+    assert.notEqual(
+      parked.credentialEpoch.secretsHash,
+      computeCredentialEpoch(resume).secretsHash,
+      "the resume's re-minted secrets never entered this environment",
+    );
+    assert.equal(
+      parked.credentialEpoch.mountExpiresAtMs,
+      Date.parse(installedExpiresAt),
+      "and the lease still describes the mounted credentials",
+    );
   });
 });
 
