@@ -6,6 +6,11 @@
    Regenerate: pnpm --filter @agenta/mobile generate:tokens */
 @import "./theme.generated.css";
 
+/* Streamdown (assistant markdown) ships its styling as Tailwind utility classes inside its
+   own bundle, which Tailwind does not scan by default. Without this the markdown renders
+   completely unstyled. Path is relative to this file: src/styles -> web/mobile. */
+@source "../../node_modules/streamdown/dist/*.js";
+
 /* Class-based dark mode: .dark is set on <html> pre-paint by _document.tsx. */
 @custom-variant dark (&:is(.dark *));
 
