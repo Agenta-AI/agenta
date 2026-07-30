@@ -7,7 +7,7 @@ import {
 import {generateId} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
 import {atom, type Getter, type Setter} from "jotai"
-import {atomFamily, atomWithStorage, selectAtom} from "jotai/utils"
+import {atomFamily, atomWithStorage, createJSONStorage, selectAtom} from "jotai/utils"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {projectIdAtom} from "@/oss/state/project"
@@ -91,11 +91,25 @@ export const defaultScopeKeyAtom = atom((get) => {
 // effect sees an empty list in that window and creates a stray session on every reload/HMR.
 const STORAGE_OPTS = {getOnInit: true} as const
 
+/**
+ * localStorage WITHOUT jotai's cross-browser-tab sync. The default storage subscribes to the
+ * `storage` event, so a write in one browser tab replaced these records live in every other one —
+ * and since the open-tab list drives the antd `Tabs` items, an incoming replacement UNMOUNTED a
+ * streaming conversation, orphaning its `useChat` stream mid-turn (the in-flight transcript is not
+ * persisted until the stream settles, so it was lost). Each browser tab now owns its view; storage
+ * is still shared, so a reload picks up whatever was last written.
+ */
+const tabLocalStorage = <T>() => {
+    const storage = createJSONStorage<T>()
+    delete storage.subscribe
+    return storage
+}
+
 /** Full per-scope session history (open AND closed). */
 const sessionsByAppAtom = atomWithStorage<Record<string, AgentChatSession[]>>(
     "agenta:agent-chat:sessions",
     {},
-    undefined,
+    tabLocalStorage(),
     STORAGE_OPTS,
 )
 
@@ -109,14 +123,14 @@ const sessionsByAppAtom = atomWithStorage<Record<string, AgentChatSession[]>>(
 const openIdsByAppAtom = atomWithStorage<Record<string, string[]>>(
     "agenta:agent-chat:open-sessions",
     {},
-    undefined,
+    tabLocalStorage(),
     STORAGE_OPTS,
 )
 
 const activeByAppAtom = atomWithStorage<Record<string, string>>(
     "agenta:agent-chat:active-session",
     {},
-    undefined,
+    tabLocalStorage(),
     STORAGE_OPTS,
 )
 
@@ -125,7 +139,7 @@ const activeByAppAtom = atomWithStorage<Record<string, string>>(
 export const sessionMessagesAtom = atomWithStorage<Record<string, UIMessage[]>>(
     "agenta:agent-chat:messages",
     {},
-    undefined,
+    tabLocalStorage(),
     STORAGE_OPTS,
 )
 
