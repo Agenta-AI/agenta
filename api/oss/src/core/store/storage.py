@@ -20,12 +20,23 @@ from oss.src.core.mounts.types import MountFileNotFound, MountStorageUnavailable
 # STS responses are SOAP-ish XML under the 2011-06-15 namespace; strip it for tag lookups.
 _STS_NS = "{https://sts.amazonaws.com/doc/2011-06-15/}"
 
+# Mirrors the `maxSessionLength: 12h` we configure in the compose SeaweedFS IAM config; the two
+# must stay in sync.
+_SEAWEEDFS_MAX_SESSION_SECONDS = 43200
+
+# AWS GetFederationToken accepts DurationSeconds in [900, 129600].
+_AWS_MAX_FEDERATION_SECONDS = 129600
+
 
 def _parse_sts_credentials(xml_text: str) -> Credentials:
     """Parse an STS XML response (`AssumeRoleWithWebIdentity`) into a miniopy Credentials.
 
     Returns the scoped access/secret/session triple plus expiry; raises if the response
     carried no Credentials block (e.g. an STS error document slipped past the status check).
+
+    Fails closed on a missing or unparsable `Expiration`: the runner reads a missing expiry as
+    "never expires", so one malformed response would silently disable the reuse bound for the
+    lifetime of a pooled environment.
     """
     root = ElementTree.fromstring(xml_text)
     creds_el = root.find(f".//{_STS_NS}Credentials")
@@ -36,13 +47,15 @@ def _parse_sts_credentials(xml_text: str) -> Credentials:
         el = creds_el.find(f"{_STS_NS}{tag}")
         return el.text if el is not None else None
 
-    expiration = None
     raw_exp = _text("Expiration")
-    if raw_exp:
-        try:
-            expiration = datetime.fromisoformat(raw_exp.replace("Z", "+00:00"))
-        except ValueError:
-            expiration = None
+    if not raw_exp:
+        raise MountStorageUnavailable("STS response carried no credential expiry.")
+    try:
+        expiration = datetime.fromisoformat(raw_exp.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise MountStorageUnavailable(
+            "STS response carried an unparsable credential expiry."
+        ) from exc
 
     return Credentials(
         access_key=_text("AccessKeyId"),
@@ -229,14 +242,21 @@ class ObjectStore:
         """SeaweedFS path: unauthenticated `AssumeRoleWithWebIdentity` against the store endpoint."""
         host, secure = self._host_secure()
         endpoint = f"{'https' if secure else 'http'}://{host}"
+        # SeaweedFS validates DurationSeconds in [900, 43200], but the EFFECTIVE lifetime is
+        # min(DurationSeconds, web-identity token expiry, maxSessionLength). The token-expiry cap
+        # has no floor, so minting the token at the capped TTL is what lets a sub-900 TTL take
+        # effect (the QA lever); DurationSeconds only has to stay inside the validated range.
+        capped = min(duration_seconds, _SEAWEEDFS_MAX_SESSION_SECONDS)
         body = urlencode(
             {
                 "Action": "AssumeRoleWithWebIdentity",
                 "Version": "2011-06-15",
                 "RoleArn": webidentity.role_arn(),
                 "RoleSessionName": webidentity.STORE_SUBJECT,
-                "WebIdentityToken": webidentity.mint_web_identity_token(),
-                "DurationSeconds": str(duration_seconds),
+                "WebIdentityToken": webidentity.mint_web_identity_token(
+                    ttl_seconds=capped
+                ),
+                "DurationSeconds": str(max(capped, 900)),
                 "Policy": scope_policy,
             }
         )
@@ -261,9 +281,9 @@ class ObjectStore:
         """Remote-S3 path: SigV4-signed `GetFederationToken` against the store's STS endpoint.
 
         The STS endpoint defaults to the S3 endpoint (MinIO co-locates STS there); AWS splits
-        it onto `sts.<region>.amazonaws.com`, set via AGENTA_STORE_STS_ENDPOINT_URL. Duration is
-        clamped to STS's 900s floor. The request is signed with the store's master keys; the
-        returned credentials carry only the inline `Policy`'s permissions.
+        it onto `sts.<region>.amazonaws.com`, set via AGENTA_STORE_STS_ENDPOINT_URL. Duration
+        is clamped into STS's [900, 129600] range. The request is signed with the store's
+        master keys; the returned credentials carry only the inline `Policy`'s permissions.
         """
         endpoint = (self._sts_endpoint_url or self._endpoint_url or "").rstrip("/")
         if not endpoint:
@@ -275,7 +295,10 @@ class ObjectStore:
                 "Action": "GetFederationToken",
                 "Version": "2011-06-15",
                 "Name": webidentity.STORE_SUBJECT,
-                "DurationSeconds": str(max(duration_seconds, 900)),
+                # AWS rejects anything outside its own range; clamp rather than fail the sign.
+                "DurationSeconds": str(
+                    min(max(duration_seconds, 900), _AWS_MAX_FEDERATION_SECONDS)
+                ),
                 "Policy": scope_policy,
             }
         )

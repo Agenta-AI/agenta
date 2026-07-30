@@ -124,6 +124,21 @@ export const harnessCapabilitiesAtomFamily = atomFamily((_harnessRef: string) =>
 )
 
 /**
+ * Whether the harness catalog request failed.
+ *
+ * A null capability map has two very different causes: a schema that predates the catalog (no
+ * `x-ag-harness-ref`, so the legacy controls are correct), or a catalog the browser could not
+ * reach. Without this flag the second case renders as the first, which reads as a stale
+ * frontend build rather than a failed request.
+ */
+export const harnessCatalogFailedAtom = atom((get) => get(harnessCatalogQueryAtom).isError)
+
+/** Retry the harness catalog after a failure. */
+export const retryHarnessCatalogAtom = atom(null, (get) => {
+    void get(harnessCatalogQueryAtom).refetch()
+})
+
+/**
  * The model's context window (max input tokens) from the harness catalog, matched by exact id — the
  * same `id`-keyed join the model picker uses. `null` when the catalog, harness, or entry is absent,
  * or the entry carries no `context_window`. Source of truth is the SDK model catalog
