@@ -150,11 +150,11 @@ export async function runTurn(
   });
 
   try {
-    // Server-side history reconstruction (flag-gated, no-op by default): when the client sent a
-    // minimal history, rebuild prior turns from the durable record log so a cold turn still has
-    // full context. Runs before the current user turn is persisted, so records hold only prior
-    // turns. Reassigns `request` so every downstream reader (turnText, priorMessages, responder,
-    // otel) sees the same reconstructed history.
+    // Server-side history reconstruction (on by default; AGENTA_SESSIONS_RECONSTRUCT=false
+    // disables): when the client sent a minimal history, rebuild prior turns from the durable
+    // record log so a cold turn still has full context. Runs before the current user turn is
+    // persisted, so records hold only prior turns. Reassigns `request` so every downstream
+    // reader (turnText, priorMessages, responder, otel) sees the same reconstructed history.
     const reconstructed = await reconstructHistoryIfNeeded(
       request,
       sessionId,

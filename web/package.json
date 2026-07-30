@@ -1,6 +1,6 @@
 {
     "name": "agenta-web",
-    "version": "0.106.1",
+    "version": "0.106.2",
     "workspaces": [
         "ee",
         "oss",
@@ -14,7 +14,7 @@
         "jotai-history": "^0.5.1",
         "jotai-transaction": "^0.2.0",
         "json5": "^2.2.3",
-        "next": "15.5.18"
+        "next": "15.5.21"
     },
     "devDependencies": {
         "@agenta/ee": "link:ee",
@@ -87,7 +87,7 @@
             "flatted": "3.4.2",
             "axios": "1.18.0",
             "postcss@<8.5.10": ">=8.5.10",
-            "next@<15.5.18": ">=15.5.18"
+            "next@<15.5.21": ">=15.5.21"
         }
     }
 }

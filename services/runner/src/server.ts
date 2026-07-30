@@ -50,7 +50,12 @@ import {
   configFingerprint,
   credentialEpochMismatch,
   carriesMinimalHistory,
+  installedMountLease,
+  leaseExpiresBy,
   mountCredentialsExpired,
+  mountCredentialsExpireBy,
+  MOUNT_LEASE_SKEW_MS,
+  type CredentialEpoch,
   expectedNextHistoryFingerprint,
   historyFingerprint,
   poolKeyFor,
@@ -71,6 +76,10 @@ import {
   loadRunnerConfig,
   runnerConfigSummary,
 } from "./config/runner-config.ts";
+import {
+  resolveRunLimits,
+  TOTAL_DEADLINE_ENV,
+} from "./engines/sandbox_agent/run-limits.ts";
 import { applyDaytonaSdkEnv } from "./engines/sandbox_agent/daytona-provider.ts";
 import { isEntrypoint } from "./entry.ts";
 import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
@@ -389,7 +398,11 @@ export async function runWithKeepalive(
   // the mount unconditionally past this point — a keep-alive gap may only ever cost a cold
   // restart, never a failed turn.
   const cfgFp = configFingerprint(request);
-  const incomingEpoch = computeCredentialEpoch(request, signed?.expiresAt);
+  const incomingEpoch = computeCredentialEpoch(request);
+  // Resolved once per dispatch: the longest a turn started now could still be running.
+  const turnBudgetMs = resolveRunLimits().totalMs;
+  const requiredValidThroughMs =
+    Date.now() + turnBudgetMs + MOUNT_LEASE_SKEW_MS;
 
   // The fingerprint the NEXT request's prior conversation is expected to hash to; the same
   // one works for an approval park, whose gated tool_call id the FE folds back into the
@@ -486,6 +499,16 @@ export async function runWithKeepalive(
     }
   };
 
+  // A parked epoch's expiry comes from the credentials installed in the environment's mounts, not
+  // from whatever this dispatch signed to compute the pool key.
+  const parkedEpoch = (
+    env: SessionEnvironment,
+    secretsHash: string,
+  ): CredentialEpoch => ({
+    secretsHash,
+    mountExpiresAtMs: installedMountLease(env.installedMountExpiries),
+  });
+
   // Park a freshly cold-acquired environment (new pool slot) as approval / idle, or tear it down.
   const parkFreshOrDestroy = async (
     env: SessionEnvironment,
@@ -497,7 +520,7 @@ export async function runWithKeepalive(
       environment: env,
       configFingerprint: cfgFp,
       historyFingerprint: nextHistoryFp(env),
-      credentialEpoch: incomingEpoch,
+      credentialEpoch: parkedEpoch(env, incomingEpoch.secretsHash),
       teardown: (reason: TeardownReason) => env.destroy({ reason }),
     };
     if (approvalToPark(env, result)) {
@@ -523,7 +546,10 @@ export async function runWithKeepalive(
     }
   };
 
-  // Re-park a checked-out pool session (same slot) as approval / idle, or evict it.
+  // Re-park a checked-out pool session (same slot) as approval / idle, or evict it. A re-park
+  // describes the LIVE environment, so it always keeps the live secrets hash: on the idle path the
+  // mismatch gate already proved the live and incoming hashes equal, and the approval-resume path
+  // deliberately keeps the live one (the resume's re-minted secrets were never baked in).
   const reparkOrEvict = async (
     live: LiveSession<SessionEnvironment>,
     result: AgentRunResult,
@@ -533,7 +559,7 @@ export async function runWithKeepalive(
     const update = {
       configFingerprint: cfgFp,
       historyFingerprint: nextHistoryFp(env),
-      credentialEpoch: incomingEpoch,
+      credentialEpoch: parkedEpoch(env, live.credentialEpoch.secretsHash),
     };
     if (approvalToPark(env, result)) {
       klog(
@@ -571,6 +597,17 @@ export async function runWithKeepalive(
     const acq = await engine.acquireEnvironment(request, signal, signed);
     if (!acq.ok) return { ok: false, error: acq.error };
     const env = acq.env;
+    const leaseMs = installedMountLease(env.installedMountExpiries);
+    if (leaseExpiresBy(leaseMs, requiredValidThroughMs)) {
+      // A misconfigured TTL must never fail a turn: warn once per acquisition and run it.
+      klog(
+        `lease-short key=${key} leaseExpiresAtMs=${leaseMs} ` +
+          `requiredValidThroughMs=${requiredValidThroughMs} ` +
+          `(AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS on the API vs ` +
+          `${TOTAL_DEADLINE_ENV}=${turnBudgetMs}ms + skew ${MOUNT_LEASE_SKEW_MS}ms); ` +
+          `running anyway, every dispatch will rebuild cold`,
+      );
+    }
     let result: AgentRunResult;
     try {
       // Park mode on: a Claude ACP permission gate this turn keeps the session alive instead of
@@ -610,6 +647,12 @@ export async function runWithKeepalive(
     else if (clientAssertsHistory && priorFp !== existing.historyFingerprint)
       mismatch = "history";
     else if (credMismatch) mismatch = credMismatch;
+    else if (
+      // Still-valid credentials that cannot cover a worst-case turn are expiring, not expired:
+      // rebuild at the boundary rather than let the turn die under the mount.
+      mountCredentialsExpireBy(existing.credentialEpoch, requiredValidThroughMs)
+    )
+      mismatch = "credentials-expiring";
     else if (!tailIsFreshUserMessage(request)) mismatch = "tail";
 
     if (mismatch) {
@@ -735,6 +778,10 @@ export async function runWithKeepalive(
         mismatch = "history";
       } else if (mountCredentialsExpired(existing.credentialEpoch)) {
         mismatch = "credentials-expired";
+      } else if (
+        mountCredentialsExpireBy(existing.credentialEpoch, requiredValidThroughMs)
+      ) {
+        mismatch = "credentials-expiring";
       }
     }
 

@@ -340,38 +340,82 @@ export function tailIsFreshUserMessage(request: AgentRunRequest): boolean {
 export interface CredentialEpoch {
   /** sha256 over canonical(secrets). In-memory only; never surfaced. */
   secretsHash: string;
-  /** Mount credential expiry as epoch millis, or undefined when the sign response had none. */
+  /**
+   * Parked epochs only: the environment's installed-mount lease as epoch millis, or undefined when
+   * it has no mounts. Incoming epochs never carry one.
+   */
   mountExpiresAtMs?: number;
 }
 
+/**
+ * A signed mount's `expiresAt` (ISO 8601, as it rides the sign response) as epoch millis, or
+ * undefined when absent or unparsable. The one conversion both the credential epoch and the
+ * installed-mount lease go through, so they can never disagree about what an expiry means.
+ */
+export function mountExpiryMs(
+  expiresAt: string | undefined,
+): number | undefined {
+  const parsed = expiresAt ? Date.parse(expiresAt) : NaN;
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+/**
+ * The epoch an INCOMING request carries: just the secret material. An incoming request has no
+ * mount lease of its own to contribute; a parked epoch's `mountExpiresAtMs` is stamped from the
+ * environment's installed mounts at park time (see `installedMountLease`).
+ */
 export function computeCredentialEpoch(
   request: AgentRunRequest,
-  mountExpiresAt?: string,
 ): CredentialEpoch {
   const material = canonicalJson({
     secrets: request.secrets ?? {},
   });
-  const parsed = mountExpiresAt ? Date.parse(mountExpiresAt) : NaN;
-  return {
-    secretsHash: sha256(material),
-    mountExpiresAtMs: Number.isFinite(parsed) ? parsed : undefined,
-  };
+  return { secretsHash: sha256(material) };
+}
+
+/**
+ * Expiry (epoch millis) of the credentials actually installed in each of an environment's running
+ * geesefs daemons. Per mount kind, because a remount replaces one mount's credentials and must not
+ * inherit the other's.
+ */
+export interface InstalledMountExpiries {
+  cwd?: number;
+  agent?: number;
+}
+
+/** The environment's credential lease: the earliest expiry among its installed mounts. */
+export function installedMountLease(
+  expiries: InstalledMountExpiries,
+): number | undefined {
+  const values = Object.values(expiries).filter(
+    (v): v is number => typeof v === "number",
+  );
+  return values.length ? Math.min(...values) : undefined;
+}
+
+/**
+ * Whether a lease is spent as of `asOfMs`: an undefined lease imposes no bound, and a lease landing
+ * exactly on `asOfMs` counts as spent. The one place the lease comparison lives, so "already dead"
+ * and "dead before the turn ends" can never drift apart.
+ */
+export function leaseExpiresBy(
+  leaseMs: number | undefined,
+  asOfMs: number,
+): boolean {
+  return leaseMs !== undefined && leaseMs <= asOfMs;
 }
 
 /**
  * Whether a parked session's MOUNT credentials have already expired, ignoring the secret material
- * hash entirely. This answers only "can the parked environment still write its durable cwd?".
- *
- * The approval-resume path uses this instead of `credentialEpochValid`: a resume must NOT require
- * the resume request's re-minted credentials to MATCH the parked ones (a fresh /run mints fresh
- * short-lived material every time, so they practically never match), but an expired mount means
- * the parked cwd can no longer be written, so it must still evict to cold.
+ * hash entirely. The approval-resume path uses this instead of `credentialEpochValid`: a resume
+ * must NOT require the resume request's re-minted credentials to MATCH the parked ones, but an
+ * expired mount means the parked cwd can no longer be written, so it must still evict to cold.
  */
 export function mountCredentialsExpired(
   epoch: CredentialEpoch,
   now = Date.now(),
 ): boolean {
-  return epoch.mountExpiresAtMs !== undefined && now >= epoch.mountExpiresAtMs;
+  return leaseExpiresBy(epoch.mountExpiresAtMs, now);
 }
 
 /**
@@ -388,6 +432,25 @@ export function credentialEpochMismatch(
   if (mountCredentialsExpired(parked, now)) return "credentials-expired";
   if (parked.secretsHash !== incoming.secretsHash) return "credentials-rotated";
   return undefined;
+}
+
+/**
+ * A fixed allowance for clock differences between the API, the store, and the runner, plus the
+ * seconds a cold rebuild spends mounting before the turn starts. Not operator-tunable: it protects
+ * an invariant, and a third time knob would only invite mis-setting it.
+ */
+export const MOUNT_LEASE_SKEW_MS = 60_000;
+
+/**
+ * Whether the parked mount credentials expire by `requiredValidThroughMs`, i.e. the lease cannot
+ * cover a full worst-case turn. Distinct from `mountCredentialsExpired`, which asks only whether
+ * the lease is already dead.
+ */
+export function mountCredentialsExpireBy(
+  epoch: CredentialEpoch,
+  requiredValidThroughMs: number,
+): boolean {
+  return leaseExpiresBy(epoch.mountExpiresAtMs, requiredValidThroughMs);
 }
 
 /**
