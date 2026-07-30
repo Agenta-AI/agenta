@@ -11,7 +11,7 @@ import {useProjectPermissions} from "./useProjectPermissions"
  */
 export const useWorkspacePermissions = () => {
     const {hasRBAC} = useEntitlements()
-    const {hasPermission, isOrgOwner} = useProjectPermissions()
+    const {hasPermission, hasRole, isOrgOwner} = useProjectPermissions()
 
     // OSS always enforces; EE only when RBAC-entitled.
     const rbacActive = !isEE() || hasRBAC
@@ -33,11 +33,21 @@ export const useWorkspacePermissions = () => {
     }, [hasPermission, rbacActive])
 
     /**
+     * Check if the current user can remove members from the workspace.
+     * Mirrors the backend gate on DELETE /workspaces/{id}/users (org owner or
+     * owner/admin role; allow-all for not-RBAC-entitled EE).
+     */
+    const canRemoveMembers = useMemo(() => {
+        return hasRole("owner") || hasRole("admin")
+    }, [hasRole])
+
+    /**
      * Check if the current user is the organization owner.
      */
     return {
         canInviteMembers,
         canModifyRoles,
+        canRemoveMembers,
         isOrgOwner,
     }
 }
