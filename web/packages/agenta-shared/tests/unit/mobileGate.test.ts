@@ -2,6 +2,7 @@ import {describe, expect, it} from "vitest"
 
 import {
     GATE_COOKIE_MAX_AGE,
+    MOBILE_AUTH_CALLBACK_COOKIE,
     MOBILE_OPTIN_COOKIE,
     MOBILE_OPTOUT_COOKIE,
     decideDesktopGate,
@@ -182,6 +183,73 @@ describe("decideDesktopGate", () => {
             })
         }
     })
+    it("leaves a token-bearing auth link on desktop", () => {
+        // SuperTokens password-reset and invite links carry a one-time ?token=. Redirecting
+        // drops it twice over: mapDesktopToMobile returns a bare /m/auth, and mobile has no
+        // screen that consumes a token.
+        for (const pathname of ["/auth", "/auth/reset-password"]) {
+            expect(
+                decideDesktopGate(
+                    input({pathname, search: "?token=abc123", headers: docHeaders(MOBILE_UA)}),
+                ),
+            ).toEqual({kind: "pass"})
+        }
+    })
+
+    it("still redirects a plain auth link with no token", () => {
+        expect(
+            decideDesktopGate(input({pathname: "/auth", headers: docHeaders(MOBILE_UA)})),
+        ).toEqual({kind: "redirect", location: "/m/auth"})
+    })
+
+    it("forwards an OAuth callback the mobile app started to /m, query intact", () => {
+        const i = input({
+            pathname: "/auth/callback/google",
+            search: "?code=abc&state=xyz",
+            headers: docHeaders(MOBILE_UA),
+        })
+        i.cookie = (name) => (name === MOBILE_AUTH_CALLBACK_COOKIE ? "1" : undefined)
+        expect(decideDesktopGate(i)).toEqual({
+            kind: "redirect",
+            location: "/m/auth/callback/google?code=abc&state=xyz",
+        })
+    })
+    it("forwards the mobile callback for a desktop UA too (the cookie is the intent)", () => {
+        const i = input({pathname: "/auth/callback/github", headers: docHeaders(DESKTOP_UA)})
+        i.cookie = (name) => (name === MOBILE_AUTH_CALLBACK_COOKIE ? "1" : undefined)
+        expect(decideDesktopGate(i)).toEqual({
+            kind: "redirect",
+            location: "/m/auth/callback/github",
+        })
+    })
+    it("leaves the other desktop-only exceptions alone even with the callback cookie", () => {
+        for (const pathname of ["/post-signup", "/workspaces/accept"]) {
+            const i = input({pathname, headers: docHeaders(MOBILE_UA)})
+            i.cookie = (name) => (name === MOBILE_AUTH_CALLBACK_COOKIE ? "1" : undefined)
+            expect(decideDesktopGate(i)).toEqual({kind: "pass"})
+        }
+    })
+    it("still passes an OAuth callback with no mobile marker", () => {
+        expect(
+            decideDesktopGate(
+                input({pathname: "/auth/callback/google", headers: docHeaders(MOBILE_UA)}),
+            ),
+        ).toEqual({kind: "pass"})
+    })
+    it("lets ?view=desktop win over the callback marker", () => {
+        const i = input({
+            pathname: "/auth/callback/google",
+            search: "?view=desktop",
+            headers: docHeaders(MOBILE_UA),
+        })
+        i.cookie = (name) => (name === MOBILE_AUTH_CALLBACK_COOKIE ? "1" : undefined)
+        expect(decideDesktopGate(i)).toEqual({
+            kind: "set-cookie-redirect",
+            cookie: MOBILE_OPTOUT_COOKIE,
+            clearCookie: MOBILE_OPTIN_COOKIE,
+            location: "/auth/callback/google",
+        })
+    })
     it("redirects mobile devices on desktop /auth to the mobile sign-in", () => {
         expect(
             decideDesktopGate(input({pathname: "/auth", headers: docHeaders(MOBILE_UA)})),
@@ -240,6 +308,22 @@ describe("decideMobileGate", () => {
         expect(decideMobileGate(input({pathname: "/", headers: docHeaders(MOBILE_UA)}))).toEqual({
             kind: "pass",
         })
+    })
+    it("never bounces an OAuth callback landing off /m", () => {
+        expect(
+            decideMobileGate(
+                input({
+                    pathname: "/auth/callback/google",
+                    search: "?code=abc",
+                    headers: docHeaders(DESKTOP_UA),
+                }),
+            ),
+        ).toEqual({kind: "pass"})
+    })
+    it("still bounces the mobile sign-in page for desktop UAs", () => {
+        expect(
+            decideMobileGate(input({pathname: "/auth", headers: docHeaders(DESKTOP_UA)})),
+        ).toEqual({kind: "redirect", location: "/auth"})
     })
     it("sets the opt-in cookie and strips the reserved param on ?view=mobile", () => {
         expect(

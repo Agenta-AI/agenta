@@ -15,6 +15,17 @@
 
 export const MOBILE_OPTOUT_COOKIE = "agenta-mobile-optout"
 export const MOBILE_OPTIN_COOKIE = "agenta-mobile-optin"
+/**
+ * Set by the mobile app right before it sends the browser to an OIDC provider,
+ * and cleared by /m/auth/callback. Providers only ever redirect to the ONE
+ * registered URI (the desktop `/auth/callback/<providerId>`), so this cookie is
+ * how the desktop gate knows a landing callback belongs to the mobile app and
+ * must be handed to /m — where the OAuth state lives in the same-origin
+ * sessionStorage. Short-lived (see MOBILE_AUTH_CALLBACK_MAX_AGE).
+ */
+export const MOBILE_AUTH_CALLBACK_COOKIE = "agenta-mobile-auth-callback"
+/** 10 minutes — matches SuperTokens' own OAuth state expiry. */
+export const MOBILE_AUTH_CALLBACK_MAX_AGE = 60 * 10
 /** Reserved query param: `view=desktop` | `view=mobile` set the escape cookies. */
 export const VIEW_PARAM = "view"
 /** 180 days, in seconds. */
@@ -58,11 +69,15 @@ export function isDocumentNavigation(input: Pick<GateInput, "method" | "header">
 
 /**
  * Desktop routes that must never redirect to /m (design.md documented
- * exceptions). /auth now maps to the mobile sign-in (→ /m/auth, auth-lite),
- * EXCEPT /auth/callback: the OAuth/SSO redirect landing must complete on the
- * desktop app (mobile has no SSO). /post-signup and /workspaces/accept are
- * permanently desktop-only.
+ * exceptions). /auth now maps to the mobile sign-in (→ /m/auth), EXCEPT
+ * /auth/callback: an OAuth/SSO redirect landing must never be bounced mid-flow,
+ * because the redirect URI is fixed at the provider. When the mobile app started
+ * the flow (MOBILE_AUTH_CALLBACK_COOKIE) the landing is forwarded to the mirror
+ * page under /m instead — see decideDesktopGate. /post-signup and
+ * /workspaces/accept are permanently desktop-only.
  */
+const AUTH_CALLBACK_RE = /^\/auth\/callback(\/|$)/
+
 const AUTH_RE = /^\/auth(\/|$)/
 
 /**
@@ -90,17 +105,13 @@ export function isPolicyAuthLink(pathname: string, search: string): boolean {
     return Boolean(new URLSearchParams(search).get("auth_error"))
 }
 
-const DESKTOP_EXCEPTIONS = [
-    /^\/auth\/callback(\/|$)/,
-    /^\/post-signup(\/|$)/,
-    /^\/workspaces\/accept(\/|$)/,
-]
+const DESKTOP_EXCEPTIONS = [AUTH_CALLBACK_RE, /^\/post-signup(\/|$)/, /^\/workspaces\/accept(\/|$)/]
 
 const PROJECT_PATH_RE = /^\/w\/([^/]+)\/p\/([^/]+)(\/|$)/
 
 /** Desktop URL → mobile equivalent (design.md "Gate and routing"). */
 export function mapDesktopToMobile(pathname: string, search: string): string {
-    // Mobile sign-in (auth-lite): /auth/callback never reaches here (exception).
+    // Mobile sign-in: /auth/callback never reaches here (handled as an exception).
     if (/^\/auth(\/|$)/.test(pathname)) return "/m/auth"
     const m = pathname.match(PROJECT_PATH_RE)
     if (m) {
@@ -156,7 +167,19 @@ export function decideDesktopGate(input: GateInput): GateDecision {
             }
         }
 
-        if (DESKTOP_EXCEPTIONS.some((re) => re.test(input.pathname))) return {kind: "pass"}
+        if (DESKTOP_EXCEPTIONS.some((re) => re.test(input.pathname))) {
+            // A provider redirect the MOBILE app started: hand it to /m verbatim
+            // (path + query) so /m/auth/callback can run signInAndUp against the
+            // same-origin sessionStorage state. Device-independent on purpose —
+            // the cookie is the intent, a desktop UA can be opted into /m.
+            if (
+                AUTH_CALLBACK_RE.test(input.pathname) &&
+                input.cookie(MOBILE_AUTH_CALLBACK_COOKIE)
+            ) {
+                return {kind: "redirect", location: `/m${input.pathname}${input.search}`}
+            }
+            return {kind: "pass"}
+        }
         // A one-time token completes where it landed; see isTokenBearingAuthLink.
         if (isTokenBearingAuthLink(input.pathname, input.search)) return {kind: "pass"}
         // Same reasoning for a policy error; see isPolicyAuthLink.
@@ -187,6 +210,9 @@ export function decideMobileGate(input: GateInput): GateDecision {
             }
         }
 
+        // An OAuth landing completes wherever it lands — bouncing it drops the
+        // one-time code and strands the flow.
+        if (AUTH_CALLBACK_RE.test(input.pathname)) return {kind: "pass"}
         if (input.cookie(MOBILE_OPTIN_COOKIE)) return {kind: "pass"}
         if (isMobileDevice(input.header)) return {kind: "pass"}
 
