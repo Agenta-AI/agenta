@@ -12,8 +12,8 @@ should be able to open exactly that spreadsheet again, unchanged, without huntin
 agent's scratch files.
 
 This folder holds the research, the design, and the plan for closing that gap. The work is
-staged so that the first stages are small and safe and later stages add the harder modalities
-(audio and documents).
+staged so that the first stages are small and safe and later stages add the harder modalities:
+audio, delivered first through transcription we own, and documents, which wait on adapter work.
 
 ## Glossary
 
@@ -53,7 +53,8 @@ where it runs.
 - **Records.** Records are the API's durable, per-session log of every event in a conversation. The
   runner writes to it after every event.
 - **Drawer / drive / Files drawer.** The front-end panel that lists the files in a session. It
-  is a view over one or more mounts. In the code it is the `DriveExplorer`.
+  is a view over one or more mounts. In the code it is the `DriveExplorer`. A file uploaded here
+  writes directly to the mount at the chosen path; it is not an attachment (decision D13).
 - **Attachment resource / attachment_id.** The record the API returns when a file is uploaded. It
   holds a server-issued `attachment_id`, the filename, the media type the server verified, and the
   size. The API owns the storage location behind the id, so a client never sees it. The

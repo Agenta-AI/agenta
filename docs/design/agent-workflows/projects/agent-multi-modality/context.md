@@ -89,8 +89,9 @@ it are laid out in [research.md](research.md).
 to the model through two adapter packages (one for Claude, one for Pi). Reading their code shows that
 both deliver an image to the model natively, but neither delivers native audio, and both fail to
 deliver a document (one drops it, the other turns it into a byte count). So images can be shipped
-now, while audio and documents are goals that wait on adapter work. The evidence is in
-[research.md](research.md), section 4.
+now, while native audio and native document delivery wait on adapter work. The design still ships
+audio in the meantime by transcribing the recording and giving the model the transcript as text
+([design.md](design.md), decision D14). The evidence is in [research.md](research.md), section 4.
 
 The full list of verified failure modes, with the exact files and lines, lives in
 [research.md](research.md) under "Current state of the code."

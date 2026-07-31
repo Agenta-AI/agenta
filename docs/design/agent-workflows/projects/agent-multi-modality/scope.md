@@ -2,15 +2,19 @@
 
 ## In scope
 
-This scope describes the recommended answer to open decision D11 (see [decisions.md](decisions.md));
-if the product owner chooses the smaller first release, the storage and findability items move out of
-the first release.
+This scope implements decision D11 (see [decisions.md](decisions.md)): durable agent input from the
+first release. No inline-only version will be built.
 
-- A person can attach an image, an audio clip, or a document to an agent message.
+- A person can attach an image, an audio clip, or a document to an agent message. This covers files
+  shared through the chat composer only: a file dragged into the Files drawer uploads directly to
+  that mount through the existing drive flow and is not an attachment
+  ([decisions.md](decisions.md), D13).
 - The model perceives images natively (this works end to end on both pinned adapters). Native audio
-  and native document delivery are goals, but they do not work on the adapters we run today and are
-  blocked on adapter work (see [research.md](research.md), section 4, and [decisions.md](decisions.md),
-  D8, open question 2 for audio, and the "Settled by evidence" section for document delivery).
+  and native document delivery do not work on the adapters we run today and are blocked on adapter
+  work (see [research.md](research.md), section 4, and [decisions.md](decisions.md), D8 and the
+  "Settled by evidence" section). Audio still ships in the meantime: a voice recording uploads as a
+  normal attachment and the model receives a transcript we produce ourselves
+  ([decisions.md](decisions.md), D14); native ACP audio delivery is the later upgrade.
 - The agent can always work on the file, because a working copy is written into its working directory
   regardless of whether the model can perceive the file.
 - Every shared file stays findable: the original never changes, renders inline in the conversation,
@@ -21,8 +25,7 @@ the first release.
 - Attaching a file never silently does nothing. An unsupported kind is attached as a workspace-only
   file with a visible notice, and the runner fails a turn only on a contract violation, such as a
   stale front end asking for a native block the harness cannot accept
-  ([decisions.md](decisions.md), D6). The exact promise of the first release is the open product
-  decision D11.
+  ([decisions.md](decisions.md), D6).
 
 ## Out of scope (for now)
 
@@ -41,8 +44,11 @@ the first release.
   same file is shared twice. This is a storage optimization, not a correctness need, so it waits.
 - **Thumbnails and previews generated server-side.** The server will not generate preview images for
   large files. This is a polish item that does not block the core flow.
-- **Transcoding.** This project will not convert files between formats before delivery (for example
-  turning a video into frames); that work belongs with future video support.
+- **Transcoding.** This project will not convert media files between formats before delivery (for
+  example turning a video into frames); that work belongs with future video support. Audio
+  transcription is not transcoding and is in scope ([decisions.md](decisions.md), D14): the
+  recording itself is stored and delivered unchanged, and the transcript is an addition, not a
+  replacement.
 
 ## Follow-ups
 
@@ -56,13 +62,14 @@ the first release.
   This is a presentation improvement on top of the core flow.
 - **A read-only credential scope for the attachments mount.** The strongest form of the immutability
   guarantee, noted in [design.md](design.md), decision D7, and [plan.md](plan.md), Stage 3.
-- **Front-end limits derived from real model limits.** Replace the placeholder limits with values
+- **Front-end limits derived from real model limits.** Replace the static default limits with values
   computed from the selected model (see [research.md](research.md), section 3). Started in Stage 2 and
   can be refined further as provider limits change.
 
 ## Next steps
 
-- The product owner decides the open product question D11 (what the first release promises) on the PR.
+- Implementation starts with Stage 0 or Stage 1 of [plan.md](plan.md); every product decision (D1
+  through D14) is taken.
 - The document-delivery question is answered: documents do not arrive natively today (the Claude
   adapter drops blobs and the Pi adapter renders a byte count), so documents are a Stage 2 blocker on
   adapter work, not an open harness check (see [research.md](research.md), section 4).

@@ -2,7 +2,7 @@
 
 This file presents the design as a set of decisions. It explains the major choices in full: for each
 it lists the options, says what breaks under each, gives the decision, and explains why. The
-complete compact log D1 through D12 lives in [decisions.md](decisions.md); D2 and D8 are small enough
+complete compact log D1 through D14 lives in [decisions.md](decisions.md); D2 and D8 are small enough
 that they are stated inline where they arise. This file keeps every interaction diagram, and each
 diagram is explained in words before it is shown. Read [research.md](research.md) first for the facts
 these decisions rest on. Each decision carries the same D-number here and in the compact log in
@@ -164,16 +164,18 @@ to one conversation.
 
 **Decision.** Option C. A dedicated attachments mount, scoped to the session, that is created with
 the existing `get_or_create_session_mount(session_id, name="attachments")` machinery but is
-deliberately never added to the set of mounts made visible in the sandbox. The runner reads it
-out-of-band with the signed credentials it already obtains, using a plain object GET rather than a
-folder mount (this is possible; see [research.md](research.md), section 2).
+deliberately never added to the set of mounts made visible in the sandbox. The runner reads an
+original through the session-bound API download route, never with signed credentials: decision D7
+rules that no signed credentials are ever issued for the attachments mount, because any signed
+credential is read-write today. Reading the object store directly with a read-only credential scope
+is the deferred Stage 3 hardening (decision D7 and [plan.md](plan.md), Stage 3).
 
 **Why its own mount rather than a subfolder.** The technology that makes a mount visible to the
 agent (geesefs) exposes the whole mount prefix as a writable folder. There is no way to expose part
 of a mount and hide the rest. So "the agent cannot reach the original" forces the original into a
-prefix that is not exposed at all, which means its own mount. The attachments mount reuses every
-piece of the mount machinery (create, sign, upload, download, list) and differs from the other
-mounts in exactly one way: it is left off the sandbox's visible set.
+prefix that is not exposed at all, which means its own mount. The attachments mount reuses the
+mount machinery (create, upload, download, list) and differs from the other mounts in two ways: it
+is left off the sandbox's visible set, and it is never signed (decision D7).
 
 **Why lifecycle alone does not decide the location.** On lifecycle alone, an attachment is session-scoped, exactly like
 the working directory, so a subfolder inside `cwd` would have been the simplest choice. The
@@ -300,8 +302,9 @@ An attachment moves through a few clear states. Read the state machine as: the p
 it is rejected up front only when it is too large or an invalid file, and an unsupported kind is not
 rejected but accepted as a workspace-only attachment with a notice; an accepted file is uploaded
 once, after which the original is stored and unchanging; when a turn is sent, the `attachment_id`
-goes with it; the runner always writes the working copy, and delivers the bytes to the model only
-when the capability intersection allows; and from there the attachment is a durable, findable record
+goes with it; the runner materializes the working copy when it is missing (it never overwrites one
+that is already there, because the agent may have edited it), and delivers the bytes to the model
+only when the capability intersection allows; and from there the attachment is a durable, findable record
 whose findability does not depend on what the agent does to its working copy.
 
 ```mermaid
@@ -317,7 +320,7 @@ stateDiagram-v2
     UploadFailed --> [*]: user removes
 
     Stored --> Referenced: turn sent with the attachment_id
-    Referenced --> Materialized: runner always writes the working copy
+    Referenced --> Materialized: runner materializes the working copy when missing (never overwrites)
     Referenced --> Perceived: native delivery when the capability intersection allows
     Referenced --> WorkspaceOnly: intersection does not allow, delivered as a workspace-only attachment with a notice
 
@@ -378,7 +381,8 @@ Here is the layered capability, per modality, as it stands today.
 
 The perception columns describe the guaranteed inline path only; on Claude, the working copy alone
 already yields image and PDF perception through the harness's Read tool when the agent chooses to
-read it (see [research.md](research.md), section 4).
+read it (see [research.md](research.md), section 4). For audio, the first release sidesteps the
+native path entirely: the model receives a transcript we produce ourselves (decision D14).
 
 ### Two integration gaps to close
 
@@ -439,17 +443,16 @@ a per-attachment intent to each file: *perception required* (fail if the model c
 every native kind as *preferred* and offers no per-attachment toggle in the UI. This is the simpler
 model that still avoids both the silent drop and the surprise failure.
 
-**What the first release actually promises is an open product decision.** The exact promise the
-first release makes (image perception only, versus durable agent input with the workspace copy and
-findability) is the product owner's call, recorded as the open decision D11 in [decisions.md](decisions.md)
-and restated below.
+**What the first release promises is decided.** The first release promises durable agent input:
+the workspace copy, findability, and records, not image perception alone. That is decision D11,
+taken by the product owner on 2026-07-31 and laid out below.
 
 Read the gating diagram as: the harness advertises capabilities at start-up; the runner maps them
 and also knows the adapter fidelity; a pre-send discovery surface gives the composer an
 approximation; the composer attaches every file, delivering natively where the intersection allows
 and attaching workspace-only with a visible notice where it does not; and the runner, as final
-authority, always materializes the working copy and fails the turn only when asked to deliver a
-native block the harness cannot accept.
+authority, materializes the working copy when it is missing (never overwriting an edited one) and
+fails the turn only when asked to deliver a native block the harness cannot accept.
 
 ```mermaid
 flowchart TD
@@ -464,7 +467,7 @@ flowchart TD
     end
 
     subgraph run["Runner (final authority)"]
-        F --> H["always materialize the working copy"]
+        F --> H["materialize the working copy when missing"]
         G --> H
         H --> I{asked to deliver a native block<br/>the harness cannot accept?}
         I -->|no| J["deliver native where allowed,<br/>workspace-only otherwise"]
@@ -482,24 +485,60 @@ documents."
 
 ---
 
-## Decision D11 (open): what does attaching a file promise in the first release?
+## Decision D11: what does attaching a file promise in the first release?
 
-This is the one product decision left for the product owner, tracked as D11 in [decisions.md](decisions.md).
-The engineering design supports either answer; the choice is about what to promise a person first.
+**The question.** What does the first release promise a person who attaches a file? The engineering
+design supports either answer; the choice is about what to promise first.
 
-- **Option A: image perception only.** The first release lets the model see images, with strict
-  size and count limits and no durability promise. The file is not guaranteed to remain findable
-  after the turn. This is the smallest honest fix for the original bug.
-- **Option B: durable agent input.** The first release delivers the full model here: an original
-  that never changes, rendered inline in the conversation and downloadable at any time (the
+**Options.**
+
+- **A. Image perception only.** The first release lets the model see images, with strict size and
+  count limits and no durability promise. The file is not guaranteed to remain findable after the
+  turn. This is the smallest honest fix for the original bug.
+- **B. Durable agent input.** The first release delivers the full model here: an original that
+  never changes, rendered inline in the conversation and downloadable at any time (the
   Files-drawer listing follows in Stage 3); a working copy for the agent's tools; and a reference
   stored in the records. Attaching a file always puts it in the workspace and delivers it natively
   when the capability intersection allows.
 
-**The recommendation** is Option B, durable agent input, with the workspace-always plus
-native-when-possible semantics described in D6. It matches the three outcomes in
-[context.md](context.md) and avoids shipping a storage-less version that would need rework. The
-final call is the product owner's, which is why this is marked open rather than decided.
+**What breaks under A.** The three outcomes in [context.md](context.md) do not hold: the file is
+not findable and the agent's tools cannot rely on it. And the durability that A skips is not a free
+deferral: adopting durable references later is a system-wide change (decision D9), so A ships a
+version that needs rework.
+
+**Decision.** Option B, durable agent input, from day one, with the workspace-always plus
+native-when-possible semantics described in D6. The product owner chose the full reference-based
+design for the first release on 2026-07-31; no inline-only version will be built.
+
+---
+
+## Decision D13: two upload surfaces, deliberately different pipelines
+
+**The question.** The product has two places a person can hand over a file: the Files drawer (the
+drive view over the session's mounts) and the chat composer. Do both go through the attachment
+pipeline?
+
+**Options.**
+
+- **A. Route everything through attachments.** Every upload, from the drawer or the composer,
+  creates an attachment resource with an immutable original and an opaque reference.
+- **B. Split by surface.** A file dragged into the Files drawer (or one of its folders) uploads
+  directly to that mount at that path, the existing drive-upload flow. The attachment pipeline
+  applies only to files shared through the chat composer, whether typed, pasted, dropped, or picked
+  there.
+
+**What breaks under A.** A drawer drop is the person saying "put this file there." Routing it
+through attachments gives that plain folder write the wrong semantics: the file would become an
+immutable, session-scoped original addressed by an opaque id, when the person asked for an ordinary
+file at a path they chose, editable and deletable like its neighbors. It would also replace a flow
+that already exists and works: the drive-upload surfaces (the upload button, drop-to-upload in the
+Files drawer, drop-to-stage on a recents peek) merged in PR #5459 behind
+`NEXT_PUBLIC_AGENT_FILE_UPLOADS`.
+
+**Decision.** Option B. The two surfaces express two different intents: "put this file there"
+versus "share this with the agent in the conversation." The drawer keeps the direct drive-upload
+flow; the attachment pipeline (attachment resource, immutable original, opaque reference) covers
+only files shared through the composer.
 
 ---
 
@@ -543,11 +582,13 @@ This shows how each kind of attachment becomes a content block on each side. Rea
 file has a media type; our front end and SDK turn it into an Agenta content block; and the runner
 turns that into the matching ACP block that the harness understands. Small text does not need to be a
 resource at all; it can be inlined as text, which every harness supports. Audio stays a product goal
-(decision D8 in the log): there is no disk-read fallback for audio, so supporting it forces both the
-new `audio` block on our side and the inline ACP audio block. The diagram shows the target shape.
-Neither pinned adapter delivers native audio or native documents today (see
-[research.md](research.md), section 4), so the audio and document rows describe where these paths
-lead once the adapters support them, not what works right now.
+(decision D8 in the log), and its target remains the `audio` block on our side mapped to the ACP
+`AudioContent` block, but that native path is the later upgrade: for the first audio release the
+recording travels as a normal attachment and what reaches the model inline is the transcript text we
+produce ourselves (decision D14, below). The diagram shows the target shape. Neither pinned adapter
+delivers native audio or native documents today (see [research.md](research.md), section 4), so the
+audio and document rows describe where these paths lead once the adapters support them, not what
+works right now.
 
 ```mermaid
 flowchart LR
@@ -585,7 +626,45 @@ it as a byte count, so a PDF sent as an embedded resource reaches neither model 
 diagram shows the intended shape, and the document stage is blocked on adapter work (either
 adapter-native document handling, or a decision to deliver documents as extracted text). Images map
 cleanly and work end to end. Audio has no native path on either adapter yet, so its row is likewise
-a target, not a working path.
+a target, not a working path; the working path for audio is decision D14, below.
+
+---
+
+## Decision D14: interim audio is transcription we own
+
+**The question.** Audio is a product goal (D8) and the voice-capture UI is already built and merged
+dark (PR #5458). But native audio delivery is infeasible today at two independent layers: no adapter
+advertises the ACP `audio` capability, and the Anthropic Messages API has no audio input block at
+all ([research.md](research.md), section 4). How does a voice recording reach the model before those
+layers change?
+
+**Options.**
+
+- **A. Wait for native ACP audio.** Ship nothing for audio until an adapter advertises the `audio`
+  capability and delivers an ACP audio block.
+- **B. Transcription we own.** The recording uploads as a normal attachment (immutable original,
+  workspace copy, findable like any file), we transcribe it ourselves, and the transcript text is
+  what reaches the model inline.
+
+**What breaks under A.** Audio waits on two upstreams we do not control, one of which (the
+Anthropic API) shows no sign of adding audio input at all, so the already-built voice UI stays dark
+indefinitely and the product goal has no date.
+
+**Decision.** Option B. A voice recording is an ordinary attachment through the whole D11 pipeline:
+uploaded once, stored as an immutable original, materialized as a working copy, referenced in the
+records. On top of that, we transcribe it ourselves, and the model receives the transcript inline
+as text, which every harness supports. Native ACP audio delivery becomes a later upgrade if
+adapters ever support it; the modality mapping above keeps `AudioContent` as the target for that
+upgrade. Two details are deliberately left as implementation choices, not design decisions: when
+transcription runs (on upload, or on demand) and which transcription service produces the
+transcript (the open question in [decisions.md](decisions.md)).
+
+**Why.** Transcription needs nothing from the adapters or the model providers, so it unblocks the
+audio goal and the merged voice UI now. It also keeps every durability promise: the person can
+replay their own recording from the original, and the agent's tools can process the audio file on
+disk, while the model gets the one representation of speech that travels everywhere today, text.
+The accepted cost is that the model perceives the words, not the sound: tone, speaker identity, and
+non-speech audio are lost until the native upgrade.
 
 ---
 
@@ -673,9 +752,9 @@ first. So the accurate claim is that the inline-only version avoids rework at th
 that it is a smaller version of a migration that the full version merely extends.
 
 **The one thing not to defer.** The reference-on-the-wire change should not be skipped for long.
-The quadratic resend is already gone, independently of this design: since the session-storage
-rework (PR #5560) the front end sends only the trailing message and the runner rebuilds prior
-turns from durable records. But the records store only text today, so an inline-only attachment
+The resend of the whole history, whose cost could grow quadratically in the worst case, is already
+gone, independently of this design: since the session-storage rework (PR #5560) the front end sends
+only the trailing message and the runner rebuilds prior turns from durable records. But the records store only text today, so an inline-only attachment
 cannot survive a cold start: either the record schema stores the bytes verbatim, and every cold
 start replays them and the log keeps them forever, or the rebuilt conversation loses the file. A
 durable reference resolves that, and it also removes the base64 payload from the browser's saved
@@ -767,5 +846,5 @@ restore-when-missing rule. This is accepted for now; revisit with evidence if it
 
 ## Decision log and open questions
 
-The compact decision log (D1 through D12) and the open questions are in
+The compact decision log (D1 through D14) and the open questions are in
 [decisions.md](decisions.md), so they can be updated without editing this design narrative.

@@ -9,7 +9,8 @@ The layers, and who owns each:
 
 - **Front end** (`web/oss/src/components/AgentChatSlice/`, `web/packages/agenta-playground/`,
   `web/oss/src/components/Drives/`): collects the file, gates by capability, uploads it, sends the
-  reference, and renders it.
+  reference, and renders it. The collection and rendering surface is already merged dark (see "What
+  is already built" below); the remaining front-end work is transport and reference wiring.
 - **API** (`api/oss/src/core/mounts/`, `api/oss/src/apis/fastapi/mounts/` and `.../sessions/`):
   stores the bytes, serves them, and enforces permissions.
 - **Runner** (`services/runner/src/`): reads the original, writes the working copy, builds the content
@@ -17,21 +18,52 @@ The layers, and who owns each:
 - **SDK** (`sdks/python/agenta/sdk/agents/`): carries the reference and the new `audio` block, and
   maps capabilities.
 
-Stage 1 as specified below implements the recommended answer to the open product decision D11
-(durable agent input; see [decisions.md](decisions.md)). If the product owner instead chooses image
-perception only, Stage 1 shrinks to the inline-only version: the runner builds native image blocks
-straight from the bytes on the wire, and the storage, reference, record-schema, and findability work
-in this stage is deferred. The rest of the plan is written for the recommended option.
+Stage 1 implements decision D11: durable agent input from day one (see
+[decisions.md](decisions.md)). No inline-only version will be built, so the storage, reference,
+record-schema, and findability work below is first-release work, not a later addition.
 
-## Stage 0: block attachments until native delivery works (small, optional)
+## What is already built (merged dark)
+
+The front-end surface of this design shipped ahead of the backend, in PRs
+[#5458](https://github.com/Agenta-AI/agenta/pull/5458) (voice input) and
+[#5459](https://github.com/Agenta-AI/agenta/pull/5459) (attachments and drive uploads), both merged
+2026-07-29. It is dark behind two flags, `NEXT_PUBLIC_AGENT_FILE_UPLOADS` (the composer attach
+button, the attachment preview, and every drive-upload entry point) and
+`NEXT_PUBLIC_AGENT_VOICE_INPUT` (dictation and voice messages), both off by default. All paths
+verified against the code on 2026-07-31:
+
+- The composer attach UI and attachment chips (`AgentConversation.tsx`, `ComposerAttachments.tsx`).
+- The limits object: `DEFAULT_ATTACHMENT_LIMITS` in
+  `web/oss/src/components/AgentChatSlice/assets/attachments.ts` allows 5 files per message, 10 MB
+  per image, 15 MB per audio clip, and 10 MB per document, with per-kind media-type validation.
+- The upload lifecycle hook `useAttachmentUploads`, with a deliberate transport seam: no uploader
+  is passed today, so files stage as ready-to-send; providing an uploader runs the whole
+  progress, failure, and retry flow with no other change.
+- Attachment preview (the `AttachmentViewerDrawer`) and the Files drawer upload surfaces (upload
+  button, drop-to-upload, drop-to-stage on a recents peek) in `Drives/DriveExplorer.tsx`.
+- The voice capture UI (`useAudioRecorder`, `VoiceInputButton`, `RecordingBar`), which lands a
+  recording in the attachment tray like any file.
+
+Two consequences shape the stages below. First, Stage 1 front-end work shrinks to wiring: the
+collection UI exists and only its transport and rendering change. Second, one path is live today
+with no flag: paste and drag-to-attach on the composer predate the flags and are not gated
+(`assets/constants.ts`), which is exactly the Stage 0 gap.
+
+Drive uploads are deliberately not part of the attachment pipeline: a file dropped into the Files
+drawer writes directly to that mount at that path, and only files shared through the composer
+become attachments (decision D13 in [design.md](design.md)).
+
+## Stage 0: gate the ungated paste and drag path (small, optional)
 
 **Goal.** Stop the front end from accepting files until the runner can deliver them, by refusing an
 attachment that would reach the dead end instead of accepting it.
 
-- **Front end.** The paperclip is disabled, but paste and drag still add files
-  (`AgentConversation.tsx`, the paste and drop handlers). Gate those two paths on the same condition
-  as the paperclip so no file can be attached until the real feature lands. This removes the trap
-  where a pasted screenshot looks accepted and is then ignored.
+- **Front end.** The attach button, preview, and drive uploads are behind
+  `NEXT_PUBLIC_AGENT_FILE_UPLOADS`, but paste and drag-to-attach on the composer predate the flag
+  and are not gated (`AgentConversation.tsx`, the paste and drop handlers; the flag comment in
+  `assets/constants.ts` records this). Gate those two paths on the same flag so no file can be
+  attached while the flag is off. This removes the trap where a pasted screenshot looks accepted
+  and is then ignored.
 - **Tests.** A front-end unit test that a paste or drop of a file is refused while the feature flag
   is off.
 
@@ -56,7 +88,14 @@ never sees an attachment UI that quietly does nothing.
 forged-reference rejection, server-side media-type verification, per-file and per-turn size and count
 limits, and time-to-live cleanup of never-referenced uploads are all part of Stage 1. They are not
 polish for a later stage, because the first release already accepts files from a browser and stores
-them, and an unauthenticated or unbounded version of that is not shippable.
+them, and an unauthenticated or unbounded version of that is not shippable. On limits specifically:
+enforcement today is client-side only (the merged `DEFAULT_ATTACHMENT_LIMITS`: 5 files per message,
+10 MB images, 15 MB audio, 10 MB documents), which a client can bypass, so the server-side check
+belongs to the new upload route. The route must also reckon with the infrastructure: the
+docker-compose gateway caps the API request body at 10 MB today (`client_max_body_size` in
+`hosting/docker-compose/oss/nginx/nginx.conf`, verified 2026-07-31), which the 15 MB client-side
+audio limit already exceeds. The exact per-kind numbers, including whether the gateway cap rises or
+the client caps come down, are the open limits-matrix question in [decisions.md](decisions.md).
 
 **Deployment order inside the release.** The components deploy independently, so the order matters.
 
@@ -67,6 +106,14 @@ them, and an unauthenticated or unbounded version of that is not shippable.
   return `{attachment_id, filename, media_type, size}`. Refuse an overwrite or a delete of an
   existing attachment original, because `write_file` overwrites silently today
   ([design.md](design.md), decision D7).
+- Upload idempotency and atomicity: a retried upload must not create a duplicate original and must
+  not leave a partial one. The mechanism is the single-shot create the design already implies: the
+  route reads and validates the whole body before writing anything (the upload helper buffers the
+  file in memory today, [research.md](research.md), section 2), then either fully persists the
+  original and returns the resource or fails cleanly with nothing stored. Each successful upload
+  mints its own `attachment_id`, so a client retry after an ambiguous failure creates a new
+  resource rather than a duplicate at the same path, and a resource that is never referenced by a
+  sent turn is swept by the time-to-live cleanup below.
 - The download route the runner uses to read an original, with the session-binding check: the
   attachment must belong to the session being run, and a reference to another session's attachment is
   rejected ([design.md](design.md), decision D10).
@@ -90,10 +137,19 @@ them, and an unauthenticated or unbounded version of that is not shippable.
   (`run-turn.ts`, currently near line 742, the one real call site) with the resolved list of content
   blocks. Update `resolvePromptText` and `messageText` callers so an image-with-no-text turn is valid
   instead of rejected.
-- Structured capability errors: gate the image block on the mapped `images` capability, and on a
-  contract violation fail the turn with a structured error code the front end can render, reusing the
-  `assertRequiredCapabilities` and `*_UNSUPPORTED_MESSAGE` pattern in `capabilities.ts`. Never drop
-  silently.
+- Structured capability errors: gate native delivery on the full D5 three-layer intersection, not
+  on a single flag. The runner must check all three layers before building a native block: the ACP
+  transport flag the adapter advertises (already probed and mapped in `capabilities.ts`), the
+  adapter fidelity for that kind (a static fact per pinned adapter version, from
+  [research.md](research.md), section 4), and the selected model's modalities. The first two the
+  runner already holds or can hard-code per pin; the third is a new implementation input: the run
+  request already carries the selected model (`protocol.ts`, the `model` field), and the SDK's
+  model catalog records each model's modalities (`sdks/python/agenta/sdk/agents/model_catalog.py`,
+  the `modalities` field, backed by the data files in `sdks/python/agenta/sdk/agents/data/`), so
+  the wire needs to carry the selected model's modalities to the runner, or the runner needs an
+  equivalent lookup. On a contract violation fail the turn with a structured error code the front
+  end can render, reusing the `assertRequiredCapabilities` and `*_UNSUPPORTED_MESSAGE` pattern in
+  `capabilities.ts`. Never drop silently.
 - The mention-first cold-replay policy (decision D12 in [design.md](design.md)). Cold replay
   (rebuilding the conversation from the durable records on a cold start) represents a historical
   attachment as a textual mention carrying the real filename and the working-copy path
@@ -107,14 +163,20 @@ them, and an unauthenticated or unbounded version of that is not shippable.
   image becomes that mention instead of being dropped from the rebuilt turn (see the cold-replay
   policy below).
 
-**(c) Front end last.** Once the API stores and the runner resolves, switch the browser over.
+**(c) Front end last.** Once the API stores and the runner resolves, switch the browser over. The
+collection UI is already merged dark (see "What is already built"), so this is wiring work, not UI
+work:
 
-- Replace the inline base64 flow (`files.ts` `fileToPart`) with upload-through-the-API plus a
-  reference in the message parts (`agentRequest.ts`).
-- Render the person's own attachment by resolving the reference to a download URL, not from the
-  base64 `data:` URL (`sessions.ts`), which is what removes the browser-storage pressure.
-- Enable the attachment UI: the composer accepts a file, attaches it (workspace-only with a visible
-  notice when the capability intersection does not allow native perception), and shows it.
+- Wire the transport seam to the new upload route: pass a real uploader to `useAttachmentUploads`
+  (today none is passed, so the progress, failure, and retry flow is inert by design).
+- Send references instead of base64 `data:` URLs: replace the inline flow (`files.ts`
+  `fileToPart`) with the uploaded attachment's reference in the message parts (`agentRequest.ts`).
+- Render the person's own attachment by resolving the reference through the download route, not
+  from the base64 `data:` URL (`sessions.ts`), which is what removes the browser-storage pressure.
+- Turn on `NEXT_PUBLIC_AGENT_FILE_UPLOADS`: the composer accepts a file, attaches it
+  (workspace-only with a visible notice when the capability intersection does not allow native
+  perception), and shows it. Stage 0's gating of the paste and drag path keys off the same flag, so
+  enabling it opens every entry point together.
 
 **Tracing.** Because the history now carries a reference, the Python span no longer holds base64.
 Confirm the trace shows the reference, not the bytes (the Python agent span keeps `messages` on
@@ -128,34 +190,42 @@ tests, and the shared golden fixtures together, as the runner's wire contract re
 **Tests.** These are listed in one place at the end of this file, under "Tests across the release,"
 because they span the API, the runner, and the front end.
 
-## Stage 2: audio and documents (blocked on adapter work)
+## Stage 2: audio via transcription, documents when adapters allow
 
-**Goal.** Audio and documents reach the model, gated correctly.
+**Goal.** A voice recording reaches the model as a transcript we produce (decision D14 in
+[design.md](design.md)), and documents are planned for when the adapters change.
 
-**This stage is blocked on adapter work and cannot ship on the adapters we pin today.** From
-[research.md](research.md), section 4: neither pinned adapter delivers native audio (neither
-advertises the audio capability), the Claude adapter drops a document blob entirely, and the Pi
-adapter renders a document blob as a byte count. So this stage is a plan for when the adapters
-change, not work that can land against the current pins. `claude-agent-acp` is maintained by Zed and
-`pi-acp` by the Pi project, so unblocking audio or native documents means an upstream release, a fork
-we maintain, or a different harness.
+**Audio: transcription we own. Not blocked.** The recording travels through the Stage 1 attachment
+pipeline unchanged: uploaded once, stored as an immutable original, materialized as a working copy,
+referenced in the records. The new work is the transcription step and its delivery:
 
-**What would unblock it.**
+- Transcribe the recording ourselves. Which service transcribes and when transcription runs
+  (on upload versus on demand) are the open implementation question in
+  [decisions.md](decisions.md); the plan is agnostic to that choice.
+- Deliver the transcript to the model inline as text in the turn that shares the recording. Text
+  travels on every harness, so no adapter work is needed.
+- Turn on `NEXT_PUBLIC_AGENT_VOICE_INPUT`: the voice capture UI (dictation and voice messages) is
+  already merged dark (PR #5458) and lands its recording in the attachment tray like any file.
 
-- For audio: an adapter that advertises the audio capability and delivers an ACP audio block to the
-  model. Until then there is nothing to deliver audio into.
-- For documents: either adapter-native document handling (an adapter that turns an embedded resource
-  into a real document input), or a deliberate decision to deliver documents as extracted text (the
-  agent, or a pre-step, extracts the text and inlines it), which sidesteps native document delivery
-  entirely.
+**Native audio is a later upgrade, not Stage 2 work.** The `audio` type on the Agenta content
+block (mapped in the Vercel adapter `messages.py` and mirrored in `protocol.ts`, `wire.py`, the
+contract tests, and the golden fixtures) and the runner's mapping to the ACP audio block wait until
+an adapter advertises the `audio` capability. Neither pinned adapter does, and the Anthropic
+Messages API has no audio input at all ([research.md](research.md), section 4), so that upgrade has
+no date and nothing in this stage depends on it.
 
-**The work, once unblocked.**
+**Documents: blocked on adapter work.** From [research.md](research.md), section 4: the Claude
+adapter drops a document blob entirely and the Pi adapter renders it as a byte count, so native
+document delivery cannot ship on the adapters we pin today. `claude-agent-acp` is maintained by Zed
+and `pi-acp` by the Pi project, so unblocking documents means an upstream release, a fork we
+maintain, or a different harness. What would unblock it: either adapter-native document handling
+(an adapter that turns an embedded resource into a real document input), or a deliberate decision
+to deliver documents as extracted text (the agent, or a pre-step, extracts the text and inlines
+it), which sidesteps native document delivery entirely. Once unblocked, the runner maps a document
+to whichever path that decision chooses, gated on the `documents` capability.
 
-- **SDK / wire.** Add an `audio` type to the Agenta content block, mapped in both directions in the
-  Vercel adapter (`messages.py`), and mirrored in `protocol.ts`, `wire.py`, the contract tests, and
-  the golden fixtures.
-- **Runner.** Map audio to an ACP audio block and a document to whichever path the unblocking
-  decision chooses, gated on the `audio` and `documents` capabilities respectively.
+**Shared Stage 2 work.**
+
 - **Capability names (alias rollout, not a simultaneous rename).** Retire the old `fileAttachments` and
   `file_attachments` names in favor of `images`, `audio`, and `documents`, and map ACP
   `embeddedContext` to `documents`. Do this as an alias rollout: introduce the new names alongside the
@@ -164,12 +234,13 @@ we maintain, or a different harness.
   once would break the versions in between (see [design.md](design.md), decision D5). The removal
   timing is an open
   question in [decisions.md](decisions.md).
-- **Front-end limits.** Replace the placeholder limits (`attachments.ts` `DEFAULT_ATTACHMENT_LIMITS`)
+- **Front-end limits.** Replace the static defaults (`attachments.ts` `DEFAULT_ATTACHMENT_LIMITS`)
   with limits derived from the selected model's real limits (see [research.md](research.md), section
   3), passed down in place of the default, which the file was already written to allow.
-- **Tests.** SDK contract test for the `audio` block. Runner tests for audio and document blocks and
-  their gates. A capability-contract test that the mapped set is consistent across the layers.
-  Integration tests against whichever adapter version unblocks the stage.
+- **Tests.** A recorded clip uploads as a normal attachment and its transcript reaches the model as
+  text. A capability-contract test that the mapped set is consistent across the layers. Runner tests
+  for the document path and its gate, plus the SDK contract test for the `audio` block, once their
+  respective adapter work unblocks.
 
 ## Stage 3: the Files-drawer listing and cleanup refinements
 
@@ -214,8 +285,9 @@ and what breaks under each. The lifecycle tradeoff is the clearest example: an a
 lived in a `cwd` subfolder on lifecycle grounds, and only the findability requirement forces its own
 mount.
 
-**Scale and extensibility, sized for a first version with room to grow.** The quadratic resend cost
-is already gone, independently of this design: since the session-storage rework (PR #5560) the front
+**Scale and extensibility, sized for a first version with room to grow.** The resend cost, which
+could grow quadratically in the worst case, is already gone, independently of this design: since the
+session-storage rework (PR #5560) the front
 end sends only the trailing message and the runner rebuilds prior turns from durable records. The
 reference-on-the-wire change removes what remains: the browser storage pressure, the trace bloat,
 and the attaching turn's own base64 weight, so the first version scales better than today. The materialize step runs once per file per session.

@@ -51,16 +51,18 @@ Three concrete failures follow from this:
    string `"[image]"` (`transcript.ts`).
 2. **Image with no text.** The turn is rejected. `resolvePromptText()` (`protocol.ts:585`) returns
    an empty string, and the run fails with "No user message to send" from `run-plan.ts`.
-3. **No warning to the person.** The paperclip button in the chat box is disabled, but pasting or
-   dragging a file still works and still reaches the dead end. The person is never told the file
-   will be ignored.
+3. **No warning to the person.** The attach button, the attachment preview, and the drive-upload
+   surfaces are behind the `NEXT_PUBLIC_AGENT_FILE_UPLOADS` flag, off by default
+   (`web/oss/src/components/AgentChatSlice/assets/constants.ts`, verified 2026-07-31), but pasting
+   or dragging a file into the composer predates the flag, is not gated, and still reaches the dead
+   end. The person is never told the file will be ignored.
 
 ### Side effects that a reference-based design removes
 
 - **Resending the whole conversation every turn (fixed since the session-storage rework).** The
   front end used to resend the full message history on each turn, so a five megabyte image became
-  about seven megabytes of base64 re-uploaded on every later turn, a cost that grew with the
-  square of the conversation length. The session-storage rework (PR #5560, merged 2026-07-30,
+  about seven megabytes of base64 re-uploaded on every later turn, a cost that could grow with the
+  square of the conversation length in the worst case. The session-storage rework (PR #5560, merged 2026-07-30,
   on by default) removed this: the front end sends only the trailing user message
   (`NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY`, read in `agentRequest.ts`), the runner persists every
   turn as durable records (`AGENTA_RECORDS_DURABLE`, `services/runner/src/sessions/persist.ts`),
@@ -186,9 +188,11 @@ Two consequences for this project:
 
 1. **The runner can read a mount's bytes without mounting it into the sandbox.** The signed
    credentials are ordinary S3 credentials. The runner can do a plain object GET with them. It does
-   not have to make the mount appear as a folder for the agent. This is what lets an attachments
-   mount stay out of the agent's view while the runner still reads the original to build the model
-   turn.
+   not have to make the mount appear as a folder for the agent. Note that for the attachments mount
+   the design does not use this path at first: because any signed credential is read-write (below),
+   decision D7 in [design.md](design.md) issues no signed credentials for that mount at all, and the
+   runner reads originals through the API download route; the direct read waits for the read-only
+   credential scope in Stage 3.
 2. **Server-side "cannot be changed" is achievable.** If a mount's bytes only ever enter through
    the upload API route, and the system never hands out write-capable signed credentials for that
    mount, then nothing but a deliberate API write can change it. That is what makes an attachment
@@ -328,8 +332,8 @@ Gemini perceives images, audio, and video natively, each with its own per-reques
 
 The important design takeaway is not the exact number, which changes, but the shape: there are hard
 per-request and per-file limits, they differ by provider, and our front-end limits should be
-derived from the selected model's real limits rather than from the arbitrary placeholders we have
-today (see section 10).
+derived from the selected model's real limits rather than from the transport-sized static defaults
+we have today (see section 10).
 
 ---
 
@@ -342,8 +346,8 @@ speaks it to the harness through two adapter packages it pins in `services/runne
 `@agentclientprotocol/claude-agent-acp` at version `0.58.1` for the Claude harness
 (`services/runner/package.json:23`), and `pi-acp` at version `0.0.29` for the Pi harness
 (`services/runner/package.json:35`). Both pins verified against the file on 2026-07-31. A third
-adapter, `@agentclientprotocol/codex-acp` at version `1.1.7`, arrives with the Codex harness in PR
-#5509 (branch `feat/codex-harness`) and is covered below alongside the two pinned ones. The
+adapter, `@agentclientprotocol/codex-acp` at version `1.1.7`, arrives with the Codex harness in
+PR #5509 (branch `feat/codex-harness`) and is covered below alongside the two pinned ones. The
 specification is at `agentclientprotocol.com`.
 
 ACP defines these content block types for a prompt turn
@@ -717,8 +721,8 @@ This direction was tracked in
 and shipped with PR #5560.
 The related warm case is
 [#5384, "(feat) Warm sessions should hold client tool calls open instead of replaying the turn"](https://github.com/Agenta-AI/agenta/issues/5384):
-#5384 avoids a replay when the session is still alive, while the rebuild from records covers the
-case when it is not. The rebuild itself is outside this project's scope; what this project
+issue #5384 avoids a replay when the session is still alive, while the rebuild from records covers
+the case when it is not. The rebuild itself is outside this project's scope; what this project
 contributes is that records will carry small references to durable originals, which is what a
 faithful rebuild needs.
 
@@ -794,15 +798,24 @@ cannot carry it as audio yet.
 ### The current limits and where they came from
 
 The front-end attachment limits live in
-`web/oss/src/components/AgentChatSlice/assets/attachments.ts:25` (`DEFAULT_ATTACHMENT_LIMITS`):
+`web/oss/src/components/AgentChatSlice/assets/attachments.ts` (`DEFAULT_ATTACHMENT_LIMITS`,
+verified 2026-07-31, merged in PR #5459):
 
-- At most 5 files per message.
-- At most 5 megabytes per file.
-- Accepted types: `image/`, `application/pdf`, `text/`, and `application/json`.
+- At most 5 files per message, across all kinds.
+- Per-kind size caps: 10 megabytes per image, 15 megabytes per audio clip, 10 megabytes per
+  document.
+- Accepted kinds and types: image (`image/`), audio (`audio/`), document (`application/pdf`,
+  `text/`, `application/json`).
 
-The file's own comment says these are placeholders meant to be replaced later with limits derived
-from the selected model and harness capabilities ("they can later be derived from the selected model
-/ harness capabilities ... That wiring is out of scope here; today everything reads the default").
-So the numbers are not grounded in any real model limit. Section 3 has the real provider limits they
-should eventually be derived from. Today the front end sends files inline as base64 `data:` URLs
-(`files.ts:20`, `fileToPart`), which is exactly the mechanism the reference-based design replaces.
+The limits are one value object so they can later be replaced with limits derived from the selected
+model and harness capabilities; the file's own comment names narrowing `kinds` as the seam that
+capability gating plugs into. The numbers are sized against the transport, not against any model
+limit: the file's header notes that while attachments ride the request body, the real ceiling is the
+gateway's `client_max_body_size` (10 megabytes on the compose stack) plus base64 inflation of about
+a third, which also means the 15 megabyte audio cap exceeds what the compose gateway accepts today.
+Section 3 has the real provider limits the caps should eventually be derived from. These limits are
+enforced client-side only; nothing checks them server-side today. The front end sends files inline
+as base64 `data:` URLs (`files.ts`, `fileToPart`), which is exactly the mechanism the
+reference-based design replaces. The upload lifecycle hook (`useAttachmentUploads`) ships with a
+deliberate transport seam: no uploader is wired, so staged files sit ready-to-send and the
+progress, failure, and retry flow activates when Stage 1 provides an uploader.
