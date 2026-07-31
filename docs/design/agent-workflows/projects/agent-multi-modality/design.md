@@ -382,7 +382,8 @@ Here is the layered capability, per modality, as it stands today.
 The perception columns describe the guaranteed inline path only; on Claude, the working copy alone
 already yields image and PDF perception through the harness's Read tool when the agent chooses to
 read it (see [research.md](research.md), section 4). For audio, the first release sidesteps the
-native path entirely: the model receives a transcript we produce ourselves (decision D14).
+native path entirely: the composer's browser dictation turns live speech into text, and a recorded
+clip is a workspace-only attachment with the D6 notice (decision D14).
 
 ### Two integration gaps to close
 
@@ -583,9 +584,10 @@ file has a media type; our front end and SDK turn it into an Agenta content bloc
 turns that into the matching ACP block that the harness understands. Small text does not need to be a
 resource at all; it can be inlined as text, which every harness supports. Audio stays a product goal
 (decision D8 in the log), and its target remains the `audio` block on our side mapped to the ACP
-`AudioContent` block, but that native path is the later upgrade: for the first audio release the
-recording travels as a normal attachment and what reaches the model inline is the transcript text we
-produce ourselves (decision D14, below). The diagram shows the target shape. Neither pinned adapter
+`AudioContent` block, but that native path is the last upgrade: in the first release the only
+audio-to-text is the composer's browser dictation, a recorded clip travels as a normal attachment on
+the D6 workspace-only path, and server-side transcription is the deferred middle step (decision D14,
+below). The diagram shows the target shape. Neither pinned adapter
 delivers native audio or native documents today (see [research.md](research.md), section 4), so the
 audio and document rows describe where these paths lead once the adapters support them, not what
 works right now.
@@ -626,45 +628,54 @@ it as a byte count, so a PDF sent as an embedded resource reaches neither model 
 diagram shows the intended shape, and the document stage is blocked on adapter work (either
 adapter-native document handling, or a decision to deliver documents as extracted text). Images map
 cleanly and work end to end. Audio has no native path on either adapter yet, so its row is likewise
-a target, not a working path; the working path for audio is decision D14, below.
+a target, not a working path; what the first release does for audio is decision D14, below.
 
 ---
 
-## Decision D14: interim audio is transcription we own
+## Decision D14: first-release audio is browser dictation only
 
 **The question.** Audio is a product goal (D8) and the voice-capture UI is already built and merged
 dark (PR #5458). But native audio delivery is infeasible today at two independent layers: no adapter
 advertises the ACP `audio` capability, and the Anthropic Messages API has no audio input block at
-all ([research.md](research.md), section 4). How does a voice recording reach the model before those
-layers change?
+all ([research.md](research.md), section 4). What does the first release do with speech and audio
+files?
 
 **Options.**
 
-- **A. Wait for native ACP audio.** Ship nothing for audio until an adapter advertises the `audio`
-  capability and delivers an ACP audio block.
-- **B. Transcription we own.** The recording uploads as a normal attachment (immutable original,
-  workspace copy, findable like any file), we transcribe it ourselves, and the transcript text is
-  what reaches the model inline.
+- **A. Browser dictation only.** The composer's dictation mode (the Web Speech API in
+  `web/oss/src/components/AgentChatSlice/hooks/useVoiceInput.ts`, merged dark in PR #5458) turns
+  live speech into text in the composer while the person talks. No audio file is involved. Recorded
+  voice messages and uploaded audio files get no transcription and follow the D6 workspace-only
+  path.
+- **B. Transcription through the person's stored provider keys.** The API transcribes the recording
+  through litellm's `/audio/transcriptions` support with a key the person already stored, and the
+  transcript reaches the model inline as text.
+- **C. Transcription on an Agenta platform key.** The same call path as B, but Agenta supplies the
+  key and meters the usage, so it works for people with no stored key.
+- **D. Transcription in the services layer.** A whisper model Agenta runs (for example
+  faster-whisper) transcribes the working copy, with no external provider involved.
 
-**What breaks under A.** Audio waits on two upstreams we do not control, one of which (the
-Anthropic API) shows no sign of adding audio input at all, so the already-built voice UI stays dark
-indefinitely and the product goal has no date.
+**Decision.** Option A, and that is all for the first release. Live dictation is the only
+audio-to-text: speech becomes text in the composer as the person talks, and nothing new is built.
+A recorded voice message or an uploaded audio file uploads as a normal attachment through the whole
+D11 pipeline (immutable original, workspace copy, referenced in the records) and follows the D6
+workspace-only path: the composer shows the visible notice that the model will not hear it, and the
+agent's tools can still process the file on disk. Options B, C, and D are deferred together, out of
+scope for the first release: no transcription endpoint, no key resolver, no platform key, no
+metering. The survey behind that deferred decision, including why B and C share one litellm call
+path Agenta already runs, is recorded in [research.md](research.md), section 4 ("Server-side
+transcription, surveyed and deferred"). Native ACP audio delivery remains the last upgrade; the
+modality mapping above keeps `AudioContent` as its target.
 
-**Decision.** Option B. A voice recording is an ordinary attachment through the whole D11 pipeline:
-uploaded once, stored as an immutable original, materialized as a working copy, referenced in the
-records. On top of that, we transcribe it ourselves, and the model receives the transcript inline
-as text, which every harness supports. Native ACP audio delivery becomes a later upgrade if
-adapters ever support it; the modality mapping above keeps `AudioContent` as the target for that
-upgrade. Two details are deliberately left as implementation choices, not design decisions: when
-transcription runs (on upload, or on demand) and which transcription service produces the
-transcript (the open question in [decisions.md](decisions.md)).
-
-**Why.** Transcription needs nothing from the adapters or the model providers, so it unblocks the
-audio goal and the merged voice UI now. It also keeps every durability promise: the person can
-replay their own recording from the original, and the agent's tools can process the audio file on
-disk, while the model gets the one representation of speech that travels everywhere today, text.
-The accepted cost is that the model perceives the words, not the sound: tone, speaker identity, and
-non-speech audio are lost until the native upgrade.
+**Why.** The recorded-audio limit is structural, not a postponement of easy work: the Web Speech
+API transcribes only a live microphone stream, so the browser cannot transcribe a recorded blob
+(Chrome 139 can replay a blob through recognition, but only in Chrome, only at real-time speed, and
+it produces no server-side transcript; [research.md](research.md), section 4). Crossing that line
+means a server-side service with key resolution and metering, and the decision is to add none of
+that machinery now. Dictation covers everyday speech-to-text with zero new build, and the D6 notice
+keeps recorded audio honest instead of silently unheard. The accepted cost is that a recorded clip
+reaches the model neither as sound nor as words until server-side transcription ships; the agent's
+tools remain the only way to work on it.
 
 ---
 

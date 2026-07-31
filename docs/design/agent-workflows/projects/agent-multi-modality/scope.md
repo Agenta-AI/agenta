@@ -12,9 +12,11 @@ first release. No inline-only version will be built.
 - The model perceives images natively (this works end to end on both pinned adapters). Native audio
   and native document delivery do not work on the adapters we run today and are blocked on adapter
   work (see [research.md](research.md), section 4, and [decisions.md](decisions.md), D8 and the
-  "Settled by evidence" section). Audio still ships in the meantime: a voice recording uploads as a
-  normal attachment and the model receives a transcript we produce ourselves
-  ([decisions.md](decisions.md), D14); native ACP audio delivery is the later upgrade.
+  "Settled by evidence" section). For audio, the first release ships the composer's browser
+  dictation only (live speech becomes composer text, merged dark in PR #5458); a recorded voice
+  message or uploaded audio file is a workspace-only attachment with the D6 visible notice, and no
+  transcript reaches the model ([decisions.md](decisions.md), D14). Server-side transcription is a
+  deferred follow-up, and native ACP audio delivery is the last upgrade.
 - The agent can always work on the file, because a working copy is written into its working directory
   regardless of whether the model can perceive the file.
 - Every shared file stays findable: the original never changes, renders inline in the conversation,
@@ -45,10 +47,13 @@ first release. No inline-only version will be built.
 - **Thumbnails and previews generated server-side.** The server will not generate preview images for
   large files. This is a polish item that does not block the core flow.
 - **Transcoding.** This project will not convert media files between formats before delivery (for
-  example turning a video into frames); that work belongs with future video support. Audio
-  transcription is not transcoding and is in scope ([decisions.md](decisions.md), D14): the
-  recording itself is stored and delivered unchanged, and the transcript is an addition, not a
-  replacement.
+  example turning a video into frames); that work belongs with future video support. Server-side
+  audio transcription is deferred separately ([decisions.md](decisions.md), D14), and when it ships
+  it will not be transcoding either: the recording stays stored and delivered unchanged, and the
+  transcript is an addition, not a replacement.
+- **Server-side transcription of recorded audio.** Deferred out of the first release by D14: no
+  transcription endpoint, no key resolver, no platform key, no metering. Listed again under
+  follow-ups below with the pointer to the survey.
 
 ## Follow-ups
 
@@ -65,6 +70,10 @@ first release. No inline-only version will be built.
 - **Front-end limits derived from real model limits.** Replace the static default limits with values
   computed from the selected model (see [research.md](research.md), section 3). Started in Stage 2 and
   can be refined further as provider limits change.
+- **Server-side transcription of recorded audio.** The deferred middle step between browser
+  dictation and native ACP audio ([decisions.md](decisions.md), D14). The survey it restarts from
+  (the litellm call path Agenta already runs, prices, who has a usable key) is in
+  [research.md](research.md), section 4, "Server-side transcription, surveyed and deferred".
 
 ## Next steps
 

@@ -580,6 +580,33 @@ So the disk path does give perception for images on every harness, and for PDFs 
 always at the agent's discretion: nothing forces the tool call, and a conversation rebuilt from
 records does not re-read files. Section 5 weighs this against inline delivery.
 
+### Server-side transcription, surveyed and deferred
+
+Decision D14 ([design.md](design.md)) defers server-side transcription of recorded audio out of the
+first release. This survey (2026-07-31) records what the deferred follow-up restarts from, so that
+decision begins from facts rather than from scratch.
+
+- **The browser cannot fill the gap.** The Web Speech API transcribes only a live microphone
+  stream, which is why the composer's dictation mode works and a recorded blob cannot be
+  transcribed client-side. Chrome 139 can replay a blob through recognition, but that path is
+  Chrome-only, runs at real-time speed, and produces no server-side transcript. The limit is
+  structural, so recorded audio needs a server-side service or none at all.
+- **The call path already exists in our dependencies.** The pinned litellm 1.92.0 (`api/uv.lock`,
+  `services/uv.lock`) ships `/audio/transcriptions` support for OpenAI, Mistral, and Deepgram, plus
+  Groq through its OpenAI-compatible route. So a person's stored OpenAI, Groq, or Mistral key could
+  transcribe through infrastructure Agenta already runs, and the same call path could carry an
+  Agenta platform key for people without keys.
+- **Prices are negligible.** A 30-second note costs about $0.003 on OpenAI's transcription models,
+  about $0.0003 on Groq's Whisper large-v3-turbo ($0.04 per hour), and about $0.0015 on Mistral's
+  Voxtral Mini Transcribe.
+- **Subscription-auth users have no bring-your-own path.** Anthropic has no transcription API, and
+  neither does the Codex OAuth surface, so a person authenticated through a Claude or ChatGPT
+  subscription holds no key that could transcribe.
+- **Self-hosters could run it locally.** faster-whisper's small model in the services layer
+  transcribes a 30-second note in about 4 seconds of CPU.
+- **Gaps at this pin.** AssemblyAI has no litellm support, and Gemini cannot route as transcription
+  at litellm 1.92.0.
+
 ---
 
 ## 5. Two ways to deliver a file to the model, compared

@@ -41,8 +41,9 @@ verified against the code on 2026-07-31:
   progress, failure, and retry flow with no other change.
 - Attachment preview (the `AttachmentViewerDrawer`) and the Files drawer upload surfaces (upload
   button, drop-to-upload, drop-to-stage on a recents peek) in `Drives/DriveExplorer.tsx`.
-- The voice capture UI (`useAudioRecorder`, `VoiceInputButton`, `RecordingBar`), which lands a
-  recording in the attachment tray like any file.
+- The voice capture UI: dictation (`useVoiceInput`, the Web Speech API turning live speech into
+  composer text) and voice messages (`useAudioRecorder`, `VoiceInputButton`, `RecordingBar`), which
+  land a recording in the attachment tray like any file.
 
 Two consequences shape the stages below. First, Stage 1 front-end work shrinks to wiring: the
 collection UI exists and only its transport and rendering change. Second, one path is live today
@@ -190,24 +191,29 @@ tests, and the shared golden fixtures together, as the runner's wire contract re
 **Tests.** These are listed in one place at the end of this file, under "Tests across the release,"
 because they span the API, the runner, and the front end.
 
-## Stage 2: audio via transcription, documents when adapters allow
+## Stage 2: the audio release, documents when adapters allow
 
-**Goal.** A voice recording reaches the model as a transcript we produce (decision D14 in
-[design.md](design.md)), and documents are planned for when the adapters change.
+**Goal.** The voice UI turns on with browser dictation as the only audio-to-text, a recorded clip
+follows the D6 workspace-only path (decision D14 in [design.md](design.md)), and documents are
+planned for when the adapters change.
 
-**Audio: transcription we own. Not blocked.** The recording travels through the Stage 1 attachment
-pipeline unchanged: uploaded once, stored as an immutable original, materialized as a working copy,
-referenced in the records. The new work is the transcription step and its delivery:
+**Audio: turn on what is built. Not blocked.** Dictation needs no new work: the composer's
+dictation mode (`useVoiceInput`, the Web Speech API) already turns live speech into composer text
+and is merged dark (PR #5458). The Stage 2 audio work is:
 
-- Transcribe the recording ourselves. Which service transcribes and when transcription runs
-  (on upload versus on demand) are the open implementation question in
-  [decisions.md](decisions.md); the plan is agnostic to that choice.
-- Deliver the transcript to the model inline as text in the turn that shares the recording. Text
-  travels on every harness, so no adapter work is needed.
+- Ensure a recorded voice message and an uploaded audio file follow the D6 workspace-only path: the
+  recording travels through the Stage 1 attachment pipeline unchanged (uploaded once, stored as an
+  immutable original, materialized as a working copy, referenced in the records), and the composer
+  shows the visible notice that the model will not hear it. No transcript is produced or sent.
 - Turn on `NEXT_PUBLIC_AGENT_VOICE_INPUT`: the voice capture UI (dictation and voice messages) is
   already merged dark (PR #5458) and lands its recording in the attachment tray like any file.
 
-**Native audio is a later upgrade, not Stage 2 work.** The `audio` type on the Agenta content
+**Server-side transcription is deferred, not Stage 2 work.** The first release adds no
+transcription endpoint, no key resolver, no platform key, and no metering (decision D14). The
+survey a follow-up starts from (the litellm call path, prices, who has a usable key) is in
+[research.md](research.md), section 4 ("Server-side transcription, surveyed and deferred").
+
+**Native audio is the last upgrade, not Stage 2 work.** The `audio` type on the Agenta content
 block (mapped in the Vercel adapter `messages.py` and mirrored in `protocol.ts`, `wire.py`, the
 contract tests, and the golden fixtures) and the runner's mapping to the ACP audio block wait until
 an adapter advertises the `audio` capability. Neither pinned adapter does, and the Anthropic
@@ -239,8 +245,9 @@ to whichever path that decision chooses, gated on the `documents` capability.
 - **Front-end limits.** Replace the static defaults (`attachments.ts` `DEFAULT_ATTACHMENT_LIMITS`)
   with limits derived from the selected model's real limits (see [research.md](research.md), section
   3), passed down in place of the default, which the file was already written to allow.
-- **Tests.** A recorded clip uploads as a normal attachment and its transcript reaches the model as
-  text. A capability-contract test that the mapped set is consistent across the layers. Runner tests
+- **Tests.** A recorded clip uploads as a normal attachment, the turn proceeds workspace-only with
+  the visible notice, and nothing audio-derived reaches the model inline. A capability-contract
+  test that the mapped set is consistent across the layers. Runner tests
   for the document path and its gate, plus the SDK contract test for the `audio` block, once their
   respective adapter work unblocks.
 

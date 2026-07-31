@@ -13,7 +13,8 @@ agent's scratch files.
 
 This folder holds the research, the design, and the plan for closing that gap. The work is
 staged so that the first stages are small and safe and later stages add the harder modalities:
-audio, delivered first through transcription we own, and documents, which wait on adapter work.
+audio, where the first release ships browser dictation only and recordings stay workspace-only,
+and documents, which wait on adapter work.
 
 ## Glossary
 

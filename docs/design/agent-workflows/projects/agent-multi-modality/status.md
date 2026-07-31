@@ -5,8 +5,8 @@ This file records the project's current state.
 ## State
 
 The design is complete. Every decision, D1 through D14, is taken; the last four (D11 durable agent
-input from day one, D12 mention-first cold replay, D13 two upload surfaces, D14 interim audio via
-transcription we own) were decided on 2026-07-31. What remains open are implementation-time
+input from day one, D12 mention-first cold replay, D13 two upload surfaces, D14 first-release audio
+is browser dictation only) were decided on 2026-07-31. What remains open are implementation-time
 questions, not product questions; see [decisions.md](decisions.md) for the list. The next step is
 implementation, starting with Stage 0 or Stage 1 of [plan.md](plan.md).
 
@@ -15,8 +15,9 @@ chat box to the runner and is dropped at the one call that hands a turn to the h
 (`services/runner/src/engines/sandbox_agent/run-turn.ts`, the `session.prompt` call, currently near
 line 742). The image fix is entirely on our side of that call, because both pinned adapters deliver
 an image natively. Native audio and native documents are different: neither pinned adapter supports
-them today, so those native paths are blocked on adapter work. Audio ships anyway in the interim:
-the model receives a transcript we produce ourselves (decision D14).
+them today, so those native paths are blocked on adapter work. For audio the first release ships
+the composer's browser dictation only; a recorded clip is a workspace-only attachment with a
+visible notice, and server-side transcription is deferred (decision D14).
 
 The front-end surface is already merged dark (PRs #5458 and #5459, merged 2026-07-29): the composer
 attach UI, the attachment chips and preview, the per-kind limits object, the upload lifecycle hook
@@ -39,7 +40,7 @@ See [README.md](README.md). In short: [context.md](context.md) for the plain sto
 | --- | --- | --- |
 | 0 | Close the silent-failure gap: gate the ungated paste and drag path on `NEXT_PUBLIC_AGENT_FILE_UPLOADS` | not started (optional) |
 | 1 | First user-visible release: the attachment resource and storage, the record-schema extension, the runner's resolve-materialize-and-deliver seam for images, structured capability errors, the minimum security and limits work, and the front-end transport and reference wiring | not started |
-| 2 | Audio via transcription we own (D14), the document plan (blocked on adapter work), the capability-alias rollout, derived front-end limits | not started (documents blocked on adapter work) |
+| 2 | The audio release: turn on the voice UI, dictation as the only audio-to-text, recordings on the D6 workspace-only path (D14); the document plan (blocked on adapter work), the capability-alias rollout, derived front-end limits | not started (documents blocked on adapter work) |
 | 3 | Findability polish and cleanup: "Shared by you" origin, reference-counting cleanup refinement, read-only credential scope, verify the edit-then-find flow | not started |
 
 ## Decisions taken
@@ -55,15 +56,16 @@ no signed credentials for the mount; carry an opaque server-issued `attachment_i
 is mention-first (D12): a historical attachment is a textual mention with its real working-copy
 path, every referenced working copy is restored at cold start, and inline delivery is reserved for
 the running turn; drawer uploads and composer attachments are deliberately different pipelines
-(D13); and interim audio is transcription we own, with native ACP audio as a later upgrade (D14).
+(D13); and first-release audio is browser dictation only, with recordings workspace-only under the
+D6 notice, server-side transcription deferred, and native ACP audio as the last upgrade (D14).
 
 ## Open questions
 
-See [decisions.md](decisions.md). All product decisions are taken. The four open implementation
-questions are: which service transcribes audio and when transcription runs; the retention rules
-when a session is archived or deleted; the exact media-type, validation, and limits matrix
-(including the server-side limits and the gateway's 10 MB request-body cap); and when cleanup moves
-from a time-to-live sweep to reference counting. The capability-alias removal is deliberately not
+See [decisions.md](decisions.md). All product decisions are taken. The three open implementation
+questions are: the retention rules when a session is archived or deleted; the exact media-type,
+validation, and limits matrix (including the server-side limits and the gateway's 10 MB
+request-body cap); and when cleanup moves from a time-to-live sweep to reference counting. The
+capability-alias removal is deliberately not
 on this list: it is rollout mechanics with a stated settle condition, recorded in
 [plan.md](plan.md) Stage 2.
 
@@ -71,8 +73,7 @@ on this list: it is rollout mechanics with a stated settle condition, recorded i
 
 - Start implementation: Stage 1 of [plan.md](plan.md), optionally preceded by Stage 0.
 - Decide whether Stage 0 ships on its own or folds into Stage 1.
-- Settle the media-type, validation, and limits matrix while building the Stage 1 upload route, and
-  the transcription service and trigger while building the Stage 2 audio work
+- Settle the media-type, validation, and limits matrix while building the Stage 1 upload route
   ([decisions.md](decisions.md), open questions).
 
 ## Artifacts
