@@ -124,7 +124,13 @@ def invoke(session_id, messages, permission, timeout=300.0):
                     "tool-result",
                 ):
                     out["tool_outputs"].append(
-                        {"type": ftype, **{k: f.get(k) for k in ("toolCallId", "output", "errorText")}}
+                        {
+                            "type": ftype,
+                            **{
+                                k: f.get(k)
+                                for k in ("toolCallId", "output", "errorText")
+                            },
+                        }
                     )
                 elif "approval" in ftype:
                     out["approvals"].append(f)
@@ -179,13 +185,16 @@ def main():
         },
     ]
     t2 = invoke(sid, resume, "ask")
-    show("ASK resume after APPROVE (expect: WARM, same tool-call id, no second card)", t2)
-    executed = any(o["type"] == "tool-output-available" for o in t2["tool_outputs"])
-    same_id = any(
-        o.get("toolCallId") == call["toolCallId"] for o in t2["tool_outputs"]
+    show(
+        "ASK resume after APPROVE (expect: WARM, same tool-call id, no second card)", t2
     )
+    executed = any(o["type"] == "tool-output-available" for o in t2["tool_outputs"])
+    same_id = any(o.get("toolCallId") == call["toolCallId"] for o in t2["tool_outputs"])
     print("PASS(tool executed):", executed)
-    print("PASS(same tool-call id -> the parked call resumed, model did not re-issue):", same_id)
+    print(
+        "PASS(same tool-call id -> the parked call resumed, model did not re-issue):",
+        same_id,
+    )
     print("PASS(no second approval card):", not t2["approvals"])
     print("PASS(codeword context survived):", CODEWORD in t2["reply"])
     return 0
