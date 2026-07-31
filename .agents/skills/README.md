@@ -56,14 +56,14 @@ Code + Docs -- scan-codebase --> Findings <-- test-codebase -- Tests / Runtime /
 For Codex:
 
 - invoke a skill with `$skill-name`
-- `agents/skills/` is the canonical source, but Codex auto-discovers from `~/.codex/skills`
+- `.agents/skills/` is the canonical source, but Codex auto-discovers from `~/.codex/skills`
 - if a skill does not appear under `$`, refresh the symlink or install it into `~/.codex/skills` and reload Codex
 
 For Claude:
 
 - invoke a project skill with `/project:skill-name` when your Claude client exposes project skills that way
 - otherwise use the Claude project skills picker after reloading the project
-- `.claude/skills/` contains the Claude-facing wrappers for the canonical skills in `agents/skills/`
+- `.claude/skills/` contains the Claude-facing wrappers for the canonical skills in `.agents/skills/`
 
 ## Skills
 
