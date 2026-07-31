@@ -4,6 +4,9 @@
  * seeded from the same initial selection. Also owns the effects that keep the selection honest:
  * adopting the persisted selection once the drive's mount id resolves, adopting a CHANGED
  * `initialPath` while already open, and landing on the root folder when nothing was pre-selected.
+ *
+ * Handles `mountId` arriving late, NOT one drive being swapped for another — that invalidates every
+ * mount-scoped hook at once and is handled by remounting (see `useDriveGeneration` in FilesDrawer).
  */
 import {useCallback, useEffect, useRef, useState} from "react"
 

@@ -226,7 +226,9 @@ export function useDriveFileDownload(): (mount: Mount | null, path: string) => P
     const projectId = useAtomValue(projectIdAtom)
     return useCallback(
         async (mount: Mount | null, path: string) => {
-            const key = `drive-download:${path}`
+            // `path` is mount-RELATIVE, so it alone doesn't identify a file: `agent-files/notes.md`
+            // and a cwd `notes.md` both arrive here as "notes.md" and would share a toast.
+            const key = `drive-download:${mount?.id ?? "none"}:${path}`
             message.open({type: "loading", key, content: "Downloading…", duration: 0})
             const ok = await downloadMountFile({mount, path, projectId})
             message.open(
