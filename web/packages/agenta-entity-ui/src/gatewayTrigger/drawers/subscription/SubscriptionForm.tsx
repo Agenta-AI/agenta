@@ -83,6 +83,7 @@ export function SubscriptionForm({
     const {
         subscription,
         isLoading: subLoading,
+        isFetching: subFetching,
         isMutating,
         create,
         edit,
@@ -199,6 +200,9 @@ export function SubscriptionForm({
     const hydratedId = useRef<string | null>(null)
     useEffect(() => {
         if (!isEdit || !subscription) return
+        // A refetch serves the stale cache first. Latching on that would freeze the fields on old
+        // values (the fresh result hits the guard below and returns) and save them back.
+        if (subFetching) return
         const loadedId = (subscription.id as string | undefined) ?? subscriptionId ?? null
         if (hydratedId.current === loadedId) return
         hydratedId.current = loadedId
@@ -226,7 +230,7 @@ export function SubscriptionForm({
         if (subscription.data?.trigger_config) {
             configForm.setFieldsValue(subscription.data.trigger_config)
         }
-    }, [isEdit, subscription, subscriptionId, configForm])
+    }, [isEdit, subscription, subFetching, subscriptionId, configForm])
 
     // Create-mode default-bind to the playground agent (or `defaultReferences`).
     useEffect(() => {
