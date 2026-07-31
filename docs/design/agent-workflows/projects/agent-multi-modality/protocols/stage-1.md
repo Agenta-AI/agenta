@@ -217,6 +217,32 @@ directory creation and is time-bounded; mention lines moved into the latest-user
 of the cold frame instead of before the replayed transcript; and the per-image provider cap keys
 on the resolved provider rather than the harness name.
 
+### Live QA (dev stack, 2026-08-01)
+
+The runner was recreated on the shared stack (source is bind-mounted; no dependency change) and
+driven from a real browser on the QA account. Results:
+
+- **Text-only turn: pass.** The current-turn refactor did not disturb plain conversations.
+- **Image plus text: pass, and it is the milestone.** A pasted PNG reading "AGENTA 42" on a red
+  background came back as exactly `AGENTA 42`, with the model's reasoning describing the image.
+  This is the first time a file sent from the Agenta composer has reached a model's eyes. The
+  legacy dual read and the capability gate work end to end.
+- **Image-only: still failed on first QA.** The guard's four clauses all held for an image-only
+  legacy turn, because `currentUserTurn` counted only real attachment blocks and today's front
+  end sends inline data-URL blocks; with no typed text and no earlier user turn on the wire, the
+  turn looked empty. Every layer behind the guard was fine. Fixed by teaching the current-turn
+  reading that inline media makes a turn non-empty (shared predicate with the legacy dual read),
+  with the plan guard, freshness, and prompt assembly aligned, and re-verified live before the
+  PR left draft. The lesson mirrors WP1's boot blocker: unit suites and review both validated
+  the guard against approval shapes, but only driving the product's real wire shape caught this.
+- **Cold reload: pass.** The conversation and attachment chips restored, and a follow-up
+  question about the image was answered correctly from the re-delivered content.
+
+Two observability notes from QA, one fixed and one deferred: the legacy delivery path now logs
+its decision (it emits no `attachment_delivery` event, having no id to key one), and the stale
+"add your model provider key" banner after saving credentials is a pre-existing cosmetic bug
+unrelated to this stage.
+
 ### Forced routes to double-check
 
 - **The linearization of PR #5598** (above): the alternative was re-expressing three files
