@@ -41,6 +41,7 @@ import {
   hydrateHarnessSessionFromDurable,
 } from "./session-continuity-durable.ts";
 import { type SessionContinuityStore } from "./session-continuity.ts";
+import { type InstalledMountExpiries } from "./session-identity.ts";
 import { type TeardownReason } from "./teardown.ts";
 import { uploadToolMcpAssets } from "./tool-mcp-assets.ts";
 import { prepareWorkspace } from "./workspace.ts";
@@ -257,6 +258,16 @@ export interface SessionEnvironment {
   sessionDestroyRequested: boolean;
   mountedCwd: string | undefined;
   agentMountedPath?: string;
+  /**
+   * Expiry (epoch millis) of the credentials actually installed in each running geesefs daemon,
+   * recorded at successful mount time. Per mount, because a remount replaces one mount's
+   * credentials and must not inherit the other's. The environment's lease is the minimum over the
+   * entries; see `installedMountLease`.
+   *
+   * The Daytona harness session-dir mounts are deliberately excluded: they are signed after the
+   * cwd mount with the same TTL, so their expiry is never the minimum.
+   */
+  installedMountExpiries: InstalledMountExpiries;
   durableCwdSafeToDelete: boolean;
   workspace: { cleanup: () => Promise<void> } | undefined;
   runtimeRemount: Promise<boolean> | undefined;

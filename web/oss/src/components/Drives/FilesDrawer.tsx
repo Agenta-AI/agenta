@@ -11,6 +11,7 @@
  */
 import {useEffect, useState} from "react"
 
+import {type MountFile} from "@agenta/entities/session"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import dynamic from "next/dynamic"
 
@@ -36,20 +37,28 @@ export interface FilesDrawerProps {
     /** The resolved (summary) drive — the host fetches it (useConfigDrive / useSessionDriveSummary);
      * DriveExplorer lazy-loads each directory level from it, so no whole-tree fetch to open. */
     drive: SessionDriveData
+    /** Local-file mode: preview this flat list instead of the mount tree (see DriveExplorer). */
+    explicitFiles?: MountFile[]
     /** Raw ids for the header's overflow menu (drive id + session/agent id). */
     driveIds?: DriveId[]
     scope?: DriveScope
     /** Preselect this path on open — and, while open, re-select when it changes (a chat link/tile). */
     initialPath?: string | null
+    /** Files staged by a drop on a recents peek, awaiting a destination — the host owns the list. */
+    stagedFiles?: File[]
+    onStagedChange?: (files: File[]) => void
 }
 
 export function FilesDrawer({
     open,
     onClose,
     drive,
+    explicitFiles,
     driveIds,
     scope = "session",
     initialPath,
+    stagedFiles,
+    onStagedChange,
 }: FilesDrawerProps) {
     // Expanded (near-full) width, toggled from the drawer header. Reset on close so every open starts
     // at the normal width.
@@ -77,12 +86,15 @@ export function FilesDrawer({
         >
             <DriveExplorer
                 drive={drive}
+                explicitFiles={explicitFiles}
                 scope={scope}
                 initialPath={initialPath}
                 onClose={onClose}
                 driveIds={driveIds}
                 expanded={expanded}
                 onToggleExpand={() => setExpanded((v) => !v)}
+                stagedFiles={stagedFiles}
+                onStagedChange={onStagedChange}
             />
         </EnhancedDrawer>
     )

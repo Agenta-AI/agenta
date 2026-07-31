@@ -337,12 +337,15 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                                 </span>
                             </Tooltip>
                         </div>
+                        {/* Keyed by index (paths are editable) for a fresh editor per file; debounce off so a file switch cannot cancel a pending edit. */}
                         <CodeEditor
+                            key={`skill-file-${selected}`}
                             value={activeFile?.content ?? ""}
                             onChange={(v) => updateFile(selected as number, {content: v})}
                             language={codeLanguageFromPath(activeFile?.path)}
                             placeholder="File content"
                             disabled={disabled}
+                            disableDebounce
                         />
                     </div>
                 )}

@@ -490,8 +490,13 @@ app.add_middleware(
 )
 
 
+# The middleware resolves trailing slashes against the route table instead, so no redirect
+# is emitted: Starlette's would be built from the post-strip path and lose the /api prefix.
+app.router.redirect_slashes = False
+
 # Added last => outermost: normalizes the path before auth/routing see it.
-app.add_middleware(ApiPrefixStripMiddleware)
+_ROUTED_APP = app
+app.add_middleware(ApiPrefixStripMiddleware, routes=lambda: _ROUTED_APP.routes)
 
 if ee and is_ee():
     app = ee.extend_main(app)

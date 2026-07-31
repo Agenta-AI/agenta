@@ -117,7 +117,7 @@ import {
   eligibleAgentSessionId,
   sessionContinuityStore,
 } from "./session-continuity.ts";
-import { projectScopeFor } from "./session-identity.ts";
+import { mountExpiryMs, projectScopeFor } from "./session-identity.ts";
 import { teardownDisposition, type TeardownReason } from "./teardown.ts";
 import { uploadToolMcpAssets, type ToolMcpAssets } from "./tool-mcp-assets.ts";
 import { prepareWorkspace } from "./workspace.ts";
@@ -441,6 +441,9 @@ export async function acquireEnvironment(
     );
     if (mounted) {
       environment.mountedCwd = plan.cwd;
+      environment.installedMountExpiries.cwd = mountExpiryMs(
+        environment.mountCreds.expiresAt,
+      );
       return true;
     }
     // A false result means mountStorage stopped the attempt and confirmed the path detached.
@@ -466,6 +469,9 @@ export async function acquireEnvironment(
         return false;
       }
       environment.agentMountedPath = mountPath;
+      environment.installedMountExpiries.agent = mountExpiryMs(
+        environment.agentMountCreds.expiresAt,
+      );
       await seedAgentReadme(mountPath, { log: logger });
       await linkAgentFiles(plan.cwd, mountPath, { log: logger });
       await activateAgentMountGuidance();
@@ -738,6 +744,9 @@ export async function acquireEnvironment(
             },
           ))
         ) {
+          environment.installedMountExpiries.cwd = mountExpiryMs(
+            environment.mountCreds.expiresAt,
+          );
           logger(`remote durable cwd active for session=${sessionForMount}`);
         }
         // Per-harness session/transcript-dir mounts, remote-only by construction (this whole
@@ -792,6 +801,9 @@ export async function acquireEnvironment(
           ))
         ) {
           environment.agentMountedPath = mountPath;
+          environment.installedMountExpiries.agent = mountExpiryMs(
+            environment.agentMountCreds.expiresAt,
+          );
           await seedAgentReadmeRemote(environment.sandbox, mountPath, {
             log: logger,
           });
