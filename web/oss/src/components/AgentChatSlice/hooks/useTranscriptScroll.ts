@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useLayoutEffect, useRef} from "react"
+import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react"
 
 import {type ChatStatus, type UIMessage} from "ai"
 
@@ -25,7 +25,16 @@ export const useTranscriptScroll = ({
     useVirtuoso: boolean
 }) => {
     const {stickRef, armBottomRef, animateBottomRef, programmaticScrollRef, setShowJump} = intent
-    const scrollRef = useRef<HTMLDivElement>(null)
+    // The container is conditionally rendered (Virtuoso replaces it, and an empty conversation
+    // renders it even under Virtuoso), so it can unmount and remount within one session. The ref is
+    // for synchronous reads inside handlers; the STATE is what effects that bind listeners to the
+    // node key on — otherwise they'd stay attached to a node that has since been detached.
+    const scrollRef = useRef<HTMLDivElement | null>(null)
+    const [scrollNode, setScrollNode] = useState<HTMLDivElement | null>(null)
+    const attachScroll = useCallback((el: HTMLDivElement | null) => {
+        scrollRef.current = el
+        setScrollNode(el)
+    }, [])
     // Teardown for the in-flight smooth scroll (removes its listeners + fallback timer).
     const pinCleanupRef = useRef<(() => void) | null>(null)
     // Last observed scrollTop. A content shrink (tool gutter collapsing, reasoning folding) clamps
@@ -57,6 +66,17 @@ export const useTranscriptScroll = ({
         }
         anchorRef.current = null
     }, [])
+
+    // Everything above is measured AGAINST a specific container, so a node swap invalidates all of
+    // it: the scroll baseline (a stale one makes the first scroll-down-to-edge on the new node fail
+    // `scrollTop > prevTop`, so follow doesn't re-arm), the SC-3 anchor (its offset was taken in the
+    // old node's coordinate space), and any glide still animating the node that just went away.
+    // Runs before the SC-1/SC-2 pin below, which is declared later.
+    useLayoutEffect(() => {
+        pinCleanupRef.current?.()
+        anchorRef.current = null
+        lastScrollTopRef.current = scrollNode?.scrollTop ?? 0
+    }, [scrollNode])
 
     // ── DT4 autoscroll: stick to the bottom of the scrollable area while following ──
     // The fill (min-h-full turn group) makes "question at top" the scroll bottom for a short answer
@@ -191,7 +211,7 @@ export const useTranscriptScroll = ({
     // pins. Re-subscribed when the message set changes (a part growing fires on the same wrapper).
     useEffect(() => {
         if (useVirtuoso) return
-        const el = scrollRef.current
+        const el = scrollNode
         if (!el) return
         const onResize = (entries: ResizeObserverEntry[]) => {
             // Pin each rendered row's REAL height as its own `content-visibility` placeholder, so it
@@ -247,7 +267,7 @@ export const useTranscriptScroll = ({
         ro.observe(el)
         el.querySelectorAll("[data-mid]").forEach((w) => ro.observe(w))
         return () => ro.disconnect()
-    }, [messages.length, scrollToBottom, useVirtuoso])
+    }, [messages.length, scrollToBottom, useVirtuoso, scrollNode])
 
     // SC-1 (submit) / SC-2 (restore): scroll the log to the bottom, once, when armed. With the active
     // turn reserving a viewport (min-h-full + top padding to clear the fade), "bottom" shows the new
@@ -289,8 +309,10 @@ export const useTranscriptScroll = ({
     // (exactly like a scroll). New content keeps arriving offscreen and the jump pill offers the way
     // back. Keyboard / wheel / touch already release because they scroll (onScroll). The composer is
     // exempt: its selections and links aren't inside the log, so `el.contains(...)` ignores them.
+    // Keyed on the NODE, not on mount: the container remounts when the engine changes, and a
+    // mount-only binding would keep listening on the detached one for the rest of the session.
     useEffect(() => {
-        const el = scrollRef.current
+        const el = scrollNode
         if (!el) return
         const release = () => {
             if (!stickRef.current) return
@@ -312,7 +334,9 @@ export const useTranscriptScroll = ({
             document.removeEventListener("selectionchange", onSelectionChange)
             el.removeEventListener("click", onClick)
         }
-    }, [])
+    }, [scrollNode])
 
-    return {scrollRef, onScroll, recordAnchor, jumpToLatest}
+    // `attachScroll` is the ONLY way in: handing out `scrollRef` too would let a caller attach the
+    // node without the state ever knowing, which is the split this hook exists to close.
+    return {attachScroll, onScroll, recordAnchor, jumpToLatest}
 }

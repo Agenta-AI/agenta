@@ -180,7 +180,14 @@ export const useOnboardingChat = ({
     // Holds the pending IDE-bubble typewriter timer so it can be cancelled on unmount (tab close,
     // rewind, route change) — otherwise the recursive chain keeps calling setMessages on a stale closure.
     const ideBubbleTimerRef = useRef<number | null>(null)
+    // The ref holds ONE handle, so anything that starts (or invalidates) a chain must cancel the
+    // previous one first — overwriting the handle would strand the old chain beyond every cleanup.
+    const cancelIdeBubble = useCallback(() => {
+        if (ideBubbleTimerRef.current) window.clearTimeout(ideBubbleTimerRef.current)
+        ideBubbleTimerRef.current = null
+    }, [])
     const streamIdeBubble = useCallback(() => {
+        cancelIdeBubble()
         const prompt = richInputRef.current?.getMarkdown().trim() ?? ""
         const promptQuote = prompt
             .split("\n")
@@ -219,23 +226,21 @@ export const useOnboardingChat = ({
             if (shown < full.length) ideBubbleTimerRef.current = window.setTimeout(tick, 28)
         }
         ideBubbleTimerRef.current = window.setTimeout(tick, 120)
-    }, [setMessages])
+    }, [setMessages, cancelIdeBubble])
 
     // Cancel any in-flight IDE-bubble animation on unmount so its timer chain can't fire post-unmount.
-    useEffect(
-        () => () => {
-            if (ideBubbleTimerRef.current) window.clearTimeout(ideBubbleTimerRef.current)
-        },
-        [],
-    )
+    useEffect(() => cancelIdeBubble, [cancelIdeBubble])
 
     // After an IDE hand-off (onboarding + messages exist but nothing was committed), the chat is a
     // dead-end — there's no agent to talk to. Disable the composer and offer a single "Start over".
     const ideHandoffActive = onboardingActive && messages.length > 0
     const handleStartOver = useCallback(() => {
+        // Start over wipes the transcript the chain is typing into — stop it, or it keeps ticking
+        // against messages that no longer exist (and outlives the next chain's handle).
+        cancelIdeBubble()
         setMessages(() => [])
         richInputRef.current?.setMarkdown("")
-    }, [setMessages])
+    }, [setMessages, cancelIdeBubble])
 
     // Strip era (TEMPLATE_STRIP_MODE): the bare "what do you want to build?" hero (no messages yet,
     // nothing pending, not browsing the template gallery) is when the onboarding TemplateStrip docks

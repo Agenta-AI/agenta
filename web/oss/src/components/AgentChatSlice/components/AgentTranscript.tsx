@@ -100,9 +100,7 @@ const AgentTranscript = ({
             )}
             {(!useVirtuoso || messages.length === 0) && (
                 <div
-                    ref={(el) => {
-                        scroll.scrollRef.current = el
-                    }}
+                    ref={scroll.attachScroll}
                     onScroll={scroll.onScroll}
                     // Capture a fresh SC-3 anchor before a click acts (expand/collapse a tool step,
                     // reasoning fold): those resize the transcript without a scroll, so onScroll never

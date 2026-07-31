@@ -95,6 +95,11 @@ export const useSessionHydration = ({
             // yank a reader who scrolled up. Following the growth is `stickRef`'s call, the same
             // rule the live stream uses.
             if (armJump || intent.stickRef.current) intent.armJump()
+            // Written synchronously, before any React commit. `messagesRef` lags a commit behind,
+            // so two deliveries landing back-to-back (disk-restored result + background refetch)
+            // can both see the pre-adoption transcript — it is this watermark, not the on-screen
+            // length, that keeps the guard order-independent and stops an older snapshot from
+            // clobbering a newer one.
             recordWatermarkRef.current = recordCount
             setMessages(serverMsgs)
             persistMessages({id: sessionId, messages: serverMsgs, recordCount})
@@ -125,18 +130,27 @@ export const useSessionHydration = ({
         // instead of latching a ref that leaves the transcript blank.
         let cancelled = false
         // Post-restore revalidation: the first result may be the disk-restored log (paints
-        // instantly); adopt the background refetch when it lands.
+        // instantly); adopt the background refetch when it lands. The refetch can land BEFORE the
+        // promise handler below runs (both are microtasks racing), and `messagesRef` only catches
+        // up on the next React commit — so record here, not via what's on screen, that real
+        // history was already adopted.
+        let adopted = false
         loadSessionMessages(sessionId, (fresh) => {
             if (cancelled) return
             // The restore said "no records" but the server has some — clear the notice.
-            if (adoptServerTranscript(fresh)) setHydratedEmpty(false)
+            if (adoptServerTranscript(fresh)) {
+                adopted = true
+                setHydratedEmpty(false)
+            }
         })
             .then((transcript) => {
                 if (cancelled) return
                 if (!transcript || transcript.messages.length === 0) {
                     // Known session, but the server has no records for it → history was pruned or
                     // never persisted. Flag it so the transcript shows the "unavailable" notice.
-                    setHydratedEmpty(true)
+                    // Only when nothing has been adopted yet — a refetch that already landed is
+                    // real history, and this stale first result must not blank it out.
+                    if (!adopted) setHydratedEmpty(true)
                     return
                 }
                 adoptServerTranscript(transcript)
