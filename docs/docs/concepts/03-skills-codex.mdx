@@ -1,0 +1,82 @@
+---
+title: "Skills"
+sidebar_label: "Skills (Codex)"
+description: "A skill packages instructions and supporting files for a task that an agent performs when the skill is relevant."
+---
+
+A skill gives an agent the guidance and resources for a particular kind of work. This page explains what a skill contains, how an agent loads it, when to use one, and where skills come from.
+
+## What a skill contains
+
+Each skill is a folder built around a `SKILL.md` file. That file contains three parts:
+
+- A **name** that identifies the skill.
+- A **description** that tells the agent what the skill covers and when to use it.
+- A **body** that explains how to perform the work.
+
+The folder can also contain supporting files such as templates, examples, reference material, and scripts.
+
+For example, a `write-pdf` skill might look like this:
+
+```text
+write-pdf/
+├── SKILL.md
+├── templates/
+│   └── report.html
+└── references/
+    └── layout-rules.md
+```
+
+Its description could tell the agent to use the skill when someone asks for a PDF report. Its `SKILL.md` body could explain how to structure the report and export it. The template and layout rules provide the detail needed to produce the file.
+
+## How an agent loads a skill
+
+Skills and instructions both guide the agent, but the agent receives them at different times.
+
+The agent's instructions are loaded in full at the start of every session. They hold context and rules that must apply throughout the work. For each skill, the agent initially sees only its name and description. When a request matches that description, the agent reads the full `SKILL.md` body and any supporting files it needs.
+
+This loading model lets an agent carry guidance for many kinds of work without placing every procedure in its instructions. A marketing agent can have separate skills for campaign briefs, SEO audits, and competitive reports. It loads the campaign-brief skill only when the task calls for a brief.
+
+The description controls that choice. A description such as "Use when creating or revising a campaign brief" gives the agent a situation it can match. A description such as "Campaign information" names a subject but does not say when the skill applies.
+
+## When to use a skill
+
+Use a skill for guidance that applies to a recognizable kind of task but does not need to shape every session.
+
+| Put the content in | When the agent needs it | Example |
+|---|---|---|
+| **Instructions** | Throughout every session | The agent's role, audience, writing style, and limits. |
+| **Skill** | When it performs a particular kind of task | The process for auditing a page for SEO problems. |
+| **File** | When it needs specific reference material | A keyword list, product catalog, or approved example. |
+
+A skill can tell the agent which tools to call and which files to read. The tools and files remain separate from the skill: tools provide actions, files provide material, and the skill provides the process that connects them.
+
+## How to create a skill
+
+You can add an existing skill or write one for your own process.
+
+### Add an existing skill
+
+Skills use a shared folder format, so you can adapt skills created outside Agenta. These sources provide examples and reusable skills:
+
+- [Anthropic's skills repository](https://github.com/anthropics/skills) includes example skills, a template, and the Agent Skills specification.
+- [skills.sh](https://skills.sh/) provides a searchable directory of skills published from public repositories.
+
+Read the skill's `SKILL.md` and supporting files before adding it. A skill can contain instructions and executable scripts, so its behavior comes from its contents rather than from its title.
+
+In Agenta, open **Add skill** and upload a skill folder, `.zip`, or `.skill` archive. Agenta reads the name and description from `SKILL.md` and keeps the supporting files in their relative paths.
+
+### Write your own skill
+
+Write a skill when the process belongs to your team or when an existing skill does not match the way you work. Start with the situation that should trigger the skill, then document the steps and add only the resources those steps require.
+
+For the marketing agent, a custom campaign-brief skill could define the questions to answer, the research sources to consult, and the final brief template. That separates the campaign process from the agent's standing marketing context.
+
+[Manage skills](/guides/manage-skills) shows how to upload a skill folder and how to create a skill manually in Agenta.
+
+## Related concepts
+
+- [Agents](/concepts/agents) explains how skills fit into an agent's configuration.
+- [Tools and integrations](/concepts/tools-and-integrations) provide the actions a skill can direct the agent to take.
+- [Files and knowledge](/concepts/files-and-knowledge) provide reference material that a skill can direct the agent to read.
+
