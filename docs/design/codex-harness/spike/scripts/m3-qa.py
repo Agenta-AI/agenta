@@ -14,9 +14,13 @@ deployment's own API, no Composio). Varies the tool's permission to exercise the
 
 For scenario 2 it then RESUMES from the parked state by re-invoking with the approval folded into
 the message history (the AI SDK `approval-responded` shape), and checks that the tool executes and
-the reply still knows a CODEWORD established in turn 1 (context survives the resume). Run with the
-runner freshly restarted to force the COLD path (2b); run immediately after the park for the
-warm-ish path (2a).
+the reply still knows a CODEWORD established in turn 1 (context survives the resume).
+
+NOTE: this driver only ever exercises the COLD resume. It rewrites the turn-1 text and appends a
+nudge message, so the request's prior conversation no longer matches what the parked session
+recorded and the runner's history guard correctly evicts to a cold replay. For the WARM
+keep-alive resume (the parked ACP gate answered on the live session, same tool-call id, no
+re-issue) use `codex-warm-approval-qa.py`, which re-invokes the way the playground does.
 
 Env (worktree .env): AGENTA_QA_HOST, AGENTA_QA_API_KEY, AGENTA_QA_PROJECT.
 Usage: uv run m3-qa.py allow | deny | ask | all
@@ -200,9 +204,14 @@ def run_deny():
         str(uuid.uuid4()), [user_msg("List my connections using the tool.")], "deny"
     )
     show("SCENARIO 3 DENY (should refuse, turn continues)", t)
-    denied = (
-        any("deni" in (json.dumps(o).lower()) for o in t["tool_outputs"])
-        or "deni" in t["reply"].lower()
+    # Since the codex-acp approval patch (2026-07-31) the denial lands at codex's own gate,
+    # BEFORE the tool call is issued, so the stream carries `tool-output-denied` — the same
+    # decline frame Claude produces. Under the old runner-side-only gate the call reached the
+    # MCP seam and came back as a `tool-output-error` saying "denied by policy", so matching on
+    # the word "denied" in the reply text no longer holds (the model says "rejected" just as
+    # often). Assert on the frame, which is the contract.
+    denied = "tool-output-denied" in t["frames"] or any(
+        "deni" in json.dumps(o).lower() for o in t["tool_outputs"]
     )
     print("PASS(deny: refused + continued):", denied and t["finish"] is not None)
     return t
