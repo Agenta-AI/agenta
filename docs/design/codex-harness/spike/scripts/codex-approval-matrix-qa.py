@@ -54,6 +54,11 @@ RUNNER_CONTAINER = os.environ.get(
     "RUNNER_CONTAINER", "agenta-ee-dev-codex-harness-runner-1"
 )
 MODEL = os.environ.get("MODEL", "gpt-5.6-luna")
+# `agenta` = managed vault key; `self_managed` = the operator's ChatGPT/Codex subscription login
+# (the runner authenticates from the mounted ~/.codex, credentialMode=runtime_provided). The
+# approval plane is identical on both — the patched bridge raises the same native gates — so the
+# matrix runs on either; CONNECTION_MODE=self_managed re-proves it on the subscription path.
+CONNECTION_MODE = os.environ.get("CONNECTION_MODE", "agenta")
 # Mirrors OWNER_TTL_SECONDS in services/runner/src/sessions/contract.ts.
 OWNER_TTL_SECONDS = 120
 
@@ -83,7 +88,7 @@ def template(permission, sandbox):
         "llm": {
             "model": MODEL,
             "provider": "openai",
-            "connection": {"mode": "agenta", "slug": None},
+            "connection": {"mode": CONNECTION_MODE, "slug": None},
             "extras": {},
         },
         "tools": [{"type": "platform", "op": TOOL, "permission": permission}],

@@ -29,7 +29,15 @@ codex-acp bridge (option c). All landed on this branch and QA'd live:
   1359 (87 files), SDK agents 698, typecheck + ruff clean.
 - **Deploy note:** the rebuilt snapshot (`agenta-agent-sandbox-v1`) exists only in the dev-box
   Daytona account. Cloud/self-host accounts must rerun the recipe to get warm approvals and the
-  5.6 model set on Daytona. An upstream codex-acp PR (to retire the patch) is NOT yet filed.
+  5.6 model set on Daytona.
+- **Gap-closing round (same day):** (1) Subscription mode re-proved post-patch
+  (`CONNECTION_MODE=self_managed`, warm park + same-id resume + deny, symlinked auth.json in the
+  log). (2) The upstream decoupling change is STAGED IN THE PERSONAL FORK ONLY per Mahmoud's
+  instruction — `mmabrouk/codex-acp#1` (draft, base and head both in the fork; `APPROVAL_POLICY`
+  env override + tests, their suite 335 green): send it upstream whenever ready, referencing
+  codex-acp#310. (3) The watchable UI proof is recorded (`reports/warm-approvals-ui-qa.mp4`).
+  (4) The release gate's `approve`/`deny` journeys now RUN for codex with an MCP-shaped probe
+  (X1 PASS live; non-codex branch re-verified on C3).
 
 ## Project state: SHIPPED AS ONE PR, awaiting Mahmoud review
 

@@ -17,20 +17,21 @@ cells would test the same code twice.
 | C4 | `pi_core` | `daytona` | `gpt-5.6-luna` | vault key (OpenAI) | Pi in a cloud sandbox; the remote-mount path that surfaced the silent file-loss finding (F-7). |
 | P1 | `pi_core` | `local` | `openrouter/deepseek/deepseek-v4-flash` | vault key (OpenRouter) | OpenRouter as a first-class native provider. |
 | S1 | `pi_core` | `local` | `gpt-5.6-luna` | subscription (Codex OAuth) | The ChatGPT/Codex subscription path via the sidecar, independent of any vault key. |
-| X1 | `codex` | `local` | `gpt-5.6-luna` | vault key (OpenAI) | The native Codex harness with a managed key. Since the D-008 amendment (2026-07-31, patched bridge), Agenta-tool calls raise codex-native approval gates that park warm; the `approve`/`deny` journeys still SKIP only because their probe is builtin-shell-shaped and codex shell stays gateless under full access (see below). |
+| X1 | `codex` | `local` | `gpt-5.6-luna` | vault key (OpenAI) | The native Codex harness with a managed key. Since the D-008 amendment (2026-07-31, patched bridge), Agenta-tool calls raise codex-native approval gates that park warm, and the `approve`/`deny` journeys RUN for codex with an MCP-shaped probe (the `list_connections` platform tool, per-tool `ask`) instead of the builtin-shell probe. Only `mcp` (Claude-only) and `mount` still SKIP (see below). |
 | P2 | `pi_core` | `local` | `deepseek/deepseek-v4-flash` | custom OpenAI-compatible provider | OpenRouter reached as a custom OpenAI-compatible endpoint — the path every self-hoster with a proxy or local vLLM uses, and the least-travelled one. Needs a `custom_provider` vault slug; pass `--custom-slug`. |
 
-The Codex cell (`X1`) runs `chat`, `tool`, `commit`, and `warm`; `mcp` SKIPs (Claude-only) and
-three journeys SKIP with a codex-specific reason because their probes are Pi/Claude-shaped:
+The Codex cell (`X1`) runs `chat`, `tool`, `commit`, `warm`, `approve`, and `deny`; `mcp` SKIPs
+(Claude-only) and `mount` SKIPs with a codex-specific reason:
 
-- `approve` / `deny` drive a builtin `bash` command with `ask`. Codex's default mode is
-  `agent-full-access`, and codex only raises exec (shell) approval when its filesystem sandbox is
-  restricted — full access is not — so this SHELL-shaped probe cannot park a codex run. Codex
-  MCP/Agenta TOOL calls, by contrast, DO raise codex-native `tool-approval-request` frames that
-  park warm since the D-008 amendment (2026-07-31, the patched codex-acp preset), verified across
-  {local, daytona} × {warm, cold} in `docs/design/codex-harness/reports/warm-approvals-qa.md`
-  (driver: `spike/scripts/codex-approval-matrix-qa.py`). A codex-shaped approve/deny journey that
-  probes with an MCP tool instead of builtin shell is a follow-up.
+- `approve` / `deny` RUN for codex with an MCP-shaped probe. The shared shell probe cannot park a
+  codex run — codex only raises exec (shell) approval when its filesystem sandbox is restricted,
+  and the default `agent-full-access` is not — but codex MCP/Agenta TOOL calls raise codex-native
+  `tool-approval-request` frames that park warm since the D-008 amendment (2026-07-31, the
+  patched codex-acp preset). So on codex the journey drives the self-contained
+  `list_connections` platform tool with per-tool `ask` instead of the `bash` builtin; the flow
+  and assertions are identical. Background QA:
+  `docs/design/codex-harness/reports/warm-approvals-qa.md` (driver:
+  `spike/scripts/codex-approval-matrix-qa.py`).
 - `mount` reads its token from a builtin-shell `tool-output-available` payload. Codex runs shell
   through native ACP exec frames whose output is not in that payload field, so the probe cannot
   extract the token even when the file persisted. A codex-shaped mount probe is a follow-up.

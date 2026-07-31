@@ -145,6 +145,14 @@ it, which turns a warm resume cold and reads as a failure.
 
 Local ran 20/20 checks green as a full sweep.
 
+**Subscription mode re-proved after the patch** (the patch changes subscription runs too — same
+bridge, so native gates now raise there as well; M4's QA predated it). With
+`CONNECTION_MODE=self_managed` (the operator's mounted ChatGPT/Codex login,
+`credentialMode=runtime_provided`): ask parks with one card, the warm resume keeps the parked
+tool-call id, the codeword survives, and deny refuses cleanly — 9/9 checks. The runner log confirms
+the real subscription path ran: `codex subscription auth.json symlinked <cwd>/.codex/auth.json ->
+/codex-home/auth.json`.
+
 **Cold 2 needs its method stated, because the wrong method measures the wrong thing.**
 
 - Use SIGKILL, not `docker restart`. On SIGTERM the runner runs its shutdown handler and DELETES
@@ -162,6 +170,34 @@ Local ran 20/20 checks green as a full sweep.
   genuinely cannot adopt it. A refusal is the right outcome, not a completed resume.
 - On DAYTONA, cold 2 completes with a NEW tool-call id. That is correct: cold 2 is a cold replay,
   so the model re-issues the call. Only the WARM cell should keep the original id.
+
+## The watchable proof — the real playground UI
+
+`warm-approvals-ui-qa.mp4` (frames from a live chrome-devtools session against the worktree
+deployment, agent `New agent`, harness Codex, the `Exact Match` workflow-reference tool, policy
+`Ask`): the ask-tool parks with a real approval card ("Approval needed to continue"), and every
+Approve resumes the SAME turn in place — visibly, because the model reads each tool result and
+reacts mid-turn (it retried the evaluator with corrected arguments after seeing its validation
+error, something a dead turn cannot do). The codeword planted in the user message survives to the
+final reply. The runner log for the exact window shows the same story with zero cold replays:
+
+```
+[keepalive] park-approval key=...:1bc8ddc5 tool=Exact Match
+[keepalive] resume key=...:1bc8ddc5 gates=1 answered=1 approve=1 reject=0 tool=Exact Match
+[keepalive] resume answered gate reply=once tool=Exact Match
+[keepalive] park ... state=awaiting_approval (re-park)        <- the model's next call parks again
+```
+
+(repeated for each approve — every one a live `resume`, none an eviction).
+
+## The release gate now covers codex approvals
+
+`agent-release-gate` `qa_product.py`'s `approve`/`deny` journeys no longer skip codex: on codex
+they probe with the `list_connections` platform tool (per-tool `ask`) instead of the builtin
+shell, same flow and assertions. Verified live: X1 approve PASS + deny PASS, and the untouched
+non-codex branch re-verified on C3 (Pi) approve PASS + deny PASS. (C1, Claude-subscription,
+cannot run on this stack — no mounted Claude login — and the project vault has no Anthropic key,
+so the Claude branch is covered by the byte-identical diff plus the Pi run.)
 
 ## Note on `m3-qa.py` and the history guard
 

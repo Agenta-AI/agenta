@@ -551,34 +551,37 @@ def j3_tool(cell: dict) -> dict:
 
 
 def _approval_flow(cell: dict, approved: bool) -> dict:
-    """J4: with permission default `ask`, a tool call must PAUSE with a tool-approval-request,
-    then resume on the user's decision — the same in-band protocol the browser uses."""
-    # Codex shell stays gateless under the default `agent-full-access` mode: codex only raises
-    # exec approval when its filesystem sandbox is restricted, and full access is not, so this
-    # journey's builtin `bash` probe cannot park a codex run (the container is the boundary
-    # there). Codex MCP/Agenta TOOL approvals, by contrast, DO raise codex-native
-    # `tool-approval-request` frames that park warm since the D-008 amendment (2026-07-31, the
-    # patched codex-acp full-access preset) — verified across {local, daytona} x {warm, cold} in
-    # docs/design/codex-harness/reports/warm-approvals-qa.md. A codex-shaped approve/deny journey
-    # probing with an MCP tool instead of builtin shell is a follow-up.
-    if cell["harness"] == "codex":
-        return {
-            "skip": True,
-            "why": (
-                "codex runs shell gateless under agent-full-access (exec approval only fires "
-                "under a restricted sandbox), so this builtin-shell probe cannot park it; codex "
-                "MCP-tool approvals park warm via native gates (D-008 amendment) and are covered "
-                "by the codex-approval-matrix QA, not this journey."
-            ),
-        }
+    """J4: with permission `ask`, a tool call must PAUSE with a tool-approval-request, then
+    resume on the user's decision — the same in-band protocol the browser uses.
+
+    The probe differs per harness because the gates live in different places. Claude/Pi gate the
+    builtin `bash`, so the probe is a shell command. Codex shell stays gateless under the default
+    `agent-full-access` mode (codex only raises exec approval when its filesystem sandbox is
+    restricted, and full access is not), but codex MCP/Agenta TOOL calls raise codex-native
+    `tool-approval-request` frames that park warm since the D-008 amendment (2026-07-31, the
+    patched codex-acp full-access preset). So the codex probe is the self-contained
+    `list_connections` platform tool with per-tool `permission: "ask"` — empty arguments, so the
+    resume matches on input exactly. Verified across {local, daytona} x {warm, cold} in
+    docs/design/codex-harness/reports/warm-approvals-qa.md.
+    """
     s = str(uuid.uuid4())
-    params = template(
-        cell,
-        tools=[BASH_TOOL],
-        instructions="Use the bash tool when asked to run a command. Report only its stdout.",
-        permission_default="ask",
-    )
-    msgs = [user_msg(MUTATE_PROMPT)]
+    if cell["harness"] == "codex":
+        params = template(
+            cell,
+            tools=[{"type": "platform", "op": "list_connections", "permission": "ask"}],
+            instructions=(
+                "Be terse. When asked to list connections, call the list_connections tool."
+            ),
+        )
+        msgs = [user_msg("List my connections using the list_connections tool.")]
+    else:
+        params = template(
+            cell,
+            tools=[BASH_TOOL],
+            instructions="Use the bash tool when asked to run a command. Report only its stdout.",
+            permission_default="ask",
+        )
+        msgs = [user_msg(MUTATE_PROMPT)]
     t1 = invoke(s, msgs, params)
 
     if not t1.approval:
