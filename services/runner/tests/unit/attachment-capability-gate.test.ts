@@ -48,13 +48,17 @@ describe("attachment capability gate", () => {
     }
   });
 
-  it("distinguishes a known model that does not support images", () => {
-    assert.equal(
+  it("treats absence from a positive modality list as unknown", () => {
+    assert.deepEqual(
       attachmentCapabilityGate({
         ...IMAGE_INPUT,
         modelCapabilities: { inputModalities: ["text"] },
-      }).reasonCode,
-      "model_modality_unsupported",
+      }),
+      {
+        outcome: "workspace_only",
+        reasonCode: "model_modality_unknown",
+        kind: "image",
+      },
     );
   });
 

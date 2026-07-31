@@ -96,13 +96,6 @@ const NATIVE_IMAGE_TYPES = new Set([
   "image/gif",
   "image/webp",
 ]);
-const KNOWN_MODEL_MODALITIES = new Set([
-  "text",
-  "image",
-  "audio",
-  "document",
-  "documents",
-]);
 const CLAUDE_INLINE_BASE64_MAX_BYTES = 10 * 1024 * 1024;
 const DEFAULT_RESTORE_CONCURRENCY = 4;
 const DEFAULT_RESTORE_TIMEOUT_MS = 15_000;
@@ -439,22 +432,20 @@ function adapterSupports(
 function modelModalityState(
   modalities: string[] | undefined,
   kind: AttachmentGate["kind"],
-): "supported" | "unsupported" | "unknown" {
+): "supported" | "unknown" {
   if (!Array.isArray(modalities) || modalities.length === 0) {
     return "unknown";
   }
   const normalized = modalities.map((value) =>
     String(value).trim().toLowerCase(),
   );
-  if (!normalized.some((value) => KNOWN_MODEL_MODALITIES.has(value))) {
-    return "unknown";
-  }
   const supported =
     kind === "document"
       ? normalized.includes("document") ||
         normalized.includes("documents")
       : normalized.includes(kind);
-  return supported ? "supported" : "unsupported";
+  // Catalog modality lists are positive declarations, so absence is not a negative capability.
+  return supported ? "supported" : "unknown";
 }
 
 function base64Length(byteLength: number): number {
@@ -503,13 +494,6 @@ export function attachmentCapabilityGate(input: {
     return {
       outcome: "workspace_only",
       reasonCode: "model_modality_unknown",
-      kind,
-    };
-  }
-  if (modelState === "unsupported") {
-    return {
-      outcome: "workspace_only",
-      reasonCode: "model_modality_unsupported",
       kind,
     };
   }
