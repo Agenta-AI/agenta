@@ -54,7 +54,6 @@ import {
   restoreReferencedWorkingCopies,
   type AcpPromptBlock,
 } from "./attachments.ts";
-import { attachmentDeliveryUnsupportedMessage } from "./capabilities.ts";
 import { conciseError } from "./errors.ts";
 import {
   PAUSED,
@@ -107,6 +106,7 @@ export async function runTurn(
   opts: RunTurnOptions = {},
 ): Promise<AgentRunResult> {
   const { plan, logger, deps } = env;
+  const credential = opts.credential ?? (() => runCredential(request));
   const sessionId = env.sessionId;
   // Race marker for a user Stop (the control-plane `cancel`/`steer` command drops the alive lock, the
   // heartbeat aborts `signal`). Distinct from PAUSED/RUN_LIMIT_TRIPPED so the turn ends CLEANLY
@@ -162,6 +162,8 @@ export async function runTurn(
   });
 
   try {
+    // AGENTA_SESSIONS_RECONSTRUCT defaults on so minimal-history clients keep their conversation;
+    // only the literal "false" opts out. The compose default supplies an empty string, not "true".
     // Server-side history reconstruction rebuilds prior turns from the durable record log.
     // The server already persisted this turn, so reconstruction filters its turn id.
     // Reassign `request` so every downstream reader sees the same reconstructed history.
@@ -192,7 +194,7 @@ export async function runTurn(
         plan,
         messages,
         sessionId,
-        () => runCredential(request),
+        credential,
         { log: logger },
       );
     };
@@ -200,7 +202,7 @@ export async function runTurn(
       reconstructed = await reconstructHistoryIfNeeded(
         request,
         sessionId,
-        () => runCredential(request),
+        credential,
         logger,
         !opts.continuation && !opts.resume
           ? { restore: restoreHistoricalWorkingCopies }
@@ -291,36 +293,41 @@ export async function runTurn(
           ? await resolveCurrentTurnAttachments({
               message: current.message,
               sessionId,
-              auth: () => runCredential(request),
+              auth: credential,
               sandbox: env.sandbox,
               plan,
               capabilities: env.capabilities,
               modelCapabilities: request.modelCapabilities,
+              provider: request.provider,
               emit: (event) => run.emitEvent(event),
             })
           : [];
       const legacyImages = collectLegacyInlineImages(current.message);
+      const nativeLegacyImages = [];
       for (const image of legacyImages) {
         const gate = attachmentCapabilityGate({
-          harness: plan.harness,
           acpAgent: plan.acpAgent,
+          provider: request.provider,
           capabilities: env.capabilities,
           modelCapabilities: { inputModalities: ["image"] },
           mediaType: image.mimeType,
           byteLength: Buffer.from(image.data, "base64").byteLength,
-          requireNative: true,
         });
-        if (gate.outcome !== "native") {
-          throw new Error(
-            attachmentDeliveryUnsupportedMessage(
-              plan.harness,
-              gate.kind,
-              gate.missing ?? gate.reasonCode,
-            ),
+        if (gate.outcome === "native") {
+          nativeLegacyImages.push(image);
+        } else {
+          logger(
+            `[attachments] legacy inline image degraded kind=${gate.kind} ` +
+              `reason=${gate.reasonCode}`,
           );
         }
       }
-      promptBlocks = buildPromptBlocks(turnText, resolved, legacyImages);
+      promptBlocks = buildPromptBlocks(
+        turnText,
+        resolved,
+        nativeLegacyImages,
+        current.text,
+      );
     }
 
     const sessionTurnClient = deps.appendSessionTurn ?? appendSessionTurn;

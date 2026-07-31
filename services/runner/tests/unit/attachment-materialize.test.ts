@@ -99,12 +99,18 @@ describe("attachment materialization", () => {
 
   it("writes identical bytes through the Daytona filesystem API", async () => {
     const written = new Map<string, Uint8Array>();
+    const operations: string[] = [];
     const sandbox = {
-      mkdirFs: async () => {},
+      mkdirFs: async () => {
+        operations.push("mkdir");
+      },
       statFs: async () => {
         throw new Error("missing");
       },
-      runProcess: async () => ({ exitCode: 1 }),
+      runProcess: async ({ timeoutMs }: { timeoutMs?: number }) => {
+        operations.push(`symlink-check:${timeoutMs}`);
+        return { exitCode: 1 };
+      },
       writeFsFile: async (
         { path }: { path: string },
         body: Uint8Array,
@@ -129,6 +135,12 @@ describe("attachment materialization", () => {
       written.get(attachmentWorkingPath(cwd, ref).absolute),
       bytes,
     );
+    assert.deepEqual(operations, [
+      "symlink-check:15000",
+      "symlink-check:15000",
+      "symlink-check:15000",
+      "mkdir",
+    ]);
   });
 
   it("restores referenced copies with bounded concurrency and never overwrites", async () => {
@@ -149,12 +161,14 @@ describe("attachment materialization", () => {
     );
     let active = 0;
     let maxActive = 0;
+    const fetchedIds: string[] = [];
     vi.stubGlobal("fetch", async (input: Parameters<typeof fetch>[0]) => {
       active += 1;
       maxActive = Math.max(maxActive, active);
       await new Promise((resolve) => setTimeout(resolve, 5));
       active -= 1;
       const id = ids.find((candidate) => String(input).includes(candidate));
+      if (id) fetchedIds.push(id);
       return new Response(new Uint8Array([1]), {
         status: 200,
         headers: {
@@ -169,7 +183,7 @@ describe("attachment materialization", () => {
         content: ids.map((attachmentId) => ({
           type: "attachment",
           attachmentId,
-          filename: "untrusted.png",
+          filename: attachmentId === ids[0] ? ".png" : "untrusted.png",
         })),
       },
     ];
@@ -184,6 +198,8 @@ describe("attachment materialization", () => {
     );
 
     assert.ok(maxActive <= 2);
+    assert.equal(fetchedIds.includes(ids[0]), false, "existing copy skips fetch");
+    assert.equal(fetchedIds.length, ids.length - 1);
     assert.deepEqual(
       readFileSync(attachmentWorkingPath(cwd, existing).absolute),
       Buffer.from([9]),
@@ -193,6 +209,71 @@ describe("attachment materialization", () => {
         ? restored[0].content[0].filename
         : undefined,
       `.png`,
+    );
+  });
+
+  it("a failed historical restore is survivable", async () => {
+    const cwd = root();
+    const logs: string[] = [];
+    vi.stubGlobal("fetch", async (input: Parameters<typeof fetch>[0]) => {
+      if (String(input).includes(ID_ONE)) {
+        return new Response("gone", { status: 404 });
+      }
+      return new Response(new Uint8Array([7, 8]), {
+        status: 200,
+        headers: {
+          "content-type": "text/plain",
+          "content-disposition": "attachment; filename=healthy.txt",
+        },
+      });
+    });
+    const messages = [
+      {
+        role: "user",
+        content: [
+          {
+            type: "attachment",
+            attachmentId: ID_ONE,
+            filename: "report.pdf",
+          },
+          {
+            type: "attachment",
+            attachmentId: ID_TWO,
+            filename: "healthy.txt",
+          },
+        ],
+      },
+    ];
+
+    const restored = await restoreReferencedWorkingCopies(
+      {},
+      { cwd, isDaytona: false },
+      messages,
+      "session-1",
+      () => "ApiKey test",
+      { log: (message) => logs.push(message) },
+    );
+
+    assert.deepEqual(
+      readFileSync(
+        attachmentWorkingPath(cwd, {
+          attachmentId: ID_TWO,
+          filename: "healthy.txt",
+        }).absolute,
+      ),
+      Buffer.from([7, 8]),
+    );
+    assert.equal(
+      Array.isArray(restored[0].content)
+        ? restored[0].content[0].text
+        : undefined,
+      "[attached file: report.pdf - no longer available]",
+    );
+    assert.ok(
+      logs.some(
+        (message) =>
+          message.includes(ID_ONE) && message.includes("no longer available"),
+      ),
     );
   });
 });

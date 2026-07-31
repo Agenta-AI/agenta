@@ -44,7 +44,10 @@ export interface ChatMessage {
 
 export interface AttachmentRef {
   attachmentId: string;
-  /** Wire display fields are never trusted; delivery re-reads authoritative values from the API. */
+  /**
+   * Delivery never trusts wire display fields and re-reads them from the attachment API. Transcript
+   * replay may render the record-sourced fields the runner previously persisted for a warm turn.
+   */
   filename?: string;
   mediaType?: string;
   size?: number;

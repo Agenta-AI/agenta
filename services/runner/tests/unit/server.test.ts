@@ -7,7 +7,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/server.test.ts)
  */
-import { afterEach, describe, it } from "vitest";
+import { afterEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import * as http from "node:http";
 import type { AddressInfo } from "node:net";
@@ -26,6 +26,7 @@ const LIMIT_ENV = "AGENTA_RUNNER_CONCURRENCY_LIMIT";
 const previousLimit = process.env[LIMIT_ENV];
 
 afterEach(() => {
+  vi.restoreAllMocks();
   if (previousToken === undefined) delete process.env[TOKEN_ENV];
   else process.env[TOKEN_ENV] = previousToken;
   if (previousLimit === undefined) delete process.env[LIMIT_ENV];
@@ -428,6 +429,77 @@ describe("createAgentServer", () => {
         "terminal result does not echo events",
       );
     } finally {
+      await s.close();
+    }
+  });
+
+  it("rejects an over-cap session turn before persistence or attachment claiming", async () => {
+    const attachmentIds = [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+      "33333333-3333-4333-8333-333333333333",
+      "44444444-4444-4444-8444-444444444444",
+      "55555555-5555-4555-8555-555555555555",
+      "66666666-6666-4666-8666-666666666666",
+    ];
+    let runCalls = 0;
+    const s = await listen(async () => {
+      runCalls += 1;
+      return { ok: true, output: "should not run", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const sessionApiCalls: string[] = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        sessionApiCalls.push(url);
+        return new Response("{}", { status: 200 });
+      });
+
+    try {
+      const res = await fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sessionId: "session-1",
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "ApiKey test" },
+              },
+            },
+          },
+          messages: [
+            {
+              role: "user",
+              content: attachmentIds.map((attachmentId) => ({
+                type: "attachment",
+                attachmentId,
+              })),
+            },
+          ],
+        }),
+      });
+      const records = (await res.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      assert.equal(runCalls, 0);
+      assert.deepEqual(sessionApiCalls, []);
+      assert.equal(records.length, 1);
+      assert.equal(records[0].kind, "result");
+      assert.equal(records[0].result.ok, false);
+      assert.equal(
+        records[0].result.error,
+        "A user turn may carry at most 5 attachments.",
+      );
+    } finally {
+      fetchSpy.mockRestore();
       await s.close();
     }
   });

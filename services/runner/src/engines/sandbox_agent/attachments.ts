@@ -29,17 +29,15 @@ export type AttachmentDeliveryOutcome =
   | "workspace_only"
   | "failed";
 
-export type AttachmentReasonCode =
+export type AttachmentDeliveryReasonCode =
   | "transport_unsupported"
   | "adapter_unsupported"
   | "model_modality_unknown"
   | "model_modality_unsupported"
   | "provider_inline_cap"
   | "fetch_failed"
-  | "contract_violation";
-
-export type AttachmentDeliveryReasonCode =
-  | AttachmentReasonCode
+  | "materialize_failed"
+  | "contract_violation"
   | "native_supported";
 
 export interface AttachmentPath {
@@ -58,8 +56,8 @@ export interface AttachmentGate {
 
 export interface ResolvedAttachment {
   ref: AttachmentRef;
-  bytes: Uint8Array;
-  path: AttachmentPath;
+  bytes?: Uint8Array;
+  path?: AttachmentPath;
   gate: AttachmentGate;
 }
 
@@ -79,6 +77,7 @@ export interface AttachmentSandbox {
   runProcess?: (query: {
     command: string;
     args: string[];
+    timeoutMs?: number;
   }) => Promise<{ exitCode?: number } | undefined>;
 }
 
@@ -159,7 +158,9 @@ export function collectAttachmentRefs(
   message: ChatMessage | null,
 ): AttachmentRef[] {
   if (!message) return [];
-  // Wire display fields are never trusted; API response headers replace them before use.
+  // Attachment refs deliberately belong only to user messages, so reuse currentUserTurn to
+  // enforce that role coupling. Current-turn delivery replaces wire display fields from the API;
+  // transcript replay may reuse fields from records the runner previously wrote.
   return currentUserTurn({ messages: [message] }).attachments;
 }
 
@@ -207,12 +208,24 @@ export function collectLegacyInlineImages(
   return images;
 }
 
+export function validateRef(
+  ref: AttachmentRef,
+): asserts ref is AttachmentRef & { filename: string } {
+  assertCanonicalAttachmentId(ref.attachmentId);
+  validatedFilename(ref);
+}
+
+export function relativeAttachmentPath(ref: AttachmentRef): string {
+  validateRef(ref);
+  return posix.join("attachments", ref.attachmentId, ref.filename);
+}
+
 export function attachmentWorkingPath(
   cwd: string,
   ref: AttachmentRef,
 ): AttachmentPath {
-  assertCanonicalAttachmentId(ref.attachmentId);
-  const filename = validatedFilename(ref);
+  validateRef(ref);
+  const filename = ref.filename;
   const root = resolve(cwd, "attachments");
   const directory = resolve(root, ref.attachmentId);
   const absolute = resolve(directory, filename);
@@ -224,13 +237,29 @@ export function attachmentWorkingPath(
     root,
     directory,
     absolute,
-    relative: posix.join("attachments", ref.attachmentId, filename),
+    relative: relativeAttachmentPath(ref),
   };
 }
 
 export function attachmentMention(ref: AttachmentRef): string {
-  const path = attachmentWorkingPath("/", ref);
-  return "[attached file: " + ref.filename + " at " + path.relative + "]";
+  validateRef(ref);
+  return (
+    "[attached file: " +
+    ref.filename +
+    " at " +
+    relativeAttachmentPath(ref) +
+    "]"
+  );
+}
+
+export function unavailableAttachmentMention(ref: AttachmentRef): string {
+  let filename = "attachment";
+  try {
+    filename = validatedFilename(ref);
+  } catch {
+    // A missing fetch leaves no authoritative filename. Do not render an unsafe wire value.
+  }
+  return "[attached file: " + filename + " - no longer available]";
 }
 
 function fileSystemError(error: unknown): NodeJS.ErrnoException {
@@ -318,6 +347,7 @@ async function rejectDaytonaSymlinks(
     const result = await sandbox.runProcess({
       command: "test",
       args: ["-L", path],
+      timeoutMs: 15_000,
     });
     if (result?.exitCode === 0) {
       throw new Error("attachment path contains a symbolic link");
@@ -337,12 +367,12 @@ async function daytonaMaterialize(
   ) {
     throw new Error("Daytona sandbox lacks attachment filesystem operations");
   }
-  await sandbox.mkdirFs({ path: path.directory });
   await rejectDaytonaSymlinks(sandbox, [
     path.root,
     path.directory,
     path.absolute,
   ]);
+  await sandbox.mkdirFs({ path: path.directory });
 
   // Daytona has no exclusive create; this check-then-write race is accepted.
   try {
@@ -431,8 +461,8 @@ function base64Length(byteLength: number): number {
 }
 
 export function attachmentCapabilityGate(input: {
-  harness: string;
   acpAgent: string;
+  provider?: string;
   capabilities: HarnessCapabilities;
   modelCapabilities?: AgentRunRequest["modelCapabilities"];
   mediaType: string;
@@ -483,9 +513,14 @@ export function attachmentCapabilityGate(input: {
     };
   }
 
+  const provider = input.provider?.trim().toLowerCase();
+  // Older callers omit provider, so retain the ACP-agent heuristic only as that fallback.
+  const usesAnthropicInlineLimit = provider
+    ? provider === "anthropic"
+    : input.acpAgent === "claude";
   if (
     kind === "image" &&
-    input.acpAgent === "claude" &&
+    usesAnthropicInlineLimit &&
     base64Length(input.byteLength) > CLAUDE_INLINE_BASE64_MAX_BYTES
   ) {
     return {
@@ -502,12 +537,14 @@ export function buildPromptBlocks(
   turnText: string,
   resolved: readonly ResolvedAttachment[],
   legacyImages: readonly InlineImage[] = [],
+  latestUserText: string = turnText,
 ): AcpPromptBlock[] {
   const blocks: AcpPromptBlock[] = [];
   for (const attachment of resolved) {
     if (
       attachment.gate.outcome === "native" &&
-      attachment.gate.kind === "image"
+      attachment.gate.kind === "image" &&
+      attachment.bytes
     ) {
       blocks.push({
         type: "image",
@@ -521,11 +558,31 @@ export function buildPromptBlocks(
   }
 
   const mentions = resolved.map((attachment) =>
-    attachmentMention(attachment.ref),
+    attachment.gate.outcome === "failed"
+      ? unavailableAttachmentMention(attachment.ref)
+      : attachmentMention(attachment.ref),
   );
+  let text = turnText;
+  if (mentions.length > 0) {
+    const renderedMentions = mentions.join("\n");
+    if (latestUserText && turnText.endsWith(latestUserText)) {
+      text =
+        turnText.slice(0, -latestUserText.length) +
+        renderedMentions +
+        "\n" +
+        latestUserText;
+    } else if (
+      !latestUserText &&
+      turnText.endsWith("Continue the conversation. The user now says:\n")
+    ) {
+      text = turnText + renderedMentions;
+    } else {
+      text = [renderedMentions, turnText].filter(Boolean).join("\n");
+    }
+  }
   blocks.push({
     type: "text",
-    text: [...mentions, ...(turnText ? [turnText] : [])].join("\n"),
+    text,
   });
   return blocks;
 }
@@ -562,6 +619,37 @@ function verifiedRef(
   };
 }
 
+async function workingCopyExists(
+  sandbox: AttachmentSandbox,
+  plan: MaterializePlan,
+  ref: AttachmentRef,
+): Promise<boolean> {
+  const path = attachmentWorkingPath(plan.cwd, ref);
+  if (plan.isDaytona) {
+    if (typeof sandbox.statFs !== "function") return false;
+    await rejectDaytonaSymlinks(sandbox, [
+      path.root,
+      path.directory,
+      path.absolute,
+    ]);
+    try {
+      await sandbox.statFs({ path: path.absolute });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  rejectLocalSymlinks([path.root, path.directory, path.absolute]);
+  try {
+    lstatSync(path.absolute);
+    return true;
+  } catch (error) {
+    if (fileSystemError(error).code === "ENOENT") return false;
+    throw error;
+  }
+}
+
 export async function restoreReferencedWorkingCopies(
   sandbox: AttachmentSandbox,
   plan: MaterializePlan,
@@ -581,6 +669,7 @@ export async function restoreReferencedWorkingCopies(
   for (const ref of refs) unique.set(ref.attachmentId, ref);
   const pending = [...unique.values()];
   const resolved = new Map<string, AttachmentRef>();
+  const failed = new Map<string, AttachmentRef>();
   const concurrency = options.concurrency ?? attachmentRestoreConcurrency();
   const timeoutMs = options.timeoutMs ?? attachmentRestoreTimeoutMs();
   const log = options.log ?? (() => {});
@@ -589,39 +678,58 @@ export async function restoreReferencedWorkingCopies(
     while (pending.length > 0) {
       const ref = pending.shift();
       if (!ref) return;
-      await withTimeout(
-        (async () => {
-          assertCanonicalAttachmentId(ref.attachmentId);
-          const fetched = await fetchAttachment(
-            sessionId,
-            ref.attachmentId,
-            auth,
-          );
-          if (!fetched) throw new Error("attachment working copy restore failed");
-          const authoritative = verifiedRef(ref, fetched);
-          await materializeWorkingCopy(
-            sandbox,
-            plan,
-            authoritative,
-            fetched.bytes,
-          );
-          resolved.set(ref.attachmentId, authoritative);
-        })(),
-        timeoutMs,
-      ).catch((error) => {
+      try {
+        await withTimeout(
+          (async () => {
+            assertCanonicalAttachmentId(ref.attachmentId);
+            let recordPathIsUsable = true;
+            try {
+              validatedFilename(ref);
+            } catch {
+              recordPathIsUsable = false;
+            }
+            if (
+              recordPathIsUsable &&
+              (await workingCopyExists(sandbox, plan, ref))
+            ) {
+              // Historical refs come from runner-written durable records. Once their working copy
+              // exists, those record-sourced display fields are sufficient and no download is due.
+              resolved.set(ref.attachmentId, ref);
+              return;
+            }
+            const fetched = await fetchAttachment(
+              sessionId,
+              ref.attachmentId,
+              auth,
+            );
+            if (!fetched) {
+              throw new Error("attachment content is no longer available");
+            }
+            const authoritative = verifiedRef(ref, fetched);
+            await materializeWorkingCopy(
+              sandbox,
+              plan,
+              authoritative,
+              fetched.bytes,
+            );
+            resolved.set(ref.attachmentId, authoritative);
+          })(),
+          timeoutMs,
+        );
+      } catch (error) {
+        failed.set(ref.attachmentId, ref);
         log(
-          "attachment restore FAILED: " +
+          `attachment restore FAILED attachment=${ref.attachmentId}: ` +
             String(error instanceof Error ? error.message : error).slice(
               0,
               120,
             ),
         );
-        throw new Error("attachment working copy restore failed");
-      });
+      }
     }
   };
 
-  await Promise.all(
+  await Promise.allSettled(
     Array.from(
       { length: Math.min(concurrency, pending.length) },
       () => worker(),
@@ -640,14 +748,18 @@ export async function restoreReferencedWorkingCopies(
           return block;
         }
         const authoritative = resolved.get(block.attachmentId);
-        return authoritative
-          ? {
-              ...block,
-              attachmentId: authoritative.attachmentId,
-              filename: authoritative.filename,
-              mimeType: authoritative.mediaType,
-              size: authoritative.size,
-            }
+        if (authoritative) {
+          return {
+            ...block,
+            attachmentId: authoritative.attachmentId,
+            filename: authoritative.filename,
+            mimeType: authoritative.mediaType,
+            size: authoritative.size,
+          };
+        }
+        const unavailable = failed.get(block.attachmentId);
+        return unavailable
+          ? { type: "text", text: unavailableAttachmentMention(unavailable) }
           : block;
       }),
     };
@@ -662,6 +774,7 @@ export async function resolveCurrentTurnAttachments(input: {
   plan: DeliveryPlan;
   capabilities: HarnessCapabilities;
   modelCapabilities?: AgentRunRequest["modelCapabilities"];
+  provider?: string;
   emit: (event: {
     type: "attachment_delivery";
     attachmentId: string;
@@ -699,7 +812,14 @@ export async function resolveCurrentTurnAttachments(input: {
         outcome: "failed",
         reasonCode: "fetch_failed",
       });
-      failure ??= new Error("Attachment could not be fetched for this session.");
+      resolved.push({
+        ref,
+        gate: {
+          outcome: "failed",
+          reasonCode: "fetch_failed",
+          kind: attachmentKind(ref.mediaType),
+        },
+      });
       continue;
     }
 
@@ -718,15 +838,22 @@ export async function resolveCurrentTurnAttachments(input: {
         type: "attachment_delivery",
         attachmentId: ref.attachmentId,
         outcome: "failed",
-        reasonCode: "contract_violation",
+        reasonCode: "materialize_failed",
       });
-      failure ??= new Error("Attachment delivery failed.");
+      resolved.push({
+        ref: authoritative,
+        gate: {
+          outcome: "failed",
+          reasonCode: "materialize_failed",
+          kind: attachmentKind(authoritative.mediaType),
+        },
+      });
       continue;
     }
 
     const gate = attachmentCapabilityGate({
-      harness: input.plan.harness,
       acpAgent: input.plan.acpAgent,
+      provider: input.provider,
       capabilities: input.capabilities,
       modelCapabilities: input.modelCapabilities,
       mediaType: authoritative.mediaType ?? "",

@@ -8,6 +8,7 @@ import {
   type ResolvedToolSpec,
   type SandboxPermission,
   currentUserTurn,
+  resolvePromptText,
 } from "../../protocol.ts";
 import { executableToolSpecs } from "../../tools/public-spec.ts";
 import { attachmentCountError } from "../../sessions/attachments.ts";
@@ -320,10 +321,12 @@ export function buildRunPlan(
   // gate from the durable interaction row, not from the conversation. Its prior turns are rebuilt
   // from the record log inside `runTurn` (`reconstructHistoryIfNeeded`), which runs AFTER this
   // plan is built — so rejecting here would kill the run before the conversation could be
-  // supplied. Every other empty-prompt request is still a caller bug and fails loudly.
+  // supplied. A historical user prompt also keeps structured continuation tails valid; only a
+  // request with no current attachment, no approval reply, and no user text anywhere is rejected.
   if (
     !turn.text &&
     turn.attachments.length === 0 &&
+    !resolvePromptText(request) &&
     !carriesApprovalReplyOnly(request)
   ) {
     return {

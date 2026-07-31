@@ -202,13 +202,9 @@ describe("assertRequiredCapabilities (fail loud on tool delivery)", () => {
 
 describe("pinned attachment adapter fidelity", () => {
   it("keeps native image support on both pinned adapters", () => {
-    for (const [harness, acpAgent] of [
-      ["claude", "claude"],
-      ["pi_core", "pi"],
-    ] as const) {
+    for (const acpAgent of ["claude", "pi"] as const) {
       assert.equal(
         attachmentCapabilityGate({
-          harness,
           acpAgent,
           capabilities: { images: true },
           modelCapabilities: { inputModalities: ["image"] },

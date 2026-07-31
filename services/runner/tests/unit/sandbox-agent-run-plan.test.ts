@@ -78,14 +78,22 @@ describe("buildRunPlan", () => {
   });
 
   it("rejects more than the configured current-turn attachment count", () => {
+    const attachmentIds = [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+      "33333333-3333-4333-8333-333333333333",
+      "44444444-4444-4444-8444-444444444444",
+      "55555555-5555-4555-8555-555555555555",
+      "66666666-6666-4666-8666-666666666666",
+    ];
     const result = buildRunPlan(
       {
         messages: [
           {
             role: "user",
-            content: Array.from({ length: 6 }, (_, index) => ({
+            content: attachmentIds.map((attachmentId) => ({
               type: "attachment",
-              attachmentId: `11111111-1111-4111-8111-11111111111`,
+              attachmentId,
             })),
           },
         ],
@@ -153,6 +161,90 @@ describe("buildRunPlan", () => {
       result.ok && result.plan.turnText.includes("user APPROVED Write"),
       "the plan's turn text carries the approval-resume frame",
     );
+  });
+
+  it("accepts an in-band approval reply carrying the full transcript", () => {
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        messages: [
+          { role: "user", content: "write the report" },
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_call",
+                toolCallId: "tc-1",
+                toolName: "Write",
+                input: { path: "report.md" },
+              },
+            ],
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "tool_result",
+                toolCallId: "tc-1",
+                toolName: "Write",
+                output: { approved: true, interactionToken: "tok-1" },
+              },
+            ],
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+  });
+
+  it("accepts a tool-role tail when an earlier user message supplies the prompt", () => {
+    const result = buildRunPlan(
+      {
+        messages: [
+          { role: "user", content: "inspect the repository" },
+          {
+            role: "tool",
+            content: [
+              {
+                type: "tool_result",
+                toolCallId: "tc-1",
+                toolName: "read",
+                output: "contents",
+              },
+            ],
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+  });
+
+  it("accepts a client-tool-result tail when an earlier user message supplies the prompt", () => {
+    const result = buildRunPlan(
+      {
+        messages: [
+          { role: "user", content: "collect the form response" },
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_result",
+                toolCallId: "client-1",
+                toolName: "request_input",
+                output: { value: "approved by finance" },
+              },
+            ],
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
   });
 
   it("normalizes an Agenta/Pi local run and filters executable tools", () => {

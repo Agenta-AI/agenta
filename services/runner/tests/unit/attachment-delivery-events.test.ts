@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it, vi } from "vitest";
 
-import { resolveCurrentTurnAttachments } from "../../src/engines/sandbox_agent/attachments.ts";
+import {
+  buildPromptBlocks,
+  resolveCurrentTurnAttachments,
+} from "../../src/engines/sandbox_agent/attachments.ts";
 import type { AgentEvent, ChatMessage } from "../../src/protocol.ts";
 import { buildPersistingEmitter } from "../../src/sessions/persist.ts";
 
@@ -105,7 +108,7 @@ describe("attachment delivery events", () => {
     );
   });
 
-  it("emits every outcome before failing a mixed current turn", async () => {
+  it("degrades a mixed current turn while emitting every outcome", async () => {
     vi.stubGlobal(
       "fetch",
       async (input: Parameters<typeof fetch>[0]) => {
@@ -126,31 +129,28 @@ describe("attachment delivery events", () => {
     roots.push(cwd);
     const events: AgentEvent[] = [];
 
-    await assert.rejects(
-      () =>
-        resolveCurrentTurnAttachments({
-          message: {
-            role: "user",
-            content: IDS.map((attachmentId) => ({
-              type: "attachment",
-              attachmentId,
-            })),
-          },
-          sessionId: "session-1",
-          auth: () => "ApiKey test",
-          sandbox: {},
-          plan: {
-            cwd,
-            isDaytona: false,
-            acpAgent: "pi",
-            harness: "pi_core",
-          },
-          capabilities: { images: true },
-          modelCapabilities: { inputModalities: ["image"] },
-          emit: (event) => events.push(event),
-        }),
-      /could not be fetched/,
-    );
+    const resolved = await resolveCurrentTurnAttachments({
+      message: {
+        role: "user",
+        content: IDS.map((attachmentId) => ({
+          type: "attachment",
+          attachmentId,
+        })),
+      },
+      sessionId: "session-1",
+      auth: () => "ApiKey test",
+      sandbox: {},
+      plan: {
+        cwd,
+        isDaytona: false,
+        acpAgent: "pi",
+        harness: "pi_core",
+      },
+      capabilities: { images: true },
+      modelCapabilities: { inputModalities: ["image"] },
+      emit: (event) => events.push(event),
+    });
+    assert.equal(resolved.length, 2);
     assert.deepEqual(
       events.map((event) =>
         event.type === "attachment_delivery"
@@ -162,5 +162,60 @@ describe("attachment delivery events", () => {
         [IDS[1], "native", "native_supported"],
       ],
     );
+    const blocks = buildPromptBlocks("continue", resolved);
+    const textBlock = blocks.at(-1);
+    assert.match(
+      textBlock?.type === "text" ? textBlock.text : "",
+      /attached file: attachment - no longer available/,
+    );
+  });
+
+  it("reports a current-turn filesystem failure as materialize_failed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      async () =>
+        new Response(new Uint8Array([2]), {
+          status: 200,
+          headers: {
+            "content-type": "image/png",
+            "content-disposition": "attachment; filename=photo.png",
+          },
+        }),
+    );
+    const root = mkdtempSync(join(tmpdir(), "agenta-delivery-events-"));
+    roots.push(root);
+    const cwd = join(root, "not-a-directory");
+    writeFileSync(cwd, "occupied");
+    const events: AgentEvent[] = [];
+
+    const resolved = await resolveCurrentTurnAttachments({
+      message: {
+        role: "user",
+        content: [{ type: "attachment", attachmentId: IDS[0] }],
+      },
+      sessionId: "session-1",
+      auth: () => "ApiKey test",
+      sandbox: {},
+      plan: {
+        cwd,
+        isDaytona: false,
+        acpAgent: "pi",
+        harness: "pi_core",
+      },
+      capabilities: { images: true },
+      modelCapabilities: { inputModalities: ["image"] },
+      emit: (event) => events.push(event),
+    });
+
+    assert.equal(resolved[0].gate.outcome, "failed");
+    assert.equal(resolved[0].gate.reasonCode, "materialize_failed");
+    assert.deepEqual(events, [
+      {
+        type: "attachment_delivery",
+        attachmentId: IDS[0],
+        outcome: "failed",
+        reasonCode: "materialize_failed",
+      },
+    ]);
   });
 });

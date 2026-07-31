@@ -4,8 +4,8 @@ import { describe, it } from "vitest";
 import { attachmentCapabilityGate } from "../../src/engines/sandbox_agent/attachments.ts";
 
 const IMAGE_INPUT = {
-  harness: "claude",
   acpAgent: "claude",
+  provider: "anthropic",
   capabilities: { images: true },
   modelCapabilities: { inputModalities: ["text", "image"] },
   mediaType: "image/png",
@@ -21,8 +21,8 @@ describe("attachment capability gate", () => {
     assert.equal(
       attachmentCapabilityGate({
         ...IMAGE_INPUT,
-        harness: "pi_core",
         acpAgent: "pi",
+        provider: "openai",
       }).outcome,
       "native",
     );
@@ -59,14 +59,13 @@ describe("attachment capability gate", () => {
   });
 
   it("never delivers audio or documents natively on the pinned adapters", () => {
-    assert.equal(
-      attachmentCapabilityGate({
-        ...IMAGE_INPUT,
-        mediaType: "audio/mpeg",
-        modelCapabilities: { inputModalities: ["text", "audio"] },
-      }).outcome,
-      "workspace_only",
-    );
+    const audio = attachmentCapabilityGate({
+      ...IMAGE_INPUT,
+      mediaType: "audio/mpeg",
+      modelCapabilities: { inputModalities: ["text", "audio"] },
+    });
+    assert.equal(audio.outcome, "workspace_only");
+    assert.equal(audio.reasonCode, "transport_unsupported");
     assert.equal(
       attachmentCapabilityGate({
         ...IMAGE_INPUT,
@@ -101,6 +100,26 @@ describe("attachment capability gate", () => {
       attachmentCapabilityGate({
         ...IMAGE_INPUT,
         byteLength: Math.floor(7.5 * 1024 * 1024) + 1,
+      }).reasonCode,
+      "provider_inline_cap",
+    );
+  });
+
+  it("keys the inline cap on provider, with ACP agent as the absent-provider fallback", () => {
+    const byteLength = Math.floor(7.5 * 1024 * 1024) + 1;
+    assert.equal(
+      attachmentCapabilityGate({
+        ...IMAGE_INPUT,
+        provider: "openai",
+        byteLength,
+      }).outcome,
+      "native",
+    );
+    assert.equal(
+      attachmentCapabilityGate({
+        ...IMAGE_INPUT,
+        provider: undefined,
+        byteLength,
       }).reasonCode,
       "provider_inline_cap",
     );

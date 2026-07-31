@@ -30,7 +30,8 @@ export interface ReconstructHistoryOptions {
   restore?: (messages: ChatMessage[]) => Promise<ChatMessage[]>;
 }
 
-// ON unless the literal "false"; absent and empty both mean on.
+// Compose passes `${AGENTA_SESSIONS_RECONSTRUCT:-}`, so an empty value must mean on just like an
+// absent value. Only the literal "false" disables reconstruction.
 function reconstructEnabled(): boolean {
   return (
     String(process.env.AGENTA_SESSIONS_RECONSTRUCT ?? "").trim().toLowerCase() !== "false"
