@@ -94,11 +94,13 @@ them, and an unauthenticated or unbounded version of that is not shippable.
   contract violation fail the turn with a structured error code the front end can render, reusing the
   `assertRequiredCapabilities` and `*_UNSUPPORTED_MESSAGE` pattern in `capabilities.ts`. Never drop
   silently.
-- A bounded cold-replay policy. Cold replay (rebuilding the conversation on a cold start) must set an
-  explicit count and byte limit on how many historical attachments are re-delivered natively; beyond
-  the limit, the working copy and a textual placeholder represent the file. Update the cold-replay
-  path (`transcript.ts`) so a past image is no longer rendered as the string "[image]", within that
-  budget (see the cold-replay budget below).
+- A bounded cold-replay policy. Cold replay (rebuilding the conversation from the durable records on
+  a cold start) must set an explicit count and byte limit on how many historical attachments are
+  re-delivered natively; beyond the limit, the working copy and a textual placeholder represent the
+  file. Update the cold-replay path (the record fold in `services/runner/src/sessions/reconstruct.ts`,
+  which rebuilds a past user turn as text only today, and the transcript flattening in
+  `transcript.ts`) so a past image is re-delivered within that budget instead of being dropped from
+  the rebuilt turn (see the cold-replay budget below).
 
 **(c) Front end last.** Once the API stores and the runner resolves, switch the browser over.
 
@@ -207,9 +209,11 @@ and what breaks under each. The lifecycle tradeoff is the clearest example: an a
 lived in a `cwd` subfolder on lifecycle grounds, and only the findability requirement forces its own
 mount.
 
-**Scale and extensibility, sized for a first version with room to grow.** The reference-on-the-wire
-change removes the quadratic resend cost, the browser storage pressure, and the trace bloat, so the
-first version already scales better than today. The materialize step runs once per file per session.
+**Scale and extensibility, sized for a first version with room to grow.** The quadratic resend cost
+is already gone, independently of this design: since the session-storage rework (PR #5560) the front
+end sends only the trailing message and the runner rebuilds prior turns from durable records. The
+reference-on-the-wire change removes what remains: the browser storage pressure, the trace bloat,
+and the attaching turn's own base64 weight, so the first version scales better than today. The materialize step runs once per file per session.
 The design grows into the harder modalities by adding block types, not by reworking the model-facing
 call. Shipping the inline-only version first would avoid rework at that one call, though not the rest
 of the system-wide change (decision D9). What is deliberately left for later is stated in
@@ -255,8 +259,9 @@ cause is removed at the source.
 
 ## The cold-replay budget
 
-On a cold start the runner rebuilds the conversation from records, and a historical attachment cannot
-be re-sent freely. The policy: on a cold start only the working copies (already on disk) and textual
+On a cold start the runner rebuilds the conversation from the durable records
+(`services/runner/src/engines/sandbox_agent/reconstruct-history.ts`), and a historical attachment
+cannot be re-sent freely. The policy: on a cold start only the working copies (already on disk) and textual
 placeholders represent historical attachments by default. Re-delivering a historical attachment as a
 native block again is bounded, and the bound is defined in implementation (for example, only the most
 recent few native attachments, or only those within a size budget). The reason is a hard limit:

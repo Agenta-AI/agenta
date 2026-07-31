@@ -45,8 +45,10 @@ them. Everything that is not text is discarded there.
 Three concrete failures follow from this:
 
 1. **Image and text together.** The model receives only the text. When the conversation is later
-   replayed from saved history, the image is rendered as the literal string `"[image]"`
-   (`transcript.ts:176`).
+   rebuilt from the durable records on a cold start, the image is absent entirely, because the
+   records store only the text (see section 7). A history that still carries an image block (for
+   example a resume, where the front end sends the full history) is flattened to the literal
+   string `"[image]"` (`transcript.ts`).
 2. **Image with no text.** The turn is rejected. `resolvePromptText()` (`protocol.ts:585`) returns
    an empty string, and the run fails with "No user message to send" from `run-plan.ts`.
 3. **No warning to the person.** The paperclip button in the chat box is disabled, but pasting or
@@ -55,10 +57,17 @@ Three concrete failures follow from this:
 
 ### Side effects that a reference-based design removes
 
-- **Resending the whole conversation every turn.** The front end resends the full message history
-  on each turn (`agentRequest.ts`, the `history` array). A five megabyte image becomes about
-  seven megabytes of base64 and is re-uploaded on every later turn. The cost grows with the
-  square of the conversation length.
+- **Resending the whole conversation every turn (fixed since the session-storage rework).** The
+  front end used to resend the full message history on each turn, so a five megabyte image became
+  about seven megabytes of base64 re-uploaded on every later turn, a cost that grew with the
+  square of the conversation length. The session-storage rework (PR #5560, merged 2026-07-30,
+  on by default) removed this: the front end sends only the trailing user message
+  (`NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY`, read in `agentRequest.ts`), the runner persists every
+  turn as durable records (`AGENTA_RECORDS_DURABLE`, `services/runner/src/sessions/persist.ts`),
+  and on a cold start it rebuilds the conversation from those records
+  (`AGENTA_SESSIONS_RECONSTRUCT`,
+  `services/runner/src/engines/sandbox_agent/reconstruct-history.ts`). What remains is the
+  attaching turn itself: its bytes still ride that one message as base64.
 - **Filling the browser's local storage.** Saved messages hold the base64 inline
   (`web/oss/src/components/AgentChatSlice/state/sessions.ts:31`, which notes "a conversation with
   large files can approach the localStorage quota"). When the roughly five megabyte browser quota
@@ -67,8 +76,9 @@ Three concrete failures follow from this:
 - **Bloating the traces.** The Python agent span keeps the messages on purpose and there is no
   length cap on exported span attributes, so a base64 image lands verbatim in a trace.
 
-Once the saved history and the traces carry a small reference instead of the bytes, all three go
-away, because the bytes are stored once in the object store and never travel in the history again.
+Once the saved messages and the traces carry a small reference instead of the bytes, the remaining
+costs go away too, because the bytes are stored once in the object store and never travel with the
+messages again.
 
 ---
 
@@ -516,46 +526,53 @@ records sub-router with an ingest route and a query route (`RecordsRouter` at
 `api/oss/src/apis/fastapi/sessions/router.py:435`; the file header lists
 `POST /sessions/records/query`).
 
-Separately, the runner rebuilds a conversation from message history when it starts a session that is
-not already warm. This "cold replay" turns each past content block into a text description
-(`transcript.ts`), which is why a past image shows up as the literal `"[image]"` there today.
+Separately, when the runner starts a session that is not already warm, it rebuilds the conversation
+from the durable records (`services/runner/src/engines/sandbox_agent/reconstruct-history.ts`, which
+calls the fold in `services/runner/src/sessions/reconstruct.ts`) and then flattens it to text for
+the harness (`transcript.ts`). This "cold replay" renders an image block as the literal
+`"[image]"`, and a past user attachment does not even get that far: the records store only the
+text, so the rebuilt user turn has no image block at all.
 
 ### Records are text-only today
 
 The record path carries text and nothing else right now. The runner persists the inbound user
-record as text (`services/runner/src/server.ts`, near line 1009), and the record event schema
+record as text (`services/runner/src/server.ts`, near line 1084), and the record event schema
 allows only the shape `{ type: "message", text }` (`services/runner/src/protocol.ts`, near line
 325). There is no field in a record for an attachment. On a warm turn the runner sends only the
-latest user text; on a cold start it flattens the whole transcript (`run-turn.ts`, near line 146),
-and a past image becomes the placeholder string `"[image]"` (`transcript.ts:176`).
+latest user text; on a cold start it rebuilds prior turns from the records
+(`reconstruct-history.ts`) and flattens the whole transcript to text (`run-turn.ts`, near line
+196), where the rebuilt user turn carries no trace of the attachment at all.
 
 Two things follow for this project. First, carrying an attachment reference in a record requires
 extending the record schema, because the schema has no place to put one today. Second, cold replay
-currently reduces every past attachment to a placeholder string, so a rebuilt conversation loses
-the attachments entirely. This is why the plan makes the record-schema change part of the first
+loses past attachments entirely: a user turn rebuilt from records is text only, so the attachment
+does not even appear as a placeholder. This is why the plan makes the record-schema change part of the first
 release rather than a later addition: without it, a reference cannot survive in the durable log at
 all.
 
-### The direction
+### The direction, now shipped
 
-The product direction is: once the "sessions" work lands, the front end will
-send only the last message on each turn instead of resending the whole history. The runner will own
-rebuilding the conversation from records when a session cannot be resumed warm (for example after a
-crash). This changes who is responsible for history from the front end to the runner. It also means
-the reference-based attachment design fits the direction cleanly, because a reference is exactly what
-a record should store for a shared file: the record points at the durable original rather than
-carrying its bytes.
+The session-storage rework shipped and is on by default (PR #5560, merged 2026-07-30). The front
+end sends only the last message on each turn instead of resending the whole history
+(`NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY`, read in `agentRequest.ts`). The runner owns rebuilding
+the conversation from records when a session cannot be resumed warm, for example after a crash
+(`AGENTA_SESSIONS_RECONSTRUCT`,
+`services/runner/src/engines/sandbox_agent/reconstruct-history.ts`). Responsibility for history
+moved from the front end to the runner. The reference-based attachment design fits this cleanly,
+because a reference is exactly what a record should store for a shared file: the record points at
+the durable original rather than carrying its bytes.
 
 ### The tracking issue
 
-This direction is tracked in
-[#5443, "(feat) Runner should rebuild session context from records when a session cannot be resumed warm"](https://github.com/Agenta-AI/agenta/issues/5443).
+This direction was tracked in
+[#5443, "(feat) Runner should rebuild session context from records when a session cannot be resumed warm"](https://github.com/Agenta-AI/agenta/issues/5443)
+and shipped with PR #5560.
 The related warm case is
 [#5384, "(feat) Warm sessions should hold client tool calls open instead of replaying the turn"](https://github.com/Agenta-AI/agenta/issues/5384):
-#5384 avoids a replay when the session is still alive, while #5443 covers rebuilding from records
-when it is not. The rebuild itself is outside this project's scope; what this project contributes is
-that records will carry small references to durable originals, which is what a faithful rebuild
-needs.
+#5384 avoids a replay when the session is still alive, while the rebuild from records covers the
+case when it is not. The rebuild itself is outside this project's scope; what this project
+contributes is that records will carry small references to durable originals, which is what a
+faithful rebuild needs.
 
 ---
 

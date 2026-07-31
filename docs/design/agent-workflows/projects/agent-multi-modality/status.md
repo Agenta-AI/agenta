@@ -58,9 +58,10 @@ time-to-live sweep to reference counting.
 
 - The product owner decides the open product question D11 (what the first release promises) on the PR.
 - Decide whether Stage 0 ships on its own or folds into Stage 1.
-- The runner-rebuilds-context-from-records direction is tracked in
-  [#5443](https://github.com/Agenta-AI/agenta/issues/5443) (the warm-case counterpart is #5384). It
-  stays outside this project's scope.
+- The runner-rebuilds-context-from-records direction shipped with the session-storage rework
+  (PR #5560, on by default; tracked as [#5443](https://github.com/Agenta-AI/agenta/issues/5443),
+  the warm-case counterpart is #5384). The rebuild itself stays outside this project's scope; this
+  project makes records carry attachment references so the rebuild can be faithful.
 
 ## Artifacts
 

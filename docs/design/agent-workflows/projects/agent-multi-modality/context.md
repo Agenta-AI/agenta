@@ -32,12 +32,16 @@ every content block that is not text at that one call.
 That last step was written when agents were text-only. It was never updated when attachments
 were wired up through the rest of the path. So the path is complete except for the final step.
 
-There is a related habit that makes this worse. On every new turn, the front end resends the
-whole conversation so far, including every earlier attachment, in full, as raw bytes encoded as
-text. A single five megabyte image becomes about seven megabytes of encoded text, and it is
-sent again on every following turn. The same full bytes are also saved in the browser's local
-storage and written into our tracing data. None of this is needed once a file is sent by
-reference instead of by value, and all of it strains the browser, the network, and the traces.
+There was a related habit that made this worse. The front end used to resend the whole
+conversation on every new turn, including every earlier attachment, in full, as raw bytes
+encoded as text. That habit is gone: the front end now sends only the newest message, and the
+runner keeps the conversation history itself, in durable records it can rebuild the
+conversation from. But the fix does not cover attachments. In the turn where a file is
+attached, its bytes still travel in that one message as encoded text, and a single five
+megabyte image becomes about seven megabytes of it. The same bytes are still saved in the
+browser's local storage and still land in our tracing data. And the durable records keep only
+the words, so a conversation rebuilt from them has lost the file. None of this is needed once
+a file is sent by reference instead of by value.
 
 ## What we want to achieve
 
@@ -72,7 +76,7 @@ of accepting it and then ignoring it.
 standard we do not own. In ACP, for the model to actually perceive an image or audio, the bytes
 must be delivered inline in the turn. There is no way to hand the model a link and trust it to
 fetch the file. Storing the file in our object store does not remove this rule. It only removes
-the need to resend the bytes in the saved conversation history. At the moment the runner hands
+the need to carry the bytes in the saved conversation records. At the moment the runner hands
 the turn to the harness, the bytes must be present. Details and sources are in
 [research.md](research.md).
 

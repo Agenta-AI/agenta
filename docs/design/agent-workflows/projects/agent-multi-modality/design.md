@@ -97,9 +97,9 @@ redundant; they serve the two separate goals of perception and tool use.
 
 **Why inline is unavoidable for perception (decision D2 in the log).** In ACP the bytes for an
 image, audio clip, or embedded document are required and inline. Storing the file in our object
-store removes the bytes from the resent history, but it does not remove the requirement that the
-bytes be present at the moment the runner builds the turn. The runner reconstructs the inline block
-per turn from the stored original.
+store keeps the bytes out of the durable records the runner replays on a cold start, but it does
+not remove the requirement that the bytes be present at the moment the runner builds the turn. The
+runner reconstructs the inline block per turn from the stored original.
 
 ---
 
@@ -642,8 +642,8 @@ design later, or would we have to rebuild?
 
 **The inline-only version.** Deliver the file inline to the model only, with no durable storage: the
 runner reads the bytes off the wire and builds the content block, exactly at the same seam. This
-fixes model perception and nothing else. It does not fix findability, the working copy, the resend
-cost, or the storage bloat.
+fixes model perception and nothing else. It does not fix findability, the working copy, the storage
+bloat, or the loss of the attachment on a cold start.
 
 **Does it grow.** Partly, and it is worth being honest about which part. The one seam that both
 versions share is the model-facing prompt-builder: both replace the single hard-coded text block
@@ -659,10 +659,15 @@ check), and cleanup (removing never-referenced uploads). None of that is avoided
 first. So the accurate claim is that the inline-only version avoids rework at the prompt-builder seam, not
 that it is a smaller version of a migration that the full version merely extends.
 
-**The one thing not to defer.** The reference-on-the-wire change should not be skipped for long,
-because as long as bytes ride the wire and the history, the resend cost, the browser storage
-pressure, and the trace bloat all remain. Those are fixed by the reference, which is why the plan
-puts the storage and reference work in the first release.
+**The one thing not to defer.** The reference-on-the-wire change should not be skipped for long.
+The quadratic resend is already gone, independently of this design: since the session-storage
+rework (PR #5560) the front end sends only the trailing message and the runner rebuilds prior
+turns from durable records. But the records store only text today, so an inline-only attachment
+cannot survive a cold start: either the record schema stores the bytes verbatim, and every cold
+start replays them and the log keeps them forever, or the rebuilt conversation loses the file. A
+durable reference resolves that, and it also removes the base64 payload from the browser's saved
+messages and from the traces. That is why the plan puts the storage and reference work in the
+first release.
 
 ---
 

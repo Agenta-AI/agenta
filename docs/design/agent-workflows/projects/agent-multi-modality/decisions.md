@@ -8,7 +8,7 @@ can be updated without editing the design narrative.
 | # | Question | Options | Decision | Reason |
 | --- | --- | --- | --- | --- |
 | D1 | How does the file reach the model? | inline content blocks; file on disk plus a path; both | Both | Inline gives real perception (required by ACP; a disk file is not reliably read as vision). The disk copy lets the agent's tools work on the file. The two serve different goals. |
-| D2 | Does storing the file in the object store remove the need to send bytes to the model? | yes, fully; no, only from the wire and the saved history | No, only from the wire and the saved history | Storage removes bytes from the resent history, but the model boundary still needs the bytes inline at prompt time, rebuilt per turn by the runner from the stored original. |
+| D2 | Does storing the file in the object store remove the need to send bytes to the model? | yes, fully; no, only from the wire and the saved history | No, only from the wire and the saved history | Storage keeps bytes out of the durable records the runner replays on a cold start, but the model boundary still needs the bytes inline at prompt time, rebuilt per turn by the runner from the stored original. |
 | D3 | Where does the unchanging original live? | a subfolder in cwd; the agent-files mount; a dedicated session mount kept out of the sandbox; a future project drive | A dedicated session-scoped attachments mount, kept out of the sandbox | The working directory is last-writer-wins, so an original there could be deleted or overwritten by the agent. Findability needs the original out of the agent's reach, and the mount technology exposes whole prefixes, so out-of-reach means its own mount. |
 | D4 | One copy or two? | one copy (perceive and edit the same object); two copies | Two copies: an unchanging original and a disposable working copy | One copy cannot be both safe-to-find and freely-editable. Two copies make both goals true and turn an agent edit into a new, visible output rather than a destroyed original. |
 | D5 | How does the system know whether a modality will reach the model? | a single capability flag; the intersection of three layers (protocol transport, adapter fidelity, model modalities) | The three-layer intersection, gated at the composer (courtesy, from a pre-send approximation) and the runner (final authority) | A flag can be advertised while the delivery is lossy or dropped, so one flag is not enough. Tool use over the working copy is separate and works regardless of all three layers. |
@@ -64,9 +64,10 @@ Each one says what is unknown, why it matters, how to settle it, and what it blo
    - We do not yet know how many historical attachments, and within what size budget, may be
      re-delivered natively on a cold start before falling back to a working copy plus a textual
      placeholder.
-   - This matters because re-sending every past attachment natively on a long conversation would
-     exceed the provider's per-request size and block limits (see [research.md](research.md), section
-     3).
+   - This matters because on a cold start the runner rebuilds the whole conversation from the
+     durable records (`reconstruct-history.ts`), and re-delivering every past attachment natively
+     in that rebuilt turn would exceed the provider's per-request size and block limits (see
+     [research.md](research.md), section 3).
    - To settle it, pick a bound in implementation against real provider limits and measure a long
      replayed conversation against it.
    - This blocks the cold-replay policy in Stage 1.

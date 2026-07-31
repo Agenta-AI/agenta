@@ -66,7 +66,7 @@ the first release.
 - The document-delivery question is answered: documents do not arrive natively today (the Claude
   adapter drops blobs and the Pi adapter renders a byte count), so documents are a Stage 2 blocker on
   adapter work, not an open harness check (see [research.md](research.md), section 4).
-- The runner-rebuilds-context-from-records direction is tracked in
-  [issue #5443](https://github.com/Agenta-AI/agenta/issues/5443); it stays outside this project's
-  scope (see [research.md](research.md), section 7).
+- The runner-rebuilds-context-from-records direction shipped with the session-storage rework
+  (PR #5560, tracked as [issue #5443](https://github.com/Agenta-AI/agenta/issues/5443)); the
+  rebuild itself stays outside this project's scope (see [research.md](research.md), section 7).
 - Decide whether Stage 0 ships on its own or folds into Stage 1.
