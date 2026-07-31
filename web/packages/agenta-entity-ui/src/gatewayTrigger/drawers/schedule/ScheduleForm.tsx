@@ -1,5 +1,5 @@
 /** The schedule drawer's sectioned create/edit form (one per draft or saved schedule). */
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 /* Unused while the Deployed option is hidden — restore with the call site below.
 import {
@@ -171,9 +171,15 @@ export function ScheduleForm({
     }, [playgroundEntityId, environments, appDeployments.data])
     */
 
-    // Prefill from the freshly-fetched schedule (edit mode).
+    // Prefill from the freshly-fetched schedule (edit mode). Hydrate once per id: any trigger
+    // mutation invalidates this query, and a background refetch must not overwrite the edits
+    // in progress.
+    const hydratedId = useRef<string | null>(null)
     useEffect(() => {
         if (!isEdit || !schedule) return
+        const loadedId = (schedule.id as string | undefined) ?? scheduleId ?? null
+        if (hydratedId.current === loadedId) return
+        hydratedId.current = loadedId
         setName(schedule.name ?? "")
         setCron(schedule.data?.schedule ?? DEFAULT_CRON)
         setStartTime(schedule.data?.start_time ?? null)
@@ -190,7 +196,7 @@ export function ScheduleForm({
             // Label is resolved from the revision id below, not stored as the raw id.
         }
         setInputsText(JSON.stringify(schedule.data?.inputs_fields ?? {}, null, 2))
-    }, [isEdit, schedule])
+    }, [isEdit, schedule, scheduleId])
 
     // Create-mode default-bind: when opened with `defaultReferences` (e.g. from an
     // agent's config panel), pre-bind the new schedule to that workflow so the user
@@ -451,6 +457,9 @@ export function ScheduleForm({
         [inputsText, isChatInput, primaryInputKey],
     )
     const messageStatus = composedMessage.trim() ? "complete" : "default"
+    // Create is gated on completeness, not on dirtiness — a schedule pre-bound from an
+    // agent's config panel already matches its baseline (see the subscription form).
+    const canSubmit = isEdit ? isDirty : cronValid && versionChosen
 
     if (isEdit && scheduleLoading) {
         return (
@@ -601,7 +610,7 @@ export function ScheduleForm({
                     ) : undefined
                 }
                 isMutating={isMutating}
-                canSave={isDirty}
+                canSave={canSubmit}
                 submitLabel={isEdit ? "Save" : "Create"}
                 onSubmit={handleSubmit}
             />

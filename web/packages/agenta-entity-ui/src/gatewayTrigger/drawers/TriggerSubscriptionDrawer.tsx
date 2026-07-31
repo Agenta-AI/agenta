@@ -7,6 +7,7 @@ import {useAtom, useAtomValue} from "jotai"
 
 import {browseHeaderAtom, SHOW_LIST_RAIL, subscriptionEditingAtom} from "./subscription/constants"
 import {SubscriptionDrawerContent} from "./subscription/SubscriptionDrawerContent"
+import {SubscriptionForm} from "./subscription/SubscriptionForm"
 
 // ---------------------------------------------------------------------------
 // TriggerSubscriptionDrawer (root) — create or edit a provider-event subscription.
@@ -15,7 +16,9 @@ import {SubscriptionDrawerContent} from "./subscription/SubscriptionDrawerConten
 // (existing subscriptions on the left, config on the right, a persistent "Run in
 // playground" in the footer); from settings it's a single create/edit form.
 // EnhancedDrawer renders nothing until first open, so SubscriptionDrawerContent —
-// which owns all data fetching + master-detail state — only mounts while open.
+// which owns all data fetching + master-detail state — only mounts while open, and
+// only in a playground: settings never shows the rail, so it mounts the bare form
+// rather than paying for the subscriptions list query and the draft state.
 // ---------------------------------------------------------------------------
 
 export default function TriggerSubscriptionDrawer() {
@@ -63,7 +66,20 @@ export default function TriggerSubscriptionDrawer() {
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}
         >
-            {state && <SubscriptionDrawerContent state={state} onClose={handleClose} />}
+            {state &&
+                (playgroundEntityId ? (
+                    <SubscriptionDrawerContent
+                        state={state}
+                        playgroundEntityId={playgroundEntityId}
+                        onClose={handleClose}
+                    />
+                ) : (
+                    <SubscriptionForm
+                        key={state.subscriptionId ?? "new"}
+                        subscriptionId={state.subscriptionId}
+                        onClose={handleClose}
+                    />
+                ))}
         </EnhancedDrawer>
     )
 }

@@ -193,9 +193,15 @@ export function SubscriptionForm({
     const [configForm] = Form.useForm()
     const configFormRef = useRef<SchemaFormHandle>(null)
 
-    // Prefill from the freshly-fetched subscription (edit mode).
+    // Prefill from the freshly-fetched subscription (edit mode). Hydrate once per id: any
+    // trigger mutation invalidates this query, and a background refetch must not overwrite
+    // the edits in progress.
+    const hydratedId = useRef<string | null>(null)
     useEffect(() => {
         if (!isEdit || !subscription) return
+        const loadedId = (subscription.id as string | undefined) ?? subscriptionId ?? null
+        if (hydratedId.current === loadedId) return
+        hydratedId.current = loadedId
         setName(subscription.name ?? "")
         setConnectionId(subscription.connection_id)
         setEventKey(subscription.data?.event_key ?? "")
@@ -217,7 +223,10 @@ export function SubscriptionForm({
                 ? JSON.stringify(subscription.data.inputs_fields, null, 2)
                 : DEFAULT_INPUTS_MAPPING,
         )
-    }, [isEdit, subscription])
+        if (subscription.data?.trigger_config) {
+            configForm.setFieldsValue(subscription.data.trigger_config)
+        }
+    }, [isEdit, subscription, subscriptionId, configForm])
 
     // Create-mode default-bind to the playground agent (or `defaultReferences`).
     useEffect(() => {
@@ -256,12 +265,6 @@ export function SubscriptionForm({
         string,
         unknown
     > | null
-
-    useEffect(() => {
-        if (isEdit && subscription?.data?.trigger_config) {
-            configForm.setFieldsValue(subscription.data.trigger_config)
-        }
-    }, [isEdit, subscription, configForm])
 
     const baselineSnapshot = useMemo(() => {
         if (isEdit && subscription) {
@@ -562,6 +565,10 @@ export function SubscriptionForm({
               ? `env: ${environmentSlug}`
               : undefined
     const mappingStatus = inputsError ? "warning" : inputsText.trim() ? "complete" : "default"
+    // Create is gated on completeness, not on dirtiness: a trigger seeded from the catalog
+    // (connection + event + default binding) already matches its baseline, and gating on
+    // `isDirty` would leave Create disabled until the user edited an unrelated field.
+    const canSubmit = isEdit ? isDirty : sourceChosen && versionChosen
 
     // Agent-type-aware mapping target (same split as the schedule composer): chat agents
     // take a `messages` array, completion agents the first string input from their schema.
@@ -758,7 +765,7 @@ export function SubscriptionForm({
                     ) : undefined
                 }
                 isMutating={isMutating}
-                canSave={isDirty && !alreadySubscribed}
+                canSave={canSubmit && !alreadySubscribed}
                 submitLabel={isEdit ? "Save" : "Create"}
                 onSubmit={handleSubmit}
             />

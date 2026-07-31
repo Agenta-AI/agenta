@@ -41,13 +41,11 @@ export function useAgentTriggers(entityId: string | null) {
                         appId: revision?.workflow_id ?? null,
                         variantId: revision?.workflow_variant_id ?? revision?.variant_id ?? null,
                         appSlug: (revision as {slug?: string} | null)?.slug ?? null,
-                        name: (revision as {name?: string} | null)?.name ?? null,
                     }),
                     (a, b) =>
                         a.appId === b.appId &&
                         a.variantId === b.variantId &&
-                        a.appSlug === b.appSlug &&
-                        a.name === b.name,
+                        a.appSlug === b.appSlug,
                 ),
             [entityId],
         ),
@@ -57,9 +55,11 @@ export function useAgentTriggers(entityId: string | null) {
     // The app slug — needed for "By environment" binding, which resolves via the
     // application slug + environment (see triggers/service.py `_normalize_references`).
     const appSlug = revisionMeta.appSlug
-    // Readable label for the default binding so the drawer's bound-workflow field
-    // shows the agent's name instead of a raw id. Falls back when the name is unresolved.
-    const defaultBoundLabel = revisionMeta.name ?? "Current agent"
+    // Readable label for the default binding so the drawer's bound-workflow field shows the
+    // agent's name instead of a raw id. The display name lives on the workflow ARTIFACT, not
+    // on the revision. Falls back when it is unresolved.
+    const artifactName = useAtomValue(workflowMolecule.selectors.artifactName(entityId ?? ""))
+    const defaultBoundLabel = artifactName ?? "Current agent"
 
     const agentIds = useMemo(() => {
         const ids = new Set<string>()

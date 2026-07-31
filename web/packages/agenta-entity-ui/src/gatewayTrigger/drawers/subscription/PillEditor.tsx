@@ -83,6 +83,39 @@ export function PillEditor({
         onChange(next)
     }, [serialize, onChange])
 
+    // Insert plain text at the caret, newlines as <br> (what `serialize` reads back).
+    const insertText = useCallback((text: string) => {
+        const sel = window.getSelection()
+        if (!sel?.rangeCount) return
+        const range = sel.getRangeAt(0)
+        range.deleteContents()
+        const frag = document.createDocumentFragment()
+        text.replace(/\r\n?/g, "\n")
+            .split("\n")
+            .forEach((line, i) => {
+                if (i > 0) frag.appendChild(document.createElement("br"))
+                if (line) frag.appendChild(document.createTextNode(line))
+            })
+        const last = frag.lastChild
+        range.insertNode(frag)
+        if (!last) return
+        range.setStartAfter(last)
+        range.collapse(true)
+        sel.removeAllRanges()
+        sel.addRange(range)
+    }, [])
+
+    // The template is plain text plus atomic pills; pasted markup would both corrupt
+    // `serialize` and inject live nodes into the editor.
+    const onPaste = useCallback(
+        (e: React.ClipboardEvent) => {
+            e.preventDefault()
+            insertText(e.clipboardData.getData("text/plain"))
+            commit()
+        },
+        [insertText, commit],
+    )
+
     useEffect(() => {
         if (!insertApi) return
         insertApi.current = {
@@ -111,21 +144,15 @@ export function PillEditor({
                 commit()
             },
         }
-    })
+        return () => {
+            insertApi.current = null
+        }
+    }, [insertApi, makePill, commit])
 
     const onKeyDown = (e: React.KeyboardEvent) => {
         if (e.key !== "Enter") return
         e.preventDefault()
-        const sel = window.getSelection()
-        if (!sel?.rangeCount) return
-        const range = sel.getRangeAt(0)
-        range.deleteContents()
-        const br = document.createElement("br")
-        range.insertNode(br)
-        range.setStartAfter(br)
-        range.collapse(true)
-        sel.removeAllRanges()
-        sel.addRange(range)
+        insertText("\n")
         commit()
     }
 
@@ -138,6 +165,7 @@ export function PillEditor({
                 role="textbox"
                 aria-multiline="true"
                 onInput={commit}
+                onPaste={onPaste}
                 onKeyDown={onKeyDown}
                 className="box-border max-h-[280px] min-h-[120px] w-full overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-solid border-[var(--ag-colorBorder)] bg-[var(--ag-colorBgContainer)] px-3 py-2 text-xs leading-relaxed outline-none focus:border-[var(--ag-colorPrimary)]"
             />

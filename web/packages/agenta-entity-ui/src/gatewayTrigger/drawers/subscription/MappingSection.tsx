@@ -81,8 +81,10 @@ export function MappingSection({
         if (compiled !== current) setTemplate(parseMessageTemplate(value, isChat, primaryKey))
     }, [value, isChat, primaryKey])
 
-    // Surface raw-JSON parse errors (the composer always emits valid JSON).
+    // Surface raw-JSON parse errors (the composer always emits valid JSON). Single owner:
+    // the non-agent path renders InputsMappingField, which reports a richer message.
     useEffect(() => {
+        if (!isAgent) return
         if (!value.trim()) {
             onErrorChange(null)
             return
@@ -93,7 +95,7 @@ export function MappingSection({
         } catch {
             onErrorChange("Invalid JSON")
         }
-    }, [value, onErrorChange])
+    }, [value, isAgent, onErrorChange])
 
     const setTpl = useCallback(
         (next: string) => {

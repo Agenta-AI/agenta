@@ -18,30 +18,29 @@ import {ScheduleForm} from "./ScheduleForm"
 import {SchedulesList} from "./SchedulesList"
 
 // ---------------------------------------------------------------------------
-// ScheduleDrawerContent — the drawer's data fetching and master-detail business
-// logic. Rendered only while the drawer is open (see above), so the schedules
-// list query, per-schedule detail queries, and draft state never run in the
-// background. Playground = master-detail; settings = a single create/edit form.
+// ScheduleDrawerContent — the playground's master-detail body (list + per-draft
+// forms) and the data fetching it needs. Rendered only while the drawer is open
+// AND only in a playground, so the schedules list query, per-schedule detail
+// queries, and draft state never run for the settings single-form drawer.
 // ---------------------------------------------------------------------------
 
 export function ScheduleDrawerContent({
     state,
+    playgroundEntityId,
     onClose,
 }: {
     state: ScheduleDrawerState
+    playgroundEntityId: string
     onClose: () => void
 }) {
-    const playgroundEntityId = state.playgroundEntityId
-
     const {schedules: allSchedules, isLoading: schedulesLoading} = useTriggerSchedules()
     const {remove: deleteScheduleApi} = useTriggerSchedule()
 
-    // In a playground, scope the list to schedules linked to this agent's WORKFLOW —
-    // matched by the workflow id (not a specific variant or revision), plus the app
-    // slug so environment-bound schedules (which reference the app by slug) still match.
-    const playgroundData = useAtomValue(workflowMolecule.selectors.data(playgroundEntityId ?? ""))
+    // Scope the list to schedules linked to this agent's WORKFLOW — matched by the workflow
+    // id (not a specific variant or revision), plus the app slug so environment-bound
+    // schedules (which reference the app by slug) still match.
+    const playgroundData = useAtomValue(workflowMolecule.selectors.data(playgroundEntityId))
     const schedules = useMemo(() => {
-        if (!playgroundEntityId) return allSchedules
         const workflowId = playgroundData?.workflow_id ?? playgroundEntityId
         const appSlug = (playgroundData as {slug?: string} | null)?.slug
         return allSchedules.filter((s) => {
@@ -84,16 +83,6 @@ export function ScheduleDrawerContent({
         maxDrafts: MAX_DRAFTS,
         onDelete: onDeleteSchedule,
     })
-
-    if (!playgroundEntityId) {
-        return (
-            <ScheduleForm
-                key={state.scheduleId ?? "new"}
-                scheduleId={state.scheduleId}
-                onClose={onClose}
-            />
-        )
-    }
 
     return (
         <div className="flex h-full min-h-0 w-full overflow-hidden">

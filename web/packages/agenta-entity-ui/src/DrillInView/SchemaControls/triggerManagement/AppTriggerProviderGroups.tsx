@@ -68,10 +68,14 @@ export function AppTriggerProviderGroups({
     const [groupsExpanded, setGroupsExpanded] = useAtom(triggerGroupsExpandedAtom)
     const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
 
+    const connById = useMemo(
+        () => new Map(connections.map((c) => [c.id, c] as const)),
+        [connections],
+    )
+
     // Subscriptions grouped by provider (connection.integration_key); name/logo from the
     // catalog when loaded, else a prettified key + plug icon.
     const providerGroups = useMemo<ProviderGroupData[]>(() => {
-        const connById = new Map(connections.map((c) => [c.id, c] as const))
         const intgByKey = new Map(integrations.map((i) => [i.key, i] as const))
         const groups = new Map<string, ProviderGroupData>()
         for (const sub of scopedSubscriptions) {
@@ -91,7 +95,7 @@ export function AppTriggerProviderGroups({
             group.subs.push(sub)
         }
         return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name))
-    }, [scopedSubscriptions, connections, integrations])
+    }, [scopedSubscriptions, connById, integrations])
 
     const isGroupOpen = useCallback(
         (group: ProviderGroupData) =>
@@ -107,10 +111,10 @@ export function AppTriggerProviderGroups({
     )
     const connectionLabel = useCallback(
         (connectionId?: string) => {
-            const c = connections.find((conn) => conn.id === connectionId)
+            const c = connectionId ? connById.get(connectionId) : undefined
             return c ? c.name || c.slug || c.integration_key : undefined
         },
-        [connections],
+        [connById],
     )
 
     if (providerGroups.length === 0) return null

@@ -18,25 +18,25 @@ import {SubscriptionForm} from "./SubscriptionForm"
 import {SubscriptionsList} from "./SubscriptionsList"
 
 // ---------------------------------------------------------------------------
-// SubscriptionDrawerContent — data fetching + master-detail business logic,
-// mounted only while open. Playground = master-detail; settings = single form.
+// SubscriptionDrawerContent — the playground's master-detail body and the data
+// fetching it needs, mounted only while open (settings renders the bare form).
 // ---------------------------------------------------------------------------
 
 export function SubscriptionDrawerContent({
     state,
+    playgroundEntityId,
     onClose,
 }: {
     state: SubscriptionDrawerState
+    playgroundEntityId: string
     onClose: () => void
 }) {
-    const playgroundEntityId = state.playgroundEntityId
     const {subscriptions: allSubscriptions, isLoading: subsLoading} = useTriggerSubscriptions()
     const {remove: deleteSubscriptionApi} = useTriggerSubscription()
 
     // Scope the list to subscriptions linked to this agent's WORKFLOW (id + app slug).
-    const playgroundData = useAtomValue(workflowMolecule.selectors.data(playgroundEntityId ?? ""))
+    const playgroundData = useAtomValue(workflowMolecule.selectors.data(playgroundEntityId))
     const subscriptions = useMemo(() => {
-        if (!playgroundEntityId) return allSubscriptions
         const workflowId = playgroundData?.workflow_id ?? playgroundEntityId
         const appSlug = (playgroundData as {slug?: string} | null)?.slug
         return allSubscriptions.filter((s) => {
@@ -87,16 +87,6 @@ export function SubscriptionDrawerContent({
         setEditing(!!selectedId && !isDraftId(selectedId))
         return () => setEditing(false)
     }, [selectedId, setEditing])
-
-    if (!playgroundEntityId) {
-        return (
-            <SubscriptionForm
-                key={state.subscriptionId ?? "new"}
-                subscriptionId={state.subscriptionId}
-                onClose={onClose}
-            />
-        )
-    }
 
     return (
         <div className="flex h-full min-h-0 w-full overflow-hidden">
