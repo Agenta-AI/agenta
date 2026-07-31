@@ -55,6 +55,50 @@ describe("buildRunPlan", () => {
     assert.equal(created, false);
   });
 
+  it("accepts an attachment-only current user turn", () => {
+    const result = buildRunPlan(
+      {
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "attachment",
+                attachmentId: "019a52c2-14c0-7c14-b874-2f5798f9cd21",
+              },
+            ],
+          },
+        ],
+      } as unknown as AgentRunRequest,
+      { createLocalCwd: () => "local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.ok && result.plan.prompt, "");
+  });
+
+  it("rejects more than the configured current-turn attachment count", () => {
+    const result = buildRunPlan(
+      {
+        messages: [
+          {
+            role: "user",
+            content: Array.from({ length: 6 }, (_, index) => ({
+              type: "attachment",
+              attachmentId: `11111111-1111-4111-8111-11111111111`,
+            })),
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "local-cwd" },
+    );
+
+    assert.deepEqual(result, {
+      ok: false,
+      error: "A user turn may carry at most 5 attachments.",
+    });
+  });
+
   it("still refuses a request whose only message is an unresolved tool call", () => {
     // No user text AND no approval envelope: a caller bug, not an approval reply.
     const result = buildRunPlan(

@@ -7,9 +7,10 @@ import {
   type AgentRunRequest,
   type ResolvedToolSpec,
   type SandboxPermission,
-  resolvePromptText,
+  currentUserTurn,
 } from "../../protocol.ts";
 import { executableToolSpecs } from "../../tools/public-spec.ts";
+import { attachmentCountError } from "../../sessions/attachments.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "../../tools/code.ts";
 import { PI_USER_MCP_UNSUPPORTED_MESSAGE } from "../../tools/mcp-bridge.ts";
 import {
@@ -311,13 +312,20 @@ export function buildRunPlan(
     `harness '${harness}' resolved to ACP agent '${acpAgent}', but pi identity mapping disagrees`,
   );
 
-  const prompt = resolvePromptText(request);
+  const turn = currentUserTurn(request);
+  const attachmentError = attachmentCountError(turn.attachments.length);
+  if (attachmentError) return { ok: false, error: attachmentError };
+  const prompt = turn.text;
   // An out-of-band approval reply legitimately carries no user text: the human answered a parked
   // gate from the durable interaction row, not from the conversation. Its prior turns are rebuilt
   // from the record log inside `runTurn` (`reconstructHistoryIfNeeded`), which runs AFTER this
   // plan is built — so rejecting here would kill the run before the conversation could be
   // supplied. Every other empty-prompt request is still a caller bug and fails loudly.
-  if (!prompt && !carriesApprovalReplyOnly(request)) {
+  if (
+    !turn.text &&
+    turn.attachments.length === 0 &&
+    !carriesApprovalReplyOnly(request)
+  ) {
     return {
       ok: false,
       error: "No user message to send (prompt/messages empty).",
