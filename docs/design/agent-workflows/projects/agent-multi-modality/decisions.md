@@ -56,16 +56,7 @@ questions. Each one says what is unknown, why it matters, how to settle it, and 
      implementation, against the voice UI that already exists (PR #5458).
    - This blocks the audio work in Stage 2.
 
-2. **When are the old capability names removed across the independently deployed components?**
-   - We do not yet know the timing of dropping the `fileAttachments` and `file_attachments` aliases
-     once the front end, API, SDK, and runner all speak the new names.
-   - This matters because removing an alias before every component is updated breaks the versions in
-     between, and the four components deploy independently.
-   - To settle it, remove the aliases only after every component's deployed version emits and accepts
-     the new names, confirmed per component.
-   - This blocks the cleanup step of the alias rollout in Stage 2.
-
-3. **What are the retention rules when a session is archived or deleted?**
+2. **What are the retention rules when a session is archived or deleted?**
    - We do not yet know what happens to a session's attachment originals when the session is archived
      or deleted, and how long they are kept.
    - This matters because attachments are durable originals, so their lifecycle has to be defined
@@ -75,7 +66,7 @@ questions. Each one says what is unknown, why it matters, how to settle it, and 
      policy.
    - This blocks the findability and cleanup work in Stage 3.
 
-4. **What is the exact media-type, validation, and limits matrix?**
+3. **What is the exact media-type, validation, and limits matrix?**
    - We do not yet know how the declared media type relates to the type the server inspects from the
      bytes when they disagree, which formats are allowed per kind (image, audio, document), and what
      the server-side size and count limits are per kind.
@@ -94,7 +85,7 @@ questions. Each one says what is unknown, why it matters, how to settle it, and 
      enforce it in the upload route.
    - This blocks the server-side validation in Stage 1.
 
-5. **How are unused uploads cleaned up (the refinement)?**
+4. **How are unused uploads cleaned up (the refinement)?**
    - We do not yet know when to move from a time-to-live sweep to reference counting against the
      conversation records.
    - This matters because a file uploaded but never sent leaves a stored object, and reference

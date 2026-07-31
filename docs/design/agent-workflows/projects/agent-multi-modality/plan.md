@@ -232,8 +232,10 @@ to whichever path that decision chooses, gated on the `documents` capability.
   old, keep the old names accepted as aliases through the rollout, and remove them later once every
   independently deployed component speaks the new names. A single rename landing in every component at
   once would break the versions in between (see [design.md](design.md), decision D5). The removal
-  timing is an open
-  question in [decisions.md](decisions.md).
+  timing needs no separate decision: remove the aliases once every component's deployed version
+  speaks the new names, confirmed per component. The pip-installed SDK is the gating one, since
+  user-held versions upgrade on their own schedule, so the removal follows a standard deprecation
+  window rather than a fleet deploy.
 - **Front-end limits.** Replace the static defaults (`attachments.ts` `DEFAULT_ATTACHMENT_LIMITS`)
   with limits derived from the selected model's real limits (see [research.md](research.md), section
   3), passed down in place of the default, which the file was already written to allow.

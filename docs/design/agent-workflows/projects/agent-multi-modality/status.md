@@ -59,12 +59,13 @@ the running turn; drawer uploads and composer attachments are deliberately diffe
 
 ## Open questions
 
-See [decisions.md](decisions.md). All product decisions are taken. The five open implementation
-questions are: which service transcribes audio and when transcription runs; when the old capability
-names are removed across independently deployed components; the retention rules when a session is
-archived or deleted; the exact media-type, validation, and limits matrix (including the server-side
-limits and the gateway's 10 MB request-body cap); and when cleanup moves from a time-to-live sweep
-to reference counting.
+See [decisions.md](decisions.md). All product decisions are taken. The four open implementation
+questions are: which service transcribes audio and when transcription runs; the retention rules
+when a session is archived or deleted; the exact media-type, validation, and limits matrix
+(including the server-side limits and the gateway's 10 MB request-body cap); and when cleanup moves
+from a time-to-live sweep to reference counting. The capability-alias removal is deliberately not
+on this list: it is rollout mechanics with a stated settle condition, recorded in
+[plan.md](plan.md) Stage 2.
 
 ## Next actions
 
