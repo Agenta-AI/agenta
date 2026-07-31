@@ -45,6 +45,7 @@ dependencies = [
     "miniopy-async>=1,<2",
     "pathspec>=0.12,<0.13",
     "stream-zip>=0.0.83,<0.1",
+    "puremagic>=1.30",
 ]
 
 [dependency-groups]

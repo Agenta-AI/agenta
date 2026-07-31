@@ -1,0 +1,382 @@
+from io import BytesIO
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+from datetime import datetime, timedelta, timezone
+from typing import List, Optional
+from uuid import UUID, uuid4
+
+import pytest
+from fastapi import HTTPException, UploadFile
+from starlette.datastructures import Headers
+
+from oss.src.core.sessions.attachments.dtos import (
+    Attachment,
+    AttachmentCreate,
+    AttachmentKind,
+    AttachmentLimits,
+    AttachmentQuotaUsage,
+    AttachmentReservation,
+    AttachmentReservationStatus,
+    AttachmentState,
+)
+from oss.src.apis.fastapi.sessions.router import SessionAttachmentsRouter
+from oss.src.core.mounts.types import MountStorageUnavailable
+from oss.src.core.sessions.attachments.service import SessionAttachmentsService
+from oss.src.core.sessions.attachments.types import AttachmentNotFound
+
+
+class FakeAttachmentsDAO:
+    def __init__(self) -> None:
+        self.attachments: dict[str, Attachment] = {}
+        self.fail_mark_ready = False
+
+    async def fetch_by_idempotency_key(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        idempotency_key: str,
+    ) -> Optional[Attachment]:
+        attachment = self.attachments.get(idempotency_key)
+        if (
+            attachment is None
+            or attachment.project_id != project_id
+            or attachment.session_id != session_id
+        ):
+            return None
+        return attachment
+
+    async def get_quota_usage(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> AttachmentQuotaUsage:
+        scoped = [
+            attachment
+            for attachment in self.attachments.values()
+            if attachment.project_id == project_id
+            and attachment.session_id == session_id
+        ]
+        ready = [
+            attachment
+            for attachment in scoped
+            if attachment.state == AttachmentState.READY
+            or attachment.referenced_at is not None
+        ]
+        return AttachmentQuotaUsage(
+            stored_count=len(ready),
+            stored_bytes=sum(attachment.size for attachment in ready),
+            pending_count=sum(
+                attachment.state == AttachmentState.PENDING for attachment in scoped
+            ),
+        )
+
+    async def reserve_pending(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        attachment_create: AttachmentCreate,
+        limits: AttachmentLimits,
+        stale_before: datetime,
+    ) -> AttachmentReservation:
+        existing = self.attachments.get(attachment_create.idempotency_key)
+        if existing is not None:
+            status = (
+                AttachmentReservationStatus.TAKEN_OVER
+                if existing.created_at is not None
+                and existing.created_at < stale_before
+                else AttachmentReservationStatus.IN_FLIGHT
+            )
+            if existing.state == AttachmentState.READY:
+                status = AttachmentReservationStatus.READY
+            return AttachmentReservation(attachment=existing, status=status)
+
+        attachment = Attachment(
+            id=attachment_create.id,
+            project_id=project_id,
+            session_id=attachment_create.session_id,
+            mount_id=attachment_create.mount_id,
+            path=attachment_create.path,
+            filename=attachment_create.filename,
+            media_type=attachment_create.media_type,
+            size=attachment_create.size,
+            kind=attachment_create.kind,
+            state=AttachmentState.PENDING,
+            idempotency_key=attachment_create.idempotency_key,
+            created_at=datetime.now(timezone.utc),
+            created_by_id=user_id,
+        )
+        self.attachments[attachment.idempotency_key] = attachment
+        return AttachmentReservation(
+            attachment=attachment,
+            status=AttachmentReservationStatus.CREATED,
+        )
+
+    async def mark_ready(
+        self,
+        *,
+        project_id: UUID,
+        attachment_id: UUID,
+        limits: AttachmentLimits,
+    ) -> Optional[Attachment]:
+        if self.fail_mark_ready:
+            raise RuntimeError("database unavailable")
+        for key, attachment in self.attachments.items():
+            if attachment.project_id == project_id and attachment.id == attachment_id:
+                ready = attachment.model_copy(update={"state": AttachmentState.READY})
+                self.attachments[key] = ready
+                return ready
+        return None
+
+    async def fetch_ready(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        attachment_id: UUID,
+    ) -> Optional[Attachment]:
+        return next(
+            (
+                attachment
+                for attachment in self.attachments.values()
+                if attachment.project_id == project_id
+                and attachment.session_id == session_id
+                and attachment.id == attachment_id
+                and attachment.state == AttachmentState.READY
+            ),
+            None,
+        )
+
+    async def reference_ready(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        attachment_ids: List[UUID],
+        referenced_at: datetime,
+    ) -> Optional[List[Attachment]]:
+        raise NotImplementedError
+
+
+class FakeOriginalStore:
+    def __init__(self) -> None:
+        self.mount_id = uuid4()
+        self.objects: dict[tuple[UUID, str], bytes] = {}
+        self.write_count = 0
+
+    async def get_or_create_attachment_mount(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        session_id: str,
+    ) -> UUID:
+        return self.mount_id
+
+    async def write_attachment_original(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        path: str,
+        data: bytes,
+    ) -> None:
+        self.write_count += 1
+        self.objects[(mount_id, path)] = data
+
+    async def read_attachment_original(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        path: str,
+    ) -> bytes:
+        return self.objects[(mount_id, path)]
+
+    async def delete_attachment_original(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        path: str,
+    ) -> None:
+        self.objects.pop((mount_id, path), None)
+
+
+@pytest.fixture
+def attachment_service():
+    dao = FakeAttachmentsDAO()
+    store = FakeOriginalStore()
+    service = SessionAttachmentsService(
+        attachments_dao=dao,
+        original_store=store,
+    )
+    return service, dao, store
+
+
+async def _create(
+    service: SessionAttachmentsService,
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    session_id: str,
+    idempotency_key: str,
+) -> Attachment:
+    return await service.create_attachment(
+        project_id=project_id,
+        user_id=user_id,
+        session_id=session_id,
+        idempotency_key=idempotency_key,
+        filename="note.txt",
+        declared_media_type="text/plain",
+        data=b"hello",
+    )
+
+
+async def test_failure_after_object_write_leaves_pending_and_unfetchable(
+    attachment_service,
+):
+    service, dao, store = attachment_service
+    project_id = uuid4()
+    user_id = uuid4()
+    dao.fail_mark_ready = True
+
+    with pytest.raises(RuntimeError, match="database unavailable"):
+        await _create(
+            service,
+            project_id=project_id,
+            user_id=user_id,
+            session_id="session-a",
+            idempotency_key="upload-a",
+        )
+
+    pending = dao.attachments["upload-a"]
+    assert pending.state == AttachmentState.PENDING
+    assert store.objects[(pending.mount_id, pending.path)] == b"hello"
+    with pytest.raises(AttachmentNotFound):
+        await service.fetch_attachment_content(
+            project_id=project_id,
+            session_id="session-a",
+            attachment_id=pending.id,
+        )
+
+
+async def test_ready_idempotency_key_returns_same_attachment_without_second_write(
+    attachment_service,
+):
+    service, _, store = attachment_service
+    project_id = uuid4()
+    user_id = uuid4()
+
+    first = await _create(
+        service,
+        project_id=project_id,
+        user_id=user_id,
+        session_id="session-a",
+        idempotency_key="upload-a",
+    )
+    retried = await _create(
+        service,
+        project_id=project_id,
+        user_id=user_id,
+        session_id="session-a",
+        idempotency_key="upload-a",
+    )
+
+    assert retried.id == first.id
+    assert store.write_count == 1
+
+
+async def test_different_key_for_same_bytes_creates_second_attachment(
+    attachment_service,
+):
+    service, _, store = attachment_service
+    project_id = uuid4()
+    user_id = uuid4()
+
+    first = await _create(
+        service,
+        project_id=project_id,
+        user_id=user_id,
+        session_id="session-a",
+        idempotency_key="upload-a",
+    )
+    second = await _create(
+        service,
+        project_id=project_id,
+        user_id=user_id,
+        session_id="session-a",
+        idempotency_key="upload-b",
+    )
+
+    assert second.id != first.id
+    assert len(store.objects) == 2
+
+
+async def test_stale_pending_upload_is_taken_over_at_the_same_path(attachment_service):
+    service, dao, store = attachment_service
+    project_id = uuid4()
+    user_id = uuid4()
+    attachment_id = uuid4()
+    stale = Attachment(
+        id=attachment_id,
+        project_id=project_id,
+        session_id="session-a",
+        mount_id=store.mount_id,
+        path=f"{attachment_id}/note.txt",
+        filename="note.txt",
+        media_type="text/plain",
+        size=5,
+        kind=AttachmentKind.DOCUMENT,
+        state=AttachmentState.PENDING,
+        idempotency_key="upload-a",
+        created_at=datetime.now(timezone.utc) - timedelta(hours=1),
+        created_by_id=user_id,
+    )
+    dao.attachments[stale.idempotency_key] = stale
+
+    ready = await _create(
+        service,
+        project_id=project_id,
+        user_id=user_id,
+        session_id="session-a",
+        idempotency_key="upload-a",
+    )
+
+    assert ready.id == stale.id
+    assert ready.path == stale.path
+    assert store.objects[(stale.mount_id, stale.path)] == b"hello"
+
+
+async def test_router_maps_mount_storage_unavailable_to_503():
+    service = SimpleNamespace(
+        limits=AttachmentLimits(),
+        create_attachment=AsyncMock(side_effect=MountStorageUnavailable()),
+    )
+    router = SessionAttachmentsRouter(attachments_service=service)
+    router._check = AsyncMock()
+    request = SimpleNamespace(
+        state=SimpleNamespace(
+            project_id=str(uuid4()),
+            user_id=str(uuid4()),
+        )
+    )
+    file = UploadFile(
+        file=BytesIO(b"hello"),
+        filename="note.txt",
+        headers=Headers({"content-type": "text/plain"}),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await router.create_session_attachment(
+            request,
+            session_id="session-a",
+            file=file,
+            idempotency_key="upload-a",
+        )
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail == MountStorageUnavailable().message

@@ -74,3 +74,8 @@ class MountFileNotFound(MountError):
 class MountStorageUnavailable(MountError):
     def __init__(self, message: str = "Mount storage backend is not configured."):
         super().__init__(message)
+
+
+class MountProtected(MountError):
+    def __init__(self, message: str = "Mount is protected."):
+        super().__init__(message)
