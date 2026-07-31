@@ -253,3 +253,58 @@ unrelated to this stage.
   `attachment_delivery` record, because the legacy path has no attachment id to key the event.
   Honest visibility for pasted images arrives with WP4, when the front end switches them to real
   attachments.
+
+## WP3: the SDK and agent-service producer
+
+### Implementation decisions worth knowing (beyond the plan)
+
+- The stable failure code is SDK-owned (the runner result carries only a string today), named
+  `failure_code` because the errors module already uses `code` for an integer HTTP status.
+- `attachment_delivery` events parse through the generic event path; the plan's dedicated parser
+  branch would have duplicated what the generic path already preserves.
+- The model catalog's docstring now states that its `modalities` field feeds the runtime delivery
+  gate through the connection resolver; the catalog itself still gates nothing.
+
+### The review, and what it changed
+
+The adversarial review's headline finding was verified empirically against the pinned AI SDK:
+the first implementation put the stable error code on the Vercel error frame, and the SDK
+validates that frame with a strict schema that rejects unknown keys, so every error-carrying
+stream would have aborted with an opaque parse failure instead of rendering the sanitized
+message. The code now travels in a `data-agent-error` part emitted before the standard two-key
+error frame, with per-site codes (`runner_error`, `no_output`, the exception's own code, or the
+default).
+
+Second finding: the pinned SDK's file part has no top-level `size` field and validation strips
+extras, so the golden was pinning a value production could never send; `size` moved into the
+`providerMetadata.agenta` envelope beside the attachment id.
+
+Third, the review settled the plan's open key-space question with an end-to-end trace: the Pi
+path resolves for the common case (`provider/model` ids match the catalog keys exactly), the
+Claude picker aliases resolve, but bare dated Anthropic ids missed, which would have silently
+gated every dated-id Claude run's uploads to workspace-only. Closed by falling back to the Pi
+catalog's `anthropic/<id>` entry, a second read of the same sourced fact, not a guess.
+
+Fourth, a semantics defect at the WP2 seam, fixed on the WP2 lane: both catalogs only ever
+enumerate text and image, so the runner's gate treating a kind's absence as "unsupported"
+asserted a false negative for documents; absence now reads as unknown (workspace-only with the
+unknown reason), and the unsupported code is reserved for a catalog that can genuinely state
+negatives.
+
+### The stack, restructured again for the same reason
+
+The typed-failure work and the contract-test additions build on the sandbox-slug rename and the
+Pi-builtins changes in the same file regions, so those two parallel lanes were linearized into
+the train below WP3 (the same dependent-hunks refusal as WP2's case, caught the same way: the
+tool's partial-commit warning plus a tree-versus-tip diff). Consequence: PR #5597 now merges in
+the train after WP2; the sandbox-slug content already merged independently as #5585 and its lane
+dissolves on the next rebase.
+
+### Forced routes to double-check
+
+- **A catalog miss means workspace-only for that model's uploads.** The honesty rule's cost:
+  a model absent from both catalogs delivers attachments to the workspace with a notice until
+  the catalog data learns it. Closing a miss is a data addition, not a code change.
+- **The catalogs cannot express document or audio support today**, so native document delivery
+  (Stage 2) will need the catalog schema to grow before the gate can ever say yes; the gate's
+  absence-means-unknown rule is what keeps that honest in the meantime.
