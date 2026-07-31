@@ -8,7 +8,12 @@ from sqlalchemy.dialects.postgresql import insert
 
 from oss.src.core.mounts.dtos import Mount, MountCreate, MountEdit, MountQuery
 from oss.src.core.mounts.interfaces import MountsDAOInterface
-from oss.src.core.mounts.types import MountSlugConflict
+from oss.src.core.mounts.types import (
+    ATTACHMENTS_MOUNT_PURPOSE,
+    PROTECTED_MOUNT_SLUG_LIKE_ESCAPE,
+    MountSlugConflict,
+    protected_mount_slug_like_pattern,
+)
 from oss.src.core.shared.dtos import Windowing
 
 from oss.src.dbs.postgres.shared.engine import (
@@ -269,11 +274,13 @@ class MountsDAO(MountsDAOInterface):
             stmt = select(MountDBE).where(
                 MountDBE.project_id == project_id,
             )
+            # Same protected-mount policy as `is_protected_mount`, in SQL so the exclusion
+            # happens before the window's LIMIT rather than shortening the returned page.
             stmt = stmt.where(
-                MountDBE.purpose.is_distinct_from("session_attachment_originals"),
+                MountDBE.purpose.is_distinct_from(ATTACHMENTS_MOUNT_PURPOSE),
                 MountDBE.slug.not_like(
-                    r"\_\_ag\_\_session\_\_%\_\_attachments",
-                    escape="\\",
+                    protected_mount_slug_like_pattern(),
+                    escape=PROTECTED_MOUNT_SLUG_LIKE_ESCAPE,
                 ),
             )
 

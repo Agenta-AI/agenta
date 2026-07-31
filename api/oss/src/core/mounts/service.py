@@ -29,6 +29,10 @@ from oss.src.core.mounts.interfaces import MountsDAOInterface
 from oss.src.core.store.dtos import StoreObject
 from oss.src.core.store.storage import ObjectStore
 from oss.src.core.mounts.types import (
+    ATTACHMENTS_MOUNT_NAME,
+    ATTACHMENTS_MOUNT_PURPOSE,
+    RESERVED_SLUG_PREFIX,
+    SESSION_SLUG_PREFIX,
     MountArtifactIdInvalid,
     MountArtifactNotFound,
     MountFileNotFound,
@@ -46,9 +50,6 @@ from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
-# Reserved slug prefix for service-minted (session) slugs; a caller may not author one.
-_RESERVED_SLUG_PREFIX = "__ag__"
-
 # Deterministic UUIDv5 namespace: the project-wide root (uuid5(NAMESPACE_DNS, "agenta"))
 # sub-namespaced under "mounts". Stable across instances/restarts so the same session id
 # always derives the same slug. The same derived-root style as static_catalog's "catalog".
@@ -56,8 +57,6 @@ _MOUNTS_NAMESPACE = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "mounts")
 
 # The single session-bound mount: the agent's durable working directory.
 _SESSION_CWD_NAME = "cwd"
-ATTACHMENTS_MOUNT_NAME = "attachments"
-ATTACHMENTS_MOUNT_PURPOSE = "session_attachment_originals"
 
 # The name the runner symlinks the agent mount into the cwd as (runner: `AGENT_FILES_LINK_NAME`).
 # The runner unlinks whatever else sits at that path on every attach, so the name is reserved AT THE
@@ -90,7 +89,7 @@ def mint_session_slug(*, session_id: str, name: str) -> str:
     without truncation, so the existing unique(project_id, slug) constraint holds
     for both session and non-session mounts.
     """
-    return f"{_RESERVED_SLUG_PREFIX}session__{uuid5(_MOUNTS_NAMESPACE, session_id)}__{slugify_mount_name(name)}"
+    return f"{SESSION_SLUG_PREFIX}{uuid5(_MOUNTS_NAMESPACE, session_id)}__{slugify_mount_name(name)}"
 
 
 def is_protected_mount(mount: Mount) -> bool:
@@ -125,12 +124,12 @@ def mint_agent_slug(*, artifact_id: str, name: str) -> str:
     """
     canonical_artifact_id = mint_agent_id(artifact_id=artifact_id)
     slug_name = slugify_mount_name(name)
-    return f"{_RESERVED_SLUG_PREFIX}agent__{canonical_artifact_id}__{slug_name}"
+    return f"{RESERVED_SLUG_PREFIX}agent__{canonical_artifact_id}__{slug_name}"
 
 
 def reject_reserved_slug(slug: str) -> None:
     """A caller may not author a slug in the reserved namespace (the service mints those)."""
-    if slug.startswith(_RESERVED_SLUG_PREFIX):
+    if slug.startswith(RESERVED_SLUG_PREFIX):
         raise MountSlugReserved(slug)
 
 

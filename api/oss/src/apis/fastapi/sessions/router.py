@@ -1287,7 +1287,7 @@ class SessionMountsRouter:
         request: Request,
         mount_id: UUID,
         *,
-        file: UploadFile,
+        file: FastAPIUploadFile,
         path: Optional[str] = Query(default=None),
     ) -> MountFileWrittenResponse:
         await self._check(request, Permission.EDIT_SESSIONS, Permission.EDIT_MOUNTS)

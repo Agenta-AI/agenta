@@ -243,18 +243,23 @@ async def test_quota_recheck_is_serialized_by_session_advisory_lock(
     )
     limits = AttachmentLimits(max_per_session_count=1)
 
-    results = await asyncio.gather(
-        dao.mark_ready(
-            project_id=attachment_scope["project_id"],
-            attachment_id=first.id,
-            limits=limits,
+    # Bounded: both calls contend for the same advisory lock on separate pooled
+    # connections, so a regression here would hang the run instead of failing it.
+    results = await asyncio.wait_for(
+        asyncio.gather(
+            dao.mark_ready(
+                project_id=attachment_scope["project_id"],
+                attachment_id=first.id,
+                limits=limits,
+            ),
+            dao.mark_ready(
+                project_id=attachment_scope["project_id"],
+                attachment_id=second.id,
+                limits=limits,
+            ),
+            return_exceptions=True,
         ),
-        dao.mark_ready(
-            project_id=attachment_scope["project_id"],
-            attachment_id=second.id,
-            limits=limits,
-        ),
-        return_exceptions=True,
+        timeout=30,
     )
 
     assert sum(isinstance(result, Attachment) for result in results) == 1

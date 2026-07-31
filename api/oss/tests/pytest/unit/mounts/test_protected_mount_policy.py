@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from re import compile, escape
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -24,9 +25,11 @@ from oss.src.core.mounts.service import (
     mint_session_slug,
 )
 from oss.src.core.mounts.types import (
+    PROTECTED_MOUNT_SLUG_LIKE_ESCAPE,
     MountImmutableField,
     MountNameInvalid,
     MountProtected,
+    protected_mount_slug_like_pattern,
 )
 
 _PROJECT_ID = uuid4()
@@ -335,6 +338,42 @@ def test_protected_classification_uses_purpose_then_legacy_slug_fallback():
     assert is_protected_mount(purpose_mount)
     assert is_protected_mount(legacy_mount)
     assert not is_protected_mount(cwd)
+
+
+def _like_to_regex(pattern: str) -> str:
+    """Translate a SQL `LIKE ... ESCAPE` pattern to an equivalent regular expression."""
+    regex = ""
+    literal = False
+    for char in pattern:
+        if literal:
+            regex += escape(char)
+            literal = False
+        elif char == PROTECTED_MOUNT_SLUG_LIKE_ESCAPE:
+            literal = True
+        elif char == "%":
+            regex += ".*"
+        elif char == "_":
+            regex += "."
+        else:
+            regex += escape(char)
+    return regex
+
+
+def test_dao_slug_predicate_matches_what_the_service_mints():
+    # The DAO applies this pattern in SQL and the service re-checks in Python; a drift
+    # between the two silently returns a protected mount from the query path.
+    pattern = compile(_like_to_regex(protected_mount_slug_like_pattern()))
+
+    assert pattern.fullmatch(
+        mint_session_slug(session_id=_SESSION_ID, name=ATTACHMENTS_MOUNT_NAME)
+    )
+    assert not pattern.fullmatch(mint_session_slug(session_id=_SESSION_ID, name="cwd"))
+    # The literal underscores are escaped, so they match underscores and nothing else.
+    assert not pattern.fullmatch(
+        mint_session_slug(session_id=_SESSION_ID, name=ATTACHMENTS_MOUNT_NAME).replace(
+            "_", "x"
+        )
+    )
 
 
 def test_purpose_is_server_owned_create_data_not_an_editable_flag():
