@@ -1,4 +1,4 @@
-import {type MutableRefObject, useCallback, useEffect, useState} from "react"
+import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "react"
 
 import {shouldAdoptServerTranscript} from "@agenta/entities/session"
 import {type UIMessage} from "ai"
@@ -95,11 +95,20 @@ export const useSessionHydration = ({
             // yank a reader who scrolled up. Following the growth is `stickRef`'s call, the same
             // rule the live stream uses.
             if (armJump || intent.stickRef.current) intent.armJump()
+            // Written synchronously, before any React commit. `messagesRef` lags a commit behind,
+            // so two deliveries landing back-to-back (disk-restored result + background refetch)
+            // can both see the pre-adoption transcript — it is this watermark, not the on-screen
+            // length, that keeps the guard order-independent and stops an older snapshot from
+            // clobbering a newer one.
             recordWatermarkRef.current = recordCount
             setMessages(serverMsgs)
             persistMessages({id: sessionId, messages: serverMsgs, recordCount})
             return true
         },
+        // `intent`'s MEMBERS, not `intent`: `useScrollIntent` returns a fresh object every render,
+        // so the object itself would recreate this callback each render and churn everything keyed
+        // on it. `armJump` (useCallback []) and `stickRef` (useRef) are stable for the life of the
+        // conversation.
         [
             sessionId,
             messagesRef,
@@ -109,9 +118,16 @@ export const useSessionHydration = ({
             recordWatermarkRef,
             setMessages,
             persistMessages,
-            intent,
+            intent.armJump,
+            intent.stickRef,
         ],
     )
+    // The remote-run poll below must NOT re-arm its timer on re-renders: the liveness query alone
+    // re-renders this hook ~every 15s while a run is live elsewhere, and restarting a fresh 15s
+    // timer on each of those starves the poll and resets its backoff. The effect reads the CURRENT
+    // adopter through this ref and keys only on the poll's real inputs.
+    const adoptServerTranscriptRef = useRef(adoptServerTranscript)
+    adoptServerTranscriptRef.current = adoptServerTranscript
 
     useEffect(() => {
         // A session created brand-new in this browser and not yet run has no backend records —
@@ -125,18 +141,27 @@ export const useSessionHydration = ({
         // instead of latching a ref that leaves the transcript blank.
         let cancelled = false
         // Post-restore revalidation: the first result may be the disk-restored log (paints
-        // instantly); adopt the background refetch when it lands.
+        // instantly); adopt the background refetch when it lands. The refetch can land BEFORE the
+        // promise handler below runs (both are microtasks racing), and `messagesRef` only catches
+        // up on the next React commit — so record here, not via what's on screen, that real
+        // history was already adopted.
+        let adopted = false
         loadSessionMessages(sessionId, (fresh) => {
             if (cancelled) return
             // The restore said "no records" but the server has some — clear the notice.
-            if (adoptServerTranscript(fresh)) setHydratedEmpty(false)
+            if (adoptServerTranscript(fresh)) {
+                adopted = true
+                setHydratedEmpty(false)
+            }
         })
             .then((transcript) => {
                 if (cancelled) return
                 if (!transcript || transcript.messages.length === 0) {
                     // Known session, but the server has no records for it → history was pruned or
                     // never persisted. Flag it so the transcript shows the "unavailable" notice.
-                    setHydratedEmpty(true)
+                    // Only when nothing has been adopted yet — a refetch that already landed is
+                    // real history, and this stale first result must not blank it out.
+                    if (!adopted) setHydratedEmpty(true)
                     return
                 }
                 adoptServerTranscript(transcript)
@@ -193,10 +218,11 @@ export const useSessionHydration = ({
         const poll = async () => {
             let grew = false
             try {
+                const adopt = adoptServerTranscriptRef.current
                 const transcript = await loadSessionMessages(sessionId, (fresh) => {
-                    if (!cancelled && adoptServerTranscript(fresh, {armJump: false})) grew = true
+                    if (!cancelled && adopt(fresh, {armJump: false})) grew = true
                 })
-                if (!cancelled && adoptServerTranscript(transcript, {armJump: false})) grew = true
+                if (!cancelled && adopt(transcript, {armJump: false})) grew = true
             } catch {
                 // `loadSessionMessages` already swallows + logs; keep polling regardless.
             } finally {
@@ -213,7 +239,9 @@ export const useSessionHydration = ({
             cancelled = true
             if (timer) clearTimeout(timer)
         }
-    }, [runningElsewhere, sessionId, adoptServerTranscript])
+        // Deliberately NOT keyed on `adoptServerTranscript` — the poll reads it through the ref
+        // above, so a re-render can't cancel a pending tick or reset the backoff.
+    }, [runningElsewhere, sessionId])
 
     return {isHydrating, hydratedEmpty, runningElsewhere}
 }

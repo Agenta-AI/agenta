@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from "react"
 
+import {generateId} from "@agenta/shared/utils"
 import type {UploadFile} from "antd"
 
 import {
@@ -12,8 +13,11 @@ import {attachmentsBySession} from "../state/sessionEphemera"
 
 import {useAttachmentUploads} from "./useAttachmentUploads"
 
+// `uid` is the tray's React key, its preview-URL key, and the remove / view / retry handle, so it
+// has to be unique per TRAY ROW. Deriving it from name+mtime+size collided whenever the same file
+// was attached twice (paste then drop) — one remove then wiped both rows and their previews.
 const toUploadFile = (file: File): UploadFile => ({
-    uid: `${file.name}-${file.lastModified}-${file.size}`,
+    uid: `att-${generateId()}`,
     name: file.name,
     status: "done",
     originFileObj: file as UploadFile["originFileObj"],
@@ -62,8 +66,11 @@ export const useComposerAttachments = ({sessionId}: {sessionId: string}) => {
         const {accepted, rejections} = validateIncoming(incoming, files.length, limits)
         const allRejections = [...extraRejections, ...rejections]
         if (accepted.length) {
-            setFiles((prev) => [...prev, ...accepted.map(toUploadFile)])
-            uploads.enqueue(accepted.map((f) => `${f.name}-${f.lastModified}-${f.size}`))
+            // Stage once and enqueue the MINTED uids — re-deriving them here is what let the tray
+            // row and its upload disagree about which entry they addressed.
+            const staged = accepted.map(toUploadFile)
+            setFiles((prev) => [...prev, ...staged])
+            uploads.enqueue(staged.map((f) => f.uid))
         }
         setRejections(allRejections)
         // Open for rejections too. Otherwise dropping something unsupported writes a message into
