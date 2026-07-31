@@ -19,8 +19,8 @@ import agenta as ag
 from agenta.sdk.agents import (
     AgentTemplate,
     Backend,
-    LocalSandboxNotAllowedError,
     SandboxAgentBackend,
+    SandboxNotAllowedError,
 )
 
 from agenta.sdk.agents.handler import (
@@ -79,7 +79,7 @@ def select_backend(agent_template: AgentTemplate) -> Backend:
     layer and the final authority.
     """
     if not sandbox_provider_enabled(agent_template.sandbox):
-        raise LocalSandboxNotAllowedError(sandbox=agent_template.sandbox)
+        raise SandboxNotAllowedError(sandbox=agent_template.sandbox)
     return SandboxAgentBackend(
         sandbox=agent_template.sandbox,
         url=runner_url(),
