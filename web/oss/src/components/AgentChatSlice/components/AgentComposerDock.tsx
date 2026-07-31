@@ -32,6 +32,7 @@ import MicPermissionNotice from "./MicPermissionNotice"
 import QueuedMessages from "./QueuedMessages"
 import RecordingBar from "./RecordingBar"
 import RevealCollapse from "./RevealCollapse"
+import RunningElsewhereStrip from "./RunningElsewhereStrip"
 import VoiceInputButton from "./VoiceInputButton"
 
 // The composer carries Lexical — the heaviest dependency of this chunk — out of the
@@ -51,6 +52,7 @@ const AgentComposerDock = ({
     entityId,
     messages,
     busy,
+    runningElsewhere,
     hitlPending,
     queue,
     modelKey,
@@ -78,6 +80,8 @@ const AgentComposerDock = ({
     entityId: string
     messages: UIMessage[]
     busy: boolean
+    /** The backend reports a live run for this session that this browser is not driving. */
+    runningElsewhere: boolean
     hitlPending: boolean
     queue: {
         queued: QueuedMessage[]
@@ -201,6 +205,11 @@ const AgentComposerDock = ({
                 <div className={CHAT_COLUMN}>
                     <ConnectModelBanner {...modelKey} suppressed={chromeHidden} />
                 </div>
+                {/* Sits with the other docked strips so a session running in another browser reads
+                    as busy instead of frozen (#5530). */}
+                {runningElsewhere && !chromeHidden ? (
+                    <RunningElsewhereStrip className={CHAT_COLUMN} />
+                ) : null}
                 <ApprovalDock
                     className={CHAT_COLUMN}
                     approvals={pendingApprovals}

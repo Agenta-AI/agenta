@@ -1,18 +1,32 @@
-import {type MutableRefObject, useEffect, useState} from "react"
+import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "react"
 
+import {shouldAdoptServerTranscript} from "@agenta/entities/session"
 import {type UIMessage} from "ai"
+import {useAtomValue} from "jotai"
 
-import {loadSessionMessages} from "../assets/loadSession"
-import {getPendingApprovals} from "../components/ApprovalDock"
+import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
+import {sessionLivenessAtomFamily} from "../state/liveness"
 import {isSessionFresh} from "../state/sessionEphemera"
 
 import {type ScrollIntent} from "./useScrollIntent"
+
+/** Catch-up cadence while a session runs elsewhere — matches the records query's own staleTime and
+ * the liveness poll, so a tick refetches instead of resolving from a still-fresh cache. */
+const REMOTE_RUN_POLL_MS = 15_000
+
+/** Ceiling once the log goes quiet. `is_running` is Redis-TTL'd at an hour (the runner clears it at
+ * turn end; the TTL is only the crash backstop), so a runner that dies mid-turn leaves the flag set
+ * for a long time — without a backoff that is a full-log refetch every 15s for an hour. Real growth
+ * resets to the fast cadence, so a long turn that is simply quiet (a slow tool call emits no
+ * records until it returns) is still followed. */
+const REMOTE_RUN_POLL_MAX_MS = 60_000
 
 /**
  * Hybrid history for one session tab. localStorage holds only the session INDEX; the durable
  * conversation CONTENT lives in the backend record log — so a tab either paints from cache and
  * revalidates (SWR), or hydrates from the server once (cache miss). Both paths adopt the server
- * transcript under the same guards: never mid-stream, and never behind what's on screen.
+ * transcript through the SAME guard: never mid-stream, and only when the record log has grown past
+ * what's on screen.
  */
 export const useSessionHydration = ({
     sessionId,
@@ -21,6 +35,8 @@ export const useSessionHydration = ({
     busyRef,
     seenIdsRef,
     restoredIdsRef,
+    recordWatermarkRef,
+    busy,
     setMessages,
     persistMessages,
     intent,
@@ -31,8 +47,12 @@ export const useSessionHydration = ({
     busyRef: MutableRefObject<boolean>
     seenIdsRef: MutableRefObject<Set<string>>
     restoredIdsRef: MutableRefObject<Set<string>>
+    /** Records the rendered transcript was built from; `undefined` once a live turn supersedes it. */
+    recordWatermarkRef: MutableRefObject<number | undefined>
+    /** THIS browser is streaming the turn — reactive, so the catch-up poll can start/stop on it. */
+    busy: boolean
     setMessages: (messages: UIMessage[]) => void
-    persistMessages: (args: {id: string; messages: UIMessage[]}) => void
+    persistMessages: (args: {id: string; messages: UIMessage[]; recordCount?: number}) => void
     intent: ScrollIntent
 }) => {
     // Cache-first — when this tab opens with no locally-cached messages (a session this browser
@@ -48,6 +68,67 @@ export const useSessionHydration = ({
     // durable history was pruned by retention or never persisted. Drives the "history unavailable"
     // notice so a wiped session isn't mistaken for a brand-new chat.
     const [hydratedEmpty, setHydratedEmpty] = useState(false)
+
+    /**
+     * The ONE adoption guard, shared by both paths below (they used to carry divergent copies, and
+     * the hydration one had the same #5530 blind spot). Adopts the durable transcript when the
+     * record log has grown past what we're rendering. Returns whether it adopted.
+     */
+    const adoptServerTranscript = useCallback(
+        (transcript: SessionTranscript | null, {armJump = true} = {}): boolean => {
+            if (!transcript) return false
+            const {messages: serverMsgs, recordCount} = transcript
+            const adopt = shouldAdoptServerTranscript({
+                serverRecordCount: recordCount,
+                serverMessageCount: serverMsgs.length,
+                localMessageCount: messagesRef.current.length,
+                watermark: recordWatermarkRef.current,
+                busy: busyRef.current,
+            })
+            if (!adopt) return false
+            // Restored history renders settled (no live fade-in) and pinned to the bottom.
+            serverMsgs.forEach((m) => {
+                seenIdsRef.current.add(m.id)
+                restoredIdsRef.current.add(m.id)
+            })
+            // Opening a session jumps to the live edge; a background catch-up must NOT — it would
+            // yank a reader who scrolled up. Following the growth is `stickRef`'s call, the same
+            // rule the live stream uses.
+            if (armJump || intent.stickRef.current) intent.armJump()
+            // Written synchronously, before any React commit. `messagesRef` lags a commit behind,
+            // so two deliveries landing back-to-back (disk-restored result + background refetch)
+            // can both see the pre-adoption transcript — it is this watermark, not the on-screen
+            // length, that keeps the guard order-independent and stops an older snapshot from
+            // clobbering a newer one.
+            recordWatermarkRef.current = recordCount
+            setMessages(serverMsgs)
+            persistMessages({id: sessionId, messages: serverMsgs, recordCount})
+            return true
+        },
+        // `intent`'s MEMBERS, not `intent`: `useScrollIntent` returns a fresh object every render,
+        // so the object itself would recreate this callback each render and churn everything keyed
+        // on it. `armJump` (useCallback []) and `stickRef` (useRef) are stable for the life of the
+        // conversation.
+        [
+            sessionId,
+            messagesRef,
+            busyRef,
+            seenIdsRef,
+            restoredIdsRef,
+            recordWatermarkRef,
+            setMessages,
+            persistMessages,
+            intent.armJump,
+            intent.stickRef,
+        ],
+    )
+    // The remote-run poll below must NOT re-arm its timer on re-renders: the liveness query alone
+    // re-renders this hook ~every 15s while a run is live elsewhere, and restarting a fresh 15s
+    // timer on each of those starves the poll and resets its backoff. The effect reads the CURRENT
+    // adopter through this ref and keys only on the poll's real inputs.
+    const adoptServerTranscriptRef = useRef(adoptServerTranscript)
+    adoptServerTranscriptRef.current = adoptServerTranscript
+
     useEffect(() => {
         // A session created brand-new in this browser and not yet run has no backend records —
         // skip the guaranteed-empty query (cleared on first send; after a reload it re-hydrates).
@@ -59,40 +140,31 @@ export const useSessionHydration = ({
         // StrictMode's mount→unmount→mount cycle re-runs the fetch (the first run is cancelled)
         // instead of latching a ref that leaves the transcript blank.
         let cancelled = false
-        // How long a transcript this effect has already handed to `setMessages`. `messagesRef` only
-        // catches up on the next React commit, so two adoptions landing before that commit would
-        // both read the pre-adoption length and let the older snapshot win. The high-water mark
-        // makes the guard order-independent.
-        let adoptedLength = initialMessages.length
-        // ONE adopter for both deliveries: the initial result (disk-restored log, paints instantly)
-        // and the guaranteed background refetch. Never mid-stream, only when strictly ahead.
-        const adopt = (msgs: UIMessage[]) => {
-            if (cancelled || busyRef.current) return
-            if (msgs.length <= Math.max(adoptedLength, messagesRef.current.length)) return
-            adoptedLength = msgs.length
-            // Restored history renders settled (no live fade-in) and pinned to the bottom.
-            msgs.forEach((m) => {
-                seenIdsRef.current.add(m.id)
-                restoredIdsRef.current.add(m.id)
-            })
-            intent.armJump()
-            // The restore may have said "no records" while the server has some — clear the notice.
-            setHydratedEmpty(false)
-            setMessages(msgs)
-            persistMessages({id: sessionId, messages: msgs})
-        }
-        loadSessionMessages(sessionId, adopt)
-            .then((msgs) => {
+        // Post-restore revalidation: the first result may be the disk-restored log (paints
+        // instantly); adopt the background refetch when it lands. The refetch can land BEFORE the
+        // promise handler below runs (both are microtasks racing), and `messagesRef` only catches
+        // up on the next React commit — so record here, not via what's on screen, that real
+        // history was already adopted.
+        let adopted = false
+        loadSessionMessages(sessionId, (fresh) => {
+            if (cancelled) return
+            // The restore said "no records" but the server has some — clear the notice.
+            if (adoptServerTranscript(fresh)) {
+                adopted = true
+                setHydratedEmpty(false)
+            }
+        })
+            .then((transcript) => {
                 if (cancelled) return
-                if (!msgs || msgs.length === 0) {
+                if (!transcript || transcript.messages.length === 0) {
                     // Known session, but the server has no records for it → history was pruned or
                     // never persisted. Flag it so the transcript shows the "unavailable" notice.
                     // Only when nothing has been adopted yet — a refetch that already landed is
                     // real history, and this stale first result must not blank it out.
-                    if (adoptedLength === initialMessages.length) setHydratedEmpty(true)
+                    if (!adopted) setHydratedEmpty(true)
                     return
                 }
-                adopt(msgs)
+                adoptServerTranscript(transcript)
             })
             .finally(() => {
                 if (!cancelled) setIsHydrating(false)
@@ -104,55 +176,21 @@ export const useSessionHydration = ({
     }, [sessionId])
 
     // SWR revalidate-on-open: a cached session paints instantly from localStorage; in the background
-    // we refetch the durable records ONCE (low-priority) and adopt the server transcript ONLY IF it's
-    // strictly ahead of what we're showing (a turn finished on another device). We never clobber a
-    // transcript that's live (`busyRef`), or that the server isn't strictly ahead of — so a local
-    // optimistic/unsent tail is safe. Cache-MISS sessions are hydrated by the effect above; fresh
-    // never-run sessions have no server records. Reconciliation is by message COUNT, not content:
-    // detecting a same-length server-side edit/regenerate is deferred, as is focus/interval
-    // revalidation. FOLLOWUP(sessions,swr): see docs/designs/sessions/frontend-integration.md.
+    // we refetch the durable records ONCE (low-priority) and adopt the server transcript when the
+    // record log has grown past ours. Cache-MISS sessions are hydrated by the effect above; fresh
+    // never-run sessions have no server records.
+    //
+    // The old count-based guard also carried a special case for "local tail paused, server tail
+    // complete" — a resume that finished on another device, invisible to a message count. The
+    // record watermark sees that growth directly, so the special case is gone rather than extended.
     useEffect(() => {
         if (initialMessages.length === 0 || isSessionFresh(sessionId)) return
         // As with the hydration effect above: no persistent ref, so StrictMode's double-mount
         // re-runs the revalidation rather than latching it out.
         let cancelled = false
-        // `messagesRef` only catches up on the next React commit, so a transcript this effect just
-        // adopted is invisible to the guard until then. Hold it here too and compare against
-        // whichever is longer — the checks below read the tail, not just the count, so this keeps
-        // the whole snapshot rather than a length.
-        let adopted: UIMessage[] | null = null
-        const adopt = (serverMsgs: UIMessage[] | null) => {
-            if (cancelled || !serverMsgs || serverMsgs.length === 0) return
-            const onScreen = messagesRef.current
-            const prev = adopted && adopted.length > onScreen.length ? adopted : onScreen
-            if (busyRef.current) return
-            // Adopt the server transcript when it is strictly ahead by count, OR when our LOCAL tail
-            // is stuck paused (mid-approval) while the server has moved past it to a terminal turn — a
-            // resume that completed on another device. Count alone misses the latter (same bubble
-            // count) and was silently propped up by the now-removed duplicate user row; the server's
-            // `paused` flag rides the runner's `done.stopReason` through `transcriptToMessages`.
-            const serverAheadByCount = serverMsgs.length > prev.length
-            const localTailPaused = getPendingApprovals(prev).length > 0
-            const serverTail = serverMsgs[serverMsgs.length - 1] as
-                | {role?: string; metadata?: {paused?: boolean}}
-                | undefined
-            // The paused-tail exception adopts a resume that completed elsewhere, so the server must
-            // NOT be behind (>= guards against a lagging snapshot discarding newer local approval
-            // state) and its tail must be a finished assistant turn — not a shorter, older stream.
-            const serverTailComplete =
-                serverMsgs.length >= prev.length &&
-                serverTail?.role === "assistant" &&
-                !serverTail.metadata?.paused &&
-                getPendingApprovals(serverMsgs).length === 0
-            if (!serverAheadByCount && !(localTailPaused && serverTailComplete)) return
-            adopted = serverMsgs
-            serverMsgs.forEach((m) => {
-                seenIdsRef.current.add(m.id)
-                restoredIdsRef.current.add(m.id)
-            })
-            intent.armJump()
-            setMessages(serverMsgs)
-            persistMessages({id: sessionId, messages: serverMsgs})
+        const adopt = (transcript: SessionTranscript | null) => {
+            if (cancelled) return
+            adoptServerTranscript(transcript)
         }
         // The first result may itself be the disk-restored records log; the callback re-applies
         // the same guarded adoption when the guaranteed background revalidation lands.
@@ -163,5 +201,47 @@ export const useSessionHydration = ({
         // Once per mounted session tab; `sessionId` is stable for this instance.
     }, [sessionId])
 
-    return {isHydrating, hydratedEmpty}
+    // ── Follow a run happening somewhere else (#5530) ──────────────────────────
+    // There is no push channel to browsers: the runner publishes every event to Redis, but the only
+    // consumer is the ingest worker that writes them to the DB. So a session driven from another tab
+    // or device is followed by re-reading the durable log on a timer, and the adoption guard above
+    // decides whether anything actually changed. `isRunning` also covers OUR stream, so exclude the
+    // case where this browser is the one driving.
+    const {nest} = useAtomValue(sessionLivenessAtomFamily(sessionId))
+    const runningElsewhere = nest.isRunning && !busy
+
+    useEffect(() => {
+        if (!runningElsewhere) return
+        let cancelled = false
+        let timer: ReturnType<typeof setTimeout> | undefined
+        let delay = REMOTE_RUN_POLL_MS
+        const poll = async () => {
+            let grew = false
+            try {
+                const adopt = adoptServerTranscriptRef.current
+                const transcript = await loadSessionMessages(sessionId, (fresh) => {
+                    if (!cancelled && adopt(fresh, {armJump: false})) grew = true
+                })
+                if (!cancelled && adopt(transcript, {armJump: false})) grew = true
+            } catch {
+                // `loadSessionMessages` already swallows + logs; keep polling regardless.
+            } finally {
+                // Chained, not `setInterval`: the log is ~200KB and backend-slow, so a slow fetch
+                // must never stack requests on top of itself.
+                if (!cancelled) {
+                    delay = grew ? REMOTE_RUN_POLL_MS : Math.min(delay * 2, REMOTE_RUN_POLL_MAX_MS)
+                    timer = setTimeout(poll, delay)
+                }
+            }
+        }
+        timer = setTimeout(poll, delay)
+        return () => {
+            cancelled = true
+            if (timer) clearTimeout(timer)
+        }
+        // Deliberately NOT keyed on `adoptServerTranscript` — the poll reads it through the ref
+        // above, so a re-render can't cancel a pending tick or reset the backoff.
+    }, [runningElsewhere, sessionId])
+
+    return {isHydrating, hydratedEmpty, runningElsewhere}
 }
