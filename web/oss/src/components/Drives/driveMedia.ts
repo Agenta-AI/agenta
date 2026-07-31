@@ -6,9 +6,10 @@
  * through the authenticated client once (cached blob → object URL). BACKEND ASK: an inline
  * disposition (or real signed URLs) to let media stream natively.
  */
-import {useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {type Mount} from "@agenta/entities/session"
+import {App} from "antd"
 import {useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -191,7 +192,9 @@ export async function uploadMountFile({
     })
 }
 
-export async function downloadMountFile({
+/** Raw-bytes save of one file. Module-private on purpose: it reports failure as `false`, which every
+ * call site used to drop on the floor — go through {@link useDriveFileDownload}, which reports it. */
+async function downloadMountFile({
     mount,
     path,
     projectId,
@@ -212,6 +215,31 @@ export async function downloadMountFile({
     anchor.remove()
     URL.revokeObjectURL(url)
     return true
+}
+
+/** `download(mount, path)` for ONE drive file, reporting the outcome through the themed toast
+ * (App.useApp, so it renders correctly in dark mode). THE way to trigger a single-file download:
+ * {@link downloadMountFile} resolves `false` on failure, so a bare fire-and-forget call left a failed
+ * click looking exactly like a successful one. Stable — safe to pass down to list items. */
+export function useDriveFileDownload(): (mount: Mount | null, path: string) => Promise<boolean> {
+    const {message} = App.useApp()
+    const projectId = useAtomValue(projectIdAtom)
+    return useCallback(
+        async (mount: Mount | null, path: string) => {
+            // `path` is mount-RELATIVE, so it alone doesn't identify a file: `agent-files/notes.md`
+            // and a cwd `notes.md` both arrive here as "notes.md" and would share a toast.
+            const key = `drive-download:${mount?.id ?? "none"}:${path}`
+            message.open({type: "loading", key, content: "Downloading…", duration: 0})
+            const ok = await downloadMountFile({mount, path, projectId})
+            message.open(
+                ok
+                    ? {type: "success", key, content: "Downloaded"}
+                    : {type: "error", key, content: "Download failed"},
+            )
+            return ok
+        },
+        [message, projectId],
+    )
 }
 
 /** Download the WHOLE drive as ONE zip ("download all") — spanning every mount the drive folds in
@@ -258,8 +286,12 @@ export async function downloadMountArchive({
             if ((error as Error)?.name === "AbortError") return {ok: false, cancelled: true}
         }
         if (handle) {
-            const writable = await handle.createWritable()
+            // `createWritable()` belongs INSIDE the try: it rejects when the write permission is
+            // refused, and this function's whole contract is to report failure as a value — a throw
+            // here escapes every caller's result handling and strands their in-flight UI.
+            let writable: WritableFileStreamLike | null = null
             try {
+                writable = await handle.createWritable()
                 const jwt = await getJWT()
                 const url = `${getAgentaApiUrl()}/mounts/files/export?project_id=${encodeURIComponent(projectId)}`
                 const response = await fetch(url, {
@@ -281,7 +313,7 @@ export async function downloadMountArchive({
                 await writable.close()
                 return {ok: true}
             } catch {
-                await writable.abort().catch(() => undefined)
+                await writable?.abort().catch(() => undefined)
                 return {ok: false, error: "Couldn't prepare the download."}
             }
         }

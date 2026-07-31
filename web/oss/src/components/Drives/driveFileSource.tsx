@@ -3,9 +3,7 @@ import {createContext, useCallback, useContext, useEffect, useState} from "react
 import {mountFileContentQueryFamily, type Mount} from "@agenta/entities/session"
 import {useAtomValue} from "jotai"
 
-import {projectIdAtom} from "@/oss/state/project"
-
-import {downloadMountFile, useMountFileMediaSrc, useMountFileObjectUrl} from "./driveMedia"
+import {useDriveFileDownload, useMountFileMediaSrc, useMountFileObjectUrl} from "./driveMedia"
 
 /**
  * Lets the Drives viewer render files that are NOT backed by a mount — a handful of local, in-memory
@@ -88,7 +86,7 @@ export function useDriveFileText(
 /** Download action: saves the local blob directly, or routes to the mount download. */
 export function useDriveDownload(mount: Mount | null, path: string): () => void {
     const local = useLocalFile(path)
-    const projectId = useAtomValue(projectIdAtom)
+    const downloadFile = useDriveFileDownload()
     return useCallback(() => {
         if (local) {
             const a = document.createElement("a")
@@ -97,6 +95,6 @@ export function useDriveDownload(mount: Mount | null, path: string): () => void 
             a.click()
             return
         }
-        void downloadMountFile({mount, path, projectId})
-    }, [local, mount, path, projectId])
+        void downloadFile(mount, path)
+    }, [local, mount, path, downloadFile])
 }
