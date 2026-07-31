@@ -384,6 +384,34 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(calls.workspaceCleanup, 1);
   });
 
+  it("delivers the current legacy inline image before one text block", async () => {
+    const { calls, deps } = fakeHarness({ capabilities: { images: true } });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "image", uri: "data:image/png;base64,AQID" },
+              { type: "text", text: "inspect this" },
+            ],
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(calls.promptBlocks, [
+      { type: "image", data: "AQID", mimeType: "image/png" },
+      { type: "text", text: "inspect this" },
+    ]);
+  });
+
   it("points local Pi and pi-acp at the conversation workspace transcript directory", async () => {
     const cwd = join(
       tmpdir(),

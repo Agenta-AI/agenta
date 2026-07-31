@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import {
+  currentUserTurn,
   type AgentRunRequest,
   type ChatMessage,
   type ContentBlock,
@@ -150,6 +151,7 @@ export function configFingerprint(request: AgentRunRequest): string {
     connection: request.connection ?? null,
     deployment: request.deployment ?? null,
     endpoint: request.endpoint ?? null,
+    modelCapabilities: request.modelCapabilities ?? null,
     credentialMode: request.credentialMode ?? null,
     agentsMd: request.agentsMd ?? null,
     systemPrompt: request.systemPrompt ?? null,
@@ -212,6 +214,7 @@ function collectToolCallIds(
  */
 export function historyFingerprint(messages: readonly ChatMessage[]): string {
   const userTexts: string[] = [];
+  const userAttachmentIds: string[][] = [];
   const toolCallIds: string[] = [];
   const seenIds = new Set<string>();
   let promptCount = 0;
@@ -219,10 +222,19 @@ export function historyFingerprint(messages: readonly ChatMessage[]): string {
     if (message.role === "user") {
       promptCount += 1;
       userTexts.push(messageText(message.content));
+      userAttachmentIds.push(
+        currentUserTurn({ messages: [message] }).attachments.map(
+          (attachment) => attachment.attachmentId,
+        ),
+      );
     }
     collectToolCallIds(message.content, toolCallIds, seenIds);
   }
-  return sha256(canonicalJson({ userTexts, toolCallIds, promptCount }));
+  // Attachment ids change every canonical hash once; deploys already cold-start parked
+  // sessions because the pool is process-local.
+  return sha256(
+    canonicalJson({ userTexts, userAttachmentIds, toolCallIds, promptCount }),
+  );
 }
 
 /**
@@ -337,22 +349,16 @@ export function carriesApprovalReplyOnly(request: AgentRunRequest): boolean {
 }
 
 /**
- * True when the request's tail is a fresh user message with text and NOT an approval envelope.
+ * True when the request's tail is a fresh user message with content and NOT an approval envelope.
  * A continuation only takes the live path for a plain new user turn; an approval reply (a
  * trailing tool-role message, or a user turn carrying a tool_result) stays cold here.
  */
 export function tailIsFreshUserMessage(request: AgentRunRequest): boolean {
-  const messages = request.messages ?? [];
-  const tail = messages[messages.length - 1];
-  if (!tail || tail.role !== "user") return false;
-  if (!messageText(tail.content).trim()) return false;
-  if (Array.isArray(tail.content)) {
-    const carriesToolTurn = tail.content.some(
-      (block) => block?.type === "tool_result" || block?.type === "tool_call",
-    );
-    if (carriesToolTurn) return false;
-  }
-  return true;
+  const turn = currentUserTurn(request);
+  return (
+    turn.isFresh &&
+    (turn.text.trim() !== "" || turn.attachments.length > 0)
+  );
 }
 
 /**

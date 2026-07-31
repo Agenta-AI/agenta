@@ -308,4 +308,53 @@ describe("reconstructHistoryIfNeeded", () => {
     const out = await reconstructHistoryIfNeeded(req, "sess-1", auth);
     assert.equal(out, null);
   });
+
+  it("restores reconstructed attachment working copies before returning history", async () => {
+    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
+    const attachmentId = "11111111-1111-4111-8111-111111111111";
+    recordsToReturn = [
+      {
+        turn_id: "turn-1",
+        record_source: "user",
+        attributes: {
+          type: "message",
+          text: "inspect",
+          attachments: [{ attachmentId, filename: "wire-name.png" }],
+        },
+      },
+    ];
+    let restoreCalls = 0;
+    const req = { messages: [userTurn], turnId: "turn-2" } as never;
+    const out = await reconstructHistoryIfNeeded(
+      req,
+      "sess-1",
+      auth,
+      undefined,
+      {
+        restore: async (messages) => {
+          restoreCalls += 1;
+          const content = messages[0].content;
+          assert.ok(Array.isArray(content));
+          return [
+            {
+              ...messages[0],
+              content: content.map((block) =>
+                block.type === "attachment"
+                  ? { ...block, filename: "verified-name.png" }
+                  : block,
+              ),
+            },
+          ];
+        },
+      },
+    );
+
+    assert.equal(restoreCalls, 1);
+    assert.equal(
+      Array.isArray(out?.messages?.[0].content)
+        ? out.messages[0].content[0].filename
+        : undefined,
+      "verified-name.png",
+    );
+  });
 });

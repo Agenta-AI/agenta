@@ -2,10 +2,12 @@ import {
   type AgentRunRequest,
   type ChatMessage,
   type ContentBlock,
+  currentUserTurn,
   messageText,
   resolvePromptText,
 } from "../../protocol.ts";
 import { approvalDecisionOf } from "../../responder.ts";
+import { attachmentMention } from "./attachments.ts";
 import {
   APPROVED_EXECUTION_RESULT_UNKNOWN,
   DEFERRED_NOT_EXECUTED_PREFIX,
@@ -201,6 +203,23 @@ export function messageTranscript(
           );
         }
       }
+    } else if (
+      block.type === "attachment" &&
+      typeof block.attachmentId === "string"
+    ) {
+      try {
+        parts.push(
+          attachmentMention({
+            attachmentId: block.attachmentId,
+            filename: block.filename,
+            mediaType: block.mimeType,
+            size: block.size,
+          }),
+        );
+      } catch {
+        // Preflight sees unverified display fields; runTurn rebuilds after API restore.
+        parts.push("[attachment pending verification]");
+      }
     } else if (block.type === "image") {
       parts.push("[image]");
     } else if (block.type === "resource") {
@@ -284,10 +303,11 @@ export function buildTurnText(
   request: AgentRunRequest,
   log?: (msg: string) => void,
 ): string {
-  const latest = resolvePromptText(request);
   const messages = request.messages ?? [];
   const resumeKind = resumeKindFor(request, approvalRenderHints(messages));
   const resume = resumeKind !== null;
+  const turn = currentUserTurn(request);
+  const latest = turn.message ? turn.text : resolvePromptText(request);
   // Normal turn: drop the prompt user message from the replay (it closes the frame).
   // Resume: nothing is re-presented in the frame, so replay every message — including the
   // stale command in place and the settled interaction (approval envelope or client-tool result).

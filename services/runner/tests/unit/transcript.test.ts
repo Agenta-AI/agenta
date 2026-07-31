@@ -455,4 +455,34 @@ describe("buildTurnText approval transcript hints", () => {
       /DENIED mcp__agenta-tools__commit_revision; executed below/,
     );
   });
+
+  it("keeps preflight tolerant of unverified attachment display fields", () => {
+    assert.equal(
+      messageTranscript([
+        {
+          type: "attachment",
+          attachmentId: "11111111-1111-4111-8111-111111111111",
+          filename: "../wire-name.png",
+        },
+      ]),
+      "[attachment pending verification]",
+    );
+  });
+
+  it("renders a historical attachment as its verified working-copy mention", () => {
+    const transcript = messageTranscript([
+      {
+        type: "attachment",
+        attachmentId: "11111111-1111-4111-8111-111111111111",
+        filename: "report.pdf",
+        mimeType: "application/pdf",
+        size: 42,
+      },
+    ]);
+
+    assert.equal(
+      transcript,
+      "[attached file: report.pdf at attachments/11111111-1111-4111-8111-111111111111/report.pdf]",
+    );
+  });
 });

@@ -28,7 +28,11 @@ import type {
   EmitEvent,
   StreamRecord,
 } from "./protocol.ts";
-import { resolvePromptText } from "./protocol.ts";
+import { currentUserTurn } from "./protocol.ts";
+import {
+  attachmentCountError,
+  claimAttachments,
+} from "./sessions/attachments.ts";
 import {
   acquireEnvironment,
   destroyInFlightSandboxes,
@@ -1076,12 +1080,23 @@ async function runAndStreamWithApiBaseResolved(
     );
     // Record the inbound user turn first so the session record is the full conversation, not just
     // agent output. Guard on `tailIsFreshUserMessage`: an approval RESUME's tail is the tool_result
-    // envelope (no text), so `resolvePromptText` falls back to the ORIGINAL prompt and would
-    // re-persist it as a DUPLICATE user row. The guard writes the prompt only on the turn that first
-    // introduced it — a real new turn's tail IS a fresh user message; a resume's is not.
-    const promptText = resolvePromptText(request);
-    if (promptText && tailIsFreshUserMessage(request))
-      persist({ type: "message", text: promptText }, "user");
+    // envelope, so it must not re-persist the ORIGINAL prompt as a duplicate user row. The guard
+    // writes the prompt only on the turn that first introduced it.
+    const turn = currentUserTurn(request);
+    const attachmentError = attachmentCountError(turn.attachments.length);
+    if (tailIsFreshUserMessage(request)) {
+      persist(
+        { type: "message", text: turn.text, attachments: turn.attachments },
+        "user",
+      );
+      if (turn.attachments.length > 0 && !attachmentError) {
+        await claimAttachments(
+          sessionId,
+          turn.attachments.map((attachment) => attachment.attachmentId),
+          watchdog.credential,
+        );
+      }
+    }
     emitFn = persistingEmit;
     flushPersist = flush;
     persistError = (message) => persist({ type: "error", message }, "agent");

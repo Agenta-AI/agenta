@@ -37,6 +37,7 @@ const KNOWN_REQUEST_KEYS = [
   "sessionId",
   "agentsMd",
   "model",
+  "modelCapabilities",
   "provider",
   "connection",
   "deployment",

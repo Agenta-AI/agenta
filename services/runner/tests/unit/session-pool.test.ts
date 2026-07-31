@@ -249,6 +249,16 @@ describe("configFingerprint", () => {
     );
   });
 
+  it("changes when resolved model capabilities change", () => {
+    assert.notEqual(
+      configFingerprint(base),
+      configFingerprint({
+        ...base,
+        modelCapabilities: { inputModalities: ["text", "image"] },
+      }),
+    );
+  });
+
   // Custom OpenAI-compatible warm-session safety (design Decision 7): a change to the connection,
   // model, or endpoint must cold-start rather than reuse a mismatched live session. No new
   // fingerprint field is needed — these already ride configFingerprint.
@@ -315,6 +325,17 @@ describe("historyFingerprint (pruned-array contract)", () => {
     assert.notEqual(
       historyFingerprint([u1]),
       historyFingerprint([{ role: "user", content: "hello!" }]),
+    );
+  });
+
+  it("changes when ordered user attachment ids change", () => {
+    const withAttachment = (attachmentId: string) => ({
+      role: "user",
+      content: [{ type: "attachment", attachmentId }],
+    });
+    assert.notEqual(
+      historyFingerprint([withAttachment("019a52c2-14c0-7c14-b874-2f5798f9cd21")]),
+      historyFingerprint([withAttachment("019a52c2-14c0-7c14-b874-2f5798f9cd22")]),
     );
   });
 
@@ -404,6 +425,25 @@ describe("tailIsFreshUserMessage", () => {
       false,
     );
   });
+  it("true for an attachment-only trailing user message", () => {
+    assert.equal(
+      tailIsFreshUserMessage({
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "attachment",
+                attachmentId: "019a52c2-14c0-7c14-b874-2f5798f9cd21",
+              },
+            ],
+          },
+        ],
+      } as unknown as AgentRunRequest),
+      true,
+    );
+  });
+
   it("false when the tail user turn carries a tool_result (approval reply)", () => {
     assert.equal(
       tailIsFreshUserMessage({

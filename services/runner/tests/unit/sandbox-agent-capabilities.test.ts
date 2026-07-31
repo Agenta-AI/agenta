@@ -8,6 +8,7 @@ import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import type { ResolvedToolSpec } from "../../src/protocol.ts";
+import { attachmentCapabilityGate } from "../../src/engines/sandbox_agent/attachments.ts";
 import {
   assert as invariant,
   assertRequiredCapabilities,
@@ -196,6 +197,27 @@ describe("assertRequiredCapabilities (fail loud on tool delivery)", () => {
       }),
     );
     assert.ok(logs.some((m) => m.includes("(static)")));
+  });
+});
+
+describe("pinned attachment adapter fidelity", () => {
+  it("keeps native image support on both pinned adapters", () => {
+    for (const [harness, acpAgent] of [
+      ["claude", "claude"],
+      ["pi_core", "pi"],
+    ] as const) {
+      assert.equal(
+        attachmentCapabilityGate({
+          harness,
+          acpAgent,
+          capabilities: { images: true },
+          modelCapabilities: { inputModalities: ["image"] },
+          mediaType: "image/png",
+          byteLength: 3,
+        }).outcome,
+        "native",
+      );
+    }
   });
 });
 
