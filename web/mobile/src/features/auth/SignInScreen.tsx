@@ -1,89 +1,74 @@
-import {useEffect, useState, type FormEvent} from "react"
+import {useEffect, useState} from "react"
 
-import {useRouter} from "next/router"
+import {
+    getEmailSignInMode,
+    isOidcEnabled,
+    listOidcProviders,
+    type EmailSignInMode,
+    type OidcProvider,
+} from "@/lib/auth"
 
-import {getEmailSignInMode, signInWithEmailPassword, type EmailSignInMode} from "@/lib/auth"
-import {queryClient} from "@/lib/queryClient"
+import {AuthDivider} from "./AuthDivider"
+import {EmailOtpForm} from "./EmailOtpForm"
+import {EmailPasswordForm} from "./EmailPasswordForm"
+import {OidcProviderButtons} from "./OidcProviderButtons"
+import {SsoDiscoveryForm} from "./SsoDiscoveryForm"
+import {AuthMethodsSkeleton} from "./states/AuthMethodsSkeleton"
+import {NoAuthMethods} from "./states/NoAuthMethods"
+import {useAuthSuccess} from "./useAuthSuccess"
 
-/** Raw email/password sign-in (auth-lite). OIDC/social stays a desktop flow. */
+interface ResolvedMethods {
+    mode: EmailSignInMode
+    providers: OidcProvider[]
+    /** Org-SSO discovery is worth offering whenever the deployment enables OIDC. */
+    ssoDiscovery: boolean
+}
+
+/** Every method this deployment enables: password OR one-time code, social, org SSO. */
 export const SignInScreen = () => {
-    const router = useRouter()
-    // Mode reads window.__env — resolve after mount so SSR markup never differs.
-    const [mode, setMode] = useState<EmailSignInMode | null>(null)
-    useEffect(() => setMode(getEmailSignInMode()), [])
-
-    const [email, setEmail] = useState("")
-    const [password, setPassword] = useState("")
-    const [pending, setPending] = useState(false)
-    const [error, setError] = useState<string | null>(null)
-
-    const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault()
-        if (pending) return
-        setPending(true)
-        setError(null)
-        const outcome = await signInWithEmailPassword(email.trim(), password)
-        if (outcome.kind === "ok") {
-            // Drop the cached unauthenticated verdict before the resolver reruns.
-            await queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})
-            void router.replace("/")
-            return
-        }
-        setPending(false)
-        setError(outcome.kind === "rejected" ? outcome.message : "Something went wrong. Try again.")
-    }
+    const onSuccess = useAuthSuccess()
+    // Methods read window.__env — resolve after mount so SSR markup never differs.
+    const [methods, setMethods] = useState<ResolvedMethods | null>(null)
+    useEffect(
+        () =>
+            setMethods({
+                mode: getEmailSignInMode(),
+                providers: listOidcProviders(),
+                ssoDiscovery: isOidcEnabled(),
+            }),
+        [],
+    )
 
     let body
-    if (mode === null) {
-        body = <p className="text-muted-foreground text-center text-xs">Loading…</p>
-    } else if (mode !== "password") {
-        body = (
-            <p className="text-muted-foreground text-center text-xs">
-                {mode === "otp"
-                    ? "Email code sign-in is not available here."
-                    : "Email sign-in is disabled on this deployment."}
-            </p>
-        )
+    if (methods === null) {
+        body = <AuthMethodsSkeleton />
+    } else if (
+        methods.mode === "disabled" &&
+        methods.providers.length === 0 &&
+        !methods.ssoDiscovery
+    ) {
+        body = <NoAuthMethods />
     } else {
+        const emailBlock =
+            methods.mode === "password" ? (
+                <EmailPasswordForm onSuccess={onSuccess} />
+            ) : methods.mode === "otp" ? (
+                <EmailOtpForm onSuccess={onSuccess} />
+            ) : null
         body = (
-            <form className="flex w-full flex-col gap-3" onSubmit={onSubmit}>
-                <input
-                    type="email"
-                    autoComplete="email"
-                    required
-                    placeholder="Email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    className="border-border bg-background rounded-md border px-3 py-2 text-base"
-                />
-                <input
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    placeholder="Password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    className="border-border bg-background rounded-md border px-3 py-2 text-base"
-                />
-                {error ? <p className="text-destructive text-xs">{error}</p> : null}
-                <button
-                    type="submit"
-                    disabled={pending}
-                    className="border-border min-h-11 rounded-md border px-3 py-2 text-sm disabled:opacity-50"
-                >
-                    {pending ? "Signing in…" : "Sign in"}
-                </button>
-            </form>
+            <div className="flex w-full flex-col gap-4">
+                <OidcProviderButtons providers={methods.providers} />
+                {methods.providers.length > 0 && emailBlock ? <AuthDivider /> : null}
+                {emailBlock}
+                {methods.ssoDiscovery ? <SsoDiscoveryForm /> : null}
+            </div>
         )
     }
 
     return (
         <div className="bg-background text-foreground flex min-h-dvh flex-col items-center justify-center gap-4 p-6">
             <p className="text-sm font-medium">Sign in to Agenta</p>
-            {body}
-            <p className="text-muted-foreground text-center text-xs">
-                For SSO or social sign-in, use the desktop app.
-            </p>
+            <div className="flex w-full max-w-sm flex-col items-center gap-4">{body}</div>
         </div>
     )
 }
