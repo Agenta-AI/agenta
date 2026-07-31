@@ -99,7 +99,14 @@ rule for an original that exceeds a provider's inline cap. The gateway decision 
 compose gateway request-body cap rises from 10 MB to 32 MB, and the route's per-kind caps stay the
 enforced truth (the config task is listed under (a) below).
 
-**Deployment order inside the release.** The components deploy independently, so the order matters.
+**Deployment order inside the release.** The components deploy independently, so the order matters,
+and it is reader-first: every component that has to understand a new form ships before the component
+that emits it. Four packages merge and deploy bottom to top, the API, the runner, the SDK with the
+agent service, and the front end, and turning the flag on is a fifth act taken separately once the
+first three are confirmed deployed. Reader-first is what keeps every intermediate state safe. A
+content block the runner does not understand is structurally accepted and semantically ignored, so a
+producer that shipped early would lose files silently; a consumer that ships early is dead code
+nobody reaches yet.
 
 **(a) API first.** Build the attachment resource before anything depends on it.
 
@@ -118,20 +125,21 @@ enforced truth (the config task is listed under (a) below).
   (`hosting/railway/oss/gateway/nginx.conf`, verified 2026-07-31). The route-level per-kind caps
   are the enforced truth; the gateway is a ceiling.
 - Upload idempotency and atomicity: a retried upload must not create a duplicate original and must
-  not leave a partial one. The mechanism is the single-shot create the design already implies: the
-  route reads and validates the whole body before writing anything (the upload helper buffers the
-  file in memory today, [research.md](research.md), section 2), then either fully persists the
-  original and returns the resource or fails cleanly with nothing stored. Each successful upload
-  mints its own `attachment_id`, so a client retry after an ambiguous failure creates a new
-  resource rather than a duplicate at the same path, and a resource that is never referenced by a
-  sent turn is swept by the time-to-live cleanup below.
+  not leave a partial one. The client sends an idempotency key alongside the file, unique per project
+  and session. The route reads the body in bounded chunks, validates it, inserts a `pending` row
+  carrying that key, writes the object, and only then marks the row `ready`; downloads and claims
+  resolve `ready` rows and nothing else. So a retry with the same key after an ambiguous failure
+  returns the same attachment instead of a second original, an upload still in flight is refused
+  rather than raced, and a create that dies between the object write and the `ready` transition
+  leaves nothing anyone can reach, with the reaper removing the row and its object afterwards. A
+  resource that is never referenced by a sent turn is swept by the time-to-live cleanup below.
 - The download route the runner uses to read an original, with the session-binding check: the
   attachment must belong to the session being run, and a reference to another session's attachment is
   rejected ([design.md](design.md), decision D10).
-- Per-file and per-turn size and count limits, enforced server-side, with the numbers from the
-  settled matrix: 10 MB per image, 15 MB per audio clip, 10 MB per document and per other kind, 5
-  files per message across kinds (the count is enforced at the run route, since each upload is its
-  own request).
+- Per-file size limits and the per-session quotas, enforced server-side at the create route, with
+  the numbers from the settled matrix: 10 MB per image, 15 MB per audio clip, 10 MB per document
+  and per other kind. The per-turn count of 5 is the runner's to enforce over the current user
+  turn, since each upload is its own request (the matrix in [design.md](design.md)).
 - Time-to-live cleanup of uploads that are never referenced by a sent turn.
 - The record-schema extension so a record can carry an attachment reference. Records are text-only
   today (see [research.md](research.md), section 7), so without this a reference cannot survive in the
@@ -139,6 +147,13 @@ enforced truth (the config task is listed under (a) below).
 
 **(b) Runner second.** Once the API can store and serve, teach the runner to resolve and deliver.
 
+- Give the runner a first-class notion of the current user turn, before anything else in this step.
+  It has none today: `resolvePromptText` scans backward for the most recent non-empty user text
+  (`protocol.ts`), so an attachment-only turn that follows a text turn resends the earlier text. The
+  same assumption sits in the tail-freshness check, in the history fingerprint (which hashes user
+  text and no attachment ids, so two turns differing only in their files collide), and in the
+  inbound-record persist guard. Every item below reads the current turn, so this abstraction lands
+  first; `resolvePromptText` stays afterwards as what it really is, the approval-resume fallback.
 - Dual-read during rollout. Dual-read means the runner accepts both the old inline-byte form and the
   new attachment-reference form during the rollout, so a runner deploy does not have to be
   simultaneous with the front-end switch.
@@ -148,9 +163,9 @@ enforced truth (the config task is listed under (a) below).
   restoring it only when missing and never overwriting an edited copy ([design.md](design.md), The
   working-copy path and edited copies).
 - Build ACP image blocks: replace the single text block at the `env.session.prompt(...)` call
-  (`run-turn.ts`, currently near line 742, the one real call site) with the resolved list of content
-  blocks. Update `resolvePromptText` and `messageText` callers so an image-with-no-text turn is valid
-  instead of rejected.
+  (`run-turn.ts`, currently line 803, the one real call site) with the resolved list of content
+  blocks. The rejection of a text-free turn lives in `run-plan.ts`, and it reads the current turn's
+  attachments too, so an image-with-no-text turn becomes valid instead of rejected.
 - Structured capability errors: gate native delivery on the full D5 three-layer intersection, not
   on a single flag. The runner must check all three layers before building a native block: the ACP
   transport flag the adapter advertises (already probed and mapped in `capabilities.ts`), the
@@ -177,9 +192,17 @@ enforced truth (the config task is listed under (a) below).
   image becomes that mention instead of being dropped from the rebuilt turn (see the cold-replay
   policy below).
 
-**(c) Front end last.** Once the API stores and the runner resolves, switch the browser over. The
-collection UI is already merged dark (see "What is already built"), so this is wiring work, not UI
-work:
+**(c) The SDK and the agent service third.** The SDK is what produces the new content block, so it
+ships once the runner already understands it. A browser file part carrying an attachment id becomes
+an attachment block on the way in; the resolved connection puts the selected model's input modalities
+on the wire, which is the fact the runner's third capability layer reads; and the delivery outcome
+travels back through `wire.py` and the Vercel stream to the browser. The wire shape is under "SDK /
+wire" below. This is its own package because shipping it is two rollout events, a package publish and
+an agent-service deploy, rather than one.
+
+**(d) Front end fourth.** Once the API stores, the runner resolves, and the SDK produces, switch the
+browser over. The collection UI is already merged dark (see "What is already built"), so this is
+wiring work, not UI work:
 
 - Wire the transport seam to the new upload route: pass a real uploader to `useAttachmentUploads`
   (today none is passed, so the progress, failure, and retry flow is inert by design).
@@ -191,10 +214,13 @@ work:
   maps to no kind ("isn't a supported file type", `attachments.ts`, line 131), which contradicts
   decision D6. Accept every kind, and show the workspace-only notice instead, per the matrix in
   [design.md](design.md).
-- Turn on `NEXT_PUBLIC_AGENT_FILE_UPLOADS`: the composer accepts a file, attaches it
-  (workspace-only with a visible notice when the capability intersection does not allow native
-  perception), and shows it. Stage 0's gating of the paste and drag path keys off the same flag, so
-  enabling it opens every entry point together.
+
+**(e) Turning the flag on, last and on its own.** `NEXT_PUBLIC_AGENT_FILE_UPLOADS` is configuration,
+not code, so the front end merges with it still off in production and the flip is a separate act
+taken once (a), (b), and (c) are confirmed deployed. Then the composer accepts a file, attaches it
+(workspace-only with a visible notice when the capability intersection does not allow native
+perception), and shows it. Stage 0's gating of the paste and drag path keys off the same flag, so
+enabling it opens every entry point together.
 
 **Tracing.** Because the history now carries a reference, the Python span no longer holds base64.
 Confirm the trace shows the reference, not the bytes (the Python agent span keeps `messages` on

@@ -71,9 +71,12 @@ says what is unknown, why it matters, how to settle it, and what it blocks.
 1. **How are unused uploads cleaned up (the refinement)?**
    - We do not yet know when to move from a time-to-live sweep to reference counting against the
      conversation records.
-   - This matters because a file uploaded but never sent leaves a stored object, and reference
-     counting is more precise than a blind sweep.
-   - The starting answer is that a time-to-live sweep ships first, in Stage 1. Reference counting is
+   - This matters because a file uploaded but never sent leaves a stored object, and the sweep needs
+     a marker telling it which uploads are still unused. Reference counting against the records is
+     more precise than a marker plus an age cutoff.
+   - The starting answer is that a time-to-live sweep ships first, in Stage 1, over uploads that were
+     never claimed. Nothing is marked by being downloaded: the runner calls the claim operation once
+     it has validated the current turn, and only a claimed upload is durable. Reference counting is
      added only after records reliably carry references, because counting needs the record schema to
      hold the reference.
    - This blocks the cleanup refinement in Stage 3.

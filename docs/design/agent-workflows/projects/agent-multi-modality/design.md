@@ -164,11 +164,13 @@ to one conversation.
 
 **Decision.** Option C. A dedicated attachments mount, scoped to the session, that is created with
 the existing `get_or_create_session_mount(session_id, name="attachments")` machinery but is
-deliberately never added to the set of mounts made visible in the sandbox. The runner reads an
-original through the session-bound API download route, never with signed credentials: decision D7
-rules that no signed credentials are ever issued for the attachments mount, because any signed
-credential is read-write today. Reading the object store directly with a read-only credential scope
-is the deferred Stage 3 hardening (decision D7 and [plan.md](plan.md), Stage 3).
+deliberately never added to the set of mounts made visible in the sandbox. It is also protected
+against our own generic mount routes: it appears in no mount listing, cannot be signed, edited, or
+archived on its own, and is removed only when the session is torn down (decision D7). The runner
+reads an original through the session-bound API download route, never with signed credentials:
+decision D7 rules that no signed credentials are ever issued for the attachments mount, because any
+signed credential is read-write today. Reading the object store directly with a read-only credential
+scope is the deferred Stage 3 hardening (decision D7 and [plan.md](plan.md), Stage 3).
 
 **Why its own mount rather than a subfolder.** The technology that makes a mount visible to the
 agent (geesefs) exposes the whole mount prefix as a writable folder. There is no way to expose part
@@ -244,13 +246,13 @@ copy is the mutable scratch object for tools.
 
 Here is the full path for the common case: a person attaches a photo and asks a question, on a warm
 turn. Read it as: the session already has an id, so there is no "create the session first" step; the
-front end uploads the photo once through the API's session-mount upload route, and the API stores
-the bytes and hands back an attachment resource; the front end sends a message that carries the
-`attachment_id` instead of the bytes; the runner resolves the id through the API, reads the original
-through the API download route, writes a working copy into the agent's directory, builds the real
-content blocks, and calls the harness; the model perceives the image and the agent can also open the
-file; and the front end renders the photo inline by resolving the reference, not from a giant inline
-blob.
+front end uploads the photo once through the API's attachment create route, and the API stores the
+bytes and hands back an attachment resource; the front end sends a message that carries the
+`attachment_id` instead of the bytes; the runner claims the attachment for the turn so the cleanup
+sweep can no longer take it, reads the original through the API download route, writes a working copy
+into the agent's directory, builds the real content blocks, and calls the harness; the model
+perceives the image and the agent can also open the file; and the front end renders the photo inline
+by resolving the reference, not from a giant inline blob.
 
 The front end never touches the object store directly and never holds write credentials for the
 attachments mount. The upload route is the only way bytes enter, which is what decision D7 relies on.
@@ -269,13 +271,18 @@ sequenceDiagram
 
     Note over FE: session_id already exists (front end created it)
     U->>FE: attach photo.png + type "what is this?"
-    FE->>API: POST upload (multipart file) to the session attachments mount
-    API->>API: get_or_create attachments mount, validate size and type
-    API->>S3: write original bytes (create-only)
+    FE->>API: POST create attachment (multipart file + idempotency key)
+    API->>API: bounded read, classify bytes, get_or_create attachments mount
+    API->>API: insert pending row (one per session + idempotency key)
+    API->>S3: write original bytes
+    API->>API: mark the row ready (only a ready row is readable)
     API-->>FE: attachment resource {attachment_id, filename, media_type, size}
     FE->>API: run turn, message carries the attachment_id (no base64)
     API->>RUN: /run (wire: message.content = [text, attachment reference])
-    RUN->>API: resolve attachment_id, download original for this turn
+    RUN->>API: claim the attachment for this turn
+    API->>API: check the attachment belongs to this session, set referenced_at
+    API-->>RUN: claimed (the sweep can no longer take it)
+    RUN->>API: download the original for this turn
     API->>API: check the attachment belongs to this session
     API->>S3: GET original
     S3-->>API: bytes
@@ -372,17 +379,26 @@ decision D10. The declared type is display metadata at most; it never decides an
 ### The matrix
 
 Size caps apply to the raw file at upload; base64 inflation matters only at delivery, because the
-upload is a multipart request, not base64. The count cap applies per message, across all kinds, and
-is enforced at the run route (each upload is its own request, so the upload route cannot count a
-message). The per-kind caps mirror the shipped client caps (`attachments.ts`, lines 49 to 59).
+upload is a multipart request, not base64. The count cap applies across all kinds, and the runner
+enforces it over the current user turn, before it downloads anything: each upload is its own request,
+so the create route cannot count a turn. The number is runner configuration, not API configuration,
+and the composer's shipped cap is the courtesy layer in front of it. The per-kind caps mirror the
+shipped client caps (`attachments.ts`, lines 49 to 59).
 
-| Kind (by inspected type) | Accepted formats | Per-file cap | Per-message count | At upload | At delivery |
+| Kind (by inspected type) | Accepted formats | Per-file cap | Per-turn count | At upload | At delivery |
 | --- | --- | --- | --- | --- | --- |
 | image | PNG, JPEG, GIF, WebP | 10 MB | 5 across all kinds | over the cap: rejected with a structured error | native when the D5 intersection allows; workspace-only with the D6 notice when the original exceeds a provider inline cap (rule below) |
 | audio | recognized audio containers (WAV, MP3, OGG, WebM, FLAC, M4A) | 15 MB | shared 5 | same | always workspace-only in the first release (decision D14); native ACP audio is the last upgrade |
 | document | PDF; text (`text/*`); JSON | 10 MB | shared 5 | same | workspace-only today (native documents are the Stage 2 adapter blocker); small text can inline as text |
 | other (recognized, not a native kind) | any other recognized type (archives, office formats, video, and so on) | 10 MB | shared 5 | same | always workspace-only with the D6 notice |
 | unrecognizable | no known signature and not valid text | none stored | none | rejected as an invalid file | never stored |
+
+The per-turn count is not the only bound. Each session also has a quota the create route enforces:
+100 stored attachments, 256 MB of stored originals, and at most 20 uploads in flight at once. Five
+files per turn bounds a polite client and not a hostile one, and a cold start restores every
+referenced working copy (decision D12), so an unbounded session costs stored bytes nobody asked for
+and turns the runner into an amplifier on every cold start. The session, not the single turn, is
+where the real bound belongs; the per-turn count only shapes one prompt.
 
 One shipped behavior changes to match this matrix: the composer today rejects an unknown kind
 outright ("isn't a supported file type", `attachments.ts`, line 131). Under decision D6 an
@@ -405,6 +421,14 @@ Each upload carries one file, so the ceiling binds per file, and every per-kind 
 clears 32 MB with room for multipart overhead. The old 10 MB ceiling is what made the shipped 15 MB
 audio cap impossible to use; raising the ceiling resolves that in favor of the per-kind caps.
 
+The ceiling is also not everywhere, which is why the route cannot lean on it. It exists only behind
+the `with-nginx` profile, and an EE deployment has no body cap in front of the API at all. So the
+create route bounds its own read: it consumes the request body in chunks, stops at the largest
+per-kind cap plus one byte, and refuses what is over, all before it classifies anything. Reading the
+whole body first and checking its size afterwards would make an arbitrary upload an API memory cost
+on every deployment that runs no gateway; with the bounded read, a missing ceiling costs one byte of
+over-read.
+
 ### Provider inline caps at delivery
 
 The runner rebuilds inline blocks from stored originals (decision D2), so an accepted upload can
@@ -426,7 +450,7 @@ still exceed what a provider takes inline. The current numbers, all verified 202
   through the Files API. Up to 3,600 images per request. Formats: PNG, JPEG, WebP, HEIC, HEIF.
   [Gemini image understanding](https://ai.google.dev/gemini-api/docs/image-understanding).
 
-The 5-per-message count sits far under every provider count cap, so count never binds at delivery.
+The 5-per-turn count sits far under every provider count cap, so count never binds at delivery.
 
 ### The delivery rule for oversized originals
 
@@ -463,8 +487,12 @@ layers. All three must allow it, and the effective capability is the weakest of 
    sharply (see [research.md](research.md), section 4): both pass an image through as a real image,
    but the Claude adapter drops a blob resource entirely and the Pi adapter renders it as a byte
    count. So a document can clear the transport layer and still never reach the model.
-3. **What the selected model perceives.** Model modalities. A non-vision model does not see an image
-   even when the transport and the adapter would carry it.
+3. **What the selected model perceives.** Model modalities, carried on the run request by the
+   resolved connection, which is where the model and its provider are already settled. A non-vision
+   model does not see an image even when the transport and the adapter would carry it. This layer
+   has a defined default: when the request carries no modalities, or none we recognize, the layer
+   reads unknown, and unknown means workspace-only with the D6 notice. Silence never means vision,
+   because an assumed capability fails the way the current bug fails, silently.
 
 Tool use over the file is a separate, fourth consideration, not part of this intersection. It needs
 only the working copy on disk and works regardless of all three layers above. An agent whose model
@@ -500,10 +528,15 @@ these are stated as work, not as afterthoughts.
   discover them before the person sends anything. So the composer needs a pre-send discovery
   surface. A static approximation derived from the model and harness catalog is acceptable for the
   first release, with the runner remaining the final authority at prompt-build time.
-- **The runner error is a plain string.** Today the run error field is a plain string (`error?:
-  string`, `protocol.ts`, near line 557), not a structured value. The failure case needs a
-  structured error code the front end can recognize and render, so the person sees a specific,
-  actionable message rather than a raw string.
+- **The delivery outcome has nothing to travel on.** Today the run error field is a plain string
+  (`error?: string`, `protocol.ts`, near line 557), and a per-attachment outcome has no carrier at
+  all. So the runner emits an `attachment_delivery` event for every attachment in the turn, carrying
+  the attachment id, the outcome (native, workspace-only, or failed), a stable reason code, and the
+  working-copy path. The event is persisted with the session's records, parsed by the SDK in
+  `wire.py` beside the run result, and carried to the browser on the Vercel stream as a data part, so
+  the front end renders the D6 notice from what actually happened and the notice comes back on a
+  reload. A single error code on the terminal result would not do the job: it says nothing when the
+  turn succeeded and one attachment was flattened, and it cannot name which of three files that was.
 
 ### Renaming capability fields without a simultaneous deploy
 
@@ -655,8 +688,8 @@ only files shared through the composer.
 **Options.**
 
 - **A. Keep the mount out of the sandbox.** The agent never sees it, so the agent cannot change it.
-- **B. Also refuse to hand out any signed credentials for the attachments mount, so the only way
-  bytes enter is the create-only upload API route.**
+- **B. Also treat the mount as protected: every generic mount operation behaves as though it does
+  not exist, no signed credentials are ever issued for it, and the create route is the only writer.**
 - **C. Also add a read-only credential scope so the runner could read the object store directly and
   even a leaked credential could not write.**
 
@@ -665,18 +698,29 @@ elsewhere in our own code that holds credentials. Option B closes the credential
 [research.md](research.md), section 2, that any signed credential is read-write today: the signing
 call has no read-only variant, so signing a mount at all hands out write access. So immutability
 cannot rest on signed credentials. Recall too that `write_file` overwrites silently, so create-only
-is not something the storage layer gives for free. Option B therefore has two parts working
-together: never issue a signed credential for the attachments mount, and make the upload route
-refuse to overwrite or delete an attachment original. That refusal is an explicit API-level check,
-not an assumption, precisely because the storage layer would otherwise overwrite without complaint.
-Option C is the strongest and is also the path that would later let the runner read the object store
+is not something the storage layer gives for free. Option B is therefore broader than one refusal.
+The attachments mount is classified as protected, and every generic mount operation behaves as though
+it does not exist: query, fetch, list, read, download, export, edit, archive, unarchive, write,
+folder-create, upload, delete, and sign all answer the way they answer for a mount that is not there.
+The classification is a server-owned `purpose` field on the mount, set when the create route makes it
+and absent from the edit model, so it is a property of the row rather than a naming convention
+someone can imitate or rename. The single writer is the create route, which reaches storage through
+one narrow operation that opts out of the policy. Session teardown keeps seeing the mount, because it
+owns the lifecycle (see [decisions.md](decisions.md), "Settled by evidence"). Guarding only the
+writes would leave the reads open: a project member could otherwise list the mount, read an original
+by path, or export it, and so bypass the session-binding check that the download route exists to
+make. The refusal to overwrite stays an explicit API-level check, not an assumption, precisely
+because the storage layer would otherwise overwrite without complaint. Option C is the strongest and is also the path that would later let the runner read the object store
 directly, but it needs a read-only variant added to the signing call, which does not exist today.
 
-**Decision.** Start with A and B together. Originals enter only through the create-only upload route.
-The API refuses overwrite and delete for attachment originals, enforced as an explicit check because
-`write_file` overwrites silently today. No signed credentials are ever issued for the attachments
-mount, because today any signed credential is read-write. A read-only credential scope is the later
-hardening that would let the runner read the object store directly; it is noted in
+**Decision.** Start with A and B together. Originals enter only through the create-only upload route,
+which is the only writer that the protected-mount policy lets through. Every other mount operation,
+by id or by listing, answers as though the mount is not there, and the classification lives in the
+mount's server-owned `purpose` field. The API refuses overwrite and delete for attachment originals,
+enforced as an explicit check because `write_file` overwrites silently today. No signed credentials
+are ever issued for the attachments mount, because today any signed credential is read-write. A
+read-only credential scope is the later hardening that would let the runner read the object store
+directly; it is noted in
 [plan.md](plan.md). Together A and B give real, enforced immutability for the case that matters,
 without blocking on the signing change.
 
@@ -839,7 +883,12 @@ sequenceDiagram
 ```
 
 A file uploaded but never sent leaves an unused stored object. That is a cleanup concern, not an
-ordering one, and it is handled by the garbage-collection follow-up in [plan.md](plan.md).
+ordering one, and Stage 1 handles it with two periodic passes over the session's attachments. The
+sweep deletes the originals that no claim operation ever marked, once they are older than their
+time-to-live; the reaper clears rows that never reached the ready state, along with any object their
+interrupted upload had already written. Reference counting against the conversation records is the
+later refinement, and it waits on the records carrying references reliably (see
+[decisions.md](decisions.md), open questions).
 
 ---
 
