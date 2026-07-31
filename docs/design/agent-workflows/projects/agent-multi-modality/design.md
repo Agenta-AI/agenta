@@ -2,7 +2,7 @@
 
 This file presents the design as a set of decisions. It explains the major choices in full: for each
 it lists the options, says what breaks under each, gives the decision, and explains why. The
-complete compact log D1 through D11 lives in [decisions.md](decisions.md); D2 and D8 are small enough
+complete compact log D1 through D12 lives in [decisions.md](decisions.md); D2 and D8 are small enough
 that they are stated inline where they arise. This file keeps every interaction diagram, and each
 diagram is explained in words before it is shown. Read [research.md](research.md) first for the facts
 these decisions rest on. Each decision carries the same D-number here and in the compact log in
@@ -83,11 +83,13 @@ flowchart LR
 - **C. Both, for different purposes.** Deliver native modalities inline for perception, and also
   place the file on disk for tool use.
 
-**What breaks under each.** Option B does not give reliable model perception. ACP has no content
-type that hands the model a link and guarantees the model reads it, and Claude Code's own Read tool
-does not reliably turn an image file into vision input (see [research.md](research.md), sections 4
-and 5). So with B alone, a person who shares an image and asks "what is this?" can still get an
-answer that ignores the image. Option A alone leaves the agent unable to run a tool over the file,
+**What breaks under each.** Option B leaves perception to the agent's discretion and makes it
+uneven across harnesses. The harnesses' own read tools can deliver a file natively when called
+(Claude Code reads images and PDFs as real vision and document input; Pi and Codex read images;
+none reads audio; see [research.md](research.md), sections 4 and 5), but ACP has no content type
+that hands the model a link and guarantees the model reads it, so nothing forces that call to
+happen, and a turn rebuilt from records never repeats it. So with B alone, a person who shares an
+image and asks "what is this?" can still get an answer that ignores the image. Option A alone leaves the agent unable to run a tool over the file,
 because the file never lands on disk. For audio there is no disk-read fallback at all, so B cannot
 serve audio.
 
@@ -194,7 +196,11 @@ or two copies with different rules?
 **What breaks under A.** If there is one copy and the agent edits it, the person can no longer find
 what they originally shared. If there is one copy and it is read-only, the agent cannot edit it,
 which breaks the "agent can work on it" goal. A single copy cannot satisfy both goals at once,
-because the two goals want opposite things from the same object.
+because the two goals want opposite things from the same object. The agent is not even the only
+writer in the working directory: the harness itself can mutate a file there (Claude Code's Read
+tool has an open report of overwriting the original image it read,
+[claude-code #77729](https://github.com/anthropics/claude-code/issues/77729)), which independently
+supports keeping the original out of the sandbox.
 
 **Decision.** Option B, two copies. The original never changes and backs findability, download, and
 model perception. The working copy is what the agent touches. When the agent edits its working copy,
@@ -218,7 +224,10 @@ same session, and because each one sits under its own id-named folder, neither o
 Re-materialization has one rule: the runner restores a working copy only when the file is missing.
 It never overwrites a working copy that is already there, because the agent may have edited it and
 that edit is real work. So if a later turn arrives and the working copy is present, the runner
-leaves it alone. If the working copy was deleted, the runner writes it again from the original.
+leaves it alone. If the working copy was deleted, the runner writes it again from the original. On
+a cold start, the runner additionally sweeps the session's records and restores every referenced
+working copy that is missing, so every path the rebuilt conversation mentions exists (decision
+D12); the same never-overwrite rule applies to the sweep.
 
 This creates a divergence that the design accepts on purpose. When a later turn references the same
 attachment natively, the runner always reads the **original** to build the model's content block,
@@ -366,6 +375,10 @@ Here is the layered capability, per modality, as it stands today.
 | Image | `image`, advertised by both adapters | native image on both adapters | needs a vision model | always available |
 | Audio | `audio`, advertised by neither adapter | no native audio path on either adapter | needs an audio model | always available |
 | Document (PDF and similar) | `embeddedContext`, off by default on Pi | Claude drops the blob, Pi renders a byte count | depends on the model and the format | always available |
+
+The perception columns describe the guaranteed inline path only; on Claude, the working copy alone
+already yields image and PDF perception through the harness's Read tool when the agent chooses to
+read it (see [research.md](research.md), section 4).
 
 ### Two integration gaps to close
 
@@ -704,7 +717,55 @@ wire is something a client can write.
 
 ---
 
+## Decision D12: what a cold replay delivers
+
+**The question.** On a cold start the runner rebuilds the conversation from the durable records.
+How does a historical attachment appear in that rebuilt conversation?
+
+**Options.**
+
+- **A. Re-deliver historical attachments inline, within a size budget.** The rebuilt conversation
+  carries a native content block for each past attachment, capped by a count and byte budget so a
+  long conversation stays under the provider's per-request limits. Past the budget, a placeholder
+  represents the file.
+- **B. Mention with the real path, and reserve inline delivery for the current turn.** The rebuilt
+  conversation represents each past attachment as a textual mention carrying the real filename and
+  the working-copy path (`cwd/attachments/<attachment_id>/<filename>`). At cold start the runner
+  re-materializes the working copy of every attachment referenced in the session's records, so
+  every mentioned path exists. Inline native delivery happens only for attachments referenced by
+  the turn actually being run, the same rule a warm turn follows.
+
+**What breaks under each.** Option A pays the token cost of re-delivering every historical image on
+every cold start, a cost that grows with the length of the conversation, and it still needs a
+budget against the provider's per-request size and block limits (see [research.md](research.md),
+section 3). Past that budget the guarantee disappears anyway, so A guarantees perception only for
+the attachments that fit, and the budget numbers become one more thing to pick, measure, and
+defend. Option B gives up guaranteed perception of historical attachments: whether the model sees a
+past image again depends on the agent choosing to read the mentioned file.
+
+**Decision.** Option B, mention-first. The mention carries the real filename and the real
+working-copy path, the cold start restores every referenced working copy so the mentioned paths
+exist, and inline native delivery is reserved for the attachments referenced by the turn being run.
+The file the person is actively working with stays guaranteed-perceived; the history becomes files
+the agent can reach.
+
+**Why.** The harnesses' read tools verifiably deliver an image from disk on all three harnesses,
+and a PDF on Claude (see [research.md](research.md), section 4), so a mentioned file is one tool
+call away whenever the conversation needs it again. Mention-first removes the recurring token cost
+of re-delivering every historical image on every cold start, and it dissolves the budget problem
+rather than solving it: nothing inline grows with the length of the history, so there is no budget
+to pick. The accepted cost is that historical-image perception becomes agent-discretionary instead
+of guaranteed. On Pi, documents lose nothing, because inline PDFs never worked there anyway; the
+adapter renders a blob as a byte count (section 4).
+
+**A residual corner, accepted.** Only the cold start sweeps the records and restores working
+copies. On a warm turn, a prose-only question that arrives after the agent deleted a working copy
+still finds the file missing, because a prose-only turn carries no reference that would trigger the
+restore-when-missing rule. This is accepted for now; revisit with evidence if it bites.
+
+---
+
 ## Decision log and open questions
 
-The compact decision log (D1 through D11) and the open questions are in
+The compact decision log (D1 through D12) and the open questions are in
 [decisions.md](decisions.md), so they can be updated without editing this design narrative.

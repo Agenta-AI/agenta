@@ -7,7 +7,7 @@ can be updated without editing the design narrative.
 
 | # | Question | Options | Decision | Reason |
 | --- | --- | --- | --- | --- |
-| D1 | How does the file reach the model? | inline content blocks; file on disk plus a path; both | Both | Inline gives real perception (required by ACP; a disk file is not reliably read as vision). The disk copy lets the agent's tools work on the file. The two serve different goals. |
+| D1 | How does the file reach the model? | inline content blocks; file on disk plus a path; both | Both | Inline is the only guaranteed perception path: deterministic at the prompt-build seam, uniform across harnesses, and it survives a replay. The disk copy lets the agent's tools work on the file, and on some harnesses the agent's own read tool adds a second, agent-mediated route to perception (research.md, section 4). The two serve different goals. |
 | D2 | Does storing the file in the object store remove the need to send bytes to the model? | yes, fully; no, only from the wire and the saved history | No, only from the wire and the saved history | Storage keeps bytes out of the durable records the runner replays on a cold start, but the model boundary still needs the bytes inline at prompt time, rebuilt per turn by the runner from the stored original. |
 | D3 | Where does the unchanging original live? | a subfolder in cwd; the agent-files mount; a dedicated session mount kept out of the sandbox; a future project drive | A dedicated session-scoped attachments mount, kept out of the sandbox | The working directory is last-writer-wins, so an original there could be deleted or overwritten by the agent. Findability needs the original out of the agent's reach, and the mount technology exposes whole prefixes, so out-of-reach means its own mount. |
 | D4 | One copy or two? | one copy (perceive and edit the same object); two copies | Two copies: an unchanging original and a disposable working copy | One copy cannot be both safe-to-find and freely-editable. Two copies make both goals true and turn an agent edit into a new, visible output rather than a destroyed original. |
@@ -18,6 +18,7 @@ can be updated without editing the design narrative.
 | D9 | Can the inline-only version grow into the full one? | it is a different architecture; it grows cleanly with no rework; the model-facing seam is preserved but the rest is system-wide | The model-facing seam is preserved, but adopting durable references later is still a system-wide change | Shipping the inline-only version first avoids a rewrite of the one prompt-builder seam. It does not avoid the rest: front-end persistence, API storage ownership, SDK wire types, runner resolution, the record schema, authorization, and cleanup. So the benefit is narrow and honest, not a free migration. |
 | D10 | What does the reference on the wire contain? | raw storage coordinates (mount id, path, client media type); an opaque server-issued id | An opaque server-issued attachment id, with the API owning the storage location and the verified metadata | Raw coordinates let a client forge a reference to another session's file and make the client's media type authoritative even though a client can lie. An opaque id keeps storage private to the API, lets the server verify the media type on upload, and makes the session-binding check natural to express. |
 | D11 (open) | What does attaching a file promise in the first release? | image perception only (strict limits, no durability); durable agent input (immutable original, workspace copy, findability, records) | OPEN. Recommendation: durable agent input, with workspace-always plus native-when-possible semantics | This is the product owner's call, not an engineering one. The engineering design supports either. The recommendation is durable agent input because it matches the three outcomes in context.md and avoids shipping a storage-less version that would need rework. Marked open until the product owner decides. |
+| D12 | What does a cold replay deliver for historical attachments? | re-deliver inline within a count and byte budget; a textual mention with the real filename and working-copy path, a cold-start sweep that restores missing working copies, inline delivery only for the running turn | Mention-first: the rebuilt conversation carries the mention, the cold start restores every referenced working copy, and inline delivery is reserved for the running turn's references | The harnesses' read tools verifiably deliver images from disk on all three harnesses and PDFs on Claude (research.md, section 4), so a mentioned file is one tool call away. Nothing inline grows with the history, which removes the recurring re-delivery cost and dissolves the budget problem; this decision replaces the former open question on the cold-replay budget numbers. Accepted cost: historical-image perception is agent-discretionary instead of guaranteed. On Pi, documents lose nothing, because inline PDFs never worked there. Accepted corner: only the cold start sweeps, so a warm prose-only turn after the agent deleted a working copy still finds it missing; revisit with evidence. |
 
 ## Settled by evidence
 
@@ -59,18 +60,6 @@ Each one says what is unknown, why it matters, how to settle it, and what it blo
    - To settle it, track adapter releases for audio support, or decide to defer audio until one
      exists.
    - This blocks the audio part of Stage 2.
-
-3. **What are the cold-replay budget numbers?**
-   - We do not yet know how many historical attachments, and within what size budget, may be
-     re-delivered natively on a cold start before falling back to a working copy plus a textual
-     placeholder.
-   - This matters because on a cold start the runner rebuilds the whole conversation from the
-     durable records (`reconstruct-history.ts`), and re-delivering every past attachment natively
-     in that rebuilt turn would exceed the provider's per-request size and block limits (see
-     [research.md](research.md), section 3).
-   - To settle it, pick a bound in implementation against real provider limits and measure a long
-     replayed conversation against it.
-   - This blocks the cold-replay policy in Stage 1.
 
 4. **When are the old capability names removed across the independently deployed components?**
    - We do not yet know the timing of dropping the `fileAttachments` and `file_attachments` aliases

@@ -94,13 +94,18 @@ them, and an unauthenticated or unbounded version of that is not shippable.
   contract violation fail the turn with a structured error code the front end can render, reusing the
   `assertRequiredCapabilities` and `*_UNSUPPORTED_MESSAGE` pattern in `capabilities.ts`. Never drop
   silently.
-- A bounded cold-replay policy. Cold replay (rebuilding the conversation from the durable records on
-  a cold start) must set an explicit count and byte limit on how many historical attachments are
-  re-delivered natively; beyond the limit, the working copy and a textual placeholder represent the
-  file. Update the cold-replay path (the record fold in `services/runner/src/sessions/reconstruct.ts`,
-  which rebuilds a past user turn as text only today, and the transcript flattening in
-  `transcript.ts`) so a past image is re-delivered within that budget instead of being dropped from
-  the rebuilt turn (see the cold-replay budget below).
+- The mention-first cold-replay policy (decision D12 in [design.md](design.md)). Cold replay
+  (rebuilding the conversation from the durable records on a cold start) represents a historical
+  attachment as a textual mention carrying the real filename and the working-copy path
+  (`cwd/attachments/<attachment_id>/<filename>`), never as inline re-delivery, so nothing inline
+  grows with the history and no size budget is needed. At cold start the runner re-materializes the
+  working copy of every attachment referenced in the session's records, restoring only what is
+  missing and never overwriting an edited copy, so every mentioned path exists. Inline native
+  delivery is reserved for the attachments referenced by the turn actually being run. Update the
+  cold-replay path (the record fold in `services/runner/src/sessions/reconstruct.ts`, which rebuilds
+  a past user turn as text only today, and the transcript flattening in `transcript.ts`) so a past
+  image becomes that mention instead of being dropped from the rebuilt turn (see the cold-replay
+  policy below).
 
 **(c) Front end last.** Once the API stores and the runner resolves, switch the browser over.
 
@@ -257,18 +262,17 @@ Python agent span (which keeps `messages` on purpose and has no length cap) hold
 rather than a base64 blob. Confirm this in Stage 1 rather than adding a truncation cap, since the
 cause is removed at the source.
 
-## The cold-replay budget
+## The cold-replay policy
 
 On a cold start the runner rebuilds the conversation from the durable records
-(`services/runner/src/engines/sandbox_agent/reconstruct-history.ts`), and a historical attachment
-cannot be re-sent freely. The policy: on a cold start only the working copies (already on disk) and textual
-placeholders represent historical attachments by default. Re-delivering a historical attachment as a
-native block again is bounded, and the bound is defined in implementation (for example, only the most
-recent few native attachments, or only those within a size budget). The reason is a hard limit:
-replaying a long conversation that re-sends every past image natively would exceed the provider's
-per-request size and block limits (see [research.md](research.md), section 3). So historical native
-re-delivery is capped, and older attachments fall back to their working copy and a textual
-placeholder.
+(`services/runner/src/engines/sandbox_agent/reconstruct-history.ts`). The adopted policy is
+mention-first (decision D12 in [design.md](design.md)): a historical attachment is represented by a
+textual mention carrying its real filename and working-copy path, and the runner restores the
+working copy of every attachment referenced in the session's records, so each mentioned path
+exists. Inline native delivery happens only for attachments referenced by the turn being run. No
+count or byte budget is needed, because nothing inline grows with the length of the history; a
+mentioned file is one tool call away, since the harnesses' read tools deliver an image from disk on
+all three harnesses, and a PDF on Claude (see [research.md](research.md), section 4).
 
 ## Tests across the release
 
@@ -279,7 +283,8 @@ under a single stage.
 
 - An image-and-text turn produces an image block and a text block.
 - An image-only turn is valid instead of rejected.
-- A cold replay of a past image no longer emits the string "[image]".
+- A cold replay of a past image no longer emits the string "[image]"; it emits the mention with the
+  real filename and working-copy path, and that path exists after the cold-start sweep.
 - Run integration tests against the two pinned adapters (`@agentclientprotocol/claude-agent-acp` and
   `pi-acp`) confirming that an inline image reaches the model as a real image.
 
@@ -310,4 +315,6 @@ under a single stage.
   structured error, not a silent drop.
 - Materialization is atomic and never overwrites an edited working copy.
 - Two attachments with the same filename in one session do not collide (the id-namespaced path).
-- Warm resume and cold replay both work with references, within the cold-replay budget above.
+- Warm resume and cold replay both work with references, under the mention-first policy above: a
+  rebuilt turn carries the mention with the real path, and every mentioned working copy exists after
+  the cold-start sweep.

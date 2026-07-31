@@ -4,7 +4,7 @@ This file records the project's current state.
 
 ## State
 
-The design has one open product decision (D11, what the first release promises) and six open
+The design has one open product decision (D11, what the first release promises) and five open
 implementation questions; see [decisions.md](decisions.md) for the list. The problem is verified
 against code, the research covers the mounts surface, the modality taxonomy, the ACP content model
 read from the two adapters we actually pin, and how other tools handle attachments, and every major
@@ -35,21 +35,23 @@ See [README.md](README.md). In short: [context.md](context.md) for the plain sto
 
 ## Decisions taken
 
-See the decision log in [decisions.md](decisions.md) (D1 through D11, with D11 still open). In brief:
+See the decision log in [decisions.md](decisions.md) (D1 through D12, with D11 still open). In brief:
 deliver inline for perception and on disk for tool use; keep the original in a dedicated session mount
 out of the sandbox; two copies, an unchanging original and a disposable working copy; compute the
 capability as the intersection of transport, adapter fidelity, and model, and gate in the composer and
 the runner; never silently drop, attach an unsupported kind as workspace-only, and fail the turn only
 on a contract violation; enforce immutability through a create-only upload route with no signed
 credentials for the mount; carry an opaque server-issued `attachment_id` on the wire (D10); audio is
-a goal but blocked on adapter work.
+a goal but blocked on adapter work; and cold replay is mention-first (D12): a historical attachment
+is a textual mention with its real working-copy path, every referenced working copy is restored at
+cold start, and inline delivery is reserved for the running turn.
 
 ## Open questions
 
 See [decisions.md](decisions.md). Three questions are settled by evidence (document delivery, the
 working-copy path, the runner read path); decisions.md records them. The open
 questions are: what the first release promises (D11, the product owner's decision); how native audio is
-delivered at all (blocked on adapter work); the cold-replay budget numbers; when the old capability
+delivered at all (blocked on adapter work); when the old capability
 names are removed across independently deployed components; the retention rules when a session is
 archived or deleted; the exact media-type and validation matrix; and the cleanup refinement from a
 time-to-live sweep to reference counting.

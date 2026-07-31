@@ -255,9 +255,9 @@ everything else is just bytes that the agent must open with a tool.
 
 For these, the bytes must be delivered to the model in a specific content slot. The model has a
 built-in path that turns them into something it understands (an image encoder, an audio encoder, a
-document parser). You cannot get this perception by writing the file to disk and asking the agent
-to "read" it, because the model's own perception path is only reached through the message content,
-not through a tool that returns text.
+document parser). That slot is reached through message content, which includes a tool result: a
+harness's own read tool can fill it for some kinds when the agent calls it, with coverage that
+differs per harness (section 4). A tool that returns only text never reaches this path.
 
 - **Images** (PNG, JPEG, GIF, WebP). Perceived by Claude, the GPT-4o and GPT-5 family, and Gemini.
 - **Audio** (for example WAV, MP3). Perceived natively by some models (Gemini, and the GPT audio
@@ -459,6 +459,30 @@ new offsets: the blob byte-count line at `dist/index.js:1671` and the audio not-
 `dist/index.js:1681`. The only capability delta is a new session `delete` capability, which is not
 modality related.
 
+A Pi extension can close one of these gaps. Pi loads extensions from its agent directory, and our
+runner already installs one there for tool relay and tracing
+(`services/runner/src/extensions/agenta.ts`, installed by
+`services/runner/src/engines/sandbox_agent/pi-assets.ts`). The extension API lets an extension
+register a custom tool (`registerTool`, `@earendil-works/pi-coding-agent` 0.80.6,
+`dist/core/extensions/types.d.ts:874`) whose result carries real image content blocks back to the
+model: `AgentToolResult.content` is typed as text or image content (pi-agent-core 0.80.6,
+`dist/types.d.ts:306`), the agent loop copies that content verbatim into the tool-result message
+(pi-agent-core, `dist/agent-loop.js:528`), and the Anthropic serializer emits real base64 image
+blocks from it (pi-ai 0.80.6, `dist/api/anthropic-messages.js:875`). Pi's own read tool returns
+exactly this shape for images (`dist/core/tools/read.js:183`). So a custom tool that renders PDF
+pages to PNG images and returns them as image blocks works against the pinned version with no
+change in Pi; the remaining work is ours (a PDF rasterizer available to the extension, and our
+extension's relay currently returns text only, `services/runner/src/tools/dispatch.ts:71`). That
+closes the tool-mediated document gap, at the agent's discretion like any tool call. The inline
+gap is different. An extension can transform the incoming prompt and attach images to the very
+user message being sent (the `input` event, `dist/core/extensions/types.d.ts:614` and `:628`,
+delivered into the user message at `dist/core/agent-session.js:849`), but by the time it runs, a
+blob's bytes are already gone: the pi-acp adapter has reduced the blob to the byte-count line
+above, so the extension sees only the placeholder. Closing the inline document path therefore
+needs changes in pi-acp, and a native document input would need changes in Pi itself, whose
+message model carries only text, thinking, and image content (pi-ai 0.80.6,
+`dist/types.d.ts:217`).
+
 **The Codex adapter (`@agentclientprotocol/codex-acp` 1.1.7).** This adapter arrives with the Codex
 harness in PR #5509. That PR pins it at `1.1.7`, which bundles `@openai/codex` `0.145.0`, in the
 runner image build (`services/runner/docker/Dockerfile.gh:100` on branch `feat/codex-harness`, via
@@ -512,16 +536,45 @@ One note for [design.md](design.md): the D5 adapter-fidelity table describes two
 pasted as text. None of the three is native document perception, so the D5 conclusion that document
 delivery is blocked on adapter work stands unchanged; the table gains a column when PR #5509 lands.
 
-### An important limit on the "write the file to disk and let the harness read it" idea
+### What the harnesses' own read tools deliver from disk
 
-Claude Code's own Read tool does not reliably deliver an image file to the model as vision input.
-Feature requests have asked for exactly that behavior. One of them,
-[claude-code issue #35866](https://github.com/anthropics/claude-code/issues/35866), is closed as
-"not planned"; another, [#30925](https://github.com/anthropics/claude-code/issues/30925), is still
-open. So even if we place an image on the agent's disk and the agent runs Read on it, the model is
-not guaranteed to see the picture. This is strong evidence that for model perception we cannot rely
-on the disk-plus-Read path; the inline content path is the reliable one. The disk copy remains
-valuable for tool use over the file, which is the separate outcome.
+A file on disk is not invisible to the model. Each harness ships a tool that can turn a file the
+agent reads into native model input, with different coverage per kind, verified against the pinned
+versions on 2026-07-31, empirically on our stack for Claude and Pi (sessions `ebef4364` and
+`54770cc0`) and from source for Codex.
+
+- **Claude Code reads images and PDFs natively.** Its Read tool returns an image file "as visual
+  content that Claude can see, not as raw bytes"
+  ([Claude Code tools reference](https://code.claude.com/docs/en/tools-reference#read-tool-behavior))
+  and returns a PDF as a native document input (PDF support since v1.0.58; page ranges since
+  v2.1.30; limits 100 pages and 20 megabytes). This rests on an API fact: a `tool_result` may carry
+  `text`, `image`, and `document` blocks
+  ([handle tool calls](https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls)).
+  On our stack (Claude Code 2.1.205 through the pinned adapter), an agent asked to read an uploaded
+  photo named its exact shapes and text, and read a compression-locked PDF verbatim, with no bytes
+  in the prompt. An earlier version of this document cited
+  [claude-code #35866](https://github.com/anthropics/claude-code/issues/35866) and
+  [#30925](https://github.com/anthropics/claude-code/issues/30925) as evidence that Read does not
+  deliver vision. Both are now closed, and neither supports that reading today: #30925 described
+  behavior that no longer exists, and #35866 concedes that Read sends the image and complains about
+  edge cases (delivery on Bedrock, media type detected from the file extension, corrupt files
+  breaking a session), several of which have since shipped fixes (format detection from bytes in
+  2.0.65, a text fallback for mislabeled files in 2.1.144).
+- **Pi reads images natively and nothing else.** Its read tool (pi-coding-agent 0.80.6,
+  `dist/core/tools/read.js`) detects jpg, png, gif, webp, and bmp by magic bytes and returns a real
+  image content block, omitted with a notice when the model has no vision. A PDF falls into the
+  text branch and reaches the model as a UTF-8 decode of raw bytes; on our stack the agent reported
+  the raw PDF source and could not recover the document's text.
+- **Codex reads images natively through `view_image`.** The tool is enabled by default and returns
+  the file as an `input_image` content item (openai/codex,
+  `codex-rs/core/src/tools/handlers/view_image.rs`; shipped in rust-v0.26.0). No tool delivers a
+  local PDF natively; Codex's own skills shell out to converters.
+- **No harness has any tool path for audio.** The Anthropic API accepts no audio input at all, Pi's
+  read tool has no audio branch, and every shipped Codex model declares text and image only.
+
+So the disk path does give perception for images on every harness, and for PDFs on Claude only, but
+always at the agent's discretion: nothing forces the tool call, and a conversation rebuilt from
+records does not re-read files. Section 5 weighs this against inline delivery.
 
 ---
 
@@ -548,16 +601,20 @@ at attachments/photo.png."
 
 - Lets the agent's tools open, convert, or edit the file. This is real value for non-native
   formats.
-- Does **not** reliably give the model perception. Whether the model ever sees the picture depends
-  on the harness having a tool that turns a file read into a vision input, and Claude Code's Read
-  tool does not do that reliably today (section 4).
+- Gives the model perception only when the agent chooses to call its read tool, and only for the
+  kinds that harness's tool handles: images on all three harnesses, PDFs on Claude Code only, audio
+  nowhere (section 4). The perception is real when it happens, but it is agent-mediated and uneven
+  across harnesses, and a turn replayed from records does not repeat it.
 - Is the natural path for formats that are not native model inputs anyway (a zip, a CAD file), where
   perception is not even the goal.
 
-The conclusion the design draws: use both, for different purposes. Deliver native modalities inline
-(Mechanism A) so the model perceives them, and also place the file on disk (Mechanism B) so the
-agent's tools can work on it. This is not redundant. The two mechanisms serve the two separate
-outcomes from [context.md](context.md): perception and tool use.
+The conclusion the design draws: use both, for different purposes. Inline delivery (Mechanism A) is
+the only path that guarantees perception: it happens deterministically at the prompt-build seam the
+runner owns, works the same on every harness that advertises the capability, and survives a replay.
+The disk copy (Mechanism B) serves tool use, and on some harnesses it adds a second, agent-driven
+route to perception, which is a useful fallback rather than a substitute. This is not redundant. The
+two mechanisms serve the two separate outcomes from [context.md](context.md): perception and tool
+use.
 
 ---
 
