@@ -23,6 +23,7 @@ from agenta.sdk.agents import (
     AgentaAgentTemplate,
     AgentTemplate,
     ClaudeAgentTemplate,
+    ContentBlock,
     Endpoint,
     HarnessKind,
     Message,
@@ -57,6 +58,7 @@ KNOWN_REQUEST_KEYS = {
     "sessionId",
     "agentsMd",
     "model",
+    "modelCapabilities",
     "provider",
     "connection",
     "deployment",
@@ -213,6 +215,40 @@ def _agenta_payload():
     )
 
 
+def _attachment_payload():
+    config = PiAgentTemplate(
+        agents_md="Use the attached file.",
+        model="anthropic/claude-sonnet-4-6",
+        resolved_connection=ResolvedConnection(
+            provider="anthropic",
+            model="claude-sonnet-4-6",
+            credential_mode="runtime_provided",
+            input_modalities=["text", "image"],
+        ),
+    )
+    return request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=config,
+        messages=[
+            Message(
+                role="user",
+                content=[
+                    ContentBlock(
+                        type="attachment",
+                        attachment_id="019c471b-5b91-71d2-9d4b-5486013e6e9b",
+                        filename="photo.png",
+                        mime_type="image/png",
+                        size=482113,
+                    ),
+                    ContentBlock(type="text", text="Describe this image."),
+                ],
+            )
+        ],
+        session_id="sess-attachment",
+    )
+
+
 def test_request_to_wire_agenta_carries_skills_and_pi_shape():
     payload = _agenta_payload()
     assert set(payload) <= KNOWN_REQUEST_KEYS
@@ -312,6 +348,20 @@ def test_request_to_wire_pi_matches_golden(golden):
     }
     # Pi renders no harness files, so the generic `harnessFiles` key is absent.
     assert "harnessFiles" not in payload
+
+
+def test_request_to_wire_attachment_matches_golden(golden):
+    payload = _attachment_payload()
+    assert payload == golden("run_request.attachment.json")
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert payload["modelCapabilities"] == {"inputModalities": ["text", "image"]}
+    assert payload["messages"][0]["content"][0] == {
+        "type": "attachment",
+        "attachmentId": "019c471b-5b91-71d2-9d4b-5486013e6e9b",
+        "filename": "photo.png",
+        "mimeType": "image/png",
+        "size": 482113,
+    }
 
 
 async def test_default_template_grants_pi_default_builtins_on_the_wire(make_env):
