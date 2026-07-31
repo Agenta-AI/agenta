@@ -24,8 +24,8 @@ can be updated without editing the design narrative.
 
 ## Settled by evidence
 
-Three questions that shaped the design are answered by evidence in the code, and are recorded here so
-they are not reopened by accident.
+These questions are answered by evidence in the code or by constraints already in place, not by a
+product choice, and are recorded here so they are not reopened by accident.
 
 - **Does a document reach the model natively?** Answered by reading the adapter code, not by a live
   test. Neither pinned adapter delivers a document natively today: the Claude adapter drops a blob
@@ -39,42 +39,36 @@ they are not reopened by accident.
   through the API download route for the first release, with the session-binding check kept in one
   place. Reading the object store directly with a read-only credential scope is the Stage 3 hardening
   ([design.md](design.md), decision D7).
+- **What is the media-type, validation, and limits matrix?** Settled 2026-07-31 as engineering
+  defaults; the full matrix is in [design.md](design.md), "The media-type, validation, and limits
+  matrix". In brief: the server classifies by inspected magic bytes and stores the verified type
+  (declared type never trusted, per D10); rejection happens only for size and unrecognizable bytes,
+  never for kind (D6); the per-kind caps mirror the shipped client caps (5 files per message, 10 MB
+  images, 15 MB audio, 10 MB documents, `attachments.ts`, verified 2026-07-31); the compose gateway
+  `client_max_body_size` rises from 10 MB to 32 MB
+  (`hosting/docker-compose/oss/nginx/nginx.conf`; railway already allows 32 MB) with the upload
+  route's per-kind caps as the enforced truth; and an original that exceeds a provider's inline cap
+  (for example Anthropic's 10 MB base64 per image, about 7.5 MB raw) is delivered workspace-only
+  with the D6 notice, never resized and never a failed turn.
+- **What are the retention rules when a session is archived or deleted?** Settled 2026-07-31:
+  attachment originals share their session's lifecycle. They are deleted when the session is
+  deleted, and kept as long as the session exists, including while it is archived. The attachments
+  mount is a session mount, so the existing session-mount teardown already implements this:
+  `delete_session_mounts` hard-deletes the mount rows and their object-store prefixes, and
+  `archive_session_mounts` soft-archives reversibly without touching the bytes
+  (`api/oss/src/core/mounts/service.py`, verified 2026-07-31). An independent expiry while the
+  session lives would break the design's own findability promise, because the conversation renders
+  by resolving references against originals. The implementation cost is one Stage 3 test asserting
+  the attachments mount is included in the existing session teardown. Per-workspace retention
+  policies and user-initiated purge of a single original are deferred follow-ups
+  ([scope.md](scope.md)).
 
 ## Open questions
 
-All the product decisions are taken (D1 through D14). What remains are implementation-time
-questions. Each one says what is unknown, why it matters, how to settle it, and what it blocks.
+All the product decisions are taken (D1 through D14). One implementation-time question remains. It
+says what is unknown, why it matters, how to settle it, and what it blocks.
 
-1. **What are the retention rules when a session is archived or deleted?**
-   - We do not yet know what happens to a session's attachment originals when the session is archived
-     or deleted, and how long they are kept.
-   - This matters because attachments are durable originals, so their lifecycle has to be defined
-     rather than left implicit, both for storage cost and for a person's expectation that a shared file
-     stays findable.
-   - To settle it, define retention against the session lifecycle and any tenant data-retention
-     policy.
-   - This blocks the findability and cleanup work in Stage 3.
-
-2. **What is the exact media-type, validation, and limits matrix?**
-   - We do not yet know how the declared media type relates to the type the server inspects from the
-     bytes when they disagree, which formats are allowed per kind (image, audio, document), and what
-     the server-side size and count limits are per kind.
-   - This matters because the server verifies the media type rather than trusting the client (D10), so
-     the rules for a mismatch and the allowed-format list have to be explicit to be enforceable. It
-     matters for limits because enforcement today is client-side only: the merged composer limits
-     (`DEFAULT_ATTACHMENT_LIMITS` in `web/oss/src/components/AgentChatSlice/assets/attachments.ts`,
-     verified 2026-07-31) allow 5 files per message, 10 MB per image, 15 MB per audio clip, and 10 MB
-     per document, and a client can bypass them. The server-side check belongs to the new upload
-     route. The route must also reckon with the infrastructure: the docker-compose gateway caps the
-     API request body at 10 MB (`client_max_body_size` in
-     `hosting/docker-compose/oss/nginx/nginx.conf`, verified 2026-07-31), which the 15 MB client-side
-     audio limit already exceeds, so either the gateway cap rises or the client caps come down.
-   - To settle it, write the matrix of declared type versus the type inspected from the bytes, the
-     allowed formats per kind, and the per-kind size and count limits including the gateway cap, and
-     enforce it in the upload route.
-   - This blocks the server-side validation in Stage 1.
-
-3. **How are unused uploads cleaned up (the refinement)?**
+1. **How are unused uploads cleaned up (the refinement)?**
    - We do not yet know when to move from a time-to-live sweep to reference counting against the
      conversation records.
    - This matters because a file uploaded but never sent leaves a stored object, and reference

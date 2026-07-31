@@ -74,6 +74,19 @@ first release. No inline-only version will be built.
   dictation and native ACP audio ([decisions.md](decisions.md), D14). The survey it restarts from
   (the litellm call path Agenta already runs, prices, who has a usable key) is in
   [research.md](research.md), section 4, "Server-side transcription, surveyed and deferred".
+- **Per-workspace retention policies.** The settled retention rule ties originals to the session
+  lifecycle ([decisions.md](decisions.md), "Settled by evidence"). A policy such as "purge
+  attachments after N days" for compliance customers is a separate feature: it needs a policy
+  setting, a sweep job, and a story for the holes it leaves in old conversations whose references
+  no longer resolve.
+- **User-initiated purge of a single original.** Removing one wrongly shared file before its
+  session ends needs a product surface plus a revoked-reference marker in the records, so a replay
+  cannot re-materialize the purged bytes.
+- **Runner-side downscaling of oversized images.** Today an accepted image that exceeds a
+  provider's inline cap is delivered workspace-only with the D6 notice ([design.md](design.md),
+  "The media-type, validation, and limits matrix"). Downscaling it to fit the cap would restore
+  guaranteed perception for those files, at the cost of new image-processing machinery in the
+  runner.
 
 ## Next steps
 

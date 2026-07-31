@@ -309,23 +309,28 @@ So the file should be placed on disk for the agent regardless of whether the mod
 and the native delivery to the model should happen only when the model supports that modality. This
 is exactly the "two outcomes at once" goal from [context.md](context.md).
 
-### Provider limits (verify current numbers before relying on them)
+### Provider limits (verified 2026-07-31; re-verify before relying on them)
 
-From Anthropic's vision documentation and the Messages API limits:
+From Anthropic's vision and PDF documentation:
 
-- **Whole request.** The Messages API caps a request at about 32 megabytes total.
+- **Whole request.** The Messages API caps a request at 32 megabytes on standard endpoints.
   [Anthropic vision docs](https://platform.claude.com/docs/en/build-with-claude/vision).
-- **Images.** The per-image size limit is deployment-dependent, so do not treat any single number
-  as fixed. The published guidance is to keep each dimension under about 1500 to 2000 pixels and to
-  send a small number of image-and-document blocks per request to stay within limits. Confirm the
-  current per-image and pixel limits against the vision docs before relying on them.
-  [Anthropic vision docs](https://platform.claude.com/docs/en/build-with-claude/vision).
-- **PDF documents.** The current documentation gives PDF support up to 600 pages, dropping to 100
-  pages for the 200k-context models, within the request size limit. These numbers change, so verify
-  them.
+- **Images.** 10 megabytes per image, measured on the base64-encoded data, on the Claude API
+  directly (5 megabytes base64 on Amazon Bedrock and Google Cloud). Maximum dimensions 8000x8000
+  pixels, with a stricter limit near 2000 pixels per side when a request carries more than 20
+  images. 100 images per request on 200k-context models, 600 otherwise. Formats: JPEG, PNG, GIF,
+  WebP. [Anthropic vision docs](https://platform.claude.com/docs/en/build-with-claude/vision).
+- **PDF documents.** 32 megabytes maximum request size; 600 pages per request, dropping to 100
+  pages when the request's context window is under 1M tokens; standard unencrypted PDF.
   [Anthropic PDF support docs](https://platform.claude.com/docs/en/build-with-claude/pdf-support).
 
-Gemini perceives images, audio, and video natively, each with its own per-request limits.
+OpenAI's vision input allows 512 megabytes of total payload and 1500 image inputs per request,
+with no documented per-image cap (formats: PNG, JPEG, WebP, non-animated GIF).
+[OpenAI images and vision guide](https://developers.openai.com/api/docs/guides/images-vision).
+
+Gemini perceives images, audio, and video natively. Inline data shares a 20 megabyte total request
+budget, larger files go through its Files API, and a request can carry up to 3,600 images
+(formats: PNG, JPEG, WebP, HEIC, HEIF).
 [Gemini image understanding](https://ai.google.dev/gemini-api/docs/image-understanding),
 [audio understanding](https://ai.google.dev/gemini-api/docs/audio),
 [video understanding](https://ai.google.dev/gemini-api/docs/video-understanding).
@@ -333,7 +338,8 @@ Gemini perceives images, audio, and video natively, each with its own per-reques
 The important design takeaway is not the exact number, which changes, but the shape: there are hard
 per-request and per-file limits, they differ by provider, and our front-end limits should be
 derived from the selected model's real limits rather than from the transport-sized static defaults
-we have today (see section 10).
+we have today (see section 10). The settled server-side matrix these numbers feed is in
+[design.md](design.md), "The media-type, validation, and limits matrix".
 
 ---
 

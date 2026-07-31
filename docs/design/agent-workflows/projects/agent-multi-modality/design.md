@@ -338,8 +338,113 @@ stateDiagram-v2
         The agent deleting its working copy
         does not change this.
     end note
-    Findable --> [*]: session archived or cleaned up
+    Findable --> [*]: session deleted (originals share the session lifecycle)
 ```
+
+---
+
+## The media-type, validation, and limits matrix
+
+This section settles the former open question on media types, validation, and limits. The rules are
+engineering defaults derived from the shipped client limits, the gateway ceiling, and the providers'
+inline caps, so they are recorded under "Settled by evidence" in [decisions.md](decisions.md) rather
+than as a product decision. The upload route enforces the matrix server-side; the shipped client
+limits (`DEFAULT_ATTACHMENT_LIMITS` in
+`web/oss/src/components/AgentChatSlice/assets/attachments.ts`, lines 49 to 59, verified 2026-07-31)
+stay as they are and become the courtesy layer a client can bypass but the server does not.
+
+### How the server classifies a file
+
+The server inspects the file's leading bytes (magic bytes) and stores the type it verified, per
+decision D10. The declared type is display metadata at most; it never decides anything.
+
+- Bytes that match a known signature are stored under the inspected type. When the inspected type
+  differs from the declared one, the inspected type wins silently: the upload succeeds and the
+  attachment resource carries the verified type. The declared type is never trusted.
+- Bytes with no known signature that decode as UTF-8 text are stored as text. The declared type is
+  kept when it is a `text/*` subtype or `application/json`, because bytes cannot distinguish
+  Markdown from CSV; otherwise the stored type is `text/plain`.
+- Bytes with no known signature that are not valid text, and empty files, are rejected at upload
+  with a structured error. This is the "invalid file" rejection in the lifecycle above, and it is
+  the only content-based rejection. A recognized type that is not a native kind is never rejected
+  (decision D6); it is stored and attached workspace-only.
+
+### The matrix
+
+Size caps apply to the raw file at upload; base64 inflation matters only at delivery, because the
+upload is a multipart request, not base64. The count cap applies per message, across all kinds, and
+is enforced at the run route (each upload is its own request, so the upload route cannot count a
+message). The per-kind caps mirror the shipped client caps (`attachments.ts`, lines 49 to 59).
+
+| Kind (by inspected type) | Accepted formats | Per-file cap | Per-message count | At upload | At delivery |
+| --- | --- | --- | --- | --- | --- |
+| image | PNG, JPEG, GIF, WebP | 10 MB | 5 across all kinds | over the cap: rejected with a structured error | native when the D5 intersection allows; workspace-only with the D6 notice when the original exceeds a provider inline cap (rule below) |
+| audio | recognized audio containers (WAV, MP3, OGG, WebM, FLAC, M4A) | 15 MB | shared 5 | same | always workspace-only in the first release (decision D14); native ACP audio is the last upgrade |
+| document | PDF; text (`text/*`); JSON | 10 MB | shared 5 | same | workspace-only today (native documents are the Stage 2 adapter blocker); small text can inline as text |
+| other (recognized, not a native kind) | any other recognized type (archives, office formats, video, and so on) | 10 MB | shared 5 | same | always workspace-only with the D6 notice |
+| unrecognizable | no known signature and not valid text | none stored | none | rejected as an invalid file | never stored |
+
+One shipped behavior changes to match this matrix: the composer today rejects an unknown kind
+outright ("isn't a supported file type", `attachments.ts`, line 131). Under decision D6 an
+unsupported kind is accepted workspace-only with a notice, so Stage 1 replaces that client-side
+rejection with the notice. The recognized-format list for the "other" row is whatever the
+server's magic-bytes library recognizes; widening it is cheap and needs no design change.
+
+### The gateway ceiling
+
+Stage 1 raises the compose gateway request-body cap from 10 MB to 32 MB: `client_max_body_size 10M`
+becomes `32m` in `hosting/docker-compose/oss/nginx/nginx.conf` (line 35, verified 2026-07-31). That
+file is the only nginx config in the compose stack: the OSS gh compose files mount it behind the
+`with-nginx` profile (`docker-compose.gh.yml`, `docker-compose.gh.local.yml`), and the dev stacks
+and the EE compose files run no nginx of their own. The railway gateway already allows 32 MB
+(`client_max_body_size 32m` in `hosting/railway/oss/gateway/nginx.conf`, line 23, verified
+2026-07-31).
+
+The ceiling is infrastructure, not policy: the upload route's per-kind caps are the enforced truth.
+Each upload carries one file, so the ceiling binds per file, and every per-kind cap (15 MB at most)
+clears 32 MB with room for multipart overhead. The old 10 MB ceiling is what made the shipped 15 MB
+audio cap impossible to use; raising the ceiling resolves that in favor of the per-kind caps.
+
+### Provider inline caps at delivery
+
+The runner rebuilds inline blocks from stored originals (decision D2), so an accepted upload can
+still exceed what a provider takes inline. The current numbers, all verified 2026-07-31:
+
+- **Anthropic Messages API, images.** 10 MB per image, measured on the base64-encoded data, on the
+  Claude API directly; 5 MB base64 on Amazon Bedrock and Google Cloud. Maximum dimensions 8000x8000
+  px, with a stricter limit near 2000 px per side when a request carries more than 20 images. 100
+  images per request on 200k-context models, 600 otherwise. Formats: JPEG, PNG, GIF, WebP. Whole
+  request capped at 32 MB.
+  [Anthropic vision docs](https://platform.claude.com/docs/en/build-with-claude/vision).
+- **Anthropic Messages API, PDF.** 32 MB maximum request size; 600 pages per request, dropping to
+  100 pages when the request's context window is under 1M tokens; standard unencrypted PDF.
+  [Anthropic PDF support docs](https://platform.claude.com/docs/en/build-with-claude/pdf-support).
+- **OpenAI vision.** 512 MB total payload per request and 1500 image inputs per request, with no
+  documented per-image cap. Formats: PNG, JPEG, WebP, non-animated GIF.
+  [OpenAI images and vision guide](https://developers.openai.com/api/docs/guides/images-vision).
+- **Gemini.** Inline data shares a 20 MB total request budget (text plus bytes); larger files go
+  through the Files API. Up to 3,600 images per request. Formats: PNG, JPEG, WebP, HEIC, HEIF.
+  [Gemini image understanding](https://ai.google.dev/gemini-api/docs/image-understanding).
+
+The 5-per-message count sits far under every provider count cap, so count never binds at delivery.
+
+### The delivery rule for oversized originals
+
+When a stored original passes the upload caps but exceeds a constraint of the provider actually
+selected (per-image bytes after base64 inflation, the request budget, or dimensions), the runner
+does not fail the turn and does not resize. It attaches the file workspace-only with the D6 notice,
+exactly as it does for a kind the model cannot perceive. Concretely on Claude: base64 inflates by
+about a third, so an accepted image over roughly 7.5 MB raw exceeds the 10 MB base64 per-image cap
+and goes workspace-only; the agent can still read it from disk (and on Claude the Read tool
+delivers it as real vision input, [research.md](research.md), section 4). Runner-side downscaling
+to fit a provider cap is a possible later refinement, listed in [scope.md](scope.md) follow-ups; it
+is machinery this release does not build.
+
+### Sanity check
+
+Every per-file cap sits under the 32 MB gateway ceiling. The shipped caps stay as shipped (10 MB
+images, 15 MB audio, 10 MB documents): no provider cap forces them down, because the delivery
+boundary is handled by the workspace-only rule above, not by shrinking uploads.
 
 ---
 
@@ -408,8 +513,8 @@ in every component at the same time. The front end, the API, the SDK, and the ru
 independently, so a rename that lands
 in one component before another breaks the versions in between. Instead, introduce the new fields
 alongside the old ones, keep the old names accepted as aliases through the rollout, and remove the
-old names later once every component speaks the new ones. The removal timing is an open question
-(see [decisions.md](decisions.md)).
+old names later once every component speaks the new ones. The removal timing follows the alias
+rollout's settle condition in [plan.md](plan.md), Stage 2.
 
 ---
 

@@ -39,7 +39,7 @@ See [README.md](README.md). In short: [context.md](context.md) for the plain sto
 | Stage | Scope | State |
 | --- | --- | --- |
 | 0 | Close the silent-failure gap: gate the ungated paste and drag path on `NEXT_PUBLIC_AGENT_FILE_UPLOADS` | not started (optional) |
-| 1 | First user-visible release: the attachment resource and storage, the record-schema extension, the runner's resolve-materialize-and-deliver seam for images, structured capability errors, the minimum security and limits work, and the front-end transport and reference wiring | not started |
+| 1 | First user-visible release: the attachment resource and storage, the record-schema extension, the runner's resolve-materialize-and-deliver seam for images, structured capability errors, the minimum security and limits work (per the settled matrix in [design.md](design.md), including the gateway raise to 32 MB), and the front-end transport and reference wiring | not started |
 | 2 | The audio release: turn on the voice UI, dictation as the only audio-to-text, recordings on the D6 workspace-only path (D14); the document plan (blocked on adapter work), the capability-alias rollout, derived front-end limits | not started (documents blocked on adapter work) |
 | 3 | Findability polish and cleanup: "Shared by you" origin, reference-counting cleanup refinement, read-only credential scope, verify the edit-then-find flow | not started |
 
@@ -61,20 +61,22 @@ D6 notice, server-side transcription deferred, and native ACP audio as the last 
 
 ## Open questions
 
-See [decisions.md](decisions.md). All product decisions are taken. The three open implementation
-questions are: the retention rules when a session is archived or deleted; the exact media-type,
-validation, and limits matrix (including the server-side limits and the gateway's 10 MB
-request-body cap); and when cleanup moves from a time-to-live sweep to reference counting. The
-capability-alias removal is deliberately not
-on this list: it is rollout mechanics with a stated settle condition, recorded in
-[plan.md](plan.md) Stage 2.
+See [decisions.md](decisions.md). All product decisions are taken. One implementation question
+remains open: when cleanup moves from a time-to-live sweep to reference counting. Two former open
+questions were settled by evidence on 2026-07-31 and moved to "Settled by evidence" in
+[decisions.md](decisions.md): the media-type, validation, and limits matrix (the full matrix is in
+[design.md](design.md), "The media-type, validation, and limits matrix", including the compose
+gateway raise from 10 MB to 32 MB) and the retention rules (originals share the session lifecycle:
+deleted with the session, kept while it exists, including archived). The capability-alias removal
+is deliberately not on this list: it is rollout mechanics with a stated settle condition, recorded
+in [plan.md](plan.md) Stage 2.
 
 ## Next actions
 
 - Start implementation: Stage 1 of [plan.md](plan.md), optionally preceded by Stage 0.
 - Decide whether Stage 0 ships on its own or folds into Stage 1.
-- Settle the media-type, validation, and limits matrix while building the Stage 1 upload route
-  ([decisions.md](decisions.md), open questions).
+- Build the Stage 1 upload route against the settled matrix ([design.md](design.md), "The
+  media-type, validation, and limits matrix"), including the compose gateway raise to 32 MB.
 
 ## Artifacts
 

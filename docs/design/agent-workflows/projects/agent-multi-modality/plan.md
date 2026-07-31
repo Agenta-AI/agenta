@@ -92,21 +92,31 @@ polish for a later stage, because the first release already accepts files from a
 them, and an unauthenticated or unbounded version of that is not shippable. On limits specifically:
 enforcement today is client-side only (the merged `DEFAULT_ATTACHMENT_LIMITS`: 5 files per message,
 10 MB images, 15 MB audio, 10 MB documents), which a client can bypass, so the server-side check
-belongs to the new upload route. The route must also reckon with the infrastructure: the
-docker-compose gateway caps the API request body at 10 MB today (`client_max_body_size` in
-`hosting/docker-compose/oss/nginx/nginx.conf`, verified 2026-07-31), which the 15 MB client-side
-audio limit already exceeds. The exact per-kind numbers, including whether the gateway cap rises or
-the client caps come down, are the open limits-matrix question in [decisions.md](decisions.md).
+belongs to the new upload route. The exact rules are settled: the matrix in
+[design.md](design.md), "The media-type, validation, and limits matrix", defines the per-kind
+formats, caps, and count, the inspected-type-wins mismatch rule, and the workspace-only delivery
+rule for an original that exceeds a provider's inline cap. The gateway decision is part of it: the
+compose gateway request-body cap rises from 10 MB to 32 MB, and the route's per-kind caps stay the
+enforced truth (the config task is listed under (a) below).
 
 **Deployment order inside the release.** The components deploy independently, so the order matters.
 
 **(a) API first.** Build the attachment resource before anything depends on it.
 
-- The create-only upload route: get-or-create the attachments mount, validate the file (size, count,
-  media type verified server-side by inspecting the file bytes, not by trusting the client), write the bytes, and
+- The create-only upload route: get-or-create the attachments mount, validate the file against the
+  settled matrix ([design.md](design.md), "The media-type, validation, and limits matrix": media
+  type verified server-side by inspecting the file bytes, never by trusting the client; per-kind
+  size caps; unrecognizable bytes rejected with a structured error), write the bytes, and
   return `{attachment_id, filename, media_type, size}`. Refuse an overwrite or a delete of an
   existing attachment original, because `write_file` overwrites silently today
   ([design.md](design.md), decision D7).
+- Raise the compose gateway request-body cap to match the matrix: `client_max_body_size` from `10M`
+  to `32m` in `hosting/docker-compose/oss/nginx/nginx.conf` (the only nginx config in the compose
+  stack, mounted by the OSS gh compose files `docker-compose.gh.yml` and
+  `docker-compose.gh.local.yml` behind the `with-nginx` profile; the dev stacks and the EE compose
+  files run no nginx). The railway gateway already allows 32 MB
+  (`hosting/railway/oss/gateway/nginx.conf`, verified 2026-07-31). The route-level per-kind caps
+  are the enforced truth; the gateway is a ceiling.
 - Upload idempotency and atomicity: a retried upload must not create a duplicate original and must
   not leave a partial one. The mechanism is the single-shot create the design already implies: the
   route reads and validates the whole body before writing anything (the upload helper buffers the
@@ -118,7 +128,10 @@ the client caps come down, are the open limits-matrix question in [decisions.md]
 - The download route the runner uses to read an original, with the session-binding check: the
   attachment must belong to the session being run, and a reference to another session's attachment is
   rejected ([design.md](design.md), decision D10).
-- Per-file and per-turn size and count limits, enforced server-side.
+- Per-file and per-turn size and count limits, enforced server-side, with the numbers from the
+  settled matrix: 10 MB per image, 15 MB per audio clip, 10 MB per document and per other kind, 5
+  files per message across kinds (the count is enforced at the run route, since each upload is its
+  own request).
 - Time-to-live cleanup of uploads that are never referenced by a sent turn.
 - The record-schema extension so a record can carry an attachment reference. Records are text-only
   today (see [research.md](research.md), section 7), so without this a reference cannot survive in the
@@ -174,6 +187,10 @@ work:
   `fileToPart`) with the uploaded attachment's reference in the message parts (`agentRequest.ts`).
 - Render the person's own attachment by resolving the reference through the download route, not
   from the base64 `data:` URL (`sessions.ts`), which is what removes the browser-storage pressure.
+- Stop rejecting unknown kinds in the composer: today `validateIncoming` refuses a file whose type
+  maps to no kind ("isn't a supported file type", `attachments.ts`, line 131), which contradicts
+  decision D6. Accept every kind, and show the workspace-only notice instead, per the matrix in
+  [design.md](design.md).
 - Turn on `NEXT_PUBLIC_AGENT_FILE_UPLOADS`: the composer accepts a file, attaches it
   (workspace-only with a visible notice when the capability intersection does not allow native
   perception), and shows it. Stage 0's gating of the paste and drag path keys off the same flag, so
@@ -264,6 +281,11 @@ already ships in Stage 1; this stage refines it.
   records reliably carry references, add reference counting against the conversation records so a
   still-referenced upload is never swept and a truly orphaned one is removed promptly (the open
   question in [decisions.md](decisions.md) tracks this).
+- **Retention.** Covered by the session lifecycle, settled in [decisions.md](decisions.md), "Settled
+  by evidence": originals are deleted when the session is deleted and kept as long as it exists,
+  including while archived. The existing session-mount teardown already implements this
+  (`delete_session_mounts` and `archive_session_mounts` in `api/oss/src/core/mounts/service.py`),
+  so the Stage 3 work is one test asserting the attachments mount is included in that teardown.
 - **Hardening.** Add a read-only credential scope for the attachments mount, the strongest
   immutability guarantee and the path that would let the runner read the object store directly instead
   of through the API download route ([design.md](design.md), decision D7).
@@ -386,7 +408,12 @@ under a single stage.
 
 **Limits and cleanup.**
 
-- Per-file and per-turn size and count limits are enforced server-side.
+- Per-file and per-turn size and count limits are enforced server-side, with the numbers and the
+  boundary behavior from the matrix in [design.md](design.md): a file over its kind's cap is
+  rejected at upload with a structured error, and unrecognizable bytes are rejected as an invalid
+  file.
+- Deleting a session tears down its attachments mount with the other session mounts, and archiving
+  keeps the originals (the retention rule in [decisions.md](decisions.md), "Settled by evidence").
 - An upload retry after a transient failure does not create a duplicate or a partial original.
 - An abandoned upload (never referenced by a sent turn) is swept by the time-to-live cleanup.
 
