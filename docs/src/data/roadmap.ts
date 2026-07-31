@@ -37,8 +37,8 @@ export const shippedFeatures: ShippedFeature[] = [
     title: "Creating Agents from the UI",
     description:
       "Build and configure AI agents directly from the Agenta UI. Define agent workflows, select tools, and set up orchestration logic without writing code. Test and iterate on agent behavior in the playground, then deploy to production with versioning and observability built in.",
-    changelogPath: "https://github.com/Agenta-AI/agenta/discussions/3705",
-    shippedAt: "",
+    changelogPath: "/docs/changelog/agenta-is-now-a-workspace-for-building-agents",
+    shippedAt: "2026-07-21",
     labels: [
       {
         name: "Playground",
