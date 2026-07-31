@@ -459,7 +459,9 @@ article a {
   text-underline-offset: 3px !important;
   text-decoration-thickness: 1px !important;
   text-decoration-color: var(--contentprimary) !important;
-  transition: text-decoration-color 200ms ease, text-underline-offset 200ms ease !important;
+  transition:
+    text-decoration-color 200ms ease,
+    text-underline-offset 200ms ease !important;
 }
 
 [data-theme="dark"] article a {
@@ -663,8 +665,9 @@ a[class*="cardContainer"]:hover {
   outline: none;
   border: none;
   cursor: pointer;
-  transition: background-color var(--ifm-transition-fast) ease, opacity
-      var(--ifm-transition-fast) ease;
+  transition:
+    background-color var(--ifm-transition-fast) ease,
+    opacity var(--ifm-transition-fast) ease;
 }
 
 /* Same hover treatment as the mobile footer CTAs: primary fades slightly,
@@ -745,7 +748,8 @@ a[class*="cardContainer"]:hover {
 .navbar-sidebar__close {
   border: 1px solid var(--borderdefault);
   margin-left: 0;
-  transition: background-color var(--ifm-transition-fast) ease,
+  transition:
+    background-color var(--ifm-transition-fast) ease,
     border-color var(--ifm-transition-fast) ease;
 }
 
@@ -794,9 +798,10 @@ a[class*="cardContainer"]:hover {
   text-align: center;
   text-decoration: none !important;
   border-radius: var(--border-radius-md);
-  transition: background-color var(--ifm-transition-fast) ease,
-    border-color var(--ifm-transition-fast) ease, opacity
-      var(--ifm-transition-fast) ease;
+  transition:
+    background-color var(--ifm-transition-fast) ease,
+    border-color var(--ifm-transition-fast) ease,
+    opacity var(--ifm-transition-fast) ease;
 }
 
 .mobileSidebarActions .nav_primary_button:hover {
@@ -848,7 +853,8 @@ a[class*="cardContainer"]:hover {
   border-radius: var(--border-radius-md);
   color: var(--contentprimary);
   text-decoration: none !important;
-  transition: background-color var(--ifm-transition-fast) ease,
+  transition:
+    background-color var(--ifm-transition-fast) ease,
     border-color var(--ifm-transition-fast) ease;
 }
 
@@ -890,7 +896,11 @@ a[class*="cardContainer"]:hover {
   border-radius: 8px !important;
   /* 92% of the theme background so busy page content stays obscured behind the
      muted text; color-mix keeps it linked to the palette in both themes. */
-  background-color: color-mix(in srgb, var(--bgdefault) 92%, transparent) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--bgdefault) 92%,
+    transparent
+  ) !important;
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid rgba(0, 0, 0, 0.06);
@@ -1130,6 +1140,32 @@ h2[class*="searchResultItemHeading"]:not([class*="openapi"]):not(
 [class*="searchResultItemPath"] .breadcrumbs__item,
 [class*="searchResultItemPath"] .search-result-match {
   color: var(--contenttertiary) !important;
+}
+
+/* Let the query input span the container. The theme's CSS module caps the
+   column at max-width: 60% !important above 576px; the extra .container in the
+   selector outranks that hashed class so the input goes edge-to-edge. */
+.container [class*="searchQueryColumn"] {
+  max-width: 100% !important;
+}
+
+/* Recolor the native type="search" clear button. Left alone it renders in the
+   OS accent (blue); swap it for a neutral X drawn in the doc palette. */
+[class*="searchQueryInput"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  background-color: var(--contenttertiary);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='black' d='M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z'/></svg>")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='black' d='M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z'/></svg>")
+    center / contain no-repeat;
+}
+
+[class*="searchQueryInput"]::-webkit-search-cancel-button:hover {
+  background-color: var(--contentsecondary);
 }
 
 /*************************** Sidebar ***************************/
