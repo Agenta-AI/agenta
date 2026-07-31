@@ -74,6 +74,9 @@ export const useTranscriptScroll = ({
     // Runs before the SC-1/SC-2 pin below, which is declared later.
     useLayoutEffect(() => {
         pinCleanupRef.current?.()
+        // Cancelling skips the pin's settle, which is what normally releases the guard. `intent`
+        // outlives this hook, so a leaked `true` would keep follow/anchoring off after a remount.
+        programmaticScrollRef.current = false
         anchorRef.current = null
         lastScrollTopRef.current = scrollNode?.scrollTop ?? 0
     }, [scrollNode])
@@ -155,6 +158,7 @@ export const useTranscriptScroll = ({
     useEffect(
         () => () => {
             pinCleanupRef.current?.()
+            programmaticScrollRef.current = false
             if (showJumpRafRef.current) cancelAnimationFrame(showJumpRafRef.current)
         },
         [],
