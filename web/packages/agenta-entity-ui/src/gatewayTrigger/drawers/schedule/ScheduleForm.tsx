@@ -83,6 +83,7 @@ export function ScheduleForm({
     const {
         schedule,
         isLoading: scheduleLoading,
+        isFetching: scheduleFetching,
         isMutating,
         create,
         edit,
@@ -177,6 +178,9 @@ export function ScheduleForm({
     const hydratedId = useRef<string | null>(null)
     useEffect(() => {
         if (!isEdit || !schedule) return
+        // A refetch serves the stale cache first. Latching on that would freeze the fields on old
+        // values (the fresh result hits the guard below and returns) and save them back.
+        if (scheduleFetching) return
         const loadedId = (schedule.id as string | undefined) ?? scheduleId ?? null
         if (hydratedId.current === loadedId) return
         hydratedId.current = loadedId
@@ -196,7 +200,7 @@ export function ScheduleForm({
             // Label is resolved from the revision id below, not stored as the raw id.
         }
         setInputsText(JSON.stringify(schedule.data?.inputs_fields ?? {}, null, 2))
-    }, [isEdit, schedule, scheduleId])
+    }, [isEdit, schedule, scheduleFetching, scheduleId])
 
     // Create-mode default-bind: when opened with `defaultReferences` (e.g. from an
     // agent's config panel), pre-bind the new schedule to that workflow so the user
