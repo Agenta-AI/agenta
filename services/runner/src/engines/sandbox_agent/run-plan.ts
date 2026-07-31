@@ -326,6 +326,7 @@ export function buildRunPlan(
   if (
     !turn.text &&
     turn.attachments.length === 0 &&
+    !turn.hasInlineMedia &&
     !resolvePromptText(request) &&
     !carriesApprovalReplyOnly(request)
   ) {

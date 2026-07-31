@@ -43,6 +43,23 @@ describe("currentUserTurn", () => {
     ]);
     assert.equal(turn.isFresh, true);
     assert.equal(turn.carriesToolEnvelope, false);
+    assert.equal(turn.hasInlineMedia, false);
+  });
+
+  it("recognizes both legacy inline image shapes as media", () => {
+    for (const block of [
+      { type: "image", uri: "data:image/png;base64,AQID" },
+      { type: "image", data: "AQID", mimeType: "image/webp" },
+    ]) {
+      const turn = currentUserTurn({
+        messages: [{ role: "user", content: [block] }],
+      } as AgentRunRequest);
+
+      assert.equal(turn.text, "");
+      assert.deepEqual(turn.attachments, []);
+      assert.equal(turn.hasInlineMedia, true);
+      assert.equal(turn.isFresh, true);
+    }
   });
 
   it("marks an approval-resume tail as a tool envelope, not a fresh turn", () => {
@@ -90,6 +107,7 @@ describe("currentUserTurn", () => {
       text: "",
       attachments: [],
       isFresh: false,
+      hasInlineMedia: false,
       carriesToolEnvelope: false,
     });
   });

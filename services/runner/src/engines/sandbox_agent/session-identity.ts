@@ -357,7 +357,9 @@ export function tailIsFreshUserMessage(request: AgentRunRequest): boolean {
   const turn = currentUserTurn(request);
   return (
     turn.isFresh &&
-    (turn.text.trim() !== "" || turn.attachments.length > 0)
+    (turn.text.trim() !== "" ||
+      turn.attachments.length > 0 ||
+      turn.hasInlineMedia)
   );
 }
 

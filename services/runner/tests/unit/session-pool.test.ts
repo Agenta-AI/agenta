@@ -444,6 +444,20 @@ describe("tailIsFreshUserMessage", () => {
     );
   });
 
+  it("true for both legacy inline-image-only trailing user messages", () => {
+    for (const block of [
+      { type: "image", uri: "data:image/png;base64,AQID" },
+      { type: "image", data: "AQID", mimeType: "image/webp" },
+    ]) {
+      assert.equal(
+        tailIsFreshUserMessage({
+          messages: [{ role: "user", content: [block] }],
+        } as AgentRunRequest),
+        true,
+      );
+    }
+  });
+
   it("false when the tail user turn carries a tool_result (approval reply)", () => {
     assert.equal(
       tailIsFreshUserMessage({

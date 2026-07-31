@@ -11,6 +11,7 @@ import { posix, resolve, sep } from "node:path";
 import { envInt, envTimerMs } from "../../env.ts";
 import {
   currentUserTurn,
+  isLegacyInlineImageBlock,
   type AgentRunRequest,
   type AttachmentRef,
   type ChatMessage,
@@ -184,7 +185,7 @@ export function collectLegacyInlineImages(
   if (!message || !Array.isArray(message.content)) return [];
   const images: InlineImage[] = [];
   for (const block of message.content) {
-    if (block?.type !== "image") continue;
+    if (!isLegacyInlineImageBlock(block)) continue;
     if (typeof block.uri === "string" && block.uri.startsWith("data:")) {
       const parsed = parseDataUri(block.uri);
       if (parsed) {
@@ -580,10 +581,7 @@ export function buildPromptBlocks(
       text = [renderedMentions, turnText].filter(Boolean).join("\n");
     }
   }
-  blocks.push({
-    type: "text",
-    text,
-  });
+  if (text) blocks.push({ type: "text", text });
   return blocks;
 }
 

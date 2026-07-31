@@ -313,14 +313,12 @@ export async function runTurn(
           mediaType: image.mimeType,
           byteLength: Buffer.from(image.data, "base64").byteLength,
         });
-        if (gate.outcome === "native") {
-          nativeLegacyImages.push(image);
-        } else {
-          logger(
-            `[attachments] legacy inline image degraded kind=${gate.kind} ` +
-              `reason=${gate.reasonCode}`,
-          );
-        }
+        if (gate.outcome === "native") nativeLegacyImages.push(image);
+        logger(
+          `[attachments] legacy inline image delivery=${
+            gate.outcome === "native" ? "native" : "degraded"
+          } reason=${gate.reasonCode}`,
+        );
       }
       promptBlocks = buildPromptBlocks(
         turnText,
@@ -328,6 +326,14 @@ export async function runTurn(
         nativeLegacyImages,
         current.text,
       );
+      if (promptBlocks.length === 0) {
+        promptBlocks = [
+          {
+            type: "text",
+            text: "[inline image could not be delivered to this harness]",
+          },
+        ];
+      }
     }
 
     const sessionTurnClient = deps.appendSessionTurn ?? appendSessionTurn;

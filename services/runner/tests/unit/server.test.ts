@@ -503,6 +503,82 @@ describe("createAgentServer", () => {
       await s.close();
     }
   });
+
+  it("persists a legacy image-only tail without attachment references", async () => {
+    let runCalls = 0;
+    const s = await listen(async () => {
+      runCalls += 1;
+      return { ok: true, output: "done", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    const sessionApiCalls: string[] = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        sessionApiCalls.push(url);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-1" },
+            is_current_turn: true,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+
+    try {
+      const res = await fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sessionId: "session-1",
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "ApiKey test" },
+              },
+            },
+          },
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "image", uri: "data:image/png;base64,AQID" },
+              ],
+            },
+          ],
+        }),
+      });
+      await res.text();
+
+      assert.equal(runCalls, 1);
+      const userRecords = ingested.filter(
+        (record) => record.record_source === "user",
+      );
+      assert.equal(userRecords.length, 1);
+      assert.deepEqual(userRecords[0].attributes, {
+        type: "message",
+        text: "",
+        attachments: [],
+      });
+      assert.equal(
+        sessionApiCalls.some((url) =>
+          url.endsWith("/sessions/attachments/reference"),
+        ),
+        false,
+      );
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
 });
 
 describe("normalizeKillProjectId (blank projectId scope-agreement)", () => {

@@ -77,6 +77,23 @@ describe("buildRunPlan", () => {
     assert.equal(result.ok && result.plan.prompt, "");
   });
 
+  it("accepts both legacy image-only current user turn shapes", () => {
+    for (const content of [
+      [{ type: "image", uri: "data:image/png;base64,AQID" }],
+      [{ type: "image", data: "AQID", mimeType: "image/webp" }],
+    ]) {
+      const result = buildRunPlan(
+        {
+          messages: [{ role: "user", content }],
+        } as AgentRunRequest,
+        { createLocalCwd: () => "local-cwd" },
+      );
+
+      assert.equal(result.ok, true);
+      assert.equal(result.ok && result.plan.prompt, "");
+    }
+  });
+
   it("rejects more than the configured current-turn attachment count", () => {
     const attachmentIds = [
       "11111111-1111-4111-8111-111111111111",

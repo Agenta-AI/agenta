@@ -617,6 +617,8 @@ export interface CurrentUserTurn {
   message: ChatMessage | null;
   text: string;
   attachments: AttachmentRef[];
+  /** The tail carries a legacy inline image block rather than an attachment reference. */
+  hasInlineMedia: boolean;
   /** A genuinely new user turn: role user, carrying no tool envelope. */
   isFresh: boolean;
   carriesToolEnvelope: boolean;
@@ -640,14 +642,17 @@ export function currentUserTurn(request: AgentRunRequest): CurrentUserTurn {
       message: null,
       text: "",
       attachments: [],
+      hasInlineMedia: false,
       isFresh: false,
       carriesToolEnvelope: false,
     };
   }
 
   const attachments: AttachmentRef[] = [];
+  let hasInlineMedia = false;
   if (Array.isArray(tail.content)) {
     for (const block of tail.content) {
+      hasInlineMedia ||= isLegacyInlineImageBlock(block);
       const attachmentBlock = block as ContentBlock & {
         attachmentId?: unknown;
         filename?: unknown;
@@ -679,6 +684,7 @@ export function currentUserTurn(request: AgentRunRequest): CurrentUserTurn {
     message: tail,
     text: messageText(tail.content),
     attachments,
+    hasInlineMedia,
     isFresh: !toolEnvelope,
     carriesToolEnvelope: toolEnvelope,
   };
@@ -707,4 +713,19 @@ export function resolveRunSessionId(
   return request.sessionId && request.sessionId.trim()
     ? request.sessionId
     : fallback;
+}
+
+/**
+ * Recognize the legacy inline-image shapes still sent by the playground. Keep this shape
+ * predicate at the protocol boundary so current-turn admission and ACP image extraction cannot
+ * drift apart.
+ */
+export function isLegacyInlineImageBlock(
+  block: ContentBlock | null | undefined,
+): block is ContentBlock & { type: "image" } {
+  return (
+    block?.type === "image" &&
+    ((typeof block.uri === "string" && block.uri.startsWith("data:")) ||
+      (typeof block.data === "string" && block.data.length > 0))
+  );
 }
