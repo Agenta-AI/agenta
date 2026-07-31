@@ -67,6 +67,17 @@ export const useTranscriptScroll = ({
         anchorRef.current = null
     }, [])
 
+    // Everything above is measured AGAINST a specific container, so a node swap invalidates all of
+    // it: the scroll baseline (a stale one makes the first scroll-down-to-edge on the new node fail
+    // `scrollTop > prevTop`, so follow doesn't re-arm), the SC-3 anchor (its offset was taken in the
+    // old node's coordinate space), and any glide still animating the node that just went away.
+    // Runs before the SC-1/SC-2 pin below, which is declared later.
+    useLayoutEffect(() => {
+        pinCleanupRef.current?.()
+        anchorRef.current = null
+        lastScrollTopRef.current = scrollNode?.scrollTop ?? 0
+    }, [scrollNode])
+
     // ── DT4 autoscroll: stick to the bottom of the scrollable area while following ──
     // The fill (min-h-full turn group) makes "question at top" the scroll bottom for a short answer
     // and the answer's end the bottom for a long one, so scrollHeight is the right target (+ pb-6 gap).
