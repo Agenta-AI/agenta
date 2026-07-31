@@ -56,3 +56,23 @@ test("latest revision selection ignores v0 records", () => {
     expect(latest?.version).toBe("1")
     expect(appMatchesType(app({is_application: true}), "completion", latest)).toBe(true)
 })
+
+test("latest revision selection keeps records with a missing version", () => {
+    const latestByAppId = selectLatestAppRevisions([
+        {
+            workflow_id: "app-id",
+            flags: {is_agent: true},
+            created_at: "2026-07-31T09:00:00Z",
+        },
+        {
+            workflow_id: "app-id",
+            flags: {},
+            version: "0",
+            created_at: "2026-07-31T10:00:00Z",
+        },
+    ])
+
+    const latest = latestByAppId.get("app-id")
+    expect(latest?.version).toBeUndefined()
+    expect(latest?.flags?.is_agent).toBe(true)
+})

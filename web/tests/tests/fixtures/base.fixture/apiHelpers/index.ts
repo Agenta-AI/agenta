@@ -421,7 +421,7 @@ export const selectLatestAppRevisions = (revisions: AppRevision[]): Map<string, 
 
     for (const revision of revisions) {
         const appId = revision.workflow_id
-        if (!appId || Number(revision.version ?? 0) === 0) continue
+        if (!appId || revision.version === "0") continue
 
         const current = latestByAppId.get(appId)
         if (!current || revisionRecencyScore(revision) > revisionRecencyScore(current)) {
