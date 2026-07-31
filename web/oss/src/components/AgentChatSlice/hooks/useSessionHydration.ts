@@ -59,39 +59,40 @@ export const useSessionHydration = ({
         // StrictMode's mount→unmount→mount cycle re-runs the fetch (the first run is cancelled)
         // instead of latching a ref that leaves the transcript blank.
         let cancelled = false
-        // Post-restore revalidation: the first result may be the disk-restored log (paints
-        // instantly); when the guaranteed background refetch lands, adopt it under the same
-        // guards as the SWR effect below — never mid-stream, only when strictly ahead.
-        const adoptRefreshed = (freshMsgs: UIMessage[]) => {
+        // How long a transcript this effect has already handed to `setMessages`. `messagesRef` only
+        // catches up on the next React commit, so two adoptions landing before that commit would
+        // both read the pre-adoption length and let the older snapshot win. The high-water mark
+        // makes the guard order-independent.
+        let adoptedLength = initialMessages.length
+        // ONE adopter for both deliveries: the initial result (disk-restored log, paints instantly)
+        // and the guaranteed background refetch. Never mid-stream, only when strictly ahead.
+        const adopt = (msgs: UIMessage[]) => {
             if (cancelled || busyRef.current) return
-            if (freshMsgs.length <= messagesRef.current.length) return
-            freshMsgs.forEach((m) => {
+            if (msgs.length <= Math.max(adoptedLength, messagesRef.current.length)) return
+            adoptedLength = msgs.length
+            // Restored history renders settled (no live fade-in) and pinned to the bottom.
+            msgs.forEach((m) => {
                 seenIdsRef.current.add(m.id)
                 restoredIdsRef.current.add(m.id)
             })
             intent.armJump()
-            // The restore said "no records" but the server has some — clear the notice.
+            // The restore may have said "no records" while the server has some — clear the notice.
             setHydratedEmpty(false)
-            setMessages(freshMsgs)
-            persistMessages({id: sessionId, messages: freshMsgs})
+            setMessages(msgs)
+            persistMessages({id: sessionId, messages: msgs})
         }
-        loadSessionMessages(sessionId, adoptRefreshed)
+        loadSessionMessages(sessionId, adopt)
             .then((msgs) => {
                 if (cancelled) return
                 if (!msgs || msgs.length === 0) {
                     // Known session, but the server has no records for it → history was pruned or
                     // never persisted. Flag it so the transcript shows the "unavailable" notice.
-                    setHydratedEmpty(true)
+                    // Only when nothing has been adopted yet — a refetch that already landed is
+                    // real history, and this stale first result must not blank it out.
+                    if (adoptedLength === initialMessages.length) setHydratedEmpty(true)
                     return
                 }
-                // Restored history renders settled (no live fade-in) and pinned to the bottom.
-                msgs.forEach((m) => {
-                    seenIdsRef.current.add(m.id)
-                    restoredIdsRef.current.add(m.id)
-                })
-                intent.armJump()
-                setMessages(msgs)
-                persistMessages({id: sessionId, messages: msgs})
+                adopt(msgs)
             })
             .finally(() => {
                 if (!cancelled) setIsHydrating(false)
@@ -115,9 +116,15 @@ export const useSessionHydration = ({
         // As with the hydration effect above: no persistent ref, so StrictMode's double-mount
         // re-runs the revalidation rather than latching it out.
         let cancelled = false
+        // `messagesRef` only catches up on the next React commit, so a transcript this effect just
+        // adopted is invisible to the guard until then. Hold it here too and compare against
+        // whichever is longer — the checks below read the tail, not just the count, so this keeps
+        // the whole snapshot rather than a length.
+        let adopted: UIMessage[] | null = null
         const adopt = (serverMsgs: UIMessage[] | null) => {
             if (cancelled || !serverMsgs || serverMsgs.length === 0) return
-            const prev = messagesRef.current
+            const onScreen = messagesRef.current
+            const prev = adopted && adopted.length > onScreen.length ? adopted : onScreen
             if (busyRef.current) return
             // Adopt the server transcript when it is strictly ahead by count, OR when our LOCAL tail
             // is stuck paused (mid-approval) while the server has moved past it to a terminal turn — a
@@ -138,6 +145,7 @@ export const useSessionHydration = ({
                 !serverTail.metadata?.paused &&
                 getPendingApprovals(serverMsgs).length === 0
             if (!serverAheadByCount && !(localTailPaused && serverTailComplete)) return
+            adopted = serverMsgs
             serverMsgs.forEach((m) => {
                 seenIdsRef.current.add(m.id)
                 restoredIdsRef.current.add(m.id)

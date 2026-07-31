@@ -9,7 +9,7 @@ import {
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {UploadSimple} from "@phosphor-icons/react"
-import {type UIMessage} from "ai"
+import {type FileUIPart, type UIMessage} from "ai"
 import {Modal} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
@@ -410,7 +410,23 @@ const AgentConversation = ({
         ]
         if (!trimmed && fileObjs.length === 0) return
         if (!attachmentsSettled) return
-        const fileParts = fileObjs.length ? await filesToParts(fileObjs) : undefined
+        let fileParts: FileUIPart[] | undefined
+        if (fileObjs.length) {
+            const {parts, unreadable} = await filesToParts(fileObjs)
+            // Hold the send rather than quietly dropping bytes the user staged, and say which file
+            // failed through the same inline channel the other attachment refusals use.
+            if (unreadable.length) {
+                attachments.setRejections(
+                    unreadable.map((f) => ({
+                        name: f.name,
+                        reason: "couldn't be read — remove it and attach it again",
+                    })),
+                )
+                attachments.setAttachmentsOpen(true)
+                return
+            }
+            fileParts = parts
+        }
         // Glide to the bottom; the min-h-full active turn makes that show the new question at the top
         // with the answer streaming below. Park during the glide, follow again on settle. Clear any
         // prior "stopped" marker — it's resolved by asking again.
