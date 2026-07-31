@@ -1,24 +1,24 @@
 ---
 title: "Manage skills"
 sidebar_label: "Manage skills"
-description: "Add a skill to an agent by dropping a folder or archive, or write one in the New skill dialog, and write the description that decides when it fires."
+description: "Write a skill in the New skill dialog, or upload one by dropping a folder or archive, and write the description that decides when the skill fires."
 ---
 
 ```mdx-code-block
 import Image from "@theme/IdealImage";
 ```
 
-A skill is a short handbook the agent loads when it needs it. This page covers adding one you already have, writing one from scratch, and writing the description that decides when the agent reaches for it. For how skills are loaded, see [Skills](/concepts/skills).
-
-{/* VIDEO: Dropping a skill folder into the New skill dialog, watching the name and description fill in, then asking the agent to do the task the skill covers. */}
+A skill is a short handbook the agent loads when it needs it. There are two ways to add one: write it yourself in the `New skill` dialog, or upload one you already have by dropping its folder into that dialog. This page covers both routes, plus the description that decides when the agent reaches for the skill. For how skills are loaded, see [Skills](/concepts/skills).
 
 ## Open the New skill dialog
+
+Both routes start in the same dialog.
 
 1. In the playground, set **Playground mode** to `Build`.
 2. In the **Configuration** column, find **Skills**. Its summary reads `None` when the agent has no skills yet.
 3. Click `Add skill`.
 
-`Add skill` goes straight to an authoring form titled `New skill`. There is no catalog of existing skills to browse, so a skill comes either from a folder you already have or from what you write here.
+`Add skill` goes straight to an authoring form titled `New skill`. There is no catalog of existing skills to browse, so a skill comes either from what you write here or from a folder you already have.
 
 <Image
   style={{ display: "block", margin: "24px 0" }}
@@ -27,23 +27,9 @@ A skill is a short handbook the agent loads when it needs it. This page covers a
   loading="lazy"
 />
 
-## Add a skill you already have
+## Write a skill in the New skill dialog
 
-If you have a skill as a folder or an archive, drop it on the target inside the dialog that reads `Drag a skill folder, .zip, or .skill here`, or click `Browse files`. Skills are plain folders in a format shared across the agent ecosystem, so a skill written for another tool works here.
-
-The dialog fills itself in from what you dropped:
-
-- `Name` and `Description` come from the YAML frontmatter at the top of `SKILL.md`.
-- Everything after the frontmatter becomes the `SKILL.md` body.
-- Any files sitting beside `SKILL.md` come in as supporting files, keeping their relative paths.
-
-The `SKILL.md` body is plain text, so you can read exactly what you are handing the agent before you click `Create`.
-
-If you have the text but not the folder, paste a whole `SKILL.md`, frontmatter included, anywhere in the dialog. It fills the same fields.
-
-## Write a skill from scratch
-
-Fill in three fields:
+To write a skill from scratch, fill in three fields:
 
 | Field | What to put in it |
 |---|---|
@@ -67,7 +53,7 @@ A short one, end to end:
 
 Click `Create`, then `Commit` in the **Configuration** header to make the skill part of a version.
 
-## Write the description
+### Write the description
 
 The description is the only part of the skill the agent sees before it decides to use it, so it decides whether the skill fires. Name the situations the agent can recognize, not the subject the skill is about.
 
@@ -83,11 +69,25 @@ The second one is accurate and the agent still has no situation to match it to, 
 
 Keep the description to a sentence or two, since it is sent on every turn. The body is read only once the skill fires, so it can be as long as the task needs.
 
-## Add supporting files
+### Add supporting files
 
 The `Files` column on the left of the dialog holds `SKILL.md` plus anything else the skill needs, such as a template or an example output. Click `Add file` to add one, and refer to it by name from `SKILL.md`.
 
-## The two toggles
+## Upload a skill by dropping a folder
+
+If you have a skill as a folder or an archive, drop it on the target inside the dialog that reads `Drag a skill folder, .zip, or .skill here`, or click `Browse files`. Skills are plain folders in a format shared across the agent ecosystem, so a skill written for another tool works here.
+
+The dialog fills itself in from what you dropped:
+
+- `Name` and `Description` come from the YAML frontmatter at the top of `SKILL.md`.
+- Everything after the frontmatter becomes the `SKILL.md` body.
+- Any files sitting beside `SKILL.md` come in as supporting files, keeping their relative paths.
+
+The `SKILL.md` body is plain text, so you can read exactly what you are handing the agent before you click `Create`. Then, as with a written skill, click `Create` and `Commit` in the **Configuration** header to make the skill part of a version.
+
+If you have the text but not the folder, paste a whole `SKILL.md`, frontmatter included, anywhere in the dialog. It fills the same fields.
+
+## The two settings: Hide from prompt and Allow executable files
 
 | Toggle | Effect |
 |---|---|

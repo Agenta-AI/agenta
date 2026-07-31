@@ -8,13 +8,11 @@ description: "A tool is one action an agent can take, such as creating a GitHub 
 import Image from "@theme/IdealImage";
 ```
 
-Tools are how an agent does anything outside the chat. This page covers what a tool is, how the agent chooses one, and the two places tools come from.
-
-{/* VIDEO: An agent asked to file a bug. It picks a single tool from the ones it has, calls it, and the new issue appears in the connected app. */}
+Tools are how an agent does anything outside the chat. This page covers what a tool is, the two places tools come from, and how the agent chooses one.
 
 ## A tool is one action, not one product
 
-An agent does not get "GitHub". It gets "create an issue", "read a pull request", and "comment on a pull request", each as its own tool with its own name and description.
+An agent does not get "GitHub". It gets "create an issue", "read a pull request", and "comment on a pull request", each as its own tool with its own name and description. These GitHub actions come back throughout this page.
 
 Actions are the right size for two reasons.
 
@@ -39,17 +37,17 @@ Adding tools is one of the things you can ask the agent to do while you build it
 
 The Model Context Protocol (MCP) is an open standard for offering tools to an agent. An MCP server is a small program that publishes a set of actions over that standard. Point an agent at the server and it gains those actions, described the same way every other tool is described.
 
-Add one when the agent needs a system that has no built-in integration: an internal service, a database, a product niche enough that nobody built an integration for it. Many products and open-source projects publish their own MCP server, and those work in Agenta without any code from you. If none exists, you can write one.
+Add an MCP server when the agent needs a system that has no built-in integration: an internal service, a database, a product niche enough that nobody built an integration for it. Many products and open-source projects publish their own MCP server, and those work in Agenta without any code from you. If none exists, you can write one.
 
 [Add an MCP server](/guides/add-an-mcp-server) covers connecting one.
 
-## How the agent chooses
+## How the agent chooses a tool
 
-Every turn, the agent sees the list of tools it has, with each tool's name, description, and arguments. It matches those descriptions against the task in front of it and calls the ones that fit.
+Every turn, the agent sees the list of tools it has, with each tool's name, description, and arguments. It matches those descriptions against the task in front of it and calls the ones that fit. Ask it to file a bug, and "create an issue" is the description that matches.
 
 The [harness](/concepts/harnesses-and-models) does the calling. When the model says it wants to run a tool, the harness runs it, takes the result, and hands it back so the model can continue. The agent then decides what to do next, which is often another tool call.
 
-This has a cost. Tool names and descriptions are part of the always-loaded context, so every tool you add is paid for on every turn, whether or not it gets used. A long tool list also gives the model more near-matches to choose between. See [one budget: the context window](/concepts/agents#one-budget-the-context-window).
+Every tool you add has a cost. Tool names and descriptions are part of the always-loaded context, so each tool is paid for on every turn, whether or not it gets used. A long tool list also gives the model more near-matches to choose between. See [The context window is one shared budget](/concepts/instructions#the-context-window-is-one-shared-budget).
 
 ## Related
 

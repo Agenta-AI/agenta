@@ -10,9 +10,7 @@ import Image from "@theme/IdealImage";
 
 Permissions decide which tool calls an agent makes on its own and which ones stop and wait for you. This page covers the two places you set them, which one wins, and what an approval request looks like mid-run. For the model behind them, see [Permissions](/concepts/permissions).
 
-{/* VIDEO: Setting the policy to Ask in the Advanced dialog, running the agent, approving one call from the approval card, and setting a single tool to Allow so it stops asking. */}
-
-## The two places permissions are set
+## Permissions are set on the agent and on each tool
 
 **The agent's policy** covers every tool at once. It lives in the **Advanced** dialog and it is the baseline.
 
@@ -61,7 +59,9 @@ Under `Allow reads`, a connected-app action counts as a read when it carries the
 | `Ask` | This tool always waits for approval, whatever the policy says. |
 | `Deny` | This tool is always refused. |
 
-`Permission` is on connected-app tools (listed under `CONNECTED APPS`) and on tools you write with `Tool definition`. Built-in tools have no per-tool permission: clicking one opens a read-only view with the subtitle `Provider built-in tool`, and the agent's `Policy` governs it instead.
+`Permission` is on connected-app tools (listed under `CONNECTED APPS`) and on tools you write with `Tool definition`.
+
+Built-in tools have no per-tool permission. Clicking one opens a read-only view with the subtitle `Provider built-in tool`, and the agent's `Policy` governs it instead.
 
 ## Which setting wins
 
@@ -122,7 +122,7 @@ The **Execution environment** section of the **Advanced** dialog sets where tool
   loading="lazy"
 />
 
-## Before the agent runs unattended
+## Settle the permissions before the agent runs unattended
 
 :::warning
 An [automation](/concepts/automations) has nobody in the chat to answer an approval request, so a run that hits one waits instead of finishing. Before you put an agent on a schedule or an event trigger, set every tool it needs to `Allow` (or set the policy to `Allow all`) and set anything it must never do to `Deny`.

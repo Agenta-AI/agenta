@@ -1,0 +1,58 @@
+---
+title: "Files and knowledge"
+sidebar_label: "Files and knowledge"
+description: "An agent has a temporary session folder and a shared agent folder. The agent folder is where its knowledge lives."
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+An agent reads and writes files, and it has two folder scopes to put them in: one that lasts for a single chat, and one that every session of the agent shares. This page covers the two scopes, how knowledge builds up in the shared one, and why files keep every turn cheap.
+
+## The two folder scopes
+
+Take two files a marketing agent might handle: a spreadsheet it pulled to answer one question in today's chat, and a launch email that came out well and is worth keeping as an example. The spreadsheet matters only in this conversation. The email should still be there next week. The two folder scopes match that split, and these two files come back throughout this page.
+
+### The session folder
+
+The session folder belongs to one chat. It is scratch space. Files the agent downloads or writes during the conversation land there, and they go away when the session ends. Open a new chat and that folder is not there.
+
+Anything that matters only inside the current conversation belongs here: the spreadsheet the agent pulled to answer one question, a draft it is revising with you, an intermediate file in the middle of a longer task.
+
+### The agent folder
+
+The agent folder belongs to the agent, not to the chat. Every [session](/concepts/sessions-and-versions) of that agent sees the same folder, and it persists after a session ends. Write a file there today and next week's chat can read it.
+
+Anything the agent should still have tomorrow belongs here: the launch email worth keeping, reference documents, a style guide, finished reports, notes about how your company works.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/files-drawer.png")}
+  alt="The agent's files, with each file badged as belonging to the agent or to the current session"
+  loading="lazy"
+/>
+
+## Write knowledge into files, then point at them from the instructions
+
+The pattern that makes the agent folder useful has two steps: write what the agent learns into the folder, then point at it from the [instructions](/concepts/instructions).
+
+The launch emails show the pattern. After the marketing agent writes a few good ones, you save them in `examples/launch-emails/` in the agent folder and add one line to the instructions: "Before writing a launch email, read the files in `examples/launch-emails/` and follow their structure."
+
+The instructions grew by a sentence. The knowledge grew by five emails. Repeat that a dozen times and the instructions read like a map of where things are: the index is here, to do this read that file, the numbers live in that folder. The agent goes and gets what it needs.
+
+## A subfolder can carry its own AGENTS.md
+
+You can put an `AGENTS.md` file inside a subfolder of the agent folder. When the agent works in that folder, the harness reads that file automatically, on top of the agent's main instructions.
+
+So a `twitter-ads` folder can carry its own rules: the naming convention for campaigns, the spending limit you want respected, the format you want reports in. An agent working somewhere else never loads them, which keeps the main instructions short.
+
+## Files cost nothing until the agent opens them
+
+A file adds nothing to a turn until the agent opens it. That is why an agent's knowledge can grow to hundreds of files while each turn stays the same size, and why knowledge belongs in the folder rather than in the instructions, which are sent again on every turn. See [Cost and usage](/concepts/cost-and-usage).
+
+## Next
+
+- [Build a knowledge base for your agent](/guides/build-a-knowledge-base) walks through setting one up.
+- [Instructions](/concepts/instructions) covers the file that points at these files.
+- [Skills](/concepts/skills) covers the other on-demand way to give an agent know-how.

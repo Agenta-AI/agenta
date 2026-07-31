@@ -10,8 +10,6 @@ import Image from "@theme/IdealImage";
 
 In this tutorial you build an agent that works on your marketing, teach it your company and your voice, correct it once, and then hand the recurring part of its job to a schedule. By the end, the agent produces next week's content plan every Monday morning without you opening a chat.
 
-{/* VIDEO: a marketing coworker being built in chat, corrected once after a bad draft, then put on a weekly schedule that writes a content plan with nobody in the chat. */}
-
 ## Before you start
 
 This tutorial assumes:
@@ -41,15 +39,15 @@ week. It should work from a written brief about the company rather than guessing
   loading="lazy"
 />
 
-Agenta creates the agent, names it, and opens its playground. The conversation opens with a card summarising what it is about to set up and a `Start →` button.
+Agenta creates the agent, names it, and opens its playground. The conversation opens with a card summarizing what it is about to set up and a `Start →` button.
 
 Leave `Playground mode` on `Build`. The left column is `Configuration` and the right column is the conversation, so you can watch the configuration change while you talk.
 
-The agent it created works, and it knows nothing about you. That is the next step.
+The agent works, but it knows nothing about you. Giving it that context is the next step.
 
 ## Step 2. Give it your context
 
-An agent's instructions are its identity. They live in a file called `AGENTS.md` and they are sent at the start of every session, so whatever is in them is guaranteed to be there every time the agent thinks. See [Agents](/concepts/agents) for the full picture.
+An agent's instructions are its identity. They live in a file called `AGENTS.md` and they are sent at the start of every session, so whatever is in them is guaranteed to be there every time the agent thinks. See [Instructions](/concepts/instructions) for the full picture.
 
 In the `Configuration` column, open the `Instructions` section and click the `AGENTS.md` row. The editor opens with an `Edit` and `Preview` control at the top. Click `Source` in the toolbar to edit the raw markdown.
 
@@ -94,7 +92,9 @@ is what we get compared against.
   options.
 ```
 
-Four sections, all facts, no filler. Everything in that file is resent on every turn, which is why it holds only what has to be present every time. Reference material the agent can look up when it needs it goes in a file instead, and you add that in the next step.
+The file has four sections, all of them facts. Everything in it is resent on every turn, which is why it holds only what has to be present every time.
+
+Reference material the agent can look up when it needs it goes in a file instead, and you add that in the next step.
 
 You can also ask the agent to make this edit for you in the chat. Writing it yourself here means you see exactly what the agent will read.
 
@@ -107,7 +107,9 @@ Draft the announcement email for batch scheduling. It lets a roaster plan a
 week of roasts in advance and see green coffee shortfalls before they happen.
 ```
 
-Read the draft. The tone should already be close, because you wrote the tone rules down. What it cannot get right yet is anything factual: it does not know your prices, which integrations exist, or which features have shipped, so if the draft needs one it will make it up.
+Read the draft. The tone should already be close, because you wrote the tone rules down.
+
+What the agent cannot get right yet is anything factual: it does not know your prices, which integrations exist, or which features have shipped, so if the draft needs one it will make it up.
 
 Say the draft claims a Shopify integration and "over a thousand roasters". Both are wrong. There are two ways to answer that, and this tutorial uses both.
 
@@ -154,7 +156,7 @@ The card also offers to always allow that one tool for this agent. Its note read
 
 Save, then send `Redo that email` in the conversation. The agent reads the file first and the invented Shopify line is gone.
 
-That is the loop for the rest of this agent's life. One line of instructions per correction, with the detail behind it in a file. The instructions stay short and turn into a map of where things are. [Write your agent's instructions](/guides/write-your-agents-instructions) covers the writing, and [Build a knowledge base for your agent](/guides/build-a-knowledge-base) covers the files.
+That is the loop for the rest of this agent's life: one line of instructions per correction, with the detail behind it in a file. The instructions stay short and turn into a map of where things are. [Write your agent's instructions](/guides/write-your-agents-instructions) covers the writing, and [Build a knowledge base for your agent](/guides/build-a-knowledge-base) covers the files.
 
 ## Step 4. Hand the recurring part to a schedule
 
@@ -166,7 +168,7 @@ Three things change when nobody is watching.
 - **Permissions have to be settled in advance.** A run that stops for approval waits for an approval that is not coming.
 - **The output has to land somewhere you will look.** Here that is a file in the agent folder.
 
-### 4a. Write the job down
+### 4a. Write the job into the instructions
 
 Open `AGENTS.md` and add this section at the end, then press `Save`:
 

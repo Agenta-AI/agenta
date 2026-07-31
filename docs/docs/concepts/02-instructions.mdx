@@ -1,0 +1,44 @@
+---
+title: "Instructions"
+sidebar_label: "Instructions"
+description: "An agent's instructions live in AGENTS.md and are sent at the start of every session. This page covers what goes in them, why they stay short, and how they grow."
+---
+
+The instructions are the part of an agent that describes its job. This page covers where instructions live, what belongs in them, why they stay short, and how they grow over time.
+
+## Where the instructions live
+
+The instructions live in a file named `AGENTS.md`, and they are sent to the model at the start of every session. Harnesses usually call this the system prompt. An agent with no instructions is a general assistant; the instructions are what make it yours. They are part of the agent's configuration, so every change to them is versioned.
+
+## What goes in the instructions
+
+The instructions hold the context the agent must always have. For a marketing agent, that means who you are, what the company sells, who the customers are, how you want the agent to talk to you, and the problems you want help with.
+
+This content belongs in the instructions rather than in a file because the instructions come with a guarantee: they are sent at the start of every session, so the agent always has them. A file in the agent's folder is read only if the agent decides to read it. So context that must be present every time goes in the instructions, and reference material the agent can look up when the moment comes goes in a file. See [Files and knowledge](/concepts/files-and-knowledge).
+
+## The instructions are sent on every turn
+
+Everything in the instructions goes to the model again on every turn. A turn is one call to the model, and a single request from you often takes several turns. Long instructions are therefore a recurring cost, paid each time the agent thinks, not a one-time cost.
+
+This creates a tension. More context makes the agent better at the job. It also makes every turn more expensive and leaves less room for the work itself. The way out is to keep in the instructions only what must be present every turn, and to move everything else into a skill or a file.
+
+## The context window is one shared budget
+
+The model reads a fixed amount of text per turn, called the context window. The instructions, the tool descriptions, the skills, the files, and the conversation so far all draw on that same window.
+
+- **Instructions are always loaded.** They are sent every turn, so they stay short.
+- **Tools cost a little, always.** Each tool the agent has puts its name and description into every turn. See [Tools and integrations](/concepts/tools-and-integrations).
+- **Skills load on demand.** Until the agent needs one, it sees only a name and a description, so an agent can carry many. See [Skills](/concepts/skills).
+- **Files are read on demand.** Nothing is loaded until the agent opens the file, so a knowledge folder can grow without adding to every turn. See [Files and knowledge](/concepts/files-and-knowledge).
+
+One pattern follows from this: the instructions work as a map to everything else. A single line such as "the style guide is in `writing/style.md`, read it before drafting" spends a few always-loaded words and buys a whole document that costs nothing until it is needed.
+
+## How instructions grow
+
+Instructions start short: a few lines saying what the agent is for and who it works with.
+
+Then they grow one line at a time, against real failures. The agent answers a customer in the wrong tone, so a line about tone goes in. It pulls numbers from the wrong dashboard, so the right one gets named. After a few weeks the instructions describe the job accurately, because each line was written the moment the agent got something wrong rather than guessed in advance.
+
+Most instructions end up saying how the agent should talk. Left alone, an agent tends to write long and to restate the question before answering it. If you want short answers with no preamble, that goes in writing.
+
+[Write your agent's instructions](/guides/write-your-agents-instructions) covers the editor, a worked first version, and how to fold a correction back in.

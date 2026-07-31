@@ -1,6 +1,27 @@
 # Status: agent-platform documentation
 
-Written overnight on 2026-07-30. Read this first.
+Written overnight on 2026-07-30. Review pass applied 2026-07-31. Read this first.
+
+## Review pass of 2026-07-31
+
+Mahmoud reviewed the agents and skills concept pages on the PR. The pass that followed
+applied his comments everywhere:
+
+- The agents concept page was rebuilt to his outline: examples first, the ChatGPT
+  comparison as clarification only, a short made-of list with links, creation, versioning.
+- A new Instructions concept page (`concepts/02-instructions.mdx`) took the deep
+  instruction material (every-turn cost, context-window budget, how instructions grow).
+  Concept files were renumbered; URLs did not change.
+- The skills concept page was rebuilt: what is in a skill first (SKILL.md with name,
+  description, content, plus supporting files), then skills-vs-instructions on the
+  injection axis, then where to find skills (links to public skill collections).
+- Every title and subtitle across all sections now plainly says what its section says.
+- Paragraphs carry one idea each and open with the sentence that states it.
+- All `{/* VIDEO: ... */}` comments were removed on Mahmoud's instruction.
+- `guides/03-manage-skills.mdx` now leads with its two routes: write a skill in the
+  `New skill` dialog, or upload one by dropping a folder.
+
+The rules for the pass are in `REVIEW-PASS-BRIEF.md`.
 
 ## What was built
 
@@ -71,13 +92,10 @@ Verified by grep across all 28 pages.
 
 ## Still open
 
-**Videos.** Every page outside Reference carries a `{/* VIDEO: ... */}` comment describing
-the two to three minute video that belongs there. 23 of them. Only the launch video on
-`What is Agenta` is real.
-
-**Two screenshots missing.** `guides/04-add-an-mcp-server.mdx` needs the MCPs section and
-the New MCP server drawer. Neither was captured, so the page carries marked placeholders
-rather than invented images.
+**Videos.** The plan gives every page outside Reference a two to three minute video, and
+only the launch video on `What is Agenta` exists. The in-page placeholder comments were
+removed on Mahmoud's instruction, so the list of planned videos now lives only in the git
+history of this branch (the commit that removed the `{/* VIDEO: ... */}` comments).
 
 **Questions for Mahmoud.**
 

@@ -1,0 +1,63 @@
+---
+title: "Skills"
+sidebar_label: "Skills"
+description: "A skill is a short handbook that teaches an agent one kind of task. This page covers what is in a skill, how skills differ from instructions, and where skills come from."
+---
+
+A skill is a short handbook you give an agent so it knows how to do one kind of task. This page covers what is in a skill, how skills differ from instructions, what makes the agent load a skill at the right moment, and where skills come from.
+
+## What a skill is
+
+A skill packages the knowledge for one kind of task the agent does. An example is a skill for writing PDF reports: it tells the agent how to lay out the pages, which fonts to use, and how to export the file. Other examples are a skill for running your monthly analysis, or a skill for opening a pull request the way your team does.
+
+A skill is a folder. At its center is a file named `SKILL.md`, which holds three things: a name, a short description of when to use the skill, and the content, meaning the steps the agent follows. Next to `SKILL.md`, the folder can hold supporting files that help with the task, such as a template or an example of the finished output.
+
+For the PDF skill, this comes together as follows. The description says "Use when someone asks for a PDF, a printable report, or a document to send to a client." The content covers page layout, fonts, and the export step. A supporting file holds the report template the agent fills in.
+
+## Skills and instructions differ in when they reach the model
+
+Skills are very similar to [instructions](/concepts/instructions). Both give the agent context on how to do its work, and both end up injected into the prompt that is sent to the model. The difference is when. The instructions are injected in full at the start of every session. A skill is only partially injected: at the start of a session, the model sees the skill's name and description and nothing else. The body is loaded only when the agent decides that the skill applies to the task in front of it.
+
+This difference is the reason skills exist. Everything sent on every turn draws on the model's [context window](/concepts/instructions#the-context-window-is-one-shared-budget), so the instructions have to stay short. A skill costs almost nothing until it is used: an agent can carry twenty skills and pay only for twenty names and descriptions.
+
+## When to use a skill and when to use instructions
+
+Put in the instructions what the agent must know every time: who you are, what the agent is for, how it should talk. Put in a skill the procedure for a task the agent does sometimes: writing the PDF report, running the analysis. Reference material that is not a procedure, such as data, notes, or a wiki, belongs in a file instead. See [Files and knowledge](/concepts/files-and-knowledge).
+
+## The description decides when the agent loads a skill
+
+Because the description is all the agent sees up front, the description is what makes the skill fire. It has to say when to use the skill, not only what the skill contains.
+
+A description that names situations the agent can recognize:
+
+> Use when someone asks for a PDF, a printable report, or a document to send to a client. Covers page layout, fonts, and the export step.
+
+A description that only names the subject:
+
+> Instructions for producing PDF documents.
+
+The second one is accurate, but the agent has no situation to match it against, so the skill sits unused while the agent improvises the task from scratch. The body has no such limit: it is read only after the skill fires, so it can be as long as the task needs.
+
+## How to create skills
+
+You can write a skill yourself or bring one in from outside.
+
+### Writing your own
+
+A skill that describes how your company does something has to be written by someone who knows the process. Often that is you and the agent together: you explain the process in chat, the agent does the task, and you save the explanation as a skill so you never have to type it again.
+
+[Manage skills](/guides/manage-skills) shows both routes in the product: writing a skill in the `New skill` dialog, and uploading one by dropping a skill folder into it.
+
+### Where to find skills
+
+Skills are plain folders of text in a format shared across the agent ecosystem, so skills written for other tools work in Agenta. Published collections include [Anthropic's skills repository](https://github.com/anthropics/skills) and community collections such as [Superpowers](https://github.com/obra/superpowers).
+
+:::note
+A published skill encodes the process its author had in mind, which may not be yours. The body is plain text, so read it before you hand it to an agent.
+:::
+
+## Related
+
+- [Instructions](/concepts/instructions): the always-loaded counterpart to skills.
+- [Tools and integrations](/concepts/tools-and-integrations): the actions a skill tells the agent to take.
+- [Manage skills](/guides/manage-skills): adding, writing, and removing skills.

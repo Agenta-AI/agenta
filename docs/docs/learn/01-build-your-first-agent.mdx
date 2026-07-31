@@ -10,13 +10,11 @@ import Image from "@theme/IdealImage";
 
 This tutorial builds one agent from nothing to a committed version. Along the way you meet every part of an agent: its instructions, its tools, its skills, and its permissions. Each idea is explained where you first meet it, with a link to the full version.
 
-{/* VIDEO: the whole build, from the empty home screen to a committed agent that reads pull requests and drafts release notes. */}
-
 ## What you are building
 
-An agent that reads merged pull requests from one GitHub repository and drafts release notes in your team's format.
+You are building an agent that reads merged pull requests from one GitHub repository and drafts release notes in your team's format.
 
-ChatGPT gives you one prebuilt agent that already works for everything. Agenta gives you an empty one, so the first decision is what the agent is for. Everything you add below follows from that answer. See [Agents](/concepts/agents).
+An agent in Agenta starts empty, so the first decision is what the agent is for. Everything you add below follows from that answer. ChatGPT, by comparison, gives you one prebuilt agent that already works for everything. See [Agents](/concepts/agents).
 
 ## Before you start
 
@@ -74,7 +72,9 @@ The conversation opens with a card holding your description and a `Start` button
 
 The agent asks about the job: which repository, who reads the release notes, what they need to contain. Answer in plain sentences. Tell it the repository you want to use.
 
-You are configuring the agent by talking to it. While you are in the playground, the agent carries a set of extra tools and skills called the **playground build kit**, which let it find tools, ask you to connect an app, and change its own configuration as you talk. You can see it under `Advanced`, where its status reads `Removed on commit`: none of it is part of the agent you publish.
+You are configuring the agent by talking to it. While you are in the playground, the agent carries a set of extra tools and skills called the **playground build kit**, which let it find tools, ask you to connect an app, and change its own configuration as you talk.
+
+The build kit is not part of the agent you publish. You can see it under `Advanced`, where its status reads `Removed on commit`.
 
 <Image
   style={{ display: "block", margin: "24px 0" }}
@@ -87,7 +87,7 @@ Watch the `Configuration` column while you answer. Sections change as the agent 
 
 ## Step 4: Write the instructions
 
-The instructions are the agent's identity. Other tools call this the system prompt. In Agenta they live in a file called `AGENTS.md`, and they are the first thing sent to the agent at the start of every session.
+The instructions are the agent's identity. Other tools call this the system prompt. In Agenta they live in a file called `AGENTS.md`, and they are the first thing sent to the agent at the start of every session. See [Instructions](/concepts/instructions).
 
 They are also resent on every turn, so a long identity is a recurring cost rather than a one-time one. Keep them to what has to be true every time.
 
@@ -274,7 +274,7 @@ To see the history of an agent's configuration, open `Registry` in the agent's s
 
 ## What you built
 
-An agent with a job, instructions that describe it, one connected tool, one skill, a permission policy, and a version history. You built almost all of it by talking to it.
+You now have an agent with a job, instructions that describe it, one connected tool, one skill, a permission policy, and a version history. You built almost all of it by talking to it.
 
 ## Next
 

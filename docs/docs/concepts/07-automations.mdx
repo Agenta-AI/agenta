@@ -4,23 +4,23 @@ sidebar_label: "Automations"
 description: "An automation is an agent that runs without anyone in the chat, started by a schedule or by an event in a connected app."
 ---
 
-An automation is an agent that runs with nobody in the chat. Instead of you opening a session and typing, something else starts the run: a clock, or something that happened in an app you connected. The agent does the work and leaves the result somewhere.
-
-{/* VIDEO: a schedule fires, the agent runs on its own, and the result arrives in a Slack channel. */}
+An automation is an agent that runs with nobody in the chat. Instead of you opening a session and typing, something else starts the run: a clock, or something that happened in an app you connected. The agent does the work and leaves the result somewhere. This page covers what starts a run and what has to be settled before an agent runs unattended.
 
 ## What starts a run
+
+Two examples run through this page: an agent that posts a report to a channel every weekday at eight, and an agent that runs each time a new row lands in a sheet. The first is started by a schedule, the second by an event.
 
 **On a schedule.** The run happens at a time you set: every weekday at eight, the first of the month, every hour. See [Schedule an automation](/guides/schedule-an-automation).
 
 **On an event in a connected app.** Something happens in an app the agent is connected to and the run starts in response: a new row in a sheet, a new issue, a message in a channel. See [Trigger an automation from an app](/guides/trigger-an-automation-from-an-app).
 
-Either way the agent is the same agent. Same [instructions](/concepts/agents), same [skills](/concepts/skills), same [tools](/concepts/tools-and-integrations), same agent folder. What changes is who starts it and who is watching.
+Either way the agent is the same agent. Same [instructions](/concepts/instructions), same [skills](/concepts/skills), same [tools](/concepts/tools-and-integrations), same agent folder. What changes is who starts it and who is watching.
 
-## What changes when nobody is watching
+## What to settle before the agent runs unattended
 
 In a chat you fill in the gaps as they appear. The agent asks which quarter you meant, you tell it, and it moves on. An automation has nobody to ask, so three things have to be settled before it runs.
 
-**The instructions have to answer the questions you would have answered.** Which report, which format, how to handle the case where the data is missing. In a chat that comes out in conversation. In an automation it has to be written down, in the instructions or in the files the agent reads.
+**The instructions have to answer the questions you would have answered.** For the weekday report: which report, which format, how to handle the case where the data is missing. In a chat that comes out in conversation. In an automation it has to be written down, in the instructions or in the files the agent reads.
 
 **Permissions have to be decided up front.** An agent that stops to request approval waits for an answer that is not coming, and the run does not finish. See [Permissions](/concepts/permissions).
 

@@ -10,8 +10,6 @@ import Image from "@theme/IdealImage";
 
 Agenta records requests, latency, tokens, and an estimated cost, and traces every model and tool call. Where you look depends on how narrow your question is. For what drives the numbers, see [Cost and usage](/concepts/cost-and-usage).
 
-{/* VIDEO: reading the Usage bar on the project home, narrowing to one agent's Overview, then opening a single trace and reading Tokens & Cost. */}
-
 | Your question | Where to look |
 |---|---|
 | What is the whole project using? | `Usage` on the project home |
@@ -19,7 +17,7 @@ Agenta records requests, latency, tokens, and an estimated cost, and traces ever
 | What did that one message cost? | The message footer in the playground |
 | Where did the cost in one run go? | The trace, under `Observability` |
 
-## The whole project
+## Usage for the whole project
 
 Go to `Sidebar > Home` and find the `Usage` section below `Templates`. Collapsed, it is one row: a date range button (`Last 1 month` by default), then `Requests`, `Latency`, `Cost`, and `Tokens`.
 
@@ -41,7 +39,7 @@ Change the date range with the button on the left of the row.
   loading="lazy"
 />
 
-## One agent
+## Usage for one agent
 
 Go to `Sidebar > Agents > <agent name> > Overview`. It carries the same four cards, `Requests`, `Latency`, `Cost`, and `Tokens`, scoped to that agent, with their own `Last 1 month` range control. A chart with nothing in range reads `No data`.
 
@@ -54,11 +52,11 @@ Below the cards, `Deployment` shows the `Development`, `Staging`, and `Productio
   loading="lazy"
 />
 
-## One message
+## The cost of one message
 
 In the playground, the footer of each assistant message shows three values inline: how long the turn took, how many tokens it used, and what it cost. Use it while you are editing an agent, to see what a change to the instructions or the tool list did to a single turn.
 
-## One run
+## Where the cost in one run went
 
 Traces are under `Observability`, either project-wide at `Sidebar > Observability` or for one agent at `Sidebar > Agents > <agent name> > Observability`.
 
@@ -78,7 +76,7 @@ On the `Traces` tab, narrow the list before you read it:
 
 Click a row to open the trace. The left pane is the span tree, and each node shows its duration, cost, and token count, which is how you find the step that spent the money. If the footer says spans are hidden, click `Show all` to see every one.
 
-The right rail has `Trace info` with `Type`, `Status`, `Latency`, `Timestamp`, and `Tokens & Cost` for the trace as a whole. The centre pane shows `inputs`, `parameters`, and `outputs` for the selected span, so you can read exactly what was sent to the model.
+The right rail has `Trace info` with `Type`, `Status`, `Latency`, `Timestamp`, and `Tokens & Cost` for the trace as a whole. The center pane shows `inputs`, `parameters`, and `outputs` for the selected span, so you can read exactly what was sent to the model.
 
 <Image
   style={{ display: "block", margin: "24px 0" }}

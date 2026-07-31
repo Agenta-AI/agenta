@@ -10,8 +10,6 @@ import Image from "@theme/IdealImage";
 
 An agent's knowledge is files in its agent folder plus the lines in `AGENTS.md` that tell it where to look. This page builds that pattern from an empty agent. For the two folder scopes and why files cost nothing until they are read, see [Files and knowledge](/concepts/files-and-knowledge).
 
-{/* VIDEO: Asking the agent to save a brand-voice document into agent-files, adding one line to AGENTS.md that points at it, then opening a fresh chat where the agent reads the file before drafting. */}
-
 ## Know which folder you are writing to
 
 Every file in the browser carries an origin badge.
@@ -35,7 +33,7 @@ The drawer opens at `root` with `Search files`, a file-tree toggle, a hidden-fil
 
 ## Put a file in the agent folder
 
-Ask the agent, in the conversation, to write it. Give the path explicitly, starting with `agent-files/`:
+Ask the agent, in the conversation, to write the file. Give the path explicitly, starting with `agent-files/`:
 
 > Save this as `agent-files/brand/voice.md`, exactly as I have written it:
 >
@@ -90,7 +88,7 @@ Never propose a daily budget above $300 without asking me first.
 Report results as a table: campaign, spend, clicks, trials started.
 ```
 
-## A layout that works
+## An example layout for the agent folder
 
 ```text
 agent-files/
@@ -105,7 +103,7 @@ agent-files/
 
 Grow it the same way each time: the agent gets something wrong, you write the missing knowledge into a file, and you add or extend one line in `AGENTS.md` pointing at it.
 
-## Take the files out
+## Download the files
 
 Click `Download` on a file card in the conversation for a single file, or use `Download all` in the drawer's `More actions` menu for everything.
 

@@ -1,87 +1,54 @@
 ---
 title: "Agents"
 sidebar_label: "Agents"
-description: "An agent in Agenta is a configuration you build for one job, run by a harness and a model. Its instructions are sent at the start of every session."
+description: "An agent in Agenta is an assistant you build for a specific job. This page covers when to use an agent, what it is made of, how to create one, and how it improves over time."
 ---
 
-An agent in Agenta is built for one job. This page covers what an agent is made of, how its instructions work, and why one shared context window shapes every other choice.
+An agent in Agenta is an assistant you build for a specific job. This page covers when to use an agent, what an agent is made of, how you create one, and how it improves over time.
 
-{/* VIDEO: An agent with empty instructions answering a work question badly, then the same agent after its instructions describe the company and the job, answering it well. */}
+## When to use an agent
 
-## An agent you build, not one you are given
+You create an agent when you want an assistant that is set up for one job. The job can be broad or narrow:
 
-ChatGPT gives you a prebuilt general agent. It already works, for everything, the moment you open it.
+- A general marketing agent that drafts copy, reviews your drafts, and answers questions about your product.
+- A more specific agent that helps with your SEO. It knows your pages, your keywords, and what you already tried.
+- An [automation](/concepts/automations), such as an agent that checks your competitors every week and reports what changed.
 
-Agenta gives you an empty one. The instructions start blank and you fill them with the job you want done. A general agent knows a little about everything and nothing about your company, your customers, or how you want the work done. An agent you build knows one job.
+These three examples come back throughout this page.
 
-So the first decision in Agenta is not which model to use. It is what the agent is for: reviewing inbound support tickets and drafting replies, keeping the changelog current, acting as a marketing coworker. That answer decides the instructions, tools, skills, and files you give it.
-
-You do not fill in forms to build one. You chat with the agent and it configures itself as you talk. [Build your first agent](/learn/build-your-first-agent) walks through it.
+The comparison with ChatGPT makes the difference concrete. ChatGPT gives you one prebuilt, general agent. It works with everything, and it knows nothing about your company, your customers, or how you want the work done. An agent you build in Agenta is specific. Its instructions describe the job, and you change those instructions over time until the agent works the way you want.
 
 ## What an agent is made of
 
-**A configuration.** The instructions, the tools it can call, the skills it can load, and the permissions that decide what it may do on its own. This is the part you build, and it is versioned, so every change has a history. The files an agent reads and writes live in its folder alongside the configuration rather than inside it. See [Sessions and versions](/concepts/sessions-and-versions).
+An agent is a configuration you build, run by a harness and a model. The configuration has five parts. Each part has its own page; here is the short version.
 
-**A harness.** The program that drives the model. It sends the messages, runs the tool calls the model asks for, feeds the results back, and manages the context window as the conversation grows. Agenta ships with Claude Code and Pi.
+- **[Instructions](/concepts/instructions)** describe the job. For the SEO agent, they say what the site is, who it serves, and how to report findings.
+- **[Tools](/concepts/tools-and-integrations)** are actions the agent can take in other systems. The competitor-watch agent needs web search; the marketing agent might post drafts to Slack.
+- **[Skills](/concepts/skills)** are short handbooks for tasks the agent does sometimes, loaded only when needed.
+- **[Permissions](/concepts/permissions)** decide which actions the agent takes on its own and which wait for your approval.
+- **[Files](/concepts/files-and-knowledge)** live in the agent's folder: the drafts it writes, the notes it keeps, the reference material you give it.
 
-**A model.** A large language model does one thing: you send it messages and it returns a message. Everything else, tool calls included, is the harness acting on what the model said.
-
-Harness and model are separate choices, and changing either one does not mean rebuilding the agent. See [Harnesses and models](/concepts/harnesses-and-models).
+Two more parts run the agent rather than define it. The harness is the program that drives the model: it sends the messages, runs the tool calls the model asks for, and feeds the results back. The model is the language model that produces the replies. Both are choices you can change without rebuilding the agent. See [Harnesses and models](/concepts/harnesses-and-models).
 
 <img src="/images/agents/agent-three-layers.svg" alt="The configuration you write feeds the harness, and the harness drives the model" style={{ display: "block", margin: "24px 0", maxWidth: "100%" }} />
 
-## Instructions
+## How to create an agent
 
-The instructions are the agent's identity. Harnesses usually call this the system prompt. In Agenta they live in a file named `AGENTS.md`, and they are the first thing sent to the agent at the start of every session.
+There are two ways to create an agent: chat with it, or configure it yourself.
 
-They are part of the agent rather than something you attach to it. An agent with no instructions is a general assistant. The instructions are what make it yours.
+The first way is to chat. In the playground, a new agent has access to build tools that let it change its own configuration. You describe the job in conversation, and the agent writes its instructions and adds tools and skills as you talk. [Build your first agent](/learn/build-your-first-agent) walks through this.
 
-### What goes in them
+The second way is to configure the agent directly. Set **Playground mode** to `Build` and edit each part yourself: the instructions, the tools, the skills, the permissions.
 
-Context about the work. For a marketing agent that means who you are, what the company sells, who the customers are, how you want the agent to talk to you, and the problems you want help with.
+## Agents are versioned and improve over time
 
-That content belongs in the instructions rather than in a file because the instructions come with a guarantee. They are sent at the start of every session, so the agent always has them. A file in the workspace is read only if the agent decides to go and read it.
+An agent's configuration is versioned. Every commit creates a version, and you can read back what changed, when, and why on the **Registry** page. See [Sessions and versions](/concepts/sessions-and-versions).
 
-So context that has to be present every time goes in the instructions. Reference material the agent can look up when the moment comes goes in a file. See [Files and knowledge](/concepts/files-and-knowledge).
+Versioning is what makes an agent improve. When the agent gets something wrong, say the SEO agent pulls numbers from the wrong report, you tell it in chat. It updates its own instructions, the change is recorded as a new version, and that mistake does not happen again. After a few weeks of this, the instructions describe the job accurately, because each rule was added the moment something went wrong. [Write your agent's instructions](/guides/write-your-agents-instructions) covers this loop in practice.
 
-### Instructions are resent on every turn
+## Go deeper
 
-A turn is one call to the model. Everything in the instructions goes to the model again on every turn of every session, and a single request from you often takes several turns. A long identity is not a one-time cost. It is a recurring bill, paid each time the agent thinks.
-
-That is the tension. More context makes the agent better at the job, and it also makes every turn more expensive and leaves less of the context window for the work itself. The consequence is that instructions hold what must be present every turn, and everything else lives in a skill or a file.
-
-### How instructions grow
-
-In practice they start short: a few lines saying what the agent is for and who it works with.
-
-Then they grow one line at a time, against real failures. The agent answers a customer in the wrong tone, so a line about tone goes in. It pulls numbers from the wrong dashboard, so the right one gets named. After a few weeks the instructions describe the job accurately, because each line was written the moment the agent got something wrong rather than guessed in advance.
-
-Most instructions end up saying how the agent should talk. Left alone, an agent tends to write long and to restate the question before answering it. If you want short answers with no preamble, that goes in writing.
-
-[Write your agent's instructions](/guides/write-your-agents-instructions) covers the writing itself.
-
-## One budget: the context window
-
-The model reads a fixed amount of text per turn. Instructions, tool descriptions, skills, files, and the conversation so far all draw on that same window. This single constraint explains the shape of everything else in Agenta.
-
-- **Instructions are always loaded.** They are sent every turn, so they stay short.
-- **Tools cost a little, always.** Each tool the agent has puts its name and description in every turn. See [Tools and integrations](/concepts/tools-and-integrations).
-- **Skills load on demand.** Until the agent needs one, it sees only a name and a description, so an agent can carry many. The description is what decides whether a skill fires. See [Skills](/concepts/skills).
-- **Files are read on demand.** Nothing is loaded until the agent opens the file, so a knowledge folder can grow without adding to every turn. See [Files and knowledge](/concepts/files-and-knowledge).
-
-One pattern follows from this: the instructions work as a map to everything else. A single line such as "the style guide is in `writing/style.md`, read it before drafting" spends a few always-loaded tokens and buys a whole document that costs nothing until it is needed.
-
-## The rest of an agent
-
-- [Skills](/concepts/skills) give the agent a handbook for one kind of task, loaded when it is relevant.
-- [Tools and integrations](/concepts/tools-and-integrations) give it actions it can take in other systems.
-- [Permissions](/concepts/permissions) decide which of those actions it takes on its own and which wait for your approval.
-- [Files and knowledge](/concepts/files-and-knowledge) cover the folders an agent reads and writes, and which of them survive a session.
-- [Automations](/concepts/automations) run an agent on a schedule or when an event happens in a connected app.
-- [Cost and usage](/concepts/cost-and-usage) covers what you are charged for.
-
-## Guides
-
-- [Write your agent's instructions](/guides/write-your-agents-instructions)
-- [Control what an agent can do](/guides/control-what-an-agent-can-do)
-- [Manage skills](/guides/manage-skills)
+- [Instructions](/concepts/instructions): what goes in them and why they stay short.
+- [Automations](/concepts/automations): run an agent on a schedule or on an event in a connected app.
+- [Harnesses and models](/concepts/harnesses-and-models): the two choices that run the agent.
+- [Cost and usage](/concepts/cost-and-usage): what you are charged for.

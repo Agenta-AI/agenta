@@ -4,9 +4,7 @@ sidebar_label: "Harnesses and models"
 description: "A model answers messages. A harness drives the model, runs the tools it asks for, and manages context. In Agenta you pick the harness, the model, and the credential separately."
 ---
 
-Every agent in Agenta runs on two pieces underneath: a harness and a model. This page explains what each one does, and why Agenta asks you to choose them, and the credential behind them, separately.
-
-{/* VIDEO: an agent answering a question, then the same agent answering again after its harness and model have been changed, with nothing else about the agent touched */}
+Ask an agent to send an email, and two pieces work underneath to get it done. The model decides an email should go out, but it cannot send one; all it can do is ask. The harness is the program that acts on that ask. This page explains what each piece does, and why Agenta asks you to choose the harness, the model, and the credential behind them separately.
 
 ## What a model does
 
@@ -18,18 +16,20 @@ A model cannot read a file, search the web, or send an email. When it needs one 
 
 The harness is that something else. It runs the model in a loop:
 
-1. It sends the conversation to the model, together with your [instructions](/concepts/agents), the list of [tools](/concepts/tools-and-integrations) the agent has, and the name and description of each [skill](/concepts/skills).
+1. It sends the conversation to the model, together with your [instructions](/concepts/instructions), the list of [tools](/concepts/tools-and-integrations) the agent has, and the name and description of each [skill](/concepts/skills).
 2. The model replies. If the reply asks for a tool call, the harness runs that tool.
 3. The harness adds the tool's result to the conversation and sends it back to the model.
 4. The loop repeats until the model replies with an answer instead of another tool call.
 
 <img src="/images/agents/harness-loop.svg" alt="The harness sends the conversation to the model, runs any tool the model asks for, and feeds the result back" style={{ display: "block", margin: "24px 0", maxWidth: "100%" }} />
 
-The harness also manages everything around that loop. It loads your instructions at the start of a session and reads the `AGENTS.md` files it finds in the folders the agent works in. It handles compaction, which is what happens when a conversation grows past what the model can hold: the harness summarizes the earlier part of the conversation so the session can keep going.
+The harness also manages what surrounds the loop. It loads your instructions at the start of a session, and it reads the `AGENTS.md` files it finds in the folders the agent works in.
+
+The harness handles compaction, which is what happens when a conversation grows past what the model can hold. The harness summarizes the earlier part of the conversation so the session can keep going.
 
 Agenta ships two harnesses, Claude Code and Pi. Both run the loop above. They differ in how they compact a long conversation, how they load instructions, and which models they accept.
 
-## Three choices, not one
+## You choose the harness, the model, and the credential separately
 
 Setting up an agent's runtime means three separate decisions:
 
@@ -39,7 +39,7 @@ Setting up an agent's runtime means three separate decisions:
 
 They are separate because they change for different reasons. You change the model when you want a different tradeoff between quality, speed, and cost. You change the credential when your company routes model traffic through its own gateway, or when your model access sits with a cloud provider rather than with the model vendor. Neither of those is a reason to change the harness.
 
-Because the three are separate, switching any one of them is a configuration change rather than a rebuild. Your instructions, skills, tools, files, and permissions stay where they are, so an agent can move to another model and keep behaving like the agent you built.
+Because the three are separate, switching any one of them is a configuration change rather than a rebuild. Your instructions, skills, tools, files, and permissions stay where they are, so the agent that sends your email can move to another model and keep behaving like the agent you built.
 
 To make these choices for an agent, see [Choose a harness and model](/guides/choose-a-harness-and-model).
 
