@@ -61,6 +61,20 @@ Verified with `pnpm lint-fix` (clean on the touched file) and the repo's fast ty
 - The rich-input paste interception is ungated in the package layer but inert unless a consumer
   passes `onPasteFile`; the only consumer's callback is now guarded.
 
+## Live QA (dev stack, 2026-07-31)
+
+Both flag states were verified in a browser against the running dev stack, with synthetic
+paste and drag events dispatched at the real composer.
+
+- Flag off: a pasted image file attaches nothing; plain-text paste inserts normally; a file
+  drag shows no overlay; the drop is swallowed (`preventDefault` fires, so the browser does
+  not navigate to the file) and attaches nothing.
+- Flag on: the attach button is enabled; a pasted image renders the attachment chip (file
+  counter "1 / 5"); plain-text paste is unaffected; a file drag shows the "Drop files here"
+  overlay. The guard is inert when the flag is true.
+
 ## Issues found
 
-None beyond the gap itself. No behavior change was needed outside the one guard.
+None beyond the gap itself. No behavior change was needed outside the one guard. During
+flag-on QA the Next.js dev server dropped the login session once after a hot-reload cycle;
+that is a dev-server artifact unrelated to this change.
