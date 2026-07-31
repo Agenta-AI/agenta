@@ -68,7 +68,15 @@ which never touches `sandbox_mode`, so the poison combo (`sandbox_mode` next to 
 inside `CODEX_CONFIG`) cannot arise. When M4 introduces `CODEX_CONFIG` for the subscription path,
 the guard must live there.
 
-## Resume semantics (surfaced, approved)
+## Resume semantics (HISTORICAL — superseded 2026-07-31 by the codex-acp patch)
+
+**Read this first.** Everything in this section describes Milestone 3 as it shipped, when Codex
+approvals resumed COLD. Mahmoud rejected that posture on PR #5509 and approved patching codex-acp
+instead: the runner image now flips the `agent-full-access` preset from `approvalPolicy: "never"`
+to `on-request`, so Codex raises its own permission gate and approvals park WARM on the keep-alive
+path, exactly like Claude's. The seam gate below is still in the code as second-line enforcement,
+but it no longer prompts the human — it consumes the execution grant the ACP gate records. See the
+D-008 amendment (2026-07-31) in `decisions.md`. The original text follows for the record.
 
 The runner-side MCP-seam gate (B) cannot use the ACP keep-alive resume that Claude/Pi use: there is
 no ACP permission id at the loopback seam, and the `tools/call` HTTP request dies when the turn

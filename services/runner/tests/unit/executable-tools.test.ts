@@ -10,6 +10,7 @@ import type {
 } from "../../src/protocol.ts";
 import {
   ApprovalResponder,
+  ApprovedExecutionGrants,
   ConversationDecisions,
   extractApprovalDecisions,
 } from "../../src/responder.ts";
@@ -62,6 +63,7 @@ function seam(
   spec: ResolvedToolSpec,
   history?: AgentRunRequest,
   withIndex = false,
+  executionGrants?: ApprovedExecutionGrants,
 ) {
   const events: AgentEvent[] = [];
   const pausedToolCalls: string[] = [];
@@ -94,6 +96,7 @@ function seam(
       recorded.push({ token, toolName, args, kind });
     },
     toolCallIndex,
+    executionGrants,
   });
   return {
     gate,
@@ -102,6 +105,7 @@ function seam(
     pausedToolCalls,
     recorded,
     toolCallIndex,
+    executionGrants,
     pauses: () => pauses,
   };
 }
@@ -192,4 +196,98 @@ describe("buildExecutableToolGate", () => {
       assert.deepEqual(s.pausedToolCalls, []);
     },
   );
+});
+
+/**
+ * A harness that runs its own permission gates (Claude always; Codex since the full-access
+ * preset was patched to `on-request`) decides a call BEFORE issuing it, then the same call
+ * arrives here at the loopback `agenta-tools` MCP seam. Without the grant handshake the human
+ * would answer twice for one tool call.
+ */
+describe("buildExecutableToolGate with a harness-gate execution grant", () => {
+  it("passes a call the harness gate already approved straight through", async () => {
+    const grants = new ApprovedExecutionGrants();
+    grants.grant("publish", input);
+    const s = seam(request.spec, undefined, false, grants);
+
+    assert.deepEqual(await s.gate.onExecutableTool(s.request), {
+      kind: "allow",
+    });
+    assert.deepEqual(s.events, [], "no second approval card");
+    assert.deepEqual(s.pausedToolCalls, []);
+  });
+
+  it("spends one grant per call, so a repeat call parks again", async () => {
+    const grants = new ApprovedExecutionGrants();
+    grants.grant("publish", input);
+    const s = seam(request.spec, undefined, false, grants);
+
+    assert.deepEqual(await s.gate.onExecutableTool(s.request), {
+      kind: "allow",
+    });
+    assert.deepEqual(await s.gate.onExecutableTool(s.request), {
+      kind: "pendingApproval",
+    });
+  });
+
+  it("matches Codex's MCP argument wrapper against the seam's bare arguments", async () => {
+    // codex-acp reports an MCP tool call's rawInput as {server, tool, arguments}; the seam sees
+    // the inner arguments. Both sides normalize to the same key, so the grant still matches.
+    const grants = new ApprovedExecutionGrants();
+    grants.grant("publish", {
+      server: "agenta-tools",
+      tool: "publish",
+      arguments: input,
+    });
+    const s = seam(request.spec, undefined, false, grants);
+
+    assert.deepEqual(await s.gate.onExecutableTool(s.request), {
+      kind: "allow",
+    });
+  });
+
+  it("never lets a grant override a deny, and parks with no grant (fail closed)", async () => {
+    const grants = new ApprovedExecutionGrants();
+    grants.grant("publish", input);
+    const denied = seam(
+      { ...request.spec, permission: "deny" },
+      undefined,
+      false,
+      grants,
+    );
+    assert.deepEqual(await denied.gate.onExecutableTool(denied.request), {
+      kind: "deny",
+      reason: "Tool 'publish' was denied by policy.",
+    });
+
+    const ungranted = seam(
+      request.spec,
+      undefined,
+      false,
+      new ApprovedExecutionGrants(),
+    );
+    assert.deepEqual(await ungranted.gate.onExecutableTool(ungranted.request), {
+      kind: "pendingApproval",
+    });
+  });
+
+  it("does not spend a grant on a tool the policy already allows", async () => {
+    const grants = new ApprovedExecutionGrants();
+    grants.grant("publish", input);
+    const s = seam(
+      { ...request.spec, permission: "allow" },
+      undefined,
+      false,
+      grants,
+    );
+
+    assert.deepEqual(await s.gate.onExecutableTool(s.request), {
+      kind: "allow",
+    });
+    assert.equal(
+      grants.consume("publish", input),
+      true,
+      "the grant is untouched because the policy allow decided the call",
+    );
+  });
 });

@@ -608,6 +608,11 @@ export async function runTurn(
       // only a dialog-approved (or policy-allowed) call ever executes from the relay dir.
       onPiGateAllowed: (info) =>
         executionGrants.grant(info.toolName, info.args),
+      // A Claude/Codex allow for a runner-executed tool becomes an execution grant too, but for
+      // the loopback MCP seam rather than the relay: the harness gate has already decided this
+      // call, so the seam consumes the grant instead of asking the human a second time.
+      onExecutableGateAllowed: (info) =>
+        executionGrants.grant(info.toolName, info.args),
       // Record EVERY parkable permission gate (only in keep-alive park mode) so the dispatch can
       // resume each one live. Fires per pending gate, so parallel gated tool calls in one turn
       // all park, each keyed by its own tool-call id. `info.gateType` names the ACP gate type so
@@ -654,6 +659,7 @@ export async function runTurn(
             pause,
             recordPendingInteraction,
             toolCallIndex: env.toolCallIndex,
+            executionGrants,
             log: logger,
           })
         : undefined;

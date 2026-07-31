@@ -98,6 +98,18 @@ export interface AttachPermissionResponderInput {
    *  builtins never reach the relay, so they do not fire it. */
   onPiGateAllowed?: (info: { toolName: string; args: unknown }) => void;
   /**
+   * Fires when a Claude/Codex gate for a RUNNER-EXECUTED tool (`executor: "relay"`) resolves to
+   * allow. Those tools reach the runner a second time, at the loopback `agenta-tools` MCP
+   * `tools/call` seam, which runs its own gate. Without this grant an `ask` tool would prompt
+   * twice for one call: once natively, then again at the seam. The grant lets the seam pass the
+   * exact approved call through while every unapproved one still parks (fail closed). Harness
+   * builtins (`executor: "harness"`) never reach the seam, so they do not fire it.
+   */
+  onExecutableGateAllowed?: (info: {
+    toolName: string | undefined;
+    args: unknown;
+  }) => void;
+  /**
    * Resolved tool specs by name for the Pi gates. PRESENCE marks a Pi run and turns Pi gate
    * envelope detection on; it must stay absent for Claude. The pre-filter is the dialog TITLE,
    * and a Claude gate whose ACP title happens to be the literal dialog title (editing a file
@@ -135,6 +147,7 @@ export function attachPermissionResponder({
   onResolveInteraction,
   onUserApprovalGate,
   onPiGateAllowed,
+  onExecutableGateAllowed,
   piToolSpecsByName,
   toolSpecsByName,
 }: AttachPermissionResponderInput): void {
@@ -491,6 +504,12 @@ export function attachPermissionResponder({
         isCodex ? "codex-acp-permission" : "claude-acp-permission",
       );
       return;
+    }
+    // The grant must exist BEFORE the harness reply: the harness issues the gated `tools/call`
+    // the moment it is allowed, and the loopback MCP seam consumes the grant to let it through
+    // instead of prompting a second time for the same call.
+    if (verdict.kind === "allow" && gate.executor === "relay") {
+      onExecutableGateAllowed?.({ toolName: gate.toolName, args: gate.args });
     }
     await replyPermission(
       id,

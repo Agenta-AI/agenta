@@ -99,6 +99,15 @@ USER node
 # pin script resolves the daemon binary via the runner's own daemon.ts resolution.
 RUN node_modules/.bin/tsx scripts/pin-codex-adapter.ts install-agent codex --agent-process-version 1.1.7 -n
 
+# Decouple approvals from the full-access sandbox in the adapter we just pinned (decision D-008
+# amendment). codex-acp's `agent-full-access` preset hardcodes `approvalPolicy: "never"`, which
+# switches off codex's native permission gates and forces COLD approvals; we need full access for
+# shell texture (bubblewrap cannot initialize in a container). The patch flips that one preset to
+# `on-request` so Agenta-tool gates park WARM on the runner's keep-alive path, exactly like Claude.
+# It exits non-zero if the preset no longer matches, so a codex-acp bump breaks the build rather
+# than silently shipping cold approvals. Retires when upstream codex-acp#310 lands.
+RUN node_modules/.bin/tsx scripts/patch-codex-acp-approvals.ts
+
 # Call the local tsx binary directly to avoid pnpm/corepack HOME writes when the
 # container runs as a non-root host uid.
 CMD ["node_modules/.bin/tsx", "src/server.ts"]

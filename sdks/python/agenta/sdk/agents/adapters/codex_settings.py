@@ -22,17 +22,21 @@ amendment (2026-07-24). Two reasons:
    runner knows their transport at session-build time), never through this file, so a
    transport-bearing table cannot be written here anyway. The spike's Q3 probe missed this because
    it always tested these tables ALONGSIDE a transport.
-2. It is no longer wanted. Under D-008 the runner-side gate (``executable-tools.ts``, the
-   ``agenta-tools`` pause seam) is the tool-permission authority for the default
-   ``agent-full-access`` mode; per-server approval config in this file would only matter under
-   authored ``agent`` mode and is superseded there by codex's own per-turn gate.
+2. It is no longer wanted. Codex's own per-turn gate is the tool-permission authority in every
+   mode, and the runner classifies each gate against the author's permissions; per-server
+   approval config in this file would only duplicate that decision.
 
-Texture caveat for authored ``agent`` mode (extended): because no per-tool ``approval_mode`` is
-rendered, every tool call under ``agent`` mode pauses at codex's OWN on-request gate (an
-``allow``-permission tool is not pre-approved via config). The runner then applies the tool's
-effective permission when it classifies that ACP gate. This is the safe default; a Codex-native
-``[mcp_servers.<name>] default_tools_approval_mode`` pre-allow would require the runner to emit a
-transport-bearing entry (a contract change, deferred). Layers 1/2 scalars are unaffected.
+Texture caveat, now applying to EVERY mode (D-008 amendment, 2026-07-31: the runner image patches
+codex-acp's ``agent-full-access`` preset from ``approvalPolicy: "never"`` to ``on-request``, so
+tool approvals park warm): because no per-tool ``approval_mode`` is rendered, every tool call
+pauses at codex's OWN on-request gate (an ``allow``-permission tool is not pre-approved via
+config). The runner then applies the tool's effective permission when it classifies that ACP gate,
+so an ``allow`` tool is answered in-process with no human round trip. This is the safe default; a
+Codex-native ``[mcp_servers.<name>] default_tools_approval_mode`` pre-allow would require the
+runner to emit a transport-bearing entry (a contract change, deferred). Layers 1/2 scalars are
+unaffected. The runner-side gate at the ``agenta-tools`` pause seam (``executable-tools.ts``)
+remains as second-line enforcement: it consumes the execution grant the ACP gate records, so one
+approval prompts once, and an ungranted call still fails closed.
 """
 
 from __future__ import annotations

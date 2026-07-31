@@ -366,6 +366,58 @@ confined to the opt-in `agent` mode: pre-allow cannot be expressed to codex ther
 so allow-tools pause at codex's own gate like ask-tools. Layers 1/2 scalar
 rendering is unaffected.
 
+**Amendment (2026-07-31, approved by Mahmoud on PR #5509) · patch codex-acp so
+full access keeps its native approvals · SUPERSEDES the cold-replay amendment
+above.**
+
+Ruling: patch `@agentclientprotocol/codex-acp` at the image pin step so the
+`agent-full-access` preset sends `approvalPolicy: "on-request"` instead of `"never"`,
+leaving its `dangerFullAccess` sandbox policy untouched. Codex approvals then park
+WARM on the runner's existing keep-alive path, the same machinery Claude uses, and
+the human answers before the tool call is issued.
+
+Why the cold-replay posture was not acceptable: cold approval behavior differs
+materially from warm. The turn dies, the user approves, and the model re-issues the
+call on a follow-up turn, so the decision lands after the fact instead of in place.
+That difference belonged in the PR description and was buried in milestone notes.
+
+Research answering "why can't we do this, and why does Zed manage it" (codex-acp at
+our 1.1.7 pin, codex rust-v0.145.0, Zed's approval flow):
+
+- The coupling is not in the ACP protocol and not in codex. Codex core takes approval
+  policy and sandbox policy as two independent per-turn parameters. codex-acp's
+  full-access preset hardcodes `approvalPolicy: "never"` next to the unsandboxed
+  policy (`src/AgentMode.ts`) and re-sends both on every turn
+  (`src/CodexAcpClient.ts`), overriding any config. Under `never`, codex
+  auto-approves every gate, so no permission request ever reaches the runner.
+- Zed runs the default `agent` mode, so approvals are `on-request` and the turn
+  blocks in place. Zed can afford `agent` mode because on a desktop codex's inner OS
+  sandbox initializes; in our containers bubblewrap cannot (probe P7), which is why
+  we need full access, and full access is what turned approvals off.
+- Not a version problem: codex-acp HEAD is byte-identical to 1.1.7 in the relevant
+  files. The upstream decoupling ask (agentclientprotocol/codex-acp#310) is open with
+  no assignee.
+- Shell stays gate-free under the patch: codex only raises exec approval when the
+  filesystem sandbox is restricted, which full access is not. MCP (Agenta) tool calls
+  raise native gates, which the runner already classifies (`codex-acp-permission`).
+
+Consequences:
+
+- The runner-side seam gate (`executable-tools.ts`) is no longer the sole authority;
+  it becomes second-line enforcement. To keep one approval from prompting the human
+  twice, a Claude/Codex gate that resolves to allow for a runner-executed tool
+  records an execution grant, and the seam consumes it. No grant means no prior
+  approval, so the seam still parks — fail closed.
+- Rejected alternatives: (a) hold the loopback `tools/call` open for a warm park at
+  the MCP seam — harness-independent and better reject UX, but a bigger runner change
+  with a 300-second `tool_timeout_sec` race; kept as a roadmap item. (b) default
+  `agent` mode — warm today, unacceptable shell noise in containers. (d) wait for
+  upstream — not a plan on its own.
+- The patch retires itself: file the same change upstream, and drop the patch when an
+  accepted release ships. `applyCodexAcpApprovalPatch` reports `already-patched` for a
+  source that already sends `on-request`, and the image build fails loudly if the
+  preset drifts.
+
 ## D-006 (informational) · Model catalog entries · no ruling needed
 
 Curated catalog: gpt-5.6-sol (default), gpt-5.6-terra, gpt-5.6-luna (cheapest, used

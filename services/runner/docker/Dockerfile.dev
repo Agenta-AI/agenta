@@ -69,6 +69,12 @@ EXPOSE 8765
 # pin script resolves the daemon binary via the runner's own daemon.ts resolution.
 RUN node_modules/.bin/tsx scripts/pin-codex-adapter.ts install-agent codex --agent-process-version 1.1.7 -n
 
+# Decouple approvals from the full-access sandbox in the adapter we just pinned, same rationale as
+# Dockerfile.gh: codex-acp's `agent-full-access` preset hardcodes `approvalPolicy: "never"`, which
+# kills codex's native permission gates and forces COLD approvals. The patch flips that one preset
+# to `on-request` so Agenta-tool gates park WARM. Fails the build if the preset drifts.
+RUN node_modules/.bin/tsx scripts/patch-codex-acp-approvals.ts
+
 # No USER node here (unlike Dockerfile.gh): dev rebuilds dist/ under /app and mkdir's /pi-agent
 # at container start, both root-owned paths — not a FUSE constraint (fusermount works non-root).
 

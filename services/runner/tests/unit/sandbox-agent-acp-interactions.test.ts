@@ -1024,6 +1024,122 @@ describe("attachPermissionResponder: Codex ACP gates", () => {
     assert.deepEqual(replies, [{ id: "perm-mcp-allow", reply: "once" }]);
     assert.equal(pauses, 0);
   });
+
+  it("grants an execution for an allowed runner-executed tool, BEFORE replying to the harness", async () => {
+    // The same call reaches the runner twice: here at the harness gate, then at the loopback
+    // `agenta-tools` MCP seam. The grant is what stops the seam prompting the human a second
+    // time, and it has to exist before the reply, because the reply releases the tool call.
+    const order: string[] = [];
+    const granted: Array<{ toolName: string | undefined; args: unknown }> = [];
+    const { session, emit } = makeSession(async () => {
+      order.push("reply");
+    });
+    const mcpArgs = {
+      server: "agenta-tools",
+      tool: "read_revision",
+      arguments: { revisionId: "rev-1" },
+    };
+
+    attachPermissionResponder({
+      session,
+      run: {
+        emitEvent: () => {},
+        events: () => [
+          {
+            type: "tool_call",
+            id: "exec-mcp-3",
+            name: "mcp.agenta-tools.read_revision",
+            input: mcpArgs,
+          } as any,
+        ],
+      },
+      responder: new ApprovalResponder(
+        { default: "ask", rules: [] },
+        new ConversationDecisions(new Map()),
+      ),
+      acpAgent: "codex",
+      toolSpecsByName: specsByName([
+        { name: "read_revision", permission: "allow", readOnly: true },
+      ]),
+      onExecutableGateAllowed: (info) => {
+        order.push("grant");
+        granted.push(info);
+      },
+    });
+    emit({
+      id: "perm-mcp-grant",
+      _meta: { is_mcp_tool_approval: true },
+      availableReplies: ["once", "always", "reject"],
+      toolCall: {
+        kind: "execute",
+        status: "pending",
+        toolCallId: "exec-mcp-3",
+      },
+    });
+    await flushPromises();
+
+    assert.deepEqual(order, ["grant", "reply"]);
+    assert.deepEqual(granted, [{ toolName: "read_revision", args: mcpArgs }]);
+  });
+
+  it("does not grant an execution for a harness builtin, which never reaches the seam", async () => {
+    const granted: unknown[] = [];
+    const { session, emit } = makeSession();
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "allow" }),
+      acpAgent: "codex",
+      onExecutableGateAllowed: (info) => granted.push(info),
+    });
+    emit({
+      id: "perm-shell",
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        kind: "execute",
+        toolCallId: "shell-1",
+        rawInput: { command: "ls" },
+      },
+    });
+    await flushPromises();
+
+    assert.deepEqual(granted, []);
+  });
+
+  it("does not grant an execution when the gate parks or is denied", async () => {
+    for (const verdict of [
+      { kind: "pendingApproval" },
+      { kind: "deny" },
+    ] as const) {
+      const granted: unknown[] = [];
+      const { session, emit } = makeSession();
+
+      attachPermissionResponder({
+        session,
+        run: { emitEvent: () => {} },
+        responder: fakeResponder(verdict),
+        acpAgent: "codex",
+        toolSpecsByName: specsByName([
+          { name: "read_revision", permission: "ask", readOnly: true },
+        ]),
+        onExecutableGateAllowed: (info) => granted.push(info),
+      });
+      emit({
+        id: "perm-mcp-parked",
+        availableReplies: ["once", "reject"],
+        toolCall: {
+          kind: "execute",
+          toolCallId: "exec-mcp-4",
+          name: "read_revision",
+          rawInput: { revisionId: "rev-1" },
+        },
+      });
+      await flushPromises();
+
+      assert.deepEqual(granted, [], `verdict ${verdict.kind} must not grant`);
+    }
+  });
 });
 
 // -------------------------------------------------------------------------- //
