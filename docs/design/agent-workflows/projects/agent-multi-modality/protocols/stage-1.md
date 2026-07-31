@@ -308,3 +308,53 @@ dissolves on the next rebase.
 - **The catalogs cannot express document or audio support today**, so native document delivery
   (Stage 2) will need the catalog schema to grow before the gate can ever say yes; the gate's
   absence-means-unknown rule is what keeps that honest in the meantime.
+
+## WP4: frontend transport and rendering
+
+### Implementation decisions worth knowing (beyond the plan)
+
+- The shared composer package (`RichChatInput`, `SubmitPlugin`, `SendButton` in `agenta-ui`)
+  gained send-only disabling. The review enumerated all three consumers; the new props default
+  to today's behavior, so the two non-attachment surfaces are untouched.
+- The tray uid doubles as the upload idempotency key (stated in a comment at the generation
+  site); that identity is what makes retry reuse safe. `generateId()` is used instead of
+  `crypto.randomUUID`, which is undefined on plain-HTTP dev deployments.
+- Send blocks (with a tooltip) until every tray upload settles; a failed upload never falls back
+  to base64. Removing a chip aborts its in-flight request.
+- Static composer limits stay; capability-derived limits remain the Stage 2 item.
+- web/oss joined the unit-test loop with an explicit include list; the 13 pre-existing orphaned
+  test files stay excluded and are tracked in issue #5618.
+
+### The review, and what it changed
+
+Fourteen findings, four merge blockers, all fixed before the PR opened:
+
+1. The acceptance Playwright spec sat one directory outside the collected test root and would
+   never have run anywhere; it now lives with its siblings, carries the suite's tags, and has no
+   silent environment skip.
+2. Voice messages routed through the upload transport unconditionally, so with voice on and
+   uploads off a recording died in a permanent error chip; the recorder now uses references only
+   when the uploads flag is on and keeps its inline path otherwise, preserving the flags'
+   independence (the seam WP2's protocol had predicted would matter).
+3. `size` sat top-level on the file part, where the AI SDK's validation strips it, so every
+   persisted turn would silently lose the field; it moved into the `providerMetadata.agenta`
+   envelope beside the id.
+4. A hardcoded perception map contradicted the model-capability data the same component already
+   computes for the voice controls; perception now derives from the shared memoized fact, with
+   absent-or-unknown meaning the workspace-only notice.
+
+The remaining ten: an error taxonomy for uploads (cap and quota named, Retry-After honored,
+old-backend 404 explained, non-retryable states without a retry button), abort-on-remove, a
+double-send guard over the voice path's upload await, delivery notices joined to filenames,
+lowercase-pinned id validation matching the adapter, a filename fallback that never renders the
+URL tail, no eager full-file downloads on render, junit reporting for the new test setup, restored
+comment rationales, and feedback for swallowed Enter presses.
+
+### Forced routes to double-check
+
+- **The one-line CI glob addition** (publishing web/oss's junit report) is left uncommitted: the
+  session's push credential lacks the GitHub `workflow` scope, and a commit touching workflow
+  files is rejected at push. The vitest gate itself works without it (the runner discovers the
+  script); only the published report is missing until someone with the scope lands the line.
+- **The Fern/OpenAPI regeneration** for typed accessors elsewhere in the sessions domain is a
+  stated follow-up, deliberately not bundled into this package's diff.
