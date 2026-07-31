@@ -339,8 +339,11 @@ today (see section 10).
 
 ACP is the Agent Client Protocol, an external standard published by Zed Industries. The runner
 speaks it to the harness through two adapter packages it pins in `services/runner/package.json`:
-`@agentclientprotocol/claude-agent-acp` at version `0.58.1` for the Claude harness, and `pi-acp` at
-version `0.0.29` for the Pi harness. These two adapters are the ones we actually run. The
+`@agentclientprotocol/claude-agent-acp` at version `0.58.1` for the Claude harness
+(`services/runner/package.json:23`), and `pi-acp` at version `0.0.29` for the Pi harness
+(`services/runner/package.json:35`). Both pins verified against the file on 2026-07-31. A third
+adapter, `@agentclientprotocol/codex-acp` at version `1.1.7`, arrives with the Codex harness in PR
+#5509 (branch `feat/codex-harness`) and is covered below alongside the two pinned ones. The
 specification is at `agentclientprotocol.com`.
 
 ACP defines these content block types for a prompt turn
@@ -382,7 +385,8 @@ project makes the runner enforce them. More on the history in section 9.
 
 This is where "the model perceives it" meets reality, because each adapter maps ACP content to its
 own model API in its own way. Rather than infer this from documentation, the following comes from
-reading the two adapter packages the runner pins.
+reading the published packages themselves: the two the runner pins today, and the Codex adapter
+from PR #5509.
 
 **The Claude adapter (`@agentclientprotocol/claude-agent-acp` 0.58.1).** The adapter file is
 `node_modules/@agentclientprotocol/claude-agent-acp/dist/acp-agent.js`.
@@ -396,30 +400,117 @@ reading the two adapter packages the runner pins.
 - The consequence is blunt. A PDF sent as an ACP blob resource never reaches Claude at all through
   this adapter. It is dropped in the conversion.
 
+Why the blob drop exists: it is the adapter's choice, not an SDK constraint. The Claude Agent SDK
+types a user message as an Anthropic `MessageParam`, and the Anthropic SDK's `ContentBlockParam`
+includes a native `document` block that accepts a base64 PDF source
+(`@anthropic-ai/sdk@0.115.0`, `resources/messages/messages.d.ts:555` and `:579`), so the adapter
+could map a PDF blob the same way it already maps images. Nobody has asked upstream: searches of
+`agentclientprotocol/claude-agent-acp` issues and PRs (open and closed) for "pdf", "blob",
+"document", and "attachment" on 2026-07-31 found nothing requesting inbound blob or PDF prompt
+support, and the ignore path is unchanged on the repo's main branch (`src/acp-agent.ts:6895`).
+
+Why audio is missing: the Anthropic Messages API has no audio input block at all. The string
+"audio" appears nowhere in `ContentBlockParam` (`@anthropic-ai/sdk@0.115.0`,
+`resources/messages/messages.d.ts`), so the adapter has nothing to map ACP audio onto; the
+limitation is inherited from the API, not chosen by the adapter. An issue search for "audio" on the
+adapter repo returned zero results on 2026-07-31.
+
+Newer versions: the latest published version is `0.64.0` as of 2026-07-31
+(`npm view @agentclientprotocol/claude-agent-acp version`). Modality behavior is unchanged between
+`0.58.1` and `0.64.0`. The advertised capabilities are still `{ image: true, embeddedContext: true }`
+with no audio (`0.64.0` tarball, `dist/acp-agent.js:622`), the blob branch still carries the comment
+"Ignore blob resources (unsupported)" (`dist/acp-agent.js:5363`), and audio blocks are still skipped
+under "Ignore audio and other unsupported types" (`dist/acp-agent.js:5387`). Upgrading the pin would
+change none of the modality behavior described above.
+
 **The Pi adapter (`pi-acp` 0.0.29).** The adapter file is `node_modules/pi-acp/dist/index.js`.
 
 - It advertises `promptCapabilities: { image: true, audio: false, embeddedContext:
   process.env.PI_ACP_ENABLE_EMBEDDED_CONTEXT === "true" }` (near line 1696). Audio is off, and
   embedded context is off unless an environment variable turns it on.
 - In its prompt conversion (near lines 1470 to 1495): images pass through as image inputs; a text
-  resource is inlined into the message text as `[Embedded Context] uri (mime)\n<text>`; and a blob
-  resource becomes only the line `[Embedded Context] uri (mime, N bytes)` with no content at all.
+  resource is inlined into the message text as `[Embedded Context] uri (mime)\n<text>`; a blob
+  resource becomes only the line `[Embedded Context] uri (mime, N bytes)` with no content at all;
+  and an audio block, if one arrived despite the capability being off, becomes the text line
+  `[Audio] (mime, N bytes) not supported by pi-acp` (line 1493).
 - The consequence is that a document sent as a blob to the Pi adapter reaches the model as a byte
   count, not as the document.
+
+The adapter is community-maintained at [svkozak/pi-acp](https://github.com/svkozak/pi-acp), not by
+earendil-works. Why the blob placeholder and the env gate exist: Pi's RPC prompt interface accepts
+only a message string plus an images array, so the adapter has no first-class way to forward
+arbitrary embedded resources. The maintainer gated `embeddedContext` behind
+`PI_ACP_ENABLE_EMBEDDED_CONTEXT` in [pi-acp PR #12](https://github.com/svkozak/pi-acp/pull/12)
+(merged) precisely to avoid "advertising broader support than we actually have" while blob
+resources degrade to a placeholder. No issue tracks un-gating it or adding blob translation; a
+sweep of all 92 issues and PRs in the repo on 2026-07-31 found nothing beyond PR #12 touching
+`embeddedContext`. The `audio: false` flag follows from the same message-plus-images RPC shape; the
+only issue matching "audio" (#58) is about session listing, not audio.
+
+The runner also applies a local patch to this pin (`services/runner/patches/pi-acp@0.0.29.patch`).
+It only adds two environment variables for the skill and session directories; it does not touch
+content conversion or capabilities.
+
+Newer versions: the latest published version is `0.0.33` as of 2026-07-31
+(`npm view pi-acp version`). Modality behavior is unchanged between `0.0.29` and `0.0.33`. The
+advertised capabilities are byte-for-byte the same, including `audio: false` and the env-gated
+`embeddedContext` (`0.0.33` tarball, `dist/index.js:1937`), and the conversion is the same code at
+new offsets: the blob byte-count line at `dist/index.js:1671` and the audio not-supported line at
+`dist/index.js:1681`. The only capability delta is a new session `delete` capability, which is not
+modality related.
+
+**The Codex adapter (`@agentclientprotocol/codex-acp` 1.1.7).** This adapter arrives with the Codex
+harness in PR #5509. That PR pins it at `1.1.7`, which bundles `@openai/codex` `0.145.0`, in the
+runner image build (`services/runner/docker/Dockerfile.gh:100` on branch `feat/codex-harness`, via
+`install-agent codex --agent-process-version 1.1.7`) and records the pin under `runtimeAgentPins` in
+`services/runner/package.json:10` on that branch. The published package ships one bundle,
+`dist/index.js`; line numbers below refer to the `1.1.7` tarball from npm.
+
+- It advertises `promptCapabilities: { embeddedContext: true, image: true }` (near line 28486). It
+  does **not** advertise audio.
+- In its prompt conversion (`buildPromptItems`, near lines 26708 to 26744): an ACP image becomes a
+  native Codex image input (an `http`, `https`, or `data` URI passes through as a URL; inline base64
+  becomes a data URL); a `resource_link` becomes a text link; a text resource becomes a URI link
+  plus a `<context ref="...">` text block; a blob resource with an image MIME type becomes a native
+  image input; any **other** blob resource becomes a text block that contains the raw base64 inside
+  `<context ref="..." mimeType="..." encoding="base64">`; and an audio block is dropped (the case
+  returns null).
+- The consequence for documents differs from both other adapters. A PDF sent as a blob is neither
+  dropped nor reduced to a byte count; its base64 characters are pasted into the prompt as text. The
+  model receives characters, not a parsed document, so this is still not native document perception,
+  and it spends prompt tokens on base64.
+
+Newer versions: `1.1.7` is the latest published version as of 2026-07-31
+(`npm view @agentclientprotocol/codex-acp version`), so the pin and the latest are the same.
 
 ### What the adapters support today
 
 Three consequences follow, stated plainly.
 
-- Image delivery works end to end on both adapters. An inline ACP image reaches the model as a real
-  image it perceives.
-- Native audio is unsupported by both pinned adapters today. Neither advertises the audio
-  capability, so there is nothing to deliver audio into.
+- Image delivery works end to end on all three adapters. An inline ACP image reaches the model as a
+  real image it perceives.
+- Native audio is unsupported by all three adapters today. None advertises the audio capability, so
+  there is nothing to deliver audio into.
 - Native document delivery does not work today. The Claude adapter drops a blob resource entirely,
-  and the Pi adapter renders it as a byte count. A PDF sent as a blob reaches neither model as a
-  document.
+  the Pi adapter renders it as a byte count, and the Codex adapter pastes its base64 into the prompt
+  as text. A PDF sent as a blob reaches none of the models as a document.
 
-Resource links are handled as pointers by both. The agent may or may not fetch them.
+Resource links are handled as pointers by all three. The agent may or may not fetch them.
+
+At the protocol level, ACP itself has no document content type; the `ContentBlock` union is exactly
+text, image, audio, resource link, and embedded resource (`@agentclientprotocol/sdk@1.3.0`,
+`dist/schema/types.gen.d.ts`), so a PDF can only ever travel as a blob resource. No spec issue or
+discussion proposes a document type (searches of `agentclientprotocol/agent-client-protocol` for
+"pdf", "blob resource", and "document" on 2026-07-31 found nothing on point). The one audio-related
+thread, [ACP discussion #1591](https://github.com/orgs/agentclientprotocol/discussions/1591), asks
+what channel clients should do with media agents cannot ingest and was open and unanswered as of
+2026-07-31. So richer-media handling is an open question at the protocol level, and no adapter has
+upstream work in flight to close these gaps.
+
+One note for [design.md](design.md): the D5 adapter-fidelity table describes two document behaviors
+(Claude drops the blob, Pi renders a byte count). The Codex adapter adds a third behavior, base64
+pasted as text. None of the three is native document perception, so the D5 conclusion that document
+delivery is blocked on adapter work stands unchanged; the table gains a column when PR #5509 lands.
 
 ### An important limit on the "write the file to disk and let the harness read it" idea
 
