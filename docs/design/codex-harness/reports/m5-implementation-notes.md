@@ -186,13 +186,29 @@ containers of this project were recreated with `run.sh --recreate` to pick them 
 api layers also gate the provider list). `docs/design/codex-harness/spike/scripts/m5-daytona-qa.py`
 drives the product path (kept for when the resolver is fixed; `SANDBOX=local` isolates).
 
-## Daytona snapshot pin (finding, follow-up out of scope)
+## Daytona snapshot pin (finding — RESOLVED 2026-07-31)
 
-The runner-image pin (D-005, item C) covers the RUNNER image only. The Daytona **snapshot** is a
-separate image built elsewhere, and it ships its own, older Codex (the gpt-5.4-era model set). So a
-managed Daytona codex run is pinned on the runner side but floats on the sandbox side. The follow-up
-is to apply the same `install-agent codex --agent-process-version 1.1.7` pin to the Daytona snapshot
-build. Filed as a note here; the snapshot recipe is not in this repo.
+The runner-image pin (D-005, item C) covered the RUNNER image only. The Daytona **snapshot**
+shipped its own, older Codex (the gpt-5.4-era model set), so a managed Daytona codex run was pinned
+on the runner side but floated on the sandbox side.
+
+**Correction to the original note: the snapshot recipe IS in this repo**, at
+`services/runner/images/sandbox/daytona/build_snapshot.py`. The claim that it lived elsewhere was
+wrong and is what deferred this fix.
+
+Resolved with the D-008 amendment work. The recipe now runs
+`sandbox-agent install-agent codex --reinstall --agent-process-version 1.1.7` (the same version the
+runner image pins), asserts the installed package version, and applies the same approval patch the
+runner image applies. Two consequences, both verified live:
+
+- `gpt-5.6-*` models work on Daytona. Before the pin, a `gpt-5.6-luna` run was rejected outright:
+  `does not support value 'gpt-5.6-luna' for category 'model'. Allowed values: gpt-5.3-codex,
+  gpt-5.4, ...`.
+- **An `ask` tool is now actually gated on Daytona.** Before the patch it was not gated at all: the
+  runner's `agenta-tools` seam gate is off for Daytona, the relay guard passes `ask` on the
+  assumption the harness gates it, and codex under `approvalPolicy: "never"` gated nothing. A live
+  run with `permission: "ask"` executed the tool with no approval card and finished normally. See
+  `reports/warm-approvals-qa.md`.
 
 ## C. Adapter pin (D-005)
 

@@ -15,7 +15,10 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { applyCodexAcpApprovalPatch } from "../src/engines/sandbox_agent/codex-acp-patch.ts";
+import {
+  applyCodexAcpApprovalPatch,
+  CODEX_ACP_BUNDLE_PATH,
+} from "../src/engines/sandbox_agent/codex-acp-patch.ts";
 
 /**
  * The sandbox-agent daemon installs each agent process under its data dir, which it resolves
@@ -29,20 +32,7 @@ function adapterBundlePaths(): string[] {
   ].filter((dir): dir is string => Boolean(dir));
   const seen = new Set<string>();
   for (const dataHome of dataHomes) {
-    seen.add(
-      join(
-        dataHome,
-        "sandbox-agent",
-        "bin",
-        "agent_processes",
-        "codex",
-        "node_modules",
-        "@agentclientprotocol",
-        "codex-acp",
-        "dist",
-        "index.js",
-      ),
-    );
+    seen.add(join(dataHome, "sandbox-agent", ...CODEX_ACP_BUNDLE_PATH.split("/")));
   }
   return [...seen].filter((path) => existsSync(path));
 }

@@ -105,6 +105,64 @@ paths were exercised live and neither prompted twice:
   park, and the tool still executed. That is the execution grant being consumed. Without it the
   seam would have returned `MCP_PAUSED` and surfaced a second card.
 
+## The Daytona half
+
+The runner-image patch alone does not reach Daytona: on a remote run the sandbox-agent daemon runs
+INSIDE the Daytona sandbox, so its codex-acp comes from the Daytona snapshot image, not the runner
+image. The snapshot recipe (`services/runner/images/sandbox/daytona/build_snapshot.py` — it IS in
+this repo, contrary to the m5 note) now pins codex-acp to the same 1.1.7 the runner image pins and
+applies the same patch, both asserted at build time. The patch anchor is single-sourced in
+`codex-acp-patch.json` so the two images cannot drift.
+
+Measured on the OLD snapshot, before the fix:
+
+- **An `ask` tool ran with NO approval at all.** A live Daytona run with `permission: "ask"` went
+  straight through: `tool-input-available` → `tool-output-available` → `finish=stop`, no approval
+  frame anywhere. This was a real permission-enforcement hole, not a warm-versus-cold difference.
+  It existed because the runner's `agenta-tools` seam gate is off for Daytona, the relay guard
+  passes `ask` on the assumption the harness gates it (`relay-guard.ts`), and codex under
+  `approvalPolicy: "never"` gated nothing.
+- `gpt-5.6-luna` was rejected outright: `does not support value 'gpt-5.6-luna' for category
+  'model'. Allowed values: gpt-5.3-codex, gpt-5.4, ...` (the pin gap, #5537).
+
+Both are closed on the rebuilt snapshot, verified live.
+
+## The matrix
+
+`spike/scripts/codex-approval-matrix-qa.py`, default `agent-full-access`, no `harnessMode`
+override, `gpt-5.6-luna`, the `list_connections` platform tool. Run cells ONE AT A TIME: back to
+back, an earlier cell's sessions sit in the keep-alive pool and can push a parked approval out of
+it, which turns a warm resume cold and reads as a failure.
+
+| cell | local | daytona |
+| --- | --- | --- |
+| allow — runs, no card | PASS | PASS |
+| deny — refused, turn continues | PASS | PASS |
+| ask — parks with one card, does not execute | PASS | PASS |
+| ask → warm resume (same tool-call id) | PASS | PASS |
+| ask → cold 1 (session evicted, runner alive) | PASS | PASS |
+| ask → cold 2 (runner replica replaced) | PASS (refuses, correctly) | PASS |
+
+Local ran 20/20 checks green as a full sweep.
+
+**Cold 2 needs its method stated, because the wrong method measures the wrong thing.**
+
+- Use SIGKILL, not `docker restart`. On SIGTERM the runner runs its shutdown handler and DELETES
+  every sandbox it owns, parked approvals included (`server.ts` → `pool.destroyAll`). That is
+  deliberate, so a `docker stop` cannot leak a running sandbox — but it destroys the session this
+  cell wants to resume, and the resume then fails on a sandbox in state `not-found`.
+- Then wait out `OWNER_TTL_SECONDS` (120s). The killed replica never released the session-owner
+  key, and `claim_owner` never steals from an owner that still looks live, so until it lapses the
+  new replica cannot take the session. Inside that window the resume fails with a misleading
+  "the in-sandbox tool MCP shim could not be delivered". Filed as a separate pre-existing bug
+  (issue #5611) with a candidate fix; it is harness-independent (reproduced with a plain `allow`
+  tool, no approval involved) and untouched by this branch.
+- On LOCAL, cold 2 correctly REFUSES: `local sandbox requires a single runner: replica X is not
+  the owner of session Y`. A local sandbox lives inside the runner process, so another replica
+  genuinely cannot adopt it. A refusal is the right outcome, not a completed resume.
+- On DAYTONA, cold 2 completes with a NEW tool-call id. That is correct: cold 2 is a cold replay,
+  so the model re-issues the call. Only the WARM cell should keep the original id.
+
 ## Note on `m3-qa.py` and the history guard
 
 `m3-qa.py` can only ever test the cold path: it rewrites the turn-1 text and appends a nudge

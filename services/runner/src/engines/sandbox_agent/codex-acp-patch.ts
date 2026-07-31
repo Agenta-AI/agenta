@@ -29,18 +29,28 @@
  * cold approvals again.
  */
 
-/** The preset's stock approval policy, and what we replace it with. */
-export const STOCK_FULL_ACCESS_APPROVAL = "never";
-export const PATCHED_FULL_ACCESS_APPROVAL = "on-request";
-
 /**
- * Anchored on the `AgentFullAccess` constructor call and on the `dangerFullAccess` sandbox
- * literal that follows the approval argument, so this can only ever rewrite the approval
- * policy of the full-access preset. The `read-only` and `agent` presets already send
- * `on-request` and are left untouched.
+ * The anchor lives in JSON, not here, because TWO images must patch identically: the runner
+ * image (through `scripts/patch-codex-acp-approvals.ts`) and the Daytona sandbox snapshot
+ * (through `images/sandbox/daytona/build_snapshot.py`, which reads the same file). If the two
+ * anchors ever drift, a Daytona run silently keeps cold approvals while a local run is warm —
+ * the exact split this amendment exists to remove.
+ *
+ * The pattern is anchored on the `AgentFullAccess` constructor call AND on the
+ * `dangerFullAccess` sandbox literal that follows the approval argument, so it can only ever
+ * rewrite the approval policy of the full-access preset. The `read-only` and `agent` presets
+ * already send `on-request` and are left untouched.
  */
-const FULL_ACCESS_APPROVAL_RE =
-  /(AgentFullAccess\s*=\s*new\s+\w+\(\s*"agent-full-access",[\s\S]{0,600}?)"(never|on-request)"(\s*,\s*\{\s*"?type"?\s*:\s*"dangerFullAccess"\s*\})/;
+import patchSpec from "./codex-acp-patch.json" with { type: "json" };
+
+/** The preset's stock approval policy, and what we replace it with. */
+export const STOCK_FULL_ACCESS_APPROVAL = patchSpec.stock;
+export const PATCHED_FULL_ACCESS_APPROVAL = patchSpec.patched;
+
+/** Where the sandbox-agent daemon installs the bundle, under its data dir. */
+export const CODEX_ACP_BUNDLE_PATH = patchSpec.bundlePath;
+
+const FULL_ACCESS_APPROVAL_RE = new RegExp(patchSpec.pattern);
 
 export type CodexAcpPatchOutcome =
   | { kind: "patched"; source: string }
