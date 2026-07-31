@@ -1,65 +1,58 @@
 ---
 title: "Agents"
 sidebar_label: "Agents (Codex)"
-description: "An agent is a configurable AI worker. Its instructions, skills, tools, files, permissions, harness, and model shape how it works."
+description: "An agent is an assistant you set up for a recurring job. Give it the context, resources, and boundaries it needs, then improve it through feedback."
 ---
 
-An agent is a configurable AI worker that you shape around a job. This page explains when to create an agent, what an agent contains, and how you can improve one over time.
+Some work starts the same way every time. You gather the same background, follow the same process, and make the same judgment calls. In Agenta, you can turn that recurring job into an agent.
 
-## When to create an agent
+An agent is an assistant you set up for a specific kind of work. It begins each new task with the context, resources, and boundaries you have chosen, so you do not need to explain the job again from the beginning.
 
-Create an agent when you want an AI system to handle a recurring kind of work with the context and behavior you define. The job can be broad, narrow, or automated:
+## A repeated job becomes an agent
 
-- A marketing agent helps plan campaigns, review copy, and answer questions about your market.
-- An SEO agent researches keywords, updates briefs, and checks whether content follows your search strategy.
-- A competition monitor checks selected sources every week and sends a report when something changes.
+Imagine that your team launches a new feature every month. Each launch needs a brief that explains the audience, the problem, the message, and the channels you will use.
 
-A general assistant starts with broad instructions and adapts to each request. A custom agent starts with your purpose, context, and working rules. You can then refine its configuration as you learn what produces the results you want.
+You could prepare every brief in a general chat and paste in the same company background each time. Or you could create a marketing launch agent that already knows how your team approaches a launch.
 
-The useful boundary is a stable job, not a single task. If the same context, capabilities, and rules apply across many requests, they belong to one agent.
+The useful boundary is the job, not a single request. One launch brief is a task. Preparing launch briefs for your team is a job that can belong to an agent.
 
-## What an agent contains
+## Meet the marketing launch agent
 
-An agent combines the context that defines its job with the runtime that performs it.
+When you ask the agent to prepare a brief for Team Workspaces, it does more than write from a blank page.
 
-| Part | What it contributes | Marketing example |
-|---|---|---|
-| **Instructions** | The agent's role, goals, standing context, and rules. | Define the company, audience, tone, and work the agent should handle. |
-| **Skills** | Guidance for tasks that need a specific process. | Load the team's campaign-brief process when the agent creates a brief. |
-| **Tools and integrations** | Actions the agent can take in Agenta or connected systems. | Read campaign data, create a task, or send an approved message. |
-| **Files** | Reference material and working documents. | Store product notes, brand guidelines, and examples of approved copy. |
-| **Permissions** | Rules for which actions run, require approval, or are refused. | Let the agent read analytics, but require approval before it publishes. |
-| **Harness and model** | The software that runs the agent and the language model it uses. | Run the same marketing configuration with the harness and model you select. |
+- Its **[instructions](/concepts/instructions)** tell it who you sell to, how you position the product, and what a useful brief should achieve.
+- A **[skill](/concepts/skills)** gives it your team's step-by-step process for preparing launch briefs.
+- Its **[files](/concepts/files-and-knowledge)** hold product notes, brand guidelines, and examples of launches your team approved.
+- Its **[tools](/concepts/tools-and-integrations)** let it check campaign data or create a task in another system.
+- Its **[permissions](/concepts/permissions)** let it research and draft on its own, while asking before it publishes anything.
 
-These parts work together. The SEO agent might use its instructions to follow your search strategy, load a content-audit skill for the procedure, read a keyword file for evidence, and call an analytics tool for current traffic. Its permissions decide whether it can update a content brief or must ask first.
+These parts give the agent a stable way of working. Your request still supplies what is new: the feature, the deadline, and anything unusual about this launch.
 
-## How to create an agent
+Behind the scenes, a harness keeps the work moving and a model decides what to say or do next. You can choose both, but you do not need to understand their mechanics to start building an agent. See [Harnesses and models](/concepts/harnesses-and-models) when you are ready to compare them.
 
-You can create an agent in two ways:
+## Create an agent through conversation or by hand
 
-- **Build it through conversation.** Describe the job in the playground. The playground build kit lets the agent update its own configuration as you clarify what you need.
-- **Configure it directly.** Edit the instructions and select the skills, tools, files, permissions, harness, and model yourself.
+You can start by describing the job in the playground. Tell the agent what you are trying to accomplish, share examples, and correct its assumptions. As the job becomes clearer, the agent can help shape its own instructions and suggest the resources it needs.
 
-Both paths create the same configuration. You can also move between them: ask the agent to make a change, then inspect or edit the result before you commit it.
+You can also configure each part directly. Write the instructions yourself, choose the skills and tools, add files, and set the permissions. Both approaches build the same agent, and you can move between them as you work.
 
-[Build your first agent](/learn/build-your-first-agent) walks through the conversation-based path.
+[Build your first agent](/learn/build-your-first-agent) walks through the conversational path.
 
-## How agents improve over time
+## Feedback improves the next launch
 
-Improve an agent by turning feedback from real work into configuration changes. Suppose the SEO agent recommends topics that your company has already covered. You can tell it where the content inventory lives and require it to check that inventory before proposing a topic. The agent can update its configuration in the playground, or you can make the change directly.
+Suppose the first brief speaks to small teams, but this product is for enterprise buyers. You explain the difference and add the target audience to the agent's instructions. If enterprise launches also need a security-review section, you add that step to the launch-brief skill.
 
-Agenta saves committed configuration changes as versions. Each version records the agent's instructions, skills, tools, permissions, harness, and model at that point. You can compare versions in the Registry when behavior changes or when you want to restore an earlier configuration.
+When you commit those changes, Agenta records a new version of the agent. The next launch starts with the improved setup. You can compare versions to understand what changed or return to an earlier one if a change does not work as expected.
 
-A session records one conversation. A version records one configuration. New sessions use the selected version, so an improvement can change how the agent handles future work without carrying an old conversation into the new session.
+A **session** keeps one conversation together. A **version** records the agent's setup at a point in time. A new session does not carry over the old conversation, but it does use the version you selected. See [Sessions and versions](/concepts/sessions-and-versions) for the full distinction.
 
-See [Sessions and versions](/concepts/sessions-and-versions) for the full distinction.
+Over time, this feedback loop turns the agent from a broad starting point into an assistant that reflects how your team actually works.
 
-## Learn about each part
+## Continue learning
 
 - [Write your agent's instructions](/guides/write-your-agents-instructions)
 - [Skills](/concepts/skills)
 - [Tools and integrations](/concepts/tools-and-integrations)
 - [Files and knowledge](/concepts/files-and-knowledge)
 - [Permissions](/concepts/permissions)
-- [Harnesses and models](/concepts/harnesses-and-models)
-
+- [Automations](/concepts/automations)
