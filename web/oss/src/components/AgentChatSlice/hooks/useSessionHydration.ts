@@ -1,4 +1,4 @@
-import {type MutableRefObject, useCallback, useEffect, useState} from "react"
+import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "react"
 
 import {shouldAdoptServerTranscript} from "@agenta/entities/session"
 import {type UIMessage} from "ai"
@@ -105,6 +105,10 @@ export const useSessionHydration = ({
             persistMessages({id: sessionId, messages: serverMsgs, recordCount})
             return true
         },
+        // `intent`'s MEMBERS, not `intent`: `useScrollIntent` returns a fresh object every render,
+        // so the object itself would recreate this callback each render and churn everything keyed
+        // on it. `armJump` (useCallback []) and `stickRef` (useRef) are stable for the life of the
+        // conversation.
         [
             sessionId,
             messagesRef,
@@ -114,9 +118,16 @@ export const useSessionHydration = ({
             recordWatermarkRef,
             setMessages,
             persistMessages,
-            intent,
+            intent.armJump,
+            intent.stickRef,
         ],
     )
+    // The remote-run poll below must NOT re-arm its timer on re-renders: the liveness query alone
+    // re-renders this hook ~every 15s while a run is live elsewhere, and restarting a fresh 15s
+    // timer on each of those starves the poll and resets its backoff. The effect reads the CURRENT
+    // adopter through this ref and keys only on the poll's real inputs.
+    const adoptServerTranscriptRef = useRef(adoptServerTranscript)
+    adoptServerTranscriptRef.current = adoptServerTranscript
 
     useEffect(() => {
         // A session created brand-new in this browser and not yet run has no backend records —
@@ -207,10 +218,11 @@ export const useSessionHydration = ({
         const poll = async () => {
             let grew = false
             try {
+                const adopt = adoptServerTranscriptRef.current
                 const transcript = await loadSessionMessages(sessionId, (fresh) => {
-                    if (!cancelled && adoptServerTranscript(fresh, {armJump: false})) grew = true
+                    if (!cancelled && adopt(fresh, {armJump: false})) grew = true
                 })
-                if (!cancelled && adoptServerTranscript(transcript, {armJump: false})) grew = true
+                if (!cancelled && adopt(transcript, {armJump: false})) grew = true
             } catch {
                 // `loadSessionMessages` already swallows + logs; keep polling regardless.
             } finally {
@@ -227,7 +239,9 @@ export const useSessionHydration = ({
             cancelled = true
             if (timer) clearTimeout(timer)
         }
-    }, [runningElsewhere, sessionId, adoptServerTranscript])
+        // Deliberately NOT keyed on `adoptServerTranscript` — the poll reads it through the ref
+        // above, so a re-render can't cancel a pending tick or reset the backoff.
+    }, [runningElsewhere, sessionId])
 
     return {isHydrating, hydratedEmpty, runningElsewhere}
 }

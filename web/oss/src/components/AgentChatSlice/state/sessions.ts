@@ -668,13 +668,13 @@ const writeMessagesWithQuotaGuard = (
     set: Setter,
     next: Record<string, UIMessage[]>,
     keepId: string,
-): string[] => {
+): {evicted: string[]; persisted: boolean} => {
     let candidate = next
     const evicted: string[] = []
     for (;;) {
         try {
             set(sessionMessagesAtom, candidate)
-            return evicted
+            return {evicted, persisted: true}
         } catch (e) {
             if (!isQuotaExceeded(e)) throw e
             // Object keys keep insertion order, so the first non-active id is the oldest.
@@ -682,7 +682,7 @@ const writeMessagesWithQuotaGuard = (
             if (oldest === undefined) {
                 // Even the active session alone won't fit — keep it in memory, skip persistence.
                 console.warn("[agent-chat] message store over quota; skipping persistence")
-                return evicted
+                return {evicted, persisted: false}
             }
             evicted.push(oldest)
             candidate = {...candidate}
@@ -729,13 +729,18 @@ export const persistSessionMessagesAtom = atom(
         set,
         {id, messages, recordCount}: {id: string; messages: UIMessage[]; recordCount?: number},
     ) => {
-        const evicted = writeMessagesWithQuotaGuard(
+        const {evicted, persisted} = writeMessagesWithQuotaGuard(
             set,
             {...get(sessionMessagesAtom), [id]: messages},
             id,
         )
         const counts = {...get(sessionRecordCountsAtom)}
-        if (recordCount === undefined) delete counts[id]
+        // If the transcript write itself was skipped (a single session over quota), the persisted
+        // store still holds the OLD messages — filing the NEW watermark against them would make
+        // `shouldAdoptServerTranscript` reject the complete server log as "not newer" on every
+        // future open, freezing the stale cache. The stores must never diverge (see
+        // `dropSessionMessages`), so drop the watermark and let the next open re-sync.
+        if (!persisted || recordCount === undefined) delete counts[id]
         else counts[id] = recordCount
         // A quota eviction dropped those transcripts, so their watermarks go too.
         for (const evictedId of evicted) delete counts[evictedId]
