@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta, timezone
+from hashlib import sha256
+from math import ceil
 from typing import List, Optional
 from uuid import UUID
 
@@ -10,7 +12,6 @@ from oss.src.core.sessions.attachments.dtos import (
     AttachmentCreate,
     AttachmentLimits,
     AttachmentReservationStatus,
-    AttachmentState,
 )
 from oss.src.core.sessions.attachments.interfaces import (
     AttachmentOriginalStore,
@@ -18,25 +19,41 @@ from oss.src.core.sessions.attachments.interfaces import (
 )
 from oss.src.core.sessions.attachments.media import classify
 from oss.src.core.sessions.attachments.types import (
-    AttachmentInvalid,
+    AttachmentConflict,
     AttachmentNotFound,
+    AttachmentQuotaExceeded,
+    AttachmentRequestInvalid,
     AttachmentStateConflict,
     AttachmentTooLarge,
     AttachmentUploadInFlight,
-    enforce_attachment_quota,
 )
+from oss.src.utils.logging import get_module_logger
+
+
+log = get_module_logger(__name__)
+_MAX_FILENAME_CHARACTERS = 200
 
 
 def sanitize_attachment_filename(filename: Optional[str]) -> str:
     if not filename:
         return "attachment"
     if any(ord(character) < 0x20 or character == "\x7f" for character in filename):
-        raise AttachmentInvalid("The attachment filename contains control characters.")
+        raise AttachmentRequestInvalid(
+            "The attachment filename contains control characters."
+        )
 
     basename = filename.replace("\\", "/").split("/")[-1]
     if basename in {"", ".", ".."}:
         return "attachment"
-    return basename
+    if len(basename) <= _MAX_FILENAME_CHARACTERS:
+        return basename
+
+    stem, separator, extension = basename.rpartition(".")
+    suffix = f"{separator}{extension}" if stem and separator else ""
+    # Keep attachment paths below the object-store key limit without losing the type suffix.
+    if suffix and len(suffix) < _MAX_FILENAME_CHARACTERS:
+        return f"{stem[: _MAX_FILENAME_CHARACTERS - len(suffix)]}{suffix}"
+    return basename[:_MAX_FILENAME_CHARACTERS]
 
 
 class SessionAttachmentsService:
@@ -69,40 +86,11 @@ class SessionAttachmentsService:
             raise AttachmentTooLarge(size=size, limit=kind_limit)
 
         safe_filename = sanitize_attachment_filename(filename)
-        existing = await self._dao.fetch_by_idempotency_key(
+        mount_id = await self._original_store.get_or_create_attachment_mount(
             project_id=project_id,
+            user_id=user_id,
             session_id=session_id,
-            idempotency_key=idempotency_key,
         )
-        if existing is not None:
-            if existing.state == AttachmentState.READY:
-                return existing
-            if not self._is_stale_pending(existing=existing):
-                raise AttachmentUploadInFlight(attachment_id=existing.id)
-            self._validate_takeover(
-                existing=existing,
-                filename=safe_filename,
-                media_type=media.media_type,
-                size=size,
-            )
-
-        if existing is None:
-            usage = await self._dao.get_quota_usage(
-                project_id=project_id,
-                session_id=session_id,
-            )
-            enforce_attachment_quota(
-                usage=usage,
-                limits=self.limits,
-                incoming_size=size,
-            )
-            mount_id = await self._original_store.get_or_create_attachment_mount(
-                project_id=project_id,
-                user_id=user_id,
-                session_id=session_id,
-            )
-        else:
-            mount_id = existing.mount_id
 
         attachment_id = uuid_utils.uuid7()
         reservation = await self._dao.reserve_pending(
@@ -118,6 +106,7 @@ class SessionAttachmentsService:
                 size=size,
                 kind=media.kind,
                 idempotency_key=idempotency_key,
+                content_digest=sha256(data).hexdigest(),
             ),
             limits=self.limits,
             stale_before=self._pending_stale_before(),
@@ -128,23 +117,44 @@ class SessionAttachmentsService:
         if reservation.status == AttachmentReservationStatus.IN_FLIGHT:
             raise AttachmentUploadInFlight(
                 attachment_id=reservation.attachment.id,
+                retry_after_seconds=self._pending_retry_after_seconds(
+                    attachment=reservation.attachment
+                ),
             )
         if reservation.status == AttachmentReservationStatus.CONFLICT:
-            raise AttachmentInvalid(
-                "The idempotency key is already associated with a different upload."
-            )
+            raise AttachmentConflict()
 
-        await self._original_store.write_attachment_original(
-            project_id=project_id,
-            mount_id=reservation.attachment.mount_id,
-            path=reservation.attachment.path,
-            data=data,
-        )
-        ready = await self._dao.mark_ready(
-            project_id=project_id,
-            attachment_id=reservation.attachment.id,
-            limits=self.limits,
-        )
+        # A takeover falls through with the existing row's id and path from the reservation.
+        try:
+            await self._original_store.write_attachment_original(
+                project_id=project_id,
+                mount_id=reservation.attachment.mount_id,
+                path=reservation.attachment.path,
+                data=data,
+            )
+        except Exception:
+            await self._delete_pending_best_effort(
+                project_id=project_id,
+                attachment_id=reservation.attachment.id,
+            )
+            raise
+
+        try:
+            ready = await self._dao.mark_ready(
+                project_id=project_id,
+                attachment_id=reservation.attachment.id,
+                limits=self.limits,
+            )
+        except AttachmentQuotaExceeded:
+            await self._delete_original_best_effort(
+                project_id=project_id,
+                attachment=reservation.attachment,
+            )
+            await self._delete_pending_best_effort(
+                project_id=project_id,
+                attachment_id=reservation.attachment.id,
+            )
+            raise
         if ready is None:
             raise AttachmentStateConflict(
                 attachment_id=reservation.attachment.id,
@@ -197,25 +207,47 @@ class SessionAttachmentsService:
             seconds=self.limits.pending_ttl_seconds
         )
 
-    def _is_stale_pending(self, *, existing: Attachment) -> bool:
-        return bool(
-            existing.created_at is not None
-            and existing.created_at < self._pending_stale_before()
-        )
+    def _pending_retry_after_seconds(self, *, attachment: Attachment) -> int:
+        now = datetime.now(timezone.utc)
+        created_at = attachment.created_at or now
+        remaining = (
+            created_at + timedelta(seconds=self.limits.pending_ttl_seconds) - now
+        ).total_seconds()
+        return max(1, ceil(remaining))
 
-    @staticmethod
-    def _validate_takeover(
+    async def _delete_pending_best_effort(
+        self,
         *,
-        existing: Attachment,
-        filename: str,
-        media_type: str,
-        size: int,
+        project_id: UUID,
+        attachment_id: UUID,
     ) -> None:
-        if (
-            existing.filename != filename
-            or existing.media_type != media_type
-            or existing.size != size
-        ):
-            raise AttachmentInvalid(
-                "The idempotency key is already associated with a different upload."
+        try:
+            await self._dao.delete_pending(
+                project_id=project_id,
+                attachment_id=attachment_id,
+            )
+        except Exception:
+            log.error(
+                "attachment_create: pending-row compensation failed for %s",
+                attachment_id,
+                exc_info=True,
+            )
+
+    async def _delete_original_best_effort(
+        self,
+        *,
+        project_id: UUID,
+        attachment: Attachment,
+    ) -> None:
+        try:
+            await self._original_store.delete_attachment_original(
+                project_id=project_id,
+                mount_id=attachment.mount_id,
+                path=attachment.path,
+            )
+        except Exception:
+            log.error(
+                "attachment_create: object compensation failed for %s",
+                attachment.id,
+                exc_info=True,
             )

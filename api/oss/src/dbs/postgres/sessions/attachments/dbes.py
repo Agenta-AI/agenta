@@ -33,7 +33,7 @@ class SessionAttachmentDBE(Base, SessionAttachmentDBA):
             name="uq_session_attachments_idempotency",
         ),
         CheckConstraint(
-            "state IN ('pending', 'ready')",
+            "state IN ('pending', 'ready', 'deleting')",
             name="ck_session_attachments_state",
         ),
         CheckConstraint(
@@ -54,7 +54,7 @@ class SessionAttachmentDBE(Base, SessionAttachmentDBA):
         Index(
             "ix_session_attachments_pending_created",
             "created_at",
-            postgresql_where=text("state = 'pending'"),
+            postgresql_where=text("state IN ('pending', 'deleting')"),
         ),
         Index(
             "ix_session_attachments_ready_unreferenced",

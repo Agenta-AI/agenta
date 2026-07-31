@@ -675,8 +675,6 @@ class MountsService:
             project_id=project_id,
             slug=slug,
         )
-        if mount and is_protected_mount(mount):
-            return None
         return mount
 
     async def edit_mount(

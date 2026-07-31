@@ -23,4 +23,5 @@ class SessionAttachmentDBA(
     kind = Column(String, nullable=False)
     state = Column(String, nullable=False)
     idempotency_key = Column(String, nullable=False)
+    content_digest = Column(String, nullable=False)
     referenced_at = Column(TIMESTAMP(timezone=True), nullable=True)

@@ -22,16 +22,17 @@ from uuid import UUID
 
 from fastapi import (
     APIRouter,
-    File,
-    Form,
     HTTPException,
     Query,
     Request,
     Response,
-    UploadFile,
     status,
 )
 from fastapi.responses import JSONResponse
+
+# FastAPI route params need fastapi.UploadFile; request.form() yields starlette's base class.
+from fastapi import UploadFile as FastAPIUploadFile
+from starlette.datastructures import UploadFile
 from typing import Any, Optional, Union
 
 from oss.src.utils.exceptions import intercept_exceptions
@@ -74,9 +75,12 @@ from oss.src.core.sessions.interactions.types import InteractionNotFound
 from oss.src.core.sessions.attachments.dtos import Attachment
 from oss.src.core.sessions.attachments.service import SessionAttachmentsService
 from oss.src.core.sessions.attachments.types import (
+    AttachmentConflict,
     AttachmentInvalid,
+    AttachmentLengthRequired,
     AttachmentNotFound,
     AttachmentQuotaExceeded,
+    AttachmentRequestInvalid,
     AttachmentStateConflict,
     AttachmentTooLarge,
     AttachmentUploadInFlight,
@@ -147,6 +151,7 @@ from oss.src.apis.fastapi.sessions.models import (
 )
 
 log = get_module_logger(__name__)
+_ATTACHMENT_MULTIPART_OVERHEAD_BYTES = 64 * 1024
 
 # matches the streams contract allowlist (dbs/redis/sessions/contract.py)
 _SESSION_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
@@ -206,9 +211,14 @@ def _handle_attachment_exceptions():
         async def wrapper(*args, **kwargs):
             try:
                 return await func(*args, **kwargs)
-            except AttachmentInvalid as e:
+            except (AttachmentInvalid, AttachmentRequestInvalid) as e:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=e.message,
+                ) from e
+            except AttachmentLengthRequired as e:
+                raise HTTPException(
+                    status_code=status.HTTP_411_LENGTH_REQUIRED,
                     detail=e.message,
                 ) from e
             except AttachmentTooLarge as e:
@@ -226,7 +236,13 @@ def _handle_attachment_exceptions():
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=e.message,
                 ) from e
-            except (AttachmentUploadInFlight, AttachmentStateConflict) as e:
+            except AttachmentUploadInFlight as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=e.message,
+                    headers={"Retry-After": str(e.retry_after_seconds)},
+                ) from e
+            except (AttachmentConflict, AttachmentStateConflict) as e:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail=e.message,
@@ -999,11 +1015,36 @@ class SessionAttachmentsRouter:
         request: Request,
         *,
         session_id: str = Query(...),
-        file: UploadFile = File(...),
-        idempotency_key: str = Form(...),
     ) -> SessionAttachmentResponse:
+        content_length = request.headers.get("content-length")
+        if content_length is None:
+            raise AttachmentLengthRequired()
+        try:
+            request_size = int(content_length)
+        except ValueError as error:
+            raise AttachmentRequestInvalid(
+                "Content-Length must be an integer."
+            ) from error
+
+        max_request_bytes = (
+            self.attachments_service.limits.max_raw_bytes
+            + _ATTACHMENT_MULTIPART_OVERHEAD_BYTES
+        )
+        if request_size < 0:
+            raise AttachmentRequestInvalid("Content-Length cannot be negative.")
+        if request_size > max_request_bytes:
+            raise AttachmentTooLarge(size=request_size, limit=max_request_bytes)
+
         _validate_session_id_http(session_id)
         await self._check(request, Permission.EDIT_SESSIONS)
+
+        form = await request.form()
+        file = form.get("file")
+        idempotency_key = form.get("idempotency_key")
+        if not isinstance(file, UploadFile):
+            raise AttachmentRequestInvalid("A file upload is required.")
+        if not isinstance(idempotency_key, str):
+            raise AttachmentRequestInvalid("An idempotency_key form field is required.")
 
         data = await self._read_bounded(file=file)
         attachment = await self.attachments_service.create_attachment(

@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import delete, func, or_, select, text, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from oss.src.core.sessions.attachments.dtos import (
@@ -32,6 +32,10 @@ from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
     get_transactions_engine,
 )
+from oss.src.utils.logging import get_module_logger
+
+
+log = get_module_logger(__name__)
 
 
 class SessionAttachmentsDAO(SessionAttachmentsDAOInterface):
@@ -173,6 +177,7 @@ class SessionAttachmentsDAO(SessionAttachmentsDAOInterface):
                 project_id=project_id,
                 session_id=session_id,
             )
+            # Quota enforcement lives here because the session advisory lock lives here.
             enforce_stored_attachment_quota(
                 usage=usage,
                 limits=limits,
@@ -183,6 +188,26 @@ class SessionAttachmentsDAO(SessionAttachmentsDAOInterface):
             await session.commit()
             await session.refresh(attachment_dbe)
         return map_attachment_dbe_to_dto(attachment_dbe=attachment_dbe)
+
+    async def delete_pending(
+        self,
+        *,
+        project_id: UUID,
+        attachment_id: UUID,
+    ) -> bool:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                delete(SessionAttachmentDBE)
+                .where(
+                    SessionAttachmentDBE.project_id == project_id,
+                    SessionAttachmentDBE.id == attachment_id,
+                    SessionAttachmentDBE.state == AttachmentState.PENDING.value,
+                )
+                .returning(SessionAttachmentDBE.id)
+            )
+            deleted_id = result.scalar_one_or_none()
+            await session.commit()
+        return deleted_id is not None
 
     async def fetch_ready(
         self,
@@ -350,15 +375,17 @@ class SessionAttachmentsDAO(SessionAttachmentsDAOInterface):
         stale_before: datetime,
     ) -> AttachmentReservation:
         attachment = map_attachment_dbe_to_dto(attachment_dbe=attachment_dbe)
-        if attachment.state == AttachmentState.READY:
-            status = AttachmentReservationStatus.READY
-        elif attachment.created_at is None or attachment.created_at >= stale_before:
-            status = AttachmentReservationStatus.IN_FLIGHT
-        elif not SessionAttachmentsDAO._same_upload(
+        if not SessionAttachmentsDAO._same_upload(
             attachment=attachment,
             attachment_create=attachment_create,
         ):
             status = AttachmentReservationStatus.CONFLICT
+        elif attachment.state == AttachmentState.READY:
+            status = AttachmentReservationStatus.READY
+        elif attachment.state == AttachmentState.DELETING:
+            status = AttachmentReservationStatus.IN_FLIGHT
+        elif attachment.created_at is None or attachment.created_at >= stale_before:
+            status = AttachmentReservationStatus.IN_FLIGHT
         else:
             refresh_pending_takeover(
                 attachment_dbe=attachment_dbe,
@@ -378,6 +405,7 @@ class SessionAttachmentsDAO(SessionAttachmentsDAOInterface):
             attachment.filename == attachment_create.filename
             and attachment.media_type == attachment_create.media_type
             and attachment.size == attachment_create.size
+            and attachment.content_digest == attachment_create.content_digest
         )
 
     async def _delete_stale(
@@ -388,9 +416,13 @@ class SessionAttachmentsDAO(SessionAttachmentsDAOInterface):
         delete_original: AttachmentOriginalDelete,
         limit: int,
     ) -> List[Attachment]:
+        now = datetime.now(timezone.utc)
         async with self.engine.session() as session:
+            states = [state.value]
+            if state == AttachmentState.PENDING:
+                states.append(AttachmentState.DELETING.value)
             conditions = [
-                SessionAttachmentDBE.state == state.value,
+                SessionAttachmentDBE.state.in_(states),
                 SessionAttachmentDBE.created_at < older_than,
             ]
             if state == AttachmentState.READY:
@@ -403,7 +435,7 @@ class SessionAttachmentsDAO(SessionAttachmentsDAOInterface):
                 .with_for_update(skip_locked=True)
             )
             attachment_dbes = list(result.scalars().all())
-            deleted: List[Attachment] = []
+            candidates: List[Attachment] = []
             for attachment_dbe in attachment_dbes:
                 if state == AttachmentState.READY:
                     await session.refresh(
@@ -412,9 +444,51 @@ class SessionAttachmentsDAO(SessionAttachmentsDAOInterface):
                     )
                     if attachment_dbe.referenced_at is not None:
                         continue
-                attachment = map_attachment_dbe_to_dto(attachment_dbe=attachment_dbe)
-                await delete_original(attachment)
-                await session.delete(attachment_dbe)
-                deleted.append(attachment)
+                candidates.append(
+                    map_attachment_dbe_to_dto(attachment_dbe=attachment_dbe)
+                )
+                # Tombstoning first makes claims fail closed; failed object deletes stay retryable.
+                attachment_dbe.state = AttachmentState.DELETING.value
+                attachment_dbe.updated_at = now
             await session.commit()
-            return deleted
+
+        cleaned: List[Attachment] = []
+        for attachment in candidates:
+            try:
+                await delete_original(attachment)
+            except Exception:
+                log.error(
+                    "attachment_sweep: object deletion failed for %s",
+                    attachment.id,
+                    exc_info=True,
+                )
+            else:
+                cleaned.append(attachment)
+
+        if not cleaned:
+            return []
+
+        coordinates = [(attachment.project_id, attachment.id) for attachment in cleaned]
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(SessionAttachmentDBE)
+                .where(
+                    tuple_(
+                        SessionAttachmentDBE.project_id,
+                        SessionAttachmentDBE.id,
+                    ).in_(coordinates),
+                    SessionAttachmentDBE.state == AttachmentState.DELETING.value,
+                )
+                .with_for_update(skip_locked=True)
+            )
+            deleted_coordinates = set()
+            for attachment_dbe in result.scalars().all():
+                deleted_coordinates.add((attachment_dbe.project_id, attachment_dbe.id))
+                await session.delete(attachment_dbe)
+            await session.commit()
+
+        return [
+            attachment
+            for attachment in cleaned
+            if (attachment.project_id, attachment.id) in deleted_coordinates
+        ]

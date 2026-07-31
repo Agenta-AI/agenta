@@ -144,17 +144,16 @@ class FakeMarkReadySession:
     def __init__(self, *, engine, target):
         self._engine = engine
         self._target = target
-        self._step = 0
 
     async def execute(self, _statement, _parameters=None):
-        self._step += 1
-        if self._step == 1:
-            return FakeMarkReadyResult(self._target.session_id)
-        if self._step == 2:
+        statement = str(_statement)
+        if "pg_advisory_xact_lock" in statement:
             return FakeMarkReadyResult(None)
-        if self._step == 3:
+        if "session_attachments.filename" in statement and "FOR UPDATE" in statement:
             return FakeMarkReadyResult(self._target)
-        if self._step == 4:
+        if statement.lstrip().startswith("SELECT session_attachments.session_id"):
+            return FakeMarkReadyResult(self._target.session_id)
+        if "sum(session_attachments.size)" in statement:
             ready = [
                 attachment
                 for attachment in self._engine.attachments
@@ -163,11 +162,13 @@ class FakeMarkReadySession:
             return FakeMarkReadyResult(
                 (len(ready), sum(attachment.size for attachment in ready))
             )
-        pending_count = sum(
-            attachment.state == AttachmentState.PENDING.value
-            for attachment in self._engine.attachments
-        )
-        return FakeMarkReadyResult(pending_count)
+        if "count(session_attachments.id)" in statement:
+            pending_count = sum(
+                attachment.state == AttachmentState.PENDING.value
+                for attachment in self._engine.attachments
+            )
+            return FakeMarkReadyResult(pending_count)
+        raise AssertionError(f"Unexpected statement: {statement}")
 
     async def commit(self):
         return None
@@ -200,6 +201,7 @@ def _attachment(*, project_id, session_id, state, size):
         kind="other",
         state=state.value,
         idempotency_key=str(attachment_id),
+        content_digest=attachment_id.hex,
     )
 
 

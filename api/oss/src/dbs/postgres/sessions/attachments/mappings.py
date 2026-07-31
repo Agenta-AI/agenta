@@ -29,6 +29,7 @@ def map_attachment_create_to_dbe(
         kind=attachment_create.kind.value,
         state=AttachmentState.PENDING.value,
         idempotency_key=attachment_create.idempotency_key,
+        content_digest=attachment_create.content_digest,
     )
 
 
@@ -54,6 +55,7 @@ def map_attachment_dbe_to_dto(
         kind=AttachmentKind(attachment_dbe.kind),
         state=AttachmentState(attachment_dbe.state),
         idempotency_key=attachment_dbe.idempotency_key,
+        content_digest=attachment_dbe.content_digest,
         referenced_at=attachment_dbe.referenced_at,
     )
 

@@ -269,6 +269,13 @@ class MountsDAO(MountsDAOInterface):
             stmt = select(MountDBE).where(
                 MountDBE.project_id == project_id,
             )
+            stmt = stmt.where(
+                MountDBE.purpose.is_distinct_from("session_attachment_originals"),
+                MountDBE.slug.not_like(
+                    r"\_\_ag\_\_session\_\_%\_\_attachments",
+                    escape="\\",
+                ),
+            )
 
             if mount_query:
                 if not mount_query.include_archived:

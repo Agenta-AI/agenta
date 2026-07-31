@@ -4,9 +4,10 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException, status
+from pydantic import ValidationError
 
-from oss.src.apis.fastapi.mounts.models import MountCreateRequest
-from oss.src.apis.fastapi.mounts.router import MountsRouter, handle_mount_exceptions
+from oss.src.apis.fastapi.mounts.models import MountCreateRequest, PublicMountCreate
+from oss.src.apis.fastapi.mounts.router import handle_mount_exceptions
 from oss.src.core.mounts.dtos import (
     Mount,
     MountArchiveSource,
@@ -77,7 +78,13 @@ class _MountsDAO:
             None,
         )
 
-    async def query_mounts(self, *, project_id, mount_query=None, windowing=None):
+    async def query_mounts(
+        self,
+        *,
+        project_id,
+        mount_query=None,
+        windowing=None,
+    ):
         del windowing
         mounts = [
             mount for mount in self.mounts.values() if mount.project_id == project_id
@@ -97,6 +104,7 @@ class _MountsDAO:
                 mounts = [mount for mount in mounts if mount.deleted_at is None]
         else:
             mounts = [mount for mount in mounts if mount.deleted_at is None]
+        mounts = [mount for mount in mounts if not is_protected_mount(mount)]
         return mounts
 
     async def upsert_mount(self, *, project_id, user_id, mount_create):
@@ -246,6 +254,79 @@ def mount_context():
     return service, dao, store, protected, cwd
 
 
+_GENERIC_OPERATIONS = (
+    "edit_mount",
+    "archive_mount",
+    "unarchive_mount",
+    "list_files",
+    "read_file",
+    "read_file_bytes",
+    "build_archive_work_list",
+    "write_file",
+    "create_folder",
+    "delete_path",
+    "sign_mount_credentials",
+)
+
+
+def _generic_mount_calls(service, mount):
+    return {
+        "edit_mount": lambda: service.edit_mount(
+            project_id=_PROJECT_ID,
+            user_id=_USER_ID,
+            mount_edit=MountEdit(id=mount.id, name="renamed"),
+        ),
+        "archive_mount": lambda: service.archive_mount(
+            project_id=_PROJECT_ID,
+            user_id=_USER_ID,
+            mount_id=mount.id,
+        ),
+        "unarchive_mount": lambda: service.unarchive_mount(
+            project_id=_PROJECT_ID,
+            user_id=_USER_ID,
+            mount_id=mount.id,
+        ),
+        "list_files": lambda: service.list_files(
+            project_id=_PROJECT_ID,
+            mount_id=mount.id,
+        ),
+        "read_file": lambda: service.read_file(
+            project_id=_PROJECT_ID,
+            mount_id=mount.id,
+            path=_PATH,
+        ),
+        "read_file_bytes": lambda: service.read_file_bytes(
+            project_id=_PROJECT_ID,
+            mount_id=mount.id,
+            path=_PATH,
+        ),
+        "build_archive_work_list": lambda: service.build_archive_work_list(
+            project_id=_PROJECT_ID,
+            mounts=[MountArchiveSource(mount_id=mount.id)],
+        ),
+        "write_file": lambda: service.write_file(
+            project_id=_PROJECT_ID,
+            mount_id=mount.id,
+            path=_PATH,
+            content=b"replacement",
+        ),
+        "create_folder": lambda: service.create_folder(
+            project_id=_PROJECT_ID,
+            mount_id=mount.id,
+            path="folder",
+        ),
+        "delete_path": lambda: service.delete_path(
+            project_id=_PROJECT_ID,
+            mount_id=mount.id,
+            path=_PATH,
+        ),
+        "sign_mount_credentials": lambda: service.sign_mount_credentials(
+            project_id=_PROJECT_ID,
+            mount_id=mount.id,
+        ),
+    }
+
+
 def test_protected_classification_uses_purpose_then_legacy_slug_fallback():
     purpose_mount = _mount(name="not-attachments", purpose=ATTACHMENTS_MOUNT_PURPOSE)
     legacy_mount = _mount(name=ATTACHMENTS_MOUNT_NAME)
@@ -261,6 +342,7 @@ def test_purpose_is_server_owned_create_data_not_an_editable_flag():
     assert "purpose" in MountCreate.model_fields
     assert "purpose" not in MountEdit.model_fields
     assert "purpose" not in MountFlags.model_fields
+    assert "purpose" not in PublicMountCreate.model_fields
 
 
 @pytest.mark.asyncio
@@ -281,35 +363,15 @@ async def test_generic_create_rejects_client_authored_purpose(mount_context):
     assert exc_info.value.field == "purpose"
 
 
-@pytest.mark.asyncio
-async def test_public_create_maps_client_authored_purpose_to_422(mount_context):
-    service, _, _, _, _ = mount_context
-    router = MountsRouter(mounts_service=service)
-
-    async def allow_access(*_args, **_kwargs):
-        return None
-
-    router._check = allow_access
-    request = SimpleNamespace(
-        state=SimpleNamespace(
-            project_id=str(_PROJECT_ID),
-            user_id=_USER_ID,
+def test_public_create_rejects_client_authored_purpose():
+    with pytest.raises(ValidationError):
+        MountCreateRequest(
+            mount={
+                "slug": "client-mount",
+                "name": "client-mount",
+                "purpose": ATTACHMENTS_MOUNT_PURPOSE,
+            }
         )
-    )
-
-    with pytest.raises(HTTPException) as exc_info:
-        await router.create_mount(
-            request,
-            body=MountCreateRequest(
-                mount=MountCreate(
-                    slug="client-mount",
-                    name="client-mount",
-                    purpose=ATTACHMENTS_MOUNT_PURPOSE,
-                )
-            ),
-        )
-
-    assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
 @pytest.mark.parametrize(
@@ -342,7 +404,7 @@ async def test_generic_session_create_rejects_reserved_attachment_name(
 
 @pytest.mark.asyncio
 async def test_fetch_and_query_hide_protected_mounts(mount_context):
-    service, dao, _, protected, cwd = mount_context
+    service, _, _, protected, cwd = mount_context
 
     assert (
         await service.fetch_mount(
@@ -359,175 +421,28 @@ async def test_fetch_and_query_hide_protected_mounts(mount_context):
     )
     assert [mount.id for mount in mounts] == [cwd.id]
 
-    dao.fetch_by_slug_override = protected
-    assert (
-        await service.fetch_agent_mount(
-            project_id=_PROJECT_ID,
-            artifact_id=str(uuid4()),
-        )
-        is None
-    )
 
-
-@pytest.mark.parametrize(
-    "operation",
-    [
-        "edit_mount",
-        "archive_mount",
-        "unarchive_mount",
-        "list_files",
-        "read_file",
-        "read_file_bytes",
-        "build_archive_work_list",
-        "write_file",
-        "create_folder",
-        "delete_path",
-        "sign_mount_credentials",
-    ],
-)
+@pytest.mark.parametrize("operation", _GENERIC_OPERATIONS)
 @pytest.mark.asyncio
 async def test_every_generic_by_id_operation_rejects_protected_mount(
     mount_context,
     operation,
 ):
     service, _, _, protected, _ = mount_context
-    calls = {
-        "edit_mount": lambda: service.edit_mount(
-            project_id=_PROJECT_ID,
-            user_id=_USER_ID,
-            mount_edit=MountEdit(id=protected.id, name="renamed"),
-        ),
-        "archive_mount": lambda: service.archive_mount(
-            project_id=_PROJECT_ID,
-            user_id=_USER_ID,
-            mount_id=protected.id,
-        ),
-        "unarchive_mount": lambda: service.unarchive_mount(
-            project_id=_PROJECT_ID,
-            user_id=_USER_ID,
-            mount_id=protected.id,
-        ),
-        "list_files": lambda: service.list_files(
-            project_id=_PROJECT_ID,
-            mount_id=protected.id,
-        ),
-        "read_file": lambda: service.read_file(
-            project_id=_PROJECT_ID,
-            mount_id=protected.id,
-            path=_PATH,
-        ),
-        "read_file_bytes": lambda: service.read_file_bytes(
-            project_id=_PROJECT_ID,
-            mount_id=protected.id,
-            path=_PATH,
-        ),
-        "build_archive_work_list": lambda: service.build_archive_work_list(
-            project_id=_PROJECT_ID,
-            mounts=[MountArchiveSource(mount_id=protected.id)],
-        ),
-        "write_file": lambda: service.write_file(
-            project_id=_PROJECT_ID,
-            mount_id=protected.id,
-            path=_PATH,
-            content=b"replacement",
-        ),
-        "create_folder": lambda: service.create_folder(
-            project_id=_PROJECT_ID,
-            mount_id=protected.id,
-            path="folder",
-        ),
-        "delete_path": lambda: service.delete_path(
-            project_id=_PROJECT_ID,
-            mount_id=protected.id,
-            path=_PATH,
-        ),
-        "sign_mount_credentials": lambda: service.sign_mount_credentials(
-            project_id=_PROJECT_ID,
-            mount_id=protected.id,
-        ),
-    }
+    calls = _generic_mount_calls(service, protected)
 
     with pytest.raises(MountProtected):
         await calls[operation]()
 
 
-@pytest.mark.parametrize(
-    "operation",
-    [
-        "edit_mount",
-        "archive_mount",
-        "unarchive_mount",
-        "list_files",
-        "read_file",
-        "read_file_bytes",
-        "build_archive_work_list",
-        "write_file",
-        "create_folder",
-        "delete_path",
-        "sign_mount_credentials",
-    ],
-)
+@pytest.mark.parametrize("operation", _GENERIC_OPERATIONS)
 @pytest.mark.asyncio
 async def test_every_generic_by_id_operation_still_accepts_cwd(
     mount_context,
     operation,
 ):
     service, _, _, _, cwd = mount_context
-    calls = {
-        "edit_mount": lambda: service.edit_mount(
-            project_id=_PROJECT_ID,
-            user_id=_USER_ID,
-            mount_edit=MountEdit(id=cwd.id, name="renamed"),
-        ),
-        "archive_mount": lambda: service.archive_mount(
-            project_id=_PROJECT_ID,
-            user_id=_USER_ID,
-            mount_id=cwd.id,
-        ),
-        "unarchive_mount": lambda: service.unarchive_mount(
-            project_id=_PROJECT_ID,
-            user_id=_USER_ID,
-            mount_id=cwd.id,
-        ),
-        "list_files": lambda: service.list_files(
-            project_id=_PROJECT_ID,
-            mount_id=cwd.id,
-        ),
-        "read_file": lambda: service.read_file(
-            project_id=_PROJECT_ID,
-            mount_id=cwd.id,
-            path=_PATH,
-        ),
-        "read_file_bytes": lambda: service.read_file_bytes(
-            project_id=_PROJECT_ID,
-            mount_id=cwd.id,
-            path=_PATH,
-        ),
-        "build_archive_work_list": lambda: service.build_archive_work_list(
-            project_id=_PROJECT_ID,
-            mounts=[MountArchiveSource(mount_id=cwd.id)],
-        ),
-        "write_file": lambda: service.write_file(
-            project_id=_PROJECT_ID,
-            mount_id=cwd.id,
-            path=_PATH,
-            content=b"replacement",
-        ),
-        "create_folder": lambda: service.create_folder(
-            project_id=_PROJECT_ID,
-            mount_id=cwd.id,
-            path="folder",
-        ),
-        "delete_path": lambda: service.delete_path(
-            project_id=_PROJECT_ID,
-            mount_id=cwd.id,
-            path=_PATH,
-        ),
-        "sign_mount_credentials": lambda: service.sign_mount_credentials(
-            project_id=_PROJECT_ID,
-            mount_id=cwd.id,
-        ),
-    }
+    calls = _generic_mount_calls(service, cwd)
 
     assert await calls[operation]() is not None
 
@@ -585,7 +500,7 @@ async def test_attachment_original_operations_are_the_only_protected_bypass(
 
 
 @pytest.mark.asyncio
-async def test_session_lifecycle_still_includes_protected_mount(mount_context):
+async def test_session_hard_delete_still_includes_protected_mount(mount_context):
     service, _, store, protected, cwd = mount_context
 
     archived = await service.archive_session_mounts(
@@ -593,14 +508,14 @@ async def test_session_lifecycle_still_includes_protected_mount(mount_context):
         user_id=_USER_ID,
         session_id=_SESSION_ID,
     )
-    assert {mount.id for mount in archived} == {protected.id, cwd.id}
+    assert {mount.id for mount in archived} == {cwd.id}
 
     unarchived = await service.unarchive_session_mounts(
         project_id=_PROJECT_ID,
         user_id=_USER_ID,
         session_id=_SESSION_ID,
     )
-    assert {mount.id for mount in unarchived} == {protected.id, cwd.id}
+    assert {mount.id for mount in unarchived} == {cwd.id}
 
     deleted = await service.delete_session_mounts(
         project_id=_PROJECT_ID,

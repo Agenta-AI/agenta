@@ -52,4 +52,102 @@ and the ruling. The headline items:
 
 ## WP1: the API attachment resource
 
-(Implementation notes are appended here as the package lands.)
+The package was implemented against the plan, then adversarially reviewed, and the review's
+findings were adjudicated and fixed before the PR opened. The trail:
+
+### Implementation decisions worth knowing (beyond the plan)
+
+- **Quota enforcement lives in the DAO, under the advisory lock.** The pending-to-ready
+  transition takes a per-project-and-session Postgres advisory lock and re-checks the stored
+  quota inside that transaction, so concurrent uploads cannot exceed the quota. This is an
+  accepted layering deviation (policy normally lives in the service): the enforcement sits where
+  the lock lives, and the once-duplicated service-side pre-check was deleted so there is exactly
+  one authority.
+- **A quota rejection at the ready transition returns 429 and compensates immediately** (the
+  object and the pending row are best-effort deleted), so the idempotency key frees right away
+  instead of being wedged for the pending time-to-live. The same compensation applies when the
+  object write fails. Only a process crash leaves a wedged key, and the reaper clears that.
+- **Stale-pending takeover reuses the original attachment id and path.** A retry that takes over
+  a stale pending row overwrites the same object key, which is safe because takeover requires the
+  same filename, verified media type, size, and content digest (the digest was added during the
+  fix pass so equal-shaped but different bytes conflict instead of silently overwriting). Two
+  concurrent takeovers serialize on the advisory lock plus the row lock; the loser sees a fresh
+  row and gets 409.
+- **The media classifier adds container canonicalization on top of puremagic** (Ogg/WebM codec
+  markers in the first 1 MB, M4A brand parsing) because puremagic alone reports these too
+  generically to apply the audio-versus-other cap distinction, and voice recordings arrive in
+  exactly these containers. It is heuristic at the margins and deliberately so.
+- **`purpose` is enforced server-side on mount creation** and the public create model does not
+  expose it, so the generated client never offers a permanently-rejected field.
+- **The sweep tombstones rows before touching objects.** Phase one flips eligible rows to a
+  `deleting` state under the row lock and commits; claims and downloads resolve only `ready`
+  rows, so a claim arriving mid-sweep fails closed and can never reference a deleted object.
+  Phase two deletes objects outside any transaction; phase three removes the rows whose objects
+  are gone. A failed object delete leaves a retryable tombstone the next pass picks up, so a
+  storage outage delays cleanup instead of orphaning objects. (This improved on the orchestrator's
+  own ruling, which would have traded the retry away; the deviation was argued and accepted.)
+
+### The review, and what it changed
+
+An adversarial review (independent model, maximum effort) confirmed the protected-mount policy
+is closed over every generic route, the advisory-lock scoping, the takeover serialization, the
+sweep lease, header-injection safety, and the absence of storage-coordinate leaks. It found
+three release blockers, all fixed:
+
+1. **The "bounded read" bounded Python memory, not the request.** Declaring the multipart file
+   as a FastAPI parameter makes the framework spool the entire body to disk before the handler
+   runs, and EE deployments have no gateway cap in front of the API. The route now verifies
+   `Content-Length` before parsing the form (absent: 411; over the cap plus multipart overhead:
+   413), with the chunked read kept as the second line of defense.
+2. **The sweep awaited object-store deletes inside a transaction holding row locks**, so a claim
+   or upload could block behind a hundred sequential storage round trips. The sweep now runs in
+   phases: take the rows in a short transaction, then delete objects outside any transaction.
+3. **A failed create wedged its idempotency key for the full pending time-to-live** (the retry
+   with the same key, the whole point of the key, got 409 for fifteen minutes). Fixed by the
+   immediate compensation described above, plus a `Retry-After` header on the in-flight 409.
+
+Smaller fixes from the same pass: a dedicated `AttachmentConflict` (409) for key-reuse with
+different bytes instead of overloading the invalid-file exception; the protected-mount filter
+moved into the database query predicate so listing pages are not silently shortened; a filename
+length bound (object-store keys have a 1024-byte limit); the sweep's lease derived from its
+configured interval and store errors leaving the row for a retry instead of orphaning objects;
+a size bound on the claim route's id list; and test reworks so the concurrency invariants are
+exercised against real database SQL rather than fakes that reimplement the logic under test.
+
+### Deployment QA (dev stack, 2026-07-31)
+
+The API was rebuilt on the shared dev stack (the new puremagic dependency requires an image
+rebuild) and the migration applied cleanly on the real database (`oss000000019` to
+`oss000000020`: the `mounts.purpose` column, the `session_attachments` table, both partial
+indexes, the idempotency unique constraint, and the cascade to mounts).
+
+QA caught one boot blocker the code review missed: importing starlette's `UploadFile` for the
+new create route's `isinstance` check also re-typed the pre-existing mount upload route's
+parameter, and FastAPI rejects starlette's class as a route annotation, so the whole sessions
+router failed to import and every API request returned 502. The fix keeps starlette's class for
+the form-part check and aliases FastAPI's for the route annotation. The lesson is recorded here
+because it is the class of failure only a real boot catches: both test suites passed while the
+app could not start.
+
+With the fix deployed, everything ran against the live stack: the full curl-level wire matrix
+(upload shape with no storage coordinates; idempotent replay returns the same id; same key with
+different bytes 409s; download is byte-identical with the verified content type, `nosniff`, and
+no side effects; the claim sets `referenced_at` and 404s for a foreign session; a missing
+Content-Length gets 411, an 11 MB image 413; the attachments mount is indistinguishable from a
+missing mount on every generic route and absent from listings), all nine acceptance tests
+(9 passed, zero skips, with storage verification forced on), and both real-database concurrency
+tests (the sweep-versus-claim race and the locked quota recheck). The 15 MB audio upload through
+the `with-nginx` profile remains to be checked on an OSS gh stack, since the EE dev stack runs
+no nginx.
+
+### Forced routes to double-check
+
+- **Content-Length as the request bound.** Clients that send chunked uploads without a
+  Content-Length get 411. Every client we ship (browser FormData, the SDK) sends it, but a
+  hand-rolled chunked client would need to add it. The alternative, a streaming multipart
+  parser, was judged not worth the machinery for a capped-at-15 MB route.
+- **The `deleting` tombstone state.** It adds a third state to what was designed as a two-state
+  machine (pending, ready). The alternative orderings both had a flaw: objects-first can delete
+  a just-claimed attachment's bytes (data loss), and rows-first cannot retry a failed object
+  delete (permanent orphans). The tombstone fixes both at the cost of one more state to reason
+  about; it never appears on the wire.

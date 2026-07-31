@@ -17,6 +17,27 @@ class AttachmentInvalid(AttachmentError):
         super().__init__(message)
 
 
+class AttachmentRequestInvalid(AttachmentError):
+    def __init__(self, message: str):
+        self.message = message
+        super().__init__(message)
+
+
+class AttachmentConflict(AttachmentError):
+    def __init__(
+        self,
+        message: str = "The idempotency key is already associated with a different upload.",
+    ):
+        self.message = message
+        super().__init__(message)
+
+
+class AttachmentLengthRequired(AttachmentError):
+    def __init__(self):
+        self.message = "Content-Length is required for attachment uploads."
+        super().__init__(self.message)
+
+
 class AttachmentTooLarge(AttachmentError):
     def __init__(self, *, size: int, limit: int):
         self.size = size
@@ -39,8 +60,9 @@ class AttachmentQuotaExceeded(AttachmentError):
 
 
 class AttachmentUploadInFlight(AttachmentError):
-    def __init__(self, *, attachment_id: UUID):
+    def __init__(self, *, attachment_id: UUID, retry_after_seconds: int):
         self.attachment_id = attachment_id
+        self.retry_after_seconds = retry_after_seconds
         self.message = "An upload with this idempotency key is already in progress."
         super().__init__(self.message)
 

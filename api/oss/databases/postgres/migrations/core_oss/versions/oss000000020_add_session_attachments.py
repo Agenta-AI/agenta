@@ -36,6 +36,7 @@ def upgrade() -> None:
         sa.Column("kind", sa.String(), nullable=False),
         sa.Column("state", sa.String(), nullable=False),
         sa.Column("idempotency_key", sa.String(), nullable=False),
+        sa.Column("content_digest", sa.String(), nullable=False),
         sa.Column("referenced_at", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.Column(
             "created_at",
@@ -49,7 +50,7 @@ def upgrade() -> None:
         sa.Column("updated_by_id", sa.UUID(as_uuid=True), nullable=True),
         sa.Column("deleted_by_id", sa.UUID(as_uuid=True), nullable=True),
         sa.CheckConstraint(
-            "state IN ('pending', 'ready')",
+            "state IN ('pending', 'ready', 'deleting')",
             name="ck_session_attachments_state",
         ),
         sa.CheckConstraint(
@@ -88,7 +89,7 @@ def upgrade() -> None:
         "ix_session_attachments_pending_created",
         "session_attachments",
         ["created_at"],
-        postgresql_where=sa.text("state = 'pending'"),
+        postgresql_where=sa.text("state IN ('pending', 'deleting')"),
     )
     op.create_index(
         "ix_session_attachments_ready_unreferenced",

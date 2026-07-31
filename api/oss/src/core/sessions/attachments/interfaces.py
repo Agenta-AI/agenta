@@ -89,6 +89,14 @@ class SessionAttachmentsDAOInterface(ABC):
     ) -> Optional[Attachment]: ...
 
     @abstractmethod
+    async def delete_pending(
+        self,
+        *,
+        project_id: UUID,
+        attachment_id: UUID,
+    ) -> bool: ...
+
+    @abstractmethod
     async def fetch_ready(
         self,
         *,

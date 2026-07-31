@@ -197,7 +197,7 @@ class SessionAttachmentResponse(BaseModel):
 
 class SessionAttachmentReferenceRequest(BaseModel):
     session_id: str
-    attachment_ids: List[UUID]
+    attachment_ids: List[UUID] = Field(max_length=50)
 
 
 class SessionAttachmentsResponse(BaseModel):

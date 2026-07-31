@@ -11,6 +11,7 @@ from oss.src.core.shared.dtos import Identifier, Lifecycle
 class AttachmentState(str, Enum):
     PENDING = "pending"
     READY = "ready"
+    DELETING = "deleting"
 
 
 class AttachmentKind(str, Enum):
@@ -37,6 +38,7 @@ class Attachment(Identifier, Lifecycle):
     kind: AttachmentKind
     state: AttachmentState
     idempotency_key: str
+    content_digest: str
     referenced_at: Optional[datetime] = None
 
 
@@ -50,6 +52,7 @@ class AttachmentCreate(BaseModel):
     size: int
     kind: AttachmentKind
     idempotency_key: str
+    content_digest: str
 
 
 class AttachmentContent(BaseModel):
