@@ -15,9 +15,12 @@ Claude where Codex can express the feature:
 - **Tools**: Agenta tools deliver over the internal MCP channel and execute with
   full tracing and correct cost reporting.
 - **Approvals**: allow runs without pausing, ask pauses with a real approval card
-  and resumes with context intact (verified warm and cold), deny refuses cleanly.
-  An authored option opts into Codex's own gated mode, classified into the same
-  parked-approval machinery as Claude.
+  and resumes WARM — in place, on the live session, keeping the parked tool-call id
+  — and deny refuses cleanly. This is the D-008 amendment (2026-07-31): both images
+  patch codex-acp's full-access preset to `on-request`, so Codex raises native
+  gates that ride the same parked-approval machinery as Claude. Cold replay remains
+  the fallback (verified), and the full {local, daytona} × {allow, deny, warm,
+  cold1, cold2} matrix is green (`reports/warm-approvals-qa.md`).
 - **Subscription**: the operator mounts their Codex login; only the credential file
   is visible to sessions (a verified leak of personal config into product runs was
   found and closed); token refresh flows to the real login, which QA proved

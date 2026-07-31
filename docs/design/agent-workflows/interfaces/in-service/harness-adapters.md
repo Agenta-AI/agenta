@@ -30,9 +30,14 @@ Each adapter implements `_to_harness_config(...)` and emits a different `/run` w
   persona into `append_system`.
 - **`CodexHarness`** drives the `codex` ACP agent. It delivers custom tools over the internal
   `agenta-tools` MCP channel (like Claude) and renders `.codex/config.toml` (`codex_settings.py`).
-  Codex's default runtime mode is `agent-full-access`, so tool approvals are enforced runner-side at
-  the `agenta-tools` pause seam rather than by a codex-native ACP gate (decision D-008); authors can
-  override the mode with the typed `harnessMode` wire field. **Managed auth is file-free** (D-002
+  Codex's default runtime mode is `agent-full-access`; the runner image and the Daytona snapshot
+  patch codex-acp's full-access preset from `approvalPolicy: "never"` to `on-request` (D-008
+  amendment, 2026-07-31), so Agenta-tool calls raise codex-native ACP permission gates that park
+  WARM on the keep-alive path, exactly like Claude's. Shell stays gate-free under full access
+  (codex only asks for exec approval when the filesystem sandbox is restricted). The runner-side
+  gate at the `agenta-tools` pause seam remains as second-line enforcement: an allowed gate records
+  an execution grant the seam consumes, so one approval prompts once and an ungranted call fails
+  closed. Authors can override the mode with the typed `harnessMode` wire field. **Managed auth is file-free** (D-002
   final ruling): the adapter renders a custom `model_providers` block with `env_key =
   "OPENAI_API_KEY"` into `config.toml`, and codex reads the key from the daemon env (delivered via
   `secrets`) at request time; no credential file is written. Local subscription instead symlinks

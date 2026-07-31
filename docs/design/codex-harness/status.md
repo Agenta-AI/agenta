@@ -1,6 +1,35 @@
 # Status
 
-Last updated: 2026-07-25 (PR OPEN — single PR per D-009; awaiting Mahmoud review)
+Last updated: 2026-07-31 (PR OPEN, retargeted to `main`; warm approvals landed per the D-008
+amendment; awaiting Mahmoud review)
+
+## 2026-07-31 — Warm approvals (D-008 amendment) + Daytona snapshot fix
+
+Mahmoud rejected the cold-approval posture on the PR review thread and approved patching the
+codex-acp bridge (option c). All landed on this branch and QA'd live:
+
+- **Bridge patch, both images.** The runner image (`scripts/patch-codex-acp-approvals.ts`) and the
+  Daytona snapshot (`images/sandbox/daytona/build_snapshot.py`) rewrite the `agent-full-access`
+  preset from `approvalPolicy: "never"` to `on-request`, sandbox policy untouched. Anchor
+  single-sourced in `codex-acp-patch.json`; both builds fail loudly on drift and are idempotent.
+- **Grant handshake.** A Claude/Codex ACP gate that allows a runner-executed tool records an
+  execution grant; the `agenta-tools` MCP seam consumes it, so one approval prompts once and an
+  ungranted call still fails closed (`onExecutableGateAllowed` → `buildExecutableToolGate`).
+- **Daytona was ungated, now fixed.** Before the snapshot fix, an `ask` tool on Daytona executed
+  with NO approval (seam gate off remotely + relay guard passes `ask` + codex gated nothing). The
+  rebuilt snapshot also pins codex-acp 1.1.7, closing the model-set gap (#5537).
+- **QA matrix green** (`spike/scripts/codex-approval-matrix-qa.py`, evidence in
+  `reports/warm-approvals-qa.md`): {local, daytona} × {allow, deny, ask-warm, ask-cold1,
+  ask-cold2}. Local 20/20; warm resume keeps the parked tool-call id. Local cold2 correctly
+  refuses via the single-owner guard; Daytona cold2 completes after the 120s owner TTL.
+- **Found + filed, not fixed here:** a crashed replica makes a Daytona session unresumable for
+  ~120s with a misleading shim error (pre-existing, harness-independent) — GH **#5611** with a
+  candidate fix.
+- **Merged with `origin/main`**, PR base retargeted `release/v0.106.1` → `main`. Suites: runner
+  1359 (87 files), SDK agents 698, typecheck + ruff clean.
+- **Deploy note:** the rebuilt snapshot (`agenta-agent-sandbox-v1`) exists only in the dev-box
+  Daytona account. Cloud/self-host accounts must rerun the recipe to get warm approvals and the
+  5.6 model set on Daytona. An upstream codex-acp PR (to retire the patch) is NOT yet filed.
 
 ## Project state: SHIPPED AS ONE PR, awaiting Mahmoud review
 
@@ -38,8 +67,10 @@ All five milestones are code-complete and green on `worktree-codex-harness`. The
   chat (durable home, file-free, gpt-5.4); (d) subscription chat+tool green, symlink intact, host
   hash unchanged, no provider block. QA sandboxes deleted. (The earlier in-VM `CODEX_HOME` M5
   amendment was rejected + superseded.) Daytona snapshot still ships an older codex than the runner
-  pin (model-set mismatch) — follow-up: pin the snapshot recipe too. The product-path explicit-slug
-  managed-connection-resolver failure (harness-independent) is filed as GH #5499.
+  pin (model-set mismatch) — follow-up: pin the snapshot recipe too. (RESOLVED 2026-07-31: the
+  recipe now pins codex-acp 1.1.7 + applies the approval patch; see the top entry.) The
+  product-path explicit-slug managed-connection-resolver failure (harness-independent) is filed as
+  GH #5499.
 - **B. Release-gate cell X1 GREEN** (codex/local/managed). chat/tool/commit/warm PASS;
   mcp/approve/deny/mount SKIP with codex reasons (D-008 + probe-shape). Added to the tracked
   `agent-release-gate` skill (`qa_product.py`, `coverage.md`).

@@ -553,19 +553,22 @@ def j3_tool(cell: dict) -> dict:
 def _approval_flow(cell: dict, approved: bool) -> dict:
     """J4: with permission default `ask`, a tool call must PAUSE with a tool-approval-request,
     then resume on the user's decision — the same in-band protocol the browser uses."""
-    # Codex gates differently by design (decision D-008). Its default mode is `agent-full-access`,
-    # under which raw shell commands (this journey's `bash` builtin probe) run with NO approval; the
-    # container is the boundary there. Codex tool-level approvals are enforced runner-side at the
-    # `agenta-tools` pause seam via the cold-replay park (a client-tool-shaped park + re-invoke), not
-    # a codex-native `tool-approval-request` frame. That path is verified in the codex-harness M3 QA
-    # (recorded MP4 + wire evidence), a different shape than this shell-gate journey.
+    # Codex shell stays gateless under the default `agent-full-access` mode: codex only raises
+    # exec approval when its filesystem sandbox is restricted, and full access is not, so this
+    # journey's builtin `bash` probe cannot park a codex run (the container is the boundary
+    # there). Codex MCP/Agenta TOOL approvals, by contrast, DO raise codex-native
+    # `tool-approval-request` frames that park warm since the D-008 amendment (2026-07-31, the
+    # patched codex-acp full-access preset) — verified across {local, daytona} x {warm, cold} in
+    # docs/design/codex-harness/reports/warm-approvals-qa.md. A codex-shaped approve/deny journey
+    # probing with an MCP tool instead of builtin shell is a follow-up.
     if cell["harness"] == "codex":
         return {
             "skip": True,
             "why": (
-                "codex runs shell gateless under its default agent-full-access mode (D-008); "
-                "tool approvals ride the runner-side agenta-tools pause seam (verified in "
-                "codex-harness M3), not this builtin-shell tool-approval-request journey."
+                "codex runs shell gateless under agent-full-access (exec approval only fires "
+                "under a restricted sandbox), so this builtin-shell probe cannot park it; codex "
+                "MCP-tool approvals park warm via native gates (D-008 amendment) and are covered "
+                "by the codex-approval-matrix QA, not this journey."
             ),
         }
     s = str(uuid.uuid4())
