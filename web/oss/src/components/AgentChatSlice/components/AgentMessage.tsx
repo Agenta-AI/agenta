@@ -1,4 +1,4 @@
-import {memo, useMemo, useRef, useState} from "react"
+import {memo, useEffect, useMemo, useRef, useState} from "react"
 
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {buildRenderMap} from "@agenta/playground"
@@ -12,6 +12,7 @@ import {
     Check,
     Clock,
     Copy,
+    EyeSlash,
     Robot,
     TreeStructure,
     User,
@@ -23,7 +24,8 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 
-import {fileKind, filePartName} from "../assets/files"
+import {useAttachmentMediaSrc} from "../assets/attachmentMedia"
+import {attachmentIdForPart, fileKind, filePartName} from "../assets/files"
 import Markdown from "../assets/markdown"
 import {
     getMessageRunError,
@@ -89,6 +91,9 @@ const TraceMetrics = ({traceId, usage}: {traceId: string; usage?: MessageUsageMe
 
 interface AgentMessageProps {
     message: UIMessage
+    sessionId: string
+    /** Filenames from the preceding user turn, keyed by attachment id. */
+    attachmentNames?: ReadonlyMap<string, string>
     /** This is the last message AND the conversation is streaming — i.e. the one being
      * generated right now. Only it shows the loading state; settled turns never do. */
     isStreaming?: boolean
@@ -228,6 +233,132 @@ const avatarFor = (isUser: boolean) => (
     <Avatar size="small" icon={isUser ? <User size={16} /> : <Robot size={16} />} />
 )
 
+const triggerDownload = (href: string, name: string) => {
+    const link = document.createElement("a")
+    link.href = href
+    link.download = name
+    link.hidden = true
+    document.body.append(link)
+    link.click()
+    link.remove()
+}
+
+const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: string}) => {
+    const attachmentId = attachmentIdForPart(file)
+    const kind = fileKind(file.mediaType)
+    const source = useAttachmentMediaSrc(attachmentId ? sessionId : null, attachmentId)
+    const src = attachmentId ? source.src : file.url
+    const name = filePartName(file)
+    const [fallbackDownloadPending, setFallbackDownloadPending] = useState(false)
+
+    useEffect(() => {
+        if (!fallbackDownloadPending) return
+        if (source.src?.startsWith("blob:")) {
+            triggerDownload(source.src, name)
+            setFallbackDownloadPending(false)
+        } else if (source.failed) {
+            setFallbackDownloadPending(false)
+        }
+    }, [fallbackDownloadPending, name, source.failed, source.src])
+
+    const handleDownload = async (event: React.MouseEvent<HTMLAnchorElement>) => {
+        if (!attachmentId || !src || src.startsWith("blob:")) return
+        event.preventDefault()
+        try {
+            const response = await fetch(src, {credentials: "include"})
+            if (!response.ok) throw new Error("Direct attachment download failed")
+            const objectUrl = URL.createObjectURL(await response.blob())
+            triggerDownload(objectUrl, name)
+            window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000)
+        } catch {
+            // The direct route can lack browser credentials; activate the lazy axios/blob fallback.
+            setFallbackDownloadPending(true)
+            source.onError()
+        }
+    }
+
+    if (kind === "audio") {
+        return (
+            <AudioPlayer
+                src={src ?? ""}
+                name={name}
+                onError={attachmentId ? source.onError : undefined}
+                className="max-w-[320px] rounded-lg border border-solid border-colorBorderSecondary px-2 py-1.5"
+            />
+        )
+    }
+
+    return (
+        <FileCard
+            name={name}
+            type={kind}
+            src={src ?? undefined}
+            size="small"
+            loading={attachmentId ? source.isPending : false}
+            className="max-w-full"
+            imageProps={kind === "image" && attachmentId ? {onError: source.onError} : undefined}
+            videoProps={kind === "video" && attachmentId ? {onError: source.onError} : undefined}
+            description={
+                kind === "file" ? (
+                    src ? (
+                        <a
+                            href={src}
+                            download={name}
+                            onClick={handleDownload}
+                            className="text-xs text-colorPrimary"
+                        >
+                            {file.mediaType}
+                        </a>
+                    ) : (
+                        <span className="text-xs text-colorTextTertiary">
+                            {source.failed ? "Download unavailable" : file.mediaType}
+                        </span>
+                    )
+                ) : undefined
+            }
+        />
+    )
+}
+
+interface AttachmentDeliveryPart {
+    type: "data-attachment-delivery"
+    data: {
+        attachmentId: string
+        outcome: "native" | "workspace_only" | "failed"
+        reasonCode: string
+        workingPath?: string
+    }
+}
+
+const AttachmentDeliveryNotice = ({
+    part,
+    filename,
+}: {
+    part: AttachmentDeliveryPart
+    filename?: string
+}) => {
+    if (part.data.outcome === "native") return null
+    const failed = part.data.outcome === "failed"
+    const label = filename || "Attachment"
+    return (
+        <div
+            className={`flex items-center gap-1.5 text-xs ${
+                failed ? "text-colorError" : "text-colorTextSecondary"
+            }`}
+            role={failed ? "alert" : "status"}
+        >
+            {failed ? <XCircle size={14} /> : <EyeSlash size={14} />}
+            <span>
+                {failed
+                    ? `${label}: could not be delivered to the agent.`
+                    : part.data.workingPath
+                      ? `${label}: the model did not perceive this file. The agent can use it at ${part.data.workingPath}.`
+                      : `${label}: the model did not perceive this file. The agent can still use it with tools.`}
+            </span>
+        </div>
+    )
+}
+
 /**
  * Read-only renderer for one agent conversation message, rendered inside an Ant Design X
  * `Bubble`. Walks `message.parts` in order (text → markdown, reasoning, tool calls +
@@ -236,10 +367,12 @@ const avatarFor = (isUser: boolean) => (
  */
 const AgentMessage = ({
     message,
+    sessionId,
     isStreaming = false,
     isLastMessage = false,
     onRewind,
     onClientToolOutput,
+    attachmentNames,
     precededByEmptyAssistant = false,
     turnTraceId,
 }: AgentMessageProps) => {
@@ -288,6 +421,8 @@ const AgentMessage = ({
             (p.type === "text" && (p as {text?: string}).text) ||
             isToolPart(p.type) ||
             p.type === "file" ||
+            (p.type === "data-attachment-delivery" &&
+                (p as {data?: {outcome?: string}}).data?.outcome !== "native") ||
             p.type === "source-url",
     )
     const hasReasoning = message.parts.some(
@@ -441,43 +576,23 @@ const AgentMessage = ({
                 />
             )
         }
+        if (part.type === "data-attachment-delivery") {
+            return (
+                <AttachmentDeliveryNotice
+                    key={partKey}
+                    part={part as unknown as AttachmentDeliveryPart}
+                    filename={attachmentNames?.get(
+                        (part as unknown as AttachmentDeliveryPart).data.attachmentId,
+                    )}
+                />
+            )
+        }
         // Multi-modality: render attachments (sent by the user or returned by the
         // agent) as X `FileCard`s — images preview inline, other kinds show a typed
         // file chip with a download link.
         if (part.type === "file") {
-            const file = part as FileUIPart
-            const kind = fileKind(file.mediaType)
-            // A voice message is playable in the transcript, not an inert card.
-            if (kind === "audio") {
-                return (
-                    <AudioPlayer
-                        key={partKey}
-                        src={file.url}
-                        name={filePartName(file)}
-                        className="max-w-[320px] rounded-lg border border-solid border-colorBorderSecondary px-2 py-1.5"
-                    />
-                )
-            }
             return (
-                <FileCard
-                    key={partKey}
-                    name={filePartName(file)}
-                    type={kind}
-                    src={file.url}
-                    size="small"
-                    className="max-w-full"
-                    description={
-                        kind === "file" ? (
-                            <a
-                                href={file.url}
-                                download={filePartName(file)}
-                                className="text-xs text-colorPrimary"
-                            >
-                                {file.mediaType}
-                            </a>
-                        ) : undefined
-                    }
-                />
+                <AttachmentFilePart key={partKey} file={part as FileUIPart} sessionId={sessionId} />
             )
         }
         return null

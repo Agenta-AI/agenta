@@ -2,7 +2,7 @@ import {useEffect, useRef, useState, type ReactNode} from "react"
 
 import {
     ArrowClockwise,
-    EarSlash,
+    EyeSlash,
     File as FileIcon,
     FileText,
     Image as ImageIcon,
@@ -22,6 +22,7 @@ import {
     type AttachmentRejection,
     describeAccepted,
     formatBytes,
+    kindForType,
 } from "../assets/attachments"
 import {SESSION_SPRING} from "../assets/sessionMotion"
 
@@ -77,8 +78,16 @@ const RemoveButton = ({
 )
 
 /** Upload state drawn over a tile: a progress scrim while uploading, a retry-able error otherwise.
- * Reads antd's `UploadFile` fields, so the (future) upload flow only has to set status/percent. */
-const StatusOverlay = ({file, onRetry}: {file: UploadFile; onRetry?: (uid: string) => void}) => {
+ * Reads antd's `UploadFile` fields, so the upload flow only has to set status/percent. */
+const StatusOverlay = ({
+    file,
+    onRetry,
+    canRetry,
+}: {
+    file: UploadFile
+    onRetry?: (uid: string) => void
+    canRetry: boolean
+}) => {
     if (file.status === "uploading") {
         const pct = Math.max(0, Math.min(100, Math.round(file.percent ?? 0)))
         return (
@@ -100,7 +109,7 @@ const StatusOverlay = ({file, onRetry}: {file: UploadFile; onRetry?: (uid: strin
         return (
             <Tooltip title={typeof file.error === "string" ? file.error : "Upload failed"}>
                 <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-[var(--ant-color-error-bg)] ring-1 ring-inset ring-colorError">
-                    {onRetry && (
+                    {onRetry && canRetry && (
                         <button
                             type="button"
                             aria-label={`Retry ${file.name}`}
@@ -139,13 +148,25 @@ const Chip = ({
     </div>
 )
 
+const WorkspaceOnlyIndicator = ({name, overlay}: {name: string; overlay?: boolean}) => (
+    <Tooltip title="The model may not perceive this file. It will still be available to the agent’s tools.">
+        <span
+            aria-label={`${name} is workspace-only`}
+            className={
+                overlay
+                    ? "absolute bottom-1 left-1 flex h-5 w-5 items-center justify-center rounded-full bg-[rgba(0,0,0,0.6)] text-white"
+                    : "flex h-5 w-5 shrink-0 items-center justify-center text-colorTextTertiary"
+            }
+        >
+            <EyeSlash size={13} />
+        </span>
+    </Tooltip>
+)
+
 interface ComposerAttachmentsProps {
     files: UploadFile[]
     rejections: AttachmentRejection[]
     limits: AttachmentLimits
-    /** Whether the model can take audio in; `null` when unknown. `false` marks an attached clip
-     * as workspace-only, since the model itself won't hear it (design decision D6). */
-    audioPerceivable: boolean | null
     /** Add picked files through the caller's guardrails (`validateIncoming`). */
     onAdd: (incoming: File[]) => void
     onRemove: (uid: string) => void
@@ -154,6 +175,8 @@ interface ComposerAttachmentsProps {
     onView?: (uid: string) => void
     /** Retry a failed upload (wired to the upload flow). */
     onRetry?: (uid: string) => void
+    /** Whether this upload error can be retried. */
+    canRetry?: (uid: string) => boolean
 }
 
 /**
@@ -167,12 +190,12 @@ const ComposerAttachments = ({
     files,
     rejections,
     limits,
-    audioPerceivable,
     onAdd,
     onRemove,
     onDismissRejections,
     onView,
     onRetry,
+    canRetry,
 }: ComposerAttachmentsProps) => {
     const inputRef = useRef<HTMLInputElement>(null)
     const [previews, setPreviews] = useState<Record<string, string>>({})
@@ -294,6 +317,10 @@ const ComposerAttachments = ({
                                 {files.map((f) => {
                                     const file = f.originFileObj as File | undefined
                                     const type = file?.type || ""
+                                    const workspaceOnly =
+                                        !limits.perceived[
+                                            kindForType(type || "application/octet-stream")
+                                        ]
                                     const Icon = iconForType(type)
                                     const size = file ? formatBytes(file.size) : ""
                                     const url = previews[f.uid]
@@ -310,31 +337,17 @@ const ComposerAttachments = ({
                                             exit="exit"
                                         >
                                             {type.startsWith("audio/") && url ? (
-                                                <Tooltip
-                                                    title={
-                                                        audioPerceivable === false
-                                                            ? "The model can’t hear this — attached for the agent’s tools only."
-                                                            : undefined
-                                                    }
-                                                >
-                                                    <Chip className="w-[248px]">
-                                                        <AudioPlayer
-                                                            src={url}
-                                                            name={f.name}
-                                                            className="min-w-0 flex-1"
-                                                        />
-                                                        {audioPerceivable === false && (
-                                                            <EarSlash
-                                                                size={14}
-                                                                className="shrink-0 text-colorTextTertiary"
-                                                            />
-                                                        )}
-                                                        <RemoveButton
-                                                            name={f.name}
-                                                            onRemove={remove}
-                                                        />
-                                                    </Chip>
-                                                </Tooltip>
+                                                <Chip className="w-[248px]">
+                                                    <AudioPlayer
+                                                        src={url}
+                                                        name={f.name}
+                                                        className="min-w-0 flex-1"
+                                                    />
+                                                    {workspaceOnly && (
+                                                        <WorkspaceOnlyIndicator name={f.name} />
+                                                    )}
+                                                    <RemoveButton name={f.name} onRemove={remove} />
+                                                </Chip>
                                             ) : type.startsWith("image/") && url ? (
                                                 <div
                                                     role={onView ? "button" : undefined}
@@ -363,6 +376,12 @@ const ComposerAttachments = ({
                                                                 className="h-full w-full object-cover"
                                                             />
                                                         </>
+                                                    )}
+                                                    {workspaceOnly && (
+                                                        <WorkspaceOnlyIndicator
+                                                            name={f.name}
+                                                            overlay
+                                                        />
                                                     )}
                                                     <RemoveButton
                                                         name={f.name}
@@ -399,10 +418,17 @@ const ComposerAttachments = ({
                                                             </Text>
                                                         )}
                                                     </div>
+                                                    {workspaceOnly && (
+                                                        <WorkspaceOnlyIndicator name={f.name} />
+                                                    )}
                                                     <RemoveButton name={f.name} onRemove={remove} />
                                                 </Chip>
                                             )}
-                                            <StatusOverlay file={f} onRetry={onRetry} />
+                                            <StatusOverlay
+                                                file={f}
+                                                onRetry={onRetry}
+                                                canRetry={canRetry?.(f.uid) ?? true}
+                                            />
                                         </motion.div>
                                     )
                                 })}

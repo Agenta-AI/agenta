@@ -26,9 +26,10 @@ import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/st
 import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
 import CopiedToast from "@/oss/components/TemplateStrip/components/CopiedToast"
 
-import {describeAccepted} from "./assets/attachments"
+import {attachmentLimitsForModalities, describeAccepted} from "./assets/attachments"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
-import {filesToParts} from "./assets/files"
+import {attachmentNamesByMessage, filesToInlineParts, filesToParts} from "./assets/files"
+import {runWithInFlightSubmit} from "./assets/inFlightSubmit"
 import {isEmptyAssistantTurn, isVisiblePart} from "./assets/messageParts"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
 import {ignoreStreamRejection} from "./assets/runError"
@@ -106,20 +107,6 @@ const AgentConversation = ({
     const richInputRef = useRef<RichChatInputHandle>(null)
 
     const composer = useComposerDraft({sessionId, richInputRef, revealPlayedRef})
-
-    // Pending attachments for this session + the whole-panel drop target.
-    const attachments = useComposerAttachments({sessionId})
-    const {
-        uploadsEnabled,
-        files,
-        viewingUid,
-        setViewingUid,
-        limits,
-        atMax,
-        attachmentsSettled,
-        isDragging,
-        addFiles,
-    } = attachments
 
     // What the transcript should do next (follow / arm a pin / show the pill), shared by the
     // producers below (send, queue release, history adoption) and whichever scroll engine is
@@ -222,15 +209,28 @@ const AgentConversation = ({
     // component and its logic stay wired up; flip this to `true` to bring the UI back.
     const showContextBudget = false
 
-    /**
-     * Whether the selected model can actually take audio in. `null` means the catalog does not
-     * say — treated as unknown, never as "no", so a missing field can't quietly demote voice.
-     * Drives which voice mode leads; it never refuses an attachment (design decision D6).
-     */
-    const audioPerceivable = useMemo(() => {
-        const modalities = modalitiesForModel(harnessCapabilities, modelKey.harness, modelKey.model)
-        return modalities ? modalities.includes("audio") : null
-    }, [harnessCapabilities, modelKey.harness, modelKey.model])
+    const modelModalities = useMemo(
+        () => modalitiesForModel(harnessCapabilities, modelKey.harness, modelKey.model),
+        [harnessCapabilities, modelKey.harness, modelKey.model],
+    )
+    // Perception is derived from the model's modalities; absent or unknown stays workspace-only,
+    // matching the runner's delivery rule.
+    const limits = useMemo(() => attachmentLimitsForModalities(modelModalities), [modelModalities])
+    // The same memoized fact the voice controls read.
+    const audioPerceivable = limits.perceived.audio
+
+    // Pending attachments for this session + the whole-panel drop target.
+    const attachments = useComposerAttachments({sessionId, limits})
+    const {
+        uploadsEnabled,
+        files,
+        viewingUid,
+        setViewingUid,
+        atMax,
+        attachmentsSettled,
+        isDragging,
+        addFiles,
+    } = attachments
 
     // Playground-native onboarding: the hero, Create-agent / Continue-in-IDE, the template strip
     // and the optimistic first turn. Every value is inert outside the onboarding playground.
@@ -401,33 +401,7 @@ const AgentConversation = ({
         useVirtuoso,
     })
 
-    const handleSubmit = async (text: string, extraFiles: File[] = []) => {
-        const trimmed = text.trim()
-        const fileObjs = [
-            ...files
-                .map((f) => f.originFileObj as File | undefined)
-                .filter((f): f is File => Boolean(f)),
-            ...extraFiles,
-        ]
-        if (!trimmed && fileObjs.length === 0) return
-        if (!attachmentsSettled) return
-        let fileParts: FileUIPart[] | undefined
-        if (fileObjs.length) {
-            const {parts, unreadable} = await filesToParts(fileObjs)
-            // Hold the send rather than quietly dropping bytes the user staged, and say which file
-            // failed through the same inline channel the other attachment refusals use.
-            if (unreadable.length) {
-                attachments.setRejections(
-                    unreadable.map((f) => ({
-                        name: f.name,
-                        reason: "couldn't be read — remove it and attach it again",
-                    })),
-                )
-                attachments.setAttachmentsOpen(true)
-                return
-            }
-            fileParts = parts
-        }
+    const finishSubmit = (trimmed: string, fileParts?: FileUIPart[]) => {
         // Glide to the bottom; the min-h-full active turn makes that show the new question at the top
         // with the answer streaming below. Park during the glide, follow again on settle. Clear any
         // prior "stopped" marker — it's resolved by asking again.
@@ -440,6 +414,55 @@ const AgentConversation = ({
         onboardingChat.consumeTemplateProvenance()
         attachments.clearAttachments()
     }
+
+    // A voice take awaits its upload, so the guard keeps a second send from starting meanwhile.
+    const inFlightSubmitRef = useRef(false)
+    const handleSubmit = (text: string, extraFiles: File[] = []) =>
+        runWithInFlightSubmit(inFlightSubmitRef, async () => {
+            const trimmed = text.trim()
+            if (!trimmed && files.length === 0 && extraFiles.length === 0) return
+            if (!attachmentsSettled) return
+
+            if (!uploadsEnabled) {
+                // Voice and upload flags are independent; this seam preserves the inline recorder path.
+                const inlineFiles = [
+                    ...files
+                        .map((file) => file.originFileObj as File | undefined)
+                        .filter((file): file is File => Boolean(file)),
+                    ...extraFiles,
+                ]
+                let fileParts: FileUIPart[] | undefined
+                if (inlineFiles.length) {
+                    const {parts, unreadable} = await filesToInlineParts(inlineFiles)
+                    // Hold the send rather than quietly dropping bytes the user staged, and say which
+                    // file failed through the same inline channel the other attachment refusals use.
+                    if (unreadable.length) {
+                        attachments.setRejections(
+                            unreadable.map((file) => ({
+                                name: file.name,
+                                reason: "couldn't be read — remove it and attach it again",
+                            })),
+                        )
+                        attachments.setAttachmentsOpen(true)
+                        return
+                    }
+                    fileParts = parts
+                }
+                finishSubmit(trimmed, fileParts)
+                return
+            }
+
+            // A take sent outright never entered the tray, so it uploads here before the send.
+            const uploadedExtras = extraFiles.length
+                ? await attachments.uploadExtraFiles(extraFiles)
+                : []
+            if (!uploadedExtras) return
+            const outboundFiles = [...files, ...uploadedExtras]
+            const fileParts = outboundFiles.length
+                ? filesToParts(outboundFiles, sessionId)
+                : undefined
+            finishSubmit(trimmed, fileParts)
+        })
 
     handleSubmitRef.current = handleSubmit
 
@@ -506,15 +529,23 @@ const AgentConversation = ({
         [regenerate, setStopped],
     )
 
+    // Delivery notices name their file from the preceding user turn's attachment references.
+    const deliveryAttachmentNames = useMemo(() => attachmentNamesByMessage(messages), [messages])
+
     const renderMessage = (message: UIMessage, index: number) => {
         const isLast = index === messages.length - 1
         const isAssistantTurn = message.role === "assistant"
         const turn = turnNumbers.get(message.id)
         const isInspected = isAssistantTurn && inspectedTurn != null && turn === inspectedTurn
+        // Undefined (not an empty map) for turns with no attachments above them, so the memo on
+        // every settled turn still holds while a run streams.
+        const attachmentNames = deliveryAttachmentNames.get(message.id)
         return (
             <AgentTurn
                 key={message.id}
                 message={message}
+                sessionId={sessionId}
+                attachmentNames={attachmentNames?.size ? attachmentNames : undefined}
                 // New since mount → fade in once. seenIdsRef is marked in an effect after commit,
                 // never during render (unsafe under StrictMode's double invoke).
                 enter={!isSeen(message.id)}
@@ -631,6 +662,7 @@ const AgentConversation = ({
                                 placeholder={
                                     <TranscriptPlaceholder
                                         entityId={entityId}
+                                        sessionId={sessionId}
                                         pendingFirstTurn={onboardingChat.pendingFirstTurn}
                                         pendingFirstMessage={onboardingChat.pendingFirstMessage}
                                         onboardingActive={onboardingActive}

@@ -1,25 +1,30 @@
-import {useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {generateId} from "@agenta/shared/utils"
 import type {UploadFile} from "antd"
 
 import {
+    type AttachmentLimits,
     type AttachmentRejection,
-    DEFAULT_ATTACHMENT_LIMITS,
     validateIncoming,
 } from "../assets/attachments"
+import {uploadAttachment, type SessionAttachmentResponse} from "../assets/attachmentTransport"
 import {isAgentFileUploadsEnabled} from "../assets/constants"
 import {attachmentsBySession} from "../state/sessionEphemera"
 
-import {useAttachmentUploads} from "./useAttachmentUploads"
+import {removeUploadFile, useAttachmentUploads} from "./useAttachmentUploads"
 
-// `uid` is the tray's React key, its preview-URL key, and the remove / view / retry handle, so it
-// has to be unique per TRAY ROW. Deriving it from name+mtime+size collided whenever the same file
-// was attached twice (paste then drop) — one remove then wiped both rows and their previews.
-const toUploadFile = (file: File): UploadFile => ({
+type StagedFile = UploadFile<SessionAttachmentResponse>
+
+// `uid` is the tray's React key, its preview-URL key, the remove / view / retry handle, and the
+// upload's idempotency key, so it has to be unique per TRAY ROW. Deriving it from name+mtime+size
+// collided whenever the same file was attached twice (paste then drop) — one remove then wiped
+// both rows and their previews.
+const toUploadFile = (file: File, uploadsEnabled: boolean): StagedFile => ({
     uid: `att-${generateId()}`,
     name: file.name,
-    status: "done",
+    status: uploadsEnabled ? "uploading" : "done",
+    percent: uploadsEnabled ? 0 : 100,
     originFileObj: file as UploadFile["originFileObj"],
 })
 
@@ -28,12 +33,19 @@ const toUploadFile = (file: File): UploadFile => ({
  * the preview target, and the whole-panel drag-and-drop that feeds them. Files survive a remount
  * (route re-entry, tab close/reopen) alongside the composer draft; rejections stay transient.
  */
-export const useComposerAttachments = ({sessionId}: {sessionId: string}) => {
+export const useComposerAttachments = ({
+    sessionId,
+    limits,
+}: {
+    sessionId: string
+    /** Model-derived guardrails; perception rides along on the same object. */
+    limits: AttachmentLimits
+}) => {
     // Gate every attachment path on NEXT_PUBLIC_AGENT_FILE_UPLOADS until file parts are supported.
     const uploadsEnabled = isAgentFileUploadsEnabled()
     // Restored from the per-session store on remount (route re-entry, tab close/reopen) —
     // pending attachments survive alongside the composer draft. Rejections stay transient.
-    const [files, setFiles] = useState<UploadFile[]>(
+    const [files, setFiles] = useState<StagedFile[]>(
         () => attachmentsBySession.get(sessionId) ?? [],
     )
     useEffect(() => {
@@ -45,20 +57,38 @@ export const useComposerAttachments = ({sessionId}: {sessionId: string}) => {
     // The attachment currently open in the Files-drawer preview (its uid), or null when closed.
     const [viewingUid, setViewingUid] = useState<string | null>(null)
     const [attachmentsOpen, setAttachmentsOpen] = useState(false)
-    // Single limits object so it can later be swapped for capability-derived limits.
-    const limits = DEFAULT_ATTACHMENT_LIMITS
     const atMax = files.length >= limits.maxCount
     // Drag-over state for the whole-panel drop overlay (depth counter avoids child flicker).
     const dragDepthRef = useRef(0)
     const [isDragging, setIsDragging] = useState(false)
 
-    // Upload lifecycle for the tray (progress / error / retry). The transport is not wired yet, so
-    // no uploader is passed — files stay "done" and enqueue is a no-op. When upload lands, provide
-    // an uploader here and the whole flow runs; the tray already renders every state.
-    const uploads = useAttachmentUploads(files, setFiles, undefined)
-    // A staged attachment blocks send only once uploads exist: while any is uploading or has failed,
-    // the message isn't ready. All-"done" today, so this is inert until the transport is wired.
-    const attachmentsSettled = !files.some((f) => f.status === "uploading" || f.status === "error")
+    // One multipart upload per staged file; the tray uid doubles as the idempotency key, so a
+    // retry reuses the original identity instead of minting a second attachment.
+    const attachmentUploader = useCallback(
+        (
+            file: File,
+            {
+                uid,
+                onProgress,
+                signal,
+            }: {uid: string; onProgress: (percent: number) => void; signal: AbortSignal},
+        ) => uploadAttachment({file, sessionId, idempotencyKey: uid, onProgress, signal}),
+        [sessionId],
+    )
+    // Upload lifecycle for the tray (progress / error / retry).
+    const uploads = useAttachmentUploads(files, setFiles, attachmentUploader)
+    // A staged attachment blocks send until its reference exists; without uploads the inline path
+    // only needs every entry to be settled.
+    const attachmentsSettled = uploadsEnabled
+        ? files.every((file) => file.status === "done" && Boolean(file.response?.attachment))
+        : files.every((file) => file.status === "done")
+
+    /** Why send is held, for the send button's tooltip. */
+    const uploadBlockReason = files.some((file) => file.status === "error")
+        ? "an upload failed"
+        : files.some((file) => file.status === "uploading")
+          ? "waiting for uploads"
+          : undefined
 
     /** Add files from paste / programmatic sources through the guardrails. */
     const addFiles = (incoming: File[], extraRejections: AttachmentRejection[] = []) => {
@@ -67,9 +97,9 @@ export const useComposerAttachments = ({sessionId}: {sessionId: string}) => {
         if (accepted.length) {
             // Stage once and enqueue the MINTED uids — re-deriving them here is what let the tray
             // row and its upload disagree about which entry they addressed.
-            const staged = accepted.map(toUploadFile)
+            const staged = accepted.map((file) => toUploadFile(file, uploadsEnabled))
             setFiles((prev) => [...prev, ...staged])
-            uploads.enqueue(staged.map((f) => f.uid))
+            if (uploadsEnabled) uploads.enqueue(staged.map((f) => f.uid))
         }
         setRejections(allRejections)
         // Open for rejections too. Otherwise dropping something unsupported writes a message into
@@ -77,7 +107,43 @@ export const useComposerAttachments = ({sessionId}: {sessionId: string}) => {
         if (accepted.length || allRejections.length) setAttachmentsOpen(true)
     }
 
-    const removeFile = (uid: string) => setFiles((prev) => prev.filter((f) => f.uid !== uid))
+    // Removing a chip also aborts its in-flight request.
+    const removeFile = (uid: string) => removeUploadFile(uid, uploads.abort, setFiles)
+
+    /**
+     * Upload files that never entered the tray (a voice take sent outright) and return their staged
+     * entries. A failure adopts them into the tray so the error is visible and retryable, and
+     * returns null so the caller holds the send.
+     */
+    const uploadExtraFiles = async (extraFiles: File[]): Promise<StagedFile[] | null> => {
+        const staged = extraFiles.map((file) => toUploadFile(file, uploadsEnabled))
+        const results = await Promise.allSettled(
+            staged.map(async (entry) => {
+                const response = await attachmentUploader(entry.originFileObj as File, {
+                    uid: entry.uid,
+                    onProgress: () => undefined,
+                    signal: new AbortController().signal,
+                })
+                return {...entry, status: "done" as const, percent: 100, response}
+            }),
+        )
+        if (results.every((result) => result.status === "fulfilled")) {
+            return results.map((result) => (result as PromiseFulfilledResult<StagedFile>).value)
+        }
+        const settledEntries = results.map((result, index) =>
+            result.status === "fulfilled"
+                ? result.value
+                : {
+                      ...staged[index],
+                      status: "error" as const,
+                      error:
+                          result.reason instanceof Error ? result.reason.message : "Upload failed",
+                  },
+        )
+        setFiles((prev) => [...prev, ...settledEntries])
+        setAttachmentsOpen(true)
+        return null
+    }
 
     // Native drag-and-drop onto the whole panel. A depth counter ignores dragenter/leave from
     // nested children so the overlay doesn't flicker; only file drags (not text) are handled.
@@ -161,9 +227,11 @@ export const useComposerAttachments = ({sessionId}: {sessionId: string}) => {
         limits,
         atMax,
         attachmentsSettled,
+        uploadBlockReason,
         isDragging,
         addFiles,
         removeFile,
+        uploadExtraFiles,
         uploads,
         clearAttachments,
         bindDropTarget,
