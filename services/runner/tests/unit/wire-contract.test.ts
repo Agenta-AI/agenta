@@ -69,7 +69,11 @@ const _requestKeysExistOnType: readonly (keyof AgentRunRequest)[] =
 void _requestKeysExistOnType;
 
 describe("wire contract: requests (vs Python golden)", () => {
-  for (const name of ["run_request.pi_core.json", "run_request.claude.json"]) {
+  for (const name of [
+    "run_request.pi_core.json",
+    "run_request.claude.json",
+    "run_request.attachment.json",
+  ]) {
     it(`${name}: every top-level key is known to AgentRunRequest`, () => {
       const req = loadGolden(name) as Record<string, unknown>;
       for (const key of Object.keys(req)) {
@@ -80,6 +84,23 @@ describe("wire contract: requests (vs Python golden)", () => {
       }
     });
   }
+
+  it("attachment request: carries the resource handle and resolved modalities", () => {
+    const req = loadGolden("run_request.attachment.json") as AgentRunRequest;
+    assert.deepEqual(req.modelCapabilities, {
+      inputModalities: ["text", "image"],
+    });
+    assert.ok(Array.isArray(req.messages?.[0]?.content));
+    const content = req.messages[0].content;
+    assert.deepEqual(content[0], {
+      type: "attachment",
+      attachmentId: "019c471b-5b91-71d2-9d4b-5486013e6e9b",
+      filename: "photo.png",
+      mimeType: "image/png",
+      size: 482113,
+    });
+    assert.equal(resolvePromptText(req), "Describe this image.");
+  });
 
   it("pi request: shape, tool axes, and the runner helpers", () => {
     const req = loadGolden("run_request.pi_core.json") as AgentRunRequest;

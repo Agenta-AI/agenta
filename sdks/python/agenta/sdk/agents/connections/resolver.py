@@ -18,6 +18,7 @@ import os
 from typing import Any, Dict, Optional
 
 from ..capabilities import PROVIDER_ENV_VARS
+from ..model_catalog import model_input_modalities
 from .errors import UnsupportedProviderError
 from .models import (
     Endpoint,
@@ -28,6 +29,13 @@ from .models import (
 
 # Canonical map lives in capabilities.py; this alias keeps the local name callers already use.
 _PROVIDER_ENV_VARS: Dict[str, str] = PROVIDER_ENV_VARS
+
+
+def _input_modalities(
+    context: RuntimeAuthContext, *, provider: str, model: str
+) -> Optional[list[str]]:
+    # A miss means workspace-only downstream; do not guess.
+    return model_input_modalities(context.harness, model, provider=provider or None)
 
 
 class EnvConnectionResolver:
@@ -55,11 +63,15 @@ class EnvConnectionResolver:
         context: RuntimeAuthContext,
     ) -> ResolvedConnection:
         if model.connection.mode == "self_managed":
+            provider = model.provider or ""
             return ResolvedConnection(
-                provider=model.provider or "",
+                provider=provider,
                 model=model.model,
                 credential_mode="runtime_provided",
                 env={},
+                input_modalities=_input_modalities(
+                    context, provider=provider, model=model.model
+                ),
             )
 
         provider = model.provider
@@ -77,6 +89,9 @@ class EnvConnectionResolver:
                 model=model.model,
                 credential_mode="env",
                 env={env_var: key},
+                input_modalities=_input_modalities(
+                    context, provider=provider, model=model.model
+                ),
             )
         # Absence is valid: inject nothing and let the harness use its own login/OAuth.
         return ResolvedConnection(
@@ -84,6 +99,9 @@ class EnvConnectionResolver:
             model=model.model,
             credential_mode="runtime_provided",
             env={},
+            input_modalities=_input_modalities(
+                context, provider=provider, model=model.model
+            ),
         )
 
 
@@ -141,4 +159,7 @@ class StaticConnectionResolver:
             credential_mode="env" if env else "runtime_provided",
             env=env,
             endpoint=endpoint,
+            input_modalities=_input_modalities(
+                context, provider=provider, model=model.model
+            ),
         )

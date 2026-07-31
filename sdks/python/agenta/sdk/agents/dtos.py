@@ -241,11 +241,14 @@ class ContentBlock(BaseModel):
     ``services/runner/src/protocol.ts``.
     """
 
-    type: str  # "text" | "image" | "resource" | "tool_call" | "tool_result"
+    type: str  # "text" | "image" | "resource" | "attachment" | "tool_call" | "tool_result"
     text: Optional[str] = None
     data: Optional[str] = None  # base64 payload, used when type != "text"
     mime_type: Optional[str] = None
     uri: Optional[str] = None
+    attachment_id: Optional[str] = None
+    filename: Optional[str] = None
+    size: Optional[int] = None
     # Tool-turn carriers (used by tool_call / tool_result blocks).
     tool_call_id: Optional[str] = None
     tool_name: Optional[str] = None
@@ -263,6 +266,12 @@ class ContentBlock(BaseModel):
             block["mimeType"] = self.mime_type
         if self.uri is not None:
             block["uri"] = self.uri
+        if self.attachment_id is not None:
+            block["attachmentId"] = self.attachment_id
+        if self.filename is not None:
+            block["filename"] = self.filename
+        if self.size is not None:
+            block["size"] = self.size
         if self.tool_call_id is not None:
             block["toolCallId"] = self.tool_call_id
         if self.tool_name is not None:
@@ -289,6 +298,9 @@ class ContentBlock(BaseModel):
                 data=raw.get("data"),
                 mime_type=raw.get("mimeType") or raw.get("mime_type"),
                 uri=raw.get("uri"),
+                attachment_id=raw.get("attachmentId") or raw.get("attachment_id"),
+                filename=raw.get("filename"),
+                size=raw.get("size"),
                 tool_call_id=raw.get("toolCallId") or raw.get("tool_call_id"),
                 tool_name=raw.get("toolName") or raw.get("tool_name"),
                 input=raw.get("input"),
@@ -360,8 +372,9 @@ def to_messages(raw: Optional[List[Any]]) -> List[Message]:
 class Event(BaseModel):
     """One structured event from a run, mapped from an ACP ``session/update``.
 
-    ``type`` is one of ``message``, ``thought``, ``tool_call``, ``tool_result``, ``usage``,
-    ``error``, ``done``. ``data`` carries the rest verbatim.
+    ``type`` is one of ``message``, ``thought``, ``tool_call``, ``tool_result``, ``data``,
+    ``file``, ``interaction_*``, ``attachment_delivery``, ``usage``, ``error``, or ``done``.
+    ``data`` carries the rest verbatim.
     """
 
     type: str

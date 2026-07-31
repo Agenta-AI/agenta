@@ -23,6 +23,7 @@ from agenta.sdk.agents.model_catalog import (
     load_claude_model_catalog,
     load_pi_model_catalog,
     model_catalog_entries,
+    model_input_modalities,
     pi_model_catalog,
 )
 
@@ -153,6 +154,41 @@ def test_model_catalog_entries_helper_matches_the_published_field():
         )
     # An unknown harness has an empty catalog, mirroring the models-map default.
     assert model_catalog_entries("some-future-harness") == []
+
+
+@pytest.mark.parametrize("harness", ["pi_core", "pi_agenta"])
+def test_pi_input_modalities_lookup_joins_resolved_provider_and_model(harness):
+    assert model_input_modalities(harness, "gpt-5.5", provider="openai") == [
+        "text",
+        "image",
+    ]
+
+
+def test_claude_input_modalities_lookup_uses_bare_alias():
+    assert model_input_modalities("claude", "sonnet", provider="anthropic") == [
+        "text",
+        "image",
+    ]
+
+
+@pytest.mark.parametrize("model_id", ["claude-sonnet-4-6", "claude-opus-4-8"])
+def test_claude_dated_model_input_modalities_reuse_pi_catalog_fact(model_id):
+    assert model_input_modalities("claude", model_id, provider="anthropic") == [
+        "text",
+        "image",
+    ]
+
+
+def test_input_modalities_lookup_miss_returns_none():
+    assert (
+        model_input_modalities("pi_core", "workspace-only-model", provider="openai")
+        is None
+    )
+    assert model_input_modalities("future-harness", "sonnet") is None
+    assert (
+        model_input_modalities("claude", "claude-not-real", provider="anthropic")
+        is None
+    )
 
 
 def test_claude_model_catalog_ids_match_the_models_map():

@@ -5,7 +5,8 @@ map). Each :class:`ModelCatalogEntry` separates three semantic groups: identity 
 ``provider`` — the join key to the accepted set), sourced facts (``name`` / ``pricing`` /
 ``context_window`` / ``modalities`` — objective, provenanced), and curated judgments (``label`` /
 ``description`` / ``ratings`` — subjective, human, sourced from current public info). The catalog
-never gates selection; the runtime accepted set does. See
+never gates selection; the runtime accepted set does. Its ``modalities`` fact feeds the runtime
+delivery gate through the connection resolver, but the catalog still gates nothing itself. See
 ``docs/design/agent-workflows/projects/model-catalog-schema/design.md``.
 
 The data lives in JSON files under ``data/`` (owned by the ``sync-model-catalog`` skill), not in
@@ -142,6 +143,39 @@ def claude_model_catalog() -> ModelCatalog:
     if _CLAUDE_CATALOG is None:
         _CLAUDE_CATALOG = load_claude_model_catalog()
     return _CLAUDE_CATALOG
+
+
+def model_input_modalities(
+    harness: Optional[str], model_id: str, *, provider: Optional[str] = None
+) -> Optional[List[str]]:
+    """Look up input modalities using the model id form accepted by ``harness``."""
+    entry: Optional[ModelCatalogEntry]
+    if harness in ("pi_core", "pi_agenta"):
+        catalog = pi_model_catalog()
+        catalog_id = (
+            model_id
+            if provider is None or model_id.startswith(f"{provider}/")
+            else f"{provider}/{model_id}"
+        )
+    elif harness == "claude":
+        catalog = claude_model_catalog()
+        catalog_id = model_id
+    else:
+        return None
+
+    entry = next((item for item in catalog.models if item.id == catalog_id), None)
+    if harness == "claude" and entry is None:
+        # Reuse the same sourced Anthropic fact from Pi's generated catalog; do not guess.
+        pi_catalog_id = (
+            model_id if model_id.startswith("anthropic/") else f"anthropic/{model_id}"
+        )
+        entry = next(
+            (item for item in pi_model_catalog().models if item.id == pi_catalog_id),
+            None,
+        )
+    if entry is None or entry.modalities is None:
+        return None
+    return list(entry.modalities)
 
 
 def model_catalog_entries(harness: str) -> List[Dict[str, object]]:

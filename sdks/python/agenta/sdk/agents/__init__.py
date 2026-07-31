@@ -83,6 +83,7 @@ from .dtos import (
     to_messages,
 )
 from .errors import (
+    AgentRunFailed,
     AgentRunnerConfigurationError,
     LocalSandboxNotAllowedError,
     SandboxNotAllowedError,
@@ -262,6 +263,7 @@ __all__ = [
     "Environment",
     "Harness",
     # Errors
+    "AgentRunFailed",
     "AgentRunnerConfigurationError",
     "SandboxNotAllowedError",
     "LocalSandboxNotAllowedError",
