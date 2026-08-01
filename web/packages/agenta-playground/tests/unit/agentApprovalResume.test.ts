@@ -273,6 +273,36 @@ describe("agentShouldResumeAfterApproval", () => {
         expect(agentShouldResumeAfterApproval({messages})).toBe(true)
     })
 
+    it("counts a DENIED tool part as settled (output-denied)", () => {
+        // A denied gate settles to `output-denied` carrying its `{approved: false}` envelope; if it
+        // did not count as settled, a sibling-resolved turn would never resume.
+        const messages = [
+            user("do two"),
+            {
+                id: "a1",
+                role: "assistant",
+                parts: [
+                    {type: "step-start"},
+                    {
+                        type: "tool-deleteFile",
+                        toolCallId: "call_1",
+                        state: "output-denied",
+                        input: {path: "/x"},
+                        approval: {id: "perm_1", approved: false},
+                    },
+                    {
+                        type: "tool-readFile",
+                        toolCallId: "call_2",
+                        state: "approval-responded",
+                        input: {path: "/y"},
+                        approval: {id: "perm_2", approved: true},
+                    },
+                ],
+            },
+        ]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(true)
+    })
+
     it("does NOT resume when there are no messages", () => {
         expect(agentShouldResumeAfterApproval({messages: []})).toBe(false)
     })
