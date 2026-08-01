@@ -5,10 +5,10 @@
  * Integrates with the entitySelectorController for promise-based selection.
  */
 
-import React, {useMemo, useCallback} from "react"
+import React, {useMemo, useCallback, useEffect, useState} from "react"
 
 import {EnhancedModal} from "@agenta/ui/components/modal"
-import {Tabs} from "antd"
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {resolveAdapter} from "../adapters/createAdapter"
@@ -156,6 +156,17 @@ export function EntitySelectorModal({
         [setActiveType],
     )
 
+    const activeTabKey = activeType ?? tabItems[0]?.key
+
+    // antd mounts a pane on first activation and keeps it mounted; Radix unmounts inactive
+    // panes. Force-mounting the panes visited so far reproduces antd exactly (Radix marks a
+    // force-mounted inactive pane `hidden`), so picker state survives a tab round-trip.
+    const [visitedTabs, setVisitedTabs] = useState<string[]>([])
+    useEffect(() => {
+        if (!activeTabKey) return
+        setVisitedTabs((prev) => (prev.includes(activeTabKey) ? prev : [...prev, activeTabKey]))
+    }, [activeTabKey])
+
     // Handle cancel
     const handleCancel = useCallback(() => {
         close()
@@ -180,11 +191,24 @@ export function EntitySelectorModal({
             footer={footer}
         >
             {tabItems.length > 1 ? (
-                <Tabs
-                    activeKey={activeType ?? tabItems[0]?.key}
-                    onChange={handleTabChange}
-                    items={tabItems}
-                />
+                <Tabs value={activeTabKey} onValueChange={handleTabChange}>
+                    <TabsList>
+                        {tabItems.map((tab) => (
+                            <TabsTrigger key={tab.key} value={tab.key}>
+                                {tab.label}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                    {tabItems.map((tab) => (
+                        <TabsContent
+                            key={tab.key}
+                            value={tab.key}
+                            forceMount={visitedTabs.includes(tab.key) || undefined}
+                        >
+                            {tab.children}
+                        </TabsContent>
+                    ))}
+                </Tabs>
             ) : tabItems.length === 1 ? (
                 tabItems[0].children
             ) : null}

@@ -486,7 +486,7 @@ export function WorkflowReferenceSelector({
                                                 text={selected.slug}
                                                 buttonText={null}
                                                 icon
-                                                type="text"
+                                                variant="ghost"
                                             />
                                         </div>
                                     </div>

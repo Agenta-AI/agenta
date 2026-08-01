@@ -21,8 +21,8 @@ import {
     PromptImageUpload,
     PromptDocumentUpload,
 } from "@agenta/ui/components/presentational"
+import type {PromptUploadFile} from "@agenta/ui/components/presentational"
 import {messageViewModeAtom, toMessageViewMode} from "@agenta/ui/drill-in"
-import type {UploadFile} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import JSON5 from "json5"
@@ -127,7 +127,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
         {
             id: string
             type: "image" | "document"
-            file?: UploadFile
+            file?: PromptUploadFile
             filled?: boolean
             value?: string
         }[]
@@ -272,10 +272,10 @@ const TurnMessageAdapter: React.FC<Props> = ({
     }, [documentSlotCount])
 
     const handleUploadFileChange = useCallback(
-        (slotId: string, file: UploadFile | null) => {
+        (slotId: string, file: PromptUploadFile | null) => {
             if (!file) return
-            const imageUrl =
-                (file as UploadFile & {base64?: string}).base64 || file.url || file.thumbUrl
+            const base64 = typeof file.base64 === "string" ? file.base64 : undefined
+            const imageUrl = base64 || file.url || file.thumbUrl
             if (imageUrl) {
                 handleAddImage(imageUrl)
             }

@@ -12,7 +12,12 @@ import {
 import type {LlmProvider} from "@agenta/shared/types"
 import {isSlugInputValid} from "@agenta/shared/utils"
 import {LabelInput} from "@agenta/ui"
-import {SelectLLMProviderBase, capitalize, type ProviderGroup} from "@agenta/ui/select-llm-provider"
+import {
+    SelectLLMProviderBase,
+    capitalize,
+    type ProviderGroup,
+    type SelectLLMProviderBaseProps,
+} from "@agenta/ui/select-llm-provider"
 import {Plus, WarningCircle} from "@phosphor-icons/react"
 import {Button, Form, Input, Typography} from "antd"
 import type {FormInstance} from "antd"
@@ -29,6 +34,13 @@ export interface CustomProviderFormProps {
     initialProviderKind?: string
     form: FormInstance<LlmProvider>
     onClose: () => void
+}
+
+/** antd's `Select` read `FormItemInputContext` itself to paint its error border; the antd-free
+ * `SelectLLMProviderBase` can't, so bridge that exact context via `Form.Item.useStatus()`. */
+const ProviderSelect = (props: SelectLLMProviderBaseProps) => {
+    const {status} = Form.Item.useStatus()
+    return <SelectLLMProviderBase {...props} invalid={status === "error"} />
 }
 
 /** Render control based on field.attributes */
@@ -225,7 +237,7 @@ const CustomProviderForm = ({
                         Provider<span aria-hidden> *</span>
                     </Text>
                     <Form.Item name="provider" className="mb-0" rules={[{required: true}]}>
-                        <SelectLLMProviderBase options={providerOptions} />
+                        <ProviderSelect options={providerOptions} />
                     </Form.Item>
                 </div>
 

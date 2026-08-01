@@ -6,12 +6,13 @@ import {executionItemController, playgroundController} from "@agenta/playground"
 import {getEvaluatorVerdictFromOutput} from "@agenta/playground/utils"
 import type {DropdownButtonOption, DropdownButtonOptionStatus} from "@agenta/ui/components"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
-import {AddButton} from "@agenta/ui/components/presentational"
+import {Button} from "@agenta/ui/ui"
 import {
     ArrowsOutLineHorizontalIcon,
     CopySimpleIcon,
     MinusCircleIcon,
     PlayIcon,
+    PlusIcon,
 } from "@phosphor-icons/react"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
@@ -446,12 +447,15 @@ const ComparisonLayout = ({
                         trigger={["click"]}
                     />
                     {showAddRowButton ? (
-                        <AddButton
-                            size="small"
-                            label="Test case"
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="self-start mt-3"
                             onClick={() => addRow()}
-                            className="mt-3"
-                        />
+                        >
+                            <PlusIcon size={14} />
+                            Test case
+                        </Button>
                     ) : null}
                     <div className="flex-1" />
                     {SyncStateTagSlot && loadableId && (

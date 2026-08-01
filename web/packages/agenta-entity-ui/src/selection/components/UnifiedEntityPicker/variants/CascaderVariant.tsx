@@ -1,7 +1,7 @@
 /**
  * CascaderVariant Component
  *
- * Ant Design Cascader variant for EntityPicker.
+ * Cascader variant for EntityPicker, built on the antd-free `@agenta/ui` Cascader.
  * Renders a single compact dropdown with cascading panels matching the adapter's hierarchy.
  *
  * Pattern: Evaluator → Variant → Revision (all in one dropdown)
@@ -9,7 +9,7 @@
 
 import React, {type ReactNode, useCallback, useEffect, useRef, useState} from "react"
 
-import {Cascader} from "antd"
+import {Cascader, type CascaderOption} from "@agenta/ui/ui"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {useEntitySelectionCore} from "../../../hooks/useEntitySelectionCore"
@@ -26,12 +26,9 @@ import type {CascaderVariantProps} from "../types"
 // TYPES
 // ============================================================================
 
-interface CascaderOption {
-    value: string
-    label: ReactNode
+interface EntityCascaderOption extends CascaderOption {
     isLeaf: boolean
-    children?: CascaderOption[]
-    disabled?: boolean
+    children?: EntityCascaderOption[]
     /** Raw entity data for building selection results */
     __entity: unknown
     /** Level index in hierarchy */
@@ -42,6 +39,8 @@ interface CascaderOption {
     __isPlaceholder?: boolean
 }
 
+const SIZE_MAP = {small: "sm", middle: "default", large: "lg"} as const
+
 // ============================================================================
 // HELPERS
 // ============================================================================
@@ -51,13 +50,14 @@ function buildOptionsFromItems(
     levelConfig: HierarchyLevel<unknown>,
     levelIndex: number,
     isLastLevel: boolean,
-): CascaderOption[] {
+): EntityCascaderOption[] {
     return items.map((item) => {
         const textLabel = levelConfig.getLabel(item)
         const labelNode = levelConfig.getLabelNode?.(item)
         return {
             value: levelConfig.getId(item),
             label: labelNode ?? textLabel,
+            searchLabel: textLabel,
             isLeaf: isLastLevel,
             __entity: item,
             __levelIndex: levelIndex,
@@ -74,12 +74,13 @@ function filterLevelItems(items: unknown[], levelConfig: HierarchyLevel<unknown>
 function buildLoadingOption(
     levelConfig: HierarchyLevel<unknown>,
     levelIndex: number,
-): CascaderOption {
+): EntityCascaderOption {
     const textLabel = "Loading..."
 
     return {
         value: `__loading__-${levelIndex}`,
         label: levelConfig.getPlaceholderNode?.(textLabel) ?? textLabel,
+        searchLabel: textLabel,
         isLeaf: true,
         disabled: true,
         __entity: null,
@@ -101,10 +102,8 @@ export function CascaderVariant<TSelection = EntitySelectionResult>({
     disabled = false,
     size = "middle",
     placeholder = "Select...",
-    popupMatchSelectWidth = false,
     popupClassName,
-    placement,
-    dropdownRender,
+    columnMaxWidth,
     displayRender: displayRenderProp,
 }: CascaderVariantProps<TSelection>) {
     const {hierarchyLevels, selectableLevel, createSelection} = useEntitySelectionCore({
@@ -126,7 +125,7 @@ export function CascaderVariant<TSelection = EntitySelectionResult>({
 
     // Options tree state — root options are derived from rootItems,
     // children are loaded lazily via loadData
-    const [optionsTree, setOptionsTree] = useState<CascaderOption[]>([])
+    const [optionsTree, setOptionsTree] = useState<EntityCascaderOption[]>([])
 
     // Track active subscriptions for cleanup
     const subscriptionsRef = useRef<(() => void)[]>([])
@@ -165,7 +164,7 @@ export function CascaderVariant<TSelection = EntitySelectionResult>({
     // Lazy load children when a cascading panel opens
     const loadData = useCallback(
         (selectedOptions: CascaderOption[]) => {
-            const targetOption = selectedOptions[selectedOptions.length - 1]
+            const targetOption = selectedOptions[selectedOptions.length - 1] as EntityCascaderOption
             const nextLevelIndex = targetOption.__levelIndex + 1
 
             if (nextLevelIndex >= totalLevels) return
@@ -243,7 +242,8 @@ export function CascaderVariant<TSelection = EntitySelectionResult>({
 
     // Handle selection
     const handleChange = useCallback(
-        (_value: (string | number)[], selectedOptions: CascaderOption[]) => {
+        (_value: string[], selected: CascaderOption[]) => {
+            const selectedOptions = selected as EntityCascaderOption[]
             if (!selectedOptions || selectedOptions.length === 0) return
 
             const lastOption = selectedOptions[selectedOptions.length - 1]
@@ -267,67 +267,34 @@ export function CascaderVariant<TSelection = EntitySelectionResult>({
         [selectableLevel, totalLevels, hierarchyLevels, createSelection, onSelect],
     )
 
-    const defaultDisplayRender = useCallback(
-        (labels: string[], selectedOptions?: CascaderOption[]) => {
-            if (selectedOptions && selectedOptions.length > 0) {
-                return selectedOptions
-                    .map((opt) => opt?.__textLabel ?? String(opt?.label ?? ""))
-                    .join(" / ")
-            }
-            return Array.isArray(labels) ? labels.join(" / ") : ""
-        },
-        [],
-    )
-
     const displayRender = useCallback(
-        (labels: string[], selectedOptions?: CascaderOption[]) => {
-            if (displayRenderProp) {
-                // Extract plain text labels from options since antd's `labels` may contain ReactNodes
-                const textLabels =
-                    selectedOptions && selectedOptions.length > 0
-                        ? selectedOptions.map((opt) => opt?.__textLabel ?? String(opt?.label ?? ""))
-                        : labels
-                return displayRenderProp(textLabels, selectedOptions)
-            }
-            return defaultDisplayRender(labels, selectedOptions)
+        (labels: string[], selected?: CascaderOption[]): ReactNode => {
+            const selectedOptions = selected as EntityCascaderOption[] | undefined
+            // The primitive hands back the raw option labels (which may be ReactNodes); derive
+            // plain text from `__textLabel` so consumers always get strings.
+            const textLabels =
+                selectedOptions && selectedOptions.length > 0
+                    ? selectedOptions.map((opt) => opt?.__textLabel ?? String(opt?.label ?? ""))
+                    : labels
+            if (displayRenderProp) return displayRenderProp(textLabels, selectedOptions)
+            return Array.isArray(textLabels) ? textLabels.join(" / ") : ""
         },
-        [displayRenderProp, defaultDisplayRender],
+        [displayRenderProp],
     )
 
     return (
         <Cascader
+            showSearch
             options={optionsTree}
-            loadData={loadData as (selectedOptions: readonly CascaderOption[]) => void}
-            onChange={
-                handleChange as (
-                    value: (string | number)[],
-                    selectedOptions: readonly CascaderOption[],
-                ) => void
-            }
-            displayRender={
-                displayRender as (
-                    labels: string[],
-                    selectedOptions?: readonly CascaderOption[],
-                ) => string
-            }
+            loadData={loadData}
+            onChange={handleChange}
+            displayRender={displayRender}
             placeholder={placeholder}
-            size={size}
+            size={SIZE_MAP[size]}
             disabled={disabled}
             className={className}
-            popupMatchSelectWidth={popupMatchSelectWidth}
-            popupClassName={popupClassName}
-            placement={placement}
-            dropdownRender={
-                dropdownRender as ((menu: React.ReactElement) => React.ReactElement) | undefined
-            }
-            showSearch={{
-                filter: (inputValue, path) =>
-                    path.some((option) => {
-                        const text =
-                            (option as CascaderOption).__textLabel ?? String(option.label ?? "")
-                        return text.toLowerCase().includes(inputValue.toLowerCase())
-                    }),
-            }}
+            contentClassName={popupClassName}
+            columnMaxWidth={columnMaxWidth}
             loading={rootQuery.isPending}
             expandTrigger="click"
             changeOnSelect={false}

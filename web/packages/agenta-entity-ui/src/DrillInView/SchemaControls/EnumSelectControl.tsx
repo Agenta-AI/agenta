@@ -9,8 +9,9 @@ import {memo, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {formatEnumLabel} from "@agenta/shared/utils"
-import {LabeledField, SimpleDropdownSelect} from "@agenta/ui/components/presentational"
+import {SimpleDropdownSelect} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
+import {Field} from "@agenta/ui/ui"
 import {Select} from "antd"
 
 export interface EnumSelectControlProps {
@@ -137,10 +138,9 @@ export const EnumSelectControl = memo(function EnumSelectControl({
 
     // Select variant (full select)
     return (
-        <LabeledField
+        <Field
             label={label}
-            description={tooltipText}
-            withTooltip={withTooltip && !!label}
+            tooltip={withTooltip && !!label ? tooltipText : undefined}
             className={cn(className)}
         >
             <Select
@@ -157,6 +157,6 @@ export const EnumSelectControl = memo(function EnumSelectControl({
                     (option?.label?.toString() ?? "").toLowerCase().includes(input.toLowerCase())
                 }
             />
-        </LabeledField>
+        </Field>
     )
 })

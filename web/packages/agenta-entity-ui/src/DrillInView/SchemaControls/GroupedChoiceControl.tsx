@@ -13,10 +13,10 @@
 import {memo, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {LabeledField} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
+import {Field} from "@agenta/ui/ui"
 import {Select} from "antd"
 
 import {getOptionsFromSchema} from "./schemaUtils"
@@ -100,10 +100,9 @@ export const GroupedChoiceControl = memo(function GroupedChoiceControl({
     // Model selection - use SelectLLMProviderBase with merged options
     if (isModel) {
         return (
-            <LabeledField
+            <Field
                 label={label}
-                description={tooltipText}
-                withTooltip={withTooltip && !!label}
+                tooltip={withTooltip && !!label ? tooltipText : undefined}
                 className={className}
             >
                 <SelectLLMProviderBase
@@ -117,7 +116,7 @@ export const GroupedChoiceControl = memo(function GroupedChoiceControl({
                     size="small"
                     footerContent={llmProviderConfig?.footerContent}
                 />
-            </LabeledField>
+            </Field>
         )
     }
 
@@ -128,10 +127,9 @@ export const GroupedChoiceControl = memo(function GroupedChoiceControl({
 
     // Other grouped choices - use standard grouped Select
     return (
-        <LabeledField
+        <Field
             label={label}
-            description={tooltipText}
-            withTooltip={withTooltip && !!label}
+            tooltip={withTooltip && !!label ? tooltipText : undefined}
             className={cn(className)}
         >
             <Select
@@ -145,6 +143,6 @@ export const GroupedChoiceControl = memo(function GroupedChoiceControl({
                 showSearch
                 optionFilterProp="label"
             />
-        </LabeledField>
+        </Field>
     )
 })

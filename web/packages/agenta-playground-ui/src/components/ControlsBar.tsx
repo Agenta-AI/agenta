@@ -1,6 +1,8 @@
 import React from "react"
 
-import {AddButton, RunButton, type RunButtonProps} from "@agenta/ui/components/presentational"
+import {RunButton, type RunButtonProps} from "@agenta/ui/components/presentational"
+import {Button} from "@agenta/ui/ui"
+import {Plus} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 interface ControlsBarProps {
@@ -25,19 +27,23 @@ const ControlsBar: React.FC<ControlsBarProps> = ({
             {!isRunning ? (
                 <RunButton
                     onClick={onRun}
-                    size="small"
+                    size="sm"
                     data-tour="run-button"
                     onTrackRun={onTrackRun}
                 />
             ) : (
-                <RunButton isCancel onClick={onCancel} size="small" />
+                <RunButton mode="cancel" onClick={onCancel} size="sm" />
             )}
-            <AddButton
-                size="small"
-                label="Message"
+            <Button
+                variant="outline"
+                size="sm"
+                className="self-start"
                 onClick={onAddMessage}
                 disabled={Boolean(isRunning)}
-            />
+            >
+                <Plus size={14} />
+                Message
+            </Button>
         </div>
     )
 }
