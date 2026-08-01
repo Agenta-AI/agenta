@@ -85,6 +85,7 @@ async def test_resolve_fetches_secrets_and_selects_one_key(fake_http, connection
     assert resolved.deployment == "direct"
     assert resolved.credential_mode == "env"
     assert resolved.env == {"OPENAI_API_KEY": "sk-prod"}
+    assert resolved.input_modalities == ["text", "image"]
     assert capture["method"] == "GET"
     assert capture["url"] == "https://api.x/api/secrets/"
     assert capture["headers"]["Authorization"] == "Access tok"
@@ -100,6 +101,7 @@ async def test_self_managed_short_circuits_without_api_base(fake_http):
     )
     assert resolved.credential_mode == "runtime_provided"
     assert resolved.env == {}
+    assert resolved.input_modalities == ["text", "image"]
 
 
 async def test_default_connection_requires_unique_provider_match(fake_http, connection):
@@ -183,6 +185,7 @@ async def test_bare_claude_alias_resolves_to_anthropic(fake_http, connection):
         assert resolved.provider == "anthropic", alias
         assert resolved.model == alias, alias
         assert resolved.env == {"ANTHROPIC_API_KEY": "sk-ant"}, alias
+        assert resolved.input_modalities == ["text", "image"], alias
 
 
 async def test_bare_claude_dated_id_resolves_to_anthropic(fake_http, connection):
@@ -250,6 +253,7 @@ async def test_known_direct_custom_provider_uses_direct_deployment(
     assert resolved.provider == provider
     assert resolved.deployment == "direct"
     assert resolved.model == model_id
+    assert resolved.input_modalities is None
     assert resolved.endpoint.base_url == endpoint
     if hasattr(resolved, "plaintext_environment"):
         environment = resolved.plaintext_environment()

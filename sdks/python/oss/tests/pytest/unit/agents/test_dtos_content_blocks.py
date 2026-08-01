@@ -40,6 +40,24 @@ def test_content_block_to_wire_omits_none_and_uses_camelcase():
     assert "text" not in wire  # None fields are omitted
 
 
+def test_attachment_block_round_trips():
+    wire = {
+        "type": "attachment",
+        "attachmentId": "01995d1a-2f83-7c4d-8a6b-123456789abc",
+        "filename": "photo.png",
+        "mimeType": "image/png",
+        "size": 482113,
+    }
+
+    block = ContentBlock.from_raw(wire)
+
+    assert block.attachment_id == wire["attachmentId"]
+    assert block.filename == "photo.png"
+    assert block.mime_type == "image/png"
+    assert block.size == 482113
+    assert block.to_wire() == wire
+
+
 def test_text_block_round_trips():
     assert ContentBlock(type="text", text="hi").to_wire() == {
         "type": "text",
