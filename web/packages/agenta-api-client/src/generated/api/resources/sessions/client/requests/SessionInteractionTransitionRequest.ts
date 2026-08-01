@@ -14,4 +14,5 @@ export interface SessionInteractionTransitionRequest {
     session_id: string;
     token: string;
     status: AgentaApi.SessionInteractionStatus;
+    resolution?: AgentaApi.SessionInteractionResolution | null;
 }

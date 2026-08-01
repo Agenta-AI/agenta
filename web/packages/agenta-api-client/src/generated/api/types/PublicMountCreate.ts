@@ -2,7 +2,7 @@
 
 import type * as AgentaApi from "../index.js";
 
-export interface MountCreate {
+export interface PublicMountCreate {
     name?: (string | null) | undefined;
     description?: (string | null) | undefined;
     slug?: (string | null) | undefined;
