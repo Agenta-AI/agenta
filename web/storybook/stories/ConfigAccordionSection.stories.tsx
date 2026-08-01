@@ -103,7 +103,8 @@ const AntdSection = ({
             </div>
         </div>
         <HeightCollapse open={!locked && open}>
-            <div className="flex flex-col gap-3 pb-4">{children}</div>
+            {/* pt-3 matches the component default bodyClassName (main added body top padding). */}
+            <div className="flex flex-col gap-3 pb-4 pt-3">{children}</div>
         </HeightCollapse>
     </div>
 )
