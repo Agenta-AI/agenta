@@ -1,9 +1,11 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {loadSessionMessages} from "@agenta/chat/assets"
+import {loadSessionMessages, type SessionTranscript} from "@agenta/chat/assets"
 import {revalidateSessionRecordsAtom} from "@agenta/entities/session"
 import type {UIMessage} from "ai"
 import {getDefaultStore} from "jotai"
+
+import {shouldAdoptTranscript} from "./transcriptAdoption"
 
 /**
  * Read-only transcript for one session: server record replay via `loadSessionMessages`
@@ -28,23 +30,61 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
     // can strand the FINAL transcript state forever (the turn's `ended` also kills the
     // tightened poll, so nothing else would ever re-read).
     const pendingRef = useRef(false)
+    // What is on screen, read by the adoption guard: `messages` state lags a commit behind, so
+    // two deliveries landing back-to-back would both see the pre-adoption transcript.
+    const messagesRef = useRef<UIMessage[]>([])
+    // Records the rendered transcript was built from; `undefined` until the first adoption. This
+    // is in-memory only — mobile persists no transcript, so there is nothing to file it against.
+    const watermarkRef = useRef<number | undefined>(undefined)
+
+    /**
+     * Apply one delivery behind the shared adoption rule (`shouldAdoptTranscript`). Returns
+     * whether it adopted, so callers can tell "nothing on the server" from "already up to date".
+     */
+    const adopt = useCallback(
+        (transcript: SessionTranscript | null): boolean => {
+            // A late resolve for a previous session must never land.
+            if (sessionRef.current !== sessionId) return false
+            const shouldAdopt = shouldAdoptTranscript(transcript, {
+                messageCount: messagesRef.current.length,
+                watermark: watermarkRef.current,
+            })
+            if (!shouldAdopt || !transcript) return false
+            watermarkRef.current = transcript.recordCount
+            messagesRef.current = transcript.messages
+            setMessages(transcript.messages)
+            setState("ready")
+            return true
+        },
+        [sessionId],
+    )
+    // The poll/relay refresh below must not re-arm on every render, so it reads the current
+    // adopter through a ref rather than closing over it.
+    const adoptRef = useRef(adopt)
+    adoptRef.current = adopt
 
     useEffect(() => {
         let cancelled = false
-        let refreshed = false
+        // A fast revalidation can beat the one-shot resolve; the watermark keeps the two
+        // deliveries order-independent, and this flag keeps a stale empty result from blanking
+        // a transcript the revalidation already adopted.
+        let adopted = false
         setState("loading")
         setMessages([])
+        messagesRef.current = []
+        watermarkRef.current = undefined
         void loadSessionMessages(sessionId, (fresh) => {
             // Disk-restore revalidation re-delivery — fresh is non-empty by contract.
             if (cancelled) return
-            refreshed = true
-            setMessages(fresh)
-            setState("ready")
-        }).then((msgs) => {
-            // A fast revalidation can beat this one-shot resolve; never clobber it.
-            if (cancelled || refreshed) return
-            setMessages(msgs ?? [])
-            setState(msgs && msgs.length > 0 ? "ready" : "empty")
+            if (adoptRef.current(fresh)) adopted = true
+        }).then((transcript) => {
+            if (cancelled) return
+            if (adoptRef.current(transcript)) {
+                adopted = true
+                return
+            }
+            // Nothing adopted from either delivery → no durable history for this session.
+            if (!adopted) setState("empty")
         })
         return () => {
             cancelled = true
@@ -61,12 +101,12 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
         // Invalidate first so the shared-cache read refetches instead of serving staleTime.
         getDefaultStore().set(revalidateSessionRecordsAtom, sessionId)
         void loadSessionMessages(sessionId)
-            .then((msgs) => {
-                if (sessionRef.current === sessionId && msgs && msgs.length > 0) {
-                    setMessages(msgs)
-                    setState("ready")
-                }
+            .then((transcript) => {
+                adoptRef.current(transcript)
             })
+            // A failed poll keeps what is on screen and waits for the next tick; swallowing it
+            // here keeps a transient 5xx from surfacing as an unhandled rejection every 3s.
+            .catch(() => undefined)
             .finally(() => {
                 inFlightRef.current = false
                 if (pendingRef.current) {
