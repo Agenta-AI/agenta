@@ -145,6 +145,21 @@ def claude_model_catalog() -> ModelCatalog:
     return _CLAUDE_CATALOG
 
 
+def _catalog_id(provider: Optional[str], model_id: str) -> str:
+    """Build the ``provider/model`` join key.
+
+    Catalog ids carry a lowercase provider, and the rest of the system (environment resolver,
+    connection matching) treats provider names case-insensitively, so a caller-supplied
+    ``"OpenAI"`` must still join.
+    """
+    head, separator, tail = model_id.partition("/")
+    if provider is None:
+        return f"{head.lower()}/{tail}" if separator else model_id
+    if separator and head.lower() == provider.lower():
+        return f"{provider.lower()}/{tail}"
+    return f"{provider.lower()}/{model_id}"
+
+
 def model_input_modalities(
     harness: Optional[str], model_id: str, *, provider: Optional[str] = None
 ) -> Optional[List[str]]:
@@ -152,11 +167,7 @@ def model_input_modalities(
     entry: Optional[ModelCatalogEntry]
     if harness in ("pi_core", "pi_agenta"):
         catalog = pi_model_catalog()
-        catalog_id = (
-            model_id
-            if provider is None or model_id.startswith(f"{provider}/")
-            else f"{provider}/{model_id}"
-        )
+        catalog_id = _catalog_id(provider, model_id)
     elif harness == "claude":
         catalog = claude_model_catalog()
         catalog_id = model_id
@@ -166,9 +177,7 @@ def model_input_modalities(
     entry = next((item for item in catalog.models if item.id == catalog_id), None)
     if harness == "claude" and entry is None:
         # Reuse the same sourced Anthropic fact from Pi's generated catalog; do not guess.
-        pi_catalog_id = (
-            model_id if model_id.startswith("anthropic/") else f"anthropic/{model_id}"
-        )
+        pi_catalog_id = _catalog_id("anthropic", model_id)
         entry = next(
             (item for item in pi_model_catalog().models if item.id == pi_catalog_id),
             None,

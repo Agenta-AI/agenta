@@ -164,6 +164,21 @@ def test_pi_input_modalities_lookup_joins_resolved_provider_and_model(harness):
     ]
 
 
+def test_input_modalities_lookup_is_case_insensitive_on_provider():
+    # Provider names are matched case-insensitively everywhere else (environment resolver,
+    # connection matching); a mixed-case provider must not silently drop the modality fact.
+    assert model_input_modalities(
+        "pi_core", "gpt-5.5", provider="OpenAI"
+    ) == model_input_modalities("pi_core", "gpt-5.5", provider="openai")
+    assert model_input_modalities("pi_core", "OpenAI/gpt-5.5", provider="OpenAI") == [
+        "text",
+        "image",
+    ]
+    assert model_input_modalities(
+        "claude", "claude-sonnet-4-6", provider="Anthropic"
+    ) == ["text", "image"]
+
+
 def test_claude_input_modalities_lookup_uses_bare_alias():
     assert model_input_modalities("claude", "sonnet", provider="anthropic") == [
         "text",
