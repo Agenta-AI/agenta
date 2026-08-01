@@ -12,7 +12,7 @@ export interface FetchedAttachment {
 type Auth = () => string;
 
 const DEFAULT_FETCH_TIMEOUT_MS = 15_000;
-const DEFAULT_MAX_PER_TURN = 5;
+const DEFAULT_MAX_PER_TURN = 100;
 
 function log(message: string): void {
   process.stderr.write(`[sessions/attachments] ${message}\n`);

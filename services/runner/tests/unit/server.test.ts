@@ -434,13 +434,12 @@ describe("createAgentServer", () => {
   });
 
   it("rejects an over-cap session turn before persistence or attachment claiming", async () => {
+    // Override the cap rather than generating a default-sized batch, so the case stays small.
+    process.env.AGENTA_ATTACHMENTS_MAX_PER_TURN = "2";
     const attachmentIds = [
       "11111111-1111-4111-8111-111111111111",
       "22222222-2222-4222-8222-222222222222",
       "33333333-3333-4333-8333-333333333333",
-      "44444444-4444-4444-8444-444444444444",
-      "55555555-5555-4555-8555-555555555555",
-      "66666666-6666-4666-8666-666666666666",
     ];
     let runCalls = 0;
     const s = await listen(async () => {
@@ -496,9 +495,10 @@ describe("createAgentServer", () => {
       assert.equal(records[0].result.ok, false);
       assert.equal(
         records[0].result.error,
-        "A user turn may carry at most 5 attachments.",
+        "A user turn may carry at most 2 attachments.",
       );
     } finally {
+      delete process.env.AGENTA_ATTACHMENTS_MAX_PER_TURN;
       fetchSpy.mockRestore();
       await s.close();
     }
