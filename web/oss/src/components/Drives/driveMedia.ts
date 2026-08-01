@@ -183,8 +183,11 @@ export async function uploadMountFile({
     const form = new FormData()
     form.append("file", file, file.name)
     const path = destFolder ? `${destFolder.replace(/\/$/, "")}/${file.name}` : file.name
+    // The explicit header matters: the shared instance defaults to application/json, and
+    // axios then JSON-serializes the FormData, collapsing the File to {}.
     await axios.post(`${getAgentaApiUrl()}/mounts/${mountId}/files/upload`, form, {
         params: {path, project_id: projectId},
+        headers: {"Content-Type": "multipart/form-data"},
         signal,
         onUploadProgress: (e) => {
             if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100))
