@@ -1,7 +1,8 @@
 import {useMemo} from "react"
 
+import {Cascader} from "@agenta/ui/ui"
 import {PencilSimple} from "@phosphor-icons/react"
-import {Cascader, Input, Typography} from "antd"
+import {Input, Typography} from "antd"
 
 interface TestsetSelectorProps {
     cascaderValue: string[]
@@ -19,17 +20,18 @@ interface TestsetSelectorProps {
 // Add ellipsis rendering to cascader options recursively
 // Preserves original label as textLabel for displayRender to access
 function addOptionRender(options: any[]): any[] {
-    return options.map((opt) => ({
-        ...opt,
-        // Keep original label accessible for displayRender
-        textLabel: typeof opt.label === "string" ? opt.label : opt.textLabel,
-        label: (
-            <Typography.Text ellipsis style={{width: 170, display: "block"}}>
-                {opt.label}
-            </Typography.Text>
-        ),
-        children: opt.children ? addOptionRender(opt.children) : undefined,
-    }))
+    return options.map((opt) => {
+        const textLabel = typeof opt.label === "string" ? opt.label : opt.textLabel
+        return {
+            ...opt,
+            // Keep original label accessible for displayRender
+            textLabel,
+            // Plain text the cascader's search filters on.
+            searchLabel: typeof textLabel === "string" ? textLabel : undefined,
+            label: <span className="block max-w-[170px] truncate">{opt.label}</span>,
+            children: opt.children ? addOptionRender(opt.children) : undefined,
+        }
+    })
 }
 
 export function TestsetSelector({
@@ -56,6 +58,7 @@ export function TestsetSelector({
             <div className="flex gap-2 mt-1">
                 <Cascader
                     showSearch
+                    aria-label="Select testset"
                     style={{width: elementWidth}}
                     placeholder="Select testset (auto-selects latest revision)"
                     value={cascaderValue}
@@ -66,7 +69,7 @@ export function TestsetSelector({
                     changeOnSelect
                     expandTrigger="hover"
                     displayRender={renderSelectedRevisionLabel}
-                    popupMenuColumnStyle={{maxWidth: 200}}
+                    columnMaxWidth={200}
                 />
                 {isNewTestset && (
                     <div className="relative">

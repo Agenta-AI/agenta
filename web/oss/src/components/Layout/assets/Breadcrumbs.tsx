@@ -1,5 +1,6 @@
 import {memo, useMemo} from "react"
 
+import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {Sidebar} from "@phosphor-icons/react"
 import {Breadcrumb, Typography} from "antd"
@@ -13,7 +14,6 @@ import {getUniquePartOfId, isUuid} from "@/oss/lib/helpers/utils"
 import {useAppState} from "@/oss/state/appState"
 
 import packageJsonData from "../../../../package.json"
-import EnhancedButton from "../../EnhancedUIs/Button"
 
 import {useStyles, type StyleProps} from "./styles"
 import ThemeSwitcher from "./ThemeSwitcher"

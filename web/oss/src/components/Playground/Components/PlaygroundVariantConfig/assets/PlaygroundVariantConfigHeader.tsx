@@ -10,7 +10,7 @@ import {
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
-import {DraftTag} from "@agenta/ui/components"
+import {Tag} from "@agenta/ui/components"
 import {MoreOutlined} from "@ant-design/icons"
 import {Trash} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
@@ -220,7 +220,7 @@ const PlaygroundVariantConfigHeader = ({
                         {/* Local draft: show Draft tag then source revision info */}
                         {isLocalDraftVariant && (
                             <div className="flex items-center gap-2 min-w-0">
-                                <DraftTag />
+                                <Tag draft />
                                 {variantRevision !== null && variantRevision !== undefined && (
                                     <span className="text-gray-500 whitespace-nowrap truncate min-w-0">
                                         from {rawVariantName} v{variantRevision}

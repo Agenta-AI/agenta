@@ -1,9 +1,8 @@
 import {cloneElement, isValidElement, ReactElement, useCallback} from "react"
 
+import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {Database} from "@phosphor-icons/react"
 import {useAtom, useSetAtom} from "jotai"
-
-import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 
 import {closeDrawerAtom, isDrawerOpenAtom, openDrawerWithSpanIdsAtom} from "../../atoms/drawerState"
 import TestsetDrawer from "../../TestsetDrawer"

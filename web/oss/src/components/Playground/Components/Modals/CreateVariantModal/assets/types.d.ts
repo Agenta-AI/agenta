@@ -1,10 +1,11 @@
 import {Dispatch, SetStateAction} from "react"
 
-import {type AddButtonProps} from "@agenta/ui/components/presentational"
+import {type ButtonProps} from "@agenta/ui/ui"
 
-export interface NewVariantButtonProps extends AddButtonProps {
+export interface NewVariantButtonProps extends ButtonProps {
     children?: React.ReactNode
     onClick?: () => void
+    label?: string
 }
 
 export interface CreateVariantModalContentProps {

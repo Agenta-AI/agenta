@@ -1,8 +1,7 @@
 import React, {useMemo} from "react"
 
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import clsx from "clsx"
-
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 
 import {LoadEvaluatorPresetProps} from "./assets/types"
 import LoadEvaluatorPresetContent from "./components/LoadEvaluatorPresetContent"

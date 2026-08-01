@@ -1,8 +1,8 @@
 import {useCallback, useState} from "react"
 
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {clearTraceParamAtom} from "@/oss/state/url"
 
 import {closeTraceDrawerAtom, isDrawerOpenAtom} from "../store/traceDrawerStore"

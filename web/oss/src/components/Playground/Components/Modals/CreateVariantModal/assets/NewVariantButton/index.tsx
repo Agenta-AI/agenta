@@ -1,6 +1,8 @@
 import {isValidElement, cloneElement, useState, useTransition, useCallback} from "react"
 
-import {AddButton} from "@agenta/ui/components/presentational"
+import {Button} from "@agenta/ui/ui"
+import {Plus} from "@phosphor-icons/react"
+import clsx from "clsx"
 
 import CreateVariantModal from "../.."
 import {NewVariantButtonProps} from "../types"
@@ -40,14 +42,18 @@ const NewVariantButton = ({
                     },
                 )
             ) : (
-                <AddButton
-                    label={label}
+                <Button
+                    variant="outline"
+                    {...buttonProps}
+                    className={clsx("self-start", buttonProps.className)}
                     onClick={() => {
                         propsHandleClick?.()
                         setDisplayModal(true)
                     }}
-                    {...buttonProps}
-                />
+                >
+                    <Plus size={14} />
+                    {label}
+                </Button>
             )}
             <CreateVariantModal isModalOpen={displayModal} setIsModalOpen={setDisplayModal} />
         </>

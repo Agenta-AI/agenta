@@ -1,6 +1,6 @@
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {ModalProps} from "antd"
 
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {TestsetCreationMode} from "@/oss/lib/Types"
 import type {TestsetTableRow} from "@/oss/state/entities/testset"
 

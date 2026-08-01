@@ -1,7 +1,6 @@
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
-
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 
 import PricingModalTitle from "./assets/PricingModalTitle"
 import {PricingModalProps} from "./assets/types"

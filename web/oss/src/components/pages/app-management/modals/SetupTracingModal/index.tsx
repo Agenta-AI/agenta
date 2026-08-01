@@ -1,12 +1,12 @@
 import {useMemo, useState} from "react"
 
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CloseOutlined, LinkOutlined} from "@ant-design/icons"
 import {Book, Play} from "@phosphor-icons/react"
 import {Button, ModalProps, Tabs, TabsProps, Typography} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {isDemo} from "@/oss/lib/helpers/utils"
 
 import {generateCodeBlocks} from "./assets/generateCodeBlocks"

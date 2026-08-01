@@ -8,12 +8,12 @@ import {
     type NamedSecretRow,
 } from "@agenta/entities/secret"
 import {message} from "@agenta/ui/app-message"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import {Plus, Trash} from "@phosphor-icons/react"
 import {Button, Input, Segmented, Select, Typography} from "antd"
 
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {slugifyBase} from "@/oss/lib/utils/slugify"
 
 import {

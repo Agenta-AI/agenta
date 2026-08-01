@@ -1,4 +1,4 @@
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 
 import DeleteVariantContent from "./Content"
 import {DeleteVariantModalProps} from "./types"

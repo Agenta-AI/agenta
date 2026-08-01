@@ -1,9 +1,9 @@
 import {useCallback, useState} from "react"
 
 import {message} from "@agenta/ui/app-message"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import dynamic from "next/dynamic"
 
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {cancelSubscription, useSubscriptionData, useUsageData} from "@/oss/services/billing"
 
 import {AutoRenewalCancelModalProps} from "./assets/types"

@@ -8,10 +8,10 @@
 
 import {eventByIdAtomFamily} from "@agenta/entities/event"
 import {dayjs} from "@agenta/shared/utils"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Descriptions, Empty, Tag, Typography} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
-import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {UserReference} from "@/oss/components/References/UserReference"
 
 import {auditDrawerOpenAtom, selectedEventIdAtom} from "../state"

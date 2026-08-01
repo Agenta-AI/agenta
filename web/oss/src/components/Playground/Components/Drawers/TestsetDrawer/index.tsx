@@ -1,9 +1,8 @@
 import {cloneElement, isValidElement, useMemo, useState} from "react"
 
+import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {Database} from "@phosphor-icons/react"
 import dynamic from "next/dynamic"
-
-import EnhancedButton from "../../../../EnhancedUIs/Button"
 
 import {TestsetDrawerButtonProps} from "./types"
 

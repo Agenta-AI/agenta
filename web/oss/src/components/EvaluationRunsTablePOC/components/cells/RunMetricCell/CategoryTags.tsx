@@ -1,6 +1,7 @@
 import {memo} from "react"
 
-import {Tag} from "antd"
+import {getTagColor} from "@agenta/ui/cell-renderers"
+import {Badge} from "@agenta/ui/ui"
 import clsx from "clsx"
 
 export interface CategoryTagsProps {
@@ -9,14 +10,12 @@ export interface CategoryTagsProps {
     className?: string
 }
 
-// Color palette for category tags
-const TAG_COLORS = ["green", "blue", "purple", "orange", "cyan", "magenta", "gold", "lime"]
-
-const getTagColor = (index: number) => TAG_COLORS[index % TAG_COLORS.length]
-
 /**
  * Displays category frequency data as pill/tag elements.
  * Used for array-type metrics where a bar chart isn't appropriate.
+ *
+ * Colours come from the shared `getTagColor` (`@agenta/ui/cell-renderers`); this file used to
+ * keep a private copy of the hue list, which drifted from the design-system tag tokens.
  */
 const CategoryTags = memo(({entries, maxTags = 3, className}: CategoryTagsProps) => {
     if (!entries.length) {
@@ -29,18 +28,18 @@ const CategoryTags = memo(({entries, maxTags = 3, className}: CategoryTagsProps)
     return (
         <div className={clsx("flex flex-col items-center gap-1", className)}>
             {displayEntries.map((entry, index) => (
-                <Tag
+                <Badge
                     key={`${entry.label}-${index}`}
-                    color={getTagColor(index)}
+                    variant={getTagColor(index)}
                     className="m-0 text-xs"
                 >
                     {entry.label} ({entry.count})
-                </Tag>
+                </Badge>
             ))}
             {remainingCount > 0 && (
-                <Tag className="m-0 text-xs" color="default">
+                <Badge className="m-0 text-xs" variant="default">
                     +{remainingCount} more
-                </Tag>
+                </Badge>
             )}
         </div>
     )
