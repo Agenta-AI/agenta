@@ -32,7 +32,7 @@ export const Actions: React.FC<{
 }> = ({member, hidden, organizationId, workspaceId, onResendInvite, selfMenu}) => {
     const {user} = member
     const isMember = user.status === "member"
-    const {canModifyRoles, canInviteMembers} = useWorkspacePermissions()
+    const {canInviteMembers, canRemoveMembers} = useWorkspacePermissions()
 
     const [resendLoading, setResendLoading] = useState(false)
     const {refetch} = useOrgData()
@@ -41,7 +41,7 @@ export const Actions: React.FC<{
     const [renameValue, setRenameValue] = useState(user.username || "")
 
     if (hidden && !selfMenu) return null
-    if (!selfMenu && !canInviteMembers && !canModifyRoles) return null
+    if (!selfMenu && !canInviteMembers && !canRemoveMembers) return null
 
     const handleResendInvite = () => {
         if (!organizationId || !user.email || !workspaceId) return
@@ -128,7 +128,7 @@ export const Actions: React.FC<{
                                         },
                                     ]
                                   : []),
-                              ...(canModifyRoles
+                              ...(canRemoveMembers
                                   ? [
                                         {
                                             key: "remove",

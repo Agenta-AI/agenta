@@ -419,14 +419,14 @@ async def test_composition_select_backend_is_deployment_specific():
 async def test_default_select_backend_refuses_local_sandbox_when_not_enabled(
     monkeypatch,
 ):
-    from agenta.sdk.agents import LocalSandboxNotAllowedError
+    from agenta.sdk.agents import SandboxNotAllowedError
     from agenta.sdk.agents.dtos import AgentTemplate
 
     monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "daytona")
     comp = AgentComposition(resolve_connection=_no_connection)
     handler = make_agent_handler(comp)
 
-    with pytest.raises(LocalSandboxNotAllowedError):
+    with pytest.raises(SandboxNotAllowedError):
         await handler(
             request=_request(),
             messages=[{"role": "user", "content": "hi"}],

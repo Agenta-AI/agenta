@@ -32,9 +32,29 @@ const fileToPart = (file: File): Promise<FileUIPart> =>
         reader.readAsDataURL(file)
     })
 
-/** Convert picked `File`s into `file` parts for `sendMessage({text, files})`. */
-export const filesToParts = (files: File[]): Promise<FileUIPart[]> =>
-    Promise.all(files.map(fileToPart))
+export interface FileReadResult {
+    parts: FileUIPart[]
+    /** Files the browser refused to read (revoked blob, moved/locked on disk), in input order. */
+    unreadable: File[]
+}
+
+/**
+ * Convert picked `File`s into `file` parts for `sendMessage({text, files})`.
+ *
+ * Never rejects. Every send path drops this promise (composer submit, voice take, empty-state
+ * Start, the first-run seed), so a `Promise.all` that threw on one unreadable file surfaced as an
+ * unhandled rejection and a send that silently did nothing. Failures come back as data instead.
+ */
+export const filesToParts = async (files: File[]): Promise<FileReadResult> => {
+    const settled = await Promise.allSettled(files.map(fileToPart))
+    const parts: FileUIPart[] = []
+    const unreadable: File[] = []
+    settled.forEach((result, i) => {
+        if (result.status === "fulfilled") parts.push(result.value)
+        else unreadable.push(files[i])
+    })
+    return {parts, unreadable}
+}
 
 /** The `file` parts of a message, in order. */
 export const fileParts = (message: UIMessage): FileUIPart[] =>

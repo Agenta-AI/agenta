@@ -67,6 +67,7 @@ export {
     type SessionStreamNest,
     type SandboxLiveness,
 } from "./core/liveness"
+export {shouldAdoptServerTranscript, type TranscriptAdoptionInput} from "./core/transcriptAdoption"
 export {deriveMountRows, mountBreadcrumbs, type MountRow} from "./core/mountBrowser"
 export {
     sessionRecordsQueryFamily,

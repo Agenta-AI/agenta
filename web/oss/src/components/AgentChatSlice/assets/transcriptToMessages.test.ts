@@ -304,3 +304,50 @@ describe("transcriptToMessages paused end-marker", () => {
         expect((messages?.[0].metadata as {paused?: boolean} | undefined)?.paused).toBeUndefined()
     })
 })
+
+/**
+ * Regression guard for issue #5530. The adoption guard must not go back to comparing message
+ * counts: a turn grows IN PLACE here, so the count is identical before and after it completes.
+ * If a mapper change ever makes these counts differ, revisit `shouldAdoptServerTranscript` —
+ * do not "simplify" it back to a count comparison on the strength of that change.
+ */
+describe("transcriptToMessages turn growth is invisible to a message count", () => {
+    const midTurn = (): SessionRecord[] => [
+        ...approvalRecords(),
+        record("record-done-paused", {type: "done", stopReason: "paused"}),
+    ]
+
+    const completed = (): SessionRecord[] => [
+        ...midTurn(),
+        record("record-response", {
+            type: "interaction_response",
+            id: "approval-1",
+            kind: "user_approval",
+            payload: {toolCallId: "tool-1", approved: true},
+        }),
+        record("record-result", {
+            type: "tool_result",
+            id: "tool-1",
+            output: {stdout: "a.txt\nb.txt"},
+        }),
+        record("record-answer", {type: "message", text: "There are two files."}),
+        record("record-done", {type: "done"}),
+    ]
+
+    it("renders the same number of messages before and after the turn finishes", () => {
+        const partial = transcriptToMessages(midTurn())
+        const full = transcriptToMessages(completed())
+
+        expect(partial).toHaveLength(1)
+        expect(full).toHaveLength(1)
+        // Same messages, far more content — and far more records behind it.
+        expect(completed().length).toBeGreaterThan(midTurn().length)
+    })
+
+    it("carries strictly more content in the completed turn", () => {
+        const partial = transcriptToMessages(midTurn())
+        const full = transcriptToMessages(completed())
+
+        expect(full?.[0].parts.length).toBeGreaterThan(partial?.[0].parts.length ?? 0)
+    })
+})
