@@ -1,3 +1,4 @@
+import pytest
 import asyncio
 from uuid import UUID, uuid4
 
@@ -6,6 +7,9 @@ from sqlalchemy import select
 from oss.src.dbs.postgres.sessions.attachments.dbes import SessionAttachmentDBE
 from oss.src.dbs.postgres.shared.engine import TransactionsEngine
 from oss.tests.pytest.utils.mounts import skip_if_mount_storage_unavailable
+
+# Reads the database directly, so it only runs adjacent to the stack (see conftest).
+pytestmark = pytest.mark.integration
 
 _PNG = b"\x89PNG\r\n\x1a\n" + b"hidden-mount"
 
