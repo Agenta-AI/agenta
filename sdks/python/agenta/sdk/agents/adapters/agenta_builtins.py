@@ -178,7 +178,8 @@ optional fields: `render` (a UI hint) and `permission` (`allow` / `ask` / `deny`
 runner default for that one tool). The six `type` values:
 
 - `builtin` — a harness built-in: `{ "type": "builtin", "name": "read" }`. (A per-builtin
-  `permission` is dropped — builtins are granted by selection, not gated.) A new agent starts
+  `permission` is dropped — selection grants the built-in; whether a call needs approval stays
+  the runner's permission mode.) A new agent starts
   with Pi's four defaults (`read`, `bash`, `edit`, `write`), as shown above. Keep them unless the
   user asks you to drop one: an empty `tools` list grants NO built-ins, so an agent that ships
   with `[]` cannot read or write a file at all.
