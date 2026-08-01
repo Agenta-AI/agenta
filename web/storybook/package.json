@@ -18,7 +18,7 @@
         "@agenta/ui": "workspace:*",
         "@phosphor-icons/react": "^2.1.10",
         "lucide-react": "^0.479.0",
-        "next": "15.5.21"
+        "next": "15.5.18"
     },
     "devDependencies": {
         "@ant-design/icons": "^6.1.0",
