@@ -46,29 +46,32 @@ verified against the code on 2026-07-31:
   land a recording in the attachment tray like any file.
 
 Two consequences shape the stages below. First, Stage 1 front-end work shrinks to wiring: the
-collection UI exists and only its transport and rendering change. Second, one path is live today
-with no flag: paste and drag-to-attach on the composer predate the flags and are not gated
-(`assets/constants.ts`), which is exactly the Stage 0 gap.
+collection UI exists and only its transport and rendering change. Second, paste and drag-to-attach
+on the composer predated the flags and ran ungated, which was the Stage 0 gap. Stage 0 has since
+closed it, so every composer path now respects `NEXT_PUBLIC_AGENT_FILE_UPLOADS`.
 
 Drive uploads are deliberately not part of the attachment pipeline: a file dropped into the Files
 drawer writes directly to that mount at that path, and only files shared through the composer
 become attachments (decision D13 in [design.md](design.md)).
 
-## Stage 0: gate the ungated paste and drag path (small, optional)
+## Stage 0: gate the ungated paste and drag path (complete)
 
 **Goal.** Stop the front end from accepting files until the runner can deliver them, by refusing an
 attachment that would reach the dead end instead of accepting it.
 
-- **Front end.** The attach button, preview, and drive uploads are behind
-  `NEXT_PUBLIC_AGENT_FILE_UPLOADS`, but paste and drag-to-attach on the composer predate the flag
-  and are not gated (`AgentConversation.tsx`, the paste and drop handlers; the flag comment in
-  `assets/constants.ts` records this). Gate those two paths on the same flag so no file can be
-  attached while the flag is off. This removes the trap where a pasted screenshot looks accepted
-  and is then ignored.
-- **Tests.** A front-end unit test that a paste or drop of a file is refused while the feature flag
-  is off.
+**Complete, 2026-07-31, in commit `f2aa193cb2` on
+[PR #5604](https://github.com/Agenta-AI/agenta/pull/5604), and verified live in both flag states.**
+What was done, the implicit decisions it forced, and the QA record are in
+[protocols/stage-0.md](protocols/stage-0.md).
 
-This stage can be skipped if Stage 1 lands quickly.
+- **Front end.** The attach button, preview, and drive uploads were already behind
+  `NEXT_PUBLIC_AGENT_FILE_UPLOADS`, but paste and drag-to-attach on the composer predated the flag
+  and ran ungated (`AgentConversation.tsx`, the paste and drop handlers). The shared
+  `attachmentsBlocked` guard now includes `!uploadsEnabled`, which gates the drag, drop, and paste
+  handlers through the mechanism the composer already used for its other blocked states. This
+  removes the trap where a pasted screenshot looks accepted and is then ignored.
+- **Tests.** Covered by the live check in both flag states recorded in the protocol rather than by
+  a new front-end unit test.
 
 ## Stage 1: the first user-visible release (images perceived, files travel as references)
 

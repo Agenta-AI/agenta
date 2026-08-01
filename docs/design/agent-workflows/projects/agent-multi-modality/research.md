@@ -769,10 +769,13 @@ to a Vercel `file` part on the way to the front end. But **nothing emits it.** A
 runner source for that event type finds only its declaration, no producer. The protocol defines the
 event, but no runner code emits it.
 
-How this normally works elsewhere: an agent writes the file into its working directory and then
-mentions it in its answer, and the client shows a link when it recognizes a file reference. In Zed
-and opencode the client renders a file the agent wrote by reading the working directory, not by a
-special "here is a file" protocol event. For our product this means assistant-produced files are a
+How this normally works elsewhere: an agent writes the file into its working directory and
+mentions it in its answer, but neither Zed nor opencode recognizes file references by scanning the
+prose or the working directory. The affordance always rides structured data on the wire: ACP
+tool-call `locations` entries carrying absolute paths, `resource_link` blocks the agent emits, or
+(in Zed only) a strict existence check on backticked code spans against the worktree, with no
+fuzzy matching. opencode renders no file links from agent text at all; every file affordance there
+comes from tool-call inputs. For our product this means assistant-produced files are a
 separate piece of work: making the agent write to `cwd` and surfacing the new file in the drawer is
 already close to working (the drawer lists `cwd`), while a first-class "assistant returned this file"
 inline chip is the not-yet-built part. This project treats assistant-produced files as out of scope
