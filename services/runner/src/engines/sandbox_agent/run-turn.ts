@@ -77,6 +77,7 @@ import {
   sessionContinuityStore,
 } from "./session-continuity.ts";
 import { reconstructHistoryIfNeeded } from "./reconstruct-history.ts";
+import { carriesApprovalReplyOnly } from "./session-identity.ts";
 import { buildTurnText, priorMessages } from "./transcript.ts";
 import { resolveRunUsage } from "./usage.ts";
 
@@ -155,20 +156,45 @@ export async function runTurn(
     // record log so a cold turn still has full context. Runs before the current user turn is
     // persisted, so records hold only prior turns. Reassigns `request` so every downstream
     // reader (turnText, priorMessages, responder, otel) sees the same reconstructed history.
-    const reconstructed = await reconstructHistoryIfNeeded(
-      request,
-      sessionId,
-      () => runCredential(request),
-      logger,
-    );
+    // An out-of-band approval reply carries no user text of its own, so this must be decided from
+    // the INBOUND request: reconstruction prepends the original user turn, after which
+    // `resolvePromptText` would hand back that stale command and the model would restart the task.
+    const approvalReplyOnly = carriesApprovalReplyOnly(request);
+    const inboundRequest = request;
+    // On a LIVE approval resume the rebuilt history is never sent to the harness: the resume
+    // continues the ORIGINAL prompt promise (`opts.resume` below), so `turnText` is discarded and
+    // the harness already holds the conversation. Reconstruction there only enriches the trace and
+    // the responder's view, so a failed records fetch must NOT fail the turn: `{ok:false}` makes
+    // the dispatch evict the live session and retry cold, where reconstruction throws again — one
+    // 500 from the records endpoint would lose the human's approval AND the parked session. Keep
+    // the inbound request and continue. A cold turn still fails loudly, where it matters.
+    let reconstructed: AgentRunRequest | null = null;
+    try {
+      reconstructed = await reconstructHistoryIfNeeded(
+        request,
+        sessionId,
+        () => runCredential(request),
+        logger,
+      );
+    } catch (err) {
+      if (!opts.resume) throw err;
+      const detail = err instanceof Error ? err.message : String(err);
+      logger(
+        `[reconstruct] live resume: keeping the inbound history (${detail})`,
+      );
+    }
     if (reconstructed) request = reconstructed;
 
     const promptText = resolvePromptText(request);
     // Cold: replay the full transcript. Continuation or loaded: send only new text. When history
     // was rebuilt from records, recompute the transcript from it — the prebuilt plan.turnText
-    // predates the reconstruction.
+    // predates the reconstruction. An approval reply has no new text either way, so it sends the
+    // approval-resume frame `buildTurnText` renders (the harness already holds the prior turns
+    // when the session was loaded natively; otherwise the rebuilt transcript comes with it).
     const turnText = sendLastMessageOnly(opts)
-      ? promptText
+      ? approvalReplyOnly
+        ? buildTurnText(inboundRequest, logger)
+        : promptText
       : reconstructed
         ? buildTurnText(request, logger)
         : plan.turnText;
@@ -458,6 +484,7 @@ export async function runTurn(
       toolName: string | undefined,
       toolArgs: unknown,
       kind: "user_approval" | "client_tool" = "user_approval",
+      toolCallId?: string,
     ): void => {
       const cred = runCredential(request);
       if (!cred) return;
@@ -468,7 +495,16 @@ export async function runTurn(
         request.turnId ?? "",
         token,
         kind,
-        { request: { tool: toolName ?? token, args: toolArgs }, references },
+        {
+          request: {
+            tool: toolName ?? token,
+            args: toolArgs,
+            // The gate id (`token`) and the harness's tool-call id differ; an out-of-band answer
+            // needs the latter to name the call it is answering.
+            ...(toolCallId ? { tool_call_id: toolCallId } : {}),
+          },
+          references,
+        },
         () => cred,
       );
     };

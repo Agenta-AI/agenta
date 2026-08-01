@@ -5,6 +5,7 @@ import {
   type ChatMessage,
   type ContentBlock,
   messageText,
+  resolvePromptText,
 } from "../../protocol.ts";
 import { approvalDecisionOf } from "../../responder.ts";
 import type { TeardownReason } from "./teardown.ts";
@@ -302,6 +303,37 @@ export function approvalDecisionForToolCall(
 export function carriesMinimalHistory(request: AgentRunRequest): boolean {
   const messages = request.messages ?? [];
   return messages.length === 1 && tailIsFreshUserMessage(request);
+}
+
+/**
+ * True when the request is an OUT-OF-BAND approval reply: it carries an approval envelope and no
+ * prompt text. That is what a caller answering from the durable interaction row alone sends
+ * (an inbox, a webhook, a CLI) — the parked tool call plus its `{approved}` result, nothing else.
+ *
+ * "No prompt text" means exactly what `resolvePromptText` reads and nothing more: `text` blocks on
+ * a `role: "user"` message. Text carried any other way (a non-`text` block type, another role)
+ * does not disqualify a request here — deliberately, because this predicate decides whether the
+ * run has a prompt to SEND, and `resolvePromptText` is what produces that prompt. The two must
+ * agree; a stricter check here would classify a request as having a prompt the run then omits.
+ *
+ * Such a request is the mirror image of `carriesMinimalHistory`: it asserts no conversation, so
+ * the prior turns come from the durable record log and there is no history for the keep-alive
+ * check to compare. It also has no prompt to send, which is why `buildRunPlan` must not reject it
+ * for having none. A playground approval reply carries the full transcript (its user turns
+ * included) and is therefore NOT this shape.
+ */
+export function carriesApprovalReplyOnly(request: AgentRunRequest): boolean {
+  if (resolvePromptText(request)) return false;
+  for (const message of request.messages ?? []) {
+    const content = message?.content;
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      if (block?.type === "tool_result" && approvalDecisionOf(block) !== undefined) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 /**

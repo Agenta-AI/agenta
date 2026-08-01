@@ -25,6 +25,7 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionData,
     SessionInteractionKind,
     SessionInteractionQuery,
+    SessionInteractionRequest,
     SessionInteractionStatus,
     SessionInteractionTransition,
 )
@@ -182,7 +183,7 @@ async def test_interaction_transition_preserves_data_and_optionally_adds_resolut
     assert transitioned is not None
     assert transitioned.status == SessionInteractionStatus.resolved
     assert transitioned.data is not None
-    assert transitioned.data.request == request
+    assert transitioned.data.request == SessionInteractionRequest(**request)
     assert transitioned.data.resolution == {
         "verdict": "approved",
         "tool_call_id": "tool-1",
@@ -210,7 +211,9 @@ async def test_interaction_transition_preserves_data_and_optionally_adds_resolut
 
     assert transitioned_without_resolution is not None
     assert transitioned_without_resolution.data is not None
-    assert transitioned_without_resolution.data.request == request
+    assert transitioned_without_resolution.data.request == SessionInteractionRequest(
+        **request
+    )
     assert transitioned_without_resolution.data.resolution is None
 
 
