@@ -265,7 +265,7 @@ const AgentConversation = ({
      * accepting files into an input you cannot send from is a dead end.
      */
     const composerDisabled = onboardingActive ? ideHandoffActive : modelBlocked
-    const attachmentsBlocked = () => voiceRecorder.active || composerDisabled
+    const attachmentsBlocked = () => !uploadsEnabled || voiceRecorder.active || composerDisabled
     const dropTarget = attachments.bindDropTarget(attachmentsBlocked)
 
     // First-run seed + its overlay-gated auto-start. `handleSubmit` is declared below, so the

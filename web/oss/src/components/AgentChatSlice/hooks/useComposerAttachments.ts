@@ -29,8 +29,7 @@ const toUploadFile = (file: File): UploadFile => ({
  * (route re-entry, tab close/reopen) alongside the composer draft; rejections stay transient.
  */
 export const useComposerAttachments = ({sessionId}: {sessionId: string}) => {
-    // Attach button + attachment preview + drive uploads (`NEXT_PUBLIC_AGENT_FILE_UPLOADS`). Paste
-    // and drag-to-attach predate the flag and stay on.
+    // Gate every attachment path on NEXT_PUBLIC_AGENT_FILE_UPLOADS until file parts are supported.
     const uploadsEnabled = isAgentFileUploadsEnabled()
     // Restored from the per-session store on remount (route re-entry, tab close/reopen) —
     // pending attachments survive alongside the composer draft. Rejections stay transient.

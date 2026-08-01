@@ -314,9 +314,7 @@ const AgentComposerDock = ({
                                             }
                                         />
                                     ) : null}
-                                    {/* Attach button stays dead until the agent service is ready
-                                    for inline file parts (`NEXT_PUBLIC_AGENT_FILE_UPLOADS`);
-                                    paste / drag-to-add still work either way. */}
+                                    {/* Gate the attach button until inline file parts are supported. */}
                                     <Tooltip
                                         title={
                                             !uploadsEnabled
