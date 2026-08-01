@@ -23,8 +23,6 @@
         ".storybook/**/*.tsx",
         "stories/**/*.ts",
         "stories/**/*.tsx",
-        "fixtures/**/*.ts",
-        "fixtures/**/*.ts",
         "*.ts",
         "*.mjs"
     ]
