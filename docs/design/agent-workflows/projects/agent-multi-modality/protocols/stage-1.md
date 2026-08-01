@@ -358,3 +358,33 @@ comment rationales, and feedback for swallowed Enter presses.
   script); only the published report is missing until someone with the scope lands the line.
 - **The Fern/OpenAPI regeneration** for typed accessors elsewhere in the sessions domain is a
   stated follow-up, deliberately not bundled into this package's diff.
+
+## The end-to-end QA (dev stack, all four packages deployed, 2026-08-01)
+
+All four containers were recreated and the complete path driven from a real browser on the QA
+account. First round: everything behind the front end passed at wire level (a referenced upload
+delivered natively and read back verbatim; a ZIP claimed, materialized, and read from the
+workspace by the agent; reload-from-records rendering with real filenames and zero base64 in the
+DOM; the over-cap error naming the limit with no retry offer), but every composer upload failed
+with 422. The cause was a two-line front-end omission: the shared axios instance defaults to a
+JSON content type and silently JSON-serializes a FormData, collapsing the file to an empty
+object; the existing multipart callers in the codebase pass the explicit header and the new
+transport did not. With the header added, the re-run passed both blocked cases: upload 200 with
+a real multipart body, the run request carrying the reference and no base64, the reply reading
+the image's text, and the ZIP's named workspace-only notice followed by the agent reading the
+archive's marker.
+
+Observations recorded for follow-up, none blocking:
+
+- **ZIP-container sniffing mislabels.** A plain `.zip` stores as the Word-document media type
+  (both share the container signature and the sniffer scores the more specific format higher).
+  Delivery classification and the notice were still correct; only the stored label is wrong.
+  Tracked as a classifier refinement.
+- **A corrupt image surfaces as a raw provider 400** in the chat rather than a friendly message
+  (found via a QA-side transcription error, reproduced deliberately).
+- **The model may perceive via either channel.** With both the native block and the working copy
+  present, one run answered through its read tool rather than native vision; the guarantee D1
+  promises (the bytes reach the model) held either way.
+- Pre-existing and unrelated: the stale provider-key banner, the billing cron's date validation
+  error, and an approvals-lane behavior ("Deny and send note" answering "not handled") flagged
+  on PR #5598.
