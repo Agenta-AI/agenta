@@ -88,25 +88,3 @@ export const attachmentIdForPart = (part: FileUIPart): string | null => {
 
 /** A readable label for a file part. */
 export const filePartName = (part: FileUIPart): string => part.filename || "attachment"
-
-/** Attachment names visible to delivery notices, keyed by their following assistant message. */
-export const attachmentNamesByMessage = (
-    messages: UIMessage[],
-): Map<string, ReadonlyMap<string, string>> => {
-    const result = new Map<string, ReadonlyMap<string, string>>()
-    let precedingUserFiles = new Map<string, string>()
-
-    for (const message of messages) {
-        if (message.role === "user") {
-            precedingUserFiles = new Map()
-            for (const part of fileParts(message)) {
-                const attachmentId = attachmentIdForPart(part)
-                if (attachmentId) precedingUserFiles.set(attachmentId, filePartName(part))
-            }
-        } else {
-            result.set(message.id, precedingUserFiles)
-        }
-    }
-
-    return result
-}

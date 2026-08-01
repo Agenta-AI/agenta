@@ -12,7 +12,6 @@ import {
     Check,
     Clock,
     Copy,
-    EyeSlash,
     Robot,
     TreeStructure,
     User,
@@ -92,8 +91,6 @@ const TraceMetrics = ({traceId, usage}: {traceId: string; usage?: MessageUsageMe
 interface AgentMessageProps {
     message: UIMessage
     sessionId: string
-    /** Filenames from the preceding user turn, keyed by attachment id. */
-    attachmentNames?: ReadonlyMap<string, string>
     /** This is the last message AND the conversation is streaming — i.e. the one being
      * generated right now. Only it shows the loading state; settled turns never do. */
     isStreaming?: boolean
@@ -320,45 +317,6 @@ const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: str
     )
 }
 
-interface AttachmentDeliveryPart {
-    type: "data-attachment-delivery"
-    data: {
-        attachmentId: string
-        outcome: "native" | "workspace_only" | "failed"
-        reasonCode: string
-        workingPath?: string
-    }
-}
-
-const AttachmentDeliveryNotice = ({
-    part,
-    filename,
-}: {
-    part: AttachmentDeliveryPart
-    filename?: string
-}) => {
-    if (part.data.outcome === "native") return null
-    const failed = part.data.outcome === "failed"
-    const label = filename || "Attachment"
-    return (
-        <div
-            className={`flex items-center gap-1.5 text-xs ${
-                failed ? "text-colorError" : "text-colorTextSecondary"
-            }`}
-            role={failed ? "alert" : "status"}
-        >
-            {failed ? <XCircle size={14} /> : <EyeSlash size={14} />}
-            <span>
-                {failed
-                    ? `${label}: could not be delivered to the agent.`
-                    : part.data.workingPath
-                      ? `${label}: the model did not perceive this file. The agent can use it at ${part.data.workingPath}.`
-                      : `${label}: the model did not perceive this file. The agent can still use it with tools.`}
-            </span>
-        </div>
-    )
-}
-
 /**
  * Read-only renderer for one agent conversation message, rendered inside an Ant Design X
  * `Bubble`. Walks `message.parts` in order (text → markdown, reasoning, tool calls +
@@ -372,7 +330,6 @@ const AgentMessage = ({
     isLastMessage = false,
     onRewind,
     onClientToolOutput,
-    attachmentNames,
     precededByEmptyAssistant = false,
     turnTraceId,
 }: AgentMessageProps) => {
@@ -421,8 +378,6 @@ const AgentMessage = ({
             (p.type === "text" && (p as {text?: string}).text) ||
             isToolPart(p.type) ||
             p.type === "file" ||
-            (p.type === "data-attachment-delivery" &&
-                (p as {data?: {outcome?: string}}).data?.outcome !== "native") ||
             p.type === "source-url",
     )
     const hasReasoning = message.parts.some(
@@ -573,17 +528,6 @@ const AgentMessage = ({
                     stateKey={reasoningKey(message.id, i)}
                     text={reasoning.text}
                     streaming={reasoning.state === "streaming"}
-                />
-            )
-        }
-        if (part.type === "data-attachment-delivery") {
-            return (
-                <AttachmentDeliveryNotice
-                    key={partKey}
-                    part={part as unknown as AttachmentDeliveryPart}
-                    filename={attachmentNames?.get(
-                        (part as unknown as AttachmentDeliveryPart).data.attachmentId,
-                    )}
                 />
             )
         }

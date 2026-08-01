@@ -388,3 +388,12 @@ Observations recorded for follow-up, none blocking:
 - Pre-existing and unrelated: the stale provider-key banner, the billing cron's date validation
   error, and an approvals-lane behavior ("Deny and send note" answering "not handled") flagged
   on PR #5598.
+
+### Product-owner correction (2026-08-01)
+
+The in-message delivery notice ("<filename>: the model did not perceive this file. The agent
+can use it at attachments/…") was removed at the product owner's direction. Its wording and
+placement were implementation-invented; decision D6's "visible notice" is satisfied by the chip
+hint alone (the crossed-eye indicator with its tooltip). The `attachment_delivery` events keep
+flowing and persisting unchanged; the front end parses and ignores them, so a future surface
+can render them without wire changes.

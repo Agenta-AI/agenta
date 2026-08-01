@@ -392,25 +392,21 @@ describe("transcriptToMessages attachments", () => {
         )
     })
 
-    it("rebuilds attachment delivery as the live data notice part", () => {
-        const part = firstPart([
-            record("record-delivery", {
-                type: "attachment_delivery",
-                attachmentId: "019c1e0a-f911-7000-8000-000000000001",
-                outcome: "workspace_only",
-                reasonCode: "model_modality_unknown",
-                workingPath: "attachments/019c1e0a-f911-7000-8000-000000000001/archive.zip",
-            }),
-        ])
-
-        expect(part).toEqual({
-            type: "data-attachment-delivery",
-            data: {
-                attachmentId: "019c1e0a-f911-7000-8000-000000000001",
-                outcome: "workspace_only",
-                reasonCode: "model_modality_unknown",
-                workingPath: "attachments/019c1e0a-f911-7000-8000-000000000001/archive.zip",
-            },
+    it("ignores an attachment delivery record instead of rendering a part", () => {
+        const delivery = record("record-delivery", {
+            type: "attachment_delivery",
+            attachmentId: "019c1e0a-f911-7000-8000-000000000001",
+            outcome: "workspace_only",
+            reasonCode: "model_modality_unknown",
+            workingPath: "attachments/019c1e0a-f911-7000-8000-000000000001/archive.zip",
         })
+
+        expect(transcriptToMessages([delivery])).toBeNull()
+        expect(
+            transcriptToMessages([
+                record("record-text", {type: "message", text: "Done."}),
+                delivery,
+            ])?.[0].parts,
+        ).toEqual([{type: "text", text: "Done."}])
     })
 })

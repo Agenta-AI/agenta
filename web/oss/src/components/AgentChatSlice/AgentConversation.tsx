@@ -28,7 +28,7 @@ import CopiedToast from "@/oss/components/TemplateStrip/components/CopiedToast"
 
 import {attachmentLimitsForModalities, describeAccepted} from "./assets/attachments"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
-import {attachmentNamesByMessage, filesToInlineParts, filesToParts} from "./assets/files"
+import {filesToInlineParts, filesToParts} from "./assets/files"
 import {runWithInFlightSubmit} from "./assets/inFlightSubmit"
 import {isEmptyAssistantTurn, isVisiblePart} from "./assets/messageParts"
 import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
@@ -529,23 +529,16 @@ const AgentConversation = ({
         [regenerate, setStopped],
     )
 
-    // Delivery notices name their file from the preceding user turn's attachment references.
-    const deliveryAttachmentNames = useMemo(() => attachmentNamesByMessage(messages), [messages])
-
     const renderMessage = (message: UIMessage, index: number) => {
         const isLast = index === messages.length - 1
         const isAssistantTurn = message.role === "assistant"
         const turn = turnNumbers.get(message.id)
         const isInspected = isAssistantTurn && inspectedTurn != null && turn === inspectedTurn
-        // Undefined (not an empty map) for turns with no attachments above them, so the memo on
-        // every settled turn still holds while a run streams.
-        const attachmentNames = deliveryAttachmentNames.get(message.id)
         return (
             <AgentTurn
                 key={message.id}
                 message={message}
                 sessionId={sessionId}
-                attachmentNames={attachmentNames?.size ? attachmentNames : undefined}
                 // New since mount → fade in once. seenIdsRef is marked in an effect after commit,
                 // never during render (unsafe under StrictMode's double invoke).
                 enter={!isSeen(message.id)}
