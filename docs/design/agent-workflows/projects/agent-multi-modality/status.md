@@ -38,8 +38,8 @@ See [README.md](README.md). In short: [context.md](context.md) for the plain sto
 
 | Stage | Scope | State |
 | --- | --- | --- |
-| 0 | Close the silent-failure gap: gate the ungated paste and drag path on `NEXT_PUBLIC_AGENT_FILE_UPLOADS` | not started (optional) |
-| 1 | First user-visible release: the attachment resource and storage, the record-schema extension, the runner's resolve-materialize-and-deliver seam for images, structured capability errors, the minimum security and limits work (per the settled matrix in [design.md](design.md), including the gateway raise to 32 MB), and the front-end transport and reference wiring | not started |
+| 0 | Close the silent-failure gap: gate the ungated paste and drag path on `NEXT_PUBLIC_AGENT_FILE_UPLOADS` | in review (PR #5604) |
+| 1 | First user-visible release: the attachment resource and storage, the record-schema extension, the runner's resolve-materialize-and-deliver seam for images, structured capability errors, the minimum security and limits work (per the settled matrix in [design.md](design.md), including the gateway raise to 32 MB), and the front-end transport and reference wiring | in review as four stacked PRs (#5607 API, #5615 runner, #5617 SDK, #5619 front end), end-to-end QA green on the dev stack; the trail is in [protocols/stage-1.md](protocols/stage-1.md) |
 | 2 | The audio release: turn on the voice UI, dictation as the only audio-to-text, recordings on the D6 workspace-only path (D14); the document plan (blocked on adapter work), the capability-alias rollout, derived front-end limits | not started (documents blocked on adapter work) |
 | 3 | Findability polish and cleanup: "Shared by you" origin, reference-counting cleanup refinement, read-only credential scope, verify the edit-then-find flow | not started |
 
@@ -73,10 +73,12 @@ in [plan.md](plan.md) Stage 2.
 
 ## Next actions
 
-- Start implementation: Stage 1 of [plan.md](plan.md), optionally preceded by Stage 0.
-- Decide whether Stage 0 ships on its own or folds into Stage 1.
-- Build the Stage 1 upload route against the settled matrix ([design.md](design.md), "The
-  media-type, validation, and limits matrix"), including the compose gateway raise to 32 MB.
+- Review and merge the Stage 1 train bottom-up (#5604, #5607, #5598, #5615, #5597, #5617,
+  #5619), then flip `NEXT_PUBLIC_AGENT_FILE_UPLOADS` in production as the rollout's fifth act.
+- Follow-ups recorded in [protocols/stage-1.md](protocols/stage-1.md): the CI report glob line
+  (needs a workflow-scoped push), the Fern client regeneration, and the zip-container
+  classifier refinement.
+- Then Stage 2 of [plan.md](plan.md).
 
 ## Artifacts
 

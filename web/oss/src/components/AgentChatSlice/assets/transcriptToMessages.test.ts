@@ -351,3 +351,62 @@ describe("transcriptToMessages turn growth is invisible to a message count", () 
         expect(full?.[0].parts.length).toBeGreaterThan(partial?.[0].parts.length ?? 0)
     })
 })
+
+describe("transcriptToMessages attachments", () => {
+    it("rebuilds user attachment references as file parts with filenames", () => {
+        const messages = transcriptToMessages([
+            record(
+                "record-user",
+                {
+                    type: "message",
+                    text: "Inspect this",
+                    attachments: [
+                        {
+                            attachmentId: "019c1e0a-f911-7000-8000-000000000001",
+                            filename: "diagram.png",
+                            mediaType: "image/png",
+                            size: 42,
+                        },
+                    ],
+                },
+                "user",
+            ),
+        ])
+
+        expect(messages?.[0]).toMatchObject({
+            role: "user",
+            parts: [
+                {type: "text", text: "Inspect this"},
+                {
+                    type: "file",
+                    filename: "diagram.png",
+                    mediaType: "image/png",
+                    providerMetadata: {
+                        agenta: {attachmentId: "019c1e0a-f911-7000-8000-000000000001", size: 42},
+                    },
+                },
+            ],
+        })
+        expect((messages?.[0].parts[1] as {url: string}).url).toContain(
+            "/sessions/attachments/019c1e0a-f911-7000-8000-000000000001/content?session_id=session-1",
+        )
+    })
+
+    it("ignores an attachment delivery record instead of rendering a part", () => {
+        const delivery = record("record-delivery", {
+            type: "attachment_delivery",
+            attachmentId: "019c1e0a-f911-7000-8000-000000000001",
+            outcome: "workspace_only",
+            reasonCode: "model_modality_unknown",
+            workingPath: "attachments/019c1e0a-f911-7000-8000-000000000001/archive.zip",
+        })
+
+        expect(transcriptToMessages([delivery])).toBeNull()
+        expect(
+            transcriptToMessages([
+                record("record-text", {type: "message", text: "Done."}),
+                delivery,
+            ])?.[0].parts,
+        ).toEqual([{type: "text", text: "Done."}])
+    })
+})

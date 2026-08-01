@@ -11,6 +11,7 @@ import {WaitingForInput, WorkingDots} from "./TurnActivity"
 
 interface AgentTurnProps {
     message: UIMessage
+    sessionId: string
     /** Fade in once — this turn arrived after mount. */
     enter: boolean
     isLast: boolean
@@ -47,6 +48,7 @@ interface AgentTurnProps {
  */
 const AgentTurn = ({
     message,
+    sessionId,
     enter,
     isLast,
     isStreaming,
@@ -77,6 +79,7 @@ const AgentTurn = ({
         >
             <AgentMessage
                 message={message}
+                sessionId={sessionId}
                 isStreaming={isStreaming}
                 isLastMessage={isLast}
                 onRewind={onRewind}

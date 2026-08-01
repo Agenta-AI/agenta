@@ -308,3 +308,170 @@ dissolves on the next rebase.
 - **The catalogs cannot express document or audio support today**, so native document delivery
   (Stage 2) will need the catalog schema to grow before the gate can ever say yes; the gate's
   absence-means-unknown rule is what keeps that honest in the meantime.
+
+## WP4: frontend transport and rendering
+
+### Implementation decisions worth knowing (beyond the plan)
+
+- The shared composer package (`RichChatInput`, `SubmitPlugin`, `SendButton` in `agenta-ui`)
+  gained send-only disabling. The review enumerated all three consumers; the new props default
+  to today's behavior, so the two non-attachment surfaces are untouched.
+- The tray uid doubles as the upload idempotency key (stated in a comment at the generation
+  site); that identity is what makes retry reuse safe. `generateId()` is used instead of
+  `crypto.randomUUID`, which is undefined on plain-HTTP dev deployments.
+- Send blocks (with a tooltip) until every tray upload settles; a failed upload never falls back
+  to base64. Removing a chip aborts its in-flight request.
+- Static composer limits stay; capability-derived limits remain the Stage 2 item.
+- web/oss joined the unit-test loop with an explicit include list; the 13 pre-existing orphaned
+  test files stay excluded and are tracked in issue #5618.
+
+### The review, and what it changed
+
+Fourteen findings, four merge blockers, all fixed before the PR opened:
+
+1. The acceptance Playwright spec sat one directory outside the collected test root and would
+   never have run anywhere; it now lives with its siblings, carries the suite's tags, and has no
+   silent environment skip.
+2. Voice messages routed through the upload transport unconditionally, so with voice on and
+   uploads off a recording died in a permanent error chip; the recorder now uses references only
+   when the uploads flag is on and keeps its inline path otherwise, preserving the flags'
+   independence (the seam WP2's protocol had predicted would matter).
+3. `size` sat top-level on the file part, where the AI SDK's validation strips it, so every
+   persisted turn would silently lose the field; it moved into the `providerMetadata.agenta`
+   envelope beside the id.
+4. A hardcoded perception map contradicted the model-capability data the same component already
+   computes for the voice controls; perception now derives from the shared memoized fact, with
+   absent-or-unknown meaning the workspace-only notice.
+
+The remaining ten: an error taxonomy for uploads (cap and quota named, Retry-After honored,
+old-backend 404 explained, non-retryable states without a retry button), abort-on-remove, a
+double-send guard over the voice path's upload await, delivery notices joined to filenames,
+lowercase-pinned id validation matching the adapter, a filename fallback that never renders the
+URL tail, no eager full-file downloads on render, junit reporting for the new test setup, restored
+comment rationales, and feedback for swallowed Enter presses.
+
+### Forced routes to double-check
+
+- **The one-line CI glob addition** (publishing web/oss's junit report) is left uncommitted: the
+  session's push credential lacks the GitHub `workflow` scope, and a commit touching workflow
+  files is rejected at push. The vitest gate itself works without it (the runner discovers the
+  script); only the published report is missing until someone with the scope lands the line.
+- **The Fern/OpenAPI regeneration** for typed accessors elsewhere in the sessions domain is a
+  stated follow-up, deliberately not bundled into this package's diff.
+
+## The end-to-end QA (dev stack, all four packages deployed, 2026-08-01)
+
+All four containers were recreated and the complete path driven from a real browser on the QA
+account. First round: everything behind the front end passed at wire level (a referenced upload
+delivered natively and read back verbatim; a ZIP claimed, materialized, and read from the
+workspace by the agent; reload-from-records rendering with real filenames and zero base64 in the
+DOM; the over-cap error naming the limit with no retry offer), but every composer upload failed
+with 422. The cause was a two-line front-end omission: the shared axios instance defaults to a
+JSON content type and silently JSON-serializes a FormData, collapsing the file to an empty
+object; the existing multipart callers in the codebase pass the explicit header and the new
+transport did not. With the header added, the re-run passed both blocked cases: upload 200 with
+a real multipart body, the run request carrying the reference and no base64, the reply reading
+the image's text, and the ZIP's named workspace-only notice followed by the agent reading the
+archive's marker.
+
+Observations recorded for follow-up, none blocking:
+
+- **ZIP-container sniffing mislabels.** A plain `.zip` stores as the Word-document media type
+  (both share the container signature and the sniffer scores the more specific format higher).
+  Delivery classification and the notice were still correct; only the stored label is wrong.
+  Tracked as a classifier refinement.
+- **A corrupt image surfaces as a raw provider 400** in the chat rather than a friendly message
+  (found via a QA-side transcription error, reproduced deliberately).
+- **The model may perceive via either channel.** With both the native block and the working copy
+  present, one run answered through its read tool rather than native vision; the guarantee D1
+  promises (the bytes reach the model) held either way.
+- Pre-existing and unrelated: the stale provider-key banner, the billing cron's date validation
+  error, and an approvals-lane behavior ("Deny and send note" answering "not handled") flagged
+  on PR #5598.
+
+### Product-owner corrections (2026-08-01)
+
+Three corrections after the product owner saw the shipped surfaces:
+
+1. **The in-message delivery notice was removed** ("<filename>: the model did not perceive this
+   file. The agent can use it at attachments/…"). Its wording and placement were
+   implementation-invented.
+2. **The chip-level hint was removed too** (the crossed-eye indicator with "The model may not
+   perceive this file…"). The first release therefore ships no notice UI at all; decision D6's
+   "visible notice" is deferred to a future surface the product owner designs. The
+   `attachment_delivery` events keep flowing and persisting unchanged, and the front end parses
+   and ignores them, so that future surface needs no wire changes. The upload error messages
+   were reviewed and kept.
+3. **The per-turn attachment count rose from 5 to 100** (front-end constant and the runner's
+   `AGENTA_ATTACHMENTS_MAX_PER_TURN` default). The old 5 was the dark-shipped composer default
+   with no motivating constraint; provider count caps are far higher. Because the per-session
+   count quota was also 100, one full turn would have consumed it, so the session count quota
+   rose to 1,000; the 256 MB per-session byte quota and the 20-pending cap stay the real
+   bounds. The design docs' matrix numbers were updated in the same pass.
+
+## The external-review fix wave (2026-08-01)
+
+After the train went up for review, three sources produced findings: a Codex sweep across the
+implementation PRs (11 comments), CodeRabbit's open threads, and CodeRabbit's stack-wide review
+body. The product owner adjudicated every item one by one; the accepted set landed as one wave of
+lane-scoped fix commits (api 56bc0b6526 + 973ade3965, runner 208fb31218 + 020b56dea6, sdk
+df5321bc8c, services bf070f7309, frontend aa1cb47a7f, docs 5cd13b49c2 and 64c52a8b04 with
+212d6470a2 and 200c360c60). Every thread got a reply naming its commit; addressed threads were
+resolved.
+
+Decisions worth restating, with their reasons:
+
+- **A failed attachment claim stays non-fatal** (CodeRabbit wanted the result consumed). A swept
+  attachment already degrades to a "no longer available" mention on cold replay; failing the turn
+  over reference bookkeeping would trade a graceful loss for a hard one. Documented at the call
+  site.
+- **The stale-after-24h staged upload is a recorded v1 limitation.** The failure needs a tab left
+  open for a day with a staged file; the fix (revalidate at send) is medium-sized and deferred.
+- **The reference contract rose to 100 ids** to match the 100-file turn the product owner set;
+  the mismatch (composer 100, claim contract 50) would have silently unreferenced files on large
+  turns, which the sweep would then delete.
+- **Legacy inline images now respect supplied model capabilities.** The image-assuming literal
+  applies only when the resolver sent nothing, preserving legacy behavior exactly where legacy
+  behavior is the only information available.
+- **The "fresh user content" rule became one shared predicate** (text, attachments, or inline
+  media) used by turn authority, resume classification, and freshness; the three had drifted
+  before and each drift was a bug.
+- **The denied-tool corruption found during QA was root-caused to the client-tool dispatcher**
+  (a denied part auto-settled as "not handled by this client", erasing the denial from history).
+  Fixed with tests in PR #5630, stacked above WP4 because the owning files predate the train.
+- **Two CodeRabbit "Major" flags on the built-ins open-questions doc stay open questions**
+  (unconfined local sandbox, tool-name collisions). They are product decisions the doc already
+  records; the feature is dev-only behind a flag.
+
+Skipped with rebuttals on the threads: response-model count computation (breaks the file's
+uniform convention), nginx body-size scoping and a purpose enum (low value against churn), and a
+provider-independent inline base64 ceiling (only one provider needs a cap today).
+
+## The rebase onto release/v0.107.0 (2026-08-01, evening)
+
+Release branch `release/v0.107.0` was cut from main (which had meanwhile absorbed 106.2). The
+whole workspace retargeted onto it. The 106.2 release had split `AgentConversation.tsx` into
+hooks and views and shipped its own upload plumbing, so the frontend commits could not replay
+textually; each conflicted commit was resolved by porting its INTENT into the new structure,
+one commit at a time, preserving history-faithful intermediate states (one mid-history test
+failure existed in the original branch at that same point and healed when the next commit
+replayed, exactly as in the original).
+
+Where things moved: the composer attachment machinery now lives in
+`hooks/useComposerAttachments.ts` (upload-on-attach, staged files, settle rule, scoped clear),
+paste/drag guards partly in `components/AgentComposerDock.tsx`, message rendering behind
+`components/AgentTurn.tsx`. The base's own defect fixes (unreadable-file hold, multi-tab
+follow, turn memoization) survived unchanged; the port passes `undefined` instead of an empty
+map where a fresh-Map prop would have defeated the base's turn memo.
+
+Verification on the new base: zero rebase casualties. Runner 1389, API 1597 + 304 DB-backed,
+SDK 705, services 101, web suites green; the one real overlap (the sandbox-error rename)
+merged with the back-compat alias intact. One latent train bug surfaced by the DB-backed run
+(the approval-resume lane typed `SessionInteractionData.request` but an older DAO test still
+compared a raw dict) was fixed on its lane.
+
+Two additions rode the retarget: `feat/agent-file-uploads-default-on` (PR #5633) makes the
+uploads flag opt-out per the product owner's rollout call, and `fix/drive-folder-drop-walk`
+(PR #5635, closes #5626) adds the directory walk the drawer lacked, stacked on the multipart
+transport fix (#5625). The Fern spec on the rebased stack is byte-identical to the one the
+committed client was generated from, so no regeneration was needed.

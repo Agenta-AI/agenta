@@ -36,8 +36,7 @@ export const isAgentVoiceInputEnabled = (): boolean =>
  * File uploads and attachments — the composer attach button + attachment preview, and every drive
  * upload entry point (upload button, drop-to-upload in the Files drawer, drop-to-stage on a recents
  * peek). Off by default: the composer→model delivery contract is still open on the backend. Enable
- * with `NEXT_PUBLIC_AGENT_FILE_UPLOADS=true`. Paste/drag-to-attach on the composer predates this and
- * is not gated.
+ * with `NEXT_PUBLIC_AGENT_FILE_UPLOADS=true`. The composer gates button, paste, and drag paths.
  */
 export const isAgentFileUploadsEnabled = (): boolean =>
     (getEnv("NEXT_PUBLIC_AGENT_FILE_UPLOADS") || "").toLowerCase() === "true"

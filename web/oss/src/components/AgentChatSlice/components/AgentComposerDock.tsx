@@ -139,6 +139,7 @@ const AgentComposerDock = ({
         limits,
         atMax,
         attachmentsSettled,
+        uploadBlockReason,
         addFiles,
         removeFile,
         uploads,
@@ -284,6 +285,8 @@ const AgentComposerDock = ({
                                 if (!attachmentsBlocked()) addFiles(Array.from(pasted))
                             }}
                             sendForceEnabled={files.length > 0 && attachmentsSettled}
+                            sendDisabled={files.length > 0 && !attachmentsSettled}
+                            sendDisabledReason={uploadBlockReason}
                             streaming={busy}
                             onStop={onStop}
                             prefix={
@@ -354,12 +357,12 @@ const AgentComposerDock = ({
                                         files={files}
                                         rejections={rejections}
                                         limits={limits}
-                                        audioPerceivable={audioPerceivable}
                                         onAdd={addFiles}
                                         onRemove={removeFile}
                                         onDismissRejections={() => setRejections([])}
                                         onView={uploadsEnabled ? setViewingUid : undefined}
                                         onRetry={uploads.retry}
+                                        canRetry={uploads.canRetry}
                                     />
                                 </HeightCollapse>
                             }

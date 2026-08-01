@@ -1,6 +1,8 @@
 import type {SessionRecord} from "@agenta/entities/session"
 import type {UIMessage} from "ai"
 
+import {attachmentContentUrl} from "./attachmentMedia"
+
 /**
  * Replay adapter — durable session-record `AgentEvent`s → v6 `UIMessage[]`.
  *
@@ -105,6 +107,7 @@ function applyEvent(
     draft: DraftMessage,
     payload: Record<string, unknown>,
     index: TranscriptIndex,
+    sessionId: string,
 ): void {
     const type = payload.type as string | undefined
     const str = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v))
@@ -112,6 +115,25 @@ function applyEvent(
     switch (type) {
         case "message": {
             draft.parts.push({type: "text", text: str(payload.text)})
+            const attachments = Array.isArray(payload.attachments) ? payload.attachments : []
+            for (const raw of attachments) {
+                if (!raw || typeof raw !== "object") continue
+                const attachment = raw as Record<string, unknown>
+                const attachmentId = str(attachment.attachmentId)
+                if (!attachmentId) continue
+                draft.parts.push({
+                    type: "file",
+                    url: attachmentContentUrl(sessionId, attachmentId),
+                    mediaType: str(attachment.mediaType) || "application/octet-stream",
+                    filename: str(attachment.filename) || undefined,
+                    providerMetadata: {
+                        agenta: {
+                            attachmentId,
+                            size: typeof attachment.size === "number" ? attachment.size : undefined,
+                        },
+                    },
+                })
+            }
             return
         }
         case "message_start": {
@@ -236,6 +258,7 @@ function applyEvent(
                 type: "file",
                 url: str(payload.url),
                 mediaType: str(payload.mediaType),
+                filename: str(payload.filename) || undefined,
             })
             return
         }
@@ -261,7 +284,7 @@ function applyEvent(
             draft.usage = next
             return
         }
-        // done / data / render-hints carry no renderable message part — drop.
+        // done / data / render-hints / attachment_delivery carry no renderable message part — drop.
         default:
             return
     }
@@ -314,7 +337,7 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
             drafts.push(current)
         }
         if (traceId && !current.traceId) current.traceId = traceId
-        applyEvent(current, p, index)
+        applyEvent(current, p, index, row.session_id)
     }
 
     const messages = drafts
