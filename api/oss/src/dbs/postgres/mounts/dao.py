@@ -308,6 +308,10 @@ class MountsDAO(MountsDAOInterface):
                     order="descending",
                     windowing=windowing,
                 )
+            else:
+                # Consumers index into this list (the web drive picks a mount out of it), so an
+                # unordered query made their pick depend on whatever row order Postgres returned.
+                stmt = stmt.order_by(MountDBE.created_at.asc(), MountDBE.id.asc())
 
             result = await session.execute(stmt)
 
