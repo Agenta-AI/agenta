@@ -1,0 +1,5 @@
+/* The app's real global stylesheet. It @imports theme-variables.css (the --ag-*
+ * CSS-var token layer) and declares `@layer tailwind-base, antd;` before the
+ * @tailwind directives, so antd's injected styles win over Tailwind's base reset —
+ * the exact ordering the app ships. Processed by this package's tailwind/postcss. */
+@import "@agenta/oss/src/styles/globals.css";
