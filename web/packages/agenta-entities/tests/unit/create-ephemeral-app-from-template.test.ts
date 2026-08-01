@@ -55,9 +55,18 @@ const agentTemplate = () => ({
     },
 })
 
-function readAgentConfig(localId: string): Record<string, any> {
-    const entity = getDefaultStore().get(workflowLocalServerDataAtomFamily(localId)) as any
-    return entity?.data?.parameters?.agent
+/** Minimal shape of the agent config these assertions read off the local entity. */
+interface AgentConfigShape {
+    harness?: {kind?: string}
+    llm?: Record<string, unknown>
+    tools?: {type?: string; name?: string}[]
+}
+
+function readAgentConfig(localId: string): AgentConfigShape {
+    const entity = getDefaultStore().get(workflowLocalServerDataAtomFamily(localId))
+    const agent = entity?.data?.parameters?.agent
+    if (!agent) throw new Error(`no agent config on the local entity for ${localId}`)
+    return agent as AgentConfigShape
 }
 
 describe("createEphemeralAppFromTemplate (agent tools)", () => {

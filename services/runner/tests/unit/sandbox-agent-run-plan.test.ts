@@ -149,6 +149,41 @@ describe("buildRunPlan", () => {
     });
   });
 
+  it("refuses a stalled history whose newest tool envelope is an unresolved call", () => {
+    // The approval was answered earlier; the newest envelope is a call nobody replied to, so
+    // this is not an approval reply and there is still no prompt to send.
+    const result = buildRunPlan(
+      {
+        messages: [
+          {
+            role: "assistant",
+            content: [
+              { type: "tool_call", toolCallId: "tc-1", toolName: "Write" },
+              {
+                type: "tool_result",
+                toolCallId: "tc-1",
+                toolName: "Write",
+                output: { approved: true, interactionToken: "tok-1" },
+              },
+            ],
+          },
+          {
+            role: "assistant",
+            content: [
+              { type: "tool_call", toolCallId: "tc-2", toolName: "Bash" },
+            ],
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/unused" },
+    );
+
+    assert.deepEqual(result, {
+      ok: false,
+      error: "No user message to send (prompt/messages empty).",
+    });
+  });
+
   it("accepts an out-of-band approval reply that carries no user text", () => {
     // What a caller answering from the durable interaction row sends: the parked call plus its
     // {approved} envelope, and nothing else. The conversation is rebuilt from the record log

@@ -100,6 +100,11 @@ function seed(
     )
 }
 
+/** Minimal shape of the agent template these assertions read back off the request body. */
+interface AgentTemplateShape {
+    tools: {type?: string; name?: string; op?: string}[]
+}
+
 const authoringSkill = {
     "@ag.embed": {"@ag.references": {workflow: {slug: "__ag__getting_started_with_agenta"}}},
 }
@@ -359,7 +364,8 @@ describe("buildAgentRequest", () => {
         })
 
         const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
-        const template = (req!.requestBody.data as any).parameters.agent
+        const template = (req!.requestBody.data as {parameters: {agent: AgentTemplateShape}})
+            .parameters.agent
 
         expect(template.tools).toEqual([
             builtin("read"),
@@ -369,7 +375,7 @@ describe("buildAgentRequest", () => {
             {type: "platform", op: "commit_revision"},
         ])
         for (const name of ["read", "bash", "edit", "write"]) {
-            expect(template.tools.filter((tool: any) => tool?.name === name)).toHaveLength(1)
+            expect(template.tools.filter((tool) => tool?.name === name)).toHaveLength(1)
         }
     })
 
