@@ -48,15 +48,16 @@ describe("attachment API client", () => {
   it("uses verified headers and prefers RFC 5987 filename*", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(new Uint8Array([1, 2, 3]), {
-          status: 200,
-          headers: {
-            "content-type": "image/png",
-            "content-disposition":
-              "attachment; filename=\"fallback.png\"; filename*=UTF-8''..%2Ff%C3%B6%C3%B6.png",
-          },
-        }),
+      vi.fn(
+        async () =>
+          new Response(new Uint8Array([1, 2, 3]), {
+            status: 200,
+            headers: {
+              "content-type": "image/png",
+              "content-disposition":
+                "attachment; filename=\"fallback.png\"; filename*=UTF-8''..%2Ff%C3%B6%C3%B6.png",
+            },
+          }),
       ),
     );
 
@@ -75,11 +76,12 @@ describe("attachment API client", () => {
   it("returns null when a 200 response omits the verified headers", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(new Uint8Array([1, 2, 3]), {
-          status: 200,
-          headers: { "content-type": "image/png" },
-        }),
+      vi.fn(
+        async () =>
+          new Response(new Uint8Array([1, 2, 3]), {
+            status: 200,
+            headers: { "content-type": "image/png" },
+          }),
       ),
     );
     assert.equal(
@@ -91,14 +93,15 @@ describe("attachment API client", () => {
   it("strips content-type parameters from the media type", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(new Uint8Array([1]), {
-          status: 200,
-          headers: {
-            "content-type": "IMAGE/PNG; charset=binary",
-            "content-disposition": "attachment; filename=photo.png",
-          },
-        }),
+      vi.fn(
+        async () =>
+          new Response(new Uint8Array([1]), {
+            status: 200,
+            headers: {
+              "content-type": "IMAGE/PNG; charset=binary",
+              "content-disposition": "attachment; filename=photo.png",
+            },
+          }),
       ),
     );
     const fetched = await fetchAttachment(
@@ -112,15 +115,16 @@ describe("attachment API client", () => {
   it("refuses a body that declares more than the per-attachment cap", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(new Uint8Array([1]), {
-          status: 200,
-          headers: {
-            "content-type": "image/png",
-            "content-disposition": "attachment; filename=photo.png",
-            "content-length": String(64 * 1024 * 1024),
-          },
-        }),
+      vi.fn(
+        async () =>
+          new Response(new Uint8Array([1]), {
+            status: 200,
+            headers: {
+              "content-type": "image/png",
+              "content-disposition": "attachment; filename=photo.png",
+              "content-length": String(64 * 1024 * 1024),
+            },
+          }),
       ),
     );
     assert.equal(
@@ -132,10 +136,17 @@ describe("attachment API client", () => {
   it("parses quoted filename when filename* is absent", () => {
     assert.equal(
       filenameFromContentDisposition(
-        "attachment; filename=\"folder\\\\report.pdf\"",
+        'attachment; filename="folder\\\\report.pdf"',
       ),
       "report.pdf",
     );
+  });
+
+  it("stays linear on an unterminated quote full of escapes", () => {
+    const hostile = `attachment; filename="${"\\!".repeat(50_000)}`;
+    const started = performance.now();
+    filenameFromContentDisposition(hostile);
+    assert.ok(performance.now() - started < 1_000);
   });
 
   it("posts the exact claim contract with the run credential", async () => {
@@ -149,14 +160,13 @@ describe("attachment API client", () => {
     );
 
     assert.equal(
-      await claimAttachments(
-        "session-1",
-        [ATTACHMENT_ID],
-        () => "Bearer test",
-      ),
+      await claimAttachments("session-1", [ATTACHMENT_ID], () => "Bearer test"),
       true,
     );
-    assert.equal(request?.url.endsWith("/sessions/attachments/reference"), true);
+    assert.equal(
+      request?.url.endsWith("/sessions/attachments/reference"),
+      true,
+    );
     assert.equal(request?.init?.method, "POST");
     assert.deepEqual(JSON.parse(String(request?.init?.body)), {
       session_id: "session-1",
@@ -174,11 +184,7 @@ describe("attachment API client", () => {
       vi.fn(async () => new Response("no", { status: 503 })),
     );
     assert.equal(
-      await claimAttachments(
-        "session-1",
-        [ATTACHMENT_ID],
-        () => "Bearer test",
-      ),
+      await claimAttachments("session-1", [ATTACHMENT_ID], () => "Bearer test"),
       false,
     );
   });

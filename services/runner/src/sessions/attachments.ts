@@ -82,7 +82,9 @@ export function filenameFromContentDisposition(
     if (sanitized) return sanitized;
   }
 
-  const quoted = /(?:^|;)\s*filename\s*=\s*"((?:\\.|[^"])*)"/i.exec(
+  // The escape branch must exclude backslash from the plain branch, or the two
+  // overlap and an unterminated quote backtracks exponentially (CodeQL js/redos).
+  const quoted = /(?:^|;)\s*filename\s*=\s*"((?:\\.|[^"\\])*)"/i.exec(
     disposition,
   );
   if (quoted) {
