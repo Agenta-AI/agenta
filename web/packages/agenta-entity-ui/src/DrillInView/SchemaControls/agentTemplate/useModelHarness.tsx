@@ -1094,6 +1094,10 @@ export function useModelHarness({
         // self-managed card; no nested header/badge, no rail) for the inline "Connect key"
         // quick-action under the section header — aligned with the drawer without duplicating it.
         providerCredentialsInline,
+        // The full accordion variant (header, "Connect key" badge, changed-path indicator, group
+        // revert) — used instead of the bare pane when the connect-key state coincides with an
+        // uncommitted change, so the change stays visible rather than being silently dropped.
+        providerCredentialsSection,
         // A model is selected but the chosen harness can't run it — a *model* problem (the harness
         // itself stays valid), so the config panel flags the Model & harness section as invalid.
         modelUnsupported: !!modelId && !selectedKeepsModel,

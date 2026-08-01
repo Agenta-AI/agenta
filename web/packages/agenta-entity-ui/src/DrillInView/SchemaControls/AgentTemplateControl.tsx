@@ -121,11 +121,14 @@ const ModelHarnessSectionBody = ({
     section,
     ...params
 }: {
-    section: "model-harness" | "advanced"
+    section: "model-harness" | "advanced" | "connect-key"
 } & Parameters<typeof useModelHarness>[0]) => {
     const mh = useModelHarness(params)
     if (section === "advanced") {
         return <>{mh.advancedDrawerBody}</>
+    }
+    if (section === "connect-key") {
+        return <>{mh.providerCredentialsSection}</>
     }
     return <>{mh.modelHarnessDrawerBody}</>
 }
@@ -490,6 +493,19 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         }),
         [sectionChanges.draft, onChange, config, committed],
     )
+    // Whether THIS session's edit touched the provider/connection specifically (`llm.connection.*` /
+    // `llm.provider`), not just some other model-harness field (e.g. `harness.kind`). Gates the
+    // connect-key pane's diff-aware variant below — narrower than "the section has any change" so a
+    // harness-only edit that happens to also need a key keeps its plain (model-picker-inclusive) pane
+    // instead of losing the picker to a body that only knows how to show the credentials group.
+    const credentialsPathChanged = useMemo(
+        () =>
+            (sectionChanges.draft.sectionsByKey.get("model-harness")?.scalarChanges ?? []).some(
+                (c) => c.key === "llm.provider" || c.key.startsWith("llm.connection"),
+            ),
+        [sectionChanges.draft],
+    )
+
     // The inline body for a drawer-backed section: its own controls, narrowed to what changed — the
     // same affordance as the Connect-key field, with a different filter (see SectionChangeBody).
     // The body is a COMPONENT rendered inside the providers, never `mh`'s pre-built output: the hook
@@ -817,7 +833,13 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             // What the section surfaces inline, in precedence order. Dropping `onOpen` is what makes
             // a section expand inline instead of routing to the drawer.
             //   1. Required info missing (no provider key) — BLOCKING, so it wins: the same key field
-            //      the drawer uses, right here.
+            //      the drawer uses, right here. If THIS SESSION also moved the connection/provider
+            //      itself, swap the bare (headerless) pane for the changed-aware accordion variant —
+            //      otherwise that diff has no affordance anywhere: the bare pane never mounts under a
+            //      ChangedPathsProvider (`mh.providerCredentialsInline` here is the parent's
+            //      uncontexted instance) and structurally has no indicator/badge/revert chrome. A
+            //      change to some OTHER model-harness field (e.g. harness.kind) keeps the plain pane,
+            //      so it doesn't lose the inline model picker for a diff it can't represent anyway.
             //   2. Uncommitted changes — informational: what changed (see `changeBodyFor`).
             //   3. Neither — the plain drawer row it has always been.
             ...(showKeyPane
@@ -832,7 +854,22 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                       onOpenDetails={() => openSectionDrawer("model-harness")}
                                       disabled={disabled}
                                   >
-                                      {mh.providerCredentialsInline}
+                                      {credentialsPathChanged ? (
+                                          <ChangedPathsProvider changes={panelChangedPaths}>
+                                              <ModelHarnessSectionBody
+                                                  section="connect-key"
+                                                  schema={schema}
+                                                  config={config}
+                                                  onChange={onChange}
+                                                  disabled={disabled}
+                                                  withTooltip={withTooltip}
+                                                  revisionId={revisionId}
+                                                  savedHarnessValue={savedHarnessValue}
+                                              />
+                                          </ChangedPathsProvider>
+                                      ) : (
+                                          mh.providerCredentialsInline
+                                      )}
                                   </SectionQuickAction>
                               </div>
                           </HeightCollapse>
