@@ -7,6 +7,7 @@ import {
   collectLegacyInlineImages,
   type ResolvedAttachment,
 } from "../../src/engines/sandbox_agent/attachments.ts";
+import { COLD_FRAME_USER_LABEL } from "../../src/engines/sandbox_agent/transcript.ts";
 import type { ChatMessage } from "../../src/protocol.ts";
 
 const ATTACHMENT_ID = "019a52c2-14c0-7c14-b874-2f5798f9cd21";
@@ -72,7 +73,8 @@ describe("attachment prompt blocks", () => {
   it("places mentions in the latest-user section of a cold replay frame", () => {
     const turnText =
       "Conversation so far:\nassistant: ready\n\n" +
-      "Continue the conversation. The user now says:\ndescribe this";
+      COLD_FRAME_USER_LABEL +
+      "describe this";
     const blocks = buildPromptBlocks(
       turnText,
       [resolved("workspace_only")],
@@ -84,7 +86,7 @@ describe("attachment prompt blocks", () => {
     assert.equal(
       text,
       "Conversation so far:\nassistant: ready\n\n" +
-        "Continue the conversation. The user now says:\n" +
+        COLD_FRAME_USER_LABEL +
         "[attached file: photo.png at attachments/" +
         ATTACHMENT_ID +
         "/photo.png]\ndescribe this",
@@ -93,8 +95,7 @@ describe("attachment prompt blocks", () => {
 
   it("puts attachment-only mentions after the cold frame's closing label", () => {
     const turnText =
-      "Conversation so far:\nassistant: ready\n\n" +
-      "Continue the conversation. The user now says:\n";
+      "Conversation so far:\nassistant: ready\n\n" + COLD_FRAME_USER_LABEL;
     const blocks = buildPromptBlocks(
       turnText,
       [resolved("workspace_only")],
