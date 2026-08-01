@@ -239,18 +239,30 @@ function applyEvent(
             const responsePayload = (payload.payload ?? {}) as Record<string, unknown>
             const responseId = str(payload.id)
             const toolCallId = str(responsePayload.toolCallId)
+            // A cold resume re-raises the approved call under a NEW toolCallId, so the interaction
+            // id (identical on request and response by contract) is the reliable key to the gate.
             const part =
-                (toolCallId ? index.tools.get(toolCallId) : undefined) ??
-                index.approvals.get(responseId)
-            if (
-                !part ||
-                part.state !== "approval-requested" ||
-                typeof responsePayload.approved !== "boolean"
-            ) {
-                return
+                index.approvals.get(responseId) ??
+                (toolCallId ? index.tools.get(toolCallId) : undefined)
+            if (!part || typeof responsePayload.approved !== "boolean") return
+            if (part.state === "approval-requested") {
+                part.state = "approval-responded"
+                part.approval = {id: responseId, approved: responsePayload.approved}
             }
-            part.state = "approval-responded"
-            part.approval = {id: responseId, approved: responsePayload.approved}
+            if (!toolCallId || toolCallId === str(part.toolCallId)) return
+            // Re-raised under a new id: point that id at the gated part and fold in the duplicate
+            // it created — an executed result supersedes the approval-responded state.
+            const duplicate = index.tools.get(toolCallId)
+            index.tools.set(toolCallId, part)
+            if (!duplicate || duplicate === part) return
+            const at = draft.parts.indexOf(duplicate)
+            if (at >= 0) draft.parts.splice(at, 1)
+            if (duplicate.input !== undefined) part.input = duplicate.input
+            if (typeof duplicate.state === "string" && duplicate.state.startsWith("output-")) {
+                part.state = duplicate.state
+                if (duplicate.output !== undefined) part.output = duplicate.output
+                if (duplicate.errorText !== undefined) part.errorText = duplicate.errorText
+            }
             return
         }
         case "file": {
