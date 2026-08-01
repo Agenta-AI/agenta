@@ -34,7 +34,7 @@ verified against the code on 2026-07-31:
 
 - The composer attach UI and attachment chips (`AgentConversation.tsx`, `ComposerAttachments.tsx`).
 - The limits object: `DEFAULT_ATTACHMENT_LIMITS` in
-  `web/oss/src/components/AgentChatSlice/assets/attachments.ts` allows 5 files per message, 10 MB
+  `web/oss/src/components/AgentChatSlice/assets/attachments.ts` allows 100 files per turn, 10 MB
   per image, 15 MB per audio clip, and 10 MB per document, with per-kind media-type validation.
 - The upload lifecycle hook `useAttachmentUploads`, with a deliberate transport seam: no uploader
   is passed today, so files stage as ready-to-send; providing an uploader runs the whole
@@ -90,7 +90,7 @@ forged-reference rejection, server-side media-type verification, per-file and pe
 limits, and time-to-live cleanup of never-referenced uploads are all part of Stage 1. They are not
 polish for a later stage, because the first release already accepts files from a browser and stores
 them, and an unauthenticated or unbounded version of that is not shippable. On limits specifically:
-enforcement today is client-side only (the merged `DEFAULT_ATTACHMENT_LIMITS`: 5 files per message,
+enforcement today is client-side only (the merged `DEFAULT_ATTACHMENT_LIMITS`: 100 files per turn,
 10 MB images, 15 MB audio, 10 MB documents), which a client can bypass, so the server-side check
 belongs to the new upload route. The exact rules are settled: the matrix in
 [design.md](design.md), "The media-type, validation, and limits matrix", defines the per-kind
@@ -138,7 +138,7 @@ nobody reaches yet.
   rejected ([design.md](design.md), decision D10).
 - Per-file size limits and the per-session quotas, enforced server-side at the create route, with
   the numbers from the settled matrix: 10 MB per image, 15 MB per audio clip, 10 MB per document
-  and per other kind. The per-turn count of 5 is the runner's to enforce over the current user
+  and per other kind. The per-turn count of 100 is the runner's to enforce over the current user
   turn, since each upload is its own request (the matrix in [design.md](design.md)).
 - Time-to-live cleanup of uploads that are never referenced by a sent turn.
 - The record-schema extension so a record can carry an attachment reference. Records are text-only

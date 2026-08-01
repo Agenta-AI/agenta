@@ -387,15 +387,15 @@ shipped client caps (`attachments.ts`, lines 49 to 59).
 
 | Kind (by inspected type) | Accepted formats | Per-file cap | Per-turn count | At upload | At delivery |
 | --- | --- | --- | --- | --- | --- |
-| image | PNG, JPEG, GIF, WebP | 10 MB | 5 across all kinds | over the cap: rejected with a structured error | native when the D5 intersection allows; workspace-only with the D6 notice when the original exceeds a provider inline cap (rule below) |
-| audio | recognized audio containers (WAV, MP3, OGG, WebM, FLAC, M4A) | 15 MB | shared 5 | same | always workspace-only in the first release (decision D14); native ACP audio is the last upgrade |
-| document | PDF; text (`text/*`); JSON | 10 MB | shared 5 | same | workspace-only today (native documents are the Stage 2 adapter blocker); small text can inline as text |
-| other (recognized, not a native kind) | any other recognized type (archives, office formats, video, and so on) | 10 MB | shared 5 | same | always workspace-only with the D6 notice |
+| image | PNG, JPEG, GIF, WebP | 10 MB | 100 across all kinds | over the cap: rejected with a structured error | native when the D5 intersection allows; workspace-only with the D6 notice when the original exceeds a provider inline cap (rule below) |
+| audio | recognized audio containers (WAV, MP3, OGG, WebM, FLAC, M4A) | 15 MB | shared 100 | same | always workspace-only in the first release (decision D14); native ACP audio is the last upgrade |
+| document | PDF; text (`text/*`); JSON | 10 MB | shared 100 | same | workspace-only today (native documents are the Stage 2 adapter blocker); small text can inline as text |
+| other (recognized, not a native kind) | any other recognized type (archives, office formats, video, and so on) | 10 MB | shared 100 | same | always workspace-only with the D6 notice |
 | unrecognizable | no known signature and not valid text | none stored | none | rejected as an invalid file | never stored |
 
 The per-turn count is not the only bound. Each session also has a quota the create route enforces:
-100 stored attachments, 256 MB of stored originals, and at most 20 uploads in flight at once. Five
-files per turn bounds a polite client and not a hostile one, and a cold start restores every
+1,000 stored attachments, 256 MB of stored originals, and at most 20 uploads in flight at once. A
+per-turn count bounds a polite client and not a hostile one, and a cold start restores every
 referenced working copy (decision D12), so an unbounded session costs stored bytes nobody asked for
 and turns the runner into an amplifier on every cold start. The session, not the single turn, is
 where the real bound belongs; the per-turn count only shapes one prompt.

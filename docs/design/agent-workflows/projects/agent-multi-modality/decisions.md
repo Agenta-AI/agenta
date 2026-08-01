@@ -43,7 +43,7 @@ product choice, and are recorded here so they are not reopened by accident.
   defaults; the full matrix is in [design.md](design.md), "The media-type, validation, and limits
   matrix". In brief: the server classifies by inspected magic bytes and stores the verified type
   (declared type never trusted, per D10); rejection happens only for size and unrecognizable bytes,
-  never for kind (D6); the per-kind caps mirror the shipped client caps (5 files per message, 10 MB
+  never for kind (D6); the per-kind caps mirror the shipped client caps (100 files per turn, 10 MB
   images, 15 MB audio, 10 MB documents, `attachments.ts`, verified 2026-07-31); the compose gateway
   `client_max_body_size` rises from 10 MB to 32 MB
   (`hosting/docker-compose/oss/nginx/nginx.conf`; railway already allows 32 MB) with the upload
