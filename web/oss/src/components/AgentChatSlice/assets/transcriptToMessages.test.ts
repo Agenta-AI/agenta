@@ -285,6 +285,109 @@ describe("transcriptToMessages approval hydration", () => {
     })
 })
 
+/**
+ * Cold approval resume: the harness re-raises the approved call under a NEW toolCallId, so the
+ * response's `toolCallId` no longer matches the gated part. Only the interaction id still does.
+ */
+describe("transcriptToMessages cold approval resume (re-raised tool call id)", () => {
+    const pausedTurn = (): SessionRecord[] => [
+        record("r-user", {type: "message", text: "delete the file"}, "user"),
+        record("r-call-old", {
+            type: "tool_call",
+            id: "tool-old",
+            name: "bash",
+            input: {command: "rm x"},
+        }),
+        record("r-req", {
+            type: "interaction_request",
+            id: "approval-1",
+            kind: "user_approval",
+            payload: {toolCallId: "tool-old"},
+        }),
+        record("r-done-paused", {type: "done", stopReason: "paused"}),
+        record("r-call-new", {
+            type: "tool_call",
+            id: "tool-new",
+            name: "bash",
+            input: {command: "rm x"},
+        }),
+    ]
+
+    const response = (approved: boolean): SessionRecord =>
+        record("r-resp", {
+            type: "interaction_response",
+            id: "approval-1",
+            kind: "user_approval",
+            payload: {toolCallId: "tool-new", approved},
+        })
+
+    const errorResult = (): SessionRecord =>
+        record("r-result", {
+            type: "tool_result",
+            id: "tool-new",
+            output: "boom",
+            isError: true,
+        })
+
+    const toolParts = (records: SessionRecord[]): Record<string, unknown>[] => {
+        const messages = transcriptToMessages(records)
+        expect(messages).not.toBeNull()
+        return (messages ?? [])
+            .flatMap((message) => message.parts as unknown as Record<string, unknown>[])
+            .filter((part) => "toolCallId" in part)
+    }
+
+    it("settles the gated part when the response arrives before the re-raised result", () => {
+        const parts = toolParts([
+            ...pausedTurn(),
+            response(true),
+            errorResult(),
+            record("r-done", {type: "done"}),
+        ])
+
+        expect(parts).toHaveLength(1)
+        expect(parts[0]).toMatchObject({
+            state: "output-error",
+            errorText: "boom",
+            approval: {id: "approval-1", approved: true},
+        })
+        expect(parts.filter((part) => part.state === "approval-requested")).toEqual([])
+    })
+
+    it("settles the gated part when the re-raised result arrives before the response", () => {
+        const parts = toolParts([
+            ...pausedTurn(),
+            errorResult(),
+            response(true),
+            record("r-done", {type: "done"}),
+        ])
+
+        expect(parts).toHaveLength(1)
+        expect(parts[0]).toMatchObject({
+            state: "output-error",
+            errorText: "boom",
+            approval: {id: "approval-1", approved: true},
+        })
+        expect(parts.filter((part) => part.state === "approval-requested")).toEqual([])
+    })
+
+    it("resolves a denied re-raised call to output-denied", () => {
+        const parts = toolParts([
+            ...pausedTurn(),
+            response(false),
+            record("r-result", {type: "tool_result", id: "tool-new", denied: true}),
+            record("r-done", {type: "done"}),
+        ])
+
+        expect(parts).toHaveLength(1)
+        expect(parts[0]).toMatchObject({
+            state: "output-denied",
+            approval: {id: "approval-1", approved: false},
+        })
+        expect(parts.filter((part) => part.state === "approval-requested")).toEqual([])
+    })
+})
+
 describe("transcriptToMessages paused end-marker", () => {
     it("flags the message whose turn ended paused (done.stopReason)", () => {
         const messages = transcriptToMessages([
