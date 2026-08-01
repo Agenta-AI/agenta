@@ -113,7 +113,11 @@ def load_config() -> AgentTemplate:
     if meta_path.exists():
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         model = meta.get("model") or DEFAULT_MODEL
-        tools = meta.get("tools", []) or []
+        # Only an explicit `tools` key overrides the shipped grant list: an older agent.json
+        # written before the defaults existed must not silently strip them, while an explicit
+        # empty list still means "grant no built-ins" (issue #5590).
+        if "tools" in meta:
+            tools = meta["tools"] or []
     else:
         log.warning(
             "agent: template not found at %s; falling back to the built-in default "

@@ -70,6 +70,21 @@ def resolve_credentials(env_file: str | pathlib.Path | None = None) -> None:
     KEY = resolved["AGENTA_API_KEY"]
 
 
+def default_tools(harness: str) -> list:
+    """The shipped default grant list for `harness`.
+
+    On Pi this is Pi's default active built-ins, matching the shipped default agent template: an
+    empty list means "grant nothing" to the runner, so seeding `[]` would gate the release on a
+    configuration no real agent uses (issue #5590). Only Pi reads `builtin` grants; a Claude cell
+    brings its own tools, so seeding Pi's names there would test nothing.
+    """
+    if not harness.startswith("pi"):
+        return []
+    return [
+        {"type": "builtin", "name": name} for name in ("read", "bash", "edit", "write")
+    ]
+
+
 def agent_template(harness: str, sandbox: str, model: str, provider: str) -> dict:
     return {
         "instructions": {"agents_md": "Be terse. Do exactly what is asked."},
@@ -79,15 +94,7 @@ def agent_template(harness: str, sandbox: str, model: str, provider: str) -> dic
             "connection": {"mode": "agenta", "slug": None},
             "extras": {},
         },
-        # Pi's default active built-ins, matching the shipped default agent template. An empty
-        # list means "grant nothing" to the runner, so seeding `[]` would gate the release on a
-        # configuration no real agent uses (issue #5590).
-        "tools": [
-            {"type": "builtin", "name": "read"},
-            {"type": "builtin", "name": "bash"},
-            {"type": "builtin", "name": "edit"},
-            {"type": "builtin", "name": "write"},
-        ],
+        "tools": default_tools(harness),
         "mcps": [],
         "skills": [],
         "harness": {"kind": harness},

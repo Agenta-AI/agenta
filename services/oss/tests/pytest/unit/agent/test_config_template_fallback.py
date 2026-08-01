@@ -4,6 +4,7 @@ template logs a warning instead of silently falling through to the hello-world c
 
 from __future__ import annotations
 
+import json
 import logging
 
 
@@ -33,6 +34,36 @@ def test_on_disk_template_grants_pi_default_builtins():
 
     assert agent_config.load_config().tools == expected
     assert agent_config.DEFAULT_TOOLS == expected
+
+
+def _write_template(tmp_path, monkeypatch, meta: dict):
+    """Point `load_config` at a throwaway template dir holding `meta` as its agent.json."""
+    (tmp_path / "AGENTS.md").write_text("Be terse.", encoding="utf-8")
+    (tmp_path / "agent.json").write_text(json.dumps(meta), encoding="utf-8")
+    monkeypatch.setenv("AGENTA_AGENT_TEMPLATE_DIR", str(tmp_path))
+
+
+def test_agent_json_without_tools_key_keeps_the_defaults(monkeypatch, tmp_path):
+    """An agent.json written before the grant list existed carries no `tools` key. Reading that
+    as an empty list would strip read/bash/edit/write from every deployment still on the older
+    file (issue #5590)."""
+    _write_template(tmp_path, monkeypatch, {"model": "gpt-5.6-luna"})
+
+    assert agent_config.load_config().tools == agent_config.DEFAULT_TOOLS
+
+
+def test_agent_json_with_empty_tools_grants_nothing(monkeypatch, tmp_path):
+    # An explicit empty list is the documented way to ship an agent with no built-ins.
+    _write_template(tmp_path, monkeypatch, {"model": "gpt-5.6-luna", "tools": []})
+
+    assert agent_config.load_config().tools == []
+
+
+def test_agent_json_tools_override_the_defaults(monkeypatch, tmp_path):
+    tools = [{"type": "builtin", "name": "read"}]
+    _write_template(tmp_path, monkeypatch, {"model": "gpt-5.6-luna", "tools": tools})
+
+    assert agent_config.load_config().tools == tools
 
 
 def test_missing_template_logs_warning_and_falls_back(monkeypatch, tmp_path, caplog):
