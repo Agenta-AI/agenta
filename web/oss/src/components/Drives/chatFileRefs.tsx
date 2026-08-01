@@ -17,6 +17,7 @@ import {type ReactNode, useCallback, useEffect, useRef, useState} from "react"
 import {
     mountFileContentQueryFamily,
     mountPathMatchesToolPath,
+    pickCwdMount,
     sessionMountsQueryFamily,
     sessionRecordFileRecencyAtomFamily,
     type Mount,
@@ -67,7 +68,7 @@ const knownFromRecords = (byBasename: Map<string, string[]>, candidate: string):
  * its mount + mount-relative path, the same rule the full drive uses. */
 function useMountResolver(sessionId: string, artifactId?: string | null) {
     const cwdMounts = useAtomValue(sessionMountsQueryFamily(sessionId)).data ?? []
-    const cwdMount = cwdMounts.find((m) => m.slug === "cwd") ?? cwdMounts[0] ?? null
+    const cwdMount = pickCwdMount(cwdMounts)
     const agentMount = useAtomValue(agentMountQueryFamily(artifactId ?? "")).data ?? null
     return useCallback(
         (path: string): {mount: Mount; path: string} | null => {
