@@ -28,7 +28,11 @@ import type {
   EmitEvent,
   StreamRecord,
 } from "./protocol.ts";
-import { resolvePromptText } from "./protocol.ts";
+import { currentUserTurn } from "./protocol.ts";
+import {
+  attachmentCountError,
+  claimAttachments,
+} from "./sessions/attachments.ts";
 import {
   acquireEnvironment,
   destroyInFlightSandboxes,
@@ -46,6 +50,7 @@ import type { MountCredentials } from "./engines/sandbox_agent/mount.ts";
 import type { TeardownReason } from "./engines/sandbox_agent/teardown.ts";
 import {
   approvalDecisionForToolCall,
+  assertsPriorConversation,
   computeCredentialEpoch,
   configFingerprint,
   credentialEpochMismatch,
@@ -59,6 +64,7 @@ import {
   type CredentialEpoch,
   expectedNextHistoryFingerprint,
   historyFingerprint,
+  historyTailFromLastUserTurn,
   poolKeyFor,
   priorConversation,
   readKeepaliveConfig,
@@ -163,6 +169,8 @@ function isAuthorized(req: IncomingMessage): boolean {
  */
 export interface RunAgentOptions {
   clientGone?: () => boolean;
+  /** Latest session credential; the alive watchdog refreshes it during long turns. */
+  credential?: () => string;
 }
 
 /** Run one request through an engine. Tests inject a fake to avoid a live harness. */
@@ -259,6 +267,7 @@ export interface KeepaliveEngine {
     signal?: AbortSignal,
     presignedMount?: MountCredentials | null,
     clientGone?: () => boolean,
+    credential?: () => string,
   ): Promise<AgentRunResult>;
 }
 
@@ -274,7 +283,14 @@ const realKeepaliveEngine: KeepaliveEngine = {
   },
   // Same acquire -> runTurn -> destroy composition as `runSandboxAgent`, with the presigned
   // mount threaded through so an up-front keep-alive sign is never repeated.
-  runCold: async (request, emit, signal, presignedMount, clientGone) => {
+  runCold: async (
+    request,
+    emit,
+    signal,
+    presignedMount,
+    clientGone,
+    credential,
+  ) => {
     const acquired = await acquireEnvironment(
       request,
       {},
@@ -286,6 +302,7 @@ const realKeepaliveEngine: KeepaliveEngine = {
     try {
       result = await runTurn(acquired.env, request, emit, signal, {
         loaded: acquired.env.loadedFromContinuity,
+        ...(credential ? { credential } : {}),
       });
       return result;
     } finally {
@@ -312,6 +329,8 @@ export interface KeepaliveContext {
   config: KeepaliveConfig;
   /** Reports a mid-turn client disconnect on the streaming edge (see `RunAgentOptions`). */
   clientGone?: () => boolean;
+  /** Latest session credential accessor supplied by the alive watchdog. */
+  credential?: () => string;
 }
 
 /**
@@ -347,7 +366,8 @@ export async function runWithKeepalive(
   signal: AbortSignal | undefined,
   ctx: KeepaliveContext,
 ): Promise<AgentRunResult> {
-  const { engine, pool, config, clientGone } = ctx;
+  const { engine, pool, config, clientGone, credential } = ctx;
+  const turnCredential = credential ? { credential } : {};
   const sessionId = request.sessionId?.trim();
   // Every execution carries an id: callers that omit `turnId` get one minted here, so the
   // turns-ledger append and interaction rows are never written without their execution id.
@@ -371,7 +391,14 @@ export async function runWithKeepalive(
   // never park; run cold as today
   // (no up-front sign happened, so the cold path signs itself: still exactly once).
   if (!sessionId) {
-    return engine.runCold(request, emit, signal, undefined, clientGone);
+    return engine.runCold(
+      request,
+      emit,
+      signal,
+      undefined,
+      clientGone,
+      credential,
+    );
   }
 
   // Sign the mount once, up front. The mount's owning project is the FALLBACK project scope; the
@@ -387,7 +414,14 @@ export async function runWithKeepalive(
   const scope = poolKeyFor(request, signed?.projectId);
   if (!scope) {
     klog(`miss (no project scope) session=${sessionId}; cold`);
-    return engine.runCold(request, emit, signal, signed, clientGone);
+    return engine.runCold(
+      request,
+      emit,
+      signal,
+      signed,
+      clientGone,
+      credential,
+    );
   }
   const key = scope.key;
   klog(`scope=${scope.source} key=${key} session=${sessionId}`);
@@ -413,6 +447,10 @@ export async function runWithKeepalive(
       request.messages ?? [],
       env.lastTurnToolCallIds ?? [],
     );
+
+  // A park can only assert what its request carried: a last-message-only turn hashes ONE user
+  // turn, so its fingerprint must not later be compared against a full transcript.
+  const historyAsserted = assertsPriorConversation(request);
 
   const resultTeardownReason = (result: AgentRunResult): TeardownReason =>
     shouldPark(result, signal, clientGone)
@@ -521,6 +559,7 @@ export async function runWithKeepalive(
       environment: env,
       configFingerprint: cfgFp,
       historyFingerprint: nextHistoryFp(env),
+      historyAsserted,
       credentialEpoch: parkedEpoch(env, incomingEpoch.secretsHash),
       teardown: (reason: TeardownReason) => env.destroy({ reason }),
     };
@@ -560,6 +599,7 @@ export async function runWithKeepalive(
     const update = {
       configFingerprint: cfgFp,
       historyFingerprint: nextHistoryFp(env),
+      historyAsserted,
       credentialEpoch: parkedEpoch(env, live.credentialEpoch.secretsHash),
     };
     if (approvalToPark(env, result)) {
@@ -616,6 +656,7 @@ export async function runWithKeepalive(
       result = await engine.runTurn(env, request, trackedEmit, signal, {
         approvalParkMode: true,
         loaded: env.loadedFromContinuity,
+        ...turnCredential,
       });
     } catch (err) {
       await env.destroy({ reason: "failed-turn" });
@@ -678,6 +719,7 @@ export async function runWithKeepalive(
           {
             continuation: true,
             approvalParkMode: true,
+            ...turnCredential,
           },
         );
       } catch (err) {
@@ -774,7 +816,15 @@ export async function runWithKeepalive(
         });
       }
     }
-    const priorFp = historyFingerprint(priorConversation(request));
+    const incomingPrior = priorConversation(request);
+    // A park that asserted a full transcript is checked against the whole incoming one; a park
+    // that only ever saw its own trailing user turn is checked against that turn's slice of it,
+    // which still catches an edited tail (text, attachment ids, or tool-call ids).
+    const priorFp = historyFingerprint(
+      existing.historyAsserted
+        ? incomingPrior
+        : historyTailFromLastUserTurn(incomingPrior),
+    );
     // An out-of-band answer (an inbox, a webhook, a CLI) builds its reply from the durable
     // interaction row and carries no conversation at all, so its prior fingerprint can never equal
     // the parked one and comparing it would evict the very session that could resume — the
@@ -831,6 +881,7 @@ export async function runWithKeepalive(
           {
             approvalParkMode: true,
             resume: { decisions: resumeDecisions, carriedForward },
+            ...turnCredential,
           },
         );
       } catch (err) {
@@ -897,13 +948,18 @@ const keepalivePools: Record<
 
 const runAgent: RunAgent = (request, emit, signal, options) => {
   const provider = resolveKeepaliveDispatch(request, keepaliveConfigs);
-  if (!provider) return runSandboxAgent(request, emit, signal);
+  if (!provider) {
+    return runSandboxAgent(request, emit, signal, {}, {
+      ...(options?.credential ? { credential: options.credential } : {}),
+    });
+  }
   const config = keepaliveConfigs[provider];
   return runWithKeepalive(request, emit, signal, {
     engine: realKeepaliveEngine,
     pool: keepalivePools[provider],
     config,
     clientGone: options?.clientGone,
+    credential: options?.credential,
   });
 };
 
@@ -1019,13 +1075,28 @@ async function runAndStreamWithApiBaseResolved(
     res.write(JSON.stringify(record) + "\n");
   };
   const liveEmit: EmitEvent = (event) => writeRecord({ kind: "event", event });
+  const turn = currentUserTurn(request);
+  const attachmentError = attachmentCountError(turn.attachments.length);
+  if (attachmentError) {
+    writeRecord({
+      kind: "result",
+      result: { ok: false, error: attachmentError, events: [] },
+    });
+    res.end();
+    return;
+  }
 
   // For session-owned runs: wrap the live emitter so every event is also persisted
   // producer-side, independent of whether the client is still connected.
   let emitFn: EmitEvent = liveEmit;
   let flushPersist: (() => Promise<void>) | undefined;
   let persistError: ((message: string) => void) | undefined;
-  let aliveWatchdog: { release: () => Promise<void> } | undefined;
+  let aliveWatchdog:
+    | {
+        release: () => Promise<void>;
+        credential: () => string;
+      }
+    | undefined;
 
   if (sessionOwned) {
     // The request's api base (if any) is already scoped for this call via
@@ -1076,12 +1147,23 @@ async function runAndStreamWithApiBaseResolved(
     );
     // Record the inbound user turn first so the session record is the full conversation, not just
     // agent output. Guard on `tailIsFreshUserMessage`: an approval RESUME's tail is the tool_result
-    // envelope (no text), so `resolvePromptText` falls back to the ORIGINAL prompt and would
-    // re-persist it as a DUPLICATE user row. The guard writes the prompt only on the turn that first
-    // introduced it — a real new turn's tail IS a fresh user message; a resume's is not.
-    const promptText = resolvePromptText(request);
-    if (promptText && tailIsFreshUserMessage(request))
-      persist({ type: "message", text: promptText }, "user");
+    // envelope, so it must not re-persist the ORIGINAL prompt as a duplicate user row. The guard
+    // writes the prompt only on the turn that first introduced it.
+    if (tailIsFreshUserMessage(request)) {
+      persist(
+        { type: "message", text: turn.text, attachments: turn.attachments },
+        "user",
+      );
+      if (turn.attachments.length > 0) {
+        // A failed claim is accepted as graceful loss: the worst case is that the sweeper
+        // reclaims the attachment and cold replay renders it as no longer available.
+        await claimAttachments(
+          sessionId,
+          turn.attachments.map((attachment) => attachment.attachmentId),
+          watchdog.credential,
+        );
+      }
+    }
     emitFn = persistingEmit;
     flushPersist = flush;
     persistError = (message) => persist({ type: "error", message }, "agent");
@@ -1091,6 +1173,7 @@ async function runAndStreamWithApiBaseResolved(
   try {
     result = await run(request, emitFn, controller.signal, {
       clientGone: () => clientDisconnected,
+      credential: aliveWatchdog?.credential,
     });
     // A failed engine run ({ok:false}) already emitted its own error EVENT through the
     // persisting emitter, so no extra persist here (it would duplicate the record). Drain

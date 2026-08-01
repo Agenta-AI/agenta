@@ -17,7 +17,7 @@
  * as a prior turn and then appended again from the inbound history.
  */
 
-import type { AgentRunRequest } from "../../protocol.ts";
+import type { AgentRunRequest, ChatMessage } from "../../protocol.ts";
 import { fetchSessionRecords } from "../../sessions/records-query.ts";
 import { recordsIncomplete } from "../../sessions/persist.ts";
 import { reconstructMessages } from "../../sessions/reconstruct.ts";
@@ -26,8 +26,12 @@ import {
   carriesMinimalHistory,
 } from "./session-identity.ts";
 
-// ON unless the literal "false"; absent AND empty both mean on (compose passes `${VAR:-}`,
-// which sets an empty string when the shell has no value).
+export interface ReconstructHistoryOptions {
+  restore?: (messages: ChatMessage[]) => Promise<ChatMessage[]>;
+}
+
+// Compose passes `${AGENTA_SESSIONS_RECONSTRUCT:-}`, so an empty value must mean on just like an
+// absent value. Only the literal "false" disables reconstruction.
 function reconstructEnabled(): boolean {
   return (
     String(process.env.AGENTA_SESSIONS_RECONSTRUCT ?? "").trim().toLowerCase() !== "false"
@@ -43,6 +47,7 @@ export async function reconstructHistoryIfNeeded(
   sessionId: string | undefined,
   auth: () => string,
   log?: (msg: string) => void,
+  options: ReconstructHistoryOptions = {},
 ): Promise<AgentRunRequest | null> {
   const inbound = request.messages ?? [];
   // An approval reply carries no task of its own, only the answered gate. Returning null for it
@@ -106,12 +111,16 @@ export async function reconstructHistoryIfNeeded(
     return null;
   }
 
-  const reconstructed = reconstructMessages(prior);
+  let reconstructed = reconstructMessages(prior);
   if (reconstructed.length === 0) {
     if (approvalReplyOnly) {
       refuse(`${prior.length} prior record(s) rebuilt into no messages`);
     }
     return null;
+  }
+
+  if (options.restore) {
+    reconstructed = await options.restore(reconstructed);
   }
 
   log?.(

@@ -151,3 +151,105 @@ no nginx.
   a just-claimed attachment's bytes (data loss), and rows-first cannot retry a failed object
   delete (permanent orphans). The tombstone fixes both at the cost of one more state to reason
   about; it never appears on the wire.
+
+## WP2: the runner as consumer
+
+### The stack restructure, and what it means for PR #5598
+
+WP2's current-turn work builds on the approval-resume changes (PR #5598) in the same seams
+(`run-plan.ts`, `run-turn.ts`, and their tests): the empty-turn rejection and the prompt
+resolution are exactly where the approval-resume fix also lives. The two lanes started as
+parallel stacks, and the version-control tool correctly refused to commit dependent hunks into a
+parallel line (it silently dropped three files, caught by diffing the tree against the lane tip).
+The resolution was to linearize: `fix/approval-resume` moved into this train above WP1, and its
+PR base moved accordingly. Consequence, deliberately accepted: PR #5598 now merges as part of
+this train, after WP1, instead of independently. PR #5597 (the Pi built-ins fix below it) stays
+independently mergeable.
+
+### Implementation decisions worth knowing (beyond the plan)
+
+- One landed commit pair instead of the planned refactor/delivery split: the two parts share
+  hunks in seven files, and hunk-splitting across commits is the tool's most failure-prone
+  operation (it dropped hunks twice tonight). The refactor was still verified independently
+  before any delivery work (155 tests green on its own). The PR diff is identical either way.
+- `native_supported` was added as the success reason code (the plan enumerated only degradation
+  codes; a success event with no reason would be worse).
+- A mixed turn resolves every reference and emits every delivery event before surfacing the
+  first failure, so the record log always tells the whole story.
+- Restoration is injected into history reconstruction as a callback from the turn runner,
+  because the reconstruction module owns neither the sandbox nor the working directory.
+- Daytona symlink checks shell out to `test -L` per path component (its filesystem API cannot
+  identify links); argv-direct, so no shell injection surface.
+- Attachment ids joined the history fingerprint and model capabilities joined the config
+  fingerprint. A runner deploy already cold-starts every parked session (the pool is
+  process-local), so the hash change adds no second disruption; the consequence is stated in a
+  code comment at the fingerprint.
+
+### The review, and what it changed
+
+The adversarial review ran the new code against real request shapes and found two release
+blockers plus one bad degradation, all inside the refactor's predicted blast radius:
+
+1. **The rewritten empty-turn rejection discarded human approvals.** The tail-only reading
+   rejected any request whose tail was not a text-bearing user message, which includes an
+   in-band approval reply carrying the full transcript: a person approves a gated tool, the
+   parked session is gone (any redeploy), and the approval dies with "No user message to send".
+   Probed with three real shapes, all previously passing. Fixed by restoring the backward-scan
+   fallback inside the rejection while keeping the tail-only attachment clause, with the three
+   shapes pinned as tests.
+2. **One unrestorable historical attachment bricked its conversation forever.** The cold-start
+   restore threw on a single failed fetch, every retry is also cold, and the failure is
+   deterministic once the sweep has taken an unclaimed file. The chain starts at the deliberately
+   non-fatal claim, a tradeoff WP1 recorded in the reverse direction. Fixed: historical restore
+   degrades per file (the mention renders as no longer available), and never throws.
+3. **Legacy inline images hard-failed turns in five reachable configurations** (capability probe
+   unavailable, SVG and HEIC pastes, unknown harness, oversized image) where the runner
+   previously degraded silently. A pasted data-URL image is not an explicit native request; it
+   now degrades exactly as before when native delivery is not possible, and only a true contract
+   violation fails a turn.
+
+Smaller fixes from the same pass: cold restore checks existence before downloading (it
+re-fetched every referenced file on every cold start); current-turn fetch and write failures
+degrade that one attachment with honest reason codes (`fetch_failed`, `materialize_failed`)
+instead of failing the turn under a mislabeled `contract_violation`; an over-cap turn no longer
+persists a durable record for a run that is then rejected; the Daytona symlink check runs before
+directory creation and is time-bounded; mention lines moved into the latest-user-message position
+of the cold frame instead of before the replayed transcript; and the per-image provider cap keys
+on the resolved provider rather than the harness name.
+
+### Live QA (dev stack, 2026-08-01)
+
+The runner was recreated on the shared stack (source is bind-mounted; no dependency change) and
+driven from a real browser on the QA account. Results:
+
+- **Text-only turn: pass.** The current-turn refactor did not disturb plain conversations.
+- **Image plus text: pass, and it is the milestone.** A pasted PNG reading "AGENTA 42" on a red
+  background came back as exactly `AGENTA 42`, with the model's reasoning describing the image.
+  This is the first time a file sent from the Agenta composer has reached a model's eyes. The
+  legacy dual read and the capability gate work end to end.
+- **Image-only: still failed on first QA.** The guard's four clauses all held for an image-only
+  legacy turn, because `currentUserTurn` counted only real attachment blocks and today's front
+  end sends inline data-URL blocks; with no typed text and no earlier user turn on the wire, the
+  turn looked empty. Every layer behind the guard was fine. Fixed by teaching the current-turn
+  reading that inline media makes a turn non-empty (shared predicate with the legacy dual read),
+  with the plan guard, freshness, and prompt assembly aligned, and re-verified live before the
+  PR left draft. The lesson mirrors WP1's boot blocker: unit suites and review both validated
+  the guard against approval shapes, but only driving the product's real wire shape caught this.
+- **Cold reload: pass.** The conversation and attachment chips restored, and a follow-up
+  question about the image was answered correctly from the re-delivered content.
+
+Two observability notes from QA, one fixed and one deferred: the legacy delivery path now logs
+its decision (it emits no `attachment_delivery` event, having no id to key one), and the stale
+"add your model provider key" banner after saving credentials is a pre-existing cosmetic bug
+unrelated to this stage.
+
+### Forced routes to double-check
+
+- **The linearization of PR #5598** (above): the alternative was re-expressing three files
+  against a base without the approval changes and accepting textual merge conflicts later; the
+  linear train was judged cleaner, and it is reversible by reverting the move before anything
+  merges.
+- **Legacy images degrade with no delivery event.** A degraded pasted image logs but emits no
+  `attachment_delivery` record, because the legacy path has no attachment id to key the event.
+  Honest visibility for pasted images arrives with WP4, when the front end switches them to real
+  attachments.
