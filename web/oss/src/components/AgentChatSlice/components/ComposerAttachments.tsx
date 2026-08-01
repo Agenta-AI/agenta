@@ -52,11 +52,14 @@ const RemoveButton = ({
     name,
     onRemove,
     overlay,
+    persistent,
 }: {
     name: string
     onRemove: () => void
     /** Sits on top of a thumbnail rather than inline in a chip. */
     overlay?: boolean
+    /** Skips the hover reveal: on a scrimmed tile a hidden control reads as no control. */
+    persistent?: boolean
 }) => (
     <button
         type="button"
@@ -67,7 +70,7 @@ const RemoveButton = ({
         }}
         className={
             overlay
-                ? "absolute right-1 top-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.6)] text-white opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                ? `absolute right-1 top-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.6)] text-white transition-opacity ${persistent ? "" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"}`
                 : "flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-colorTextTertiary transition-colors hover:bg-colorFillTertiary hover:text-colorText"
         }
     >
@@ -81,10 +84,12 @@ const StatusOverlay = ({
     file,
     onRetry,
     canRetry,
+    onRemove,
 }: {
     file: UploadFile
     onRetry?: (uid: string) => void
     canRetry: boolean
+    onRemove: () => void
 }) => {
     if (file.status === "uploading") {
         const pct = Math.max(0, Math.min(100, Math.round(file.percent ?? 0)))
@@ -120,6 +125,8 @@ const StatusOverlay = ({
                             <ArrowClockwise size={14} weight="bold" />
                         </button>
                     )}
+                    {/* The scrim covers the tile's own remove, so a failure must stay removable here. */}
+                    <RemoveButton name={file.name} onRemove={onRemove} overlay persistent />
                 </div>
             </Tooltip>
         )
@@ -395,6 +402,7 @@ const ComposerAttachments = ({
                                                 file={f}
                                                 onRetry={onRetry}
                                                 canRetry={canRetry?.(f.uid) ?? true}
+                                                onRemove={remove}
                                             />
                                         </motion.div>
                                     )

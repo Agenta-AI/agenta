@@ -203,9 +203,10 @@ export const useComposerAttachments = ({sessionId}: {sessionId: string}) => {
         return {onDragEnter, onDragOver, onDragLeave, onDrop}
     }
 
-    /** Everything the composer just sent has left — drop the pending set and any rejection notice. */
-    const clearAttachments = () => {
-        setFiles([])
+    /** Drop the attachments a send just carried, plus any rejection notice. */
+    const clearAttachments = (consumedUids: string[]) => {
+        // Only what this send carried: anything staged while it was in flight belongs to the next message.
+        setFiles((prev) => prev.filter((file) => !consumedUids.includes(file.uid)))
         setRejections([])
         setAttachmentsOpen(false)
     }

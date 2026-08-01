@@ -400,7 +400,11 @@ const AgentConversation = ({
         useVirtuoso,
     })
 
-    const finishSubmit = (trimmed: string, fileParts?: FileUIPart[]) => {
+    const finishSubmit = (
+        trimmed: string,
+        fileParts: FileUIPart[] | undefined,
+        consumedUids: string[],
+    ) => {
         // Glide to the bottom; the min-h-full active turn makes that show the new question at the top
         // with the answer streaming below. Park during the glide, follow again on settle. Clear any
         // prior "stopped" marker — it's resolved by asking again.
@@ -411,7 +415,7 @@ const AgentConversation = ({
         // The message left the composer — drop its persisted draft (and any pending capture).
         composer.clearDraft()
         onboardingChat.consumeTemplateProvenance()
-        attachments.clearAttachments()
+        attachments.clearAttachments(consumedUids)
     }
 
     // A voice take awaits its upload, so the guard keeps a second send from starting meanwhile.
@@ -421,6 +425,7 @@ const AgentConversation = ({
             const trimmed = text.trim()
             if (!trimmed && files.length === 0 && extraFiles.length === 0) return
             if (!attachmentsSettled) return
+            const stagedUids = files.map((file) => file.uid)
 
             if (!uploadsEnabled) {
                 // Voice and upload flags are independent; this seam preserves the inline recorder path.
@@ -447,7 +452,7 @@ const AgentConversation = ({
                     }
                     fileParts = parts
                 }
-                finishSubmit(trimmed, fileParts)
+                finishSubmit(trimmed, fileParts, stagedUids)
                 return
             }
 
@@ -460,7 +465,7 @@ const AgentConversation = ({
             const fileParts = outboundFiles.length
                 ? filesToParts(outboundFiles, sessionId)
                 : undefined
-            finishSubmit(trimmed, fileParts)
+            finishSubmit(trimmed, fileParts, stagedUids)
         })
 
     handleSubmitRef.current = handleSubmit
