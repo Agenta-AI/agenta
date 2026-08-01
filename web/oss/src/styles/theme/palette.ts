@@ -42,8 +42,10 @@ export const surface = {
     spotlight: {light: "rgba(5, 23, 41, 0.9)", dark: "#424242"},
     mask: {light: "rgba(5, 23, 41, 0.45)", dark: "rgba(0, 0, 0, 0.45)"},
     containerDisabled: {light: "rgba(5, 23, 41, 0.04)", dark: "rgba(255, 255, 255, 0.08)"},
-    infoBg: {light: "#f5f7fa", dark: "#242424"}, // repurposed neutral (mirrors elevated), not blue
+    infoBg: {light: "#f5f7fa", dark: "#111a2c"}, // antd's colorInfoBg (unified with antd render)
     controlItemBgActive: {light: "#f5f7fa", dark: "#57572a"}, // yellow-tinted: derived from brand primary
+    controlOutline: {light: "rgba(5, 23, 41, 0.1)", dark: "rgba(251, 251, 96, 0.29)"}, // antd input/select focus glow
+    errorOutline: {light: "rgba(214, 16, 16, 0.06)", dark: "rgba(238, 38, 56, 0.11)"}, // antd focus glow on error
     white: {light: "#ffffff", dark: "#ffffff"},
 } satisfies Record<string, Pair>
 
@@ -73,10 +75,15 @@ export const fill = {
     secondary: {light: "rgba(5, 23, 41, 0.06)", dark: "rgba(255, 255, 255, 0.12)"},
     tertiary: {light: "rgba(5, 23, 41, 0.04)", dark: "rgba(255, 255, 255, 0.08)"},
     quaternary: {light: "rgba(5, 23, 41, 0.02)", dark: "rgba(255, 255, 255, 0.04)"},
+    // Default chip/tag fill. antd renders this translucent in light but as an OPAQUE
+    // flatten of fill-tertiary in dark (#272727), pinned regardless of backdrop — a
+    // translucent token can't match it, so it's stored explicitly per mode.
+    chip: {light: "rgba(5, 23, 41, 0.02)", dark: "#272727"},
 } satisfies Record<string, Pair>
 
 export const accent = {
     primary: {light: "#1c2c3d", dark: "#f2f25c"}, // [override] navy → brand yellow
+    primaryHover: {light: "#394857", dark: "#e8e47e"}, // antd colorPrimaryHover (checked-control hover fill)
     primaryText: {light: "#1c2c3d", dark: "#d1d151"}, // derived from the yellow primary
     link: {light: "#1c2c3d", dark: "#58a6ff"}, // [override] [absorbs] the 6× #58a6ff literal
     linkHover: {light: "#1c2c3d", dark: "#79b8ff"}, // [override]
@@ -86,22 +93,31 @@ export const accent = {
 export const semantic = {
     success: {light: "#389e0d", dark: "#52c41a"}, // [override]
     successBorder: {light: "#b7eb8f", dark: "#274916"},
+    successBg: {light: "#f6ffed", dark: "#162312"}, // antd's derived colorSuccessBg (algorithm output)
     warning: {light: "#faad14", dark: "#faad14"}, // [override] (same tone)
     warningText: {light: "#faad14", dark: "#d89614"},
     warningBorder: {light: "#ffe58f", dark: "#594214"},
     warningBg: {light: "#fffbe6", dark: "#2b2111"}, // antd's own colorWarningBg (gold-1 / dark gold-1)
     error: {light: "#d61010", dark: "#ff4d4f"}, // [override] [absorbs] --ag-c-FF4D4F
+    errorHover: {light: "#de4040", dark: "#e86e6b"}, // antd colorErrorHover (danger btn hover)
+    errorActive: {light: "#ab0d0d", dark: "#ad393a"}, // antd colorErrorActive (danger btn active)
     errorText: {light: "#d61010", dark: "#dc4446"},
     errorBorder: {light: "#ef9f9f", dark: "#5b2526"},
-    info: {light: "#1677ff", dark: "var(--ant-blue-6)"}, // colorInfo repurposed; tracks antd blue
-    infoBorder: {light: "#91caff", dark: "var(--ant-blue-5)"},
+    errorBg: {light: "#fbe7e7", dark: "#2c1618"}, // antd's derived colorErrorBg (algorithm output)
+    info: {light: "#1c2c3d", dark: "#1668dc"}, // unified with antd's colorInfo (navy light / blue dark)
+    infoBorder: {light: "#d6dee6", dark: "#15325b"}, // antd's derived colorInfoBorder
+    primaryBorder: {light: "#d6dee6", dark: "#57572a"}, // antd colorPrimaryBorder (focus ring); ≠ infoBorder in dark
+    primaryBorderHover: {light: "#97a4b0", dark: "#787834"}, // antd colorPrimaryBorderHover (slider track hover)
 } satisfies Record<string, Pair>
 
 // Overlay/elevation shadows. Dark is the hand-tuned override (a 1px light ring +
 // dark drops); light defers to antd's default. Strings, not colors.
 export const shadow = {
     overlay: {
-        light: antd("boxShadow"),
+        // antd boxShadowSecondary — the popup/overlay shadow (dropdowns, popovers). A fixed
+        // antd constant (not theme-derived), so it is emitted as --ag-boxShadowSecondary; dark
+        // is the hand-tuned override antd resolves boxShadow/boxShadowSecondary to.
+        light: "0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 9px 28px 8px rgba(0, 0, 0, 0.05)",
         dark: "0 0 0 1px rgba(255, 255, 255, 0.16), 0 6px 16px 0 rgba(0, 0, 0, 0.44), 0 3px 6px -4px rgba(0, 0, 0, 0.52), 0 9px 28px 8px rgba(0, 0, 0, 0.28)",
     },
     tertiary: {
@@ -452,6 +468,88 @@ export const shell = {
     scrollThumbHover: {light: "rgba(15, 23, 42, 0.38)", dark: "rgba(255, 255, 255, 0.34)"},
 } satisfies Record<string, Pair>
 
+// Draft chip family (DraftTag). Gold in light; in dark the bg/border collapse to the
+// elevated surface + gold text — preserving the current legacy-shim rendering exactly
+// (--ag-c-FFFBE6 → colorBgElevated). Candidate cleanup: make dark gold-tinted too.
+export const draftTag = {
+    text: {light: "#d48806", dark: "#d48806"},
+    bg: {light: "#fffbe6", dark: "var(--ag-colorBgElevated)"},
+    border: {light: "#ffe58f", dark: "var(--ag-colorBgElevated)"},
+} satisfies Record<string, Pair>
+
+// antd preset Tag colors (`<Tag color="blue|green|…">`): color-1 bg + color-7 text.
+// Distinct from the semantic tokens (e.g. green-7 text here vs colorSuccess green-6).
+//
+// DELIBERATE DEVIATION FROM antd — WCAG AA (4.5:1). antd's own color-7-on-color-1 pairing
+// fails AA on 5 of these 16 pairs, so those 5 are bumped one or two steps DOWN antd's own
+// ramp (never a custom colour). Measured against the paired bg, before → after:
+//   gold   light  2.76 → 6.53  (step 7 → 9; the worst pair in the set)
+//   cyan   light  3.39 → 5.82  (step 7 → 8)
+//   green  light  3.37 → 5.44  (step 7 → 8)
+//   orange light  3.34 → 5.09  (step 7 → 8)
+//   purple dark   3.39 → 5.66  (dark step 7 → 8)
+// The other 11 pairs already pass and stay on antd's default step. Values come from
+// `generate()` in @ant-design/colors, not hand-mixed. This is the ONE place the palette
+// knowingly diverges from antd, so the tag parity rows carry `data-vrt-expected`.
+export const presetTag = {
+    blueBg: {light: "#e6f4ff", dark: "#111a2c"},
+    blueText: {light: "#0958d9", dark: "#3c89e8"},
+    greenBg: {light: "#f6ffed", dark: "#162312"},
+    greenText: {light: "#237804", dark: "#6abe39"},
+    orangeBg: {light: "#fff7e6", dark: "#2b1d11"},
+    orangeText: {light: "#ad4e00", dark: "#e89a3c"},
+    redBg: {light: "#fff1f0", dark: "#2a1215"},
+    redText: {light: "#cf1322", dark: "#e84749"},
+    purpleBg: {light: "#f9f0ff", dark: "#1a1325"},
+    purpleText: {light: "#531dab", dark: "#ab7ae0"},
+    cyanBg: {light: "#e6fffb", dark: "#112123"},
+    cyanText: {light: "#006d75", dark: "#33bcb7"},
+    magentaBg: {light: "#fff0f6", dark: "#291321"},
+    magentaText: {light: "#c41d7f", dark: "#e0529c"},
+    goldBg: {light: "#fffbe6", dark: "#2b2111"},
+    goldText: {light: "#874d00", dark: "#e8b339"},
+} satisfies Record<string, Pair>
+
+// antd Tabs item colours. antd-themeConfig.json overrides itemColor/itemHoverColor in LIGHT
+// only (ThemeContextProvider strips colour overrides in dark), so dark keeps antd's defaults.
+export const tabs = {
+    item: {light: "#586673", dark: "var(--ag-colorText)"}, // light override = colorTextSecondary
+    itemHover: {light: "#1c2c3d", dark: "var(--ag-colorPrimaryHover)"}, // light override = colorPrimary
+} satisfies Record<string, Pair>
+
+// antd `Empty`'s DEFAULT illustration (empty/empty.js). antd hard-codes four OPAQUE greys
+// and themes the drawing only by dimming the whole <svg> to `opacityImage` (0.65) in dark.
+// Opacity is load-bearing: the paper sits behind the envelope front, so a translucent fill
+// token (colorFill/colorFillTertiary) lets it ghost through — antd never does. Dark values
+// are each light grey pre-composited at 0.65 over colorBgContainer (#141414), which is
+// exactly what antd's group-opacity produces, since every shape is opaque.
+export const emptyImage = {
+    shadow: {light: "#f5f5f7", dark: "#a6a6a8"}, // ground ellipse (carries its own fillOpacity .8)
+    sheet: {light: "#f5f5f7", dark: "#a6a6a8"}, // the paper behind the envelope
+    flap: {light: "#aeb8c2", dark: "#787f85"}, // back flap (darkest grey)
+    front: {light: "#dce0e6", dark: "#96999d"}, // envelope front + speech bubble
+    hole: {light: "#ffffff", dark: "#adadad"}, // punched-out marks inside the bubble
+} satisfies Record<string, Pair>
+
+// Button state tokens (rest / hover / active). Several are theme-specific overrides
+// (text-on-primary flips to dark on the light-yellow dark primary; default bg is white
+// in light but transparent in dark). Derived from the antd Button component config.
+export const button = {
+    primaryText: {light: "#ffffff", dark: "#141414"}, // text on primary bg
+    primaryHover: {light: "#394857", dark: "#e8e47e"},
+    primaryActive: {light: "#051729", dark: "#a4a443"},
+    defaultBg: {light: "#ffffff", dark: "transparent"},
+    defaultHoverBg: {light: "#ffffff", dark: "rgba(255, 255, 255, 0.04)"},
+    defaultActiveBg: {light: "#ffffff", dark: "rgba(255, 255, 255, 0.08)"},
+    textHoverBg: {light: "rgba(5, 23, 41, 0.06)", dark: "rgba(255, 255, 255, 0.08)"}, // antd colorBgTextHover
+    textActiveBg: {light: "rgba(5, 23, 41, 0.15)", dark: "rgba(255, 255, 255, 0.18)"}, // antd colorBgTextActive (text/ghost btn pressed)
+    link: {light: "#1c2c3d", dark: "#4e90dc"},
+    linkHover: {light: "#394857", dark: "#79b8ff"},
+    linkActive: {light: "#051729", dark: "#3b8eea"}, // antd colorLinkActive (link btn pressed)
+    // antd's disabled Input border (a lighter gray than colorBorder in light).
+    disabledInputBorder: {light: "#d9d9d9", dark: "#424242"},
+} satisfies Record<string, Pair>
+
 export const palette = {
     surface,
     text,
@@ -465,6 +563,11 @@ export const palette = {
     alphaFill,
     referenceTag,
     environmentTag,
+    draftTag,
+    presetTag,
+    tabs,
+    emptyImage,
+    button,
     compareTint,
     workflowType,
     playgroundSurface,
