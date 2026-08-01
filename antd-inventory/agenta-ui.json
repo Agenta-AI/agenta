@@ -1,0 +1,1613 @@
+{
+  "root": "../web/packages/agenta-ui/src",
+  "files_scanned": 369,
+  "value": {
+    "Drawer": [
+      "drawer/EnhancedDrawer.tsx"
+    ],
+    "Button": [
+      "CellRenderers/CellContentPopover.tsx",
+      "ChatMessage/components/AttachmentButton.tsx",
+      "ChatMessage/components/ChatInputs.tsx",
+      "ChatMessage/components/ChatMessageList.tsx",
+      "ChatMessage/components/MarkdownToggleButton.tsx",
+      "Editor/MarkdownToolbar.tsx",
+      "Editor/plugins/code/nodes/Base64Node.tsx",
+      "Editor/plugins/code/nodes/LongTextNode.tsx",
+      "Editor/plugins/markdown/MarkdownHoverToggleButton.tsx",
+      "InfiniteVirtualTable/columns/createStandardColumns.tsx",
+      "InfiniteVirtualTable/components/ColumnVisibilityTrigger.tsx",
+      "InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent.tsx",
+      "InfiniteVirtualTable/components/columnVisibility/TableSettingsDropdown.tsx",
+      "InfiniteVirtualTable/components/filters/FiltersPopoverTrigger.tsx",
+      "InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell.tsx",
+      "RichChatInput/plugins/SendButton.tsx",
+      "components/DropdownButton.tsx",
+      "components/ScrollToTopButton.tsx",
+      "components/modal/ModalFooter.tsx",
+      "components/presentational/CopyButton.tsx",
+      "components/presentational/EnhancedButton.tsx",
+      "components/presentational/attachments/FileAttachment.tsx",
+      "components/presentational/attachments/PromptDocumentUpload.tsx",
+      "components/presentational/attachments/PromptImageUpload.tsx",
+      "components/presentational/buttons/AddButton.tsx",
+      "components/presentational/buttons/CollapseToggleButton.tsx",
+      "components/presentational/buttons/RunButton.tsx",
+      "components/presentational/field/FieldHeader.tsx",
+      "components/presentational/inputs/SliderInput.tsx",
+      "components/presentational/select/SimpleDropdownSelect.tsx",
+      "components/selection/LoadAllButton.tsx",
+      "components/selection/LoadMoreButton.tsx",
+      "drill-in/core/DrillInBreadcrumb.tsx",
+      "drill-in/core/DrillInControls.tsx",
+      "drill-in/core/DrillInRootToolbar.tsx",
+      "drill-in/core/ViewModeDropdown.tsx"
+    ],
+    "Grid": [
+      "InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell.tsx",
+      "InfiniteVirtualTable/hooks/useTableManager.tsx"
+    ],
+    "Pagination": [
+      "InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell.tsx"
+    ],
+    "Tabs": [
+      "InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell.tsx",
+      "components/PageLayout.tsx"
+    ],
+    "Tooltip": [
+      "CellRenderers/EvaluatorMetricBar.tsx",
+      "CellRenderers/MetricCellContent.tsx",
+      "ChatMessage/components/ChatInputs.tsx",
+      "ChatMessage/components/ChatMessageList.tsx",
+      "ChatMessage/components/MarkdownToggleButton.tsx",
+      "CopyTooltip/CopyTooltip.tsx",
+      "Editor/plugins/markdown/MarkdownHoverToggleButton.tsx",
+      "Editor/plugins/token/TokenTooltipPlugin.tsx",
+      "InfiniteVirtualTable/columns/createStandardColumns.tsx",
+      "InfiniteVirtualTable/components/ColumnVisibilityTrigger.tsx",
+      "InfiniteVirtualTable/components/columnVisibility/TableSettingsDropdown.tsx",
+      "InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell.tsx",
+      "SelectLLMProvider/SelectLLMProviderBase.tsx",
+      "components/SyncStateTag.tsx",
+      "components/presentational/EnhancedButton.tsx",
+      "components/presentational/FormattedDate.tsx",
+      "components/presentational/attachments/FileAttachment.tsx",
+      "components/presentational/buttons/CollapseToggleButton.tsx",
+      "components/presentational/editable/EditableText.tsx",
+      "components/presentational/field/FieldHeader.tsx",
+      "components/presentational/inputs/LabeledField.tsx",
+      "components/presentational/metadata/MetadataHeader.tsx",
+      "components/presentational/metrics/ExecutionMetricsDisplay.tsx",
+      "components/presentational/section/ConfigAccordionSection.tsx",
+      "components/selection/SearchablePopoverList.tsx",
+      "drill-in/core/DrillInControls.tsx",
+      "drill-in/core/DrillInRootToolbar.tsx"
+    ],
+    "Table": [
+      "InfiniteVirtualTable/components/InfiniteVirtualTableInner.tsx"
+    ],
+    "Typography": [
+      "CellRenderers/SmartCellContent.tsx",
+      "CellRenderers/TextCellContent.tsx",
+      "Editor/form/nodes/ObjectNode.tsx",
+      "Editor/form/nodes/PrimitiveNode.tsx",
+      "Editor/plugins/code/nodes/Base64Node.tsx",
+      "Editor/plugins/code/nodes/LongTextNode.tsx",
+      "InfiniteVirtualTable/columns/createStandardColumns.tsx",
+      "InfiniteVirtualTable/components/TableDescription.tsx",
+      "InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent.tsx",
+      "SelectLLMProvider/SelectLLMProviderBase.tsx",
+      "components/PageLayout.tsx",
+      "components/presentational/attachments/PromptDocumentUpload.tsx",
+      "components/presentational/attachments/PromptImageUpload.tsx",
+      "components/presentational/editable/EditableText.tsx",
+      "components/presentational/entity-icon-label/index.tsx",
+      "components/presentational/inputs/CommitMessageInput.tsx",
+      "components/presentational/inputs/LabeledField.tsx",
+      "components/presentational/layout/index.tsx",
+      "components/presentational/section/ConfigAccordionSection.tsx",
+      "components/presentational/section/index.tsx",
+      "components/presentational/select/PathSelectorDropdown.tsx",
+      "components/selection/HierarchyLevelSelect.tsx"
+    ],
+    "Checkbox": [
+      "InfiniteVirtualTable/components/ColumnVisibilityTrigger.tsx"
+    ],
+    "Popover": [
+      "CellRenderers/CellContentPopover.tsx",
+      "Editor/MarkdownToolbar.tsx",
+      "Editor/plugins/code/nodes/Base64Node.tsx",
+      "Editor/plugins/code/nodes/LongTextNode.tsx",
+      "InfiniteVirtualTable/components/ColumnVisibilityTrigger.tsx",
+      "InfiniteVirtualTable/components/columnVisibility/TableSettingsDropdown.tsx",
+      "InfiniteVirtualTable/components/filters/FiltersPopoverTrigger.tsx"
+    ],
+    "Skeleton": [
+      "Editor/plugins/index.tsx",
+      "InfiniteVirtualTable/components/common/ResizableTitle.tsx",
+      "components/presentational/metrics/ExecutionMetricsDisplay.tsx",
+      "components/presentational/section/index.tsx",
+      "components/presentational/skeleton/ListItemSkeleton.tsx",
+      "components/presentational/table-states/TableLoadingState.tsx"
+    ],
+    "Input": [
+      "ChatMessage/components/ChatInputs.tsx",
+      "Editor/MarkdownToolbar.tsx",
+      "Editor/form/nodes/ArrayNode.tsx",
+      "Editor/form/nodes/PrimitiveNode.tsx",
+      "InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent.tsx",
+      "InfiniteVirtualTable/hooks/useTableManager.tsx",
+      "SelectLLMProvider/SelectLLMProviderBase.tsx",
+      "SharedEditor/SharedEditor.tsx",
+      "SharedEditor/SharedEditorImpl.tsx",
+      "components/presentational/attachments/PromptDocumentUpload.tsx",
+      "components/presentational/attachments/PromptImageUpload.tsx",
+      "components/presentational/editable/EditableText.tsx",
+      "components/presentational/inputs/CommitMessageInput.tsx",
+      "components/presentational/inputs/LabelInput.tsx",
+      "components/selection/SearchInput.tsx",
+      "drill-in/core/DrillInControls.tsx"
+    ],
+    "Tree": [
+      "InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent.tsx"
+    ],
+    "Dropdown": [
+      "ChatMessage/components/AttachmentButton.tsx",
+      "Editor/MarkdownToolbar.tsx",
+      "Editor/form/nodes/ArrayNode.tsx",
+      "Editor/form/nodes/ObjectNode.tsx",
+      "InfiniteVirtualTable/columns/createStandardColumns.tsx",
+      "InfiniteVirtualTable/components/columnVisibility/TableSettingsDropdown.tsx",
+      "components/DropdownButton.tsx",
+      "components/presentational/select/SimpleDropdownSelect.tsx",
+      "drill-in/core/DrillInBreadcrumb.tsx",
+      "drill-in/core/ViewModeDropdown.tsx"
+    ],
+    "InputRef": [
+      "SelectLLMProvider/SelectLLMProviderBase.tsx"
+    ],
+    "Select": [
+      "ChatMessage/components/ChatInputs.tsx",
+      "SelectLLMProvider/SelectLLMProviderBase.tsx",
+      "components/presentational/select/PathSelectorDropdown.tsx",
+      "components/selection/HierarchyLevelSelect.tsx",
+      "drill-in/FieldRenderers/JsonArrayField.tsx",
+      "drill-in/core/DrillInControls.tsx"
+    ],
+    "Tag": [
+      "CellRenderers/MetricCellContent.tsx",
+      "components/DraftTag.tsx",
+      "components/SyncStateTag.tsx",
+      "components/presentational/FormattedDate.tsx",
+      "components/presentational/metrics/ExecutionMetricsDisplay.tsx",
+      "components/presentational/metrics/MappingStatusTag.tsx",
+      "components/presentational/source-indicator/index.tsx",
+      "components/presentational/status/index.tsx"
+    ],
+    "App": [
+      "utils/appMessageContext.tsx"
+    ],
+    "MenuProps": [
+      "ChatMessage/components/AttachmentButton.tsx"
+    ],
+    "Space": [
+      "ChatMessage/components/ChatInputs.tsx",
+      "components/DropdownButton.tsx"
+    ],
+    "Modal": [
+      "components/EnhancedModal.tsx",
+      "components/presentational/attachments/ImagePreview.tsx"
+    ],
+    "Empty": [
+      "components/presentational/table-states/TableEmptyState.tsx",
+      "components/selection/SearchableList.tsx",
+      "components/selection/SearchablePopoverList.tsx"
+    ],
+    "Divider": [
+      "components/presentational/layout/SplitPanelLayout.tsx"
+    ],
+    "Avatar": [
+      "components/presentational/avatar/InitialsAvatar.tsx"
+    ],
+    "Progress": [
+      "components/presentational/attachments/PromptImageUpload.tsx",
+      "components/selection/LoadAllButton.tsx"
+    ],
+    "Spin": [
+      "SharedEditor/SharedEditorImpl.tsx",
+      "components/presentational/attachments/PromptImageUpload.tsx",
+      "components/selection/LoadAllButton.tsx",
+      "components/selection/LoadMoreButton.tsx",
+      "components/selection/SearchableList.tsx",
+      "components/selection/SearchablePopoverList.tsx",
+      "components/selection/VirtualList.tsx"
+    ],
+    "Upload": [
+      "components/presentational/attachments/PromptDocumentUpload.tsx",
+      "components/presentational/attachments/PromptImageUpload.tsx"
+    ],
+    "InputNumber": [
+      "Editor/form/nodes/PrimitiveNode.tsx",
+      "components/presentational/inputs/SliderInput.tsx",
+      "drill-in/FieldRenderers/NumberField.tsx"
+    ],
+    "Slider": [
+      "components/presentational/inputs/SliderInput.tsx"
+    ],
+    "Breadcrumb": [
+      "components/selection/Breadcrumb.tsx"
+    ],
+    "Switch": [
+      "Editor/form/nodes/PrimitiveNode.tsx",
+      "drill-in/FieldRenderers/BooleanField.tsx"
+    ],
+    "TooltipProps": [
+      "CopyTooltip/types.ts"
+    ],
+    "Form": [
+      "Editor/form/FormView.tsx",
+      "Editor/form/nodes/PrimitiveNode.tsx"
+    ],
+    "message": [
+      "Editor/plugins/code/nodes/Base64Node.tsx",
+      "Editor/plugins/code/nodes/LongTextNode.tsx"
+    ]
+  },
+  "type_only": {
+    "DrawerProps": [
+      "drawer/EnhancedDrawer.tsx"
+    ],
+    "MenuProps": [
+      "Editor/MarkdownToolbar.tsx",
+      "InfiniteVirtualTable/columns/createStandardColumns.tsx",
+      "InfiniteVirtualTable/components/columnVisibility/TableSettingsDropdown.tsx",
+      "InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell.tsx",
+      "InfiniteVirtualTable/hooks/useRowHeight.tsx",
+      "InfiniteVirtualTable/hooks/useRowHeightFeature.tsx",
+      "InfiniteVirtualTable/hooks/useTypeChipFeature.tsx",
+      "components/DropdownButton.tsx",
+      "components/presentational/select/SimpleDropdownSelect.tsx",
+      "drill-in/core/ViewModeDropdown.tsx"
+    ],
+    "ButtonProps": [
+      "InfiniteVirtualTable/components/filters/FiltersPopoverTrigger.tsx",
+      "components/DropdownButton.tsx",
+      "components/presentational/EnhancedButton.tsx",
+      "components/presentational/buttons/AddButton.tsx",
+      "components/presentational/buttons/RunButton.tsx"
+    ],
+    "SelectProps": [
+      "SelectLLMProvider/types.ts"
+    ],
+    "TagProps": [
+      "components/DraftTag.tsx"
+    ],
+    "TabsProps": [
+      "components/PageLayout.tsx"
+    ],
+    "ModalProps": [
+      "components/EnhancedModal.tsx"
+    ],
+    "TooltipProps": [
+      "components/presentational/EnhancedButton.tsx"
+    ],
+    "UploadFile": [
+      "components/presentational/attachments/PromptImageUpload.tsx"
+    ],
+    "InputProps": [
+      "components/presentational/inputs/LabelInput.tsx"
+    ],
+    "FormInstance": [
+      "Editor/form/nodes/NodeTypes.ts"
+    ]
+  },
+  "sub_imports": {
+    "antd/es/table::ColumnsType": [
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/columns/buildEntityColumns.tsx  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/columns/createStandardColumns.tsx  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/columns/createTableColumns.ts  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/columns/types.ts  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useColumnDomRefs.ts  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useColumnVisibility.ts  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useColumnVisibilityControls.ts  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useResizableColumns.ts  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useScopedColumnVisibility.tsx  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useSmartResizableColumns.ts  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTableExport.ts  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTableHeaderHeight.ts  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTableManager.tsx  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipColumns.tsx  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/types.ts  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/utils/columnUtils.ts  [type]"
+    ],
+    "antd/es/table::ColumnType": [
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/columns/buildEntityColumns.tsx  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/columns/createStandardColumns.tsx  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/columns/types.ts  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useResizableColumns.ts  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useSmartResizableColumns.ts  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipColumns.tsx  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/types.ts  [type]",
+      "../web/packages/agenta-ui/src/utils/groupColumns.ts  [type]"
+    ],
+    "antd/es/table::ColumnGroupType": [
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipColumns.tsx  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/types.ts  [type]"
+    ],
+    "antd/es/table::TableProps": [
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/components/InfiniteVirtualTableInner.tsx  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useExpandableRows.tsx  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useScrollConfig.ts  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTableHeaderHeight.ts  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTableRowSelection.ts  [type]",
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/types.ts  [type]"
+    ],
+    "antd/es/table::TableRef": [
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/components/InfiniteVirtualTableInner.tsx  [type]"
+    ],
+    "antd/es/popover::PopoverProps": [
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/components/filters/FiltersPopoverTrigger.tsx  [type]"
+    ],
+    "antd/es/tree::DataNode": [
+      "../web/packages/agenta-ui/src/InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent.tsx  [type]"
+    ],
+    "antd/es/message/interface::ArgsProps": [
+      "../web/packages/agenta-ui/src/utils/appMessageContext.tsx  [type]"
+    ],
+    "antd/es/message/interface::MessageInstance": [
+      "../web/packages/agenta-ui/src/utils/appMessageContext.tsx  [type]"
+    ],
+    "antd/es/message/interface::MessageType": [
+      "../web/packages/agenta-ui/src/utils/appMessageContext.tsx  [type]"
+    ],
+    "antd/es/modal/confirm::ModalStaticFunctions": [
+      "../web/packages/agenta-ui/src/utils/appMessageContext.tsx  [type]"
+    ],
+    "antd/es/notification/interface::NotificationInstance": [
+      "../web/packages/agenta-ui/src/utils/appMessageContext.tsx  [type]"
+    ],
+    "antd/es/input::TextAreaProps": [
+      "../web/packages/agenta-ui/src/SharedEditor/SharedEditorImpl.tsx  [type]",
+      "../web/packages/agenta-ui/src/SharedEditor/types.ts  [type]",
+      "../web/packages/agenta-ui/src/components/presentational/inputs/LabelInput.tsx  [type]"
+    ],
+    "antd/es/select::DefaultOptionType": [
+      "../web/packages/agenta-ui/src/components/selection/HierarchyLevelSelect.tsx  [type]"
+    ],
+    "antd/es/input::InputProps": [
+      "../web/packages/agenta-ui/src/SharedEditor/types.ts  [type]"
+    ]
+  },
+  "sites": {
+    "Drawer": [
+      [
+        "drawer/EnhancedDrawer.tsx",
+        72
+      ]
+    ],
+    "Button": [
+      [
+        "drill-in/core/DrillInControls.tsx",
+        67
+      ],
+      [
+        "drill-in/core/DrillInControls.tsx",
+        78
+      ],
+      [
+        "drill-in/core/DrillInControls.tsx",
+        120
+      ],
+      [
+        "drill-in/core/DrillInControls.tsx",
+        128
+      ],
+      [
+        "InfiniteVirtualTable/components/columnVisibility/TableSettingsDropdown.tsx",
+        144
+      ],
+      [
+        "ChatMessage/components/ChatMessageList.tsx",
+        220
+      ],
+      [
+        "ChatMessage/components/ChatMessageList.tsx",
+        232
+      ],
+      [
+        "ChatMessage/components/ChatMessageList.tsx",
+        502
+      ],
+      [
+        "components/presentational/attachments/FileAttachment.tsx",
+        105
+      ],
+      [
+        "InfiniteVirtualTable/components/filters/FiltersPopoverTrigger.tsx",
+        64
+      ],
+      [
+        "components/presentational/select/SimpleDropdownSelect.tsx",
+        118
+      ],
+      [
+        "components/modal/ModalFooter.tsx",
+        80
+      ],
+      [
+        "components/modal/ModalFooter.tsx",
+        83
+      ],
+      [
+        "CellRenderers/CellContentPopover.tsx",
+        21
+      ],
+      [
+        "drill-in/core/DrillInBreadcrumb.tsx",
+        120
+      ],
+      [
+        "components/selection/LoadMoreButton.tsx",
+        150
+      ],
+      [
+        "components/presentational/EnhancedButton.tsx",
+        14
+      ],
+      [
+        "InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent.tsx",
+        259
+      ],
+      [
+        "InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent.tsx",
+        262
+      ],
+      [
+        "InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent.tsx",
+        265
+      ],
+      [
+        "InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent.tsx",
+        268
+      ],
+      [
+        "InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent.tsx",
+        302
+      ],
+      [
+        "InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent.tsx",
+        310
+      ],
+      [
+        "ChatMessage/components/ChatInputs.tsx",
+        331
+      ],
+      [
+        "ChatMessage/components/ChatInputs.tsx",
+        341
+      ],
+      [
+        "ChatMessage/components/ChatInputs.tsx",
+        367
+      ],
+      [
+        "ChatMessage/components/ChatInputs.tsx",
+        383
+      ],
+      [
+        "components/presentational/field/FieldHeader.tsx",
+        62
+      ],
+      [
+        "InfiniteVirtualTable/components/ColumnVisibilityTrigger.tsx",
+        57
+      ],
+      [
+        "InfiniteVirtualTable/components/ColumnVisibilityTrigger.tsx",
+        60
+      ],
+      [
+        "InfiniteVirtualTable/components/ColumnVisibilityTrigger.tsx",
+        90
+      ],
+      [
+        "InfiniteVirtualTable/components/ColumnVisibilityTrigger.tsx",
+        99
+      ],
+      [
+        "InfiniteVirtualTable/columns/createStandardColumns.tsx",
+        356
+      ],
+      [
+        "ChatMessage/components/MarkdownToggleButton.tsx",
+        26
+      ],
+      [
+        "components/presentational/buttons/CollapseToggleButton.tsx",
+        45
+      ],
+      [
+        "components/presentational/buttons/CollapseToggleButton.tsx",
+        254
+      ],
+      [
+        "components/presentational/buttons/AddButton.tsx",
+        37
+      ],
+      [
+        "components/presentational/buttons/RunButton.tsx",
+        55
+      ],
+      [
+        "components/presentational/CopyButton.tsx",
+        109
+      ],
+      [
+        "components/selection/LoadAllButton.tsx",
+        140
+      ],
+      [
+        "components/presentational/inputs/SliderInput.tsx",
+        110
+      ],
+      [
+        "Editor/MarkdownToolbar.tsx",
+        390
+      ],
+      [
+        "Editor/MarkdownToolbar.tsx",
+        402
+      ],
+      [
+        "components/ScrollToTopButton.tsx",
+        28
+      ],
+      [
+        "Editor/plugins/code/nodes/LongTextNode.tsx",
+        240
+      ],
+      [
+        "Editor/plugins/code/nodes/LongTextNode.tsx",
+        244
+      ],
+      [
+        "Editor/plugins/code/nodes/LongTextNode.tsx",
+        253
+      ],
+      [
+        "ChatMessage/components/AttachmentButton.tsx",
+        97
+      ],
+      [
+        "InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell.tsx",
+        511
+      ],
+      [
+        "InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell.tsx",
+        533
+      ],
+      [
+        "Editor/plugins/code/nodes/Base64Node.tsx",
+        177
+      ],
+      [
+        "components/presentational/attachments/PromptDocumentUpload.tsx",
+        173
+      ],
+      [
+        "components/presentational/attachments/PromptDocumentUpload.tsx",
+        218
+      ],
+      [
+        "RichChatInput/plugins/SendButton.tsx",
+        60
+      ],
+      [
+        "RichChatInput/plugins/SendButton.tsx",
+        79
+      ],
+      [
+        "Editor/plugins/markdown/MarkdownHoverToggleButton.tsx",
+        34
+      ],
+      [
+        "components/presentational/attachments/PromptImageUpload.tsx",
+        228
+      ],
+      [
+        "components/presentational/attachments/PromptImageUpload.tsx",
+        290
+      ],
+      [
+        "components/DropdownButton.tsx",
+        209
+      ],
+      [
+        "components/DropdownButton.tsx",
+        225
+      ]
+    ],
+    "Pagination": [
+      [
+        "InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell.tsx",
+        737
+      ]
+    ],
+    "Tabs": [
+      [
+        "InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell.tsx",
+        678
+      ],
+      [
+        "components/PageLayout.tsx",
+        27
+      ]
+    ],
+    "Tooltip": [
+      [
+        "drill-in/core/DrillInControls.tsx",
+        66
+      ],
+      [
+        "drill-in/core/DrillInControls.tsx",
+        77
+      ],
+      [
+        "InfiniteVirtualTable/components/columnVisibility/TableSettingsDropdown.tsx",
+        143
+      ],
+      [
+        "components/presentational/section/ConfigAccordionSection.tsx",
+        253
+      ],
+      [
+        "components/presentational/section/ConfigAccordionSection.tsx",
+        306
+      ],
+      [
+        "CopyTooltip/CopyTooltip.tsx",
+        66
+      ],
+      [
+        "ChatMessage/components/ChatMessageList.tsx",
+        219
+      ],
+      [
+        "ChatMessage/components/ChatMessageList.tsx",
+        231
+      ],
+      [
+        "components/presentational/attachments/FileAttachment.tsx",
+        104
+      ],
+      [
+        "CellRenderers/MetricCellContent.tsx",
+        153
+      ],
+      [
+        "CellRenderers/MetricCellContent.tsx",
+        171
+      ],
+      [
+        "CellRenderers/MetricCellContent.tsx",
+        180
+      ],
+      [
+        "components/presentational/EnhancedButton.tsx",
+        20
+      ],
+      [
+        "components/SyncStateTag.tsx",
+        80
+      ],
+      [
+        "ChatMessage/components/ChatInputs.tsx",
+        330
+      ],
+      [
+        "ChatMessage/components/ChatInputs.tsx",
+        340
+      ],
+      [
+        "ChatMessage/components/ChatInputs.tsx",
+        382
+      ],
+      [
+        "CellRenderers/EvaluatorMetricBar.tsx",
+        129
+      ],
+      [
+        "CellRenderers/EvaluatorMetricBar.tsx",
+        150
+      ],
+      [
+        "CellRenderers/EvaluatorMetricBar.tsx",
+        238
+      ],
+      [
+        "components/presentational/field/FieldHeader.tsx",
+        61
+      ],
+      [
+        "InfiniteVirtualTable/components/ColumnVisibilityTrigger.tsx",
+        89
+      ],
+      [
+        "InfiniteVirtualTable/columns/createStandardColumns.tsx",
+        355
+      ],
+      [
+        "components/presentational/metrics/ExecutionMetricsDisplay.tsx",
+        111
+      ],
+      [
+        "components/presentational/metrics/ExecutionMetricsDisplay.tsx",
+        119
+      ],
+      [
+        "components/presentational/metrics/ExecutionMetricsDisplay.tsx",
+        152
+      ],
+      [
+        "ChatMessage/components/MarkdownToggleButton.tsx",
+        25
+      ],
+      [
+        "SelectLLMProvider/SelectLLMProviderBase.tsx",
+        196
+      ],
+      [
+        "components/presentational/buttons/CollapseToggleButton.tsx",
+        253
+      ],
+      [
+        "components/selection/SearchablePopoverList.tsx",
+        239
+      ],
+      [
+        "components/presentational/inputs/LabeledField.tsx",
+        101
+      ],
+      [
+        "Editor/plugins/token/TokenTooltipPlugin.tsx",
+        101
+      ],
+      [
+        "components/presentational/editable/EditableText.tsx",
+        138
+      ],
+      [
+        "components/presentational/metadata/MetadataHeader.tsx",
+        90
+      ],
+      [
+        "components/presentational/metadata/MetadataHeader.tsx",
+        95
+      ],
+      [
+        "InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell.tsx",
+        523
+      ],
+      [
+        "InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell.tsx",
+        545
+      ],
+      [
+        "Editor/plugins/markdown/MarkdownHoverToggleButton.tsx",
+        33
+      ],
+      [
+        "components/presentational/FormattedDate.tsx",
+        66
+      ]
+    ],
+    "Typography": [
+      [
+        "InfiniteVirtualTable/components/TableDescription.tsx",
+        40
+      ],
+      [
+        "InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent.tsx",
+        121
+      ],
+      [
+        "InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent.tsx",
+        255
+      ],
+      [
+        "InfiniteVirtualTable/columns/createStandardColumns.tsx",
+        15
+      ],
+      [
+        "SelectLLMProvider/SelectLLMProviderBase.tsx",
+        152
+      ],
+      [
+        "SelectLLMProvider/SelectLLMProviderBase.tsx",
+        159
+      ],
+      [
+        "SelectLLMProvider/SelectLLMProviderBase.tsx",
+        162
+      ],
+      [
+        "SelectLLMProvider/SelectLLMProviderBase.tsx",
+        167
+      ],
+      [
+        "SelectLLMProvider/SelectLLMProviderBase.tsx",
+        170
+      ],
+      [
+        "components/PageLayout.tsx",
+        48
+      ],
+      [
+        "components/presentational/attachments/PromptDocumentUpload.tsx",
+        171
+      ],
+      [
+        "components/presentational/attachments/PromptDocumentUpload.tsx",
+        201
+      ],
+      [
+        "components/presentational/attachments/PromptDocumentUpload.tsx",
+        212
+      ],
+      [
+        "components/presentational/attachments/PromptImageUpload.tsx",
+        226
+      ],
+      [
+        "components/presentational/attachments/PromptImageUpload.tsx",
+        251
+      ]
+    ],
+    "Checkbox": [
+      [
+        "InfiniteVirtualTable/components/ColumnVisibilityTrigger.tsx",
+        34
+      ]
+    ],
+    "Popover": [
+      [
+        "InfiniteVirtualTable/components/ColumnVisibilityTrigger.tsx",
+        111
+      ],
+      [
+        "InfiniteVirtualTable/components/columnVisibility/TableSettingsDropdown.tsx",
+        119
+      ],
+      [
+        "Editor/plugins/code/nodes/LongTextNode.tsx",
+        272
+      ],
+      [
+        "Editor/plugins/code/nodes/LongTextNode.tsx",
+        312
+      ],
+      [
+        "InfiniteVirtualTable/components/filters/FiltersPopoverTrigger.tsx",
+        55
+      ],
+      [
+        "Editor/plugins/code/nodes/Base64Node.tsx",
+        209
+      ],
+      [
+        "CellRenderers/CellContentPopover.tsx",
+        77
+      ],
+      [
+        "Editor/MarkdownToolbar.tsx",
+        370
+      ],
+      [
+        "Editor/MarkdownToolbar.tsx",
+        438
+      ]
+    ],
+    "Skeleton": [
+      [
+        "components/presentational/skeleton/ListItemSkeleton.tsx",
+        67
+      ],
+      [
+        "components/presentational/skeleton/ListItemSkeleton.tsx",
+        70
+      ],
+      [
+        "Editor/plugins/index.tsx",
+        108
+      ],
+      [
+        "components/presentational/metrics/ExecutionMetricsDisplay.tsx",
+        99
+      ],
+      [
+        "InfiniteVirtualTable/components/common/ResizableTitle.tsx",
+        88
+      ],
+      [
+        "components/presentational/section/index.tsx",
+        167
+      ],
+      [
+        "components/presentational/table-states/TableLoadingState.tsx",
+        31
+      ]
+    ],
+    "Input": [
+      [
+        "drill-in/core/DrillInControls.tsx",
+        98
+      ],
+      [
+        "components/presentational/editable/EditableText.tsx",
+        124
+      ],
+      [
+        "Editor/form/nodes/PrimitiveNode.tsx",
+        24
+      ],
+      [
+        "Editor/form/nodes/PrimitiveNode.tsx",
+        29
+      ],
+      [
+        "Editor/form/nodes/ArrayNode.tsx",
+        123
+      ],
+      [
+        "components/presentational/inputs/LabelInput.tsx",
+        46
+      ],
+      [
+        "components/presentational/inputs/LabelInput.tsx",
+        61
+      ],
+      [
+        "components/presentational/inputs/LabelInput.tsx",
+        69
+      ],
+      [
+        "SelectLLMProvider/SelectLLMProviderBase.tsx",
+        244
+      ],
+      [
+        "InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent.tsx",
+        247
+      ],
+      [
+        "InfiniteVirtualTable/hooks/useTableManager.tsx",
+        449
+      ],
+      [
+        "components/selection/SearchInput.tsx",
+        95
+      ],
+      [
+        "components/presentational/attachments/PromptDocumentUpload.tsx",
+        181
+      ],
+      [
+        "components/presentational/attachments/PromptImageUpload.tsx",
+        234
+      ],
+      [
+        "Editor/MarkdownToolbar.tsx",
+        381
+      ],
+      [
+        "ChatMessage/components/ChatInputs.tsx",
+        293
+      ],
+      [
+        "SharedEditor/SharedEditorImpl.tsx",
+        511
+      ],
+      [
+        "SharedEditor/SharedEditorImpl.tsx",
+        530
+      ],
+      [
+        "SharedEditor/SharedEditor.tsx",
+        209
+      ],
+      [
+        "SharedEditor/SharedEditor.tsx",
+        213
+      ]
+    ],
+    "Tree": [
+      [
+        "InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent.tsx",
+        275
+      ]
+    ],
+    "Dropdown": [
+      [
+        "InfiniteVirtualTable/columns/createStandardColumns.tsx",
+        350
+      ],
+      [
+        "InfiniteVirtualTable/components/columnVisibility/TableSettingsDropdown.tsx",
+        127
+      ],
+      [
+        "drill-in/core/ViewModeDropdown.tsx",
+        42
+      ],
+      [
+        "ChatMessage/components/AttachmentButton.tsx",
+        96
+      ],
+      [
+        "Editor/form/nodes/ArrayNode.tsx",
+        140
+      ],
+      [
+        "Editor/form/nodes/ArrayNode.tsx",
+        156
+      ],
+      [
+        "Editor/form/nodes/ArrayNode.tsx",
+        195
+      ],
+      [
+        "Editor/form/nodes/ArrayNode.tsx",
+        207
+      ],
+      [
+        "components/presentational/select/SimpleDropdownSelect.tsx",
+        108
+      ],
+      [
+        "Editor/MarkdownToolbar.tsx",
+        322
+      ],
+      [
+        "Editor/MarkdownToolbar.tsx",
+        425
+      ],
+      [
+        "Editor/form/nodes/ObjectNode.tsx",
+        136
+      ],
+      [
+        "drill-in/core/DrillInBreadcrumb.tsx",
+        144
+      ],
+      [
+        "components/DropdownButton.tsx",
+        219
+      ]
+    ],
+    "InputRef": [
+      [
+        "SelectLLMProvider/SelectLLMProviderBase.tsx",
+        50
+      ]
+    ],
+    "Select": [
+      [
+        "drill-in/core/DrillInControls.tsx",
+        113
+      ],
+      [
+        "components/presentational/select/PathSelectorDropdown.tsx",
+        115
+      ],
+      [
+        "SelectLLMProvider/SelectLLMProviderBase.tsx",
+        212
+      ],
+      [
+        "drill-in/FieldRenderers/JsonArrayField.tsx",
+        36
+      ],
+      [
+        "ChatMessage/components/ChatInputs.tsx",
+        282
+      ]
+    ],
+    "Tag": [
+      [
+        "components/presentational/source-indicator/index.tsx",
+        92
+      ],
+      [
+        "components/presentational/metrics/ExecutionMetricsDisplay.tsx",
+        112
+      ],
+      [
+        "components/presentational/metrics/ExecutionMetricsDisplay.tsx",
+        145
+      ],
+      [
+        "components/presentational/metrics/ExecutionMetricsDisplay.tsx",
+        153
+      ],
+      [
+        "components/DraftTag.tsx",
+        41
+      ],
+      [
+        "CellRenderers/MetricCellContent.tsx",
+        83
+      ],
+      [
+        "CellRenderers/MetricCellContent.tsx",
+        140
+      ],
+      [
+        "CellRenderers/MetricCellContent.tsx",
+        154
+      ],
+      [
+        "CellRenderers/MetricCellContent.tsx",
+        172
+      ],
+      [
+        "CellRenderers/MetricCellContent.tsx",
+        181
+      ],
+      [
+        "components/presentational/status/index.tsx",
+        106
+      ],
+      [
+        "components/presentational/status/index.tsx",
+        143
+      ],
+      [
+        "components/presentational/FormattedDate.tsx",
+        82
+      ],
+      [
+        "components/SyncStateTag.tsx",
+        69
+      ],
+      [
+        "components/presentational/metrics/MappingStatusTag.tsx",
+        100
+      ]
+    ],
+    "App": [
+      [
+        "utils/appMessageContext.tsx",
+        16
+      ]
+    ],
+    "Space": [
+      [
+        "ChatMessage/components/ChatInputs.tsx",
+        380
+      ],
+      [
+        "components/DropdownButton.tsx",
+        208
+      ]
+    ],
+    "Modal": [
+      [
+        "components/presentational/attachments/ImagePreview.tsx",
+        105
+      ],
+      [
+        "components/EnhancedModal.tsx",
+        135
+      ]
+    ],
+    "Empty": [
+      [
+        "components/presentational/table-states/TableEmptyState.tsx",
+        37
+      ],
+      [
+        "components/selection/SearchableList.tsx",
+        107
+      ],
+      [
+        "components/selection/SearchablePopoverList.tsx",
+        205
+      ]
+    ],
+    "Divider": [
+      [
+        "components/presentational/layout/SplitPanelLayout.tsx",
+        104
+      ]
+    ],
+    "Avatar": [
+      [
+        "components/presentational/avatar/InitialsAvatar.tsx",
+        21
+      ]
+    ],
+    "Progress": [
+      [
+        "components/selection/LoadAllButton.tsx",
+        153
+      ],
+      [
+        "components/presentational/attachments/PromptImageUpload.tsx",
+        247
+      ]
+    ],
+    "Spin": [
+      [
+        "components/selection/LoadMoreButton.tsx",
+        156
+      ],
+      [
+        "components/selection/LoadMoreButton.tsx",
+        201
+      ],
+      [
+        "components/selection/VirtualList.tsx",
+        196
+      ],
+      [
+        "components/selection/VirtualList.tsx",
+        240
+      ],
+      [
+        "components/selection/VirtualList.tsx",
+        286
+      ],
+      [
+        "components/selection/VirtualList.tsx",
+        302
+      ],
+      [
+        "components/selection/SearchablePopoverList.tsx",
+        195
+      ],
+      [
+        "components/selection/LoadAllButton.tsx",
+        146
+      ],
+      [
+        "components/selection/LoadAllButton.tsx",
+        210
+      ],
+      [
+        "components/presentational/attachments/PromptImageUpload.tsx",
+        208
+      ],
+      [
+        "components/selection/SearchableList.tsx",
+        101
+      ],
+      [
+        "SharedEditor/SharedEditorImpl.tsx",
+        490
+      ]
+    ],
+    "InputNumber": [
+      [
+        "components/presentational/inputs/SliderInput.tsx",
+        96
+      ],
+      [
+        "Editor/form/nodes/PrimitiveNode.tsx",
+        27
+      ],
+      [
+        "drill-in/FieldRenderers/NumberField.tsx",
+        16
+      ]
+    ],
+    "Slider": [
+      [
+        "components/presentational/inputs/SliderInput.tsx",
+        120
+      ]
+    ],
+    "Breadcrumb": [
+      [
+        "components/selection/Breadcrumb.tsx",
+        10
+      ]
+    ],
+    "Switch": [
+      [
+        "drill-in/FieldRenderers/BooleanField.tsx",
+        18
+      ],
+      [
+        "Editor/form/nodes/PrimitiveNode.tsx",
+        28
+      ]
+    ],
+    "Form": [
+      [
+        "Editor/form/nodes/PrimitiveNode.tsx",
+        53
+      ],
+      [
+        "Editor/form/FormView.tsx",
+        163
+      ]
+    ]
+  },
+  "prop_freq": {
+    "Drawer": {
+      "...": 1,
+      "open": 1,
+      "afterOpenChange": 1,
+      "styles": 1,
+      "mask": 1
+    },
+    "Button": {
+      "type": 41,
+      "size": 73,
+      "icon": 40,
+      "onClick": 55,
+      "className": 23,
+      "disabled": 15,
+      "shape": 8,
+      "weight": 6,
+      "variant": 2,
+      "color": 3,
+      "...": 5,
+      "danger": 1,
+      "loading": 3,
+      "block": 2,
+      "ref": 2,
+      "aria-label": 3,
+      "title": 1
+    },
+    "Pagination": {
+      "total": 1,
+      "showTotal": 1,
+      "pageSize": 1,
+      "current": 1,
+      "onChange": 1,
+      "size": 1
+    },
+    "Tabs": {
+      "className": 2,
+      "activeKey": 1,
+      "items": 1,
+      "onChange": 1,
+      "...": 1
+    },
+    "Tooltip": {
+      "title": 38,
+      "placement": 4,
+      "...": 2,
+      "key": 3,
+      "mouseEnterDelay": 3,
+      "className": 5,
+      "color": 1,
+      "overlayInnerStyle": 1,
+      "getPopupContainer": 1
+    },
+    "Typography": {
+      "type": 3,
+      "className": 12,
+      "style": 1,
+      "level": 1,
+      "title": 1,
+      "href": 1,
+      "target": 1,
+      "rel": 1
+    },
+    "Checkbox": {
+      "indeterminate": 1,
+      "checked": 1,
+      "onChange": 1,
+      "style": 1
+    },
+    "Popover": {
+      "trigger": 9,
+      "placement": 8,
+      "open": 7,
+      "onOpenChange": 7,
+      "content": 9,
+      "title": 3,
+      "mouseEnterDelay": 3,
+      "mouseLeaveDelay": 3,
+      "overlayStyle": 2,
+      "arrow": 2,
+      "...": 1,
+      "styles": 1,
+      "onCopy": 1,
+      "className": 2,
+      "value": 1,
+      "placeholder": 1,
+      "onChange": 1,
+      "onPressEnter": 1,
+      "type": 2,
+      "size": 3,
+      "icon": 1,
+      "onClick": 2,
+      "onPick": 1
+    },
+    "Skeleton": {
+      "size": 3,
+      "shape": 1,
+      "className": 3,
+      "title": 2,
+      "paragraph": 3,
+      "style": 2
+    },
+    "Input": {
+      "value": 12,
+      "onChange": 12,
+      "placeholder": 11,
+      "size": 3,
+      "className": 14,
+      "onKeyDown": 2,
+      "onBlur": 2,
+      "rows": 1,
+      "variant": 7,
+      "defaultValue": 1,
+      "autoSize": 3,
+      "spellCheck": 3,
+      "autoComplete": 3,
+      "style": 2,
+      "...": 9,
+      "type": 3,
+      "ref": 1,
+      "disabled": 6,
+      "autoFocus": 1,
+      "prefix": 1,
+      "suffix": 1,
+      "onClick": 1,
+      "allowClear": 1,
+      "onClear": 1,
+      "onPressEnter": 1,
+      "readOnly": 1
+    },
+    "Tree": {
+      "selectable": 1,
+      "height": 1,
+      "checkedKeys": 1,
+      "expandedKeys": 1,
+      "onExpand": 1,
+      "treeData": 1,
+      "onCheck": 1
+    },
+    "Dropdown": {
+      "trigger": 14,
+      "styles": 3,
+      "menu": 14,
+      "placement": 5,
+      "open": 1,
+      "onOpenChange": 1,
+      "title": 1,
+      "type": 1,
+      "shape": 1,
+      "size": 2,
+      "onClick": 1,
+      "icon": 1,
+      "weight": 1,
+      "disabled": 5
+    },
+    "Select": {
+      "value": 6,
+      "onChange": 4,
+      "size": 5,
+      "style": 6,
+      "options": 4,
+      "placeholder": 4,
+      "className": 23,
+      "allowClear": 1,
+      "disabled": 2,
+      "optionFilterProp": 1,
+      "type": 1,
+      "...": 1,
+      "showSearch": 1,
+      "open": 1,
+      "onOpenChange": 1,
+      "virtual": 1,
+      "optionLabelProp": 1,
+      "popupRender": 1,
+      "ref": 1,
+      "variant": 1,
+      "onClick": 1,
+      "key": 2,
+      "onMouseEnter": 1,
+      "onMouseDown": 1,
+      "popupMatchSelectWidth": 1,
+      "onSelect": 1
+    },
+    "Tag": {
+      "color": 10,
+      "className": 16,
+      "onClick": 1,
+      "...": 1,
+      "key": 1,
+      "style": 1,
+      "variant": 1,
+      "closeIcon": 1,
+      "title": 1,
+      "mouseEnterDelay": 1,
+      "size": 1,
+      "onClose": 1
+    },
+    "Space": {
+      "size": 1,
+      "className": 1
+    },
+    "Modal": {
+      "open": 2,
+      "footer": 1,
+      "onCancel": 1,
+      "width": 1,
+      "height": 1,
+      "afterClose": 1,
+      "...": 1,
+      "style": 1,
+      "styles": 1
+    },
+    "Empty": {
+      "image": 3,
+      "description": 3
+    },
+    "Divider": {
+      "orientation": 1,
+      "className": 1
+    },
+    "Avatar": {
+      "shape": 1,
+      "style": 1,
+      "...": 2
+    },
+    "Progress": {
+      "type": 1,
+      "percent": 2,
+      "size": 2,
+      "strokeWidth": 1,
+      "showInfo": 2
+    },
+    "Spin": {
+      "size": 11,
+      "indicator": 1,
+      "style": 1
+    },
+    "InputNumber": {
+      "min": 1,
+      "max": 1,
+      "step": 1,
+      "value": 2,
+      "onChange": 2,
+      "disabled": 1,
+      "className": 2,
+      "style": 2,
+      "placeholder": 1,
+      "size": 2,
+      "variant": 1
+    },
+    "Slider": {
+      "min": 1,
+      "max": 1,
+      "step": 1,
+      "value": 1,
+      "disabled": 1,
+      "onChange": 1,
+      "className": 1
+    },
+    "Breadcrumb": {
+      "path": 1,
+      "onNavigate": 1,
+      "rootLabel": 1
+    },
+    "Switch": {
+      "checked": 1,
+      "onChange": 1
+    },
+    "Form": {
+      "name": 1,
+      "style": 1,
+      "valuePropName": 1,
+      "form": 1,
+      "layout": 1,
+      "onValuesChange": 1,
+      "initialValues": 1
+    }
+  }
+}
