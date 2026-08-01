@@ -1,6 +1,9 @@
 # What the code does today
 
-Every claim here was read from the repository. File paths are repository-relative.
+Every claim here was read from the repository on 2026-07-30, before the fix landed, so this file
+records the state that produced the bug. The empty `tools` list it describes is what
+[PR #5597](https://github.com/Agenta-AI/agenta/pull/5597) replaced with Pi's four default
+built-ins. File paths are repository-relative.
 
 ## The two fields named `tools`
 
@@ -61,8 +64,11 @@ Granting a built-in is not the same as letting it run. The two are enforced at d
 
 The read-only table at `services/runner/src/permission-plan.ts:40` marks `read`, `grep`, `find`,
 and `ls` read-only, and `bash`, `edit`, `write` not read-only. Under the shipped default
-permission mode `allow_reads` (`sdks/python/agenta/sdk/utils/types.py:1072`), the read-only four
-run without asking and the other three raise an approval.
+permission mode `allow_reads` (`sdks/python/agenta/sdk/utils/types.py:1072`), a granted read-only
+tool runs without asking and a granted tool that is not read-only raises an approval. That table
+classifies names; it does not grant them. Only a granted built-in runs at all, so `grep`, `find`,
+and `ls` stay unavailable unless an author grants them. Under the four-name default this design
+ships, `read` runs without asking and `bash`, `edit`, and `write` each raise an approval.
 
 `computeBuiltinGatingActive` (`run-plan.ts:233`) decides whether to run the gating machinery at
 all. It turns gating on when the resolved permission plan could gate a built-in, or when the

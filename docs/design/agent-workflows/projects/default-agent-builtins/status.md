@@ -1,9 +1,10 @@
 # Status
 
-**State: implemented, uncommitted. All four pieces are in the working tree; no branch and no pull
-request yet.**
+**State: implemented and in review. All four pieces are committed on the branch
+`fix/pi-default-builtins` and open as
+[PR #5597](https://github.com/Agenta-AI/agenta/pull/5597).**
 
-Last updated 2026-07-30, after implementation.
+Last updated 2026-08-01, after the change went up for review.
 
 ## Where the work stands
 
@@ -284,4 +285,5 @@ chose, and carries two pre-ship conditions.
 
 Design workspace created 2026-07-30. Research read against the `gitbutler/workspace` branch. Codex
 review round 1 folded in above the same day, and the change implemented against that branch the
-same day.
+same day. The work was committed to `fix/pi-default-builtins` and opened as
+[PR #5597](https://github.com/Agenta-AI/agenta/pull/5597) on 2026-07-30.

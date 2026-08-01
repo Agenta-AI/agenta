@@ -67,7 +67,7 @@ def test_published_default_grants_pi_default_builtins():
     """A new agent must be able to read, run shell commands, and edit and write files wherever it
     runs, not only in the playground (issue #5590). The runner reads an empty tools list as
     "grant nothing"."""
-    expected = [{"type": "builtin", "name": name} for name in PI_DEFAULT_BUILTIN_NAMES]
+    expected = [{"type": "builtin", "name": name} for name in PI_DEFAULT_ACTIVE_BUILTINS]
     assert _inspect_agent_default()["tools"] == expected
     assert _builtin_agent_default()["tools"] == expected
 ```

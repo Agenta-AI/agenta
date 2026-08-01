@@ -1,7 +1,9 @@
 # Execution plan
 
-Four pieces, in dependency order. Each one lands on its own branch and is reviewable alone. The
-first piece fixes the reported bug; the rest keep the result honest and legible.
+Four pieces, in dependency order. Each one is reviewable alone, and all four landed together on
+`fix/pi-default-builtins` as [PR #5597](https://github.com/Agenta-AI/agenta/pull/5597), for the
+reason given in [Order and independence](#order-and-independence). The first piece fixes the
+reported bug; the rest keep the result honest and legible.
 
 ## Piece 1: ship Pi's built-ins in the default template
 
@@ -21,7 +23,10 @@ Files:
   narrow the existing authoring-extras assertions, as described in
   [testing.md](testing.md#tests-that-must-be-updated).
 - `sdks/python/oss/tests/pytest/unit/agents/test_wire_contract.py`: add the default-to-wire test.
-- A new source-reading test pinning the Python constant against the TypeScript array.
+- A shared golden fixture holding the four names, asserted from Python against the new constant and
+  from TypeScript against `PI_DEFAULT_ACTIVE_BUILTINS`, as described in
+  [testing.md](testing.md#pinning-the-two-copies-of-pis-default-built-in-list). Not a test that
+  reads the TypeScript source.
 
 Verification before moving on: `cd services && py-run-tests`, `cd sdks/python && py-run-tests`,
 `cd api && py-run-tests`. The `api` suite is included because
@@ -65,7 +70,8 @@ Run `pnpm lint-fix` inside `web` before committing.
 ## Piece 4: update the documentation that describes the default
 
 The interface documentation states the default agent config field by field, and the build-an-agent
-skill teaches the same shape to the builder agent. Both currently show an empty tools list.
+skill teaches the same shape to the builder agent. Both showed an empty tools list before this
+change.
 
 Files:
 

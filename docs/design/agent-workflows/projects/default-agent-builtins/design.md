@@ -295,10 +295,9 @@ agent creation to stop putting Pi built-ins in a Claude agent's template at all;
 the harness preference below.
 
 This needs a shared constant for Pi's four default built-in names on the Python side. There is no
-such constant today; the four names live only in TypeScript at `run-plan.ts:192`. Put it next to
-the built-in vocabulary in `sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py`, beside
-`AGENTA_FORCED_TOOLS`, and have `build_agent_v0_default()` build its `tools` entries from it so
-the default and the warning cannot drift apart.
+such constant today; the four names live only in TypeScript at `run-plan.ts:192`. Have
+`build_agent_v0_default()` build its `tools` entries from that constant so the default and the
+warning cannot drift apart. Where the constant lives is settled two paragraphs below.
 
 The Python constant and the TypeScript `PI_DEFAULT_ACTIVE_BUILTINS` are now two copies of the same
 list in two languages. They are already two copies today, just implicitly. They should be two
