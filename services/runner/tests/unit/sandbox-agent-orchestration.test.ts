@@ -479,11 +479,12 @@ describe("runSandboxAgent orchestration", () => {
       },
     ]);
   });
-  it("a legacy inline image degrades rather than throws", async () => {
-    for (const testCase of [
-      { mimeType: "image/png", capabilities: { images: false } },
-      { mimeType: "image/svg+xml", capabilities: { images: true } },
-    ]) {
+  it.each([
+    { mimeType: "image/png", capabilities: { images: false } },
+    { mimeType: "image/svg+xml", capabilities: { images: true } },
+  ])(
+    "a legacy inline $mimeType image degrades rather than throws",
+    async (testCase) => {
       const { calls, deps, events, logs } = fakeHarness({
         capabilities: testCase.capabilities,
       });
@@ -520,7 +521,75 @@ describe("runSandboxAgent orchestration", () => {
         logs.find((message) => message.includes("legacy inline image")) ?? "",
         /delivery=degraded reason=[a-z_]+$/,
       );
-    }
+    },
+  );
+
+  it("degrades a legacy inline image when the caller's model declares no image input", async () => {
+    const { calls, deps, logs } = fakeHarness({
+      capabilities: { images: true },
+    });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        modelCapabilities: { inputModalities: ["text"] },
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "image", uri: "data:image/png;base64,AQID" },
+              { type: "text", text: "inspect this" },
+            ],
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(calls.promptBlocks, [
+      { type: "text", text: "inspect this" },
+    ]);
+    assert.equal(
+      logs.find((message) => message.includes("legacy inline image")),
+      "[attachments] legacy inline image delivery=degraded reason=model_modality_unknown",
+    );
+  });
+
+  it("delivers a legacy inline image natively when the caller declares no capabilities", async () => {
+    const { calls, deps, logs } = fakeHarness({
+      capabilities: { images: true },
+    });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "image", uri: "data:image/png;base64,AQID" },
+              { type: "text", text: "inspect this" },
+            ],
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(calls.promptBlocks, [
+      { type: "image", data: "AQID", mimeType: "image/png" },
+      { type: "text", text: "inspect this" },
+    ]);
+    assert.equal(
+      logs.find((message) => message.includes("legacy inline image")),
+      "[attachments] legacy inline image delivery=native reason=native_supported",
+    );
   });
 
   it("a failed historical restore is survivable through a full cold turn", async () => {

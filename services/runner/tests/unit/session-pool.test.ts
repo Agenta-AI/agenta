@@ -339,6 +339,42 @@ describe("historyFingerprint (pruned-array contract)", () => {
     );
   });
 
+  it("changes when the order of user attachment ids changes", () => {
+    const ids = [
+      "019a52c2-14c0-7c14-b874-2f5798f9cd21",
+      "019a52c2-14c0-7c14-b874-2f5798f9cd22",
+    ];
+    const withAttachments = (attachmentIds: string[]) => ({
+      role: "user",
+      content: attachmentIds.map((attachmentId) => ({
+        type: "attachment",
+        attachmentId,
+      })),
+    });
+    assert.notEqual(
+      historyFingerprint([withAttachments(ids)]),
+      historyFingerprint([withAttachments([...ids].reverse())]),
+    );
+  });
+
+  it("changes when a legacy inline image's content changes", () => {
+    const withImage = (data: string) => ({
+      role: "user",
+      content: [
+        { type: "image", uri: `data:image/png;base64,${data}` },
+        { type: "text", text: "describe this" },
+      ],
+    });
+    assert.notEqual(
+      historyFingerprint([withImage("AQID")]),
+      historyFingerprint([withImage("BAUG")]),
+    );
+    assert.equal(
+      historyFingerprint([withImage("AQID")]),
+      historyFingerprint([withImage("AQID")]),
+    );
+  });
+
   it("continuation symmetry: park(full [u1]) == check(prior of [u1,a1,u2]) for a plain turn", () => {
     const parked = historyFingerprint([u1]);
     const req: AgentRunRequest = {

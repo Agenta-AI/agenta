@@ -691,6 +691,19 @@ export function currentUserTurn(request: AgentRunRequest): CurrentUserTurn {
 }
 
 /**
+ * True when the turn carries something the person actually sent: text, an attachment, or inline
+ * media. The single admission rule for "new user content", so callers that decide freshness,
+ * boundaries, or persistence cannot drift apart on an attachment-only or image-only turn.
+ */
+export function userTurnCarriesContent(turn: CurrentUserTurn): boolean {
+  return (
+    turn.text.trim() !== "" ||
+    turn.attachments.length > 0 ||
+    turn.hasInlineMedia
+  );
+}
+
+/**
  * Approval-resume fallback: scan backward for the most recent non-empty user text. Use
  * currentUserTurn for the current turn.
  */

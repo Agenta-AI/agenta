@@ -331,6 +331,47 @@ describe("buildTurnText approval-resume closing frame", () => {
     assert.ok(text.includes(`user: ${staleCommand}`), "stale command stays in history");
   });
 
+  it("keeps the normal closing frame when an attachment-only turn follows a settled call", () => {
+    const request: AgentRunRequest = {
+      messages: [
+        { role: "user", content: "help me schedule a report" },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_call",
+              toolCallId: "call-1",
+              toolName: "__ag__request_input",
+              input: { message: "What color?", requestedSchema: {} },
+            },
+            {
+              type: "tool_result",
+              toolCallId: "call-1",
+              toolName: "__ag__request_input",
+              output: { action: "accept", content: { color: "green" } },
+            },
+          ] as ContentBlock[],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "attachment",
+              attachmentId: "019a52c2-14c0-7c14-b874-2f5798f9cd21",
+              filename: "brief.pdf",
+            },
+          ] as ContentBlock[],
+        },
+      ],
+    };
+    const text = buildTurnText(request);
+
+    // The attachment is the new turn, so the settled call must not be replayed as a resume.
+    assert.match(text, /Continue the conversation\. The user now says:/);
+    assert.doesNotMatch(text, /responded to the request/);
+    assert.doesNotMatch(text, /responded to the pending approval/);
+  });
+
   it("keeps the normal closing frame when a client-tool result precedes a new user turn", () => {
     const text = turnTextFor([
       { role: "user", content: "help me schedule a report" },

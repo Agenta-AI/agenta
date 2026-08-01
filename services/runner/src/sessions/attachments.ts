@@ -13,6 +13,9 @@ type Auth = () => string;
 
 const DEFAULT_FETCH_TIMEOUT_MS = 15_000;
 const DEFAULT_MAX_PER_TURN = 100;
+// Aligned with the API's largest per-file cap (15 MB for audio, 10 MB for the rest): a body
+// beyond it cannot be a stored attachment, so refuse it before it is held in memory.
+const MAX_ATTACHMENT_BYTES = 16 * 1024 * 1024;
 
 function log(message: string): void {
   process.stderr.write(`[sessions/attachments] ${message}\n`);
@@ -106,18 +109,28 @@ export async function fetchAttachment(
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-    const mediaType = response.headers.get("content-type")?.trim();
+    // Content-Type parameters (charset, boundary) are not part of the MIME identity the
+    // capability gate and the allowlist compare on, so keep the bare type.
+    const mediaType = response.headers
+      .get("content-type")
+      ?.split(";", 1)[0]
+      .trim()
+      .toLowerCase();
     const filename = filenameFromContentDisposition(
       response.headers.get("content-disposition"),
     );
     if (!mediaType || !filename) {
       throw new Error("missing verified attachment headers");
     }
-    return {
-      bytes: new Uint8Array(await response.arrayBuffer()),
-      mediaType,
-      filename,
-    };
+    const declaredSize = Number(response.headers.get("content-length"));
+    if (Number.isFinite(declaredSize) && declaredSize > MAX_ATTACHMENT_BYTES) {
+      throw new Error("attachment exceeds the maximum size");
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > MAX_ATTACHMENT_BYTES) {
+      throw new Error("attachment exceeds the maximum size");
+    }
+    return { bytes, mediaType, filename };
   } catch (error) {
     log(
       `fetch FAILED session=${sessionId} attachment=${attachmentId}: ${errorDetail(error)}`,

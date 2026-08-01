@@ -1139,6 +1139,8 @@ async function runAndStreamWithApiBaseResolved(
         "user",
       );
       if (turn.attachments.length > 0) {
+        // A failed claim is accepted as graceful loss: the worst case is that the sweeper
+        // reclaims the attachment and cold replay renders it as no longer available.
         await claimAttachments(
           sessionId,
           turn.attachments.map((attachment) => attachment.attachmentId),

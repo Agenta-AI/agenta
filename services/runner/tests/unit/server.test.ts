@@ -453,7 +453,9 @@ describe("createAgentServer", () => {
       .mockImplementation(async (input, init) => {
         const url = String(input);
         if (url === `${s.url}/run`) return realFetch(input, init);
-        sessionApiCalls.push(url);
+        // Trace export is unrelated to session persistence; keep it out so an empty-list
+        // failure can only mean a persist or claim call happened.
+        if (!url.includes("/otlp/")) sessionApiCalls.push(url);
         return new Response("{}", { status: 200 });
       });
 

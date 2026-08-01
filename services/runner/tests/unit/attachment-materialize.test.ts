@@ -143,6 +143,31 @@ describe("attachment materialization", () => {
     ]);
   });
 
+  it("refuses to write when the Daytona symlink check reports no exit code", async () => {
+    let written = 0;
+    const sandbox = {
+      mkdirFs: async () => {},
+      statFs: async () => {
+        throw new Error("missing");
+      },
+      runProcess: async () => undefined,
+      writeFsFile: async () => {
+        written += 1;
+      },
+    };
+
+    await assert.rejects(
+      materializeWorkingCopy(
+        sandbox,
+        { cwd: "/home/sandbox/cwd", isDaytona: true },
+        { attachmentId: ID_ONE, filename: "photo.png" },
+        new Uint8Array([1]),
+      ),
+      /did not report an exit code/,
+    );
+    assert.equal(written, 0);
+  });
+
   it("restores referenced copies with bounded concurrency and never overwrites", async () => {
     const cwd = root();
     const ids = [
@@ -197,7 +222,7 @@ describe("attachment materialization", () => {
       { concurrency: 2, timeoutMs: 1_000 },
     );
 
-    assert.ok(maxActive <= 2);
+    assert.equal(maxActive, 2, "the pool runs at the configured concurrency");
     assert.equal(fetchedIds.includes(ids[0]), false, "existing copy skips fetch");
     assert.equal(fetchedIds.length, ids.length - 1);
     assert.deepEqual(

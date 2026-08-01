@@ -72,6 +72,63 @@ describe("attachment API client", () => {
     });
   });
 
+  it("returns null when a 200 response omits the verified headers", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(new Uint8Array([1, 2, 3]), {
+          status: 200,
+          headers: { "content-type": "image/png" },
+        }),
+      ),
+    );
+    assert.equal(
+      await fetchAttachment("session-1", ATTACHMENT_ID, () => "Bearer test"),
+      null,
+    );
+  });
+
+  it("strips content-type parameters from the media type", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(new Uint8Array([1]), {
+          status: 200,
+          headers: {
+            "content-type": "IMAGE/PNG; charset=binary",
+            "content-disposition": "attachment; filename=photo.png",
+          },
+        }),
+      ),
+    );
+    const fetched = await fetchAttachment(
+      "session-1",
+      ATTACHMENT_ID,
+      () => "Bearer test",
+    );
+    assert.equal(fetched?.mediaType, "image/png");
+  });
+
+  it("refuses a body that declares more than the per-attachment cap", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(new Uint8Array([1]), {
+          status: 200,
+          headers: {
+            "content-type": "image/png",
+            "content-disposition": "attachment; filename=photo.png",
+            "content-length": String(64 * 1024 * 1024),
+          },
+        }),
+      ),
+    );
+    assert.equal(
+      await fetchAttachment("session-1", ATTACHMENT_ID, () => "Bearer test"),
+      null,
+    );
+  });
+
   it("parses quoted filename when filename* is absent", () => {
     assert.equal(
       filenameFromContentDisposition(

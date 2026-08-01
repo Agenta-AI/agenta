@@ -2,11 +2,13 @@ import { createHash } from "node:crypto";
 
 import {
   currentUserTurn,
+  isLegacyInlineImageBlock,
   type AgentRunRequest,
   type ChatMessage,
   type ContentBlock,
   messageText,
   resolvePromptText,
+  userTurnCarriesContent,
 } from "../../protocol.ts";
 import { approvalDecisionOf } from "../../responder.ts";
 import type { TeardownReason } from "./teardown.ts";
@@ -196,6 +198,28 @@ function collectToolCallIds(
 }
 
 /**
+ * One stable digest per legacy inline-media block: its media type plus a hash of the payload,
+ * so the fingerprint stays short whatever the image weighs.
+ */
+function inlineMediaDigests(
+  content: string | ContentBlock[] | undefined,
+): string[] {
+  if (!Array.isArray(content)) return [];
+  const digests: string[] = [];
+  for (const block of content) {
+    if (!isLegacyInlineImageBlock(block)) continue;
+    const payload =
+      typeof block.uri === "string" && block.uri.startsWith("data:")
+        ? block.uri
+        : String(block.data ?? "");
+    const mediaType =
+      typeof block.mimeType === "string" ? block.mimeType : "";
+    digests.push(sha256(`${mediaType}\n${payload}`));
+  }
+  return digests;
+}
+
+/**
  * A hash over the conversation the server received (the FE's pruned array): the ordered user
  * message texts, the ordered tool-call ids across every message, and the user-message count.
  * Assistant TEXT is deliberately ignored, so a live session that has already answered a plain
@@ -215,6 +239,7 @@ function collectToolCallIds(
 export function historyFingerprint(messages: readonly ChatMessage[]): string {
   const userTexts: string[] = [];
   const userAttachmentIds: string[][] = [];
+  const userInlineMedia: string[][] = [];
   const toolCallIds: string[] = [];
   const seenIds = new Set<string>();
   let promptCount = 0;
@@ -227,13 +252,22 @@ export function historyFingerprint(messages: readonly ChatMessage[]): string {
           (attachment) => attachment.attachmentId,
         ),
       );
+      // A legacy inline image carries no reference id, so hash its content: two histories that
+      // differ only in the image bytes must not share one warm harness.
+      userInlineMedia.push(inlineMediaDigests(message.content));
     }
     collectToolCallIds(message.content, toolCallIds, seenIds);
   }
   // Attachment ids change every canonical hash once; deploys already cold-start parked
   // sessions because the pool is process-local.
   return sha256(
-    canonicalJson({ userTexts, userAttachmentIds, toolCallIds, promptCount }),
+    canonicalJson({
+      userTexts,
+      userAttachmentIds,
+      userInlineMedia,
+      toolCallIds,
+      promptCount,
+    }),
   );
 }
 
@@ -336,14 +370,21 @@ export function carriesMinimalHistory(request: AgentRunRequest): boolean {
  */
 export function carriesApprovalReplyOnly(request: AgentRunRequest): boolean {
   if (resolvePromptText(request)) return false;
-  for (const message of request.messages ?? []) {
-    const content = message?.content;
+  // The reply must be the request's terminal tool envelope, not merely present somewhere: a
+  // history whose newest envelope is an unresolved call is a stalled conversation, and reading
+  // it as an approval reply would let it through the empty-prompt rejection.
+  const messages = request.messages ?? [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const content = messages[i]?.content;
     if (!Array.isArray(content)) continue;
-    for (const block of content) {
-      if (block?.type === "tool_result" && approvalDecisionOf(block) !== undefined) {
-        return true;
-      }
-    }
+    const envelope = content.filter(
+      (block) => block?.type === "tool_call" || block?.type === "tool_result",
+    );
+    if (envelope.length === 0) continue;
+    return envelope.some(
+      (block) =>
+        block.type === "tool_result" && approvalDecisionOf(block) !== undefined,
+    );
   }
   return false;
 }
@@ -355,12 +396,7 @@ export function carriesApprovalReplyOnly(request: AgentRunRequest): boolean {
  */
 export function tailIsFreshUserMessage(request: AgentRunRequest): boolean {
   const turn = currentUserTurn(request);
-  return (
-    turn.isFresh &&
-    (turn.text.trim() !== "" ||
-      turn.attachments.length > 0 ||
-      turn.hasInlineMedia)
-  );
+  return turn.isFresh && userTurnCarriesContent(turn);
 }
 
 /**

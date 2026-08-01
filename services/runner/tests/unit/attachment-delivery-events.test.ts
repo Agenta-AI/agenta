@@ -106,6 +106,16 @@ describe("attachment delivery events", () => {
     assert.ok(
       ingested.every((payload) => payload.record_type === "attachment_delivery"),
     );
+    assert.deepEqual(
+      ingested.map((payload) => payload.attributes),
+      IDS.map((id) => ({
+        type: "attachment_delivery",
+        attachmentId: id,
+        outcome: "native",
+        reasonCode: "native_supported",
+        workingPath: `attachments/${id}/${id}.png`,
+      })),
+    );
   });
 
   it("degrades a mixed current turn while emitting every outcome", async () => {

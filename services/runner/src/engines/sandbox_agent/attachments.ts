@@ -24,6 +24,7 @@ import {
 } from "../../sessions/attachments.ts";
 import { attachmentDeliveryUnsupportedMessage } from "./capabilities.ts";
 import type { RunPlan } from "./run-plan.ts";
+import { COLD_FRAME_USER_LABEL } from "./transcript.ts";
 
 export type AttachmentDeliveryOutcome =
   | "native"
@@ -96,7 +97,7 @@ const NATIVE_IMAGE_TYPES = new Set([
   "image/gif",
   "image/webp",
 ]);
-const CLAUDE_INLINE_BASE64_MAX_BYTES = 10 * 1024 * 1024;
+export const CLAUDE_INLINE_BASE64_MAX_BYTES = 10 * 1024 * 1024;
 const DEFAULT_RESTORE_CONCURRENCY = 4;
 const DEFAULT_RESTORE_TIMEOUT_MS = 15_000;
 
@@ -343,7 +344,14 @@ async function rejectDaytonaSymlinks(
       args: ["-L", path],
       timeoutMs: 15_000,
     });
-    if (result?.exitCode === 0) {
+    // A missing exit code means the check never ran, which is not evidence that the path is
+    // safe. Fail closed rather than materializing through an unverified component.
+    if (typeof result?.exitCode !== "number") {
+      throw new Error(
+        "sandbox did not report an exit code for the symlink check",
+      );
+    }
+    if (result.exitCode === 0) {
       throw new Error("attachment path contains a symbolic link");
     }
   }
@@ -429,6 +437,17 @@ function adapterSupports(
   return adapter?.[kind] === true;
 }
 
+// The catalog declares modalities as bare tokens ("text", "image"). Only tokens listed here
+// count as a declaration; anything else stays unrecognized, so a malformed or future value can
+// never read as a supported modality.
+const MODALITY_TOKENS: Record<string, AttachmentGate["kind"]> = {
+  image: "image",
+  images: "image",
+  audio: "audio",
+  document: "document",
+  documents: "document",
+};
+
 function modelModalityState(
   modalities: string[] | undefined,
   kind: AttachmentGate["kind"],
@@ -436,14 +455,11 @@ function modelModalityState(
   if (!Array.isArray(modalities) || modalities.length === 0) {
     return "unknown";
   }
-  const normalized = modalities.map((value) =>
-    String(value).trim().toLowerCase(),
+  const supported = modalities.some(
+    (value) =>
+      typeof value === "string" &&
+      MODALITY_TOKENS[value.trim().toLowerCase()] === kind,
   );
-  const supported =
-    kind === "document"
-      ? normalized.includes("document") ||
-        normalized.includes("documents")
-      : normalized.includes(kind);
   // Catalog modality lists are positive declarations, so absence is not a negative capability.
   return supported ? "supported" : "unknown";
 }
@@ -478,9 +494,11 @@ export function attachmentCapabilityGate(input: {
     };
   }
 
+  // `requireNative` means the caller cannot degrade to a workspace copy, so every layer that
+  // withholds native delivery is a failure for it, not a downgrade.
   if (!adapterSupports(input.acpAgent, kind)) {
     return {
-      outcome: "workspace_only",
+      outcome: input.requireNative ? "failed" : "workspace_only",
       reasonCode: "adapter_unsupported",
       kind,
     };
@@ -491,11 +509,17 @@ export function attachmentCapabilityGate(input: {
     kind,
   );
   if (modelState === "unknown") {
-    return {
-      outcome: "workspace_only",
-      reasonCode: "model_modality_unknown",
-      kind,
-    };
+    return input.requireNative
+      ? {
+          outcome: "failed",
+          reasonCode: "model_modality_unsupported",
+          kind,
+        }
+      : {
+          outcome: "workspace_only",
+          reasonCode: "model_modality_unknown",
+          kind,
+        };
   }
 
   const provider = input.provider?.trim().toLowerCase();
@@ -556,10 +580,7 @@ export function buildPromptBlocks(
         renderedMentions +
         "\n" +
         latestUserText;
-    } else if (
-      !latestUserText &&
-      turnText.endsWith("Continue the conversation. The user now says:\n")
-    ) {
+    } else if (!latestUserText && turnText.endsWith(COLD_FRAME_USER_LABEL)) {
       text = turnText + renderedMentions;
     } else {
       text = [renderedMentions, turnText].filter(Boolean).join("\n");

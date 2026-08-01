@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
 
-import { attachmentCapabilityGate } from "../../src/engines/sandbox_agent/attachments.ts";
+import {
+  attachmentCapabilityGate,
+  CLAUDE_INLINE_BASE64_MAX_BYTES,
+} from "../../src/engines/sandbox_agent/attachments.ts";
+
+// The gate compares the base64 expansion (4 bytes out per 3 in) against the cap, so derive the
+// raw byte lengths that land either side of it.
+const AT_CAP_BYTES = Math.floor((CLAUDE_INLINE_BASE64_MAX_BYTES / 4) * 3);
+const OVER_CAP_BYTES = AT_CAP_BYTES + 3;
 
 const IMAGE_INPUT = {
   acpAgent: "claude",
@@ -33,6 +41,8 @@ describe("attachment capability gate", () => {
       undefined,
       { inputModalities: [] },
       { inputModalities: ["vision"] },
+      // A malformed entry is not a declaration and must never read as one.
+      { inputModalities: [{ kind: "image" } as unknown as string] },
     ]) {
       assert.deepEqual(
         attachmentCapabilityGate({
@@ -99,18 +109,40 @@ describe("attachment capability gate", () => {
     );
   });
 
-  it("keeps an oversized Claude image workspace-only", () => {
+  it("fails an explicit native request at the model layer too", () => {
+    assert.deepEqual(
+      attachmentCapabilityGate({
+        ...IMAGE_INPUT,
+        modelCapabilities: { inputModalities: ["text"] },
+        requireNative: true,
+      }),
+      {
+        outcome: "failed",
+        reasonCode: "model_modality_unsupported",
+        kind: "image",
+      },
+    );
+  });
+
+  it("keeps an oversized Claude image workspace-only and a just-under one native", () => {
     assert.equal(
       attachmentCapabilityGate({
         ...IMAGE_INPUT,
-        byteLength: Math.floor(7.5 * 1024 * 1024) + 1,
+        byteLength: OVER_CAP_BYTES,
       }).reasonCode,
       "provider_inline_cap",
+    );
+    assert.equal(
+      attachmentCapabilityGate({
+        ...IMAGE_INPUT,
+        byteLength: AT_CAP_BYTES,
+      }).outcome,
+      "native",
     );
   });
 
   it("keys the inline cap on provider, with ACP agent as the absent-provider fallback", () => {
-    const byteLength = Math.floor(7.5 * 1024 * 1024) + 1;
+    const byteLength = OVER_CAP_BYTES;
     assert.equal(
       attachmentCapabilityGate({
         ...IMAGE_INPUT,
