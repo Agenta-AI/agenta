@@ -19,7 +19,7 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
-from oss.src.core.mounts.dtos import MountArchiveSource
+from oss.src.core.mounts.dtos import MountArchiveSource, MountCreate
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.mounts.types import (
     MountArtifactIdInvalid,
@@ -29,6 +29,7 @@ from oss.src.core.mounts.types import (
     MountImmutableField,
     MountNameInvalid,
     MountNotFound,
+    MountProtected,
     MountPathInvalid,
     MountSlugConflict,
     MountSlugReserved,
@@ -111,6 +112,11 @@ def handle_mount_exceptions():
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=e.message,
+                ) from e
+            except MountProtected as e:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=MountNotFound().message,
                 ) from e
             except MountNotFound as e:
                 raise HTTPException(
@@ -314,7 +320,7 @@ class MountsRouter:
             project_id=UUID(request.state.project_id),
             user_id=UUID(str(request.state.user_id)),
             #
-            mount_create=body.mount,
+            mount_create=MountCreate(**body.mount.model_dump()),
         )
 
         return MountResponse(count=1, mount=mount)
@@ -435,6 +441,7 @@ class MountsRouter:
         return MountResponse(count=1, mount=mount)
 
     @intercept_exceptions()
+    @handle_mount_exceptions()
     async def archive_mount(
         self,
         request: Request,
@@ -457,6 +464,7 @@ class MountsRouter:
         return MountResponse(count=1, mount=mount)
 
     @intercept_exceptions()
+    @handle_mount_exceptions()
     async def unarchive_mount(
         self,
         request: Request,
