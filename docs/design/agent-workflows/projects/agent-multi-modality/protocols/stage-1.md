@@ -446,3 +446,32 @@ Decisions worth restating, with their reasons:
 Skipped with rebuttals on the threads: response-model count computation (breaks the file's
 uniform convention), nginx body-size scoping and a purpose enum (low value against churn), and a
 provider-independent inline base64 ceiling (only one provider needs a cap today).
+
+## The rebase onto release/v0.107.0 (2026-08-01, evening)
+
+Release branch `release/v0.107.0` was cut from main (which had meanwhile absorbed 106.2). The
+whole workspace retargeted onto it. The 106.2 release had split `AgentConversation.tsx` into
+hooks and views and shipped its own upload plumbing, so the frontend commits could not replay
+textually; each conflicted commit was resolved by porting its INTENT into the new structure,
+one commit at a time, preserving history-faithful intermediate states (one mid-history test
+failure existed in the original branch at that same point and healed when the next commit
+replayed, exactly as in the original).
+
+Where things moved: the composer attachment machinery now lives in
+`hooks/useComposerAttachments.ts` (upload-on-attach, staged files, settle rule, scoped clear),
+paste/drag guards partly in `components/AgentComposerDock.tsx`, message rendering behind
+`components/AgentTurn.tsx`. The base's own defect fixes (unreadable-file hold, multi-tab
+follow, turn memoization) survived unchanged; the port passes `undefined` instead of an empty
+map where a fresh-Map prop would have defeated the base's turn memo.
+
+Verification on the new base: zero rebase casualties. Runner 1389, API 1597 + 304 DB-backed,
+SDK 705, services 101, web suites green; the one real overlap (the sandbox-error rename)
+merged with the back-compat alias intact. One latent train bug surfaced by the DB-backed run
+(the approval-resume lane typed `SessionInteractionData.request` but an older DAO test still
+compared a raw dict) was fixed on its lane.
+
+Two additions rode the retarget: `feat/agent-file-uploads-default-on` (PR #5633) makes the
+uploads flag opt-out per the product owner's rollout call, and `fix/drive-folder-drop-walk`
+(PR #5635, closes #5626) adds the directory walk the drawer lacked, stacked on the multipart
+transport fix (#5625). The Fern spec on the rebased stack is byte-identical to the one the
+committed client was generated from, so no regeneration was needed.
