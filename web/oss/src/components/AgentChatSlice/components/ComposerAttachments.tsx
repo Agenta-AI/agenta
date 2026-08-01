@@ -2,7 +2,6 @@ import {useEffect, useRef, useState, type ReactNode} from "react"
 
 import {
     ArrowClockwise,
-    EyeSlash,
     File as FileIcon,
     FileText,
     Image as ImageIcon,
@@ -22,7 +21,6 @@ import {
     type AttachmentRejection,
     describeAccepted,
     formatBytes,
-    kindForType,
 } from "../assets/attachments"
 import {SESSION_SPRING} from "../assets/sessionMotion"
 
@@ -146,21 +144,6 @@ const Chip = ({
     >
         {children}
     </div>
-)
-
-const WorkspaceOnlyIndicator = ({name, overlay}: {name: string; overlay?: boolean}) => (
-    <Tooltip title="The model may not perceive this file. It will still be available to the agent’s tools.">
-        <span
-            aria-label={`${name} is workspace-only`}
-            className={
-                overlay
-                    ? "absolute bottom-1 left-1 flex h-5 w-5 items-center justify-center rounded-full bg-[rgba(0,0,0,0.6)] text-white"
-                    : "flex h-5 w-5 shrink-0 items-center justify-center text-colorTextTertiary"
-            }
-        >
-            <EyeSlash size={13} />
-        </span>
-    </Tooltip>
 )
 
 interface ComposerAttachmentsProps {
@@ -317,10 +300,6 @@ const ComposerAttachments = ({
                                 {files.map((f) => {
                                     const file = f.originFileObj as File | undefined
                                     const type = file?.type || ""
-                                    const workspaceOnly =
-                                        !limits.perceived[
-                                            kindForType(type || "application/octet-stream")
-                                        ]
                                     const Icon = iconForType(type)
                                     const size = file ? formatBytes(file.size) : ""
                                     const url = previews[f.uid]
@@ -343,9 +322,6 @@ const ComposerAttachments = ({
                                                         name={f.name}
                                                         className="min-w-0 flex-1"
                                                     />
-                                                    {workspaceOnly && (
-                                                        <WorkspaceOnlyIndicator name={f.name} />
-                                                    )}
                                                     <RemoveButton name={f.name} onRemove={remove} />
                                                 </Chip>
                                             ) : type.startsWith("image/") && url ? (
@@ -376,12 +352,6 @@ const ComposerAttachments = ({
                                                                 className="h-full w-full object-cover"
                                                             />
                                                         </>
-                                                    )}
-                                                    {workspaceOnly && (
-                                                        <WorkspaceOnlyIndicator
-                                                            name={f.name}
-                                                            overlay
-                                                        />
                                                     )}
                                                     <RemoveButton
                                                         name={f.name}
@@ -418,9 +388,6 @@ const ComposerAttachments = ({
                                                             </Text>
                                                         )}
                                                     </div>
-                                                    {workspaceOnly && (
-                                                        <WorkspaceOnlyIndicator name={f.name} />
-                                                    )}
                                                     <RemoveButton name={f.name} onRemove={remove} />
                                                 </Chip>
                                             )}

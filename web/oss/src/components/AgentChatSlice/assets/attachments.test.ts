@@ -1,23 +1,10 @@
 import {describe, expect, it} from "vitest"
 
-import {
-    attachmentLimitsForModalities,
-    DEFAULT_ATTACHMENT_LIMITS,
-    kindForType,
-    type AttachmentLimits,
-    validateIncoming,
-} from "./attachments"
+import {DEFAULT_ATTACHMENT_LIMITS, kindForType, validateIncoming} from "./attachments"
 
 const MB = 1024 * 1024
 
 const file = (name: string, type: string, size: number): File => ({name, type, size}) as File
-
-const limits = (overrides: Partial<AttachmentLimits> = {}): AttachmentLimits => ({
-    ...DEFAULT_ATTACHMENT_LIMITS,
-    maxBytes: {...DEFAULT_ATTACHMENT_LIMITS.maxBytes},
-    perceived: {...DEFAULT_ATTACHMENT_LIMITS.perceived},
-    ...overrides,
-})
 
 describe("attachment validation", () => {
     it("accepts an unrecognized media type through the other bucket", () => {
@@ -53,35 +40,5 @@ describe("attachment validation", () => {
                 reason: `exceeds the ${DEFAULT_ATTACHMENT_LIMITS.maxCount}-file limit`,
             },
         ])
-    })
-
-    it("accepts a non-perceived kind and exposes its courtesy-notice flag", () => {
-        const archive = file("bundle.zip", "application/zip", 1)
-        const workspaceOnly = limits({
-            perceived: {...DEFAULT_ATTACHMENT_LIMITS.perceived, other: false},
-        })
-
-        expect(validateIncoming([archive], 0, workspaceOnly).accepted).toEqual([archive])
-        expect(workspaceOnly.perceived[kindForType(archive.type)]).toBe(false)
-    })
-})
-
-describe("attachment perception", () => {
-    it("derives perceived kinds from the selected model modalities", () => {
-        expect(attachmentLimitsForModalities(["text", "image", "audio"]).perceived).toEqual({
-            image: true,
-            audio: true,
-            document: false,
-            other: false,
-        })
-    })
-
-    it("treats unknown modalities as workspace-only", () => {
-        expect(attachmentLimitsForModalities(null).perceived).toEqual({
-            image: false,
-            audio: false,
-            document: false,
-            other: false,
-        })
     })
 })

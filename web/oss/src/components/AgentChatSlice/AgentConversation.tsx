@@ -26,7 +26,7 @@ import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/st
 import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
 import CopiedToast from "@/oss/components/TemplateStrip/components/CopiedToast"
 
-import {attachmentLimitsForModalities, describeAccepted} from "./assets/attachments"
+import {describeAccepted} from "./assets/attachments"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
 import {filesToInlineParts, filesToParts} from "./assets/files"
 import {runWithInFlightSubmit} from "./assets/inFlightSubmit"
@@ -213,19 +213,18 @@ const AgentConversation = ({
         () => modalitiesForModel(harnessCapabilities, modelKey.harness, modelKey.model),
         [harnessCapabilities, modelKey.harness, modelKey.model],
     )
-    // Perception is derived from the model's modalities; absent or unknown stays workspace-only,
-    // matching the runner's delivery rule.
-    const limits = useMemo(() => attachmentLimitsForModalities(modelModalities), [modelModalities])
-    // The same memoized fact the voice controls read.
-    const audioPerceivable = limits.perceived.audio
+    // Voice defaults follow the model's audio modality; unknown stays workspace-only, matching
+    // the runner's rule.
+    const audioPerceivable = Boolean(modelModalities?.includes("audio"))
 
     // Pending attachments for this session + the whole-panel drop target.
-    const attachments = useComposerAttachments({sessionId, limits})
+    const attachments = useComposerAttachments({sessionId})
     const {
         uploadsEnabled,
         files,
         viewingUid,
         setViewingUid,
+        limits,
         atMax,
         attachmentsSettled,
         isDragging,

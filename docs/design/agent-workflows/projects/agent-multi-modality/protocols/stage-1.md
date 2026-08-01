@@ -389,11 +389,22 @@ Observations recorded for follow-up, none blocking:
   error, and an approvals-lane behavior ("Deny and send note" answering "not handled") flagged
   on PR #5598.
 
-### Product-owner correction (2026-08-01)
+### Product-owner corrections (2026-08-01)
 
-The in-message delivery notice ("<filename>: the model did not perceive this file. The agent
-can use it at attachments/…") was removed at the product owner's direction. Its wording and
-placement were implementation-invented; decision D6's "visible notice" is satisfied by the chip
-hint alone (the crossed-eye indicator with its tooltip). The `attachment_delivery` events keep
-flowing and persisting unchanged; the front end parses and ignores them, so a future surface
-can render them without wire changes.
+Three corrections after the product owner saw the shipped surfaces:
+
+1. **The in-message delivery notice was removed** ("<filename>: the model did not perceive this
+   file. The agent can use it at attachments/…"). Its wording and placement were
+   implementation-invented.
+2. **The chip-level hint was removed too** (the crossed-eye indicator with "The model may not
+   perceive this file…"). The first release therefore ships no notice UI at all; decision D6's
+   "visible notice" is deferred to a future surface the product owner designs. The
+   `attachment_delivery` events keep flowing and persisting unchanged, and the front end parses
+   and ignores them, so that future surface needs no wire changes. The upload error messages
+   were reviewed and kept.
+3. **The per-turn attachment count rose from 5 to 100** (front-end constant and the runner's
+   `AGENTA_ATTACHMENTS_MAX_PER_TURN` default). The old 5 was the dark-shipped composer default
+   with no motivating constraint; provider count caps are far higher. Because the per-session
+   count quota was also 100, one full turn would have consumed it, so the session count quota
+   rose to 1,000; the 256 MB per-session byte quota and the 20-pending cap stay the real
+   bounds. The design docs' matrix numbers were updated in the same pass.

@@ -4,8 +4,8 @@ import {generateId} from "@agenta/shared/utils"
 import type {UploadFile} from "antd"
 
 import {
-    type AttachmentLimits,
     type AttachmentRejection,
+    DEFAULT_ATTACHMENT_LIMITS,
     validateIncoming,
 } from "../assets/attachments"
 import {uploadAttachment, type SessionAttachmentResponse} from "../assets/attachmentTransport"
@@ -33,14 +33,7 @@ const toUploadFile = (file: File, uploadsEnabled: boolean): StagedFile => ({
  * the preview target, and the whole-panel drag-and-drop that feeds them. Files survive a remount
  * (route re-entry, tab close/reopen) alongside the composer draft; rejections stay transient.
  */
-export const useComposerAttachments = ({
-    sessionId,
-    limits,
-}: {
-    sessionId: string
-    /** Model-derived guardrails; perception rides along on the same object. */
-    limits: AttachmentLimits
-}) => {
+export const useComposerAttachments = ({sessionId}: {sessionId: string}) => {
     // Gate every attachment path on NEXT_PUBLIC_AGENT_FILE_UPLOADS until file parts are supported.
     const uploadsEnabled = isAgentFileUploadsEnabled()
     // Restored from the per-session store on remount (route re-entry, tab close/reopen) —
@@ -57,6 +50,8 @@ export const useComposerAttachments = ({
     // The attachment currently open in the Files-drawer preview (its uid), or null when closed.
     const [viewingUid, setViewingUid] = useState<string | null>(null)
     const [attachmentsOpen, setAttachmentsOpen] = useState(false)
+    // Single limits object so it can later be swapped for capability-derived limits.
+    const limits = DEFAULT_ATTACHMENT_LIMITS
     const atMax = files.length >= limits.maxCount
     // Drag-over state for the whole-panel drop overlay (depth counter avoids child flicker).
     const dragDepthRef = useRef(0)

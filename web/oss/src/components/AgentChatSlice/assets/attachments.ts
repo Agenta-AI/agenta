@@ -32,14 +32,12 @@ export interface AttachmentLimits {
     kinds: AttachmentKind[]
     /** Max bytes per file, per kind. */
     maxBytes: Record<AttachmentKind, number>
-    /** Pre-send perception approximation; delivery events remain authoritative. */
-    perceived: Record<AttachmentKind, boolean>
 }
 
 const MB = 1024 * 1024
 
 export const DEFAULT_ATTACHMENT_LIMITS: AttachmentLimits = {
-    maxCount: 5,
+    maxCount: 100,
     kinds: ["image", "audio", "document", "other"],
     maxBytes: {
         // A photo off a phone clears 5 MB routinely.
@@ -49,26 +47,7 @@ export const DEFAULT_ATTACHMENT_LIMITS: AttachmentLimits = {
         document: 10 * MB,
         other: 10 * MB,
     },
-    perceived: {
-        image: true,
-        audio: false,
-        document: false,
-        other: false,
-    },
 }
-
-/** Keep unknown or absent modalities workspace-only, matching the runner's delivery rule. */
-export const attachmentLimitsForModalities = (
-    modalities: string[] | null | undefined,
-): AttachmentLimits => ({
-    ...DEFAULT_ATTACHMENT_LIMITS,
-    perceived: {
-        image: Boolean(modalities?.includes("image")),
-        audio: Boolean(modalities?.includes("audio")),
-        document: Boolean(modalities?.includes("document")),
-        other: Boolean(modalities?.includes("other")),
-    },
-})
 
 /** Which kind a media type belongs to. */
 export const kindForType = (mediaType: string): AttachmentKind => {
