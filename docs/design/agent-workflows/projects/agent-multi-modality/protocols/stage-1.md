@@ -408,3 +408,41 @@ Three corrections after the product owner saw the shipped surfaces:
    count quota was also 100, one full turn would have consumed it, so the session count quota
    rose to 1,000; the 256 MB per-session byte quota and the 20-pending cap stay the real
    bounds. The design docs' matrix numbers were updated in the same pass.
+
+## The external-review fix wave (2026-08-01)
+
+After the train went up for review, three sources produced findings: a Codex sweep across the
+implementation PRs (11 comments), CodeRabbit's open threads, and CodeRabbit's stack-wide review
+body. The product owner adjudicated every item one by one; the accepted set landed as one wave of
+lane-scoped fix commits (api 56bc0b6526 + 973ade3965, runner 208fb31218 + 020b56dea6, sdk
+df5321bc8c, services bf070f7309, frontend aa1cb47a7f, docs 5cd13b49c2 and 64c52a8b04 with
+212d6470a2 and 200c360c60). Every thread got a reply naming its commit; addressed threads were
+resolved.
+
+Decisions worth restating, with their reasons:
+
+- **A failed attachment claim stays non-fatal** (CodeRabbit wanted the result consumed). A swept
+  attachment already degrades to a "no longer available" mention on cold replay; failing the turn
+  over reference bookkeeping would trade a graceful loss for a hard one. Documented at the call
+  site.
+- **The stale-after-24h staged upload is a recorded v1 limitation.** The failure needs a tab left
+  open for a day with a staged file; the fix (revalidate at send) is medium-sized and deferred.
+- **The reference contract rose to 100 ids** to match the 100-file turn the product owner set;
+  the mismatch (composer 100, claim contract 50) would have silently unreferenced files on large
+  turns, which the sweep would then delete.
+- **Legacy inline images now respect supplied model capabilities.** The image-assuming literal
+  applies only when the resolver sent nothing, preserving legacy behavior exactly where legacy
+  behavior is the only information available.
+- **The "fresh user content" rule became one shared predicate** (text, attachments, or inline
+  media) used by turn authority, resume classification, and freshness; the three had drifted
+  before and each drift was a bug.
+- **The denied-tool corruption found during QA was root-caused to the client-tool dispatcher**
+  (a denied part auto-settled as "not handled by this client", erasing the denial from history).
+  Fixed with tests in PR #5630, stacked above WP4 because the owning files predate the train.
+- **Two CodeRabbit "Major" flags on the built-ins open-questions doc stay open questions**
+  (unconfined local sandbox, tool-name collisions). They are product decisions the doc already
+  records; the feature is dev-only behind a flag.
+
+Skipped with rebuttals on the threads: response-model count computation (breaks the file's
+uniform convention), nginx body-size scoping and a purpose enum (low value against churn), and a
+provider-independent inline base64 ceiling (only one provider needs a cap today).
