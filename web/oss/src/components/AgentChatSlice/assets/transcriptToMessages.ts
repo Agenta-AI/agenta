@@ -262,18 +262,6 @@ function applyEvent(
             })
             return
         }
-        case "attachment_delivery": {
-            draft.parts.push({
-                type: "data-attachment-delivery",
-                data: {
-                    attachmentId: str(payload.attachmentId),
-                    outcome: str(payload.outcome),
-                    reasonCode: str(payload.reasonCode),
-                    ...(payload.workingPath == null ? {} : {workingPath: str(payload.workingPath)}),
-                },
-            })
-            return
-        }
         case "error": {
             // No error part in the renderer; surface the text so the failure stays visible.
             draft.parts.push({type: "text", text: str(payload.message)})
@@ -296,7 +284,7 @@ function applyEvent(
             draft.usage = next
             return
         }
-        // done / data / render-hints carry no renderable message part — drop.
+        // done / data / render-hints / attachment_delivery carry no renderable message part — drop.
         default:
             return
     }
