@@ -1,4 +1,11 @@
-import {useCallback, useEffect, useRef, useState} from "react"
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type HTMLAttributes,
+} from "react"
 
 /**
  * Drag-and-drop upload behaviour shared by the drive's tree and grid: highlight the folder under
@@ -23,29 +30,32 @@ export async function getFilesFromDataTransfer(
 ): Promise<DroppedFileItem[]> {
   const results: DroppedFileItem[] = [];
 
-  async function traverseEntry(entry: FileSystemEntry, path = ""): Promise<void> {
+  async function traverseEntry(entry: any, path = ""): Promise<void> {
+    if (!entry) return;
+
     if (entry.isFile) {
-      const fileEntry = entry as FileSystemFileEntry;
       await new Promise<void>((resolve) => {
-        fileEntry.file((file) => {
+        entry.file((file: File) => {
           const relativePath = path ? `${path}/${file.name}` : file.name;
-          Object.defineProperty(file, "relativePath", {
-            value: relativePath,
-            writable: true,
-            configurable: true,
-          });
+          try {
+            Object.defineProperty(file, "relativePath", {
+              value: relativePath,
+              writable: true,
+              configurable: true,
+            });
+          } catch {
+            // Ignore if property cannot be redefined
+          }
           results.push({ file, relativePath });
           resolve();
         });
       });
     } else if (entry.isDirectory) {
-      const dirEntry = entry as FileSystemDirectoryEntry;
-      const dirReader = dirEntry.createReader();
-
-      let batch: FileSystemEntry[] = [];
+      const dirReader = entry.createReader();
+      let batch: any[] = [];
       do {
-        batch = await new Promise<FileSystemEntry[]>((resolve) => {
-          dirReader.readEntries((entries) => resolve(entries || []));
+        batch = await new Promise<any[]>((resolve) => {
+          dirReader.readEntries((entries: any[]) => resolve(entries || []));
         });
 
         const folderPath = path ? `${path}/${entry.name}` : entry.name;
@@ -58,7 +68,8 @@ export async function getFilesFromDataTransfer(
 
   const promises: Promise<void>[] = [];
   for (let i = 0; i < items.length; i++) {
-    const entry = items[i].webkitGetAsEntry?.();
+    const item = items[i] as any;
+    const entry = typeof item?.webkitGetAsEntry === "function" ? item.webkitGetAsEntry() : null;
     if (entry) {
       promises.push(traverseEntry(entry));
     }
@@ -81,7 +92,7 @@ async function extractFilesFromDataTransfer(dataTransfer: DataTransfer): Promise
   return Array.from(dataTransfer.files ?? []);
 }
 
-export const isFileDrag = (e: React.DragEvent): boolean =>
+export const isFileDrag = (e: DragEvent): boolean =>
     Array.from(e.dataTransfer?.types ?? []).includes("Files")
 
 export interface DriveDrop {
@@ -91,15 +102,15 @@ export interface DriveDrop {
     hoverPath: string | null
     /** Handlers for a folder drop target — spring-loads into it, uploads on drop. */
     folderDropProps: (path: string) => {
-        onDragEnter: (e: React.DragEvent) => void
-        onDragOver: (e: React.DragEvent) => void
-        onDrop: (e: React.DragEvent) => void
+        onDragEnter: (e: DragEvent) => void
+        onDragOver: (e: DragEvent) => void
+        onDrop: (e: DragEvent) => void
     }
     /** Handlers for the view container — clears the hover, uploads into `currentFolder` on drop. */
     containerDropProps: (currentFolder: string) => {
-        onDragEnter: (e: React.DragEvent) => void
-        onDragOver: (e: React.DragEvent) => void
-        onDrop: (e: React.DragEvent) => void
+        onDragEnter: (e: DragEvent) => void
+        onDragOver: (e: DragEvent) => void
+        onDrop: (e: DragEvent) => void
     }
 }
 
@@ -124,13 +135,12 @@ export function useDriveDrop({
         springPath.current = null
     }, [])
 
-    // Window-level drag tracking for the overall `dragging` flag (depth counter absorbs the
-    // dragenter/leave flicker from moving across child elements).
+    // Window-level drag tracking for the overall `dragging` flag
     const depth = useRef(0)
     useEffect(() => {
         if (!enabled) return
-        const has = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files")
-        const onEnter = (e: DragEvent) => {
+        const has = (e: globalThis.DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files")
+        const onEnter = (e: globalThis.DragEvent) => {
             if (has(e)) {
                 depth.current += 1
                 setDragging(true)
@@ -174,21 +184,19 @@ export function useDriveDrop({
 
     const folderDropProps = useCallback(
         (path: string) => ({
-            // Folder targets stop propagation, so the container's onDragEnter only fires over empty
-            // space — which is how the hover clears when you move off a folder.
-            onDragEnter: (e: React.DragEvent) => {
+            onDragEnter: (e: DragEvent) => {
                 if (!isFileDrag(e)) return
                 e.preventDefault()
                 e.stopPropagation()
                 setHoverPath(path)
                 startSpring(path)
             },
-            onDragOver: (e: React.DragEvent) => {
+            onDragOver: (e: DragEvent) => {
                 if (!isFileDrag(e)) return
                 e.preventDefault()
                 e.stopPropagation()
             },
-            onDrop: async (e: React.DragEvent) => {
+            onDrop: async (e: DragEvent) => {
                 if (!isFileDrag(e)) return
                 e.preventDefault()
                 e.stopPropagation()
@@ -205,15 +213,15 @@ export function useDriveDrop({
 
     const containerDropProps = useCallback(
         (currentFolder: string) => ({
-            onDragEnter: (e: React.DragEvent) => {
+            onDragEnter: (e: DragEvent) => {
                 if (!isFileDrag(e)) return
                 setHoverPath(null)
                 clearSpring()
             },
-            onDragOver: (e: React.DragEvent) => {
+            onDragOver: (e: DragEvent) => {
                 if (isFileDrag(e)) e.preventDefault()
             },
-            onDrop: async (e: React.DragEvent) => {
+            onDrop: async (e: DragEvent) => {
                 if (!isFileDrag(e)) return
                 e.preventDefault()
                 if (e.dataTransfer) {
@@ -231,17 +239,12 @@ export function useDriveDrop({
 }
 
 /** Handler props for a drop target — the shape both drop hooks hand to a host element. */
-export type FileDropProps = Pick<
-    React.HTMLAttributes<HTMLElement>,
-    "onDragOver" | "onDragLeave" | "onDrop"
+export type FileDropProps = Partial<
+    Pick<HTMLAttributes<HTMLElement>, "onDragOver" | "onDragLeave" | "onDrop">
 >
 
 /**
- * Drop-to-STAGE: the lighter sibling of {@link useDriveDrop} for the recents peeks (chat ContextRail /
- * config StorageSection), which have no folder of their own. A file drag anywhere over the target
- * highlights it, and a drop hands the files to `onFiles` (which stages them + opens the drawer where a
- * destination is chosen). Pass a falsy `onFiles` to disable (e.g. no writable mount) — then `dropProps`
- * is empty and nothing highlights.
+ * Drop-to-STAGE: the lighter sibling of {@link useDriveDrop}
  */
 export function useStageDrop(onFiles: ((files: File[]) => void) | false | null | undefined): {
     dropActive: boolean
@@ -252,13 +255,13 @@ export function useStageDrop(onFiles: ((files: File[]) => void) | false | null |
     return {
         dropActive,
         dropProps: {
-            onDragOver: (e) => {
+            onDragOver: (e: DragEvent) => {
                 if (!isFileDrag(e)) return
                 e.preventDefault()
                 setDropActive(true)
             },
             onDragLeave: () => setDropActive(false),
-            onDrop: async (e) => {
+            onDrop: async (e: DragEvent) => {
                 if (!isFileDrag(e)) return
                 e.preventDefault()
                 setDropActive(false)
