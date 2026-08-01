@@ -18,8 +18,10 @@
 
 import React, {useCallback} from "react"
 
-import {Input} from "antd"
-import {Search, XCircle} from "lucide-react"
+import {Search} from "lucide-react"
+
+import type {InputProps} from "../ui/input"
+import {InputAffix} from "../ui/input-composed"
 
 // ============================================================================
 // TYPES
@@ -59,9 +61,9 @@ export interface SearchInputProps {
 
     /**
      * Size of the input
-     * @default "middle"
+     * @default "default"
      */
-    size?: "small" | "middle" | "large"
+    size?: InputProps["size"]
 }
 
 // ============================================================================
@@ -78,7 +80,7 @@ export function SearchInput({
     disabled = false,
     autoFocus = false,
     className = "",
-    size = "middle",
+    size = "default",
 }: SearchInputProps) {
     const handleChange = useCallback(
         (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -92,7 +94,7 @@ export function SearchInput({
     }, [onChange])
 
     return (
-        <Input
+        <InputAffix
             value={value}
             onChange={handleChange}
             placeholder={placeholder}
@@ -100,16 +102,9 @@ export function SearchInput({
             autoFocus={autoFocus}
             className={className}
             size={size}
-            prefix={<Search className="w-4 h-4 text-zinc-400" />}
-            suffix={
-                value ? (
-                    <XCircle
-                        className="w-4 h-4 text-zinc-400 hover:text-zinc-600 cursor-pointer"
-                        onClick={handleClear}
-                    />
-                ) : null
-            }
-            allowClear={false}
+            prefix={<Search className="w-4 h-4" />}
+            allowClear
+            onClear={handleClear}
         />
     )
 }

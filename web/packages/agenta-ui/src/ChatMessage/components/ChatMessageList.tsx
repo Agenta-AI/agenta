@@ -11,10 +11,11 @@ import {
     getAttachments,
 } from "@agenta/shared/utils"
 import {Copy, MinusCircle, Plus} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
 import {useAtom} from "jotai"
 
 import {CollapseToggleButton, getCollapseStyle} from "../../components/presentational/buttons"
+import {Button} from "../../components/ui/button"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../components/ui/tooltip"
 import {ViewModeDropdown} from "../../drill-in/core/ViewModeDropdown"
 import {messageViewModeAtom} from "../../drill-in/state/messageViewModeAtom"
 import {getViewOptions, toMessageViewMode, type ViewMode} from "../../drill-in/utils/getViewOptions"
@@ -50,12 +51,6 @@ const ChatMessageItem: React.FC<{
      *  for config messages where JSON/YAML modes are noise). When omitted,
      *  the dropdown shows whatever getViewOptions returns for the content. */
     viewModes?: ChatViewMode[]
-    ImagePreview?: React.ComponentType<{
-        src: string
-        alt: string
-        size: number
-        isValidPreview: boolean
-    }>
     onRoleChange: (index: number, role: string) => void
     onTextChange: (index: number, text: string) => void
     onRemove: (index: number) => void
@@ -81,7 +76,6 @@ const ChatMessageItem: React.FC<{
     loadingFallback,
     maxPasteChars,
     viewModes,
-    ImagePreview,
     onRoleChange,
     onTextChange,
     onRemove,
@@ -216,26 +210,38 @@ const ChatMessageItem: React.FC<{
                             />
                         )}
                         {showCopyButton && (
-                            <Tooltip title="Copy">
-                                <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<Copy size={14} />}
-                                    onClick={() => {
-                                        navigator.clipboard.writeText(textContent)
-                                    }}
-                                />
-                            </Tooltip>
+                            <TooltipProvider delayDuration={100}>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(textContent)
+                                            }}
+                                        >
+                                            {<Copy size={14} />}
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Copy</TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                         )}
                         {(showRemoveButton ?? showControls) && !disabled && (
-                            <Tooltip title="Remove">
-                                <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<MinusCircle size={14} />}
-                                    onClick={() => onRemove(index)}
-                                />
-                            </Tooltip>
+                            <TooltipProvider delayDuration={100}>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => onRemove(index)}
+                                        >
+                                            {<MinusCircle size={14} />}
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Remove</TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                         )}
                         <CollapseToggleButton
                             collapsed={isMinimized}
@@ -253,7 +259,6 @@ const ChatMessageItem: React.FC<{
                                 onRemoveAttachment(index, attachmentIndex)
                             }
                             disabled={disabled}
-                            ImagePreview={ImagePreview}
                         />
                     ) : undefined
                 }
@@ -289,13 +294,6 @@ export interface ChatMessageListProps {
     templateFormat?: "mustache" | "curly" | "fstring" | "jinja2"
     /** Available template variables for token highlighting */
     tokens?: string[]
-    /** Optional image preview component */
-    ImagePreview?: React.ComponentType<{
-        src: string
-        alt: string
-        size: number
-        isValidPreview: boolean
-    }>
     /** Whether messages should start minimized */
     defaultMinimized?: boolean
     /** Suspense fallback mode for editor plugins */
@@ -309,9 +307,8 @@ export interface ChatMessageListProps {
 }
 
 /**
- * A list of chat message editors for editing multiple messages.
- * This is a simpler alternative to ChatInputs that uses the same visual style
- * as the Playground message editors.
+ * A list of chat message editors for editing multiple messages, using the same visual
+ * style as the Playground message editors.
  */
 let _keyCounter = 0
 function generateKey(): string {
@@ -332,7 +329,6 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     enableTokens = false,
     templateFormat,
     tokens,
-    ImagePreview,
     defaultMinimized = false,
     loadingFallback = "skeleton",
     maxPasteChars,
@@ -484,7 +480,6 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                         loadingFallback={loadingFallback}
                         maxPasteChars={maxPasteChars}
                         viewModes={viewModes}
-                        ImagePreview={ImagePreview}
                         onRoleChange={handleRoleChange}
                         onTextChange={handleTextChange}
                         onRemove={handleRemoveMessage}
@@ -500,13 +495,12 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
             })}
             {showControls && !disabled && (
                 <Button
-                    variant="outlined"
-                    color="default"
-                    size="small"
-                    icon={<Plus size={14} />}
+                    variant="outline"
+                    size="sm"
                     onClick={handleAddMessage}
                     className="self-start"
                 >
+                    {<Plus size={14} />}
                     Message
                 </Button>
             )}

@@ -28,9 +28,9 @@
 import React, {useRef, useEffect} from "react"
 
 import {useVirtualizer} from "@tanstack/react-virtual"
-import {Spin} from "antd"
 
 import {cn, flexLayouts, gapClasses, justifyClasses, textColors} from "../../utils/styles"
+import {Spinner} from "../ui/spinner"
 
 // ============================================================================
 // TYPES
@@ -193,7 +193,7 @@ export function VirtualList<T>({
                 className={cn(flexLayouts.rowCenter, justifyClasses.center, "py-8", className)}
                 style={containerStyle}
             >
-                <Spin size="default" />
+                <Spinner size="default" />
                 <span className={cn("ml-2", textColors.tertiary)}>{loadingMessage}</span>
             </div>
         )
@@ -237,7 +237,7 @@ export function VirtualList<T>({
             {/* Loading indicator for fetching more */}
             {isFetchingMore && (
                 <div className={cn(flexLayouts.rowCenter, justifyClasses.center, "py-4")}>
-                    <Spin size="small" />
+                    <Spinner size="small" />
                     <span className={cn("ml-2", textColors.tertiary)}>Loading more...</span>
                 </div>
             )}
@@ -283,7 +283,7 @@ export function SimpleList<T>({
                 className={cn(flexLayouts.rowCenter, justifyClasses.center, "py-8", className)}
                 style={containerStyle}
             >
-                <Spin size="default" />
+                <Spinner size="default" />
                 <span className={cn("ml-2", textColors.tertiary)}>{loadingMessage}</span>
             </div>
         )
@@ -299,7 +299,7 @@ export function SimpleList<T>({
 
             {isFetchingMore && (
                 <div className={cn(flexLayouts.rowCenter, justifyClasses.center, "py-4")}>
-                    <Spin size="small" />
+                    <Spinner size="small" />
                     <span className={cn("ml-2", textColors.tertiary)}>Loading more...</span>
                 </div>
             )}

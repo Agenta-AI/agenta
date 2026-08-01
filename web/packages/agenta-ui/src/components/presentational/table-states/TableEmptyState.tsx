@@ -14,9 +14,8 @@
  * ```
  */
 
-import {Empty} from "antd"
-
 import {cn, flexLayouts, justifyClasses} from "../../../utils/styles"
+import {EmptyState} from "../../ui/empty-state"
 
 export interface TableEmptyStateProps {
     /** Message to display (default: "No data found") */
@@ -34,10 +33,7 @@ export function TableEmptyState({
 }: TableEmptyStateProps) {
     return (
         <div className={cn(flexLayouts.rowCenter, justifyClasses.center, "h-full", className)}>
-            <Empty
-                image={simple ? Empty.PRESENTED_IMAGE_SIMPLE : Empty.PRESENTED_IMAGE_DEFAULT}
-                description={message}
-            />
+            <EmptyState image={simple ? "simple" : "default"} description={message} />
         </div>
     )
 }

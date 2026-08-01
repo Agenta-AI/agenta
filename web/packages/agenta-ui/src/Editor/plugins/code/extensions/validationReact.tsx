@@ -55,7 +55,7 @@ function ErrorTooltip({errors}: {errors: ErrorInfo[]}) {
                     return (
                         <div
                             key={`${error.type}-${index}`}
-                            className="border-l-2 border-red-400 pl-2"
+                            className="border-0 border-l-2 border-solid border-red-400 pl-2"
                         >
                             <div className="flex items-center justify-between">
                                 <span className="text-red-300 font-medium capitalize text-[10px]">

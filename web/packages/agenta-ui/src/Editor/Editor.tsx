@@ -758,7 +758,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             <div className="editor-container w-full overflow-hidden relative min-h-[inherit]">
                 <div
                     ref={ref}
-                    className={clsx("editor-inner border rounded-lg min-h-[inherit]", {
+                    className={clsx("editor-inner border border-solid rounded-lg min-h-[inherit]", {
                         "single-line": singleLine,
                         "code-editor": codeOnly,
                         "large-doc-optimizations": codeOnly && shouldEnableLargeDocOptimizations,
@@ -1028,7 +1028,7 @@ export const EditorProvider = ({
     if (!config) {
         return (
             <div
-                className="bg-[var(--ag-c-FFFFFF)] relative flex flex-col p-2 border rounded-lg"
+                className="bg-[var(--ag-c-FFFFFF)] relative flex flex-col p-2 border border-solid rounded-lg"
                 style={
                     dimensions?.width
                         ? {

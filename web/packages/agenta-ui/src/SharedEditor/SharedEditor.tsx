@@ -1,10 +1,11 @@
 import {ChangeEvent, useCallback, useRef, useState} from "react"
 
 import {useDebounceInput} from "@agenta/shared/hooks"
-import {Input} from "antd"
 import clsx from "clsx"
 import {v4 as uuidv4} from "uuid"
 
+import {Input} from "../components/ui/input"
+import {AutosizeTextarea} from "../components/ui/input-composed"
 import {Editor} from "../Editor"
 
 import type {SharedEditorProps} from "./types"
@@ -206,7 +207,7 @@ const SharedEditor = ({
 
                     if ("textarea" in inputProps && inputProps.textarea) {
                         const {textarea: _, className: __, ...textAreaRest} = inputProps
-                        return <Input.TextArea {...commonProps} {...textAreaRest} />
+                        return <AutosizeTextarea {...commonProps} {...textAreaRest} />
                     }
 
                     const {textarea: _, className: __, ...inputRest} = inputProps

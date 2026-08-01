@@ -2,10 +2,9 @@
  * NumberField
  *
  * Renders a number value as an input number field.
- * This is a pure Ant Design component with no external dependencies.
  */
 
-import {InputNumber} from "antd"
+import {InputNumber} from "../../components/ui/input-number"
 
 import type {BaseFieldProps} from "./types"
 
@@ -24,7 +23,6 @@ export function NumberField({item, stringValue, fullPath, setValue, valueMode}: 
                 setValue(fullPath, finalValue)
             }}
             className="w-full"
-            size="middle"
         />
     )
 }

@@ -2,10 +2,11 @@ import type {ComponentType, ReactNode} from "react"
 
 import {MoreOutlined} from "@ant-design/icons"
 import {Copy, DownloadSimple} from "@phosphor-icons/react"
-import {Button, Dropdown, Tooltip, Typography} from "antd"
+import {Dropdown, Tooltip, Typography} from "antd"
 import type {MenuProps} from "antd"
 import type {ColumnsType, ColumnType} from "antd/es/table"
 
+import {Button} from "../../components/ui/button"
 import {copyToClipboard} from "../../utils/copyToClipboard"
 import ColumnVisibilityMenuTrigger from "../components/columnVisibility/ColumnVisibilityMenuTrigger"
 import type {InfiniteTableRowBase} from "../types"
@@ -356,12 +357,9 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                         menu={{items: menuItems}}
                     >
                         <Tooltip title="Actions">
-                            <Button
-                                onClick={(e) => e.stopPropagation()}
-                                type="text"
-                                icon={<MoreOutlined />}
-                                size="small"
-                            />
+                            <Button onClick={(e) => e.stopPropagation()} variant="ghost" size="sm">
+                                {<MoreOutlined />}
+                            </Button>
                         </Tooltip>
                     </Dropdown>
                 </div>

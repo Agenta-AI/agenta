@@ -1,12 +1,18 @@
 import React, {useEffect, useState} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
-import {Tooltip} from "antd"
+
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "../../../components/ui/tooltip"
 
 /**
  * TokenTooltipPlugin
  *
- * Renders an Ant Design `Tooltip` anchored to an invalid template token
+ * Renders a `Tooltip` anchored to an invalid template token
  * (e.g. `{{$outputs.country}}` — JSONPath root must be followed by `.`)
  * when the user hovers it. Uses the data-* attributes TokenNode publishes
  * (`data-invalid`, `data-tooltip`, `data-tooltip-suggestion`) so the
@@ -60,7 +66,7 @@ export function TokenTooltipPlugin(): React.ReactElement | null {
     // If the targeted node transitions from invalid → valid while the
     // cursor is still inside it (user typing through a bad intermediate
     // state), the mouseout listener never fires. Without this, the
-    // Ant Tooltip stays open with stale content ("Empty placeholder."
+    // tooltip stays open with stale content ("Empty placeholder."
     // from the transient `{{}}`). Observe the attribute on the target
     // and clear when it goes away.
     useEffect(() => {
@@ -98,28 +104,30 @@ export function TokenTooltipPlugin(): React.ReactElement | null {
     )
 
     return (
-        <Tooltip
-            open
-            title={content}
-            placement="top"
-            // Anchor to the actual hovered DOM node, not a React child.
-            getPopupContainer={() => target.ownerDocument.body}
-        >
-            {/*
-             * Invisible sibling positioned over the hovered token.
-             * `fixed` + getBoundingClientRect keeps the tooltip stable as
-             * the editor scrolls or reflows during edits.
-             */}
-            <span
-                style={{
-                    position: "fixed",
-                    left: target.getBoundingClientRect().left,
-                    top: target.getBoundingClientRect().top,
-                    width: target.getBoundingClientRect().width,
-                    height: target.getBoundingClientRect().height,
-                    pointerEvents: "none",
-                }}
-            />
-        </Tooltip>
+        <TooltipProvider>
+            <Tooltip open>
+                <TooltipTrigger asChild>
+                    {/*
+                     * Invisible sibling positioned over the hovered token.
+                     * `fixed` + getBoundingClientRect keeps the tooltip stable as
+                     * the editor scrolls or reflows during edits.
+                     */}
+                    <span
+                        style={{
+                            position: "fixed",
+                            left: target.getBoundingClientRect().left,
+                            top: target.getBoundingClientRect().top,
+                            width: target.getBoundingClientRect().width,
+                            height: target.getBoundingClientRect().height,
+                            pointerEvents: "none",
+                        }}
+                    />
+                </TooltipTrigger>
+                {/* Anchor to the actual hovered DOM node's document, not a React child. */}
+                <TooltipContent side="top" container={target.ownerDocument.body}>
+                    {content}
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     )
 }

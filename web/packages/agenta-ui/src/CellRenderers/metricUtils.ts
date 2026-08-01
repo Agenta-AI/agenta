@@ -471,9 +471,22 @@ export const buildFrequencyChartData = (
 // TAG HELPERS
 // ============================================================================
 
-/** Color palette for category tags */
-export const TAG_COLORS = ["green", "blue", "purple", "orange", "cyan", "magenta", "gold", "lime"]
-export const getTagColor = (index: number) => TAG_COLORS[index % TAG_COLORS.length]
+/**
+ * Color palette for category tags — 8 distinguishable hues, so categories only collide
+ * every 8. Each maps to a `Badge` variant backed by `--ag-preset-<hue>-{bg,text}`.
+ */
+export const TAG_COLORS = [
+    "green",
+    "blue",
+    "purple",
+    "orange",
+    "cyan",
+    "magenta",
+    "gold",
+    "red",
+] as const
+export type TagColor = (typeof TAG_COLORS)[number]
+export const getTagColor = (index: number): TagColor => TAG_COLORS[index % TAG_COLORS.length]
 
 /** Format a category label for display */
 export const formatCategoryLabel = (value: unknown): string => {

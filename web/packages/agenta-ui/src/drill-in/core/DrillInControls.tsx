@@ -7,8 +7,17 @@
 import {useState} from "react"
 
 import {Plus} from "@phosphor-icons/react"
-import {Button, Input, Select, Tooltip} from "antd"
 
+import {Button} from "../../components/ui/button"
+import {Input} from "../../components/ui/input"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "../../components/ui/select"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../components/ui/tooltip"
 import type {PropertyType} from "../coreTypes"
 
 export interface DrillInControlsProps {
@@ -63,33 +72,45 @@ export function DrillInControls({
             {/* Add item/property buttons */}
             <div className="flex items-center gap-2">
                 {currentPathDataType === "array" && (
-                    <Tooltip title="Add item">
-                        <Button
-                            type="text"
-                            size="small"
-                            icon={<Plus size={14} />}
-                            onClick={onAddArrayItem}
-                            className="!px-2"
-                        />
-                    </Tooltip>
+                    <TooltipProvider delayDuration={100}>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={onAddArrayItem}
+                                    className="!px-2"
+                                >
+                                    {<Plus size={14} />}
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Add item</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 )}
                 {currentPathDataType === "object" && !showAddProperty && (
-                    <Tooltip title="Add property">
-                        <Button
-                            type="text"
-                            size="small"
-                            icon={<Plus size={14} />}
-                            onClick={() => setShowAddProperty(true)}
-                            className="!px-2"
-                        />
-                    </Tooltip>
+                    <TooltipProvider delayDuration={100}>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setShowAddProperty(true)}
+                                    className="!px-2"
+                                >
+                                    {<Plus size={14} />}
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Add property</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 )}
             </div>
 
             {/* Add property input form - with smooth transition */}
             {currentPathDataType === "object" && (
                 <div
-                    className={`flex items-center gap-2 px-2 bg-blue-50 rounded-md border border-blue-200 overflow-hidden transition-all duration-200 ease-in-out ${
+                    className={`flex items-center gap-2 px-2 bg-blue-50 rounded-md border border-solid border-blue-200 overflow-hidden transition-all duration-200 ease-in-out ${
                         showAddProperty
                             ? "max-h-20 py-2 opacity-100"
                             : "max-h-0 py-0 opacity-0 border-transparent"
@@ -99,7 +120,7 @@ export function DrillInControls({
                         value={newPropertyName}
                         onChange={(e) => setNewPropertyName(e.target.value)}
                         placeholder="Property name"
-                        size="middle"
+                        size="default"
                         className="flex-1"
                         autoFocus
                         onKeyDown={(e) => {
@@ -112,20 +133,28 @@ export function DrillInControls({
                     />
                     <Select
                         value={newPropertyType}
-                        onChange={(value) => setNewPropertyType(value)}
-                        size="middle"
-                        style={{width: 110}}
-                        options={propertyTypeOptions}
-                    />
+                        onValueChange={(value) => setNewPropertyType(value as PropertyType)}
+                    >
+                        <SelectTrigger className="w-[110px]">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {propertyTypeOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                     <Button
-                        type="primary"
-                        size="middle"
+                        variant="default"
+                        size="default"
                         onClick={handleAddProperty}
                         disabled={!newPropertyName.trim()}
                     >
                         Add
                     </Button>
-                    <Button type="text" size="middle" onClick={handleCancelAddProperty}>
+                    <Button variant="ghost" size="default" onClick={handleCancelAddProperty}>
                         Cancel
                     </Button>
                 </div>

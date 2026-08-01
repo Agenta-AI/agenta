@@ -4,7 +4,13 @@
  * Renders a JSON array with navigation select and JSON editor.
  */
 
-import {Select} from "antd"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "../../components/ui/select"
 
 import {JsonEditorWithLocalState} from "./JsonEditorWithLocalState"
 import type {JsonArrayFieldProps} from "./types"
@@ -33,21 +39,22 @@ export function JsonArrayField({
         <div className="flex flex-col gap-2">
             {/* Navigation select for drilling into items */}
             {arrayItems.length > 0 && (
+                // Action-style select: never holds a selection, so `value` stays undefined.
                 <Select
-                    placeholder="Jump to item"
-                    className="w-full"
-                    size="small"
-                    value={null}
-                    options={arrayItems.map((arrItem: unknown, idx: number) => ({
-                        value: idx,
-                        label: `${idx + 1}. ${getPreview(arrItem)}`,
-                    }))}
-                    onSelect={(idx: number | null) => {
-                        if (idx !== null) {
-                            setCurrentPath([...fullPath, String(idx)])
-                        }
-                    }}
-                />
+                    value={undefined}
+                    onValueChange={(idx) => setCurrentPath([...fullPath, idx])}
+                >
+                    <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Jump to item" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {arrayItems.map((arrItem: unknown, idx: number) => (
+                            <SelectItem key={idx} value={String(idx)}>
+                                {`${idx + 1}. ${getPreview(arrItem)}`}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             )}
 
             {/* Editable JSON editor for array content */}

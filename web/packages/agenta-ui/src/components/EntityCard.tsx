@@ -1,6 +1,6 @@
 import type {ReactNode} from "react"
 
-import {clsx} from "clsx"
+import {cn} from "./ui/utils"
 
 export interface EntityCardProps {
     /** Leading icon / logo slot (~28px). */
@@ -25,7 +25,7 @@ export interface EntityCardProps {
 
 /**
  * Catalog-style tile card: icon + title (+ adornment), a 2-line description, and a bottom row
- * of category pills + a right-aligned meta slot. Dark-safe (`--ag-color*` tokens). Powers the
+ * of category pills + a right-aligned meta slot. Dark-safe (antd semantic tokens). Powers the
  * Composio app catalog and any other "pick from a grid of things" surface.
  */
 export function EntityCard({
@@ -44,15 +44,15 @@ export function EntityCard({
     const shownTags = (tags ?? []).filter(Boolean)
     const surface =
         variant === "subtle"
-            ? "border-transparent bg-[var(--ag-colorFillQuaternary)] hover:border-[var(--ag-colorBorderSecondary)] hover:bg-[var(--ag-colorFillTertiary)]"
-            : "border-[var(--ag-colorBorder)] bg-transparent hover:border-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorFillQuaternary)]"
+            ? "border-transparent bg-colorFillQuaternary hover:border-colorBorderSecondary hover:bg-colorFillTertiary"
+            : "border-colorBorder bg-transparent hover:border-colorPrimary hover:bg-colorFillQuaternary"
 
     return (
         <button
             type="button"
             onClick={onClick}
             disabled={disabled}
-            className={clsx(
+            className={cn(
                 "group flex h-full flex-col gap-2 rounded-lg border border-solid p-3 text-left",
                 disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
                 minHeightClassName,
@@ -69,7 +69,7 @@ export function EntityCard({
             </div>
 
             {description ? (
-                <p className="m-0 line-clamp-2 text-[11px] leading-snug text-[var(--ag-colorTextSecondary)]">
+                <p className="m-0 line-clamp-2 text-[11px] leading-snug text-colorTextSecondary">
                     {description}
                 </p>
             ) : (
@@ -81,7 +81,7 @@ export function EntityCard({
                     {shownTags.map((tag) => (
                         <span
                             key={tag}
-                            className="truncate rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-0.5 text-[10px] leading-none text-[var(--ag-colorTextSecondary)]"
+                            className="truncate rounded bg-colorFillTertiary px-1.5 py-0.5 text-[10px] leading-none text-colorTextSecondary"
                         >
                             {tag}
                         </span>

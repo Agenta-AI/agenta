@@ -2,10 +2,11 @@ import {useState} from "react"
 
 import {dayjs} from "@agenta/shared/utils"
 import {Check, Copy} from "@phosphor-icons/react"
-import {Tag, Tooltip} from "antd"
 
 import {copyToClipboard} from "../../utils/copyToClipboard"
 import {cn, textColors} from "../../utils/styles"
+import {Badge} from "../ui/badge"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../ui/tooltip"
 
 export interface FormattedDateProps {
     date: string | number | Date | null | undefined
@@ -63,26 +64,27 @@ export function FormattedDate({
     const tooltipTitle = copied ? "Copied!" : `Click to copy: ${rawValue}`
 
     const inner = (
-        <Tooltip title={tooltipTitle} mouseEnterDelay={0.4}>
-            <span
-                className={cn(
-                    "group/date inline-flex items-center gap-1 cursor-pointer",
-                    !asTag && className,
-                )}
-                onClick={handleCopy}
-            >
-                {formatted}
-                {icon}
-            </span>
-        </Tooltip>
+        <TooltipProvider delayDuration={400}>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span
+                        className={cn(
+                            "group/date inline-flex items-center gap-1 cursor-pointer",
+                            !asTag && className,
+                        )}
+                        onClick={handleCopy}
+                    >
+                        {formatted}
+                        {icon}
+                    </span>
+                </TooltipTrigger>
+                <TooltipContent>{tooltipTitle}</TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     )
 
     if (asTag) {
-        return (
-            <Tag variant="filled" className={cn("bg-[var(--ag-c-0517290F)]", className)}>
-                {inner}
-            </Tag>
-        )
+        return <Badge className={cn("bg-colorFillTertiary", className)}>{inner}</Badge>
     }
 
     return inner

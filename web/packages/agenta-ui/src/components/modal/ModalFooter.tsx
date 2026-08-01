@@ -18,9 +18,9 @@
  * ```
  */
 
-import {Button} from "antd"
-
 import {cn, flexLayouts, gapClasses, justifyClasses} from "../../utils/styles"
+import {Button} from "../ui/button"
+import {LoadingButton} from "../ui/button-composed"
 
 // ============================================================================
 // TYPES
@@ -77,18 +77,17 @@ export function ModalFooter({
                 className,
             )}
         >
-            <Button onClick={onCancel} disabled={isLoading}>
+            <Button variant="outline" onClick={onCancel} disabled={isLoading}>
                 {cancelLabel}
             </Button>
-            <Button
-                type="primary"
-                danger={danger}
+            <LoadingButton
+                variant={danger ? "destructive" : "default"}
                 onClick={onConfirm}
                 loading={isLoading}
                 disabled={!canConfirm}
             >
                 {confirmLabel}
-            </Button>
+            </LoadingButton>
         </div>
     )
 }

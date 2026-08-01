@@ -1,10 +1,15 @@
 import {type FC, Fragment, useCallback} from "react"
 
-import {PlusOutlined, DeleteOutlined} from "@ant-design/icons"
-import {Typography} from "antd"
-import {Dropdown} from "antd"
+import {Plus, Trash} from "@phosphor-icons/react"
 import clsx from "clsx"
 
+import EditableText from "../../../components/presentational/editable/EditableText"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "../../../components/ui/dropdown-menu"
 import styles from "../FormView.module.css"
 import NodeHeader from "../shared/NodeHeader"
 import TreeRow from "../shared/TreeRow"
@@ -16,21 +21,9 @@ interface ObjectNodeProps extends BaseNodeProps {
     value: Record<string, unknown>
 }
 
-const {Text} = Typography
-
 const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
-    const {
-        customRender,
-        form,
-        path,
-        k,
-        value,
-        depth,
-        collapsed,
-        toggleFold,
-        onChange,
-        handleRename,
-    } = props
+    const {customRender, path, k, value, depth, collapsed, toggleFold, onChange, handleRename} =
+        props
     const pathKey = path.join(".")
 
     const genUniqueKey = (obj: Record<string, unknown>): string => {
@@ -44,18 +37,12 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
     }
     const addKeyWithType = useCallback(
         (type: "primitive" | "object" | "array") => {
-            const currentRoot = form.getFieldsValue(true) as Record<string, unknown>
-            const objTarget = path.reduce<Record<string, unknown> | undefined>(
-                (acc, key) => (acc ? (acc[key] as Record<string, unknown> | undefined) : undefined),
-                currentRoot as Record<string, unknown> | undefined,
-            )
-            if (!objTarget || typeof objTarget !== "object") return
+            const objTarget = {...value}
             const newKey = genUniqueKey(objTarget)
             objTarget[newKey] = type === "object" ? {} : type === "array" ? [] : ""
-            form.setFieldsValue(currentRoot)
             onChange(path, objTarget)
         },
-        [form, path, onChange],
+        [value, path, onChange],
     )
 
     const addKey = useCallback(() => {
@@ -64,34 +51,22 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
 
     const removeKey = useCallback(
         (keyToRemove: string) => {
-            const currentRoot = form.getFieldsValue(true) as Record<string, unknown>
-            const objTarget = path.reduce<Record<string, unknown> | undefined>(
-                (acc, key) => (acc ? (acc[key] as Record<string, unknown> | undefined) : undefined),
-                currentRoot as Record<string, unknown> | undefined,
-            )
-            if (!objTarget || typeof objTarget !== "object") return
+            const objTarget = {...value}
             delete objTarget[keyToRemove]
-            form.setFieldsValue(currentRoot)
             onChange(path, objTarget)
         },
-        [form, path, onChange],
+        [value, path, onChange],
     )
 
     const insertKeyBefore = useCallback(
         (before: string) => {
-            const currentRoot = form.getFieldsValue(true) as Record<string, unknown>
-            const objTarget = path.reduce<Record<string, unknown> | undefined>(
-                (acc, key) => (acc ? (acc[key] as Record<string, unknown> | undefined) : undefined),
-                currentRoot as Record<string, unknown> | undefined,
-            )
-            if (!objTarget || typeof objTarget !== "object") return
-            const entries = Object.entries(objTarget)
+            const entries = Object.entries(value)
             const idx = entries.findIndex(([key]) => key === before)
             if (idx === -1) {
                 addKey()
                 return
             }
-            const newKey = genUniqueKey(objTarget)
+            const newKey = genUniqueKey(value)
             const newObj: Record<string, unknown> = {}
             entries.forEach(([key, val], i) => {
                 if (i === idx) {
@@ -99,28 +74,19 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
                 }
                 newObj[key] = val
             })
-            // replace whole object at path
-            if (path.length === 0) {
-                Object.assign(currentRoot, newObj)
-            } else {
-                const parent = path
-                    .slice(0, -1)
-                    .reduce<
-                        Record<string, unknown>
-                    >((acc, key) => acc[key] as Record<string, unknown>, currentRoot)
-                parent[path[path.length - 1]] = newObj
-            }
-            // simpler set by path: assign
-            path.reduce<Record<string, unknown>>((acc, key, idx, arr) => {
-                if (idx === arr.length - 1) {
-                    acc[key] = newObj
-                }
-                return acc[key] as Record<string, unknown>
-            }, currentRoot)
-            form.setFieldsValue(currentRoot)
             onChange(path, newObj)
         },
-        [form, path, onChange],
+        [value, path, onChange, addKey],
+    )
+
+    const handleRenameKey = useCallback(
+        (newKey: string) => {
+            const trimmed = newKey.trim()
+            if (trimmed && trimmed !== k) {
+                handleRename(path, trimmed)
+            }
+        },
+        [handleRename, path, k],
     )
 
     return (
@@ -133,57 +99,47 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
                     className={clsx("object-key")}
                 >
                     <div className={clsx(styles["add-inline-btn"])}>
-                        <Dropdown
-                            menu={{
-                                items: [
-                                    {
-                                        key: "primitive",
-                                        label: "Primitive",
-                                        onClick: () => addKeyWithType("primitive"),
-                                    },
-                                    {
-                                        key: "object",
-                                        label: "Object { }",
-                                        onClick: () => addKeyWithType("object"),
-                                    },
-                                    {
-                                        key: "array",
-                                        label: "Array [ ]",
-                                        onClick: () => addKeyWithType("array"),
-                                    },
-                                ],
-                            }}
-                            trigger={["click"]}
-                        >
-                            <PlusOutlined className={styles["add-inline-btn"]} />
-                        </Dropdown>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button
+                                    type="button"
+                                    aria-label="Add key"
+                                    className={clsx(
+                                        styles["add-inline-btn"],
+                                        "box-border border-0 bg-transparent p-0 cursor-pointer text-colorText",
+                                    )}
+                                >
+                                    <Plus size={14} />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start">
+                                <DropdownMenuItem onSelect={() => addKeyWithType("primitive")}>
+                                    Primitive
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => addKeyWithType("object")}>
+                                    Object {"{ }"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => addKeyWithType("array")}>
+                                    Array [ ]
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
 
-                    <Text
-                        className="text-xs font-semibold leading-5 mr-1"
-                        editable={{
-                            icon: null,
-                            triggerType: ["text"],
-                            onChange: (newKey) => {
-                                const trimmed = newKey.trim()
-                                if (trimmed && trimmed !== k) {
-                                    handleRename(path, trimmed)
-                                }
-                            },
-                        }}
-                    >
-                        {k}
-                    </Text>
+                    <EditableText
+                        value={String(k)}
+                        onChange={handleRenameKey}
+                        monospace={false}
+                        className="font-semibold leading-5 mr-1"
+                    />
                 </NodeHeader>
             </div>
             {!collapsed.has(pathKey) &&
                 Object.entries(value).map(([childKey, childVal], idx, arr) => (
                     <Fragment key={childKey}>
                         <div className={styles["row-wrapper"]} style={{position: "relative"}}>
-                            {/* <DeleteOutlined className={styles['add-inline']} onClick={() => removeKey(childKey as string)} /> */}
                             <TreeRow depth={1} className={clsx("object-item-wrapper flex")}>
                                 {renderNode({
-                                    form,
                                     path: [...path, childKey],
                                     k: childKey,
                                     value: childVal,
@@ -197,19 +153,28 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
                                 {idx >= 0 && (
                                     <div className={clsx(styles["between-hover"])}>
                                         <div className={styles["add-between"]}>
-                                            <PlusOutlined
-                                                className="!mx-0"
+                                            <button
+                                                type="button"
+                                                aria-label="Insert key before"
+                                                className="box-border border-0 bg-transparent p-0 cursor-pointer text-colorText !mx-0"
                                                 onClick={() => insertKeyBefore(childKey)}
-                                            />
+                                            >
+                                                <Plus size={14} />
+                                            </button>
                                         </div>
                                     </div>
                                 )}
 
                                 <div className={styles["on-hover"]}>
                                     <div className={styles["add-between"]}>
-                                        <DeleteOutlined
+                                        <button
+                                            type="button"
+                                            aria-label="Remove key"
+                                            className="box-border border-0 bg-transparent p-0 cursor-pointer text-colorText"
                                             onClick={() => removeKey(childKey as string)}
-                                        />
+                                        >
+                                            <Trash size={14} />
+                                        </button>
                                     </div>
                                 </div>
                             </TreeRow>

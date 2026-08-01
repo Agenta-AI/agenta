@@ -56,7 +56,7 @@ export function PanelFooter({children, align = "end", className}: PanelFooterPro
     return (
         <div
             className={cn(
-                "border-t flex-shrink-0",
+                "border-0 border-t border-solid flex-shrink-0",
                 flexLayouts.rowCenter,
                 spacingClasses.panel,
                 gapClasses.sm,

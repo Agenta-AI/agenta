@@ -7,9 +7,9 @@
 
 import React from "react"
 
-import {Empty, Spin} from "antd"
-
 import {cn, flexLayouts, justifyClasses, textColors} from "../../utils/styles"
+import {EmptyState} from "../ui/empty-state"
+import {Spinner} from "../ui/spinner"
 
 import {SearchInput} from "./SearchInput"
 import {AdaptiveList, SimpleList, VirtualList} from "./VirtualList"
@@ -98,17 +98,16 @@ export function SearchableList<T>({
     const renderLoading = () =>
         loadingState ?? (
             <div className={cn(flexLayouts.rowCenter, justifyClasses.center, "py-8")}>
-                <Spin size="default" />
+                <Spinner size="default" />
                 <span className={cn("ml-2", textColors.tertiary)}>{loadingMessage}</span>
             </div>
         )
 
-    const renderEmpty = () =>
-        emptyState ?? <Empty description={emptyMessage} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+    const renderEmpty = () => emptyState ?? <EmptyState description={emptyMessage} image="simple" />
 
     const renderError = () =>
         errorState ?? (
-            <div className={cn("py-6 text-center text-red-500")}>{resolvedErrorMessage}</div>
+            <div className={cn("py-6 text-center text-colorError")}>{resolvedErrorMessage}</div>
         )
 
     const renderList = () => {

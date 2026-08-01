@@ -17,8 +17,14 @@
 
 import React from "react"
 
-import {Breadcrumb as AntBreadcrumb} from "antd"
 import {Home} from "lucide-react"
+
+import {
+    Breadcrumb as BreadcrumbRoot,
+    BreadcrumbItem,
+    BreadcrumbList,
+    BreadcrumbSeparator,
+} from "../ui/breadcrumb"
 
 // ============================================================================
 // TYPES
@@ -109,7 +115,20 @@ export function Breadcrumb({
         })),
     ]
 
-    return <AntBreadcrumb items={items} className={className} />
+    // Every crumb here is clickable (there is no non-interactive "current page" crumb), so each
+    // title node is rendered as-is inside its item — exactly what antd did with `items[].title`.
+    return (
+        <BreadcrumbRoot className={className}>
+            <BreadcrumbList>
+                {items.map((item, index) => (
+                    <React.Fragment key={item.key}>
+                        {index > 0 && <BreadcrumbSeparator />}
+                        <BreadcrumbItem>{item.title}</BreadcrumbItem>
+                    </React.Fragment>
+                ))}
+            </BreadcrumbList>
+        </BreadcrumbRoot>
+    )
 }
 
 // Also export with "Entity" prefix for backward compatibility

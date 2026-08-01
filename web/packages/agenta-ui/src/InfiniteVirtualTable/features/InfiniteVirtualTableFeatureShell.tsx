@@ -3,8 +3,10 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {Export, Trash} from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
-import {Button, Grid, Pagination, Tabs, Tooltip} from "antd"
+import {Grid, Pagination, Tabs, Tooltip} from "antd"
 
+import {Button} from "../../components/ui/button"
+import {LoadingButton} from "../../components/ui/button-composed"
 import {cn} from "../../utils/styles"
 import ColumnVisibilityPopoverContent from "../components/columnVisibility/ColumnVisibilityPopoverContent"
 import TableSettingsDropdown from "../components/columnVisibility/TableSettingsDropdown"
@@ -515,13 +517,12 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         const {onDelete, disabled, disabledTooltip, label = "Delete"} = deleteAction
         const button = (
             <Button
-                danger
-                type="text"
-                icon={<Trash size={14} className="mt-0.5" />}
+                variant="destructive-outline"
                 className="flex items-center"
                 disabled={disabled}
                 onClick={onDelete}
             >
+                {<Trash size={14} className="mt-0.5" />}
                 {label}
             </Button>
         )
@@ -536,15 +537,15 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         if (!enableExport || !exportAction || hideBuiltInButtons) return null
         const {disabled, disabledTooltip, label = "Export CSV"} = exportAction
         const button = (
-            <Button
+            <LoadingButton
                 disabled={disabled}
                 onClick={exportHandler}
                 loading={isExporting}
-                icon={<Export size={14} />}
-                type="text"
+                variant="ghost"
             >
+                <Export size={14} />
                 {label}
-            </Button>
+            </LoadingButton>
         )
         if (disabled && disabledTooltip) {
             return (

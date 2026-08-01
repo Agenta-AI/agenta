@@ -29,8 +29,6 @@
 
 import type {ReactNode} from "react"
 
-import {Typography} from "antd"
-
 import {
     bgColors,
     borderColors,
@@ -42,10 +40,9 @@ import {
     spacingClasses,
     textSizes,
 } from "../../../utils/styles"
-import {StatusTag, type QueryStatus, type ExecutionStatus} from "../status"
+import {type QueryStatus, type ExecutionStatus} from "../status"
+import {Tag} from "../tag"
 import {VersionBadge} from "../version"
-
-const {Text} = Typography
 
 // ============================================================================
 // TYPES
@@ -78,7 +75,7 @@ export interface EntityIconLabelProps {
     /**
      * Optional version number (displays VersionBadge)
      */
-    version?: number
+    version?: number | string
     /**
      * Optional subtitle text (displayed below label)
      */
@@ -119,7 +116,7 @@ export interface PanelHeaderProps {
     /**
      * Optional version number (displays VersionBadge)
      */
-    version?: number
+    version?: number | string
     /**
      * Optional subtitle text (displayed below label)
      */
@@ -179,17 +176,22 @@ export function EntityIconLabel({
             </div>
             <div className="min-w-0">
                 <div className={cn(flexLayouts.rowCenter, gapClasses.sm, "flex-wrap")}>
-                    <Text strong className={iconSize === "sm" ? textSizes.sm : textSizes.base}>
+                    <span
+                        className={cn(
+                            "font-semibold",
+                            iconSize === "sm" ? textSizes.sm : textSizes.base,
+                        )}
+                    >
                         {label}
-                    </Text>
+                    </span>
                     {version !== undefined && <VersionBadge version={version} variant="chip" />}
-                    {status && <StatusTag status={status} />}
+                    {status && <Tag status={status} />}
                     {extra}
                 </div>
                 {subtitle && (
-                    <Text type="secondary" className={cn(textSizes.xs, "capitalize")}>
+                    <span className={cn(textSizes.xs, "capitalize text-colorTextDescription")}>
                         {subtitle}
-                    </Text>
+                    </span>
                 )}
             </div>
         </div>
@@ -216,7 +218,7 @@ export function PanelHeader({
         <div
             className={cn(
                 spacingClasses.card,
-                "border-b",
+                "border-0 border-b border-solid",
                 borderColors.secondary,
                 bgColors.container,
                 sticky && "sticky top-0 z-10",

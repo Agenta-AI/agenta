@@ -1,7 +1,9 @@
 import {type ReactNode} from "react"
 
 import {ArrowUp} from "@phosphor-icons/react"
-import {Button} from "antd"
+
+import {Button} from "../components/ui/button"
+import {cn} from "../components/ui/utils"
 
 export interface ComposerSendButtonProps {
     onClick?: () => void
@@ -23,19 +25,21 @@ export interface ComposerSendButtonProps {
 export function ComposerSendButton({onClick, disabled, ariaLabel, icon}: ComposerSendButtonProps) {
     return (
         <Button
-            type="primary"
-            shape="circle"
+            size="icon"
+            variant="default"
             aria-label={ariaLabel ?? "Send"}
-            icon={icon ?? <ArrowUp size={16} weight="bold" />}
             disabled={disabled}
             onClick={onClick}
             // Filled accent when there's something to send, a clearly-inert grey fill when empty
             // (never a faint outlined ghost).
-            className={
+            className={cn(
+                "rounded-control-round",
                 disabled
                     ? "!border-[var(--ag-send-disabled-bg)] !bg-[var(--ag-send-disabled-bg)] !text-[var(--ag-send-disabled-fg)]"
-                    : "!border-[var(--ag-surface-accent)] !bg-[var(--ag-surface-accent)] !text-[#191a0d] hover:!border-[#b8cb3f] hover:!bg-[#b8cb3f]"
-            }
-        />
+                    : "!border-[var(--ag-surface-accent)] !bg-[var(--ag-surface-accent)] !text-[#191a0d] hover:!border-[#b8cb3f] hover:!bg-[#b8cb3f]",
+            )}
+        >
+            {icon ?? <ArrowUp size={16} weight="bold" />}
+        </Button>
     )
 }

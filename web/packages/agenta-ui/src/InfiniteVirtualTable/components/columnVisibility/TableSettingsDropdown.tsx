@@ -1,9 +1,10 @@
 import {type ReactNode, useState, useMemo, useCallback} from "react"
 
 import {DownloadSimple, Eye, GearSix, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Popover, Tooltip} from "antd"
+import {Dropdown, Popover, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 
+import {Button} from "../../../components/ui/button"
 import type {ColumnVisibilityState} from "../../types"
 
 export interface TableSettingsDropdownProps<RowType extends object> {
@@ -142,12 +143,13 @@ const TableSettingsDropdown = <RowType extends object>({
             >
                 <Tooltip title="Table settings">
                     <Button
-                        type="text"
-                        shape="circle"
-                        size="small"
+                        className="rounded-control-round"
+                        size="icon"
+                        variant="ghost"
                         onClick={(e) => e.stopPropagation()}
-                        icon={<GearSix size={16} weight="bold" />}
-                    />
+                    >
+                        {<GearSix size={16} weight="bold" />}
+                    </Button>
                 </Tooltip>
             </Dropdown>
         </Popover>

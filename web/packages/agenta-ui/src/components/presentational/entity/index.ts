@@ -17,11 +17,6 @@ export {
     type EntityNameWithVersionProps,
 } from "./EntityNameWithVersion"
 
-export {
-    EntityListItemLabel,
-    AppListItemLabel,
-    VariantListItemLabel,
-    type EntityListItemLabelProps,
-} from "./EntityListItemLabel"
+export {EntityListItemLabel, type EntityListItemLabelProps} from "./EntityListItemLabel"
 
 export {EntityTypeIcon, type EntityTypeIconProps} from "./EntityTypeIcon"

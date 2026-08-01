@@ -2,10 +2,30 @@ import {cloneElement, useCallback, useEffect, useMemo, useRef, useState} from "r
 import type {MouseEvent} from "react"
 
 import {CheckCircle} from "@phosphor-icons/react"
-import {Tooltip} from "antd"
 import clsx from "clsx"
 
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../components/ui/tooltip"
+
 import {CopyTooltipProps} from "./types"
+
+// antd placement (12-way) → Radix side/align.
+const toSide = (p?: string): "top" | "right" | "bottom" | "left" =>
+    !p
+        ? "top"
+        : p.startsWith("bottom")
+          ? "bottom"
+          : p.startsWith("left")
+            ? "left"
+            : p.startsWith("right")
+              ? "right"
+              : "top"
+
+const toAlign = (p?: string): "start" | "center" | "end" =>
+    p?.endsWith("Left") || p?.endsWith("Top")
+        ? "start"
+        : p?.endsWith("Right") || p?.endsWith("Bottom")
+          ? "end"
+          : "center"
 
 const CopyTooltip = ({
     children,
@@ -41,7 +61,7 @@ const CopyTooltip = ({
 
     const tooltipDisplay = isCopied ? (
         <div className="flex items-center gap-1">
-            <CheckCircle size={14} weight="fill" color="green" />
+            <CheckCircle size={14} weight="fill" className="text-colorSuccess" />
             <span>Copied to clipboard</span>
         </div>
     ) : (
@@ -62,10 +82,23 @@ const CopyTooltip = ({
         }
     }, [children, copyText, handleClick])
 
+    // antd's default mouseEnterDelay is 0.1s; tooltipProps may override (seconds → ms).
+    const delayDuration = (tooltipProps?.mouseEnterDelay ?? 0.1) * 1000
+    const placement = (tooltipProps?.placement as string | undefined) ?? "top"
+
     return (
-        <Tooltip title={tooltipDisplay} placement="top" {...tooltipProps}>
-            {cloneElement(children, childrenProps)}
-        </Tooltip>
+        <TooltipProvider delayDuration={delayDuration}>
+            <Tooltip
+                open={tooltipProps?.open}
+                defaultOpen={tooltipProps?.defaultOpen}
+                onOpenChange={tooltipProps?.onOpenChange}
+            >
+                <TooltipTrigger asChild>{cloneElement(children, childrenProps)}</TooltipTrigger>
+                <TooltipContent side={toSide(placement)} align={toAlign(placement)}>
+                    {tooltipProps?.title ?? tooltipDisplay}
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     )
 }
 

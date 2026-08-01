@@ -41,7 +41,7 @@ export function ToolbarPlugin(): JSX.Element {
     const activeClass = "bg-gray-200"
 
     return (
-        <div className="flex items-center gap-1 p-2 border-b">
+        <div className="flex items-center gap-1 p-2 border-0 border-b border-solid">
             <button
                 className={`${toolbarButton} ${isBold ? activeClass : ""}`}
                 onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold")}

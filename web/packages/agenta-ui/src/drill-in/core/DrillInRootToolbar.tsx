@@ -1,8 +1,9 @@
 import {memo, useCallback, useRef, useState, type ComponentType, type ReactNode} from "react"
 
 import {ArrowsInLineVertical, Check, Copy, Funnel} from "@phosphor-icons/react"
-import {Button as AntdButton, Tooltip as AntdTooltip} from "antd"
 
+import {Button as AntdButton} from "../../components/ui/button"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../components/ui/tooltip"
 import type {ViewMode} from "../utils/getViewOptions"
 
 import {ViewModeDropdown} from "./ViewModeDropdown"
@@ -33,8 +34,8 @@ export interface DrillInRootToolbarProps {
     Tooltip?: ComponentType<{title?: ReactNode; children: ReactNode}>
     /** Button component. Falls back to native button. */
     Button?: ComponentType<{
-        type?: "text"
-        size?: "small"
+        variant?: "ghost"
+        size?: "sm"
         icon?: ReactNode
         onClick?: () => void | Promise<void>
         "aria-label"?: string
@@ -51,24 +52,34 @@ const BASE_OPTIONS: {value: RootViewMode; label: string}[] = [
 const FORM_OPTION: {value: RootViewMode; label: string} = {value: "form", label: "Form"}
 
 function DefaultTooltip({title, children}: {title?: ReactNode; children: ReactNode}) {
-    return <AntdTooltip title={title}>{children}</AntdTooltip>
+    if (title == null) return <>{children}</>
+    return (
+        <TooltipProvider delayDuration={100}>
+            <Tooltip>
+                <TooltipTrigger asChild>{children}</TooltipTrigger>
+                <TooltipContent>{title}</TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    )
 }
 
 function DefaultButton({
-    type,
+    variant,
     size,
     icon,
     onClick,
     "aria-label": ariaLabel,
 }: {
-    type?: "text"
-    size?: "small"
+    variant?: "ghost"
+    size?: "sm"
     icon?: ReactNode
     onClick?: () => void | Promise<void>
     "aria-label"?: string
 }) {
     return (
-        <AntdButton type={type} size={size} onClick={onClick} aria-label={ariaLabel} icon={icon} />
+        <AntdButton variant={variant} size={size} onClick={onClick} aria-label={ariaLabel}>
+            {icon}
+        </AntdButton>
     )
 }
 
@@ -103,7 +114,7 @@ export const DrillInRootToolbar = memo(function DrillInRootToolbar({
     }, [onCopy])
 
     return (
-        <div className="flex min-h-9 items-center justify-between gap-2 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-FAFAFA)] px-4 py-1.5">
+        <div className="flex min-h-9 items-center justify-between gap-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)] bg-[var(--ag-c-FAFAFA)] px-4 py-1.5">
             <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
                 <span className="min-w-0 truncate text-[13px] font-semibold text-[var(--ag-c-051729)]">
                     {label}
@@ -115,8 +126,8 @@ export const DrillInRootToolbar = memo(function DrillInRootToolbar({
                 {onFilter && (
                     <TooltipComp title="Filter fields">
                         <ButtonComp
-                            type="text"
-                            size="small"
+                            variant="ghost"
+                            size="sm"
                             icon={<Funnel size={14} />}
                             onClick={onFilter}
                             aria-label="Filter fields"
@@ -126,8 +137,8 @@ export const DrillInRootToolbar = memo(function DrillInRootToolbar({
                 {onCollapseAll && (
                     <TooltipComp title="Collapse all">
                         <ButtonComp
-                            type="text"
-                            size="small"
+                            variant="ghost"
+                            size="sm"
                             icon={<ArrowsInLineVertical size={14} />}
                             onClick={onCollapseAll}
                             aria-label="Collapse all fields"
@@ -137,8 +148,8 @@ export const DrillInRootToolbar = memo(function DrillInRootToolbar({
                 {onCopy && (
                     <TooltipComp title={copied ? "Copied" : "Copy"}>
                         <ButtonComp
-                            type="text"
-                            size="small"
+                            variant="ghost"
+                            size="sm"
                             icon={copied ? <Check size={14} /> : <Copy size={14} />}
                             onClick={handleCopy}
                             aria-label="Copy testcase"

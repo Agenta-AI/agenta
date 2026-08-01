@@ -326,7 +326,7 @@ const DiffView: React.FC<DiffViewProps> = ({
     return (
         <div className={className}>
             {error && showErrors && (
-                <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+                <div className="mb-2 p-2 bg-red-50 border border-solid border-red-200 rounded text-red-700 text-sm">
                     {error}
                 </div>
             )}

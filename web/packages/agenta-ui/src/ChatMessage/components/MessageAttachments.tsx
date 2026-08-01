@@ -21,13 +21,6 @@ interface MessageAttachmentsProps {
     content: MessageContent
     onRemove: (index: number) => void
     disabled?: boolean
-    /** Optional image preview component - if not provided, uses simple img tag */
-    ImagePreview?: React.ComponentType<{
-        src: string
-        alt: string
-        size: number
-        isValidPreview: boolean
-    }>
 }
 
 /**
@@ -38,7 +31,6 @@ export const MessageAttachments: React.FC<MessageAttachmentsProps> = ({
     content,
     onRemove,
     disabled,
-    ImagePreview,
 }) => {
     const attachments = getAttachments(content)
     if (attachments.length === 0) return null
@@ -55,7 +47,6 @@ export const MessageAttachments: React.FC<MessageAttachmentsProps> = ({
                             alt={`Attachment ${index + 1}`}
                             onRemove={() => onRemove(index)}
                             disabled={disabled}
-                            ImagePreview={ImagePreview}
                         />
                     )
                 }

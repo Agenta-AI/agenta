@@ -24,9 +24,11 @@ import {memo} from "react"
 
 import {formatCurrency, formatLatency, formatTokens} from "@agenta/shared/utils"
 import {Timer, Coins, Hash} from "@phosphor-icons/react"
-import {Tag, Skeleton, Tooltip} from "antd"
 
 import {cn} from "../../../utils/styles"
+import {Badge} from "../../ui/badge"
+import {SkeletonBlock} from "../../ui/skeleton"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
 
 // ============================================================================
 // TYPES
@@ -96,7 +98,7 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
     if (isLoading) {
         return (
             <div className={cn("flex items-center gap-1", className)}>
-                <Skeleton.Button active size="small" style={{width: 60}} />
+                <SkeletonBlock active className="h-6" style={{width: 60}} />
             </div>
         )
     }
@@ -108,52 +110,71 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
     return (
         <div className={cn("flex items-center gap-1", className)}>
             {showLatency && formattedLatency && (
-                <Tooltip title={`Duration: ${formattedLatency}`}>
-                    <Tag color="default" className={tagClassName}>
-                        <Timer size={iconSize} /> {formattedLatency}
-                    </Tag>
-                </Tooltip>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span className="inline-flex">
+                                <Badge variant="default" className={tagClassName}>
+                                    <Timer size={iconSize} /> {formattedLatency}
+                                </Badge>
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">{`Duration: ${formattedLatency}`}</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
             )}
 
             {showTokens && formattedTokens && (
-                <Tooltip
-                    title={
-                        metrics.promptTokens !== undefined &&
-                        metrics.completionTokens !== undefined ? (
-                            <div className="min-w-[140px]">
-                                <div className="flex items-center justify-between gap-3">
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span className="inline-flex">
+                                <Badge variant="default" className={tagClassName}>
+                                    <Hash size={iconSize} /> {formattedTokens}
+                                </Badge>
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                            {metrics.promptTokens !== undefined &&
+                            metrics.completionTokens !== undefined ? (
+                                <div className="min-w-[140px]">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span>Total Tokens</span>
+                                        <span>{formattedTokens}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3 opacity-85">
+                                        <span>Prompt</span>
+                                        <span>{formatTokens(metrics.promptTokens)}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3 opacity-85">
+                                        <span>Completion</span>
+                                        <span>{formatTokens(metrics.completionTokens)}</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex items-center justify-between gap-3 min-w-[120px]">
                                     <span>Total Tokens</span>
                                     <span>{formattedTokens}</span>
                                 </div>
-                                <div className="flex items-center justify-between gap-3 opacity-85">
-                                    <span>Prompt</span>
-                                    <span>{formatTokens(metrics.promptTokens)}</span>
-                                </div>
-                                <div className="flex items-center justify-between gap-3 opacity-85">
-                                    <span>Completion</span>
-                                    <span>{formatTokens(metrics.completionTokens)}</span>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="flex items-center justify-between gap-3 min-w-[120px]">
-                                <span>Total Tokens</span>
-                                <span>{formattedTokens}</span>
-                            </div>
-                        )
-                    }
-                >
-                    <Tag color="default" className={tagClassName}>
-                        <Hash size={iconSize} /> {formattedTokens}
-                    </Tag>
-                </Tooltip>
+                            )}
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
             )}
 
             {showCost && formattedCost && (
-                <Tooltip title={`Total Cost: ${formattedCost}`}>
-                    <Tag color="default" className={tagClassName}>
-                        <Coins size={iconSize} /> {formattedCost}
-                    </Tag>
-                </Tooltip>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span className="inline-flex">
+                                <Badge variant="default" className={tagClassName}>
+                                    <Coins size={iconSize} /> {formattedCost}
+                                </Badge>
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">{`Total Cost: ${formattedCost}`}</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
             )}
         </div>
     )

@@ -127,10 +127,11 @@ export {
 } from "./utils/styles"
 
 /**
- * App Message Context - Static exports for Ant Design message/modal/notification
+ * App Message Context - Static message/modal/notification services
  *
- * Render AppMessageContext inside your Ant Design App provider, then use
- * the static message/modal/notification exports anywhere.
+ * Render AppMessageContext once anywhere in the app tree (it needs no provider and portals
+ * its own surfaces to document.body), then use the static message/modal/notification
+ * exports anywhere — including outside React.
  */
 export {default as AppMessageContext, message, modal, notification} from "./utils/appMessageContext"
 

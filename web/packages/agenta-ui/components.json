@@ -1,0 +1,19 @@
+{
+    "$schema": "https://ui.shadcn.com/schema.json",
+    "style": "new-york",
+    "rsc": false,
+    "tsx": true,
+    "tailwind": {
+        "config": "../../oss/tailwind.config.ts",
+        "css": "../../oss/src/styles/theme-variables.css",
+        "baseColor": "neutral",
+        "cssVariables": true,
+        "prefix": ""
+    },
+    "aliases": {
+        "components": "@agenta/ui/ui",
+        "utils": "@agenta/ui/ui",
+        "ui": "src/components/ui"
+    },
+    "iconLibrary": "lucide"
+}

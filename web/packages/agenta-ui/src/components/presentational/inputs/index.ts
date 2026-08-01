@@ -5,7 +5,6 @@
  */
 
 export {SliderInput, type SliderInputProps} from "./SliderInput"
-export {LabeledField, type LabeledFieldProps} from "./LabeledField"
 export {
     CommitMessageInput,
     COMMIT_MESSAGE_MAX_LENGTH,

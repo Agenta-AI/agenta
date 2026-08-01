@@ -1,9 +1,35 @@
-import {memo, useCallback, type ReactNode} from "react"
+import {memo, useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 
 import {Copy} from "@phosphor-icons/react"
-import {Button, Popover} from "antd"
 
+import {Button} from "../components/ui/button"
+import {Popover, PopoverAnchor, PopoverContent} from "../components/ui/popover"
 import {message} from "../utils/appMessageContext"
+
+/** Radix Popover has no hover trigger; reproduce antd's enter/leave delays. */
+function useHoverOpen(enterDelay: number, leaveDelay: number) {
+    const [open, setOpen] = useState(false)
+    const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    const clear = () => {
+        if (timer.current) clearTimeout(timer.current)
+        timer.current = null
+    }
+    useEffect(() => clear, [])
+
+    return {
+        open,
+        setOpen,
+        onMouseEnter: () => {
+            clear()
+            timer.current = setTimeout(() => setOpen(true), enterDelay)
+        },
+        onMouseLeave: () => {
+            clear()
+            timer.current = setTimeout(() => setOpen(false), leaveDelay)
+        },
+    }
+}
 
 interface PopoverContentProps {
     children: ReactNode
@@ -18,7 +44,8 @@ const PopoverContentWrapper = memo(({children, onCopy}: PopoverContentProps) => 
         <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
             {onCopy && (
                 <div className="flex justify-end">
-                    <Button type="text" size="small" icon={<Copy size={14} />} onClick={onCopy}>
+                    <Button variant="ghost" size="sm" onClick={onCopy}>
+                        {<Copy size={14} />}
                         Copy
                     </Button>
                 </div>
@@ -69,29 +96,31 @@ const CellContentPopover = memo(
             }
         }, [copyText])
 
+        // antd mouseEnterDelay 0.5s / mouseLeaveDelay 0.2s.
+        const hover = useHoverOpen(500, 200)
+
         if (disabled) {
             return <>{children}</>
         }
 
         return (
-            <Popover
-                trigger="hover"
-                mouseEnterDelay={0.5}
-                mouseLeaveDelay={0.2}
-                destroyOnHidden
-                styles={{
-                    root: {
-                        maxWidth,
-                        maxHeight: 400,
-                    },
-                }}
-                content={
+            <Popover open={hover.open} onOpenChange={hover.setOpen}>
+                {/* Anchor (not Trigger): the cell keeps its own click semantics. */}
+                <PopoverAnchor asChild>
+                    <div onMouseEnter={hover.onMouseEnter} onMouseLeave={hover.onMouseLeave}>
+                        {children}
+                    </div>
+                </PopoverAnchor>
+                <PopoverContent
+                    onMouseEnter={hover.onMouseEnter}
+                    onMouseLeave={hover.onMouseLeave}
+                    onOpenAutoFocus={(e) => e.preventDefault()}
+                    style={{maxWidth, maxHeight: 400}}
+                >
                     <PopoverContentWrapper onCopy={showCopy && copyText ? handleCopy : undefined}>
                         {fullContent}
                     </PopoverContentWrapper>
-                }
-            >
-                {children}
+                </PopoverContent>
             </Popover>
         )
     },

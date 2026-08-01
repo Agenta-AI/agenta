@@ -4,10 +4,9 @@
  * A custom Lexical node for rendering base64 strings in a collapsed/truncated view.
  * Shows a preview with file icon and allows viewing/copying the full content on hover.
  */
-import React, {useCallback, useMemo, useState} from "react"
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {FileArchive, FilePdf, FileText, Image as ImageIcon} from "@phosphor-icons/react"
-import {Popover, Typography, Button, message} from "antd"
 import {
     DecoratorNode,
     EditorConfig,
@@ -17,9 +16,10 @@ import {
     Spread,
 } from "lexical"
 
+import {Button} from "../../../../components/ui/button"
+import {Popover, PopoverAnchor, PopoverContent} from "../../../../components/ui/popover"
+import {message} from "../../../../utils/appMessageContext"
 import {copyToClipboard} from "../../../../utils/copyToClipboard"
-
-const {Text} = Typography
 
 /** Regex to detect base64 data URLs */
 const BASE64_DATA_URL_REGEX = /^"?data:([^;]+);base64,([A-Za-z0-9+/=]{50,})"?$/
@@ -132,6 +132,47 @@ function FileTypeIcon({mimeType, size = 48}: {mimeType: string | null; size?: nu
 }
 
 /**
+ * Hover-open state for a Radix Popover, reproducing antd `trigger="hover"`
+ * (open after `enterDelayMs`, close after `leaveDelayMs`).
+ */
+function useHoverOpen(enterDelayMs: number, leaveDelayMs: number) {
+    const [open, setOpen] = useState(false)
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    const clearTimer = useCallback(() => {
+        if (timerRef.current != null) {
+            clearTimeout(timerRef.current)
+            timerRef.current = null
+        }
+    }, [])
+
+    useEffect(() => clearTimer, [clearTimer])
+
+    const schedule = useCallback(
+        (next: boolean, delay: number) => {
+            clearTimer()
+            timerRef.current = setTimeout(() => {
+                timerRef.current = null
+                setOpen(next)
+            }, delay)
+        },
+        [clearTimer],
+    )
+
+    const onMouseEnter = useCallback(() => schedule(true, enterDelayMs), [schedule, enterDelayMs])
+    const onMouseLeave = useCallback(() => schedule(false, leaveDelayMs), [schedule, leaveDelayMs])
+    const setOpenNow = useCallback(
+        (next: boolean) => {
+            clearTimer()
+            setOpen(next)
+        },
+        [clearTimer],
+    )
+
+    return {open, setOpen: setOpenNow, hoverProps: {onMouseEnter, onMouseLeave}}
+}
+
+/**
  * React component for rendering the base64 content
  */
 function Base64Component({
@@ -144,6 +185,8 @@ function Base64Component({
     nodeKey: string
 }) {
     const [copied, setCopied] = useState(false)
+    // antd `trigger="hover"` defaults: mouseEnterDelay/mouseLeaveDelay 0.1s.
+    const {open, setOpen, hoverProps} = useHoverOpen(100, 100)
     const parsed = parseBase64String(fullValue)
     const fileTypeLabel = getFileTypeLabel(mimeType)
     const isImage = mimeType?.startsWith("image/")
@@ -173,8 +216,8 @@ function Base64Component({
     const popoverContent = (
         <div className="max-w-[400px]">
             <div className="flex items-center justify-between gap-4 mb-3">
-                <Text strong>{fileTypeLabel}</Text>
-                <Button size="small" onClick={handleCopy}>
+                <span className="font-semibold">{fileTypeLabel}</span>
+                <Button variant="outline" size="sm" onClick={handleCopy}>
                     {copied ? "Copied!" : "Copy"}
                 </Button>
             </div>
@@ -196,9 +239,7 @@ function Base64Component({
                 ) : (
                     <div className="flex flex-col items-center gap-2 p-6">
                         <FileTypeIcon mimeType={mimeType} size={48} />
-                        <Text type="secondary" className="text-xs">
-                            {fileTypeLabel}
-                        </Text>
+                        <span className="text-xs text-colorTextDescription">{fileTypeLabel}</span>
                     </div>
                 )}
             </div>
@@ -206,14 +247,30 @@ function Base64Component({
     )
 
     return (
-        <Popover content={popoverContent} title={null} trigger="hover" placement="bottom">
-            <span
-                className="token token-string cursor-help border-b border-dashed border-gray-400"
-                data-lexical-base64="true"
-                data-node-key={nodeKey}
+        <Popover open={open} onOpenChange={setOpen}>
+            {/* Anchor (not Trigger): the popover is hover-driven, so the span must keep its own
+                click semantics instead of Radix's click-to-toggle. */}
+            <PopoverAnchor asChild>
+                <span
+                    className="token token-string cursor-help border-b border-dashed border-gray-400"
+                    data-lexical-base64="true"
+                    data-node-key={nodeKey}
+                    {...hoverProps}
+                >
+                    &quot;{parsed.preview}&quot;
+                </span>
+            </PopoverAnchor>
+            <PopoverContent
+                side="bottom"
+                align="center"
+                className="p-3"
+                // Hover popovers must not pull focus out of the editor.
+                onOpenAutoFocus={(e) => e.preventDefault()}
+                onCloseAutoFocus={(e) => e.preventDefault()}
+                {...hoverProps}
             >
-                &quot;{parsed.preview}&quot;
-            </span>
+                {popoverContent}
+            </PopoverContent>
         </Popover>
     )
 }

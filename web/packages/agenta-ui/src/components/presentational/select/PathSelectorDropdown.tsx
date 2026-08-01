@@ -24,11 +24,9 @@
 import {memo} from "react"
 
 import {Lightning, Table, Database} from "@phosphor-icons/react"
-import {Select, Typography} from "antd"
 
 import {cn} from "../../../utils/styles"
-
-const {Text} = Typography
+import {Combobox, type ComboboxOption} from "../../ui/combobox"
 
 // ============================================================================
 // TYPES
@@ -55,8 +53,8 @@ export interface PathSelectorItem {
 export interface PathSelectorDropdownProps {
     /** Currently selected path */
     value: string | undefined
-    /** Callback when path changes */
-    onChange: (value: string) => void
+    /** Callback when path changes (undefined when cleared) */
+    onChange: (value: string | undefined) => void
     /** Available paths to select from */
     paths: PathSelectorItem[]
     /** Placeholder text */
@@ -64,7 +62,7 @@ export interface PathSelectorDropdownProps {
     /** Allow clearing selection */
     allowClear?: boolean
     /** Size variant */
-    size?: "small" | "middle" | "large"
+    size?: "sm" | "default" | "lg"
     /** Additional CSS class */
     className?: string
     /** Whether the selector is disabled */
@@ -83,11 +81,12 @@ export interface PathSelectorDropdownProps {
 function defaultSourceIcon(source: string | undefined, size: number): React.ReactNode {
     switch (source) {
         case "testcase":
-            return <Table size={size} className="text-green-600 flex-shrink-0" />
+            return <Table size={size} className="text-colorSuccess flex-shrink-0" />
         case "output":
-            return <Lightning size={size} className="text-blue-500 flex-shrink-0" />
+            // Blue in both themes; colorPrimary is navy/olive here, not blue.
+            return <Lightning size={size} className="text-tag-blue flex-shrink-0" />
         default:
-            return <Database size={size} className="text-gray-400 flex-shrink-0" />
+            return <Database size={size} className="text-colorTextTertiary flex-shrink-0" />
     }
 }
 
@@ -104,15 +103,33 @@ export const PathSelectorDropdown = memo(function PathSelectorDropdown({
     paths,
     placeholder = "Select source...",
     allowClear = false,
-    size = "small",
+    size = "sm",
     className,
     disabled = false,
     renderSourceIcon,
 }: PathSelectorDropdownProps) {
-    const iconSize = size === "small" ? 12 : 14
+    const iconSize = size === "sm" ? 12 : 14
+
+    const options: ComboboxOption[] = paths.map((p) => ({
+        value: p.pathString || p.path,
+        searchValue: p.label,
+        label: (
+            <div className="flex w-full items-center justify-between">
+                <div className="flex items-center gap-1">
+                    {renderSourceIcon
+                        ? renderSourceIcon(p.source || "unknown")
+                        : defaultSourceIcon(p.source, iconSize)}
+                    <span className="truncate">{p.label}</span>
+                </div>
+                <span className="ml-2 text-xs text-colorTextDescription">
+                    {p.valueType || p.type || ""}
+                </span>
+            </div>
+        ),
+    }))
 
     return (
-        <Select
+        <Combobox
             value={value || undefined}
             onChange={onChange}
             placeholder={placeholder}
@@ -120,24 +137,7 @@ export const PathSelectorDropdown = memo(function PathSelectorDropdown({
             size={size}
             allowClear={allowClear}
             disabled={disabled}
-            showSearch
-            optionFilterProp="label"
-            options={paths.map((p) => ({
-                value: p.pathString || p.path,
-                label: (
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1">
-                            {renderSourceIcon
-                                ? renderSourceIcon(p.source || "unknown")
-                                : defaultSourceIcon(p.source, iconSize)}
-                            <span className="truncate">{p.label}</span>
-                        </div>
-                        <Text type="secondary" className="text-xs ml-2">
-                            {p.valueType || p.type || ""}
-                        </Text>
-                    </div>
-                ),
-            }))}
+            options={options}
         />
     )
 })

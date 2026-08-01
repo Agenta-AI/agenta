@@ -21,5 +21,3 @@ export {
     type ExecutionMetricsDisplayProps,
     type ExecutionMetricsData,
 } from "./ExecutionMetricsDisplay"
-
-export {MappingStatusTag, type MappingStatusTagProps} from "./MappingStatusTag"

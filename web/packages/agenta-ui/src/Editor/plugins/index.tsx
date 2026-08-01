@@ -6,10 +6,10 @@ import {LexicalErrorBoundary} from "@lexical/react/LexicalErrorBoundary"
 import {HistoryPlugin} from "@lexical/react/LexicalHistoryPlugin"
 import {OnChangePlugin} from "@lexical/react/LexicalOnChangePlugin"
 import {RichTextPlugin} from "@lexical/react/LexicalRichTextPlugin"
-import {Skeleton} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
+import {Skeleton} from "../../components/ui/skeleton"
 import {markdownViewAtom} from "../state/assets/atoms"
 import type {EditorPluginsProps} from "../types"
 

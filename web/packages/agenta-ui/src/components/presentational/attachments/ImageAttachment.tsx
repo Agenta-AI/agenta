@@ -8,12 +8,10 @@
  * ```tsx
  * import { ImageAttachment } from '@agenta/ui'
  *
- * // With custom preview component
  * <ImageAttachment
  *   src="https://example.com/image.jpg"
  *   alt="Preview"
  *   onRemove={() => handleRemove()}
- *   ImagePreview={MyCustomPreview}
  * />
  *
  * // Simple usage
@@ -25,9 +23,9 @@
  * ```
  */
 
-import React from "react"
-
 import {cn} from "../../../utils/styles"
+
+import ImagePreview from "./ImagePreview"
 
 // ============================================================================
 // TYPES
@@ -56,15 +54,6 @@ export interface ImageAttachmentProps {
      */
     size?: number
     /**
-     * Optional custom image preview component
-     */
-    ImagePreview?: React.ComponentType<{
-        src: string
-        alt: string
-        size: number
-        isValidPreview: boolean
-    }>
-    /**
      * Additional CSS class name
      */
     className?: string
@@ -83,26 +72,16 @@ export function ImageAttachment({
     onRemove,
     disabled = false,
     size = 64,
-    ImagePreview,
     className,
 }: ImageAttachmentProps) {
     return (
         <div
             className={cn(
-                "relative group rounded-md overflow-hidden border border-gray-200",
+                "relative group rounded-md overflow-hidden border border-solid border-gray-200",
                 className,
             )}
         >
-            {ImagePreview ? (
-                <ImagePreview src={src} alt={alt} size={size} isValidPreview={true} />
-            ) : (
-                <img
-                    src={src}
-                    alt={alt}
-                    className="object-cover"
-                    style={{width: size, height: size}}
-                />
-            )}
+            <ImagePreview src={src} alt={alt} size={size} isValidPreview />
             {!disabled && onRemove && (
                 <button
                     type="button"

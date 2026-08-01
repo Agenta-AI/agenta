@@ -33,6 +33,8 @@ import React from "react"
 import {cn, flexLayouts, textColors} from "../../../utils/styles"
 import {VersionBadge} from "../version"
 
+import {AuthorLabel} from "./AuthorLabel"
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -150,7 +152,7 @@ export function RevisionLabel({
     // Author element - show actual author or invisible spacer for consistent height
     const authorElement = author ? (
         <div className={textColors.muted}>
-            {renderAuthor ? renderAuthor(author) : <span>by {author}</span>}
+            {renderAuthor ? renderAuthor(author) : <AuthorLabel author={author} />}
         </div>
     ) : reserveSubtitleSpace ? (
         <div className={cn("invisible", textColors.muted)}>&nbsp;</div>

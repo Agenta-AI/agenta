@@ -4,11 +4,10 @@
  * A custom Lexical node for rendering long text strings in a collapsed/truncated view.
  * Shows a preview with character count and allows viewing the full content via drill-in.
  */
-import React, {type KeyboardEvent, useCallback, useMemo, useState} from "react"
+import React, {type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {TextAlignLeft, ArrowSquareOut} from "@phosphor-icons/react"
-import {Popover, Typography, Button, message} from "antd"
 import {
     DecoratorNode,
     EditorConfig,
@@ -18,9 +17,10 @@ import {
     Spread,
 } from "lexical"
 
+import {Button} from "../../../../components/ui/button"
+import {Popover, PopoverAnchor, PopoverContent} from "../../../../components/ui/popover"
+import {message} from "../../../../utils/appMessageContext"
 import {useDrillInContext} from "../context/DrillInContext"
-
-const {Text} = Typography
 
 /** Minimum length for a string to be considered "long" and truncated */
 const MIN_LENGTH_FOR_TRUNCATION = 200
@@ -116,6 +116,47 @@ export type SerializedLongTextNode = Spread<
 >
 
 /**
+ * Hover-open state for a Radix Popover, reproducing antd `trigger="hover"`
+ * (open after `enterDelayMs`, close after `leaveDelayMs`).
+ */
+function useHoverOpen(enterDelayMs: number, leaveDelayMs: number) {
+    const [open, setOpen] = useState(false)
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    const clearTimer = useCallback(() => {
+        if (timerRef.current != null) {
+            clearTimeout(timerRef.current)
+            timerRef.current = null
+        }
+    }, [])
+
+    useEffect(() => clearTimer, [clearTimer])
+
+    const schedule = useCallback(
+        (next: boolean, delay: number) => {
+            clearTimer()
+            timerRef.current = setTimeout(() => {
+                timerRef.current = null
+                setOpen(next)
+            }, delay)
+        },
+        [clearTimer],
+    )
+
+    const onMouseEnter = useCallback(() => schedule(true, enterDelayMs), [schedule, enterDelayMs])
+    const onMouseLeave = useCallback(() => schedule(false, leaveDelayMs), [schedule, leaveDelayMs])
+    const setOpenNow = useCallback(
+        (next: boolean) => {
+            clearTimer()
+            setOpen(next)
+        },
+        [clearTimer],
+    )
+
+    return {open, setOpen: setOpenNow, hoverProps: {onMouseEnter, onMouseLeave}}
+}
+
+/**
  * React component for rendering the long text content
  */
 function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: string}) {
@@ -123,7 +164,8 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
     const {enabled: drillInEnabled, decodeEscapedJsonStrings} = useDrillInContext()
     const [copied, setCopied] = useState(false)
     const [expanded, setExpanded] = useState(false)
-    const [popoverOpen, setPopoverOpen] = useState(false)
+    // antd `mouseEnterDelay={0.3}` / `mouseLeaveDelay={0.2}`.
+    const {open: popoverOpen, setOpen: setPopoverOpen, hoverProps} = useHoverOpen(300, 200)
     const parsed = useMemo(
         () =>
             parseLongTextString(
@@ -147,12 +189,12 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
     const handleCollapse = useCallback(() => {
         setExpanded(false)
         setPopoverOpen(false)
-    }, [])
+    }, [setPopoverOpen])
 
     const handleExpand = useCallback(() => {
         setExpanded(true)
         setPopoverOpen(false)
-    }, [])
+    }, [setPopoverOpen])
 
     const handleDrillIn = useCallback(() => {
         // console.log("[LongTextNode] handleDrillIn called")
@@ -231,26 +273,22 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
             <div className="flex items-center justify-between gap-4 mb-3">
                 <div className="flex items-center gap-2">
                     <TextAlignLeft size={16} className="text-gray-500" />
-                    <Text strong>Long Text</Text>
-                    <Text type="secondary" className="text-xs">
+                    <span className="font-semibold">Long Text</span>
+                    <span className="text-xs text-colorTextDescription">
                         ({formatCharCount(parsed.charCount)})
-                    </Text>
+                    </span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button size="small" onClick={handleCopy}>
+                    <Button variant="outline" size="sm" onClick={handleCopy}>
                         {copied ? "Copied!" : "Copy"}
                     </Button>
                     {drillInEnabled ? (
-                        <Button
-                            size="small"
-                            type="primary"
-                            icon={<ArrowSquareOut size={14} />}
-                            onClick={handleAction}
-                        >
+                        <Button size="sm" variant="default" onClick={handleAction}>
+                            {<ArrowSquareOut size={14} />}
                             Drill In
                         </Button>
                     ) : (
-                        <Button size="small" type="primary" onClick={handleAction}>
+                        <Button size="sm" variant="default" onClick={handleAction}>
                             {actionLabel}
                         </Button>
                     )}
@@ -259,9 +297,9 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
 
             {/* Full Text Content */}
             <div className="bg-gray-50 rounded-lg p-3 max-h-[300px] overflow-y-auto">
-                <Text className="text-xs whitespace-pre-wrap break-words font-mono">
+                <span className="text-xs whitespace-pre-wrap break-words font-mono">
                     {parsed.fullValue}
-                </Text>
+                </span>
             </div>
         </div>
     )
@@ -269,74 +307,84 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
     // When expanded, show the full text inline while preserving a clear interactive state.
     if (expanded) {
         return (
-            <Popover
-                content={popoverContent}
-                title={null}
-                trigger={["hover"]}
-                open={popoverOpen}
-                onOpenChange={setPopoverOpen}
-                placement="topLeft"
-                mouseEnterDelay={0.3}
-                mouseLeaveDelay={0.2}
-                overlayStyle={{pointerEvents: "auto"}}
-                arrow={{pointAtCenter: false}}
-            >
-                <span
-                    className="inline-flex items-start gap-1 cursor-pointer rounded border border-dashed border-blue-300 bg-blue-50/40 px-1 py-[1px] hover:border-blue-400 hover:bg-blue-50/60 transition-colors"
-                    onClick={handleCollapse}
-                    role="button"
-                    tabIndex={0}
-                    aria-expanded
-                    onKeyDown={handleExpandedKeyDown}
-                    title="Click to collapse"
-                >
-                    <span className="text-[10px] text-blue-500 mt-[2px] select-none">[-]</span>
-                    <span className="text-[10px] text-blue-500 mt-[2px] shrink-0 select-none">
-                        [{formatCharCount(parsed.charCount)}]
-                    </span>
+            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                {/* Anchor (not Trigger): the popover is hover-driven, so the span keeps its own
+                    click-to-collapse semantics instead of Radix's click-to-toggle. */}
+                <PopoverAnchor asChild>
                     <span
-                        ref={spanRef}
-                        className="token token-string whitespace-pre-wrap break-words hover:opacity-80 transition-opacity"
-                        data-lexical-longtext="true"
-                        data-node-key={nodeKey}
+                        className="inline-flex items-start gap-1 cursor-pointer rounded border border-dashed border-blue-300 bg-blue-50/40 px-1 py-[1px] hover:border-blue-400 hover:bg-blue-50/60 transition-colors"
+                        onClick={handleCollapse}
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded
+                        onKeyDown={handleExpandedKeyDown}
+                        title="Click to collapse"
+                        {...hoverProps}
                     >
-                        &quot;{parsed.fullValue}&quot;
+                        <span className="text-[10px] text-blue-500 mt-[2px] select-none">[-]</span>
+                        <span className="text-[10px] text-blue-500 mt-[2px] shrink-0 select-none">
+                            [{formatCharCount(parsed.charCount)}]
+                        </span>
+                        <span
+                            ref={spanRef}
+                            className="token token-string whitespace-pre-wrap break-words hover:opacity-80 transition-opacity"
+                            data-lexical-longtext="true"
+                            data-node-key={nodeKey}
+                        >
+                            &quot;{parsed.fullValue}&quot;
+                        </span>
                     </span>
-                </span>
+                </PopoverAnchor>
+                <PopoverContent
+                    side="top"
+                    align="start"
+                    className="p-3"
+                    // Hover popovers must not pull focus out of the editor.
+                    onOpenAutoFocus={(e) => e.preventDefault()}
+                    onCloseAutoFocus={(e) => e.preventDefault()}
+                    {...hoverProps}
+                >
+                    {popoverContent}
+                </PopoverContent>
             </Popover>
         )
     }
 
     // Collapsed state with hover actions and click-to-expand
     return (
-        <Popover
-            content={popoverContent}
-            title={null}
-            open={popoverOpen}
-            onOpenChange={setPopoverOpen}
-            trigger={["hover"]}
-            placement="topLeft"
-            mouseEnterDelay={0.3}
-            mouseLeaveDelay={0.2}
-            overlayStyle={{pointerEvents: "auto"}}
-            arrow={{pointAtCenter: false}}
-        >
-            <span
-                ref={spanRef}
-                className="token token-string cursor-pointer border-b border-dashed border-blue-400"
-                data-lexical-longtext="true"
-                data-node-key={nodeKey}
-                onClick={handleExpand}
-                onKeyDown={handleCollapsedKeyDown}
-                role="button"
-                tabIndex={0}
-                aria-expanded={false}
-            >
-                &quot;{parsed.preview}...&quot;
-                <span className="text-[10px] text-blue-500 ml-1">
-                    [{formatCharCount(parsed.charCount)}]
+        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+            {/* Anchor (not Trigger): the popover is hover-driven, so the span keeps its own
+                click-to-expand semantics instead of Radix's click-to-toggle. */}
+            <PopoverAnchor asChild>
+                <span
+                    ref={spanRef}
+                    className="token token-string cursor-pointer border-b border-dashed border-blue-400"
+                    data-lexical-longtext="true"
+                    data-node-key={nodeKey}
+                    onClick={handleExpand}
+                    onKeyDown={handleCollapsedKeyDown}
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={false}
+                    {...hoverProps}
+                >
+                    &quot;{parsed.preview}...&quot;
+                    <span className="text-[10px] text-blue-500 ml-1">
+                        [{formatCharCount(parsed.charCount)}]
+                    </span>
                 </span>
-            </span>
+            </PopoverAnchor>
+            <PopoverContent
+                side="top"
+                align="start"
+                className="p-3"
+                // Hover popovers must not pull focus out of the editor.
+                onOpenAutoFocus={(e) => e.preventDefault()}
+                onCloseAutoFocus={(e) => e.preventDefault()}
+                {...hoverProps}
+            >
+                {popoverContent}
+            </PopoverContent>
         </Popover>
     )
 }

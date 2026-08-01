@@ -2,8 +2,8 @@ import {useEffect, useState} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {Stop} from "@phosphor-icons/react"
-import {Button} from "antd"
 
+import {Button} from "../../components/ui/button"
 import {$isBlankMessage, submitEditorAsMarkdown} from "../assets/submit"
 import {ComposerSendButton} from "../ComposerSendButton"
 
@@ -59,18 +59,14 @@ export function SendButton({onSubmit, forceEnabled, disabled, streaming, onStop}
                     }}
                 />
                 <Button
-                    type="text"
-                    shape="circle"
+                    size="icon"
+                    variant="ghost"
+                    className="rounded-control-round"
                     aria-label="Stop"
-                    icon={
-                        <Stop
-                            size={13}
-                            weight="fill"
-                            className="text-[var(--ag-colorTextSecondary)]"
-                        />
-                    }
                     onClick={onStop}
-                />
+                >
+                    <Stop size={13} weight="fill" className="text-[var(--ag-colorTextSecondary)]" />
+                </Button>
             </span>
         )
     }

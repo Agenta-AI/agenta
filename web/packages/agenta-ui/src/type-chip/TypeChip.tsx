@@ -1,4 +1,4 @@
-import type {CSSProperties} from "react"
+import {memo, type CSSProperties} from "react"
 
 import {inferLogicalType, type LogicalType} from "@agenta/shared/utils"
 
@@ -26,8 +26,6 @@ export interface TypeChipProps {
     label?: string
     ambiguousOnly?: boolean
     onClick?: () => void
-    notificationBadge?: boolean
-    badgeTooltip?: string
 }
 
 const STYLES: Record<
@@ -104,26 +102,7 @@ const AMBIGUOUS_HIDE = new Set<ChipVariant>(["string", "number", "boolean"])
 // primitive literals remain strings; explicit decode flows parse separately.
 const inferVariant = inferLogicalType
 
-if (typeof document !== "undefined" && !document.getElementById("type-chip-badge-keyframes")) {
-    const s = document.createElement("style")
-    s.id = "type-chip-badge-keyframes"
-    s.textContent = `@keyframes chipBadgePulse {
-    0% { box-shadow: 0 0 0 0 rgba(114, 46, 209, 0.6); }
-    70% { box-shadow: 0 0 0 5px rgba(114, 46, 209, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(114, 46, 209, 0); }
-}`
-    document.head.appendChild(s)
-}
-
-export function TypeChip({
-    variant,
-    value,
-    label,
-    ambiguousOnly,
-    onClick,
-    notificationBadge,
-    badgeTooltip,
-}: TypeChipProps) {
+function TypeChipImpl({variant, value, label, ambiguousOnly, onClick}: TypeChipProps) {
     const resolved: ChipVariant = variant ?? (value !== undefined ? inferVariant(value) : "string")
     if (ambiguousOnly && AMBIGUOUS_HIDE.has(resolved)) return null
 
@@ -147,32 +126,12 @@ export function TypeChip({
         ...(style.italic ? {fontStyle: "italic"} : undefined),
     }
 
-    const badge = notificationBadge ? (
-        <span
-            aria-hidden="true"
-            title={badgeTooltip}
-            style={{
-                position: "absolute",
-                top: -3,
-                right: -3,
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: "var(--ant-purple-6)",
-                border: "1.5px solid white",
-                animation: "chipBadgePulse 1.6s ease-out infinite",
-                pointerEvents: "none",
-            }}
-        />
-    ) : null
-
     if (onClick) {
         return (
             <button
                 type="button"
                 onClick={onClick}
                 aria-label={`Type: ${text}`}
-                title={badgeTooltip}
                 style={{
                     ...baseStyle,
                     cursor: "pointer",
@@ -189,17 +148,13 @@ export function TypeChip({
                 }}
             >
                 {text}
-                {badge}
             </button>
         )
     }
 
-    return (
-        <span style={baseStyle}>
-            {text}
-            {badge}
-        </span>
-    )
+    return <span style={baseStyle}>{text}</span>
 }
+
+export const TypeChip = memo(TypeChipImpl)
 
 export default TypeChip

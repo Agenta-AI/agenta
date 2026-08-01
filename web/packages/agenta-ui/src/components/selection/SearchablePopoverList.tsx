@@ -28,7 +28,10 @@
 import React, {useMemo, useState} from "react"
 
 import {filterItems} from "@agenta/shared/utils"
-import {Empty, Spin, Tooltip} from "antd"
+
+import {EmptyState} from "../ui/empty-state"
+import {Spinner} from "../ui/spinner"
+import {Tooltip, TooltipContent, TooltipTrigger} from "../ui/tooltip"
 
 import {EntityListItem} from "./ListItem"
 import {SearchInput} from "./SearchInput"
@@ -192,8 +195,8 @@ export function SearchablePopoverList<T>({
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-4 px-6" style={{minWidth}}>
-                <Spin size="small" />
-                <span className="ml-2 text-zinc-600">{loadingMessage}</span>
+                <Spinner size="small" />
+                <span className="ml-2 text-colorTextSecondary">{loadingMessage}</span>
             </div>
         )
     }
@@ -202,9 +205,9 @@ export function SearchablePopoverList<T>({
     if (filteredItems.length === 0) {
         return (
             <div className="py-4 px-6" style={{minWidth}}>
-                <Empty
+                <EmptyState
                     description={searchTerm ? noMatchesMessage : emptyMessage}
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    image="simple"
                 />
             </div>
         )
@@ -214,7 +217,7 @@ export function SearchablePopoverList<T>({
         <div className={className} style={{minWidth, maxWidth}}>
             {/* Search input (show if items > threshold) */}
             {items.length > searchThreshold && (
-                <div className="p-2 border-b border-zinc-200 dark:border-zinc-700">
+                <div className="box-border border-0 border-b border-solid border-colorBorderSecondary p-2">
                     <SearchInput
                         value={searchTerm}
                         onChange={setSearchTerm}
@@ -236,16 +239,19 @@ export function SearchablePopoverList<T>({
                     // Disabled items: show tooltip, grayed out, not clickable
                     if (isDisabled) {
                         return (
-                            <Tooltip key={itemId} title={disabledTooltip}>
-                                <div className="opacity-50 cursor-not-allowed">
-                                    <EntityListItem
-                                        label={label}
-                                        labelNode={labelNode}
-                                        isSelectable={false}
-                                        isSelected={isSelected}
-                                        className={itemClassName}
-                                    />
-                                </div>
+                            <Tooltip key={itemId}>
+                                <TooltipTrigger asChild>
+                                    <div className="opacity-50 cursor-not-allowed">
+                                        <EntityListItem
+                                            label={label}
+                                            labelNode={labelNode}
+                                            isSelectable={false}
+                                            isSelected={isSelected}
+                                            className={itemClassName}
+                                        />
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent>{disabledTooltip}</TooltipContent>
                             </Tooltip>
                         )
                     }

@@ -25,10 +25,18 @@
 import {useMemo} from "react"
 
 import {CaretUpDown} from "@phosphor-icons/react"
-import {Button, Dropdown} from "antd"
-import type {MenuProps} from "antd"
 
-import {bgColors, cn, flexLayouts} from "../../../utils/styles"
+import {bgColors, flexLayouts} from "../../../utils/styles"
+import {Button} from "../../ui/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "../../ui/dropdown-menu"
+// The tailwind-merge `cn`, not the clsx-only one in utils/styles: this composes against
+// `buttonVariants`, and clsx keeps `px-btn px-2` both, letting stylesheet order win.
+import {cn} from "../../ui/utils"
 
 // ============================================================================
 // TYPES
@@ -94,39 +102,43 @@ export function SimpleDropdownSelect({
     className,
     disabled,
 }: SimpleDropdownSelectProps) {
-    const menuItems: MenuProps["items"] = useMemo(() => {
+    const menuItems = useMemo(() => {
         return options.map((item) => ({
             key: item.key ?? item.value,
+            value: item.value,
             label: item.label,
-            className: "capitalize",
-            onClick: () => onChange(item.value),
             disabled: item.disabled,
         }))
-    }, [options, onChange])
+    }, [options])
 
     return (
-        <Dropdown
-            disabled={disabled}
-            menu={{items: menuItems}}
-            trigger={["click"]}
-            styles={{
-                root: {
-                    width: 150,
-                },
-            }}
-        >
-            <Button
-                className={cn(
-                    flexLayouts.rowCenter,
-                    "capitalize px-2",
-                    bgColors.hoverState,
-                    className,
-                )}
-                type="text"
-            >
-                {value || placeholder} <CaretUpDown size={14} />
-            </Button>
-        </Dropdown>
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild disabled={disabled}>
+                <Button
+                    className={cn(
+                        flexLayouts.rowCenter,
+                        "capitalize px-2",
+                        bgColors.hoverState,
+                        className,
+                    )}
+                    variant="ghost"
+                >
+                    {value || placeholder} <CaretUpDown size={14} />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[150px]">
+                {menuItems.map((item) => (
+                    <DropdownMenuItem
+                        key={item.key}
+                        className="capitalize"
+                        disabled={item.disabled}
+                        onClick={() => onChange(item.value)}
+                    >
+                        {item.label}
+                    </DropdownMenuItem>
+                ))}
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 }
 
