@@ -9,6 +9,78 @@ import {useCallback, useEffect, useRef, useState} from "react"
 
 const SPRING_MS = 700
 
+export interface DroppedFileItem {
+  file: File;
+  relativePath: string;
+}
+
+/**
+ * Recursively traverses dropped DataTransferItems to extract all files,
+ * walking subdirectories using webkitGetAsEntry.
+ */
+export async function getFilesFromDataTransfer(
+  items: DataTransferItemList
+): Promise<DroppedFileItem[]> {
+  const results: DroppedFileItem[] = [];
+
+  async function traverseEntry(entry: FileSystemEntry, path = ""): Promise<void> {
+    if (entry.isFile) {
+      const fileEntry = entry as FileSystemFileEntry;
+      await new Promise<void>((resolve) => {
+        fileEntry.file((file) => {
+          const relativePath = path ? `${path}/${file.name}` : file.name;
+          Object.defineProperty(file, "relativePath", {
+            value: relativePath,
+            writable: true,
+            configurable: true,
+          });
+          results.push({ file, relativePath });
+          resolve();
+        });
+      });
+    } else if (entry.isDirectory) {
+      const dirEntry = entry as FileSystemDirectoryEntry;
+      const dirReader = dirEntry.createReader();
+
+      let batch: FileSystemEntry[] = [];
+      do {
+        batch = await new Promise<FileSystemEntry[]>((resolve) => {
+          dirReader.readEntries((entries) => resolve(entries || []));
+        });
+
+        const folderPath = path ? `${path}/${entry.name}` : entry.name;
+        for (const childEntry of batch) {
+          await traverseEntry(childEntry, folderPath);
+        }
+      } while (batch.length > 0);
+    }
+  }
+
+  const promises: Promise<void>[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const entry = items[i].webkitGetAsEntry?.();
+    if (entry) {
+      promises.push(traverseEntry(entry));
+    }
+  }
+
+  await Promise.all(promises);
+  return results;
+}
+
+/**
+ * Helper to safely extract files from DataTransfer, falling back to e.dataTransfer.files
+ */
+async function extractFilesFromDataTransfer(dataTransfer: DataTransfer): Promise<File[]> {
+  if (dataTransfer.items && dataTransfer.items.length > 0) {
+    const droppedItems = await getFilesFromDataTransfer(dataTransfer.items);
+    if (droppedItems.length > 0) {
+      return droppedItems.map((item) => item.file);
+    }
+  }
+  return Array.from(dataTransfer.files ?? []);
+}
+
 export const isFileDrag = (e: React.DragEvent): boolean =>
     Array.from(e.dataTransfer?.types ?? []).includes("Files")
 
@@ -116,12 +188,14 @@ export function useDriveDrop({
                 e.preventDefault()
                 e.stopPropagation()
             },
-            onDrop: (e: React.DragEvent) => {
+            onDrop: async (e: React.DragEvent) => {
                 if (!isFileDrag(e)) return
                 e.preventDefault()
                 e.stopPropagation()
-                const files = Array.from(e.dataTransfer.files)
-                if (files.length) onUpload(files, path)
+                if (e.dataTransfer) {
+                    const files = await extractFilesFromDataTransfer(e.dataTransfer)
+                    if (files.length) onUpload(files, path)
+                }
                 setHoverPath(null)
                 clearSpring()
             },
@@ -139,11 +213,13 @@ export function useDriveDrop({
             onDragOver: (e: React.DragEvent) => {
                 if (isFileDrag(e)) e.preventDefault()
             },
-            onDrop: (e: React.DragEvent) => {
+            onDrop: async (e: React.DragEvent) => {
                 if (!isFileDrag(e)) return
                 e.preventDefault()
-                const files = Array.from(e.dataTransfer.files)
-                if (files.length) onUpload(files, currentFolder)
+                if (e.dataTransfer) {
+                    const files = await extractFilesFromDataTransfer(e.dataTransfer)
+                    if (files.length) onUpload(files, currentFolder)
+                }
                 setHoverPath(null)
                 clearSpring()
             },
@@ -182,12 +258,14 @@ export function useStageDrop(onFiles: ((files: File[]) => void) | false | null |
                 setDropActive(true)
             },
             onDragLeave: () => setDropActive(false),
-            onDrop: (e) => {
+            onDrop: async (e) => {
                 if (!isFileDrag(e)) return
                 e.preventDefault()
                 setDropActive(false)
-                const files = Array.from(e.dataTransfer.files)
-                if (files.length) onFiles(files)
+                if (e.dataTransfer) {
+                    const files = await extractFilesFromDataTransfer(e.dataTransfer)
+                    if (files.length) onFiles(files)
+                }
             },
         },
     }
