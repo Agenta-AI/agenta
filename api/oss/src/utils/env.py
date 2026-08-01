@@ -518,7 +518,7 @@ class SessionAttachmentsConfig(BaseModel):
         os.getenv("AGENTA_ATTACHMENTS_MAX_OTHER_BYTES") or 10_485_760
     )
     max_per_session_count: int = int(
-        os.getenv("AGENTA_ATTACHMENTS_MAX_PER_SESSION_COUNT") or 100
+        os.getenv("AGENTA_ATTACHMENTS_MAX_PER_SESSION_COUNT") or 1000
     )
     max_per_session_bytes: int = int(
         os.getenv("AGENTA_ATTACHMENTS_MAX_PER_SESSION_BYTES") or 268_435_456

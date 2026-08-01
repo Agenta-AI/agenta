@@ -65,7 +65,7 @@ class AttachmentLimits(BaseModel):
     max_audio_bytes: int = 15 * 1024 * 1024
     max_document_bytes: int = 10 * 1024 * 1024
     max_other_bytes: int = 10 * 1024 * 1024
-    max_per_session_count: int = 100
+    max_per_session_count: int = 1000
     max_per_session_bytes: int = 256 * 1024 * 1024
     max_pending_per_session: int = 20
     pending_ttl_seconds: int = 15 * 60
