@@ -311,6 +311,36 @@ export function priorConversation(request: AgentRunRequest): ChatMessage[] {
 }
 
 /**
+ * True when the request ASSERTED a transcript beyond its own turn: its prior conversation (see
+ * `priorConversation`) still holds a user message. A last-message-only client never does (its
+ * prior conversation is empty), and neither does turn one of any conversation, which carries a
+ * single user message however the client sends history.
+ *
+ * A park records this so the resume knows how much of the incoming transcript the parked
+ * fingerprint can legitimately be compared against: a park whose request carried only the
+ * trailing user turn can only vouch for that turn and the tool calls it produced — see
+ * `historyTailFromLastUserTurn`.
+ */
+export function assertsPriorConversation(request: AgentRunRequest): boolean {
+  return priorConversation(request).some((message) => message.role === "user");
+}
+
+/**
+ * The tail of a conversation from its LAST user message onward (inclusive); the whole array when
+ * it holds no user message. This is exactly the span a minimal park's fingerprint covers: the
+ * one user turn its request carried plus that turn's own tool calls. Everything earlier is
+ * history the park never saw and therefore cannot check.
+ */
+export function historyTailFromLastUserTurn(
+  messages: readonly ChatMessage[],
+): ChatMessage[] {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === "user") return messages.slice(i);
+  }
+  return messages.slice();
+}
+
+/**
  * The approval decision (allow/deny) the incoming request carries for a specific parked gate's
  * tool-call id, or undefined when the request has no approval envelope for that id. Reuses the
  * cold path's `approvalDecisionOf` (responder.ts) to parse the `{approved}` envelope, and matches

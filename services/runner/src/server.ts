@@ -50,6 +50,7 @@ import type { MountCredentials } from "./engines/sandbox_agent/mount.ts";
 import type { TeardownReason } from "./engines/sandbox_agent/teardown.ts";
 import {
   approvalDecisionForToolCall,
+  assertsPriorConversation,
   computeCredentialEpoch,
   configFingerprint,
   credentialEpochMismatch,
@@ -63,6 +64,7 @@ import {
   type CredentialEpoch,
   expectedNextHistoryFingerprint,
   historyFingerprint,
+  historyTailFromLastUserTurn,
   poolKeyFor,
   priorConversation,
   readKeepaliveConfig,
@@ -446,6 +448,10 @@ export async function runWithKeepalive(
       env.lastTurnToolCallIds ?? [],
     );
 
+  // A park can only assert what its request carried: a last-message-only turn hashes ONE user
+  // turn, so its fingerprint must not later be compared against a full transcript.
+  const historyAsserted = assertsPriorConversation(request);
+
   const resultTeardownReason = (result: AgentRunResult): TeardownReason =>
     shouldPark(result, signal, clientGone)
       ? "clean-resumable"
@@ -553,6 +559,7 @@ export async function runWithKeepalive(
       environment: env,
       configFingerprint: cfgFp,
       historyFingerprint: nextHistoryFp(env),
+      historyAsserted,
       credentialEpoch: parkedEpoch(env, incomingEpoch.secretsHash),
       teardown: (reason: TeardownReason) => env.destroy({ reason }),
     };
@@ -592,6 +599,7 @@ export async function runWithKeepalive(
     const update = {
       configFingerprint: cfgFp,
       historyFingerprint: nextHistoryFp(env),
+      historyAsserted,
       credentialEpoch: parkedEpoch(env, live.credentialEpoch.secretsHash),
     };
     if (approvalToPark(env, result)) {
@@ -808,7 +816,15 @@ export async function runWithKeepalive(
         });
       }
     }
-    const priorFp = historyFingerprint(priorConversation(request));
+    const incomingPrior = priorConversation(request);
+    // A park that asserted a full transcript is checked against the whole incoming one; a park
+    // that only ever saw its own trailing user turn is checked against that turn's slice of it,
+    // which still catches an edited tail (text, attachment ids, or tool-call ids).
+    const priorFp = historyFingerprint(
+      existing.historyAsserted
+        ? incomingPrior
+        : historyTailFromLastUserTurn(incomingPrior),
+    );
     // An out-of-band answer (an inbox, a webhook, a CLI) builds its reply from the durable
     // interaction row and carries no conversation at all, so its prior fingerprint can never equal
     // the parked one and comparing it would evict the very session that could resume — the
