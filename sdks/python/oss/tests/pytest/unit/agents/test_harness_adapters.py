@@ -37,6 +37,7 @@ from agenta.sdk.agents.adapters.agenta_builtins import (
     force_skills,
 )
 from agenta.sdk.agents.adapters.harnesses import _normalize_tool_specs, _opt_str
+from agenta.sdk.agents.pi_builtins import PI_DEFAULT_ACTIVE_BUILTINS
 
 _CALLBACK = ToolCallback(endpoint="https://api.example/tools/call", authorization=None)
 
@@ -325,6 +326,55 @@ def test_claude_no_warning_without_builtins(make_env, monkeypatch):
     harness._to_harness_config(_session_config(permission_default="allow_reads"))
 
     assert recorded == []
+
+
+def _recorded_warnings(monkeypatch) -> list:
+    """Swap the adapter module's logger and collect the args of every warning it emits."""
+    recorded: list = []
+    monkeypatch.setattr(
+        harnesses,
+        "log",
+        type("L", (), {"warning": lambda self, *a, **k: recorded.append(a)})(),
+    )
+    return recorded
+
+
+def test_claude_stays_silent_for_the_untouched_default_builtin_set(
+    make_env, monkeypatch
+):
+    """The shipped default template carries exactly Pi's four defaults (issue #5590), so
+    warning on that set would fire on nearly every Claude run and drown the case the warning
+    exists for: an author who configured built-ins and then switched to Claude."""
+    recorded = _recorded_warnings(monkeypatch)
+    harness = ClaudeHarness(make_env(supported=[HarnessKind.CLAUDE]))
+
+    harness._to_harness_config(
+        _session_config(builtin_tools=list(PI_DEFAULT_ACTIVE_BUILTINS))
+    )
+
+    assert recorded == []
+
+
+@pytest.mark.parametrize(
+    "builtin_tools",
+    [
+        pytest.param(["bash"], id="subset"),
+        pytest.param([*PI_DEFAULT_ACTIVE_BUILTINS, "grep"], id="superset"),
+        pytest.param(["ls"], id="non_default_name"),
+    ],
+)
+def test_claude_warns_for_any_set_other_than_the_default(
+    make_env, monkeypatch, builtin_tools
+):
+    # Only the exact default set is assumed untouched; every other set is an authoring act
+    # Claude silently drops. The message names the tools so the author can see which.
+    recorded = _recorded_warnings(monkeypatch)
+    harness = ClaudeHarness(make_env(supported=[HarnessKind.CLAUDE]))
+
+    harness._to_harness_config(_session_config(builtin_tools=builtin_tools))
+
+    assert recorded, f"expected a warning for {builtin_tools}"
+    assert recorded[0][1] == ", ".join(builtin_tools)
 
 
 def test_claude_threads_permissions_and_renders_settings_file(make_env):

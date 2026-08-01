@@ -2,8 +2,9 @@
  * PiSettingsControl
  *
  * Pi-family harness settings that are authored through the agent template's existing `tools`
- * list. Built-ins persist as `{type: "builtin", name}` entries; an absent entry means Pi uses its
- * own defaults.
+ * list. Built-ins persist as `{type: "builtin", name}` entries, and only the listed names are
+ * granted. Neither an empty list nor a removed `tools` field falls back to Pi's own defaults:
+ * the SDK always emits the field, so both reach the runner as "grant nothing" (issue #5590).
  */
 import {memo, useCallback, useMemo} from "react"
 
@@ -22,7 +23,8 @@ interface BuiltinTool {
 export interface PiSettingsControlProps {
     /** The agent template's top-level `tools` value. */
     tools?: unknown[] | null
-    /** Called with the next top-level `tools` value; undefined removes an empty tools field. */
+    /** Called with the next top-level `tools` value; undefined when nothing is left to store,
+     * which grants no built-ins rather than restoring Pi's defaults. */
     onChange: (tools: unknown[] | undefined) => void
     /** Disable the control. */
     disabled?: boolean
@@ -108,7 +110,7 @@ export const PiSettingsControl = memo(function PiSettingsControl({
         <RailField
             label={railInfoLabel(
                 "Built-in tools",
-                "Optional Pi built-ins to author explicitly; empty leaves Pi's harness defaults.",
+                "The Pi built-ins this agent can use. Clearing the selection leaves the agent with no built-ins.",
             )}
             align="center"
         >
@@ -118,7 +120,7 @@ export const PiSettingsControl = memo(function PiSettingsControl({
                 value={selected}
                 onChange={(value) => writeSelected(value)}
                 options={PI_BUILTIN_OPTIONS}
-                placeholder="Pi defaults"
+                placeholder="No built-ins"
                 disabled={disabled}
             />
         </RailField>

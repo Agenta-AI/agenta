@@ -21,11 +21,13 @@ import pytest
 
 from agenta.sdk.agents import (
     AgentaAgentTemplate,
+    AgentTemplate,
     ClaudeAgentTemplate,
     Endpoint,
     HarnessKind,
     Message,
     PiAgentTemplate,
+    PiHarness,
     ResolvedConnection,
     RunContext,
     RunContextReference,
@@ -33,8 +35,10 @@ from agenta.sdk.agents import (
     RunContextTrace,
     RunContextWorkflow,
     SandboxPermission,
+    SessionConfig,
     SkillTemplate,
     ToolCallback,
+    ToolResolver,
     TraceContext,
 )
 from agenta.sdk.agents.utils.wire import (
@@ -42,6 +46,7 @@ from agenta.sdk.agents.utils.wire import (
     result_from_wire,
     sanitize_runner_error,
 )
+from agenta.sdk.utils.types import build_agent_v0_default
 
 # The full set of top-level keys ``request_to_wire`` may emit. The TS ``AgentRunRequest``
 # interface must declare a superset of these. Adding a key here without adding it to
@@ -307,6 +312,37 @@ def test_request_to_wire_pi_matches_golden(golden):
     }
     # Pi renders no harness files, so the generic `harnessFiles` key is absent.
     assert "harnessFiles" not in payload
+
+
+async def test_default_template_grants_pi_default_builtins_on_the_wire(make_env):
+    """A default-derived agent must reach the runner with Pi's built-ins granted (issue #5590).
+
+    The runner reads ``tools: []`` as "grant nothing" and deletes every built-in from Pi's
+    active set, so an empty list here means a saved agent has no read, bash, edit or write
+    anywhere outside the playground. This starts from the SHIPPED default rather than a
+    hand-written template, and it runs the real chain (template parse, tool resolution, the Pi
+    harness adapter, the wire serializer), because any of those layers could drop the built-ins
+    on the way.
+    """
+    template = AgentTemplate.from_params({"agent": build_agent_v0_default()})
+    resolved = await ToolResolver().resolve(template.tools)
+    harness = PiHarness(make_env(supported=[HarnessKind.PI]))
+    config = harness._to_harness_config(
+        SessionConfig(
+            agent=template,
+            builtin_names=resolved.builtin_names,
+            tool_specs=resolved.tool_specs,
+        )
+    )
+
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+
+    assert payload["tools"] == ["read", "bash", "edit", "write"]
 
 
 def test_request_to_wire_omits_run_context_when_none():

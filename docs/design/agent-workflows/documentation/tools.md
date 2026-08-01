@@ -30,7 +30,7 @@ shares two fields through `ToolConfigBase`, and then a `type` discriminator pick
 
 | Config (`type`) | Carries | Example use |
 | --- | --- | --- |
-| `builtin` | `name` | A harness-native tool such as Pi's `read` or `web_search`. |
+| `builtin` | `name` | A harness-native tool such as Pi's `read` or `web_search`. The shipped default template grants Pi's four default built-ins (`read`, `bash`, `edit`, `write`); see [the grant list](#built-in-tools-the-harness-runs-them-natively-gated-through-the-same-relay). |
 | `gateway` | `provider`, `integration`, `action`, `connection`, optional `name` | A Composio action, like `github__create_issue` on a connected account. |
 | `code` | `name`, `runtime` (`python`/`node`), `script`, `input_schema`, `secrets` | An inline snippet the author writes, with named vault secrets injected. |
 | `client` | `name`, `input_schema` | A tool the browser fulfils, like "ask the user to pick a date." |
@@ -400,6 +400,30 @@ separately, at session start. The extension edits Pi's active tool set at
 `before_agent_start`, replacing only the builtin slice with the granted names and leaving
 every non-builtin tool untouched. A builtin outside the grant list is simply absent from the
 model's active tools, so no call for it ever fires, and the permission hook never sees it.
+
+Three values of the wire `tools` field mean three different things, and the difference is the
+whole reason this list exists:
+
+- **Omitted.** The runner falls back to Pi's own default active set, `read`, `bash`, `edit`,
+  `write` (`PI_DEFAULT_ACTIVE_BUILTINS` in `run-plan.ts`).
+- **`[]`.** Grant nothing. Every builtin is removed from the model's active tools. This is an
+  author saying "no builtins", not an author saying nothing.
+- **A list of names.** Grant exactly those.
+
+The shipped default agent template names Pi's four defaults explicitly rather than leaving the
+field empty, so a saved agent carries the same builtins Pi would have activated on its own. The
+Python side of that list is `PI_DEFAULT_ACTIVE_BUILTINS` in
+`sdks/python/agenta/sdk/agents/pi_builtins.py`; it and the runner's TypeScript constant are two
+implementations of one contract, pinned against the shared golden fixture
+`sdks/python/oss/tests/pytest/unit/agents/golden/pi_default_active_builtins.json`.
+
+Granting a builtin is not the same as allowing it to run. Under the default permission mode
+`allow_reads`, a default agent runs `read` without asking and raises an approval on every
+`bash`, `edit`, and `write` call.
+
+Agents saved before that default shipped still carry `tools: []` and therefore still have no
+builtins. Nothing repairs them automatically. Their author has to open the agent, expand
+Advanced, select the built-ins in the "Built-in tools" control, and commit a new revision.
 
 ### External MCP servers: remote HTTP connections
 

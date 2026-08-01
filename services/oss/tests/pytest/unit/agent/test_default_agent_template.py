@@ -13,6 +13,7 @@ under the `harness` / `runner` / `sandbox` siblings.
 from __future__ import annotations
 
 from agenta.sdk.agents import AgentTemplate
+from agenta.sdk.agents.pi_builtins import PI_DEFAULT_ACTIVE_BUILTINS
 from agenta.sdk.engines.running.interfaces import agent_v0_interface
 from agenta.sdk.utils.types import build_agent_v0_default
 
@@ -59,21 +60,46 @@ def test_inspect_default_parses_into_the_runtime_selection():
     assert config.permission_default == "allow_reads"
 
 
+def _authoring_extra_tools(tools: list) -> list:
+    """The build-kit authoring entries: platform ops and the reserved client-tool embeds."""
+    return [
+        tool
+        for tool in tools
+        if not isinstance(tool, dict)
+        or tool.get("type") == "platform"
+        or "@ag.embed" in tool
+    ]
+
+
 def test_authoring_extras_absent_from_every_published_default():
     # Platform tools, the authoring skill, and elevated sandbox permissions belong to the
-    # playground build-kit overlay, not to the published default template.
+    # playground build-kit overlay, not to the published default template. Pi's built-ins are
+    # not authoring extras (they are the shipped grant list), so they are asserted separately
+    # by `test_published_default_grants_pi_default_builtins`.
     inspect_default = _inspect_agent_default()
     builtin_default = _builtin_agent_default()
 
-    assert inspect_default["tools"] == []
+    assert _authoring_extra_tools(inspect_default["tools"]) == []
     assert "skills" not in inspect_default
     assert "permissions" not in inspect_default["sandbox"]
     assert "execute_code" not in inspect_default["sandbox"]
     assert "write_files" not in inspect_default["sandbox"]
 
-    assert builtin_default["tools"] == []
+    assert _authoring_extra_tools(builtin_default["tools"]) == []
     assert "permissions" not in builtin_default["sandbox"]
     assert "skills" not in builtin_default
+
+
+def test_published_default_grants_pi_default_builtins():
+    """A new agent must be able to read, run shell commands, and edit and write files wherever
+    it runs, not only in the playground (issue #5590). The runner reads an empty tools list as
+    "grant nothing", so shipping `tools: []` left every saved agent with no built-ins outside
+    the playground overlay."""
+    expected = [
+        {"type": "builtin", "name": name} for name in PI_DEFAULT_ACTIVE_BUILTINS
+    ]
+    assert _inspect_agent_default()["tools"] == expected
+    assert _builtin_agent_default()["tools"] == expected
 
 
 def test_harness_default_is_pi_core_in_every_source():

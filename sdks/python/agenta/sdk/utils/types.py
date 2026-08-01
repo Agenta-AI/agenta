@@ -10,6 +10,7 @@ from pydantic import Field, model_validator, AliasChoices
 
 from agenta.sdk.agents.dtos import HARNESS_IDENTITIES, SandboxPermission
 from agenta.sdk.agents.mcp import MCPServerConfig
+from agenta.sdk.agents.pi_builtins import PI_DEFAULT_ACTIVE_BUILTINS
 from agenta.sdk.agents.tools import ToolConfig
 from agenta.sdk.agents.wire_models import run_contract_schemas
 from agenta.sdk.utils.assets import supported_llm_models, model_metadata
@@ -1417,7 +1418,7 @@ def build_agent_v0_default(
     """The default agent-template value, shared by the builtin interface and the service.
 
     The agent-template value that sits at ``parameters.agent`` (Step 1 of the agent-template
-    migration): the portable definition flat (instructions / llm / empty tools / mcps) plus the
+    migration): the portable definition flat (instructions / llm / tools / mcps) plus the
     nested execution parts (``harness`` / ``runner`` / ``sandbox``). ``include_sandbox_permission``
     adds the declared Layer-2 boundary the playground pre-fills (network egress on, strict).
     ``skill_slug`` adds one ``@ag.embed`` reference under ``skills`` to a stored skill the backend
@@ -1426,7 +1427,12 @@ def build_agent_v0_default(
     template: Dict[str, Any] = {
         "instructions": {"agents_md": _DEFAULT_AGENTS_MD},
         "llm": {"provider": _DEFAULT_AGENT_PROVIDER, "model": _DEFAULT_AGENT_MODEL},
-        "tools": [],
+        # Pi's own default active built-ins, in the typed form the strict schema describes. The
+        # runner reads an empty list as "grant nothing", which left a saved agent with no
+        # read/bash/edit/write anywhere outside the playground overlay (issue #5590).
+        "tools": [
+            {"type": "builtin", "name": name} for name in PI_DEFAULT_ACTIVE_BUILTINS
+        ],
         "mcps": [],
     }
     if skill_slug is not None:

@@ -238,6 +238,21 @@ def outcome_for_input(t: "Turn", wanted_input: dict) -> str | None:
     return None
 
 
+def default_tools(harness: str) -> list:
+    """The shipped default grant list for `harness`.
+
+    On Pi this is Pi's default active built-ins, matching the shipped default agent template: an
+    empty list means "grant nothing" to the runner, so seeding `[]` would gate the release on a
+    configuration no real agent uses (issue #5590). Only Pi reads `builtin` grants; a Claude cell
+    brings its own tools, so seeding Pi's names there would test nothing.
+    """
+    if not harness.startswith("pi"):
+        return []
+    return [
+        {"type": "builtin", "name": name} for name in ("read", "bash", "edit", "write")
+    ]
+
+
 def template(
     cell: dict,
     tools: list | None = None,
@@ -749,7 +764,7 @@ def j5_commit(cell: dict) -> dict:
             "agent": {
                 "instructions": {"agents_md": "seed"},
                 "llm": {"model": cell["model"], "provider": cell["provider"]},
-                "tools": [],
+                "tools": default_tools(cell["harness"]),
                 "harness": {"kind": cell["harness"]},
                 "sandbox": {"kind": cell["sandbox"]},
             }

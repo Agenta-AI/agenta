@@ -100,6 +100,11 @@ function seed(
     )
 }
 
+/** Minimal shape of the agent template these assertions read back off the request body. */
+interface AgentTemplateShape {
+    tools: {type?: string; name?: string; op?: string}[]
+}
+
 const authoringSkill = {
     "@ag.embed": {"@ag.references": {workflow: {slug: "__ag__getting_started_with_agenta"}}},
 }
@@ -334,6 +339,44 @@ describe("buildAgentRequest", () => {
         ])
         expect(template.skills).toEqual([authoringSkill])
         expect(config).toEqual(before)
+    })
+
+    it("does not duplicate Pi built-ins the default template already carries", async () => {
+        // The shipped default grants Pi's four built-ins (issue #5590) and the kit overlay
+        // prepends `read` and `bash`. The `name:<name>` identity merge is what keeps the two
+        // copies from both landing in the run's tools list.
+        const builtin = (name: string) => ({type: "builtin", name})
+        const config = {
+            agent: {
+                tools: [builtin("read"), builtin("bash"), builtin("edit"), builtin("write")],
+            },
+        }
+        seed(store, "e", {
+            config,
+            overlay: {
+                tools: [
+                    builtin("read"),
+                    builtin("bash"),
+                    {type: "platform", op: "commit_revision"},
+                ],
+            },
+            buildKitEnabled: true,
+        })
+
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const template = (req!.requestBody.data as {parameters: {agent: AgentTemplateShape}})
+            .parameters.agent
+
+        expect(template.tools).toEqual([
+            builtin("read"),
+            builtin("bash"),
+            builtin("edit"),
+            builtin("write"),
+            {type: "platform", op: "commit_revision"},
+        ])
+        for (const name of ["read", "bash", "edit", "write"]) {
+            expect(template.tools.filter((tool) => tool?.name === name)).toHaveLength(1)
+        }
     })
 
     it("applies the build-kit overlay to a BARE template (no agent wrapper)", async () => {

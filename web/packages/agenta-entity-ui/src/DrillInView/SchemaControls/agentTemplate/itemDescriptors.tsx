@@ -194,12 +194,15 @@ export function describeTool(tool: unknown): ItemDescriptor {
 
     // Built-in / provider tool: a bare `type` with no editable `function`.
     if (!fn || typeof fn !== "object") {
+        // Pi built-ins name themselves ({type:"builtin", name:"read"}); provider built-ins such as
+        // {type:"web_search_preview"} carry no name, so their `type` is the name.
+        const builtinName = typeof t.name === "string" && t.name ? (t.name as string) : undefined
         const typeValue =
             typeof t.type === "string" && t.type !== "function"
                 ? (t.type as string)
                 : Object.keys(t).find((k) => k !== "type" && k !== "function")
         return {
-            name: typeValue ?? "Built-in tool",
+            name: builtinName ?? typeValue ?? "Built-in tool",
             mono: "io",
             color: "#0d9488",
             tags: ["built-in"],

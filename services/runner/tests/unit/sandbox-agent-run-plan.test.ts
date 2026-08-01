@@ -149,6 +149,41 @@ describe("buildRunPlan", () => {
     });
   });
 
+  it("refuses a stalled history whose newest tool envelope is an unresolved call", () => {
+    // The approval was answered earlier; the newest envelope is a call nobody replied to, so
+    // this is not an approval reply and there is still no prompt to send.
+    const result = buildRunPlan(
+      {
+        messages: [
+          {
+            role: "assistant",
+            content: [
+              { type: "tool_call", toolCallId: "tc-1", toolName: "Write" },
+              {
+                type: "tool_result",
+                toolCallId: "tc-1",
+                toolName: "Write",
+                output: { approved: true, interactionToken: "tok-1" },
+              },
+            ],
+          },
+          {
+            role: "assistant",
+            content: [
+              { type: "tool_call", toolCallId: "tc-2", toolName: "Bash" },
+            ],
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/unused" },
+    );
+
+    assert.deepEqual(result, {
+      ok: false,
+      error: "No user message to send (prompt/messages empty).",
+    });
+  });
+
   it("accepts an out-of-band approval reply that carries no user text", () => {
     // What a caller answering from the durable interaction row sends: the parked call plus its
     // {approved} envelope, and nothing else. The conversation is rebuilt from the record log
@@ -446,6 +481,56 @@ describe("buildRunPlan", () => {
     assert.deepEqual(none.plan.builtinGrants, []);
     assert.equal(none.plan.builtinGatingActive, true);
     assert.equal(none.plan.useToolRelay, false);
+  });
+
+  it("keeps the fast path off for the shipped default's explicit four-builtin grant list", () => {
+    // The shipped default agent template now sends exactly Pi's own default set (issue #5590).
+    // Under a blanket allow that must stay equal to PI_DEFAULT_ACTIVE_BUILTINS, so gating stays
+    // off and no approval relay round trip is added per tool call — the reason this set was chosen.
+    const result = buildRunPlan(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        permissions: { default: "allow", rules: [] },
+        tools: ["read", "bash", "edit", "write"],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(result.plan.builtinGrants, [
+      "read",
+      "bash",
+      "edit",
+      "write",
+    ]);
+    assert.equal(result.plan.builtinGatingActive, false);
+    assert.equal(result.plan.useToolRelay, false);
+  });
+
+  it("turns builtin gating on for the same grant list under the default allow_reads mode", () => {
+    // allow_reads is the shipped default permission mode, and it can gate a builtin, so the
+    // fast path above is the blanket-allow case only.
+    const result = buildRunPlan(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "hello" }],
+        permissions: { default: "allow_reads", rules: [] },
+        tools: ["read", "bash", "edit", "write"],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(result.plan.builtinGrants, [
+      "read",
+      "bash",
+      "edit",
+      "write",
+    ]);
+    assert.equal(result.plan.builtinGatingActive, true);
   });
 
   it("turns builtin gating on when the permission kill switch is set", () => {

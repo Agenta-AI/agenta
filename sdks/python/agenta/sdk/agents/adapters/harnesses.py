@@ -31,6 +31,7 @@ from ..dtos import (
     SessionConfig,
 )
 from ..interfaces import Environment, Harness
+from ..pi_builtins import PI_DEFAULT_ACTIVE_BUILTINS
 from ..tools.models import ToolSpec, coerce_tool_spec
 from .agenta_builtins import (
     compose_append_system,
@@ -91,10 +92,15 @@ class ClaudeHarness(Harness):
     def _to_harness_config(self, config: SessionConfig) -> ClaudeAgentTemplate:
         # Claude has no Pi built-in tools; drop them rather than ship a name Claude cannot
         # honor. Tools go over MCP, and the shared permission plan is carried through.
-        if config.builtin_names:
+        # Exact-set equality, not a per-name filter: the shipped default carries exactly Pi's
+        # defaults, so that is the only set we can assume the author never touched, and a
+        # per-name filter would silence an authored subset such as ["bash"].
+        if config.builtin_names and set(config.builtin_names) != set(
+            PI_DEFAULT_ACTIVE_BUILTINS
+        ):
             log.warning(
-                "ClaudeHarness ignores %d built-in tool(s); built-ins are a Pi concept",
-                len(config.builtin_names),
+                "ClaudeHarness ignores built-in tool(s) %s; built-ins are a Pi concept",
+                ", ".join(config.builtin_names),
             )
         # Skills stay on the harness config; the runner materializes them under `.claude/skills`
         # in the session cwd so Claude ACP can load the same resolved inline packages.

@@ -1,4 +1,9 @@
 {
   "model": "gpt-5.6-luna",
-  "tools": []
+  "tools": [
+    { "type": "builtin", "name": "read" },
+    { "type": "builtin", "name": "bash" },
+    { "type": "builtin", "name": "edit" },
+    { "type": "builtin", "name": "write" }
+  ]
 }
