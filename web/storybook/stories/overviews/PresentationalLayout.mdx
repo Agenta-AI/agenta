@@ -1,0 +1,32 @@
+import {Meta} from "@storybook/addon-docs/blocks"
+
+<Meta title="@agenta/ui/Presentational/Layout/Overview" />
+
+# Presentational · Layout
+
+Structural scaffolding — page shells, panels, section headers, footers, split panes — that
+arrange other content. These are `@agenta/ui` composites with no single antd counterpart, so
+their stories render sample children to show the frame.
+
+| Component                  | What it is                                              | antd inside?              |
+| -------------------------- | ------------------------------------------------------- | ------------------------- |
+| **Section**                | Titled content section with optional actions.           | none (pure)               |
+| **PageLayout**             | Page shell with tabbed header + body.                   | antd `Tabs`, `Typography` |
+| **SplitPanelLayout**       | Two-pane split with a divider.                          | antd `Divider`            |
+| **ModalContentLayout**     | Body/scroll frame for modal contents.                   | none (pure)               |
+| **PanelFooter**            | Sticky action row at a panel's bottom.                  | none (pure)               |
+| **PanelHeader**            | Title + actions row at a panel's top.                   | antd `Typography`         |
+| **HeightCollapse**         | Animated height expand/collapse wrapper.                | none (pure)               |
+| **NumberedStep**           | Numbered step row for guided flows.                     | antd `Typography`         |
+| **CollapsibleGroupHeader** | Expandable group header for grouped rows.               | none (pure)               |
+| **ConfigAccordionSection** | Accordion section for config panels.                    | none (pure)               |
+| **MetadataHeader**         | Key/value metadata strip with tooltips.                 | antd `Tooltip`            |
+| **ScrollSentinel**         | Invisible intersection marker for scroll/infinite-load. | none (pure)               |
+
+**How to read these stories**
+
+- The **antd** column names any antd part still used internally (mostly `Typography`) — a
+  migration to-do — and reads _none (pure)_ where the frame is built only from `@agenta/ui`.
+- Stories fill each frame with placeholder children so the spacing / structure is visible.
+
+Open a component's **Docs** tab for its full prop table.

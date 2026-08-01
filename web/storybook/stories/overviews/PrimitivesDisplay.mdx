@@ -1,0 +1,30 @@
+import {Meta} from "@storybook/addon-docs/blocks"
+
+<Meta title="@agenta/ui/Primitives/Display/Overview" />
+
+# Display primitives
+
+The read-only presentation controls that replace antd's **Data Display** family. Each story
+shows the real **antd** control (the migration reference) beside the **@agenta/ui** component
+so the two can be pixel-diffed by the VRT gate.
+
+| Component      | Replaces (antd) | Notes                                                         |
+| -------------- | --------------- | ------------------------------------------------------------- |
+| **Badge**      | `Tag`           | cva `variant` × `size`; the base for the presentational tags. |
+| **Avatar**     | `Avatar`        | image / initials fallback; sizes track control tokens.        |
+| **Alert**      | `Alert`         | info / success / warning / error, optional icon + action.     |
+| **Divider**    | `Divider`       | horizontal / vertical, optional label.                        |
+| **Collapse**   | `Collapse`      | accordion; watch `fontHeight` (22px) on header rows.          |
+| **Tabs**       | `Tabs`          | line / card variants; compound `Tabs.List/Trigger/Content`.   |
+| **Breadcrumb** | `Breadcrumb`    | separators + overflow; inline `fontHeight` 22px.              |
+| **EmptyState** | `Empty`         | icon + title + description + optional action slot.            |
+
+**Conventions**
+
+- Geometry comes from the shared `controlScale` tokens, so height / padding / radius match
+  antd under the app theme (8px radius, 12px font, 22px inline `fontHeight`).
+- Colors are antd semantic tokens (`colorText`, `colorBorder`, `colorFill*`, …) — never raw
+  hex — so light and dark themes both track the app.
+- Every component here is migrated **and** VRT-gated (see `parity/vrt.mjs`).
+
+Open a component's **Docs** tab for its full prop table.

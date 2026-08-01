@@ -1,0 +1,28 @@
+import {Meta} from "@storybook/addon-docs/blocks"
+
+<Meta title="@agenta/ui/Presentational/Labels/Overview" />
+
+# Presentational · Labels
+
+Inline text labels that format an entity fact — an author, a revision, a path, a date — into
+a consistent readout. They compose `@agenta/ui` primitives (icon + text) and have no single
+antd counterpart, so their stories are shown alone.
+
+| Component                 | What it is                                   | antd inside?          |
+| ------------------------- | -------------------------------------------- | --------------------- |
+| **AuthorLabel**           | Avatar + author name for a change.           | none (pure)           |
+| **RevisionLabel**         | Variant + `vN` revision readout.             | none (pure)           |
+| **EntityPathLabel**       | Breadcrumb-style path to an entity.          | none (pure)           |
+| **EntityNameWithVersion** | Entity name suffixed with its version tag.   | none (pure)           |
+| **EntityListItemLabel**   | Row label: icon + name + meta for list rows. | none (pure)           |
+| **EntityIconLabel**       | Type icon + name label.                      | antd `Typography`     |
+| **FormattedDate**         | Relative / absolute date with tooltip.       | antd `Tag`, `Tooltip` |
+
+**How to read these stories**
+
+- The **antd** column carries _none (pure)_ where the label is built only from `@agenta/ui`
+  primitives; where an antd part is still used internally it is named as a migration to-do.
+- Names / versions / dates are passed as props (no atoms or fetchers), so the stories render
+  off static sample data.
+
+Open a component's **Docs** tab for its full prop table.

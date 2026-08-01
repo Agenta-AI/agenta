@@ -1,0 +1,31 @@
+import {Meta} from "@storybook/addon-docs/blocks"
+
+<Meta title="@agenta/ui/Primitives/Overlays/Overview" />
+
+# Overlays primitives
+
+The floating / portalled surfaces that replace antd's overlay family. These are
+**Radix-based, compound** primitives (`Trigger` + `Content` + parts) rather than the
+single-prop antd controls — the app's `EnhancedModal` / `EnhancedDrawer` are the
+antd-compatible facades layered over `Dialog` / `Sheet`.
+
+| Component       | Replaces (antd) | Notes                                                                 |
+| --------------- | --------------- | --------------------------------------------------------------------- |
+| **Dialog**      | `Modal`         | compound (`Dialog.Trigger/Content/Header/Footer`); modal radius 16px. |
+| **AlertDialog** | `Modal.confirm` | confirm/destructive variant with focused actions.                     |
+| **Sheet**       | `Drawer`        | side panel; `side` + `size` props map to antd `placement`/`width`.    |
+| **Tooltip**     | `Tooltip`       | hover/focus label; `provider` + `Trigger`/`Content`.                  |
+| **Dropdown**    | `Dropdown`      | menu overlay; compound trigger/content/item.                          |
+
+**Conventions**
+
+- Geometry comes from the shared `controlScale` tokens, so radius / padding / control
+  height match antd under the app theme (8px radius on controls, 16px on the dialog).
+- Colors are antd semantic tokens (`colorBgElevated`, `colorBorder`, …) — never raw hex —
+  so light and dark themes both track the app.
+- `EnhancedModal` / `EnhancedDrawer` keep the antd prop shape (`open`, `onCancel`,
+  `placement`, …) at call-sites and render through these primitives; see the **Enhanced**
+  section.
+- Migrated **and** VRT-gated (see `parity/vrt.mjs`).
+
+Open a component's **Docs** tab for its full prop table.

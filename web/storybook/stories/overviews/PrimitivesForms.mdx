@@ -1,0 +1,31 @@
+import {Meta} from "@storybook/addon-docs/blocks"
+
+<Meta title="@agenta/ui/Primitives/Forms/Overview" />
+
+# Forms primitives
+
+The data-entry controls that replace antd's **Data Entry** family. Each story shows the
+real **antd** control (top / left, the migration reference) beside the **@agenta/ui**
+component (bottom / right) so the two can be pixel-diffed by the VRT gate.
+
+| Component     | Replaces (antd)                             | Notes                                                 |
+| ------------- | ------------------------------------------- | ----------------------------------------------------- |
+| **Button**    | `Button`                                    | cva `variant` × `size`; `LoadingButton` for async.    |
+| **Input**     | `Input`, `Input.Password`, `Input.TextArea` | affix / clear / password variants.                    |
+| **Checkbox**  | `Checkbox`                                  | incl. indeterminate.                                  |
+| **Radio**     | `Radio`, `Radio.Group`                      | single + group.                                       |
+| **Switch**    | `Switch`                                    |                                                       |
+| **Select**    | `Select`                                    | single/multi; keeps a selected-check antd v6 dropped. |
+| **Combobox**  | `Select` (showSearch)                       | searchable, grouped options.                          |
+| **Segmented** | `Segmented`                                 |                                                       |
+| **Field**     | —                                           | label + control + help/error composite.               |
+
+**Conventions**
+
+- Geometry comes from the shared `controlScale` tokens, so height / padding / radius match
+  antd under the app theme (28px control height, 8px radius, 12px font).
+- Colors are antd semantic tokens (`colorText`, `colorBorder`, …) — never raw hex — so light
+  and dark themes both track the app.
+- Every component here is migrated **and** VRT-gated (see `parity/vrt.mjs`).
+
+Open any component's **Docs** tab for its full prop table (types, defaults, required).

@@ -1,0 +1,25 @@
+import {Meta} from "@storybook/addon-docs/blocks"
+
+<Meta title="@agenta/ui/Primitives/Feedback/Overview" />
+
+# Feedback primitives
+
+The loading / progress indicators that replace antd's **Feedback** family. Each story shows
+the real **antd** control (the migration reference) beside the **@agenta/ui** component so the
+two can be pixel-diffed by the VRT gate.
+
+| Component    | Replaces (antd) | Notes                                                  |
+| ------------ | --------------- | ------------------------------------------------------ |
+| **Skeleton** | `Skeleton`      | line / block / avatar placeholders; shimmer animation. |
+| **Spinner**  | `Spin`          | indeterminate loader; sizes track control tokens.      |
+| **Progress** | `Progress`      | line / circle; determinate percentage + status colors. |
+
+**Conventions**
+
+- Geometry comes from the shared `controlScale` tokens, so sizing / radius match antd under
+  the app theme.
+- Colors are antd semantic tokens (`colorPrimary`, `colorFillSecondary`, …) — never raw hex —
+  so light and dark themes both track the app.
+- Every component here is migrated **and** VRT-gated (see `parity/vrt.mjs`).
+
+Open a component's **Docs** tab for its full prop table.

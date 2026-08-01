@@ -1,0 +1,26 @@
+import {Meta} from "@storybook/addon-docs/blocks"
+
+<Meta title="@agenta/ui/Enhanced/Overview" />
+
+# Enhanced
+
+The **antd-prop-compatible facades** over the `@agenta/ui` primitives. Call-sites keep the
+antd prop shape they already pass (`open`, `onCancel`, `placement`, `type`, `loading`, …),
+while the render moves to the migrated primitive underneath. This lets ~80 modal sites and
+the drawer / button call-sites migrate without a prop rewrite.
+
+| Component          | Facade over | Notes                                                       |
+| ------------------ | ----------- | ----------------------------------------------------------- |
+| **EnhancedModal**  | `Dialog`    | antd `Modal` props → `Dialog`; modal radius 16px.           |
+| **EnhancedDrawer** | `Sheet`     | antd `Drawer` props (`placement`, `width`) → `Sheet`.       |
+| **EnhancedButton** | `Button`    | antd `Button` props (`type`, `loading`, `icon`) → `Button`. |
+
+**Conventions**
+
+- The facade preserves the antd API so existing call-sites compile unchanged; only the
+  underlying render is `@agenta/ui`.
+- Geometry / color still flow from the shared `controlScale` tokens + antd semantic colors,
+  so the facades match the primitives (and the app theme) in light and dark.
+- Match the **app's** Enhanced\* behaviour (e.g. modal radius 16px), not raw antd defaults.
+
+Open a component's **Docs** tab for its full prop table.

@@ -1,0 +1,23 @@
+import {Meta} from "@storybook/addon-docs/blocks"
+
+<Meta title="@agenta/ui/Presentational/Media/Overview" />
+
+# Presentational · Media
+
+Image and avatar helpers that add fallback / preview behaviour around a raw image. They are
+`@agenta/ui` composites with no single antd counterpart; a couple still wrap an antd part
+internally.
+
+| Component             | What it is                                        | antd inside?  |
+| --------------------- | ------------------------------------------------- | ------------- |
+| **ImagePreview**      | Click-to-zoom image with a lightbox.              | antd `Modal`  |
+| **ImageWithFallback** | `<img>` that swaps to a placeholder on error.     | none (pure)   |
+| **InitialsAvatar**    | Avatar that derives initials + color from a name. | antd `Avatar` |
+
+**How to read these stories**
+
+- The **antd** column names the antd part still used internally — that doubles as a
+  migration to-do — and reads _none (pure)_ for the plain image wrapper.
+- Stories use sample image URLs and a broken URL so the fallback path is exercised.
+
+Open a component's **Docs** tab for its full prop table.

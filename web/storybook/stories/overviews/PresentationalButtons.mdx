@@ -1,0 +1,29 @@
+import {Meta} from "@storybook/addon-docs/blocks"
+
+<Meta title="@agenta/ui/Presentational/Buttons/Overview" />
+
+# Presentational · Buttons
+
+App-specific button compositions — a base button plus a fixed icon, label, tooltip, or
+behaviour (copy, run, scroll-to-top). They wrap one button rather than reinventing it, so
+there is no separate antd control to diff against; the migration target for the base is the
+`@agenta/ui` **Button** primitive.
+
+| Component                | What it is                                                 | antd inside?                     |
+| ------------------------ | ---------------------------------------------------------- | -------------------------------- |
+| **RunButton**            | Run / rerun / cancel / run-all action (via a `mode` prop). | no — `@agenta/ui` Button         |
+| **CollapseToggleButton** | Expand/collapse chevron toggle with tooltip.               | no — Button + `ui/tooltip`       |
+| **CopyButton**           | Copy-to-clipboard with copied feedback state.              | no — `@agenta/ui` Button         |
+| **DropdownButton**       | Split button + attached dropdown menu.                     | no — Button + `ui/dropdown-menu` |
+| **ScrollToTopButton**    | Floating back-to-top control.                              | antd `Button`                    |
+
+_Removed: **AddButton** (trivial `<Button variant="outline"><Plus/>…</Button>` — inlined at call-sites) and **CopyButtonDropdown** (misnamed pass-through with no consumers — deleted)._
+
+**How to read these stories**
+
+- The **antd** column names the button these still wrap internally — that doubles as a
+  migration to-do toward the `@agenta/ui` Button primitive.
+- Behaviour (copied / running / visible-on-scroll) is driven by controls in the story so
+  the transient states are inspectable.
+
+Open a component's **Docs** tab for its full prop table.
