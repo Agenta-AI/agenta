@@ -4,6 +4,8 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import select
 
+from oss.src.core.mounts.dtos import Mount
+from oss.src.core.mounts.service import MountsService
 from oss.src.core.mounts.types import MountFileNotFound
 from oss.src.core.store.storage import ObjectStore
 from oss.src.dbs.postgres.sessions.attachments.dbes import SessionAttachmentDBE
@@ -53,11 +55,19 @@ async def _coordinates(attachment_id):
         await engine.close()
 
 
-async def _read_original(coordinates):
+def _storage_key(coordinates):
+    """Derive the object key through the service so a key-construction bug fails here too."""
     project_id, mount_id, path = coordinates
-    namespace = (env.store.namespace or "").strip("/")
-    prefix = f"{namespace}/" if namespace else ""
-    key = f"{prefix}mounts/{project_id}/{mount_id}/{path}"
+    service = MountsService(mounts_dao=None, namespace=env.store.namespace)
+    return service._storage_key(
+        project_id=project_id,
+        mount=Mount(id=mount_id, project_id=project_id, slug=str(mount_id)),
+        path=path,
+    )
+
+
+async def _read_original(coordinates):
+    key = _storage_key(coordinates)
     store = ObjectStore(
         endpoint_url=env.store.endpoint_url,
         access_key=env.store.access_key,

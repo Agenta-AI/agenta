@@ -146,14 +146,16 @@ class SessionAttachmentsService:
                 limits=self.limits,
             )
         except AttachmentQuotaExceeded:
-            await self._delete_original_best_effort(
+            # Dropping the row before the object is gone would orphan the object with nothing
+            # left to retry from; a surviving PENDING row lets the sweep reclaim both.
+            if await self._delete_original_best_effort(
                 project_id=project_id,
                 attachment=reservation.attachment,
-            )
-            await self._delete_pending_best_effort(
-                project_id=project_id,
-                attachment_id=reservation.attachment.id,
-            )
+            ):
+                await self._delete_pending_best_effort(
+                    project_id=project_id,
+                    attachment_id=reservation.attachment.id,
+                )
             raise
         if ready is None:
             raise AttachmentStateConflict(
@@ -190,17 +192,15 @@ class SessionAttachmentsService:
         session_id: str,
         attachment_ids: List[UUID],
     ) -> List[Attachment]:
-        ordered_ids = list(dict.fromkeys(attachment_ids))
-        attachments = await self._dao.reference_ready(
+        result = await self._dao.reference_ready(
             project_id=project_id,
             session_id=session_id,
-            attachment_ids=ordered_ids,
+            attachment_ids=attachment_ids,
             referenced_at=datetime.now(timezone.utc),
         )
-        if attachments is None:
-            missing_id = ordered_ids[0] if ordered_ids else UUID(int=0)
-            raise AttachmentNotFound(attachment_id=missing_id)
-        return attachments
+        if result.missing_ids:
+            raise AttachmentNotFound(attachment_id=result.missing_ids[0])
+        return result.attachments
 
     def _pending_stale_before(self) -> datetime:
         return datetime.now(timezone.utc) - timedelta(
@@ -238,7 +238,7 @@ class SessionAttachmentsService:
         *,
         project_id: UUID,
         attachment: Attachment,
-    ) -> None:
+    ) -> bool:
         try:
             await self._original_store.delete_attachment_original(
                 project_id=project_id,
@@ -251,3 +251,5 @@ class SessionAttachmentsService:
                 attachment.id,
                 exc_info=True,
             )
+            return False
+        return True

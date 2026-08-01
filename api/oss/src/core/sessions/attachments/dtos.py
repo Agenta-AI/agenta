@@ -1,9 +1,9 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from oss.src.core.shared.dtos import Identifier, Lifecycle
 
@@ -105,3 +105,10 @@ class AttachmentReservationStatus(str, Enum):
 class AttachmentReservation(BaseModel):
     attachment: Attachment
     status: AttachmentReservationStatus
+
+
+class AttachmentReferenceResult(BaseModel):
+    """Outcome of a reference claim: nothing is claimed unless every id resolved."""
+
+    attachments: List[Attachment] = Field(default_factory=list)
+    missing_ids: List[UUID] = Field(default_factory=list)

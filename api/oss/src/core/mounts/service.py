@@ -601,6 +601,9 @@ class MountsService:
         path: str,
         data: bytes,
     ) -> None:
+        if self.mounts_store is None:
+            raise MountStorageUnavailable()
+
         validate_file_path(path)
         mount = await self._resolve_mount(
             project_id=project_id,
@@ -621,6 +624,9 @@ class MountsService:
         mount_id: UUID,
         path: str,
     ) -> bytes:
+        if self.mounts_store is None:
+            raise MountStorageUnavailable()
+
         validate_file_path(path)
         mount = await self._resolve_mount(
             project_id=project_id,
@@ -637,6 +643,9 @@ class MountsService:
         mount_id: UUID,
         path: str,
     ) -> None:
+        if self.mounts_store is None:
+            raise MountStorageUnavailable()
+
         validate_file_path(path)
         mount = await self._resolve_mount(
             project_id=project_id,

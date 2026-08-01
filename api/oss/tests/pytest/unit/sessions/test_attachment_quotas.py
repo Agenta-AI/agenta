@@ -149,7 +149,8 @@ class FakeMarkReadySession:
         statement = str(_statement)
         if "pg_advisory_xact_lock" in statement:
             return FakeMarkReadyResult(None)
-        if "session_attachments.filename" in statement and "FOR UPDATE" in statement:
+        # The row lock is the only non-aggregate FOR UPDATE read in mark_ready.
+        if "FOR UPDATE" in statement and "count(" not in statement:
             return FakeMarkReadyResult(self._target)
         if statement.lstrip().startswith("SELECT session_attachments.session_id"):
             return FakeMarkReadyResult(self._target.session_id)

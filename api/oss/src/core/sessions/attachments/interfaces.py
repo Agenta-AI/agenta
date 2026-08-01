@@ -8,6 +8,7 @@ from oss.src.core.sessions.attachments.dtos import (
     AttachmentCreate,
     AttachmentLimits,
     AttachmentQuotaUsage,
+    AttachmentReferenceResult,
     AttachmentReservation,
 )
 
@@ -113,7 +114,7 @@ class SessionAttachmentsDAOInterface(ABC):
         session_id: str,
         attachment_ids: List[UUID],
         referenced_at: datetime,
-    ) -> Optional[List[Attachment]]: ...
+    ) -> AttachmentReferenceResult: ...
 
     @abstractmethod
     async def reap_stale_pending(

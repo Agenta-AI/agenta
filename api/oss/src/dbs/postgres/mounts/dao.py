@@ -82,6 +82,8 @@ class MountsDAO(MountsDAOInterface):
         # On re-bind (same project + slug), keep the original row/id and re-activate it:
         # touch the audit fields and clear any archive, so a re-attached session gets a
         # live mount on the same durable prefix. name/description/flags are left intact.
+        # `purpose` is server-owned and derived from the slug, so re-binding backfills it
+        # on rows minted before the column existed.
         stmt = stmt.on_conflict_do_update(
             constraint="uq_mounts_project_id_slug",
             set_={
@@ -89,6 +91,7 @@ class MountsDAO(MountsDAOInterface):
                 "updated_by_id": user_id,
                 "deleted_at": None,
                 "deleted_by_id": None,
+                "purpose": stmt.excluded.purpose,
             },
         ).returning(MountDBE)
 

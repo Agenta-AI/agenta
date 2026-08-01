@@ -16,11 +16,16 @@ from oss.src.core.sessions.attachments.dtos import (
     AttachmentKind,
     AttachmentLimits,
     AttachmentQuotaUsage,
+    AttachmentReferenceResult,
     AttachmentReservation,
     AttachmentReservationStatus,
     AttachmentState,
 )
-from oss.src.apis.fastapi.sessions.router import SessionAttachmentsRouter
+from oss.src.apis.fastapi.sessions.router import (
+    _ATTACHMENT_MULTIPART_OVERHEAD_BYTES,
+    _MAX_IDEMPOTENCY_KEY_CHARACTERS,
+    SessionAttachmentsRouter,
+)
 from oss.src.apis.fastapi.sessions.models import SessionAttachmentReferenceRequest
 from oss.src.core.mounts.types import MountStorageUnavailable
 from oss.src.core.sessions.attachments.service import SessionAttachmentsService
@@ -33,10 +38,21 @@ from oss.src.core.sessions.attachments.types import (
 
 
 class FakeAttachmentsDAO:
+    # Keyed like the composite unique index the DAO relies on, so the reservation store and
+    # the project/session-scoped lookups cannot disagree.
     def __init__(self) -> None:
-        self.attachments: dict[str, Attachment] = {}
+        self.attachments: dict[tuple[UUID, str, str], Attachment] = {}
         self.fail_mark_ready = False
         self.reject_mark_ready_for_quota = False
+
+    @staticmethod
+    def _key(
+        *,
+        project_id: UUID,
+        session_id: str,
+        idempotency_key: str,
+    ) -> tuple[UUID, str, str]:
+        return (project_id, session_id, idempotency_key)
 
     async def fetch_by_idempotency_key(
         self,
@@ -45,14 +61,13 @@ class FakeAttachmentsDAO:
         session_id: str,
         idempotency_key: str,
     ) -> Optional[Attachment]:
-        attachment = self.attachments.get(idempotency_key)
-        if (
-            attachment is None
-            or attachment.project_id != project_id
-            or attachment.session_id != session_id
-        ):
-            return None
-        return attachment
+        return self.attachments.get(
+            self._key(
+                project_id=project_id,
+                session_id=session_id,
+                idempotency_key=idempotency_key,
+            )
+        )
 
     async def get_quota_usage(
         self,
@@ -89,7 +104,12 @@ class FakeAttachmentsDAO:
         limits: AttachmentLimits,
         stale_before: datetime,
     ) -> AttachmentReservation:
-        existing = self.attachments.get(attachment_create.idempotency_key)
+        key = self._key(
+            project_id=project_id,
+            session_id=attachment_create.session_id,
+            idempotency_key=attachment_create.idempotency_key,
+        )
+        existing = self.attachments.get(key)
         if existing is not None:
             same_upload = (
                 existing.filename == attachment_create.filename
@@ -128,7 +148,7 @@ class FakeAttachmentsDAO:
             created_at=datetime.now(timezone.utc),
             created_by_id=user_id,
         )
-        self.attachments[attachment.idempotency_key] = attachment
+        self.attachments[key] = attachment
         return AttachmentReservation(
             attachment=attachment,
             status=AttachmentReservationStatus.CREATED,
@@ -194,8 +214,23 @@ class FakeAttachmentsDAO:
         session_id: str,
         attachment_ids: List[UUID],
         referenced_at: datetime,
-    ) -> Optional[List[Attachment]]:
-        raise NotImplementedError
+    ) -> AttachmentReferenceResult:
+        ordered_ids = list(dict.fromkeys(attachment_ids))
+        by_id = {
+            attachment.id: attachment
+            for attachment in self.attachments.values()
+            if attachment.project_id == project_id
+            and attachment.session_id == session_id
+            and attachment.state == AttachmentState.READY
+        }
+        missing_ids = [
+            attachment_id for attachment_id in ordered_ids if attachment_id not in by_id
+        ]
+        if missing_ids:
+            return AttachmentReferenceResult(missing_ids=missing_ids)
+        return AttachmentReferenceResult(
+            attachments=[by_id[attachment_id] for attachment_id in ordered_ids]
+        )
 
 
 class FakeOriginalStore:
@@ -204,6 +239,7 @@ class FakeOriginalStore:
         self.objects: dict[tuple[UUID, str], bytes] = {}
         self.write_count = 0
         self.fail_write = False
+        self.fail_delete = False
 
     async def get_or_create_attachment_mount(
         self,
@@ -243,6 +279,8 @@ class FakeOriginalStore:
         mount_id: UUID,
         path: str,
     ) -> None:
+        if self.fail_delete:
+            raise RuntimeError("object store unavailable")
         self.objects.pop((mount_id, path), None)
 
 
@@ -305,6 +343,19 @@ def _upload_request(
     return request
 
 
+def _store_key(
+    project_id: UUID,
+    *,
+    session_id: str = "session-a",
+    idempotency_key: str = "upload-a",
+) -> tuple[UUID, str, str]:
+    return FakeAttachmentsDAO._key(
+        project_id=project_id,
+        session_id=session_id,
+        idempotency_key=idempotency_key,
+    )
+
+
 async def _create(
     service: SessionAttachmentsService,
     *,
@@ -324,17 +375,40 @@ async def _create(
     )
 
 
-def test_reference_request_caps_attachment_ids_at_fifty():
+def test_reference_request_caps_attachment_ids_at_one_hundred():
     SessionAttachmentReferenceRequest(
         session_id="session-a",
-        attachment_ids=[uuid4() for _ in range(50)],
+        attachment_ids=[uuid4() for _ in range(100)],
     )
 
     with pytest.raises(ValidationError):
         SessionAttachmentReferenceRequest(
             session_id="session-a",
-            attachment_ids=[uuid4() for _ in range(51)],
+            attachment_ids=[uuid4() for _ in range(101)],
         )
+
+
+async def test_reference_names_the_id_that_is_not_ready(attachment_service):
+    service, _, _ = attachment_service
+    project_id = uuid4()
+    user_id = uuid4()
+    ready = await _create(
+        service,
+        project_id=project_id,
+        user_id=user_id,
+        session_id="session-a",
+        idempotency_key="upload-a",
+    )
+    missing_id = uuid4()
+
+    with pytest.raises(AttachmentNotFound) as exc_info:
+        await service.reference_attachments(
+            project_id=project_id,
+            session_id="session-a",
+            attachment_ids=[ready.id, missing_id],
+        )
+
+    assert exc_info.value.attachment_id == missing_id
 
 
 async def test_failure_after_object_write_leaves_pending_and_unfetchable(
@@ -354,7 +428,7 @@ async def test_failure_after_object_write_leaves_pending_and_unfetchable(
             idempotency_key="upload-a",
         )
 
-    pending = dao.attachments["upload-a"]
+    pending = dao.attachments[_store_key(project_id)]
     assert pending.state == AttachmentState.PENDING
     assert store.objects[(pending.mount_id, pending.path)] == b"hello"
     with pytest.raises(AttachmentNotFound):
@@ -380,7 +454,7 @@ async def test_object_store_failure_frees_idempotency_key(attachment_service):
             idempotency_key="upload-a",
         )
 
-    assert "upload-a" not in dao.attachments
+    assert _store_key(project_id) not in dao.attachments
 
     store.fail_write = False
     ready = await _create(
@@ -407,8 +481,31 @@ async def test_quota_rejection_frees_key_and_object(attachment_service):
             idempotency_key="upload-a",
         )
 
-    assert "upload-a" not in dao.attachments
+    assert _store_key(project_id) not in dao.attachments
     assert store.objects == {}
+
+
+async def test_quota_rejection_keeps_the_row_pending_when_the_object_survives(
+    attachment_service,
+):
+    service, dao, store = attachment_service
+    project_id = uuid4()
+    dao.reject_mark_ready_for_quota = True
+    store.fail_delete = True
+
+    with pytest.raises(AttachmentQuotaExceeded):
+        await _create(
+            service,
+            project_id=project_id,
+            user_id=uuid4(),
+            session_id="session-a",
+            idempotency_key="upload-a",
+        )
+
+    # Row and object stay paired so the pending sweep can reclaim both.
+    pending = dao.attachments[_store_key(project_id)]
+    assert pending.state == AttachmentState.PENDING
+    assert store.objects[(pending.mount_id, pending.path)] == b"hello"
 
 
 async def test_ready_idempotency_key_returns_same_attachment_without_second_write(
@@ -510,7 +607,7 @@ async def test_stale_pending_upload_is_taken_over_at_the_same_path(attachment_se
         created_at=datetime.now(timezone.utc) - timedelta(hours=1),
         created_by_id=user_id,
     )
-    dao.attachments[stale.idempotency_key] = stale
+    dao.attachments[_store_key(project_id)] = stale
 
     ready = await _create(
         service,
@@ -550,7 +647,7 @@ async def test_router_rejects_oversized_content_length_before_reading_form():
     service = AsyncMock()
     service.limits = AttachmentLimits()
     router = _router_for(service)
-    oversized = service.limits.max_raw_bytes + (64 * 1024) + 1
+    oversized = service.limits.max_raw_bytes + _ATTACHMENT_MULTIPART_OVERHEAD_BYTES + 1
 
     with pytest.raises(HTTPException) as exc_info:
         await router.create_session_attachment(
@@ -612,13 +709,79 @@ async def test_quota_rejection_maps_to_429_after_compensation(attachment_service
     service, dao, store = attachment_service
     dao.reject_mark_ready_for_quota = True
     router = _router_for(service)
+    request = _upload_request()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await router.create_session_attachment(request, session_id="session-a")
+
+    assert exc_info.value.status_code == 429
+    assert _store_key(UUID(request.state.project_id)) not in dao.attachments
+    assert store.objects == {}
+
+
+async def test_router_rejects_an_oversized_idempotency_key_before_the_service():
+    service = AsyncMock()
+    service.limits = AttachmentLimits()
+    router = _router_for(service)
 
     with pytest.raises(HTTPException) as exc_info:
         await router.create_session_attachment(
-            _upload_request(),
+            _upload_request(
+                idempotency_key="k" * (_MAX_IDEMPOTENCY_KEY_CHARACTERS + 1)
+            ),
             session_id="session-a",
         )
 
-    assert exc_info.value.status_code == 429
-    assert "upload-a" not in dao.attachments
-    assert store.objects == {}
+    assert exc_info.value.status_code == 422
+    service.create_attachment.assert_not_awaited()
+
+
+async def test_router_accepts_an_idempotency_key_at_the_length_limit(
+    attachment_service,
+):
+    service, _, _ = attachment_service
+    router = _router_for(service)
+
+    response = await router.create_session_attachment(
+        _upload_request(idempotency_key="k" * _MAX_IDEMPOTENCY_KEY_CHARACTERS),
+        session_id="session-a",
+    )
+
+    assert response.count == 1
+
+
+async def test_router_checks_permissions_before_the_size_limits():
+    service = AsyncMock()
+    service.limits = AttachmentLimits()
+    router = _router_for(service)
+    router._check = AsyncMock(side_effect=HTTPException(status_code=403))
+
+    with pytest.raises(HTTPException) as exc_info:
+        await router.create_session_attachment(
+            _upload_request(content_length=None),
+            session_id="session-a",
+        )
+
+    # An unauthorized caller must not be able to probe the limits through 411/413.
+    assert exc_info.value.status_code == 403
+
+
+async def test_router_rejects_a_body_larger_than_its_declared_content_length():
+    service = AsyncMock()
+    limits = AttachmentLimits(
+        max_image_bytes=16,
+        max_audio_bytes=16,
+        max_document_bytes=16,
+        max_other_bytes=16,
+    )
+    service.limits = limits
+    router = _router_for(service)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await router.create_session_attachment(
+            _upload_request(data=b"x" * 1024, content_length=8),
+            session_id="session-a",
+        )
+
+    assert exc_info.value.status_code == 413
+    service.create_attachment.assert_not_awaited()

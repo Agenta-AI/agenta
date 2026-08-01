@@ -152,6 +152,7 @@ from oss.src.apis.fastapi.sessions.models import (
 
 log = get_module_logger(__name__)
 _ATTACHMENT_MULTIPART_OVERHEAD_BYTES = 64 * 1024
+_MAX_IDEMPOTENCY_KEY_CHARACTERS = 255
 
 # matches the streams contract allowlist (dbs/redis/sessions/contract.py)
 _SESSION_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
@@ -1016,6 +1017,12 @@ class SessionAttachmentsRouter:
         *,
         session_id: str = Query(...),
     ) -> SessionAttachmentResponse:
+        # Authorize first: the size limits below must not be probeable by an unauthorized caller.
+        _validate_session_id_http(session_id)
+        await self._check(request, Permission.EDIT_SESSIONS)
+
+        # The Content-Length check must stay above `request.form()`: touching form data (or
+        # declaring the file as a File(...) route param) spools the whole body to disk first.
         content_length = request.headers.get("content-length")
         if content_length is None:
             raise AttachmentLengthRequired()
@@ -1035,9 +1042,6 @@ class SessionAttachmentsRouter:
         if request_size > max_request_bytes:
             raise AttachmentTooLarge(size=request_size, limit=max_request_bytes)
 
-        _validate_session_id_http(session_id)
-        await self._check(request, Permission.EDIT_SESSIONS)
-
         form = await request.form()
         file = form.get("file")
         idempotency_key = form.get("idempotency_key")
@@ -1045,6 +1049,11 @@ class SessionAttachmentsRouter:
             raise AttachmentRequestInvalid("A file upload is required.")
         if not isinstance(idempotency_key, str):
             raise AttachmentRequestInvalid("An idempotency_key form field is required.")
+        # The key is part of a composite btree index, which rejects oversized values at the DAO.
+        if len(idempotency_key) > _MAX_IDEMPOTENCY_KEY_CHARACTERS:
+            raise AttachmentRequestInvalid(
+                f"idempotency_key must be at most {_MAX_IDEMPOTENCY_KEY_CHARACTERS} characters."
+            )
 
         data = await self._read_bounded(file=file)
         attachment = await self.attachments_service.create_attachment(

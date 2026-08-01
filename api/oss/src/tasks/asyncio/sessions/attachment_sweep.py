@@ -150,4 +150,5 @@ async def attachment_sweep_loop(
                 error,
                 exc_info=True,
             )
-        await asyncio.sleep(sweep_interval_seconds)
+        # Floored: a zero or negative interval would turn the loop into a hot spin.
+        await asyncio.sleep(max(sweep_interval_seconds, 1))

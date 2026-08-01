@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import func, select, text
 
 from oss.src.core.mounts.dtos import MountCreate
+from oss.src.core.mounts.types import ATTACHMENTS_MOUNT_PURPOSE
 from oss.src.core.sessions.attachments.dtos import (
     Attachment,
     AttachmentCreate,
@@ -28,6 +29,9 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture(autouse=True)
 async def _fresh_engine_per_test():
+    # Dispose before dropping the reference, or the previous engine's pooled connections leak.
+    if engine_module._transactions_engine is not None:
+        await engine_module._transactions_engine.close()
     engine_module._transactions_engine = None
     yield
     if engine_module._transactions_engine is not None:
@@ -205,16 +209,20 @@ async def test_sweep_tombstone_wins_against_concurrent_claim(attachment_scope):
     )
     await asyncio.wait_for(object_delete_started.wait(), timeout=5)
 
-    claimed = await dao.reference_ready(
-        project_id=attachment_scope["project_id"],
-        session_id=session_id,
-        attachment_ids=[ready.id],
-        referenced_at=datetime.now(timezone.utc),
+    claimed = await asyncio.wait_for(
+        dao.reference_ready(
+            project_id=attachment_scope["project_id"],
+            session_id=session_id,
+            attachment_ids=[ready.id],
+            referenced_at=datetime.now(timezone.utc),
+        ),
+        timeout=30,
     )
     allow_object_delete.set()
     deleted = await asyncio.wait_for(sweep_task, timeout=5)
 
-    assert claimed is None
+    assert claimed.attachments == []
+    assert claimed.missing_ids == [ready.id]
     assert [attachment.id for attachment in deleted] == [ready.id]
     async with attachment_scope["engine"].session() as session:
         row = await session.get(
@@ -222,6 +230,98 @@ async def test_sweep_tombstone_wins_against_concurrent_claim(attachment_scope):
             (attachment_scope["project_id"], ready.id),
         )
     assert row is None
+
+
+async def test_sweep_skips_a_row_claimed_before_the_pass(attachment_scope):
+    dao = SessionAttachmentsDAO(engine=attachment_scope["engine"])
+    session_id = f"attachment-claimed-{uuid.uuid4().hex[:8]}"
+    pending = await _reserve(
+        dao=dao,
+        attachment_scope=attachment_scope,
+        session_id=session_id,
+        idempotency_key="claim-first",
+    )
+    ready = await dao.mark_ready(
+        project_id=attachment_scope["project_id"],
+        attachment_id=pending.id,
+        limits=AttachmentLimits(),
+    )
+    assert ready is not None
+
+    async with attachment_scope["engine"].session() as session:
+        await session.execute(
+            text(
+                "UPDATE session_attachments SET created_at = :created_at "
+                "WHERE project_id = :project_id AND id = :attachment_id"
+            ),
+            {
+                "created_at": datetime.now(timezone.utc) - timedelta(days=2),
+                "project_id": attachment_scope["project_id"],
+                "attachment_id": ready.id,
+            },
+        )
+        await session.commit()
+
+    claimed = await asyncio.wait_for(
+        dao.reference_ready(
+            project_id=attachment_scope["project_id"],
+            session_id=session_id,
+            attachment_ids=[ready.id],
+            referenced_at=datetime.now(timezone.utc),
+        ),
+        timeout=30,
+    )
+    assert [attachment.id for attachment in claimed.attachments] == [ready.id]
+
+    deleted_ids = []
+
+    async def delete_original(attachment):
+        deleted_ids.append(attachment.id)
+
+    swept = await asyncio.wait_for(
+        dao.sweep_unreferenced_ready(
+            older_than=datetime.now(timezone.utc) - timedelta(days=1),
+            delete_original=delete_original,
+            limit=100,
+        ),
+        timeout=30,
+    )
+
+    assert ready.id not in deleted_ids
+    assert ready.id not in [attachment.id for attachment in swept]
+    async with attachment_scope["engine"].session() as session:
+        row = await session.get(
+            SessionAttachmentDBE,
+            (attachment_scope["project_id"], ready.id),
+        )
+        assert row is not None
+        assert row.state == AttachmentState.READY.value
+        assert row.referenced_at is not None
+
+
+async def test_rebinding_a_mount_backfills_its_purpose(attachment_scope):
+    mounts_dao = MountsDAO(engine=attachment_scope["engine"])
+    slug = f"attachment-purpose-{uuid.uuid4().hex}"
+
+    legacy = await mounts_dao.upsert_mount(
+        project_id=attachment_scope["project_id"],
+        user_id=attachment_scope["user_id"],
+        mount_create=MountCreate(slug=slug, name="attachments"),
+    )
+    assert legacy.purpose is None
+
+    rebound = await mounts_dao.upsert_mount(
+        project_id=attachment_scope["project_id"],
+        user_id=attachment_scope["user_id"],
+        mount_create=MountCreate(
+            slug=slug,
+            name="attachments",
+            purpose=ATTACHMENTS_MOUNT_PURPOSE,
+        ),
+    )
+
+    assert rebound.id == legacy.id
+    assert rebound.purpose == ATTACHMENTS_MOUNT_PURPOSE
 
 
 async def test_quota_recheck_is_serialized_by_session_advisory_lock(

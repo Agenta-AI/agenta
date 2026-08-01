@@ -10,6 +10,7 @@ from oss.src.core.sessions.attachments.dtos import (
     AttachmentCreate,
     AttachmentLimits,
     AttachmentQuotaUsage,
+    AttachmentReferenceResult,
     AttachmentReservation,
     AttachmentReservationStatus,
     AttachmentState,
@@ -237,9 +238,10 @@ class SessionAttachmentsDAO(SessionAttachmentsDAOInterface):
         session_id: str,
         attachment_ids: List[UUID],
         referenced_at: datetime,
-    ) -> Optional[List[Attachment]]:
-        if not attachment_ids:
-            return []
+    ) -> AttachmentReferenceResult:
+        ordered_ids = list(dict.fromkeys(attachment_ids))
+        if not ordered_ids:
+            return AttachmentReferenceResult()
 
         async with self.engine.session() as session:
             result = await session.execute(
@@ -247,14 +249,21 @@ class SessionAttachmentsDAO(SessionAttachmentsDAOInterface):
                 .where(
                     SessionAttachmentDBE.project_id == project_id,
                     SessionAttachmentDBE.session_id == session_id,
-                    SessionAttachmentDBE.id.in_(attachment_ids),
+                    SessionAttachmentDBE.id.in_(ordered_ids),
                     SessionAttachmentDBE.state == AttachmentState.READY.value,
                 )
                 .with_for_update()
             )
             attachment_dbes = list(result.scalars().all())
-            if len(attachment_dbes) != len(attachment_ids):
-                return None
+            resolved_ids = {attachment_dbe.id for attachment_dbe in attachment_dbes}
+            missing_ids = [
+                attachment_id
+                for attachment_id in ordered_ids
+                if attachment_id not in resolved_ids
+            ]
+            # The claim is all-or-nothing: leave every row untouched when one id is unresolved.
+            if missing_ids:
+                return AttachmentReferenceResult(missing_ids=missing_ids)
 
             for attachment_dbe in attachment_dbes:
                 if attachment_dbe.referenced_at is None:
@@ -268,7 +277,9 @@ class SessionAttachmentsDAO(SessionAttachmentsDAOInterface):
             attachment_dbe.id: map_attachment_dbe_to_dto(attachment_dbe=attachment_dbe)
             for attachment_dbe in attachment_dbes
         }
-        return [by_id[attachment_id] for attachment_id in attachment_ids]
+        return AttachmentReferenceResult(
+            attachments=[by_id[attachment_id] for attachment_id in ordered_ids]
+        )
 
     async def reap_stale_pending(
         self,
@@ -437,13 +448,6 @@ class SessionAttachmentsDAO(SessionAttachmentsDAOInterface):
             attachment_dbes = list(result.scalars().all())
             candidates: List[Attachment] = []
             for attachment_dbe in attachment_dbes:
-                if state == AttachmentState.READY:
-                    await session.refresh(
-                        attachment_dbe,
-                        attribute_names=["referenced_at"],
-                    )
-                    if attachment_dbe.referenced_at is not None:
-                        continue
                 candidates.append(
                     map_attachment_dbe_to_dto(attachment_dbe=attachment_dbe)
                 )

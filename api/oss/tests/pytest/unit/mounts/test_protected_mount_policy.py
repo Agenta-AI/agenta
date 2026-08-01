@@ -29,6 +29,7 @@ from oss.src.core.mounts.types import (
     MountImmutableField,
     MountNameInvalid,
     MountProtected,
+    MountStorageUnavailable,
     protected_mount_slug_like_pattern,
 )
 
@@ -536,6 +537,45 @@ async def test_attachment_original_operations_are_the_only_protected_bypass(
         path=_PATH,
     )
     assert f"mounts/{_PROJECT_ID}/{mount_id}/{_PATH}" not in store.objects
+
+
+@pytest.mark.parametrize(
+    "operation",
+    (
+        "write_attachment_original",
+        "read_attachment_original",
+        "delete_attachment_original",
+    ),
+)
+@pytest.mark.asyncio
+async def test_attachment_operations_report_unavailable_storage(
+    mount_context,
+    operation,
+):
+    service, _, _, protected, _ = mount_context
+    # A configured bucket without a store is a 503, not an AttributeError.
+    service.mounts_store = None
+    calls = {
+        "write_attachment_original": lambda: service.write_attachment_original(
+            project_id=_PROJECT_ID,
+            mount_id=protected.id,
+            path=_PATH,
+            data=b"original",
+        ),
+        "read_attachment_original": lambda: service.read_attachment_original(
+            project_id=_PROJECT_ID,
+            mount_id=protected.id,
+            path=_PATH,
+        ),
+        "delete_attachment_original": lambda: service.delete_attachment_original(
+            project_id=_PROJECT_ID,
+            mount_id=protected.id,
+            path=_PATH,
+        ),
+    }
+
+    with pytest.raises(MountStorageUnavailable):
+        await calls[operation]()
 
 
 @pytest.mark.asyncio
