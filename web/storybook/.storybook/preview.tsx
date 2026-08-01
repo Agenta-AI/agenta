@@ -3,6 +3,7 @@ import React from "react"
 import type {Preview} from "@storybook/nextjs"
 
 import {AgentaProviders, type StoryTheme} from "./decorators/AgentaProviders"
+import {useAgentaData, type AgentaDataParameters} from "./decorators/withAgentaData"
 
 // Surfaces render errors in the DOM (the static build otherwise swallows them into a
 // generic "No Preview"). Remove once the pipeline is stable.
@@ -77,12 +78,23 @@ const preview: Preview = {
         },
     },
     decorators: [
-        // Real app provider stack (theme, antd App, jotai, query client) around every story.
+        // Seeds gate atoms + the query cache when a story declares `parameters.agenta`.
+        // Stories without it are untouched (they get a shared empty client).
         function AgentaDecorator(Story, ctx) {
+            const {queryClient, reload, args} = useAgentaData(
+                ctx.parameters.agenta as AgentaDataParameters | undefined,
+                ctx.id,
+            )
+            // L3: the reload is in flight — rendering the story first would dirty the store
+            // we are reloading to clean.
+            if (reload) return <div />
             return (
                 <StoryErrorBoundary>
-                    <AgentaProviders theme={(ctx.globals.theme as StoryTheme) ?? "light"}>
-                        <Story />
+                    <AgentaProviders
+                        theme={(ctx.globals.theme as StoryTheme) ?? "light"}
+                        queryClient={queryClient}
+                    >
+                        {args ? <Story args={{...ctx.args, ...args}} /> : <Story />}
                     </AgentaProviders>
                 </StoryErrorBoundary>
             )
