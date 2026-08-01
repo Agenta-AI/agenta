@@ -118,6 +118,11 @@ services/runner/tests/results/
 !.claude/skills/write-pr-description
 !.claude/skills/write-social-announcement
 !.claude/skills/write-template-playbooks
+!.claude/skills/scan-codebase
+!.claude/skills/triage-findings
+!.claude/skills/resolve-findings
+!.claude/skills/sync-findings
+!.claude/skills/test-codebase
 
 # Temporary SDK copies created by run.sh --local
 api/sdks
