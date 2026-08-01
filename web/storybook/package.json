@@ -2,7 +2,7 @@
     "name": "@agenta/storybook",
     "private": true,
     "version": "0.0.0",
-    "description": "Storybook workbench for the antd → @agenta/ui migration. Renders real @agenta/* components behind the real app providers so antd and @agenta/ui versions can be compared side by side.",
+    "description": "Storybook workbench for the antd \u2192 @agenta/ui migration. Renders real @agenta/* components behind the real app providers so antd and @agenta/ui versions can be compared side by side.",
     "scripts": {
         "storybook": "storybook dev -p 6006",
         "build-storybook": "storybook build -o storybook-static",
@@ -17,7 +17,8 @@
         "@agenta/shared": "workspace:*",
         "@agenta/ui": "workspace:*",
         "@phosphor-icons/react": "^2.1.10",
-        "lucide-react": "^0.479.0"
+        "lucide-react": "^0.479.0",
+        "next": "15.5.21"
     },
     "devDependencies": {
         "@ant-design/icons": "^6.1.0",
