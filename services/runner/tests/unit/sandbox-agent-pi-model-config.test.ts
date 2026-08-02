@@ -18,17 +18,31 @@ import {
 
 const RAW_KEY = "sk-super-secret-value-do-not-leak";
 
+/** Flattened overrides: the resolved routing fields live on `modelConnection` on the wire. */
+interface RequestOverrides {
+  harness?: string;
+  provider?: string;
+  deployment?: string;
+  endpoint?: { baseUrl?: string };
+  credentialMode?: "env" | "runtime_provided" | "none";
+  connection?: AgentRunRequest["connection"];
+  model?: string;
+}
+
 /** A complete, applicable managed OpenAI-compatible custom Pi request. */
-function completeRequest(over: Partial<AgentRunRequest> = {}): AgentRunRequest {
+function completeRequest(over: RequestOverrides = {}): AgentRunRequest {
   return {
-    harness: "pi_core",
-    provider: "openai",
-    deployment: "custom",
-    connection: { mode: "agenta", slug: "my-ollama" },
-    endpoint: { baseUrl: "https://example.test/v1" },
-    credentialMode: "env",
-    model: "qwen2.5-coder:7b",
-    ...over,
+    harness: "harness" in over ? over.harness : "pi_core",
+    connection:
+      "connection" in over ? over.connection : { mode: "agenta", slug: "my-ollama" },
+    model: over.model ?? "qwen2.5-coder:7b",
+    modelConnection: {
+      provider: over.provider ?? "openai",
+      deployment: over.deployment ?? "custom",
+      endpoint: over.endpoint ?? { baseUrl: "https://example.test/v1" },
+      credentialMode: over.credentialMode ?? "env",
+      credentials: [],
+    },
   };
 }
 
@@ -137,7 +151,7 @@ describe("buildPiModelConfigPlan (non-applicable -> no plan, current behavior)",
 describe("buildPiModelConfigPlan (applicable but incomplete -> typed error)", () => {
   const cases: Array<{
     name: string;
-    over: Partial<AgentRunRequest>;
+    over: RequestOverrides;
     secrets?: Record<string, string>;
     hint: RegExp;
   }> = [

@@ -37,6 +37,31 @@ class EndpointResolutionError(ConnectionResolutionError):
     status_code = 422
 
 
+class MissingCredentialError(ConnectionResolutionError):
+    """Raised when an Agenta-managed connection has no usable credential."""
+
+    # The invoke remap reads `status_code` off the exception; without it this fell through to 500.
+    status_code = 422
+
+    def __init__(self, *, provider: str, slug: Optional[str] = None) -> None:
+        subject = (
+            f"connection '{slug}'" if slug else f"provider '{provider}' connection"
+        )
+        super().__init__(
+            f"{subject} has no usable credential; configure a credential or select "
+            "self_managed authentication"
+        )
+        self.provider = provider
+        self.slug = slug
+
+
+class InvalidConnectionConfigurationError(AgentConnectionError):
+    """Raised when resolved routing and credentials form an unsafe combination."""
+
+    # The invoke remap reads `status_code` off the exception; without it this fell through to 500.
+    status_code = 422
+
+
 class ConnectionNotFoundError(ConnectionResolutionError):
     """Raised when a named connection (``mode == agenta`` + ``slug``) does not exist."""
 

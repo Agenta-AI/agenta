@@ -257,16 +257,15 @@ export async function runTurn(
       endpoint: request.telemetry?.exporters?.otlp?.endpoint,
       authorization: request.telemetry?.exporters?.otlp?.headers?.authorization,
       captureContent: request.telemetry?.capture?.content?.enabled,
-      // Seed from the keys actually APPLIED to this run (`plan.secrets`) plus the mount's STS
-      // pair — neither lives in the sidecar's process env.
-      redactor: seedForRun(
-        { secrets: plan.secrets, telemetry: request.telemetry },
-        [
-          env.mountCreds?.accessKey,
-          env.mountCreds?.secretKey,
-          env.mountCreds?.sessionToken,
-        ],
-      ),
+      // Seed from the request's typed model/MCP credential material (`requestSecretValues` —
+      // on a Daytona Secrets run the opaque values left the plaintext env for the secret plan
+      // but still transit runner memory) plus the mount's STS pair — none of which lives in the
+      // sidecar's process env.
+      redactor: seedForRun(request, [
+        env.mountCreds?.accessKey,
+        env.mountCreds?.secretKey,
+        env.mountCreds?.sessionToken,
+      ]),
       emitSpans: !plan.isPi || plan.isDaytona,
       // Every emitted event is a progress signal for the idle/TTFB deadlines (message/thought
       // deltas, tool calls and results, usage, ...) — the one seam every harness's output flows
@@ -298,7 +297,7 @@ export async function runTurn(
               plan,
               capabilities: env.capabilities,
               modelCapabilities: request.modelCapabilities,
-              provider: request.provider,
+              provider: request.modelConnection?.provider,
               emit: (event) => run.emitEvent(event),
             })
           : [];
@@ -307,7 +306,7 @@ export async function runTurn(
       for (const image of legacyImages) {
         const gate = attachmentCapabilityGate({
           acpAgent: plan.acpAgent,
-          provider: request.provider,
+          provider: request.modelConnection?.provider,
           capabilities: env.capabilities,
           // Legacy inline images predate the catalog, so a caller that declares nothing keeps
           // the historical image-capable assumption; a caller that declares modalities is
@@ -1040,9 +1039,9 @@ export async function runTurn(
       swallowedError = conciseError(
         new Error(swallowedPiError),
         plan.harness,
-        request.provider,
+        request.modelConnection?.provider,
       );
-      run.recordError(swallowedError, request.provider);
+      run.recordError(swallowedError, request.modelConnection?.provider);
       run.emitEvent({ type: "error", message: swallowedError });
     }
 
@@ -1108,8 +1107,8 @@ export async function runTurn(
       traceId: run.traceId(),
     } as AgentRunResult;
   } catch (err) {
-    const error = conciseError(err, plan.harness, request.provider);
-    otel?.recordError(error, request.provider);
+    const error = conciseError(err, plan.harness, request.modelConnection?.provider);
+    otel?.recordError(error, request.modelConnection?.provider);
     otel?.emitEvent({ type: "error", message: error });
     // An aborted turn may have left a partial turn in the native transcript.
     invalidateContinuity(sessionId, plan.harness, deps);

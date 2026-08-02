@@ -17,6 +17,7 @@ import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
 
 const previousPiDir = process.env.PI_CODING_AGENT_DIR;
 const previousDenyPermissions = process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
+const previousOpaqueSecrets = process.env.AGENTA_DAYTONA_OPAQUE_SECRETS;
 
 // These cases exercise Daytona runs, so enable it (with a provisioning credential) on top of the
 // hermetic scrub, then drop the memoized config so buildRunPlan reads the enabled set.
@@ -32,6 +33,9 @@ afterEach(() => {
   if (previousDenyPermissions === undefined)
     delete process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
   else process.env.SANDBOX_AGENT_DENY_PERMISSIONS = previousDenyPermissions;
+  if (previousOpaqueSecrets === undefined)
+    delete process.env.AGENTA_DAYTONA_OPAQUE_SECRETS;
+  else process.env.AGENTA_DAYTONA_OPAQUE_SECRETS = previousOpaqueSecrets;
 });
 
 describe("buildRunPlan", () => {
@@ -319,7 +323,19 @@ describe("buildRunPlan", () => {
         skills: [
           { name: "alpha", description: "Alpha skill.", body: "Do alpha." },
         ],
-        secrets: { OPENAI_API_KEY: "key" },
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://api.openai.com/v1" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "OPENAI_API_KEY" },
+              value: "key",
+              usage: "opaque_http",
+            },
+          ],
+        },
       } as AgentRunRequest,
       {
         createLocalCwd: () => "/tmp/local-cwd",
@@ -354,6 +370,7 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.appendSystemPrompt, "append");
     assert.equal(result.plan.hasSystemPrompt, true);
     assert.equal(result.plan.hasApiKey, true);
+    assert.deepEqual(result.plan.modelEnvironment, { OPENAI_API_KEY: "key" });
     assert.equal(result.plan.sourcePiAgentDir, "/tmp/pi-agent");
     assert.deepEqual(
       result.plan.executableToolSpecs.map((tool) => tool.name),
@@ -877,10 +894,7 @@ describe("buildRunPlan", () => {
         result.plan.executableToolSpecs.map((tool) => tool.name),
         ["server_tool"],
       );
-      assert.equal(
-        result.plan.clientToolPauseDisposition,
-        "cold-acknowledge",
-      );
+      assert.equal(result.plan.clientToolPauseDisposition, "cold-acknowledge");
     });
 
     it("allows claude x daytona x client-ONLY tools (the shim advertises them and the relay parks)", () => {
@@ -1131,13 +1145,25 @@ describe("buildRunPlan", () => {
   });
 
   it("normalizes a Daytona Claude run without Pi-only state", () => {
+    process.env.AGENTA_DAYTONA_OPAQUE_SECRETS = "process_local";
     const result = buildRunPlan(
       {
         harness: "claude",
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
-        secrets: { ANTHROPIC_API_KEY: "anthropic" },
-        credentialMode: "env",
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://api.anthropic.com" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+              value: "anthropic",
+              usage: "opaque_http",
+            },
+          ],
+        },
         systemPrompt: "ignored for non-pi",
       },
       {
@@ -1152,13 +1178,74 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.isDaytona, true);
     assert.equal(result.plan.cwd, "/home/sandbox/agenta-fixed");
     assert.equal(result.plan.usageOutPath, undefined);
-    assert.equal(result.plan.legacyHarnessApiKeyVar, "ANTHROPIC_API_KEY");
+    assert.equal(result.plan.harnessApiKeyVar, "ANTHROPIC_API_KEY");
+    // The FULL materialized environment sets hasApiKey: on a Daytona Secrets run the opaque key
+    // leaves the plaintext env for the secret plan, but the harness still receives its binding.
     assert.equal(result.plan.hasApiKey, true);
+    assert.equal(result.plan.modelEnvironment.ANTHROPIC_API_KEY, undefined);
+    assert.equal(result.plan.daytonaSecretPlan?.candidates.length, 1);
     // The resolved credentialMode is carried onto the plan (drives clear-then-apply).
     assert.equal(result.plan.credentialMode, "env");
     assert.equal(result.plan.systemPrompt, undefined);
     assert.equal(result.plan.hasSystemPrompt, false);
     assert.deepEqual(result.plan.skillDirs, []);
+  });
+
+  it("keeps a zero-candidate secret plan when the flag is on, and none when it is off", () => {
+    // A run with only local_use credentials produces ZERO opaque candidates. The plan must
+    // still ride the run plan when the flag is on: provider.ts applies the Secret wrapper off
+    // plan PRESENCE, and only the wrapper's create-fingerprint check forces a rebuild (instead
+    // of a stale plaintext reconnect) after the local_use credentials rotate.
+    const localUseRequest = {
+      harness: "claude",
+      sandbox: "daytona",
+      messages: [{ role: "user", content: "hello" }],
+      modelConnection: {
+        provider: "bedrock",
+        deployment: "bedrock",
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "AWS_ACCESS_KEY_ID" },
+            value: "AKIA-local-use",
+            usage: "local_use",
+          },
+          {
+            binding: { kind: "environment", name: "AWS_SECRET_ACCESS_KEY" },
+            value: "aws-secret-local-use",
+            usage: "local_use",
+          },
+        ],
+      },
+    } as AgentRunRequest;
+    const deps = { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" };
+
+    process.env.AGENTA_DAYTONA_OPAQUE_SECRETS = "process_local";
+    const flagOn = buildRunPlan(localUseRequest, deps);
+    assert.equal(flagOn.ok, true);
+    if (!flagOn.ok) return;
+    assert.ok(flagOn.plan.daytonaSecretPlan, "flag on keeps the empty plan");
+    assert.equal(flagOn.plan.daytonaSecretPlan.candidates.length, 0);
+    // local_use values still reach sandbox create as plaintext env (by design).
+    assert.equal(
+      flagOn.plan.modelEnvironment.AWS_ACCESS_KEY_ID,
+      "AKIA-local-use",
+    );
+    assert.equal(
+      flagOn.plan.modelEnvironment.AWS_SECRET_ACCESS_KEY,
+      "aws-secret-local-use",
+    );
+
+    // Flag OFF stays exactly the pre-feature behavior: no plan, so no wrapper is applied.
+    delete process.env.AGENTA_DAYTONA_OPAQUE_SECRETS;
+    const flagOff = buildRunPlan(localUseRequest, deps);
+    assert.equal(flagOff.ok, true);
+    if (!flagOff.ok) return;
+    assert.equal(flagOff.plan.daytonaSecretPlan, undefined);
+    assert.equal(
+      flagOff.plan.modelEnvironment.AWS_ACCESS_KEY_ID,
+      "AKIA-local-use",
+    );
   });
 });
 
@@ -1300,7 +1387,12 @@ describe("buildRunPlan runtime_provided (subscription) gates", () => {
         harness: "pi_core",
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
-        credentialMode: "runtime_provided",
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          credentialMode: "runtime_provided",
+          credentials: [],
+        },
       },
       {
         createDaytonaCwd: () => {
@@ -1321,7 +1413,12 @@ describe("buildRunPlan runtime_provided (subscription) gates", () => {
         harness: "pi_core",
         sandbox: "local",
         messages: [{ role: "user", content: "hello" }],
-        credentialMode: "runtime_provided",
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          credentialMode: "runtime_provided",
+          credentials: [],
+        },
       });
       assert.equal(result.ok, false);
       if (result.ok) return;
@@ -1335,7 +1432,12 @@ describe("buildRunPlan runtime_provided (subscription) gates", () => {
         harness: "claude",
         sandbox: "local",
         messages: [{ role: "user", content: "hello" }],
-        credentialMode: "runtime_provided",
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "direct",
+          credentialMode: "runtime_provided",
+          credentials: [],
+        },
       });
       assert.equal(result.ok, false);
       if (result.ok) return;
@@ -1349,7 +1451,12 @@ describe("buildRunPlan runtime_provided (subscription) gates", () => {
         harness: "pi_core",
         sandbox: "local",
         messages: [{ role: "user", content: "hello" }],
-        credentialMode: "runtime_provided",
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          credentialMode: "runtime_provided",
+          credentials: [],
+        },
       });
       assert.equal(result.ok, true);
       if (!result.ok) return;
@@ -1364,10 +1471,210 @@ describe("buildRunPlan runtime_provided (subscription) gates", () => {
         harness: "pi_core",
         sandbox: "local",
         messages: [{ role: "user", content: "hello" }],
-        secrets: { OPENAI_API_KEY: "sk-test" },
-        credentialMode: "env",
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://api.openai.com/v1" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "OPENAI_API_KEY" },
+              value: "sk-test",
+              usage: "opaque_http",
+            },
+          ],
+        },
       });
       assert.equal(result.ok, true);
     });
+  });
+});
+
+describe("modelConnection validation", () => {
+  const base = {
+    harness: "pi_core",
+    messages: [{ role: "user", content: "hi" }],
+  } satisfies AgentRunRequest;
+
+  const connection = (overrides: Record<string, unknown> = {}) => ({
+    provider: "openai",
+    deployment: "direct",
+    endpoint: { baseUrl: "https://api.openai.com/v1" },
+    credentialMode: "env",
+    credentials: [
+      {
+        binding: { kind: "environment", name: "OPENAI_API_KEY" },
+        value: "key",
+        usage: "opaque_http",
+      },
+    ],
+    ...overrides,
+  });
+
+  for (const [name, modelConnection, error] of [
+    [
+      "rejects an empty binding name",
+      connection({
+        credentials: [
+          {
+            binding: { kind: "environment", name: "" },
+            value: "key",
+            usage: "opaque_http",
+          },
+        ],
+      }),
+      "modelConnection credential binding and value must be non-empty",
+    ],
+    [
+      "rejects an empty credential value",
+      connection({
+        credentials: [
+          {
+            binding: { kind: "environment", name: "OPENAI_API_KEY" },
+            value: "",
+            usage: "opaque_http",
+          },
+        ],
+      }),
+      "modelConnection credential binding and value must be non-empty",
+    ],
+    [
+      "rejects opaque HTTP credentials without an endpoint",
+      connection({ endpoint: undefined }),
+      "opaque_http model credentials require an effective HTTPS endpoint",
+    ],
+    [
+      "rejects non-HTTPS opaque HTTP routes",
+      connection({ endpoint: { baseUrl: "http://api.openai.com/v1" } }),
+      "opaque_http model credentials require an effective HTTPS endpoint",
+    ],
+    [
+      "rejects credentials under runtime-provided mode",
+      connection({ credentialMode: "runtime_provided" }),
+      "modelConnection credentials require credentialMode env",
+    ],
+    [
+      "rejects env mode without credentials",
+      connection({ credentials: [] }),
+      "modelConnection credentialMode env requires credentials",
+    ],
+  ] as const) {
+    it(name, () => {
+      // The local runtime_provided mount gate runs before credential validation; satisfy it so
+      // the runtime_provided case reaches the validation under test (afterEach restores this).
+      process.env.PI_CODING_AGENT_DIR = "/agenta/harness/pi";
+      let created = false;
+      const result = buildRunPlan(
+        { ...base, modelConnection } as AgentRunRequest,
+        {
+          createLocalCwd: () => {
+            created = true;
+            return "/tmp/unused";
+          },
+        },
+      );
+      assert.deepEqual(result, { ok: false, error });
+      assert.equal(created, false);
+    });
+  }
+
+  it("materializes local_use credentials and non-secret config only after validation", () => {
+    const result = buildRunPlan({
+      ...base,
+      modelConnection: connection({
+        provider: "anthropic",
+        deployment: "bedrock",
+        endpoint: {
+          baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
+          region: "us-east-1",
+        },
+        environment: { AWS_REGION: "us-east-1" },
+        credentials: [
+          {
+            binding: { kind: "environment", name: "AWS_ACCESS_KEY_ID" },
+            value: "AKIA",
+            usage: "local_use",
+          },
+        ],
+      }),
+    } as AgentRunRequest);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(result.plan.modelEnvironment, {
+      AWS_REGION: "us-east-1",
+      AWS_ACCESS_KEY_ID: "AKIA",
+    });
+  });
+
+  it("does not require an HTTP endpoint for local_use credentials", () => {
+    const result = buildRunPlan({
+      ...base,
+      modelConnection: connection({
+        provider: "anthropic",
+        deployment: "vertex_ai",
+        endpoint: undefined,
+        credentials: [
+          {
+            binding: {
+              kind: "environment",
+              name: "GOOGLE_APPLICATION_CREDENTIALS",
+            },
+            value: "/tmp/adc.json",
+            usage: "local_use",
+          },
+        ],
+      }),
+    } as AgentRunRequest);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(
+      result.plan.modelEnvironment.GOOGLE_APPLICATION_CREDENTIALS,
+      "/tmp/adc.json",
+    );
+  });
+
+  it("fails legacy top-level credential fields instead of treating the run as unmanaged", () => {
+    // `connection` ({mode, slug}) is NOT legacy: it stays tolerated on the wire for the
+    // models.json Pi custom-provider path.
+    for (const field of [
+      "secrets",
+      "provider",
+      "deployment",
+      "credentialMode",
+      "endpoint",
+    ]) {
+      let created = false;
+      const result = buildRunPlan(
+        {
+          ...base,
+          [field]:
+            field === "secrets" ? { OPENAI_API_KEY: "legacy" } : "legacy",
+        } as AgentRunRequest,
+        {
+          createLocalCwd: () => {
+            created = true;
+            return "/unused";
+          },
+        },
+      );
+      assert.equal(result.ok, false, field);
+      if (!result.ok) assert.match(result.error, /modelConnection object/);
+      assert.equal(created, false, field);
+    }
+  });
+
+  it("rejects a legacy field even when modelConnection is also present", () => {
+    // A caller mixing the retired flat fields with the resolved object is ambiguous about which
+    // credential set governs the run; fail loudly instead of silently preferring one.
+    const result = buildRunPlan(
+      {
+        ...base,
+        modelConnection: connection(),
+        secrets: { OPENAI_API_KEY: "legacy" },
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/unused" },
+    );
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.match(result.error, /modelConnection object/);
   });
 });

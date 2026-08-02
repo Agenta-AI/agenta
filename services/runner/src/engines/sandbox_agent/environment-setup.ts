@@ -19,6 +19,7 @@ import {
   signSessionMountCredentials,
   type MountCredentials,
 } from "./mount.ts";
+import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../extensions/model-provider-override.ts";
 import {
   buildPiExtensionEnv,
   configurePiSessionWorkspace,
@@ -164,16 +165,19 @@ export async function prepareEnvironmentSetup(
   const agentMountDir = agentMountCreds ? agentMountPath(plan.cwd) : undefined;
 
   // Clear-then-apply (Security rule 5): on a managed run (credentialMode "env") the daemon
-  // inherits NONE of the sidecar's own provider keys, so only the resolved `plan.secrets` are
-  // present and an inherited key for another provider cannot leak. For runtime_provided/none/
-  // un-migrated runs the harness uses its own login, so the inherited keys stay.
-  const clearProviderEnv = plan.credentialMode === "env";
+  // inherits NONE of the sidecar's own provider keys, so only the resolved
+  // `plan.modelEnvironment` is present and an inherited key for another provider cannot leak.
+  // "none" asserts NO credential (connections/models.py), so it clears too — otherwise the
+  // daemon would inherit the declared provider's keys (e.g. OPENAI_API_KEY) from the sidecar.
+  // Only runtime_provided keeps the inherited keys: the harness uses its own login there.
+  const clearProviderEnv =
+    plan.credentialMode === "env" || plan.credentialMode === "none";
   const env = (deps.buildDaemonEnv ?? buildDaemonEnv)(plan.acpAgent, {
     clearProviderEnv,
-    provider: request.provider,
-    deployment: request.deployment,
+    provider: request.modelConnection?.provider,
+    deployment: request.modelConnection?.deployment,
   });
-  Object.assign(env, plan.secrets); // apply only the resolved provider keys
+  Object.assign(env, plan.modelEnvironment); // apply only the resolved provider keys
   applyClaudeConnectionEnv(env, request, plan.acpAgent, logger);
   const piSessionDir = configurePiSessionWorkspace(plan, env);
   configurePiSkillSnapshot(piSkillSnapshot, env);
@@ -233,7 +237,18 @@ export async function prepareEnvironmentSetup(
   let piModelConfigError: Error | undefined;
   if (plan.isPi) {
     try {
-      piModelConfig = buildPiModelConfigPlan(request, plan.secrets);
+      // The presence check consults the FULL materialized model environment: on a Daytona
+      // Secrets run the opaque key left `plan.modelEnvironment` for the secret plan, but the
+      // sandbox still receives its binding (as a Daytona Secret attachment).
+      const fullModelEnvironment: Record<string, string> = {
+        ...plan.modelEnvironment,
+      };
+      for (const candidate of plan.daytonaSecretPlan?.candidates ?? []) {
+        if (candidate.consumer.kind === "model") {
+          fullModelEnvironment[candidate.binding.name] = candidate.value;
+        }
+      }
+      piModelConfig = buildPiModelConfigPlan(request, fullModelEnvironment);
     } catch (err) {
       piModelConfigError = err as Error;
     }
@@ -272,6 +287,15 @@ export async function prepareEnvironmentSetup(
     !plan.isDaytona &&
     plan.builtinGatingActive &&
     !localPiAssets.extensionInstalled;
+  // Fail closed: a Pi run whose provider routing rides the extension's model endpoint override
+  // (`model-provider-override.ts`, set in `buildPiExtensionEnv`) cannot run without the
+  // extension — the harness would silently call the provider's default endpoint. Recorded here
+  // and thrown inside the engine try, like the two gates above.
+  const localModelOverrideUnenforceable =
+    plan.isPi &&
+    !plan.isDaytona &&
+    piExtEnv[PI_MODEL_PROVIDER_OVERRIDE_ENV] !== undefined &&
+    !localPiAssets.extensionInstalled;
 
   // A local Claude subscription run reads and writes the operator's read-write mounted login
   // DIRECTLY: `buildDaemonEnv` already carried `CLAUDE_CONFIG_DIR` (the mount) into the daemon env,
@@ -286,10 +310,13 @@ export async function prepareEnvironmentSetup(
   // The resolved model ref as it reaches the runner (key NAMES only, never values) — the one
   // line that answers "what model/provider/deployment/credential did this run actually use".
   logger(
-    `resolved model=${request.model ?? "<none>"} provider=${request.provider ?? "<none>"} ` +
-      `deployment=${request.deployment ?? "<none>"} ` +
+    `resolved model=${request.model ?? "<none>"} provider=${request.modelConnection?.provider ?? "<none>"} ` +
+      `deployment=${request.modelConnection?.deployment ?? "<none>"} ` +
       `connection=${request.connection ? `${request.connection.mode}:${request.connection.slug ?? "-"}` : "<none>"} ` +
-      `secretKeys=[${Object.keys(request.secrets ?? {}).join(",")}]`,
+      `credentialMode=${request.modelConnection?.credentialMode ?? "<none>"} ` +
+      `credentialBindings=[${(request.modelConnection?.credentials ?? [])
+        .map((credential) => credential.binding.name)
+        .join(",")}]`,
   );
 
   // The shared client-tool relay reference (the deferred ref baked into the MCP server reads it;
@@ -372,6 +399,7 @@ export async function prepareEnvironmentSetup(
     localBuiltinGatingUnenforceable,
     logger,
     localModelConfigUnwritable,
+    localModelOverrideUnenforceable,
     mcpAbort,
     piExtEnv,
     piModelConfig,

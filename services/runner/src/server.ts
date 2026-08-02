@@ -61,6 +61,7 @@ import {
   mountCredentialsExpired,
   mountCredentialsExpireBy,
   MOUNT_LEASE_SKEW_MS,
+  sandboxCredentialsRotated,
   type CredentialEpoch,
   expectedNextHistoryFingerprint,
   historyFingerprint,
@@ -765,15 +766,9 @@ export async function runWithKeepalive(
     // An approval-parked session. A validated approval decision that matches the parked
     // Claude ACP gate resumes it live; anything else evicts and degrades to cold.
     //
-    // Unlike the idle-continuation branch above, this branch does NOT require the resume request's
-    // configFingerprint or credential epoch to EQUAL the parked session's. Every approval reply is
-    // a fresh /run the backend mints carrying freshly minted short-lived material (gateway/Composio
-    // secret VALUES, a per-turn tool-callback bearer), so the incoming credential epoch — and often
-    // the config fingerprint, which can embed those per-turn tokens — practically never match the
-    // parked ones. But the parked live process already holds its OWN resolved credentials baked at
-    // acquire time; the resume request only delivers the human's yes/no. Re-minted per-turn material
-    // on the resume says nothing about the parked environment's validity, so matching it against the
-    // park would evict a perfectly good live session on every approval (the "approve twice" bug).
+    // Approval replies may carry re-minted per-turn callback authorization, which does not invalidate
+    // the parked process. Credentials baked into the model/MCP environment are different: rotation
+    // must evict and cold-start so the resumed process never keeps stale credential material.
     //
     // We keep the checks that DO bound the parked environment: the approval-decision match, the
     // history fingerprint (an edited transcript must not continue wrongly, but only for a client
@@ -839,9 +834,19 @@ export async function runWithKeepalive(
       } else if (mountCredentialsExpired(existing.credentialEpoch)) {
         mismatch = "credentials-expired";
       } else if (
-        mountCredentialsExpireBy(existing.credentialEpoch, requiredValidThroughMs)
+        mountCredentialsExpireBy(
+          existing.credentialEpoch,
+          requiredValidThroughMs,
+        )
       ) {
         mismatch = "credentials-expiring";
+      } else if (
+        sandboxCredentialsRotated(existing.credentialEpoch, incomingEpoch)
+      ) {
+        // Re-minted per-turn callback auth never invalidates the parked process, but credentials
+        // BAKED into the model/MCP environment are different: rotation must evict and cold-start
+        // so the resumed process never keeps stale credential material.
+        mismatch = "credentials-rotated";
       }
     }
 
@@ -949,9 +954,15 @@ const keepalivePools: Record<
 const runAgent: RunAgent = (request, emit, signal, options) => {
   const provider = resolveKeepaliveDispatch(request, keepaliveConfigs);
   if (!provider) {
-    return runSandboxAgent(request, emit, signal, {}, {
-      ...(options?.credential ? { credential: options.credential } : {}),
-    });
+    return runSandboxAgent(
+      request,
+      emit,
+      signal,
+      {},
+      {
+        ...(options?.credential ? { credential: options.credential } : {}),
+      },
+    );
   }
   const config = keepaliveConfigs[provider];
   return runWithKeepalive(request, emit, signal, {
@@ -1131,8 +1142,10 @@ async function runAndStreamWithApiBaseResolved(
       answeredTokens,
       watchdog.credential,
     );
-    // Deny-set from THIS run's resolved provider keys + run credential (not process env,
-    // which never holds them).
+    // Deny-set from THIS run's typed credential material (model connection credentials +
+    // materialized environment values + MCP connection credentials) and the run credential —
+    // not process env, which never holds them. A credential value a model echoes back must
+    // never reach the durable session records unredacted.
     const {
       emit: persistingEmit,
       persist,
@@ -1182,7 +1195,13 @@ async function runAndStreamWithApiBaseResolved(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     // Stack stays server-side; the message alone goes on the wire and into the transcript.
-    if (err instanceof Error && err.stack) console.error(err.stack);
+    // Server-side is still a sink: an escaping error can capture this run's live credentials
+    // in its message/stack (an auth failure echoing the key, a dumped env), so the stack runs
+    // through the run's own deny-set before it reaches stderr — same seed the persisting
+    // emitter uses (`seedForRun(request)`), keeping the log shape intact with values scrubbed.
+    if (err instanceof Error && err.stack) {
+      console.error(seedForRun(request).redactString(err.stack, "stderr"));
+    }
     // A throw escaping run() itself (outside the engine's own try/catch) emitted no error
     // event — persist it here as the backstop.
     if (persistError) persistError(message);
@@ -1389,7 +1408,7 @@ export function createRequestListener(
       // Only .message goes on the wire: the raw thrown value (even via String()) is
       // stack-trace-tainted to CodeQL, and the stack itself stays server-side.
       const message = err instanceof Error ? err.message : "Internal error";
-      console.error(err instanceof Error ? err.stack ?? err.message : err);
+      console.error(err instanceof Error ? (err.stack ?? err.message) : err);
       return send(res, 500, { ok: false, error: message });
     }
   };
@@ -1447,7 +1466,7 @@ if (isEntrypoint(import.meta.url)) {
   // run still returns its own error to its caller.
   process.on("unhandledRejection", (reason) => {
     process.stderr.write(
-      `[sandbox-agent] unhandledRejection: ${reason instanceof Error ? reason.stack ?? reason.message : String(reason)}\n`,
+      `[sandbox-agent] unhandledRejection: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}\n`,
     );
   });
   process.on("uncaughtException", (err) => {

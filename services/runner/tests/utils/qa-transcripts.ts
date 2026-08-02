@@ -70,13 +70,19 @@ export function agentRunRequestFromTranscript(
   transcript: QaTranscript,
 ): AgentRunRequest {
   const agent = transcript.request.data.parameters.agent as {
-    harness?: string;
+    harness?: string | { kind?: string };
+    sandbox?: string | { kind?: string };
     model?: string;
+    llm?: { model?: string };
     agents_md?: string;
+    instructions?: { agents_md?: string };
     tools?: Array<{ type: string; name: string }>;
     harness_options?: Record<string, { append_system?: string }>;
   };
-  const capturedHarness = agent.harness ?? "pi";
+  const capturedHarness =
+    typeof agent.harness === "string"
+      ? agent.harness
+      : (agent.harness?.kind ?? "pi");
   const harness = HARNESS_RENAME[capturedHarness] ?? capturedHarness;
   const appendSystemPrompt =
     agent.harness_options?.[capturedHarness]?.append_system;
@@ -87,8 +93,8 @@ export function agentRunRequestFromTranscript(
   return {
     harness,
     sandbox: "local",
-    agentsMd: agent.agents_md,
-    model: agent.model,
+    agentsMd: agent.agents_md ?? agent.instructions?.agents_md,
+    model: agent.model ?? agent.llm?.model,
     appendSystemPrompt,
     tools: builtinTools,
     messages: transcript.request.data.inputs.messages.map((m) => ({

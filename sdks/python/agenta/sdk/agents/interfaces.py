@@ -190,7 +190,11 @@ class Environment:
             sandbox,
             config,
             harness=harness,
-            secrets=session_config.secrets,
+            secrets=(
+                session_config.resolved_connection.plaintext_environment()
+                if session_config.resolved_connection
+                else {}
+            ),
             trace=session_config.trace,
             run_context=session_config.run_context,
             session_id=session_config.session_id,

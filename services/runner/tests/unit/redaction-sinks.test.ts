@@ -3,10 +3,11 @@
  * durable/exported sinks — the persisted transcript (WP1.4) and the exported OTel spans (WP1.5),
  * seeded from the per-run deny-set (WP1.1).
  *
- * The load-bearing case is the seed SOURCE. A run's provider keys ride `secrets` on the wire and
- * are applied per run (`buildDaemonEnv`); they are never in the sidecar's own process env. A
- * redactor seeded only from process env would therefore look wired and catch nothing that matters,
- * so these tests plant a key that exists ONLY in the request and assert it is scrubbed.
+ * The load-bearing case is the seed SOURCE. A run's provider keys ride the typed
+ * `modelConnection.credentials` (and user MCP `connection.credentials`) on the wire and are
+ * applied per run (`buildDaemonEnv`); they are never in the sidecar's own process env. A
+ * redactor seeded only from process env would therefore look wired and catch nothing that
+ * matters, so these tests plant a key that exists ONLY in the request and assert it is scrubbed.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
@@ -17,14 +18,45 @@ import { seedForRun } from "../../src/redaction.ts";
 import { buildPersistingEmitter } from "../../src/sessions/persist.ts";
 import { createSandboxAgentOtel } from "../../src/tracing/otel.ts";
 
-/** A per-run provider key: present in the request's `secrets`, never in `process.env`. */
+/** A per-run provider key: a typed `modelConnection` credential, never in `process.env`. */
 const PER_RUN_KEY = "sk-per-run-fake-key-DO-NOT-USE-a1b2c3d4e5f6";
+/** A typed user HTTP-MCP header credential, also request-only material. */
+const MCP_HEADER_KEY = "Bearer mcp-per-run-fake-DO-NOT-USE-f6e5d4";
 /** The invoke caller's credential, which rides the OTLP auth header. */
 const RUN_CREDENTIAL = "ApiKey ag-run-cred-9f8e7d6c5b4a";
 
-/** A request carrying this run's resolved provider key + run credential. */
+/** A request carrying this run's resolved typed credentials + run credential. */
 const runRequest = {
-  secrets: { OPENAI_API_KEY: PER_RUN_KEY },
+  modelConnection: {
+    provider: "openai",
+    deployment: "direct",
+    endpoint: { baseUrl: "https://api.openai.com/v1" },
+    credentialMode: "env",
+    credentials: [
+      {
+        binding: { kind: "environment", name: "OPENAI_API_KEY" },
+        value: PER_RUN_KEY,
+        usage: "opaque_http",
+      },
+    ],
+  },
+  mcpServers: [
+    {
+      name: "linear",
+      connection: {
+        type: "http",
+        url: "https://mcp.linear.app/sse",
+        credentials: [
+          {
+            binding: { kind: "header", name: "Authorization" },
+            value: MCP_HEADER_KEY,
+            usage: "opaque_http",
+          },
+        ],
+      },
+      policy: { tools: { mode: "all" } },
+    },
+  ],
   telemetry: {
     exporters: { otlp: { headers: { authorization: RUN_CREDENTIAL } } },
   },
@@ -100,6 +132,13 @@ describe("seedForRun (WP1.1 — the deny-set source)", () => {
     expect(
       redactor.redactString(`called back with ${RUN_CREDENTIAL}`, "test"),
     ).not.toContain("ag-run-cred-9f8e7d6c5b4a");
+  });
+
+  it("seeds typed user HTTP-MCP header credentials", () => {
+    const redactor = seedForRun(runRequest);
+    expect(
+      redactor.redactString(`header was ${MCP_HEADER_KEY}`, "test"),
+    ).not.toContain(MCP_HEADER_KEY);
   });
 });
 
@@ -306,7 +345,9 @@ describe("exported span sink (WP1.5)", () => {
       emitSpans: false, // span-less: only recordError's standalone-span path emits here
       endpoint: "http://127.0.0.1:1/v1/traces",
       traceparent: sharedTraceparent,
-      redactor: seedForRun({ secrets: { A_KEY: SECRET_A } }),
+      redactor: seedForRun({
+        modelConnection: { credentials: [{ value: SECRET_A }] },
+      }),
     });
     const runB = createSandboxAgentOtel({
       harness: "claude",
@@ -314,7 +355,9 @@ describe("exported span sink (WP1.5)", () => {
       emitSpans: false,
       endpoint: "http://127.0.0.1:1/v1/traces",
       traceparent: sharedTraceparent,
-      redactor: seedForRun({ secrets: { B_KEY: SECRET_B } }),
+      redactor: seedForRun({
+        modelConnection: { credentials: [{ value: SECRET_B }] },
+      }),
     });
 
     runA.start({ prompt: "a" });

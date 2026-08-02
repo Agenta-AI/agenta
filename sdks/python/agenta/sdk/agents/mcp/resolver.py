@@ -46,21 +46,17 @@ class MCPResolver:
                 if isinstance(credentials, MCPHeaderSecretRefs)
                 else {}
             )
+            # An empty resolved value is as unusable as an absent one, so both are missing.
             missing = [
                 secret_name
                 for secret_name in secret_refs.values()
-                if secret_name not in secret_values
+                if not secret_values.get(secret_name)
             ]
             if missing and self._missing_secret_policy == MissingSecretPolicy.ERROR:
                 raise MissingMCPSecretError(
                     server_name=server_config.name,
                     secret_names=missing,
                 )
-
-            headers = dict(server_config.connection.headers)
-            for header_name, secret_name in secret_refs.items():
-                if secret_name in secret_values:
-                    headers[header_name] = secret_values[secret_name]
 
             if server_config.connection.url:
                 try:
@@ -71,11 +67,24 @@ class MCPResolver:
                         url=server_config.connection.url,
                     ) from exc
 
+            # Public headers and secret header credentials stay separate by protocol role:
+            # each resolved secret becomes a typed header binding, never a merged header.
+            credentials = [
+                {
+                    "binding": {"kind": "header", "name": header_name},
+                    "value": secret_values[secret_name],
+                    "usage": "opaque_http",
+                }
+                for header_name, secret_name in secret_refs.items()
+                if secret_values.get(secret_name)
+            ]
+
             resolved.append(
                 ResolvedMCPServer(
                     name=server_config.name,
                     url=server_config.connection.url,
-                    headers=headers,
+                    headers=dict(server_config.connection.headers),
+                    credentials=credentials,
                     policy=server_config.policy,
                 )
             )

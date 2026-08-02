@@ -63,21 +63,39 @@ function isPiHarness(harness: string | undefined): boolean {
 }
 
 /**
- * Build the Pi model-config plan from the neutral run request and the resolved secrets, or return
- * `undefined` when the request is not a managed OpenAI-compatible custom Pi run (current behavior).
- *
- * Applicability (which KIND of run this is) — ALL must hold, else no plan:
+ * Applicability (which KIND of run this is) — ALL must hold, else this builder does not apply:
  *   - the harness is Pi;
- *   - the provider family is "openai";
- *   - the deployment is "custom";
+ *   - the resolved provider family is "openai";
+ *   - the resolved deployment is "custom";
  *   - the connection is a named Agenta connection (`mode === "agenta"`).
+ *
+ * Exported so `buildPiExtensionEnv` can skip the generic Pi provider-override env for runs this
+ * models.json path already routes (two competing registrations would race for the provider).
+ */
+export function isPiModelConfigApplicable(request: AgentRunRequest): boolean {
+  return (
+    isPiHarness(request.harness) &&
+    request.modelConnection?.provider === "openai" &&
+    request.modelConnection?.deployment === "custom" &&
+    request.connection?.mode === "agenta"
+  );
+}
+
+/**
+ * Build the Pi model-config plan from the neutral run request and the materialized model
+ * environment, or return `undefined` when the request is not a managed OpenAI-compatible custom
+ * Pi run (current behavior).
+ *
+ * Applicability is `isPiModelConfigApplicable` above.
  *
  * Completeness (the applicable run has everything it needs) — once applicable, ALL must hold or
  * the request is INCOMPLETE and throws `PiModelConfigError`:
  *   - a non-empty connection slug;
  *   - an endpoint base URL;
  *   - credential mode "env";
- *   - `OPENAI_API_KEY` present in the resolved secrets;
+ *   - `OPENAI_API_KEY` present in the materialized model environment (`secrets` — on a Daytona
+ *     Secrets run this includes the opaque credential BINDINGS, whose in-sandbox value is the
+ *     Daytona placeholder);
  *   - a model id.
  *
  * The plan holds only the env var NAME; the raw key never enters it.
@@ -86,25 +104,19 @@ export function buildPiModelConfigPlan(
   request: AgentRunRequest,
   secrets: Record<string, string>,
 ): PiModelConfigPlan | undefined {
-  const applicable =
-    isPiHarness(request.harness) &&
-    request.provider === "openai" &&
-    request.deployment === "custom" &&
-    request.connection?.mode === "agenta";
-  if (!applicable) return undefined;
+  if (!isPiModelConfigApplicable(request)) return undefined;
 
+  const credentialMode = request.modelConnection?.credentialMode;
   const slug = request.connection?.slug?.trim();
-  const baseUrl = request.endpoint?.baseUrl?.trim();
+  const baseUrl = request.modelConnection?.endpoint?.baseUrl?.trim();
   const model = request.model?.trim();
   const hasKey = !!secrets[OPENAI_API_KEY_ENV]?.trim();
 
   const missing: string[] = [];
   if (!slug) missing.push("a connection slug");
   if (!baseUrl) missing.push("an endpoint base URL");
-  if (request.credentialMode !== "env")
-    missing.push(
-      `credential mode "env" (got "${request.credentialMode ?? "none"}")`,
-    );
+  if (credentialMode !== "env")
+    missing.push(`credential mode "env" (got "${credentialMode ?? "none"}")`);
   if (!hasKey) missing.push(`${OPENAI_API_KEY_ENV} in the resolved secrets`);
   if (!model) missing.push("a model id");
 
@@ -116,13 +128,24 @@ export function buildPiModelConfigPlan(
     );
   }
 
+  // The wire `model` may already be provider-qualified ("openai/gpt-x"). The catalog registers
+  // the model UNDER the slug provider, and `environment.ts` requests the fully qualified
+  // `<slug>/<model-id>` — so strip the exact declared provider prefix here, otherwise the
+  // requested id becomes the double-prefixed "<slug>/openai/gpt-x" and never matches.
+  const declaredProvider = request.modelConnection?.provider;
+  const stripped =
+    declaredProvider && (model as string).startsWith(`${declaredProvider}/`)
+      ? (model as string).slice(declaredProvider.length + 1)
+      : (model as string);
+  const modelId = stripped || (model as string);
+
   return {
     providerId: slug as string,
     providerFamily: "openai",
     api: "openai-completions",
     baseUrl: baseUrl as string,
     apiKeyEnv: OPENAI_API_KEY_ENV,
-    models: [{ id: model as string }],
+    models: [{ id: modelId }],
   };
 }
 

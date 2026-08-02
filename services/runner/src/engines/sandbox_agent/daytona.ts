@@ -34,7 +34,7 @@ export const DAYTONA_PI_COMMAND = `${DAYTONA_PI_INSTALL_DIR}/node_modules/.bin/p
  */
 export function daytonaEnvVars(
   piExtEnv: Record<string, string>,
-  secrets: Record<string, string>,
+  environment: Record<string, string>,
 ): Record<string, string> {
   return {
     PI_CODING_AGENT_DIR: DAYTONA_PI_DIR,
@@ -42,8 +42,9 @@ export function daytonaEnvVars(
     // snapshot bakes Pi there; a custom image gets the pinned install before the session.
     PI_ACP_PI_COMMAND: DAYTONA_PI_COMMAND,
     ...piExtEnv,
-    // Provider API keys from the vault: the in-sandbox harness authenticates with these.
-    ...secrets,
+    // Non-secret config and explicitly local-use values. Opaque HTTP credentials attach through
+    // Daytona's `secrets` create field and never enter this plaintext environment map.
+    ...environment,
   };
 }
 

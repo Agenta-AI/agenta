@@ -24,12 +24,14 @@ from ..capabilities import (
     HARNESS_CONNECTION_CAPABILITIES,
     PROVIDER_ENV_VARS,
 )
+from ..connections.endpoints import build_resolved_connection
 from ..connections import (
     AmbiguousConnectionError,
     ConnectionNotFoundError,
     ConnectionResolutionError,
     EndpointResolutionError,
     Endpoint,
+    MissingCredentialError,
     MissingProviderError,
     ModelRef,
     ProviderMismatchError,
@@ -500,11 +502,11 @@ def _resolve_from_secrets(
         model = model.model_copy(update={"provider": inferred})
     if connection.mode == "self_managed":
         provider = model.provider or ""
-        return ResolvedConnection(
+        return build_resolved_connection(
             provider=provider,
             model=model.model,
             credential_mode="runtime_provided",
-            env={},
+            values={},
             # A miss means workspace-only downstream; do not guess.
             input_modalities=model_input_modalities(
                 harness, model.model, provider=provider or None
@@ -531,12 +533,14 @@ def _resolve_from_secrets(
         raise chosen.endpoint_resolution_error()
     env = chosen.resolved_env(provider)
     resolved_model = chosen.selected_model_id(model)
-    return ResolvedConnection(
+    if not env:
+        raise MissingCredentialError(provider=provider, slug=chosen.slug)
+    return build_resolved_connection(
         provider=provider,
         model=resolved_model,
         deployment=chosen.deployment,
-        credential_mode="env" if env else "runtime_provided",
-        env=env,
+        credential_mode="env",
+        values=env,
         endpoint=chosen.endpoint,
         # A miss means workspace-only downstream; do not guess.
         input_modalities=model_input_modalities(

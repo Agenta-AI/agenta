@@ -76,11 +76,32 @@ class WireEndpoint(_WireModel):
     headers: Optional[Dict[str, str]] = None
 
 
-class WireConnection(_WireModel):
-    """The author's credential-connection intent (``{mode, slug?}``)."""
+class WireCredentialBinding(_WireModel):
+    """Protocol location where the model client consumes one credential."""
 
-    mode: Literal["agenta", "self_managed"] = "agenta"
-    slug: Optional[str] = None
+    kind: Literal["environment"]
+    name: str
+
+
+class WireCredential(_WireModel):
+    """One model credential, its binding, and its consumer usage contract."""
+
+    binding: WireCredentialBinding
+    value: str
+    usage: Literal["opaque_http", "local_use"]
+
+
+class WireModelConnection(_WireModel):
+    """Resolved model routing, non-secret environment, and credentials for one run."""
+
+    provider: str
+    deployment: str
+    endpoint: Optional[WireEndpoint] = None
+    credential_mode: Literal["env", "runtime_provided", "none"] = Field(
+        alias="credentialMode"
+    )
+    environment: Optional[Dict[str, str]] = None
+    credentials: List[WireCredential] = Field(default_factory=list)
 
 
 class WireModelCapabilities(_WireModel):
@@ -293,11 +314,35 @@ class WirePermissions(_WireModel):
     rules: Optional[List[WirePermissionRule]] = None
 
 
+class WireMcpCredentialBinding(_WireModel):
+    kind: Literal["header"]
+    name: str
+
+
+class WireMcpCredential(_WireModel):
+    binding: WireMcpCredentialBinding
+    value: str
+    usage: Literal["opaque_http"]
+
+
+class WireMcpConnection(_WireModel):
+    """How the runner reaches one external HTTP MCP server.
+
+    Public ``headers`` and secret header ``credentials`` stay separate by protocol role
+    (mirrors ``ResolvedMCPServer.to_wire``'s ``connection`` object).
+    """
+
+    type: Optional[str] = None
+    url: Optional[str] = None
+    headers: Optional[Dict[str, str]] = None
+    credentials: Optional[List[WireMcpCredential]] = None
+
+
 class WireMcpServer(_WireModel):
-    """A resolved external HTTP MCP server, mirrors ``mcp_servers_to_wire``."""
+    """A resolved external HTTP MCP server, mirrors ``ResolvedMCPServer.to_wire``."""
 
     name: str
-    connection: Dict[str, Any]
+    connection: WireMcpConnection
     policy: Dict[str, Any]
 
 
@@ -418,21 +463,17 @@ class WireRunRequest(_WireModel):
     turn_id: Optional[str] = Field(default=None, alias="turnId")
     project_id: Optional[str] = Field(default=None, alias="projectId")
     agents_md: Optional[str] = Field(default=None, alias="agentsMd")
-    # Model + connection. ``model`` stays a plain string; the structured provider/connection
-    # fields ride alongside only when a resolved connection / model ref is present.
+    # Model id stays scalar; resolved routing and credentials are one consumer-owned object.
     model: Optional[str] = None
-    provider: Optional[str] = None
-    connection: Optional[WireConnection] = None
-    deployment: Optional[str] = None
-    endpoint: Optional[WireEndpoint] = None
-    credential_mode: Optional[str] = Field(default=None, alias="credentialMode")
+    model_connection: Optional[WireModelConnection] = Field(
+        default=None, alias="modelConnection"
+    )
+    # Resolved model input modalities. Omitted when the resolver cannot determine them.
     model_capabilities: Optional[WireModelCapabilities] = Field(
         default=None, alias="modelCapabilities"
     )
     # Turn.
     messages: Optional[List[WireChatMessage]] = None
-    # Secrets injected as harness env (provider keys); never written to the agent filesystem.
-    secrets: Optional[Dict[str, str]] = None
     # Tracing inputs, grouped by role (see the trace/telemetry interface restructure): ``context``
     # carries the per-call W3C trace-context propagation, ``telemetry`` the operator-owned exporter
     # config + capture policy. Both come from the single service-side trace capture.

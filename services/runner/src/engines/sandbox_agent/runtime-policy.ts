@@ -80,9 +80,9 @@ export function applyClaudeConnectionEnv(
   // so it is never stripped, and it reaches the Daytona sandbox like `ANTHROPIC_BASE_URL`.
   env.ENABLE_TOOL_SEARCH = "false";
 
-  const deployment = request.deployment;
+  const deployment = request.modelConnection?.deployment;
   const selectedModel = request.model;
-  const baseUrl = request.endpoint?.baseUrl;
+  const baseUrl = request.modelConnection?.endpoint?.baseUrl;
   if (baseUrl) {
     env.ANTHROPIC_BASE_URL = baseUrl;
     logger(`claude base_url: ${baseUrl}`);
@@ -90,7 +90,7 @@ export function applyClaudeConnectionEnv(
 
   if (deployment === "bedrock") {
     env.CLAUDE_CODE_USE_BEDROCK = "1";
-    const region = request.endpoint?.region;
+    const region = request.modelConnection?.endpoint?.region;
     if (region) {
       env.AWS_REGION = region;
       env.AWS_DEFAULT_REGION ??= region;

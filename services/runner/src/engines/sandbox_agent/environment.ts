@@ -59,7 +59,12 @@ import {
   prepareDaytonaPiAssets,
 } from "./daytona.ts";
 import { conciseError } from "./errors.ts";
-import { buildSessionMcpServers } from "./mcp.ts";
+import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../extensions/model-provider-override.ts";
+import { materializeDaytonaMcpServers } from "./daytona-secret-provider.ts";
+import {
+  buildSessionMcpServers,
+  validateUserMcpServers,
+} from "./mcp.ts";
 import { applyModel } from "./model.ts";
 import {
   discoverTunnelEndpoint,
@@ -74,6 +79,7 @@ import {
 } from "./mount.ts";
 import {
   PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE,
+  PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE,
   PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE,
   prepareLocalPiAssets,
   uploadSystemPromptToSandbox,
@@ -264,6 +270,7 @@ export async function acquireEnvironment(
     environment,
     localBuiltinGatingUnenforceable,
     localModelConfigUnwritable,
+    localModelOverrideUnenforceable,
     logger,
     mcpAbort,
     piExtEnv,
@@ -583,6 +590,15 @@ export async function acquireEnvironment(
     if (localModelConfigUnwritable) {
       throw new Error(PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE);
     }
+    // Fail closed: a Pi run that routes its provider through the extension's model endpoint
+    // override cannot run without the extension — the model would silently hit the default
+    // endpoint with the wrong credentials.
+    if (localModelOverrideUnenforceable) {
+      throw new Error(PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE);
+    }
+    // Structural + SSRF validation of user MCP servers BEFORE any sandbox (or Daytona Secret) is
+    // created, so an invalid credentialed server never triggers remote side effects.
+    await validateUserMcpServers(request.mcpServers);
     // Persist events in-process so a follow-up turn can resume by session id.
     const persist =
       deps.createPersist?.() ?? new InMemorySessionPersistDriver();
@@ -604,8 +620,9 @@ export async function acquireEnvironment(
       env,
       binaryPath,
       piExtEnv,
-      plan.secrets,
+      plan.modelEnvironment,
       plan.sandboxPermission,
+      plan.daytonaSecretPlan,
     );
     const startOptions = {
       sandbox: sandboxProvider,
@@ -692,6 +709,15 @@ export async function acquireEnvironment(
       // Daytona sandbox stops the run rather than running Pi's built-in tools unprotected.
       if (plan.isPi && plan.builtinGatingActive && !daytonaExtensionInstalled) {
         throw new Error(PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE);
+      }
+      // Fail closed: the Pi model endpoint override rides the extension; without it the model
+      // would silently hit the default endpoint with the wrong credentials.
+      if (
+        plan.isPi &&
+        piExtEnv[PI_MODEL_PROVIDER_OVERRIDE_ENV] !== undefined &&
+        !daytonaExtensionInstalled
+      ) {
+        throw new Error(PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE);
       }
       if (!plan.isPi && plan.toolSpecs.length > 0) {
         // Advertise the FULL tool set to the shim, client tools included: a parked client tool
@@ -895,7 +921,12 @@ export async function acquireEnvironment(
       harness: plan.harness,
       isDaytona: plan.isDaytona,
       toolSpecs: plan.toolSpecs,
-      userMcpServers: request.mcpServers,
+      // On a Daytona Secrets run the provider swaps each MCP credential value for its Daytona
+      // Secret placeholder, so no plaintext secret rides the sandbox-bound session config.
+      userMcpServers: materializeDaytonaMcpServers(
+        sandboxProvider,
+        request.mcpServers,
+      ),
       relayDir: plan.relayDir,
       clientToolRelay: deferredClientToolRelay,
       signal: mcpAbort.signal,
@@ -1057,7 +1088,11 @@ export async function acquireEnvironment(
     timingLog("acquire_total", acquireStartedAt);
     return { ok: true, env: environment };
   } catch (err) {
-    const error = conciseError(err, plan.harness, request.provider);
+    const error = conciseError(
+      err,
+      plan.harness,
+      request.modelConnection?.provider,
+    );
     // Mirror today's shared teardown: no otel exists yet during acquire, so there is no partial
     // trace to flush — just run the incrementally-registered finalizers and surface the error.
     await environment.destroy({ reason: "failed-turn" });

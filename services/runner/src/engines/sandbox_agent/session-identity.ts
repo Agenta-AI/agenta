@@ -138,10 +138,13 @@ function canonicalJson(value: unknown): string {
 /**
  * A canonical hash over the config-bearing request fields (the continuation-versus-cold
  * decision). Per-turn volatiles are excluded: `messages`, `turnId`, trace propagation
- * (`context`), the rotating telemetry headers, and secret VALUES (`secrets` — the credential
- * epoch covers rotation, and values must never enter any hash used for logging). The
- * tool-callback ENDPOINT is included (routing config); its authorization is a credential and
- * lives in the credential epoch instead.
+ * (`context`), the rotating telemetry headers, and credential VALUES
+ * (`modelConnection.credentials` / MCP `connection.credentials` — the credential epoch covers
+ * rotation, and values must never enter any hash used for logging). The tool-callback ENDPOINT
+ * is included (routing config); its authorization is per-turn credential material excluded from
+ * every hash, the credential epoch included — each turn's relay uses the INCOMING request's
+ * `toolCallback` (see `CredentialEpoch` and `run-turn.ts`), so the parked copy never executes
+ * anything.
  */
 export function configFingerprint(request: AgentRunRequest): string {
   const workflow = request.runContext?.workflow;
@@ -149,18 +152,41 @@ export function configFingerprint(request: AgentRunRequest): string {
     harness: request.harness ?? null,
     sandbox: request.sandbox ?? null,
     model: request.model ?? null,
-    provider: request.provider ?? null,
     connection: request.connection ?? null,
-    deployment: request.deployment ?? null,
-    endpoint: request.endpoint ?? null,
+    modelConnection: request.modelConnection
+      ? {
+          provider: request.modelConnection.provider,
+          deployment: request.modelConnection.deployment,
+          endpoint: request.modelConnection.endpoint ?? null,
+          credentialMode: request.modelConnection.credentialMode,
+          environment: request.modelConnection.environment ?? null,
+          credentials: (request.modelConnection.credentials ?? []).map(
+            (credential) => ({
+              binding: credential.binding,
+              usage: credential.usage,
+            }),
+          ),
+        }
+      : null,
     modelCapabilities: request.modelCapabilities ?? null,
-    credentialMode: request.credentialMode ?? null,
     agentsMd: request.agentsMd ?? null,
     systemPrompt: request.systemPrompt ?? null,
     appendSystemPrompt: request.appendSystemPrompt ?? null,
     skills: request.skills ?? null,
     customTools: request.customTools ?? null,
-    mcpServers: request.mcpServers ?? null,
+    // Credential VALUES are stripped (binding + usage identify the shape); public headers are
+    // config and stay in.
+    mcpServers:
+      request.mcpServers?.map((server) => ({
+        ...server,
+        connection: {
+          ...server.connection,
+          credentials: server.connection?.credentials?.map((credential) => ({
+            binding: credential.binding,
+            usage: credential.usage,
+          })),
+        },
+      })) ?? null,
     toolCallbackEndpoint: request.toolCallback?.endpoint ?? null,
     permissions: request.permissions ?? null,
     sandboxPermission: request.sandboxPermission ?? null,
@@ -465,7 +491,9 @@ export function mountExpiryMs(
 }
 
 /**
- * The epoch an INCOMING request carries: just the secret material. An incoming request has no
+ * The epoch an INCOMING request carries: just the secret material — the typed model credentials
+ * and the typed MCP header credentials, i.e. exactly what gets BAKED into the sandbox/session
+ * environment (plaintext locally; Daytona Secret records remotely). An incoming request has no
  * mount lease of its own to contribute; a parked epoch's `mountExpiresAtMs` is stamped from the
  * environment's installed mounts at park time (see `installedMountLease`).
  */
@@ -473,9 +501,33 @@ export function computeCredentialEpoch(
   request: AgentRunRequest,
 ): CredentialEpoch {
   const material = canonicalJson({
-    secrets: request.secrets ?? {},
+    modelEnvironment: request.modelConnection?.environment ?? {},
+    modelCredentials: (request.modelConnection?.credentials ?? []).map(
+      (credential) => ({
+        binding: credential.binding,
+        value: credential.value,
+        usage: credential.usage,
+      }),
+    ),
+    mcpCredentials: (request.mcpServers ?? []).flatMap((server) =>
+      (server.connection?.credentials ?? []).map((credential) => ({
+        server: server.name,
+        url: server.connection?.url ?? null,
+        binding: credential.binding,
+        value: credential.value,
+        usage: credential.usage,
+      })),
+    ),
   });
   return { secretsHash: sha256(material) };
+}
+
+/** True when credentials baked into a parked sandbox/session changed (rotation ⇒ evict). */
+export function sandboxCredentialsRotated(
+  parked: CredentialEpoch,
+  incoming: CredentialEpoch,
+): boolean {
+  return parked.secretsHash !== incoming.secretsHash;
 }
 
 /**

@@ -19,6 +19,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
+import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../src/extensions/model-provider-override.ts";
 import {
   buildPiExtensionEnv,
   configurePiSkillSnapshot,
@@ -91,6 +92,76 @@ afterEach(() => {
 });
 
 describe("buildPiExtensionEnv", () => {
+  it("carries only public provider endpoint config for Pi", () => {
+    const request = {
+      modelConnection: {
+        provider: "anthropic",
+        deployment: "claude-sonnet-4-5",
+        endpoint: {
+          baseUrl: "https://proxy.example.test/anthropic",
+          headers: { Authorization: "Bearer do-not-expose" },
+        },
+        credentialMode: "env",
+        environment: { PUBLIC_HINT: "not-needed-by-extension" },
+        credentials: [
+          {
+            binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+            value: "secret-model-key",
+            usage: "local_use",
+          },
+        ],
+      },
+    } as AgentRunRequest;
+
+    const env = buildPiExtensionEnv(request, false);
+
+    assert.deepEqual(JSON.parse(env[PI_MODEL_PROVIDER_OVERRIDE_ENV]), {
+      provider: "anthropic",
+      baseUrl: "https://proxy.example.test/anthropic",
+    });
+    assert.equal(JSON.stringify(env).includes("do-not-expose"), false);
+    assert.equal(JSON.stringify(env).includes("secret-model-key"), false);
+    assert.equal(JSON.stringify(env).includes("PUBLIC_HINT"), false);
+  });
+
+  it("rejects malformed provider endpoint overrides", () => {
+    const request = (provider: string, baseUrl: string) =>
+      ({
+        modelConnection: {
+          provider,
+          deployment: "model",
+          endpoint: { baseUrl },
+          credentialMode: "none",
+          credentials: [],
+        },
+      }) as AgentRunRequest;
+
+    assert.throws(
+      () =>
+        buildPiExtensionEnv(
+          request("bad/provider", "https://proxy.example.test"),
+          false,
+        ),
+      /invalid provider/,
+    );
+    assert.throws(
+      () =>
+        buildPiExtensionEnv(
+          request("anthropic", "http://proxy.example.test"),
+          false,
+        ),
+      /must be an HTTPS URL/,
+    );
+    assert.throws(
+      () =>
+        buildPiExtensionEnv(
+          request("anthropic", "https://user:pass@proxy.example.test"),
+          false,
+        ),
+      /without credentials/,
+    );
+  });
+
   it("exposes tracing, usage, and public tool metadata only", () => {
     const request = {
       context: {
@@ -198,6 +269,7 @@ describe("buildPiExtensionEnv", () => {
     assert.equal(env.TRACEPARENT, undefined);
     assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
+    assert.equal(env[PI_MODEL_PROVIDER_OVERRIDE_ENV], undefined);
   });
 
   it("sets builtin gating env WITHOUT a relay dir (the gate rides the ACP dialog plane)", () => {
@@ -745,6 +817,7 @@ describe("prepareLocalPiAssets (runtime_provided runs out of the mount, read-wri
     assert.equal(env.PI_CODING_AGENT_DIR, runDir);
     dirs.push(runDir as string);
   });
+
 });
 
 describe("sandbox uploads", () => {

@@ -16,10 +16,15 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import type { AgentRunRequest, ResolvedToolSpec } from "../../protocol.ts";
+import {
+  encodePiModelProviderOverride,
+  PI_MODEL_PROVIDER_OVERRIDE_ENV,
+} from "../../extensions/model-provider-override.ts";
 import { advertisedToolSpecs } from "../../tools/public-spec.ts";
 import type { MaterializedSkill } from "../skills.ts";
 import { PKG_ROOT } from "./daemon.ts";
 import {
+  isPiModelConfigApplicable,
   PI_MODELS_JSON_FILENAME,
   serializePiModelsJson,
   type PiModelConfigPlan,
@@ -287,6 +292,18 @@ export const PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE =
   "default provider. Ask your deployment operator to make the runner's Pi agent directory writable.";
 
 /**
+ * Thrown (via the engine's named-message pattern) when the run routes its model provider through
+ * the extension's endpoint override (`model-provider-override.ts`) but the Agenta extension could
+ * not be installed. Fail closed: without the extension the harness would silently call the
+ * provider's DEFAULT endpoint with credentials resolved for the custom one. Single line so
+ * `conciseError` surfaces it verbatim.
+ */
+export const PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE =
+  "The agent could not apply its custom model endpoint: the Agenta extension failed to install, " +
+  "so the provider override could not be registered. The run was stopped rather than call the " +
+  "default endpoint. Ask your deployment operator to rebuild and republish the runner image.";
+
+/**
  * Write the Pi `models.json` into a local (throwaway) agent dir with mode `0600` via an atomic
  * temp-file-plus-rename. THROWS on failure so the caller can make materialization terminal — a
  * managed custom run must never fall through to a default provider (design Decision 6). The file
@@ -348,6 +365,18 @@ export function buildPiExtensionEnv(
   // consumer); a JSON array string the extension parses.
   if (telemetry && opts.skills && opts.skills.length > 0)
     env.AGENTA_AGENT_SKILLS_LOADED = JSON.stringify(opts.skills);
+
+  // Point Pi's built-in provider at the resolved custom base URL via the Agenta extension
+  // (`model-provider-override.ts`). Skipped when the managed OpenAI-compatible custom path
+  // already routes this run through its own `models.json` provider (`pi-model-config.ts`) —
+  // two competing registrations for the same run would race for the provider.
+  const modelBaseUrl = request.modelConnection?.endpoint?.baseUrl;
+  if (modelBaseUrl !== undefined && !isPiModelConfigApplicable(request)) {
+    env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = encodePiModelProviderOverride({
+      provider: request.modelConnection?.provider,
+      baseUrl: modelBaseUrl,
+    });
+  }
 
   const specs = advertisedToolSpecs(
     (request.customTools as ResolvedToolSpec[]) ?? [],

@@ -36,6 +36,11 @@ import {
   loadRunnerConfig,
   type SandboxProviderId,
 } from "../../config/runner-config.ts";
+import {
+  buildDaytonaSecretPlan,
+  daytonaOpaqueSecretsEnabled,
+  type DaytonaSecretPlan,
+} from "./daytona-secret-plan.ts";
 
 type Log = (message: string) => void;
 
@@ -102,20 +107,29 @@ export interface RunPlan {
   prompt: string;
   turnText: string;
   agentsMd?: string;
-  secrets: Record<string, string>;
+  /** Final plaintext model environment, after validating modelConnection. */
+  modelEnvironment: Record<string, string>;
+  /**
+   * Process-local opaque credential plan. Present for every Daytona run when
+   * AGENTA_DAYTONA_OPAQUE_SECRETS=process_local is enabled — even with zero candidates, so the
+   * Secret provider wrapper (and its create-fingerprint rotation check) governs every flag-on
+   * reconnect. Absent when the flag is off, so that path is the plain plaintext-env provider
+   * with no wrapper, unchanged from the pre-feature runner.
+   */
+  daytonaSecretPlan?: DaytonaSecretPlan;
   /**
    * The provider api-key env var name the harness would read by default (`ANTHROPIC_API_KEY` for
    * Claude, `OPENAI_API_KEY` otherwise). It does not choose the provider; it only names the key
-   * whose presence sets `hasApiKey`.
+   * whose presence — in the materialized model environment — sets `hasApiKey`.
    */
-  legacyHarnessApiKeyVar: string;
-  /** Whether the resolved `secrets` already carry `legacyHarnessApiKeyVar`. */
+  harnessApiKeyVar: string;
+  /** Whether the materialized model environment already carries `harnessApiKeyVar`. */
   hasApiKey: boolean;
   /**
    * How the credential is delivered: "env" (managed, resolved key) | "runtime_provided" (the
    * harness owns its login) | "none". From the resolved connection (provider-model-auth design,
-   * Concern 3). `undefined` when an un-migrated caller sends no credentialMode. Drives
-   * clear-then-apply env (Security rule 5).
+   * Concern 3). `undefined` only when a direct runner request has no resolved modelConnection;
+   * that request may still use the harness login. Drives clear-then-apply env (Security rule 5).
    */
   credentialMode?: string;
   cwd: string;
@@ -167,6 +181,27 @@ export interface RunPlan {
 
 export type BuildRunPlanResult =
   { ok: true; plan: RunPlan } | { ok: false; error: string };
+
+// Retired flat model-credential fields. `connection` ({mode, slug}) is NOT here: it is the
+// author's non-secret connection intent, still on the wire (pi-model-config keys the Pi custom
+// provider off its slug).
+const LEGACY_MODEL_CREDENTIAL_FIELDS = [
+  "secrets",
+  "provider",
+  "deployment",
+  "credentialMode",
+  "endpoint",
+] as const;
+
+// Always scans the raw request, `modelConnection` present or not: a caller sending BOTH the
+// typed shape and a retired flat field is confused about the contract, and silently ignoring
+// the legacy half could mask a credential it expected to apply.
+function legacyModelCredentialFields(request: AgentRunRequest): string[] {
+  const raw = request as unknown as Record<string, unknown>;
+  return LEGACY_MODEL_CREDENTIAL_FIELDS.filter(
+    (field) => Object.hasOwn(raw, field) && raw[field] !== undefined,
+  );
+}
 
 export interface BuildRunPlanDeps {
   sandboxProvider?: string;
@@ -227,6 +262,99 @@ function defaultDaytonaCwd(durableCwd?: string): string {
   return durableCwd ?? `/home/sandbox/agenta-${randomBytes(6).toString("hex")}`;
 }
 
+export function materializeModelEnvironment(
+  request: AgentRunRequest,
+):
+  | { ok: true; environment: Record<string, string>; credentialMode?: string }
+  | { ok: false; error: string } {
+  const connection = request.modelConnection;
+  if (!connection) return { ok: true, environment: {} };
+  if (!connection.provider?.trim() || !connection.deployment?.trim()) {
+    return {
+      ok: false,
+      error: "modelConnection requires provider and deployment",
+    };
+  }
+
+  const environment: Record<string, string> = {};
+  for (const [name, value] of Object.entries(connection.environment ?? {})) {
+    if (!name.trim() || typeof value !== "string" || !value) {
+      return {
+        ok: false,
+        error:
+          "modelConnection environment requires non-empty names and values",
+      };
+    }
+    environment[name] = value;
+  }
+
+  const credentials = Array.isArray(connection.credentials)
+    ? connection.credentials
+    : [];
+  if (connection.credentialMode === "env" && credentials.length === 0) {
+    return {
+      ok: false,
+      error: "modelConnection credentialMode env requires credentials",
+    };
+  }
+  if (connection.credentialMode !== "env" && credentials.length > 0) {
+    return {
+      ok: false,
+      error: "modelConnection credentials require credentialMode env",
+    };
+  }
+
+  for (const credential of credentials) {
+    const name = credential?.binding?.name;
+    if (
+      credential?.binding?.kind !== "environment" ||
+      !name?.trim() ||
+      !credential.value
+    ) {
+      return {
+        ok: false,
+        error: "modelConnection credential binding and value must be non-empty",
+      };
+    }
+    if (
+      credential.usage !== "opaque_http" &&
+      credential.usage !== "local_use"
+    ) {
+      return {
+        ok: false,
+        error: "modelConnection credential usage is invalid",
+      };
+    }
+    if (credential.usage === "opaque_http") {
+      try {
+        const endpoint = new URL(connection.endpoint?.baseUrl ?? "");
+        if (endpoint.protocol !== "https:" || !endpoint.hostname) {
+          throw new Error("invalid endpoint");
+        }
+      } catch {
+        return {
+          ok: false,
+          error:
+            "opaque_http model credentials require an effective HTTPS endpoint",
+        };
+      }
+    }
+    if (Object.hasOwn(environment, name)) {
+      return {
+        ok: false,
+        error: `duplicate modelConnection environment binding '${name}'`,
+      };
+    }
+    environment[name] = credential.value;
+  }
+
+  return {
+    ok: true,
+    environment,
+    credentialMode: connection.credentialMode,
+  };
+}
+
 export function buildRunPlan(
   request: AgentRunRequest,
   {
@@ -257,6 +385,18 @@ export function buildRunPlan(
       error:
         `Sandbox provider '${sandboxId}' is not enabled on this deployment ` +
         `(enabled: ${enabled.join(", ")}).`,
+    };
+  }
+
+  // Model routing and credentials arrive grouped under `modelConnection`; the retired flat
+  // fields are rejected loudly so a stale caller cannot silently run without credentials.
+  const legacyFields = legacyModelCredentialFields(request);
+  if (legacyFields.length > 0) {
+    return {
+      ok: false,
+      error:
+        `Legacy top-level model credential fields are not supported (${legacyFields.join(", ")}); ` +
+        "send the resolved modelConnection object.",
     };
   }
 
@@ -310,7 +450,8 @@ export function buildRunPlan(
   // its login on a read-write mount that lives in the runner container and is never shipped to a
   // third-party sandbox. Reject Daytona + runtime_provided here, before any sandbox is created,
   // rather than silently falling back to an unauthenticated remote run (interface.md sections 5-6).
-  if (isDaytona && request.credentialMode === "runtime_provided") {
+  const requestCredentialMode = request.modelConnection?.credentialMode;
+  if (isDaytona && requestCredentialMode === "runtime_provided") {
     return { ok: false, error: DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE };
   }
 
@@ -318,7 +459,7 @@ export function buildRunPlan(
   // harness config var is unset there is no mount to read, so fail up front with an actionable
   // message rather than letting the harness fall back to discovering the runner's own home dir
   // (interface.md section 6). Managed ("env") / "none" runs are unaffected.
-  if (!isDaytona && request.credentialMode === "runtime_provided") {
+  if (!isDaytona && requestCredentialMode === "runtime_provided") {
     const subscriptionEnvVar =
       acpAgent === "claude" ? "CLAUDE_CONFIG_DIR" : "PI_CODING_AGENT_DIR";
     if (!process.env[subscriptionEnvVar]) {
@@ -326,8 +467,39 @@ export function buildRunPlan(
     }
   }
 
-  const secrets = request.secrets ?? {};
-  const legacyHarnessApiKeyVar =
+  const materializedModel = materializeModelEnvironment(request);
+  if (!materializedModel.ok) return materializedModel;
+  // Daytona opaque-credential delivery is FLAG-GATED (AGENTA_DAYTONA_OPAQUE_SECRETS=
+  // process_local). Flag OFF: no secret plan is built at all, so behavior is identical to the
+  // pre-feature runner — the full materialized environment reaches sandbox create as plaintext
+  // env, no provider wrapper is applied, and the plan's strict endpoint/binding validation
+  // cannot introduce a new failure mode. Flag ON: the plan splits every opaque_http value out
+  // of the plaintext env and is ALWAYS kept, even with zero candidates, so the provider wrapper
+  // (and its create fingerprint) governs every flag-on Daytona reconnect. A zero-candidate plan
+  // allocates no Secrets, but a parked sandbox created with plaintext local_use credentials must
+  // be rebuilt — never reconnected — after those credentials rotate, and only the wrapper's
+  // fingerprint check enforces that (the plain reconnect path converges network policy only).
+  let daytonaSecretPlan: DaytonaSecretPlan | undefined;
+  if (isDaytona && daytonaOpaqueSecretsEnabled()) {
+    try {
+      daytonaSecretPlan = buildDaytonaSecretPlan({
+        modelConnection: request.modelConnection,
+        mcpServers: request.mcpServers,
+      });
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+  // Local keeps its existing direct environment. A flag-on Daytona run with opaque credentials
+  // removes every opaque_http value and passes only non-secret config plus explicitly local_use
+  // credentials to sandbox create. With zero candidates the plan's environment equals the
+  // materialized one, so keeping the empty plan changes nothing here.
+  const modelEnvironment =
+    daytonaSecretPlan?.environment ?? materializedModel.environment;
+  const harnessApiKeyVar =
     acpAgent === "claude" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
   const toolSpecs = (request.customTools as ResolvedToolSpec[]) ?? [];
   const executableToolSpecsForRun = executableToolSpecs(toolSpecs);
@@ -483,10 +655,13 @@ export function buildRunPlan(
       prompt,
       turnText: buildTurnText(request, log),
       agentsMd: request.agentsMd?.trim() || undefined,
-      secrets,
-      legacyHarnessApiKeyVar,
-      hasApiKey: !!secrets[legacyHarnessApiKeyVar],
-      credentialMode: request.credentialMode,
+      modelEnvironment,
+      daytonaSecretPlan,
+      harnessApiKeyVar,
+      // Consult the FULL materialized environment: on a Daytona Secrets run the opaque key is
+      // delivered as a Secret attachment rather than plaintext env, but the harness still has it.
+      hasApiKey: !!materializedModel.environment[harnessApiKeyVar],
+      credentialMode: materializedModel.credentialMode,
       cwd,
       relayDir,
       toolMcpDir,

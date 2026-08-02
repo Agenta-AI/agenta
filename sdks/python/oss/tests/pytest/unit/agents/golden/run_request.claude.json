@@ -5,25 +5,29 @@
   "agentsMd": "You are a helpful assistant.",
   "model": "claude-sonnet-4-6",
   "messages": [
-    {"role": "user", "content": "hi"}
+    {
+      "role": "user",
+      "content": "hi"
+    }
   ],
-  "secrets": {"ANTHROPIC_API_KEY": "sk-ant"},
   "context": null,
   "telemetry": null,
-  "runContext": {
-    "run": {"kind": "test"}
-  },
   "tools": [],
   "customTools": [
     {
       "name": "get_user",
       "description": "Get a user",
-      "inputSchema": {"type": "object", "properties": {}},
-      "callRef": "tools__composio__github__GET_THE_AUTHENTICATED_USER__github-tvn",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "readOnly": true,
       "kind": "callback",
-      "contextBindings": {"target.workflow_variant_id": "$ctx.workflow.variant.id"},
-      "timeoutMs": 120000,
-      "readOnly": true
+      "callRef": "tools__composio__github__GET_THE_AUTHENTICATED_USER__github-tvn",
+      "contextBindings": {
+        "target.workflow_variant_id": "$ctx.workflow.variant.id"
+      },
+      "timeoutMs": 120000
     }
   ],
   "toolCallback": {
@@ -33,10 +37,53 @@
   "permissions": {
     "default": "deny",
     "rules": [
-      {"pattern": "WebFetch", "permission": "deny"},
-      {"pattern": "Read", "permission": "allow"},
-      {"pattern": "Bash(npm run:*)", "permission": "allow"}
+      {
+        "pattern": "WebFetch",
+        "permission": "deny"
+      },
+      {
+        "pattern": "Read",
+        "permission": "allow"
+      },
+      {
+        "pattern": "Bash(npm run:*)",
+        "permission": "allow"
+      }
     ]
+  },
+  "skills": [
+    {
+      "name": "release-notes",
+      "description": "Draft release notes from a changelog.",
+      "body": "Read the changelog, then write release notes.",
+      "files": [
+        {
+          "path": "scripts/draft.py",
+          "content": "print('draft')",
+          "executable": true
+        }
+      ],
+      "disableModelInvocation": true,
+      "allowExecutableFiles": true
+    }
+  ],
+  "modelConnection": {
+    "provider": "anthropic",
+    "deployment": "direct",
+    "credentialMode": "env",
+    "credentials": [
+      {
+        "binding": {
+          "kind": "environment",
+          "name": "ANTHROPIC_API_KEY"
+        },
+        "value": "sk-ant",
+        "usage": "opaque_http"
+      }
+    ],
+    "endpoint": {
+      "baseUrl": "https://api.anthropic.com"
+    }
   },
   "harnessFiles": [
     {
@@ -44,16 +91,9 @@
       "content": "{\n  \"permissions\": {\n    \"defaultMode\": \"acceptEdits\",\n    \"allow\": [\n      \"Read\",\n      \"Bash(npm run:*)\"\n    ],\n    \"deny\": [\n      \"WebFetch\",\n      \"mcp__agenta-tools__get_user\"\n    ]\n  }\n}"
     }
   ],
-  "skills": [
-    {
-      "name": "release-notes",
-      "description": "Draft release notes from a changelog.",
-      "body": "Read the changelog, then write release notes.",
-      "files": [
-        {"path": "scripts/draft.py", "content": "print('draft')", "executable": true}
-      ],
-      "disableModelInvocation": true,
-      "allowExecutableFiles": true
+  "runContext": {
+    "run": {
+      "kind": "test"
     }
-  ]
+  }
 }
