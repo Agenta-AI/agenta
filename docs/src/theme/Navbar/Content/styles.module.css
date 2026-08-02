@@ -18,6 +18,68 @@
   flex: 0 0 auto;
 }
 
+/* Small version pill sitting immediately right of the logo. */
+.versionSelector {
+  display: flex;
+  align-items: center;
+  margin-left: 4px;
+}
+
+.versionSelector :global(.navbar__link) {
+  /* Inline-flex so the pill's padding grows its parent, which the menu is positioned against. */
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: var(--ifm-font-weight-semibold);
+  color: var(--sidebar-link-color);
+  padding: 3px 8px;
+  border: none;
+  border-radius: 4px;
+  background-color: transparent;
+  transition: background-color 120ms ease;
+}
+
+.versionSelector :global(.navbar__link:hover) {
+  color: var(--sidebar-link-color);
+  background-color: var(--ifm-color-emphasis-200);
+}
+
+/* Theme padding on the dropdown item would push the menu off the pill's left edge. */
+.versionSelector :global(.navbar__item.dropdown) {
+  padding: 4px 0;
+}
+
+/* Menu hugs its short labels and lines its text up under the pill's text. */
+.versionSelector :global(.dropdown__menu) {
+  min-width: 0;
+  width: max-content;
+  left: -5px;
+  top: calc(100% + 2px);
+  padding: 4px;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 8%);
+}
+
+/* Item text matches the pill and the rest of the navbar rather than body size. */
+.versionSelector :global(.dropdown__link) {
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: var(--ifm-font-weight-semibold);
+  color: var(--sidebar-link-color);
+  padding: 4px 8px;
+  margin: 0;
+  border-radius: 4px;
+}
+
+/* The 5% overlay is a quiet fill that works on both the light and dark menu. */
+.versionSelector :global(.dropdown__link:hover),
+.versionSelector :global(.dropdown__link--active) {
+  color: var(--sidebar-link-color);
+  background-color: var(--ifm-hover-overlay);
+}
+
 .navbarCenter {
   display: flex;
   align-items: center;

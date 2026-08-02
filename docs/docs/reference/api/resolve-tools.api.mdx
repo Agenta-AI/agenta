@@ -1,0 +1,71 @@
+---
+id: resolve-tools
+title: "Resolve Tools"
+description: "Resolve an agent's tool references into model-ready specs."
+sidebar_label: "Resolve Tools"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWMFy2zYQ/RXMXtrO0LST6UmnKk6m8SRtNLbbi60xIXBFIQYBBgAdqxrO9CP6hf2SzgKkSEqW4qa9tT7YMrlYLHbf233QBjwvHExu4NoY5WCeQI5OWFl5aTRM4BKdUQ/IuGa8QO2/ccwbo5jFJVrUAh2T2htWmhzViUWer5mrULj0Vt/qX7mSOffo2LkpK+OkYcJojYK8O1ZXbGmN9ozrnKG2UqzQMeRixXgwodcl8yu81YJ7rkyRMGcYZ7bWWuoixsS+xbRI2Ux+xwr0jmWZqJ03ZThSlrHPK+OQZRk+oqg9ZtmttqamqBZc3DO/sqYuVizLZh+urtkpnc+dCq5UlrE/f/+DVdY8yBwtu8e1Y87zNXNoH9CeOJljCgmYCi2ngC9ymICNObsLjiABi59qdP6Vydcw2YAw2qP29JFXlZIirDz96CjhG3BihSWnT5Ulv16io/+it8kGpMcyfOB6/WEJk5tdS4s6Rzu24HkuaRuuZgNbb2tMwK8rhAmYxUcUHppk0z3RtVLQzBPw0isMaAiemwQqtKV0TsaY+33alc5bqQtIAHVdEry4UuYzJMDdPRDG9Brmx3aa9f6bLsJ978Jo52ECi1oqLzX066/JkjZa8loNTZoENC+f9FZK/R514VcwedF7+pmsmyY5kMIlV24vh7Hm0mJOZw/7Dc72KoZC8Dw3eimLkPP/eg0L7vEzXx+rYWdCsbecfH4dZ92KoUfRtiVyKbXHItL4+V4vBosII+LvLZ+KbmXfF5+/+rxfM4D14UIOvRwr3D+H/DCX26yMDjnY7sdY1iEf5lvAALd2jIrQB5tmP4ChRTu3LmPrhYbs+wCJM+GBq4x2kXEvz87oz3j8XdVCoHPLWrHL1jge42s6uDB1XNQGHpIUANkXlCwGAD1rkq5zjXv/uLSHs/WqW0wQC1Nx5GYc4KHGOMbFjkQ4DLhjEHs9cBG4V9X+rk/cv930Lsg/u4r+KRVcqTuLy2OnPeeKqr6EgBSe3xmt1k+ed2GMQq6/0HZ5zj6Qh6eguzcuBiGOnARU54Rw2JVq06CK+EJhr85Yq0XyqNL4SKcFIUdiLWi1LOt2zDImHakulmVBdaSbrt026WZA7SbdRGo36aandpNlzKm6uNXkIoou0nILK/MCmUOdd8rLPCm60iN4Po8Yfjb9W842oQF8//LlPsVbjUoRvrHW2K/nd46eS3WEX8qIAwLuIHG6HnGsI743YjuASlccw/RP6Bwv8Ng87kxDMliYwR1Bg/mQUYFK/nHgZq8a55TLR/9F1FNuYvit3QD2fYlihQ6n4nUswTF4vL2+nu05jPgo0a8MKfjKOFpScRqV0IKzpRIkENW/C5WrrSITXslQtvjvyvvKTU5PsU6FMnWehnsKT7mMhnPyIWor/To4mc4u3uH6LfKgaG7mQ4PQtCJ+xmbbnPNKvkPKQuzfMK39ylj5Wzd+JcF8FVfRMQnHl/2d5M0jLyuFgzvGzUB/7ujErQjsWt9WebebDyD8XB+98utVXa/MdoRZD9ROa42k5FZD9U93ApsHNC/NEMzTUB42nV3sd9XhK2oMXPh+VravIdkpfF9v0s9laAvgkZc/bN8QiglFcZuz9EV6FoStcb7kerBFdwW/bq+TO9N326z+v6s/667ego6a0mmleLwShuptWsLfQH9zj5SfJ7CiljC5gc1mwR3+YlXT0ONPNVri8DyBB24lTd9A4KQjHJHpHtddJ9T+pL3WPHBVR/buTBiiTlwxFQIrf9R2PuhalBJIYNF+z0Blpm8jOFGNfk8gfFUR6hnumPRsA4rroqahMIHok37+AvrdSBw=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Resolve Tools"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/tools/resolve"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Resolve an agent's tool references into model-ready specs.
+
+Validates Composio connections up front and enriches each action from the
+catalog, so a running agent (e.g. Pi) gets ``customTools`` whose ``execute``
+routes back through ``POST /tools/call`` — provider keys stay server-side.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./resolve-tools.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./resolve-tools.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

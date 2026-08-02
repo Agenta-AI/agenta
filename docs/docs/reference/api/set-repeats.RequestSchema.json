@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"properties":{"repeats":{"type":"integer","title":"Repeats"}},"type":"object","required":["repeats"],"title":"SetRepeatsRequest"}}}}}

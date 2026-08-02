@@ -1,0 +1,1 @@
+{"parameters":[{"name":"provider_key","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Provider Key"}},{"name":"integration_key","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Integration Key"}}]}

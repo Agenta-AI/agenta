@@ -6,7 +6,7 @@ sidebar_position: 4
 
 Applications, workflows, evaluators, testsets, and environments share a single versioning model. Each resource is stored as an **artifact** with one or more **variants**, and each variant accumulates **revisions**. The model is modelled on git: an artifact is a repository, a variant is a branch, a revision is a commit. The payload you care about (the prompt, the workflow configuration, the testset rows, the evaluator settings, the environment pointer) lives on the revision.
 
-This page documents the pattern. The per-resource pages ([applications](/reference/api-guide/applications), [workflows](/reference/api-guide/workflows), [evaluators](/reference/api-guide/evaluators), [testsets](/reference/api-guide/testsets)) describe the payloads that differ per domain. For a higher-level overview that ties versioning to environments and deployment, see [Core Concepts](/concepts/concepts).
+This page documents the pattern. The per-resource pages ([applications](/reference/api-guide/applications), [workflows](/reference/api-guide/workflows), [evaluators](/reference/api-guide/evaluators), [testsets](/reference/api-guide/testsets)) describe the payloads that differ per domain. For a higher-level overview that ties versioning to environments and deployment, see [Core Concepts](/1.0/concepts/concepts).
 
 ## The three entities
 
@@ -18,7 +18,7 @@ This page documents the pattern. The per-resource pages ([applications](/referen
 
 IDs are stable across the entire lifecycle. A deployment or trace that references a revision ID continues to resolve to the same snapshot forever.
 
-Environments sit alongside this model. An environment (`development`, `staging`, `production`) is a named pointer to a specific revision. Deploying updates the pointer; it does not modify the revision. See [Core Concepts](/concepts/concepts#environments) for the full picture.
+Environments sit alongside this model. An environment (`development`, `staging`, `production`) is a named pointer to a specific revision. Deploying updates the pointer; it does not modify the revision. See [Core Concepts](/1.0/concepts/concepts#environments) for the full picture.
 
 ## Committing a revision
 
