@@ -5,7 +5,8 @@ map). Each :class:`ModelCatalogEntry` separates three semantic groups: identity 
 ``provider`` — the join key to the accepted set), sourced facts (``name`` / ``pricing`` /
 ``context_window`` / ``modalities`` — objective, provenanced), and curated judgments (``label`` /
 ``description`` / ``ratings`` — subjective, human, sourced from current public info). The catalog
-never gates selection; the runtime accepted set does. See
+never gates selection; the runtime accepted set does. Its ``modalities`` fact feeds the runtime
+delivery gate through the connection resolver, but the catalog still gates nothing itself. See
 ``docs/design/agent-workflows/projects/model-catalog-schema/design.md``.
 
 The data lives in JSON files under ``data/`` (owned by the ``sync-model-catalog`` skill), not in
@@ -161,6 +162,48 @@ def codex_model_catalog() -> ModelCatalog:
     if _CODEX_CATALOG is None:
         _CODEX_CATALOG = load_codex_model_catalog()
     return _CODEX_CATALOG
+
+
+def _catalog_id(provider: Optional[str], model_id: str) -> str:
+    """Build the ``provider/model`` join key.
+
+    Catalog ids carry a lowercase provider, and the rest of the system (environment resolver,
+    connection matching) treats provider names case-insensitively, so a caller-supplied
+    ``"OpenAI"`` must still join.
+    """
+    head, separator, tail = model_id.partition("/")
+    if provider is None:
+        return f"{head.lower()}/{tail}" if separator else model_id
+    if separator and head.lower() == provider.lower():
+        return f"{provider.lower()}/{tail}"
+    return f"{provider.lower()}/{model_id}"
+
+
+def model_input_modalities(
+    harness: Optional[str], model_id: str, *, provider: Optional[str] = None
+) -> Optional[List[str]]:
+    """Look up input modalities using the model id form accepted by ``harness``."""
+    entry: Optional[ModelCatalogEntry]
+    if harness in ("pi_core", "pi_agenta"):
+        catalog = pi_model_catalog()
+        catalog_id = _catalog_id(provider, model_id)
+    elif harness == "claude":
+        catalog = claude_model_catalog()
+        catalog_id = model_id
+    else:
+        return None
+
+    entry = next((item for item in catalog.models if item.id == catalog_id), None)
+    if harness == "claude" and entry is None:
+        # Reuse the same sourced Anthropic fact from Pi's generated catalog; do not guess.
+        pi_catalog_id = _catalog_id("anthropic", model_id)
+        entry = next(
+            (item for item in pi_model_catalog().models if item.id == pi_catalog_id),
+            None,
+        )
+    if entry is None or entry.modalities is None:
+        return None
+    return list(entry.modalities)
 
 
 def model_catalog_entries(harness: str) -> List[Dict[str, object]]:

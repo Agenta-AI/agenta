@@ -165,6 +165,17 @@ def test_config_schema_names_every_tool_type_discriminator():
     assert not missing, f"config-schema.md does not document tool type(s): {missing}"
 
 
+def test_no_json_example_writes_a_builtin_tool_entry():
+    # The `builtin` arm survives only as legacy dual-read. The authoring agent copies these
+    # examples verbatim, so an example that still writes one would keep producing configs the
+    # resolver has to ignore.
+    content = _file("references/config-schema.md").content
+    for block in re.findall(r"```json\n(.*?)```", content, flags=re.DOTALL):
+        assert '"type": "builtin"' not in block, (
+            "a JSON example in config-schema.md still writes a builtin tool entry"
+        )
+
+
 def test_reference_files_ride_the_wire():
     wire = BUILD_AN_AGENT_SKILL.to_wire()
     wire_paths = {entry["path"] for entry in wire["files"]}

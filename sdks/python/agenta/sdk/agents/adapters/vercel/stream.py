@@ -9,6 +9,7 @@ from uuid import uuid4
 from agenta.sdk.utils.logging import get_module_logger
 
 from ...dtos import AgentResult
+from ...errors import AgentRunFailed
 from ...streaming import AgentStream
 from ...utils.wire import sanitize_runner_error
 from .messages import TOOL_APPROVAL_REQUEST
@@ -304,11 +305,17 @@ async def _agent_run_to_vercel_parts_impl(
                 if _conform(file_part) is not None:
                     content_parts_emitted += 1
                 yield file_part
+            elif etype == "attachment_delivery":
+                content_parts_emitted += 1
+                yield _attachment_delivery_part(data)
             elif etype == "usage":
                 usage = _usage_metadata(data)
             elif etype == "error":
                 error_emitted = True
-                yield {"type": "error", "errorText": data.get("message", "")}
+                for part in _error_parts(
+                    data.get("message", ""), failure_code="runner_error"
+                ):
+                    yield part
             elif etype == "done":
                 # Last non-null stop reason wins; see the routing-layer twin's `done` note.
                 reason = data.get("stopReason")
@@ -324,7 +331,8 @@ async def _agent_run_to_vercel_parts_impl(
             # exception is very often just that same failure resurfacing as a raised
             # `RuntimeError` (`result_from_wire`) -- yielding it too would duplicate the message
             # the user already saw under a second, "Agent run failed: ..."-prefixed frame.
-            yield {"type": "error", "errorText": sanitize_runner_error(exc)}
+            for part in _error_parts(sanitize_runner_error(exc), error=exc):
+                yield part
         error_emitted = True
     finally:
         # Every exit path — including the raw exception above — must still drain to a
@@ -349,7 +357,10 @@ async def _agent_run_to_vercel_parts_impl(
             # "no output" frame on top of it would bury the actionable message (the swallowed-
             # provider-error path both streams a live error event AND fails the terminal result,
             # so this backstop must not double up on it).
-            yield {"type": "error", "errorText": "The agent produced no output."}
+            for part in _error_parts(
+                "The agent produced no output.", failure_code="no_output"
+            ):
+                yield part
         finish: Dict[str, Any] = {"type": "finish"}
         finish_reason = _map_finish_reason(stop_reason)
         if finish_reason is not None:
@@ -584,11 +595,17 @@ async def _agent_stream_to_vercel_stream_impl(
                 if _conform(file_part) is not None:
                     content_parts_emitted += 1
                 yield file_part
+            elif etype == "attachment_delivery":
+                content_parts_emitted += 1
+                yield _attachment_delivery_part(data)
             elif etype == "usage":
                 usage = _usage_metadata(data)
             elif etype == "error":
                 error_emitted = True
-                yield {"type": "error", "errorText": data.get("message", "")}
+                for part in _error_parts(
+                    data.get("message", ""), failure_code="runner_error"
+                ):
+                    yield part
             elif etype == "done":
                 # Prefer the LAST non-null stop reason. The handler appends a corrective
                 # terminal `done` after the runner's `done` when the authoritative result
@@ -605,7 +622,8 @@ async def _agent_stream_to_vercel_stream_impl(
             # out live this turn, so a swallowed-provider-error recovery (live error event, then
             # a failed terminal result raised as this same exception) doesn't duplicate the
             # user-facing message under a second, differently-worded frame.
-            yield {"type": "error", "errorText": sanitize_runner_error(exc)}
+            for part in _error_parts(sanitize_runner_error(exc), error=exc):
+                yield part
         error_emitted = True
     finally:
         # Every exit path — including the raw exception above — must still drain to a
@@ -617,7 +635,10 @@ async def _agent_stream_to_vercel_stream_impl(
             # note) -- a swallowed-provider-error turn both streams a live error event and fails
             # the terminal result, so this backstop must not double up on it and bury the real
             # message under "The agent produced no output."
-            yield {"type": "error", "errorText": "The agent produced no output."}
+            for part in _error_parts(
+                "The agent produced no output.", failure_code="no_output"
+            ):
+                yield part
         finish: Dict[str, Any] = {"type": "finish"}
         finish_reason = _map_finish_reason(stop_reason)
         if finish_reason is not None:
@@ -848,6 +869,32 @@ def _as_text(value: Any) -> str:
     if value is None:
         return ""
     return value if isinstance(value, str) else str(value)
+
+
+def _attachment_delivery_part(data: Dict[str, Any]) -> Dict[str, Any]:
+    delivery = {
+        key: data[key]
+        for key in ("attachmentId", "outcome", "reasonCode", "workingPath")
+        if data.get(key) is not None
+    }
+    return {"type": "data-attachment-delivery", "data": delivery}
+
+
+def _error_parts(
+    error_text: Any,
+    *,
+    failure_code: Optional[str] = None,
+    error: Optional[BaseException] = None,
+) -> Iterator[Dict[str, Any]]:
+    resolved_code = failure_code or getattr(error, "failure_code", None)
+    if not isinstance(resolved_code, str) or not resolved_code:
+        resolved_code = AgentRunFailed.failure_code
+    resolved_text = _as_text(error_text)
+    yield {
+        "type": "data-agent-error",
+        "data": {"code": resolved_code, "errorText": resolved_text},
+    }
+    yield {"type": "error", "errorText": resolved_text}
 
 
 def _safe_result(run: AgentStream) -> Optional[AgentResult]:

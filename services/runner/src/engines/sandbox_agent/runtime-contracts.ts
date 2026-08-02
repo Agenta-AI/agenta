@@ -172,6 +172,8 @@ export interface ParkedApprovedExecution {
 
 /** Per-turn options for `runTurn`. Absent (flag off / cold) means today's byte-identical path. */
 export interface RunTurnOptions {
+  /** Latest session credential accessor; long turns may refresh the value between API calls. */
+  credential?: () => string;
   /** A live continuation: send only the new user text instead of the full cold transcript. */
   continuation?: boolean;
   /**

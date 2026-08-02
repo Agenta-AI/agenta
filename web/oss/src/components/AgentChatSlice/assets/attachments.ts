@@ -1,25 +1,13 @@
-/**
- * Attachment guardrails for the agent composer. Files are sent inline as base64 `data:` URLs
- * (see `files.ts`), so an unbounded picker puts arbitrary bytes straight into the request body.
- * These limits cap the count, per-kind size, and types.
- *
- * NOTE on ceilings: while attachments ride the request body, the real limit is the gateway's
- * `client_max_body_size` (10 MB on the compose stack), and base64 inflates by ~33% on top of the
- * whole resent history. These caps are deliberately per-kind rather than generous. They can rise
- * once attachments travel as references instead of bytes.
- *
- * The limits are a single value object, not scattered constants, so they can be derived from the
- * selected model / harness capabilities and passed down in place of `DEFAULT_ATTACHMENT_LIMITS` —
- * narrowing `kinds` is the seam that capability gating plugs into.
- */
+/** Attachment guardrails for files uploaded before an agent turn is sent by reference. */
 
-export type AttachmentKind = "image" | "audio" | "document"
+export type AttachmentKind = "image" | "audio" | "document" | "other"
 
 /** Media types per kind: exact types (`application/pdf`) or `type/` prefixes (`image/`). */
 const KIND_TYPES: Record<AttachmentKind, string[]> = {
     image: ["image/"],
     audio: ["audio/"],
     document: ["application/pdf", "text/", "application/json"],
+    other: [],
 }
 
 /** `accept` hints for the native picker (a hint only — drag/paste is validated regardless). */
@@ -27,12 +15,14 @@ const KIND_ACCEPT_ATTR: Record<AttachmentKind, string> = {
     image: "image/*",
     audio: "audio/*",
     document: "application/pdf,text/plain,text/markdown,text/csv,.md,.csv,application/json",
+    other: "",
 }
 
 const KIND_NOUN: Record<AttachmentKind, string> = {
     image: "images",
     audio: "audio",
     document: "documents",
+    other: "other files",
 }
 
 export interface AttachmentLimits {
@@ -40,44 +30,45 @@ export interface AttachmentLimits {
     maxCount: number
     /** Kinds the composer accepts. Narrowing this is how capability gating plugs in. */
     kinds: AttachmentKind[]
-    /** Max bytes per file, per kind (before base64 inflation, which adds ~33% on the wire). */
+    /** Max bytes per file, per kind. */
     maxBytes: Record<AttachmentKind, number>
 }
 
 const MB = 1024 * 1024
 
 export const DEFAULT_ATTACHMENT_LIMITS: AttachmentLimits = {
-    maxCount: 5,
-    kinds: ["image", "audio", "document"],
+    maxCount: 100,
+    kinds: ["image", "audio", "document", "other"],
     maxBytes: {
         // A photo off a phone clears 5 MB routinely.
         image: 10 * MB,
         // Our own recordings cap near 2.4 MB; the headroom is for uploaded clips.
         audio: 15 * MB,
         document: 10 * MB,
+        other: 10 * MB,
     },
 }
 
-/** Which kind a media type belongs to, or null when it is not something we take at all. */
-export const kindForType = (mediaType: string): AttachmentKind | null => {
-    for (const kind of Object.keys(KIND_TYPES) as AttachmentKind[]) {
+/** Which kind a media type belongs to. */
+export const kindForType = (mediaType: string): AttachmentKind => {
+    for (const kind of ["image", "audio", "document"] as const) {
         const matches = KIND_TYPES[kind].some((t) =>
             t.endsWith("/") ? mediaType.startsWith(t) : mediaType === t,
         )
         if (matches) return kind
     }
-    return null
+    return "other"
 }
 
 /** Whether a media type is allowed under the limits (right kind, and that kind is enabled). */
 export const isAcceptedType = (mediaType: string, limits: AttachmentLimits): boolean => {
     const kind = kindForType(mediaType)
-    return !!kind && limits.kinds.includes(kind)
+    return limits.kinds.includes(kind)
 }
 
 /** `accept` attribute for the native file picker, built from the enabled kinds. */
 export const acceptAttrFor = (limits: AttachmentLimits): string =>
-    limits.kinds.map((k) => KIND_ACCEPT_ATTR[k]).join(",")
+    limits.kinds.includes("other") ? "" : limits.kinds.map((k) => KIND_ACCEPT_ATTR[k]).join(",")
 
 /** Human summary of what is accepted, e.g. "Images, audio, and documents". */
 export const describeAccepted = (limits: AttachmentLimits): string => {
@@ -127,7 +118,7 @@ export const validateIncoming = (
         const type = file.type || "application/octet-stream"
         const kind = kindForType(type)
 
-        if (!kind || !limits.kinds.includes(kind)) {
+        if (!limits.kinds.includes(kind)) {
             rejections.push({name: file.name, reason: "isn't a supported file type"})
             continue
         }

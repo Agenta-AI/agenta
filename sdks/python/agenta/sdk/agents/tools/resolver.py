@@ -5,9 +5,13 @@ from __future__ import annotations
 import os
 from typing import Mapping, Optional, Sequence
 
+from agenta.sdk.agents.pi_builtins import PI_BUILTIN_TOOL_NAMES
+from agenta.sdk.utils.logging import get_module_logger
+
 from .errors import (
     DuplicateToolNameError,
     MissingToolSecretError,
+    ReservedToolNameError,
     UnsupportedToolProviderError,
 )
 from .interfaces import (
@@ -31,6 +35,8 @@ from .models import (
     ToolConfig,
     ToolSpec,
 )
+
+log = get_module_logger(__name__)
 
 
 class EnvironmentToolSecretProvider:
@@ -81,16 +87,16 @@ def _build_client_tool_spec(*, tool_config: ClientToolConfig) -> ClientToolSpec:
     )
 
 
-def _validate_unique_names(
-    *,
-    builtin_names: Sequence[str],
-    tool_specs: Sequence[ToolSpec],
-) -> None:
+def _validate_unique_names(tool_specs: Sequence[ToolSpec]) -> None:
     seen: set[str] = set()
-    for name in [*builtin_names, *(tool_spec.name for tool_spec in tool_specs)]:
-        if name in seen:
-            raise DuplicateToolNameError(name)
-        seen.add(name)
+    for tool_spec in tool_specs:
+        # The harness registers custom tools by name beside its built-ins, so a same-named custom
+        # tool would silently replace the built-in the platform activates on every run.
+        if tool_spec.name.strip().lower() in PI_BUILTIN_TOOL_NAMES:
+            raise ReservedToolNameError(tool_spec.name)
+        if tool_spec.name in seen:
+            raise DuplicateToolNameError(tool_spec.name)
+        seen.add(tool_spec.name)
 
 
 class ToolResolver:
@@ -112,11 +118,14 @@ class ToolResolver:
         self._missing_secret_policy = missing_secret_policy
 
     async def resolve(self, tool_configs: Sequence[ToolConfig]) -> ResolvedToolSet:
-        builtin_names = [
-            tool_config.name
-            for tool_config in tool_configs
-            if isinstance(tool_config, BuiltinToolConfig)
-        ]
+        for tool_config in tool_configs:
+            if isinstance(tool_config, BuiltinToolConfig):
+                log.warning(
+                    "tool %r: built-in tools are always available and are no longer "
+                    "configured here; this entry was ignored (use harness.permissions to "
+                    "allow, ask or deny it)",
+                    tool_config.name,
+                )
         code_configs = [
             tool_config
             for tool_config in tool_configs
@@ -217,12 +226,8 @@ class ToolResolver:
             # same per-request auth, so the single shared callback is identical; keep one.
             tool_callback = gateway_resolution.tool_callback or tool_callback
 
-        _validate_unique_names(
-            builtin_names=builtin_names,
-            tool_specs=tool_specs,
-        )
+        _validate_unique_names(tool_specs)
         return ResolvedToolSet(
-            builtin_names=builtin_names,
             tool_specs=tool_specs,
             tool_callback=tool_callback,
         )

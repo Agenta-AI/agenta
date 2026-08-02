@@ -72,6 +72,100 @@ class TestFromUIMessages:
         assert [b.type for b in blocks] == ["text", "image"]
         assert blocks[1].uri == "data:..."
         assert blocks[1].mime_type == "image/png"
+        assert blocks[1].to_wire() == {
+            "type": "image",
+            "uri": "data:...",
+            "mimeType": "image/png",
+        }
+
+    def test_file_part_with_attachment_metadata_becomes_attachment_block(self):
+        [message] = vercel_ui_messages_to_messages(
+            [
+                {
+                    "id": "m1",
+                    "role": "user",
+                    "parts": [
+                        {
+                            "type": "file",
+                            "url": "https://example.test/content",
+                            "mediaType": "image/png",
+                            "filename": "photo.png",
+                            "providerMetadata": {
+                                "agenta": {
+                                    "attachmentId": (
+                                        "01995d1a-2f83-7c4d-8a6b-123456789abc"
+                                    ),
+                                    "size": 482113,
+                                }
+                            },
+                        }
+                    ],
+                }
+            ]
+        )
+
+        [block] = message.content
+        assert block.to_wire() == {
+            "type": "attachment",
+            "attachmentId": "01995d1a-2f83-7c4d-8a6b-123456789abc",
+            "filename": "photo.png",
+            "mimeType": "image/png",
+            "size": 482113,
+        }
+
+    def test_attachment_metadata_tolerates_absent_size(self):
+        [message] = vercel_ui_messages_to_messages(
+            [
+                {
+                    "id": "m1",
+                    "role": "user",
+                    "parts": [
+                        {
+                            "type": "file",
+                            "url": "https://example.test/content",
+                            "mediaType": "application/pdf",
+                            "filename": "report.pdf",
+                            "providerMetadata": {
+                                "agenta": {
+                                    "attachmentId": (
+                                        "01995d1a-2f83-7c4d-8a6b-123456789abc"
+                                    )
+                                }
+                            },
+                        }
+                    ],
+                }
+            ]
+        )
+
+        [block] = message.content
+        assert block.to_wire() == {
+            "type": "attachment",
+            "attachmentId": "01995d1a-2f83-7c4d-8a6b-123456789abc",
+            "filename": "report.pdf",
+            "mimeType": "application/pdf",
+        }
+
+    def test_invalid_attachment_metadata_preserves_file_mapping(self):
+        file_part = {
+            "type": "file",
+            "url": "data:...",
+            "mediaType": "image/png",
+            "filename": "photo.png",
+            "providerMetadata": {
+                "agenta": {"attachmentId": "01995D1A-2F83-7C4D-8A6B-123456789ABC"}
+            },
+        }
+        [message] = vercel_ui_messages_to_messages(
+            [{"id": "m1", "role": "user", "parts": [file_part]}]
+        )
+
+        [block] = message.content
+        assert block.to_wire() == {
+            "type": "image",
+            "uri": "data:...",
+            "mimeType": "image/png",
+        }
 
     def test_tool_part_is_preserved_as_structured_blocks(self):
         # A resolved tool part -> a tool_call block plus a tool_result block, keyed by

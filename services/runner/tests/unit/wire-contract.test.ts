@@ -38,6 +38,7 @@ const KNOWN_REQUEST_KEYS = [
   "agentsMd",
   "model",
   "harnessMode",
+  "modelCapabilities",
   "provider",
   "connection",
   "deployment",
@@ -73,6 +74,7 @@ describe("wire contract: requests (vs Python golden)", () => {
     "run_request.pi_core.json",
     "run_request.claude.json",
     "run_request.codex.json",
+    "run_request.attachment.json",
   ]) {
     it(`${name}: every top-level key is known to AgentRunRequest`, () => {
       const req = loadGolden(name) as Record<string, unknown>;
@@ -84,6 +86,23 @@ describe("wire contract: requests (vs Python golden)", () => {
       }
     });
   }
+
+  it("attachment request: carries the resource handle and resolved modalities", () => {
+    const req = loadGolden("run_request.attachment.json") as AgentRunRequest;
+    assert.deepEqual(req.modelCapabilities, {
+      inputModalities: ["text", "image"],
+    });
+    assert.ok(Array.isArray(req.messages?.[0]?.content));
+    const content = req.messages[0].content;
+    assert.deepEqual(content[0], {
+      type: "attachment",
+      attachmentId: "019c471b-5b91-71d2-9d4b-5486013e6e9b",
+      filename: "photo.png",
+      mimeType: "image/png",
+      size: 482113,
+    });
+    assert.equal(resolvePromptText(req), "Describe this image.");
+  });
 
   it("pi request: shape, tool axes, and the runner helpers", () => {
     const req = loadGolden("run_request.pi_core.json") as AgentRunRequest;
@@ -110,6 +129,17 @@ describe("wire contract: requests (vs Python golden)", () => {
     // No explicit author permission is derived onto the tool spec; the plan decides it.
     assert.equal(tool.permission, undefined);
     assert.deepEqual(req.permissions, { default: "allow_reads" });
+    // Compatibility only: a current runner ignores `tools`, but the SDK still ships all seven
+    // built-in names so a runner from before the rework activates the same set.
+    assert.deepEqual(req.tools, [
+      "read",
+      "bash",
+      "edit",
+      "write",
+      "grep",
+      "find",
+      "ls",
+    ]);
     // The direct-call tool (direct-call tools, Phase 1) reaches the runner carrying its `call`
     // descriptor and NO `callRef` (the `call` XOR `callRef` rule). Plumbing only here: the runner
     // forwards it opaquely; no dispatch branch reads it yet.

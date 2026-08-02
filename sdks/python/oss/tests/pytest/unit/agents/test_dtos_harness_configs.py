@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 
+from agenta.sdk.agents.pi_builtins import PI_BUILTIN_TOOL_NAMES
 from agenta.sdk.agents import (
     ClaudeAgentTemplate,
     ClientToolSpec,
@@ -22,7 +23,6 @@ _CALLBACK = ToolCallback(endpoint="https://api.example/tools/call", authorizatio
 
 def test_pi_wire_tools_is_native_and_ships_permissions():
     config = PiAgentTemplate(
-        builtin_tools=["read"],
         tool_specs=[
             ClientToolSpec(
                 name="t",
@@ -32,7 +32,7 @@ def test_pi_wire_tools_is_native_and_ships_permissions():
         tool_callback=_CALLBACK,
     )
     assert config.wire_tools() == {
-        "tools": ["read"],
+        "tools": list(PI_BUILTIN_TOOL_NAMES),
         "customTools": [
             {
                 "name": "t",

@@ -100,6 +100,11 @@ function seed(
     )
 }
 
+/** Minimal shape of the agent template these assertions read back off the request body. */
+interface AgentTemplateShape {
+    tools: {type?: string; name?: string; op?: string}[]
+}
+
 const authoringSkill = {
     "@ag.embed": {"@ag.references": {workflow: {slug: "__ag__getting_started_with_agenta"}}},
 }
@@ -334,6 +339,37 @@ describe("buildAgentRequest", () => {
         ])
         expect(template.skills).toEqual([authoringSkill])
         expect(config).toEqual(before)
+    })
+
+    it("passes a saved config's legacy built-in entries through the overlay merge untouched", async () => {
+        // Dual-read on the run path: neither side writes built-in entries any more, but a
+        // revision saved before the rework still carries them. They must survive the merge
+        // verbatim (the SDK ignores them) and must not disturb the overlay's own tools.
+        const builtin = (name: string) => ({type: "builtin", name})
+        const config = {
+            agent: {
+                tools: [builtin("read"), builtin("bash"), builtin("edit"), builtin("write")],
+            },
+        }
+        seed(store, "e", {
+            config,
+            overlay: {
+                tools: [{type: "platform", op: "commit_revision"}],
+            },
+            buildKitEnabled: true,
+        })
+
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const template = (req!.requestBody.data as {parameters: {agent: AgentTemplateShape}})
+            .parameters.agent
+
+        expect(template.tools).toEqual([
+            builtin("read"),
+            builtin("bash"),
+            builtin("edit"),
+            builtin("write"),
+            {type: "platform", op: "commit_revision"},
+        ])
     })
 
     it("applies the build-kit overlay to a BARE template (no agent wrapper)", async () => {

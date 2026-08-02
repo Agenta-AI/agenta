@@ -197,6 +197,7 @@ describe("attachPermissionResponder", () => {
       toolName?: string;
       args: unknown;
       kind: string;
+      toolCallId?: string;
     }> = [];
     const pausedToolCalls: string[] = [];
     let pauses = 0;
@@ -208,8 +209,8 @@ describe("attachPermissionResponder", () => {
       onPause: () => {
         pauses += 1;
       },
-      onCreateInteraction: (token, toolName, args, kind) => {
-        created.push({ token, toolName, args, kind });
+      onCreateInteraction: (token, toolName, args, kind, toolCallId) => {
+        created.push({ token, toolName, args, kind, toolCallId });
       },
       onPausedToolCall: (id) => {
         pausedToolCalls.push(id);
@@ -226,12 +227,16 @@ describe("attachPermissionResponder", () => {
     assert.deepEqual(replies, []);
     assert.equal(pauses, 1);
     assert.deepEqual(pausedToolCalls, ["tool-9"]);
+    // The interaction token is the permission GATE's id; `toolCallId` is the harness's id for
+    // the gated call. Both are recorded so an answer built from the durable row alone can name
+    // the right call (issue #5593).
     assert.deepEqual(created, [
       {
         token: "perm-pause",
         toolName: "edit",
         args: { path: "a" },
         kind: "user_approval",
+        toolCallId: "tool-9",
       },
     ]);
     assert.deepEqual(events, [
@@ -357,6 +362,7 @@ describe("attachPermissionResponder", () => {
       toolName?: string;
       args: unknown;
       kind: string;
+      toolCallId?: string;
     }> = [];
     let pauses = 0;
 
@@ -368,8 +374,8 @@ describe("attachPermissionResponder", () => {
       onPause: () => {
         pauses += 1;
       },
-      onCreateInteraction: (token, toolName, args, kind) => {
-        created.push({ token, toolName, args, kind });
+      onCreateInteraction: (token, toolName, args, kind, toolCallId) => {
+        created.push({ token, toolName, args, kind, toolCallId });
       },
       onPausedToolCall: (id) => {
         pausedToolCalls.push(id);
@@ -397,6 +403,7 @@ describe("attachPermissionResponder", () => {
         toolName: "request_connection",
         args: { integration: "slack" },
         kind: "client_tool",
+        toolCallId: "tool-client",
       },
     ]);
     assert.deepEqual(events, [

@@ -206,9 +206,9 @@ CELLS = {
 # NOTE: `code` tools are NOT usable on the product path — the sidecar rejects them
 # ("Code tools are not supported by the sidecar.", services/runner/src/tools/code.ts). They only
 # work against the in-process service, which is what the OLD qa driver (run_matrix.py) targets.
-# The product's real tool surface is `builtin` (bash/read/write/...), `gateway` (Composio) and
-# `mcp`. So we prove tool execution with builtin bash echoing an unguessable token.
-BASH_TOOL = {"type": "builtin", "name": "bash"}
+# The product's real tool surface is the harness built-ins (bash/read/write/...), `gateway`
+# (Composio) and `mcp`. Built-ins are always active and are never listed in `tools`, so we prove
+# tool execution with bash echoing an unguessable token and no tool configuration at all.
 
 # The token MUST NOT be derivable from the prompt. An early version of this used
 # `echo "QA-BASH-$((6*7+1))"` — and the model simply computed 43 and reported it WITHOUT running
@@ -261,6 +261,7 @@ def template(
     instructions: str | None = None,
     permission_default: str | None = None,
     mcps: list | None = None,
+    harness_permissions: dict | None = None,
 ) -> dict:
     conn = cell.get("connection") or {"mode": "agenta", "slug": None}
     t = {
@@ -280,6 +281,14 @@ def template(
         "harness": {"kind": cell["harness"]},
         "sandbox": {"kind": cell["sandbox"]},
     }
+    if harness_permissions:
+        # Layer-1: the three rule lists. On Pi these are the only lever over a built-in, since
+        # built-ins are always active and are never listed in `tools`.
+        t["harness"]["permissions"] = {
+            "allow": harness_permissions.get("allow", []),
+            "ask": harness_permissions.get("ask", []),
+            "deny": harness_permissions.get("deny", []),
+        }
     if permission_default:
         # Layer-2: the runner's permission posture. `ask` is what makes a tool call raise the
         # approval dock in the product — this is the real approval mechanism a user hits.
@@ -537,7 +546,6 @@ def j3_tool(cell: dict) -> dict:
         [user_msg(BASH_PROMPT)],
         template(
             cell,
-            tools=[BASH_TOOL],
             instructions="Use the bash tool when asked to run a command. Report only its stdout.",
             permission_default="allow",
         ),
@@ -577,7 +585,6 @@ def _approval_flow(cell: dict, approved: bool) -> dict:
     else:
         params = template(
             cell,
-            tools=[BASH_TOOL],
             instructions="Use the bash tool when asked to run a command. Report only its stdout.",
             permission_default="ask",
         )
@@ -689,7 +696,6 @@ def j2_mount(cell: dict) -> dict:
     token = f"QA-MOUNT-{uuid.uuid4().hex[:10]}"
     params = template(
         cell,
-        tools=[BASH_TOOL],
         instructions="Use the bash tool when asked. Report only the command's stdout.",
         permission_default="allow",
     )
@@ -890,8 +896,8 @@ def j5_commit(cell: dict) -> dict:
 
 
 # The wire name of an MCP-delivered tool is `mcp__<server>__<tool>` (verified on DeepWiki:
-# `mcp__deepwiki__read_wiki_structure`). We give the agent NO builtin tools, so any tool call it
-# makes is necessarily the MCP tool — and we still key the assertion on the `mcp__` prefix.
+# `mcp__deepwiki__read_wiki_structure`). The harness built-ins are always active, so the agent has
+# other tools available and the assertion is keyed on the `mcp__` prefix.
 MCP_TOOL_RE = re.compile(r"^mcp__")
 
 
@@ -931,7 +937,6 @@ def j7_mcp(cell: dict) -> dict:
         [user_msg(prompt)],
         template(
             cell,
-            tools=[],
             instructions="Use the available MCP tools when asked. Be terse.",
             permission_default="allow",
             mcps=[mcp],
@@ -961,6 +966,173 @@ def j7_mcp(cell: dict) -> dict:
     }
 
 
+# --------------------------------------------------------------------------------------------
+# Permission-rule journeys (Pi only)
+#
+# Pi's built-ins are always active and are never listed in `tools`, so the three rule lists in
+# `harness.permissions` are the ONLY lever over them. These four journeys prove that lever end to
+# end on a real deployment: a deny rule refuses at call time, an allow rule skips the approval
+# card, the rule name's case does not matter, and grep — one of the three built-ins Pi does not
+# activate on its own — is available and auto-runs as a read.
+# --------------------------------------------------------------------------------------------
+
+GREP_TOOL_NAMES = {"grep"}
+
+
+def _pi_only(cell: dict, what: str) -> dict | None:
+    if cell["harness"].startswith("pi"):
+        return None
+    return {
+        "skip": True,
+        "why": f"{what} is a Pi built-in journey (cell harness={cell['harness']}). Run with --cell C3.",
+    }
+
+
+def _bash_call_outcome(t: "Turn") -> tuple[dict | None, str | None]:
+    """The bash call the model attempted and its wire outcome, or (None, None)."""
+    for call in t.tool_calls:
+        name = (call.get("toolName") or "").lower()
+        if name in ("bash", "terminal"):
+            return call, t.tool_outcomes.get(call["toolCallId"])
+    return None, None
+
+
+def j_rule_deny(cell: dict) -> dict:
+    """A `deny` rule refuses the call at call time — it does not hide the tool from the model.
+
+    Policy `allow` (nothing else gates), plus `harness.permissions.deny = ["Bash"]`. The model
+    must still ATTEMPT bash (the tool is active and visible), the call must not execute, no
+    approval card may appear, and no real shell token may reach the reply.
+    """
+    if skip := _pi_only(cell, "deny-rule enforcement"):
+        return skip
+    s = str(uuid.uuid4())
+    t = invoke(
+        s,
+        [user_msg(BASH_PROMPT)],
+        template(
+            cell,
+            instructions="Use the bash tool when asked to run a command. Report only its stdout.",
+            permission_default="allow",
+            harness_permissions={"deny": ["Bash"]},
+        ),
+    )
+    call, outcome = _bash_call_outcome(t)
+    attempted = call is not None
+    # Assert the property, not one wire spelling of it: the refusal may surface as "denied" or as
+    # a tool error, but it must never be "available", and the model must not have been able to
+    # invent the token either. The outcome must be PRESENT: a call the stream dropped carries no
+    # outcome at all, and reading that as a refusal would pass this journey on a broken run.
+    refused = outcome is not None and outcome != "available"
+    no_card = t.approval is None
+    no_token = not BASH_TOKEN_RE.search(t.reply)
+    ok = attempted and refused and no_card and no_token and not t.errors
+    return {
+        "pass": ok,
+        "why": (
+            f"deny rule: bash attempted={attempted}, outcome={outcome} (must be present and "
+            f"not available), "
+            f"no approval card={no_card}, no shell token in the reply={no_token}"
+        ),
+        "bash_outcome": outcome,
+        "turn": t.summary(),
+    }
+
+
+def _allow_rule_flow(cell: dict, rule: str) -> dict:
+    """Policy `ask` plus an allow rule for bash: the card must NOT appear and the call must run."""
+    s = str(uuid.uuid4())
+    t = invoke(
+        s,
+        [user_msg(BASH_PROMPT)],
+        template(
+            cell,
+            instructions="Use the bash tool when asked to run a command. Report only its stdout.",
+            permission_default="ask",
+            harness_permissions={"allow": [rule]},
+        ),
+    )
+    _, outcome = _bash_call_outcome(t)
+    ok = (
+        t.approval is None
+        and outcome == "available"
+        and bool(BASH_TOKEN_RE.search(t.reply))
+        and not t.errors
+    )
+    return {
+        "pass": ok,
+        "why": (
+            f'allow rule "{rule}" under policy ask: no approval card={t.approval is None}, '
+            f"bash outcome={outcome}, reply carries a real shell token"
+        ),
+        "rule": rule,
+        "bash_outcome": outcome,
+        "turn": t.summary(),
+    }
+
+
+def j_rule_allow(cell: dict) -> dict:
+    """An `allow` rule skips the approval card that policy `ask` would otherwise raise."""
+    if skip := _pi_only(cell, "allow-rule enforcement"):
+        return skip
+    return _allow_rule_flow(cell, "Bash")
+
+
+def j_rule_case(cell: dict) -> dict:
+    """The same allow rule written in lower case. The runner matches built-in names
+    case-insensitively, so an author who wrote `bash` gets the rule they meant."""
+    if skip := _pi_only(cell, "case-insensitive rule matching"):
+        return skip
+    return _allow_rule_flow(cell, "bash")
+
+
+def j_builtin_grep(cell: dict) -> dict:
+    """grep is available to every Pi agent and auto-runs under `allow_reads`.
+
+    Pi on its own activates only read/bash/edit/write; the runner activates all seven, so this
+    journey fails outright if activation regresses. The policy is the shipped default
+    `allow_reads`, under which grep (read-only) runs unattended. The bash allow rule is only
+    fixture setup — it writes the file grep then searches — and it keeps the turn from parking on
+    the write instead of exercising grep.
+    """
+    if skip := _pi_only(cell, "built-in grep availability"):
+        return skip
+    s = str(uuid.uuid4())
+    token = f"QA-GREP-{uuid.uuid4().hex[:10]}"
+    t = invoke(
+        s,
+        [
+            user_msg(
+                f"First use bash to run exactly: echo {token} > qa-grep.txt . "
+                "Then use the grep tool to search qa-grep.txt for QA-GREP and reply with only "
+                "the matching line."
+            )
+        ],
+        template(
+            cell,
+            instructions="Use the tools you are given. Be terse.",
+            permission_default="allow_reads",
+            harness_permissions={"allow": ["Bash"]},
+        ),
+    )
+    grep_calls = [
+        c for c in t.tool_calls if (c.get("toolName") or "").lower() in GREP_TOOL_NAMES
+    ]
+    grep_ran = any(
+        t.tool_outcomes.get(c["toolCallId"]) == "available" for c in grep_calls
+    )
+    ok = grep_ran and t.approval is None and not t.errors
+    return {
+        "pass": ok,
+        "why": (
+            f"grep called={len(grep_calls)}, executed={grep_ran}, "
+            f"no approval card={t.approval is None} (grep is read-only under allow_reads)"
+        ),
+        "grep_tools_called": [c.get("toolName") for c in grep_calls],
+        "turn": t.summary(),
+    }
+
+
 JOURNEYS = {
     "chat": j1_chat,
     "mount": j2_mount,
@@ -970,6 +1142,10 @@ JOURNEYS = {
     "commit": j5_commit,
     "warm": j6_warm,
     "mcp": j7_mcp,
+    "rule_deny": j_rule_deny,
+    "rule_allow": j_rule_allow,
+    "rule_case": j_rule_case,
+    "builtin_grep": j_builtin_grep,
 }
 
 

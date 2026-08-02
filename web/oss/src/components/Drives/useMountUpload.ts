@@ -7,6 +7,7 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {uploadMountFile} from "./driveMedia"
+import {type DroppedFile} from "./dropEntries"
 import {useImagePreviews} from "./useImagePreviews"
 
 /**
@@ -18,15 +19,22 @@ import {useImagePreviews} from "./useImagePreviews"
  * so it refreshes the open directory whether the host is a session or the config panel).
  */
 
-/** Stable identity for a picked File — so a re-drop, or staging then dropping the same file, is
- * recognised as the SAME upload and never duplicated. */
-export const fileKey = (f: File): string => `${f.name}::${f.size}::${f.lastModified}`
+/** How many files upload at once (a dropped folder can queue far more than that). */
+const MAX_CONCURRENT_UPLOADS = 4
+
+/** Stable identity for a picked file — so a re-drop, or staging then dropping the same file, is
+ * recognised as the SAME upload and never duplicated. Keyed on the relative path, not the bare name,
+ * so same-named files from two subfolders of a dropped directory stay distinct. */
+export const fileKey = (f: DroppedFile): string =>
+    `${f.relativePath}::${f.file.size}::${f.file.lastModified}`
 
 export interface MountUploadItem {
     id: string
     /** Stable file identity (see fileKey) — lets a host reconcile staged files against in-flight ones. */
     key: string
     name: string
+    /** Destination path relative to `destFolder` — nested for a file from a dropped folder. */
+    relativePath: string
     size: number
     /** The picked file — drives the image preview (via useImagePreviews). */
     file: File
@@ -52,7 +60,7 @@ export interface MountUploadTarget {
 
 export interface MountUpload {
     items: MountUploadItem[]
-    upload: (files: File[], target: MountUploadTarget) => void
+    upload: (files: DroppedFile[], target: MountUploadTarget) => void
     retry: (id: string) => void
     dismiss: (id: string) => void
 }
@@ -63,8 +71,12 @@ export function useMountUpload(): MountUpload {
     const [items, setItems] = useState<MountUploadItem[]>([])
 
     // Per-item inputs kept for retry, plus abort controllers for cleanup.
-    const sources = useRef(new Map<string, {file: File; target: MountUploadTarget}>())
+    const sources = useRef(new Map<string, {dropped: DroppedFile; target: MountUploadTarget}>())
     const controllers = useRef(new Map<string, AbortController>())
+    // A dropped folder can hold hundreds of files, so runs are gated: ids wait here until a slot frees.
+    const waiting = useRef<string[]>([])
+    const running = useRef(0)
+    const pumpRef = useRef<() => void>(() => undefined)
 
     const patch = useCallback((id: string, next: Partial<MountUploadItem>) => {
         setItems((prev) => prev.map((it) => (it.id === id ? {...it, ...next} : it)))
@@ -88,12 +100,15 @@ export function useMountUpload(): MountUpload {
             uploadMountFile({
                 mountId: src.target.mount.id ?? "",
                 destFolder: src.target.destFolder,
-                file: src.file,
+                file: src.dropped.file,
+                destName: src.dropped.relativePath,
                 projectId,
                 onProgress: (percent) => patch(id, {percent}),
                 signal: controller.signal,
             })
                 .then(() => {
+                    running.current = Math.max(0, running.current - 1)
+                    pumpRef.current()
                     if (controller.signal.aborted) return
                     controllers.current.delete(id)
                     // On success the real file arrives via the listing refetch, so drop the optimistic
@@ -103,6 +118,8 @@ export function useMountUpload(): MountUpload {
                     refreshListing()
                 })
                 .catch((e: unknown) => {
+                    running.current = Math.max(0, running.current - 1)
+                    pumpRef.current()
                     if (controller.signal.aborted) return
                     controllers.current.delete(id)
                     patch(id, {error: e instanceof Error ? e.message : "Upload failed"})
@@ -111,23 +128,47 @@ export function useMountUpload(): MountUpload {
         [projectId, patch, refreshListing],
     )
 
+    // Start queued uploads up to the concurrency limit; ids dismissed while waiting are skipped.
+    const pump = useCallback(() => {
+        while (running.current < MAX_CONCURRENT_UPLOADS && waiting.current.length) {
+            const id = waiting.current.shift() as string
+            if (!sources.current.has(id)) continue
+            running.current += 1
+            run(id)
+        }
+    }, [run])
+    // `run` settles asynchronously and pumps the queue again, so it reaches pump through a ref.
+    useEffect(() => {
+        pumpRef.current = pump
+    }, [pump])
+
+    const enqueue = useCallback(
+        (id: string) => {
+            waiting.current.push(id)
+            pump()
+        },
+        [pump],
+    )
+
     const upload = useCallback(
-        (files: File[], target: MountUploadTarget) => {
+        (files: DroppedFile[], target: MountUploadTarget) => {
             // Skip files already in flight (same key) so a re-drop, or a drop of a file that's also
             // staged, can't create a second upload item for the same file.
             const inFlight = new Set(
-                Array.from(sources.current.values()).map((s) => fileKey(s.file)),
+                Array.from(sources.current.values()).map((s) => fileKey(s.dropped)),
             )
             const fresh = files.filter((f) => !inFlight.has(fileKey(f)))
             if (!fresh.length) return
             const started: MountUploadItem[] = []
-            fresh.forEach((file, i) => {
-                const id = `${Date.now()}-${i}-${file.name}`
-                sources.current.set(id, {file, target})
+            fresh.forEach((dropped, i) => {
+                const {file, relativePath} = dropped
+                const id = `${Date.now()}-${i}-${relativePath}`
+                sources.current.set(id, {dropped, target})
                 started.push({
                     id,
-                    key: fileKey(file),
+                    key: fileKey(dropped),
                     name: file.name,
+                    relativePath,
                     size: file.size,
                     file,
                     percent: 0,
@@ -138,12 +179,12 @@ export function useMountUpload(): MountUpload {
                 })
             })
             setItems((prev) => [...prev, ...started])
-            started.forEach((it) => run(it.id))
+            started.forEach((it) => enqueue(it.id))
         },
-        [run],
+        [enqueue],
     )
 
-    const retry = useCallback((id: string) => run(id), [run])
+    const retry = useCallback((id: string) => enqueue(id), [enqueue])
     const dismiss = useCallback((id: string) => {
         controllers.current.get(id)?.abort()
         controllers.current.delete(id)

@@ -32,7 +32,6 @@ async def test_resolve_tools_skips_gateway_without_gateway_tools():
         secret_provider=_EmptySecrets(),
         gateway_resolver=_ExplodingGateway(),
     )
-    assert resolved.builtin_names == ["read"]
     assert {spec.name for spec in resolved.tool_specs} == {"pick"}
 
 

@@ -23,6 +23,7 @@ export interface BuildExecutableToolGateInput {
     toolName: string | undefined,
     toolArgs: unknown,
     kind: "user_approval" | "client_tool",
+    toolCallId?: string,
   ) => void;
   toolCallIndex?: ToolCallCorrelationIndex;
   /**
@@ -103,11 +104,14 @@ export function buildExecutableToolGate({
           availableReplies: ["once", "reject"],
         },
       });
+      // The 5th argument persists the harness's tool-call id on the interaction row, so an
+      // out-of-band approval reply can name this parked gate by tool-call id (server.ts).
       recordPendingInteraction(
         request.id,
         request.toolName,
         request.input,
         "user_approval",
+        correlatedId,
       );
       return { kind: "pendingApproval" };
     },
