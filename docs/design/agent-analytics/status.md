@@ -13,8 +13,8 @@ The workspace holds the plan; implementation has not started and no branch exist
    donut, Agents filter, time-range control. No `api/` change in this plan.
 2. New page at project scope named Analytics; the default query aggregates all project agents,
    and the Agents filter narrows the set.
-3. An **agent** is an application/workflow artifact. The Agents filter lists the project's
-   agents and narrows by `references`; no variant or environment granularity in v1.
+3. An **agent** is an application/workflow artifact. The Agents multi-select is the only
+   filter; it lists the project's agents and narrows by `references`.
 4. The count of agent invocations is called a **run**. The Observability dashboard calls the
    same metric a "request"; the two are allowed to diverge until Observability is aligned in a
    later, separate change.
