@@ -421,6 +421,7 @@ class WireRunRequest(_WireModel):
     # Model + connection. ``model`` stays a plain string; the structured provider/connection
     # fields ride alongside only when a resolved connection / model ref is present.
     model: Optional[str] = None
+    harness_mode: Optional[str] = Field(default=None, alias="harnessMode")
     provider: Optional[str] = None
     connection: Optional[WireConnection] = None
     deployment: Optional[str] = None

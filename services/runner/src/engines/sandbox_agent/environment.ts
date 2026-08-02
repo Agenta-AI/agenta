@@ -41,10 +41,7 @@ import {
   type SessionPermissionRequest,
 } from "sandbox-agent";
 
-import {
-  resolveRunSessionId,
-  type AgentRunRequest,
-} from "../../protocol.ts";
+import { resolveRunSessionId, type AgentRunRequest } from "../../protocol.ts";
 import { advertisedToolSpecs } from "../../tools/public-spec.ts";
 import { createAcpFetch } from "./acp-fetch.ts";
 import {
@@ -58,6 +55,7 @@ import {
   DAYTONA_PI_DIR,
   prepareDaytonaPiAssets,
 } from "./daytona.ts";
+import { applyCodexMode, resolveCodexMode } from "./codex-mode.ts";
 import { conciseError } from "./errors.ts";
 import { buildSessionMcpServers } from "./mcp.ts";
 import { applyModel } from "./model.ts";
@@ -95,6 +93,10 @@ import {
 } from "./agent-mount-guidance.ts";
 import { claudeThinkingMeta } from "./claude-thinking.ts";
 import {
+  isSubscriptionCodexRun,
+  symlinkCodexSubscriptionAuthFile,
+} from "./codex-assets.ts";
+import {
   routePermissionRequestToActiveTurn,
   routeSessionEventToActiveTurn,
 } from "./session-events.ts";
@@ -116,14 +118,8 @@ import {
   sessionContinuityStore,
 } from "./session-continuity.ts";
 import { mountExpiryMs, projectScopeFor } from "./session-identity.ts";
-import {
-  teardownDisposition,
-  type TeardownReason,
-} from "./teardown.ts";
-import {
-  uploadToolMcpAssets,
-  type ToolMcpAssets,
-} from "./tool-mcp-assets.ts";
+import { teardownDisposition, type TeardownReason } from "./teardown.ts";
+import { uploadToolMcpAssets, type ToolMcpAssets } from "./tool-mcp-assets.ts";
 import { prepareWorkspace } from "./workspace.ts";
 import { prepareEnvironmentSetup } from "./environment-setup.ts";
 
@@ -260,6 +256,7 @@ export async function acquireEnvironment(
     artifactId,
     binaryPath,
     deferredClientToolRelay,
+    deferredExecutableToolGate,
     env,
     environment,
     localBuiltinGatingUnenforceable,
@@ -360,6 +357,16 @@ export async function acquireEnvironment(
     // started (or crashed before reading it), so the bearer never lingers.
     if (environment.otlpAuthFilePath)
       rmSync(environment.otlpAuthFilePath, { force: true });
+    // No Codex auth.json backstop: managed auth is file-free (no file exists), and the subscription
+    // symlink is intentionally left in the runner-owned home (a symlink to the operator's mount, not
+    // a secret; correct for the next resume). The old managed-file backstop was also ordering-buggy
+    // (it ran AFTER unmountStorage, so on a local durable session it deleted nothing and stranded the
+    // key in the store — the bug the file-free design removes entirely; D-002 research Q2a).
+    // Best-effort: remove the local off-mount CODEX_SQLITE_HOME dir. The SQLite state is
+    // disposable (native resume rides the sessions/ rollouts on CODEX_HOME), so a failure here is
+    // harmless.
+    if (environment.codexSqliteHome)
+      rmSync(environment.codexSqliteHome, { recursive: true, force: true });
     // Remove the per-run skills temp root the materializer created (success or error).
     plan.skillsCleanup();
   };
@@ -705,6 +712,9 @@ export async function acquireEnvironment(
           logger,
         );
       }
+      // Managed Codex is file-free on Daytona too (the SDK-rendered custom provider reads
+      // OPENAI_API_KEY from the daemon env at request time; configureDaytonaCodexEnv set CODEX_HOME
+      // to the durable <cwd>/.codex and CODEX_SQLITE_HOME off-mount). Nothing to write here.
     }
 
     // Durable cwd: mount BEFORE createSession (so the session opens inside it) and BEFORE
@@ -847,6 +857,14 @@ export async function acquireEnvironment(
       timingLog("prepare_workspace", prepareWorkspaceStartedAt);
     }
 
+    // Managed Codex is file-free (the SDK renders a custom provider with env_key OPENAI_API_KEY into
+    // <cwd>/.codex/config.toml; codex reads the key from the daemon env at request time), so there is
+    // nothing to write. A local subscription run still needs the operator's OAuth token file, so
+    // symlink <cwd>/.codex/auth.json to the mounted login now, after the durable cwd mount (linking
+    // before it would be shadowed). Non-Codex runs, managed runs, and Daytona are no-ops.
+    if (isSubscriptionCodexRun(plan))
+      symlinkCodexSubscriptionAuthFile(plan, logger);
+
     // Pi native transcripts belong to the conversation workspace, not the temporary agent
     // directory that holds credentials, settings, extensions, skills, and system prompts.
     // The cwd mount is already active here on local and Daytona before Pi starts.
@@ -898,6 +916,8 @@ export async function acquireEnvironment(
       userMcpServers: request.mcpServers,
       relayDir: plan.relayDir,
       clientToolRelay: deferredClientToolRelay,
+      executableToolGate:
+        !plan.isPi && !plan.isDaytona ? deferredExecutableToolGate : undefined,
       signal: mcpAbort.signal,
       // The uploaded in-sandbox stdio MCP shim assets, set only on Daytona + non-Pi +
       // executable-tools; advertises the gateway tools the loopback channel cannot reach
@@ -1040,6 +1060,14 @@ export async function acquireEnvironment(
       logger,
       { strict: strictModel },
     );
+    if (plan.acpAgent === "codex") {
+      const mode = resolveCodexMode(request.harnessMode);
+      await (deps.applyCodexMode ?? applyCodexMode)(
+        environment.session,
+        mode,
+        logger,
+      );
+    }
 
     // Session-lifetime listeners: attach ONCE, each demuxing into the active turn's sink. They
     // outlive any single turn, so the routing lives in dedicated non-throwing helpers below.

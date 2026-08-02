@@ -120,7 +120,7 @@ class FakeRunnerBackend(Backend):
     """
 
     supported_harnesses = frozenset(
-        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.AGENTA}
+        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.AGENTA, HarnessKind.CODEX}
     )
 
     def __init__(
