@@ -6,9 +6,10 @@ import {
     buildFormFieldsFromSchema,
     type FormFieldDescriptor,
 } from "@agenta/shared/utils"
+import {message} from "@agenta/ui"
 import {Editor} from "@agenta/ui/editor"
+import {Alert, Button, Field, Input, InputNumber, Textarea} from "@agenta/ui/ui"
 import {CopySimple} from "@phosphor-icons/react"
-import {Alert, Button, Form, Input, InputNumber, message, Typography} from "antd"
 
 interface Props {
     result: ToolResult | null
@@ -123,15 +124,11 @@ function ResultDisplay({
     return (
         <div className="flex flex-col gap-1 relative">
             <CopyButton onClick={handleCopy} className="static self-end" />
-            <Form
-                layout="vertical"
-                disabled
-                className="[&_.ant-form-item]:!mb-2 [&_.ant-input-disabled]:!text-[var(--ant-color-text)] [&_.ant-input-number-disabled_.ant-input-number-input]:!text-[var(--ant-color-text)]"
-            >
+            <div className="flex flex-col gap-2">
                 {fields.map((field) => (
                     <OutputField key={field.name} field={field} data={data} />
                 ))}
-            </Form>
+            </div>
         </div>
     )
 }
@@ -143,42 +140,21 @@ function ResultDisplay({
 function OutputField({field, data}: {field: FormFieldDescriptor; data: Record<string, unknown>}) {
     const value = getNestedValue(data, field.name)
 
-    const label = (
-        <div className="flex flex-col leading-tight">
-            <span>{field.label}</span>
-            {field.description && (
-                <Typography.Text type="secondary" className="!text-[11px] font-normal leading-snug">
-                    {field.description}
-                </Typography.Text>
-            )}
-        </div>
-    )
-
-    if (field.type === "object" || field.type === "array" || typeof value === "object") {
-        return (
-            <Form.Item label={label}>
-                <Input.TextArea
+    return (
+        <Field label={field.label} description={field.description || undefined}>
+            {field.type === "object" || field.type === "array" || typeof value === "object" ? (
+                <Textarea
                     rows={3}
                     value={typeof value === "string" ? value : JSON.stringify(value, null, 2)}
                     readOnly
                     className="font-mono !text-xs"
                 />
-            </Form.Item>
-        )
-    }
-
-    if (field.type === "number") {
-        return (
-            <Form.Item label={label}>
+            ) : field.type === "number" ? (
                 <InputNumber className="w-full" value={value as number} readOnly />
-            </Form.Item>
-        )
-    }
-
-    return (
-        <Form.Item label={label}>
-            <Input value={String(value ?? "")} readOnly />
-        </Form.Item>
+            ) : (
+                <Input value={String(value ?? "")} readOnly />
+            )}
+        </Field>
     )
 }
 
@@ -189,13 +165,14 @@ function OutputField({field, data}: {field: FormFieldDescriptor; data: Record<st
 function CopyButton({onClick, className}: {onClick: () => void; className?: string}) {
     return (
         <Button
-            type="text"
+            variant="ghost"
+            size="icon-sm"
             aria-label="Copy result"
-            icon={<CopySimple size={14} />}
-            size="small"
             onClick={onClick}
             className={className ?? "absolute top-1 right-1 z-10 opacity-70 hover:opacity-100"}
-        />
+        >
+            <CopySimple size={14} />
+        </Button>
     )
 }
 
