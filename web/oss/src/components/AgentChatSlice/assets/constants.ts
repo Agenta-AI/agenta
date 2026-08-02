@@ -33,6 +33,13 @@ export const isAgentVoiceInputEnabled = (): boolean =>
     (getEnv("NEXT_PUBLIC_AGENT_VOICE_INPUT") || "").toLowerCase() === "true"
 
 /**
+ * Voice input shows when the per-user experimental setting is on, or when the deployment forces it
+ * on with the env flag (so dev stacks that set it keep the UI without touching their settings).
+ */
+export const isAgentVoiceInputAvailable = (settingEnabled: boolean): boolean =>
+    settingEnabled || isAgentVoiceInputEnabled()
+
+/**
  * File uploads and attachments — the composer attach button + attachment preview, and every drive
  * upload entry point (upload button, drop-to-upload in the Files drawer, drop-to-stage on a recents
  * peek). On by default since the attachment delivery chain shipped; set
