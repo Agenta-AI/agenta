@@ -193,14 +193,25 @@ Further reduction candidates (not implemented):
   routes internal hostnames only; both entrypoints read credentials from env at
   runtime), so publishing them as public GHCR packages is safe once a push
   succeeds.
-- **Push blocked: no `write:packages` credential exists in the environment.**
-  The `gh` CLI OAuth token carries only
-  `admin:public_key, gist, read:org, read:packages, repo, workflow`; pushes to
-  BOTH `ghcr.io/agenta-ai/*` and the user namespace fail with
-  `denied: permission_denied: The token provided does not match expected scopes`
-  (so it is a scope problem, not an org-permission problem). Fixing it needs an
-  interactive `gh auth refresh -s write:packages` (browser/device flow) or a
-  classic PAT with `write:packages`; neither was available non-interactively.
+- **Push blocked at first: no `write:packages` credential existed.** The `gh`
+  OAuth token initially carried only read scopes; pushes to BOTH
+  `ghcr.io/agenta-ai/*` and the user namespace failed with
+  `denied: permission_denied: The token provided does not match expected scopes`.
+  **RESOLVED later the same day**: Mahmoud ran `gh auth refresh -s
+  write:packages` interactively, and all three images pushed to
+  `ghcr.io/agenta-ai/agenta-preview-{gateway,redis,seaweedfs}:spike`
+  (digests `sha256:62fc66b9…` gateway, `sha256:513f5420…` redis,
+  `sha256:bd1353af…` seaweedfs; image IDs match the locally audited builds).
+- **Visibility flip still pending — GitHub-UI-only.** New GHCR packages
+  default to PRIVATE and there is NO REST or GraphQL API to change package
+  visibility (`PATCH orgs/.../packages/...` returns 404; the docs describe
+  only the web UI "Danger Zone -> Change visibility" flow). Anonymous
+  manifest pulls return 401/403 while private, so Railway cannot pull them
+  yet. Once an org admin flips the three packages public,
+  `spike/switch-template-to-ghcr-images.sh` (pull-gated: it refuses to touch
+  the template while any package is private) switches the template to the
+  images and clears the startCommand overrides; run one patch-mode cycle to
+  certify the registry-backed path.
 - Consequence for the cycle tests: one interim cycle ran with
   `preview-cycle.sh --gateway-up-interim` (uploads `spike/images/gateway` into
   the clone via `railway up`; pass, 80s, "+cli-up" in the CSV) — and was then
@@ -294,9 +305,32 @@ that works when the tested tag equals the template's, e.g. `:latest` smokes).
 
 ### Remaining / open
 
-1. Push `spike/images/*` to GHCR as the durable production-shape images once a
-   `write:packages` credential exists (interactive `gh auth refresh` or an org
-   PAT). Until then the startCommand variant carries the template.
+1. ~~Push `spike/images/*` to GHCR~~ — DONE 2026-08-02 (`:spike` tags, see the
+   push section). Remaining: an org admin flips the three packages PUBLIC in
+   the GitHub UI (no API exists), then
+   `spike/switch-template-to-ghcr-images.sh --deploy` + one patch-mode cycle
+   certifies the registry-backed path. Canonical shape = the GHCR images; the
+   startCommand variant (Option B, currently live in the template) stays as
+   the registry-free fallback.
 2. Run the CI auth check (runbook phase 4) — still pending.
 3. Sequencing note for a real rollout: keep the template's app-image tags
    disjoint from PR tags so `environmentPatchCommit` never no-ops (see above).
+
+## Addendum 2026-08-02 (spike close-out): registry-backed validation
+
+- The three wrapper packages were made public in the GitHub UI and the template was
+  switched to them with `spike/switch-template-to-ghcr-images.sh --deploy`. All
+  three services deployed SUCCESS on the images' own entrypoints.
+- API finding: `serviceInstanceUpdate` with `startCommand: null` is a no-op (patch
+  semantics treat null as "no change"); setting `startCommand: ""` clears the
+  override. The switch script's warning caught this live; the empty-string clear is
+  the documented workaround.
+- Final proof cycle, fully registry-backed (GHCR images, no startCommand
+  overrides, zero `railway up`): **pass, 57s, 15 API calls** with tag
+  `pr-5651-a46168f`. This is the production-shaped path and lands under the ≤15
+  calls criterion.
+- One transient failure preceded it: the clone's Postgres deploy timed out at 420s
+  immediately after the template's infra services had been freshly redeployed.
+  The retry passed. Production rule: allow generous first-deploy timeouts for
+  volume-backed services in a fresh clone, and treat a single Postgres timeout as
+  retryable.

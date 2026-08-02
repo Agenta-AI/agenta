@@ -82,16 +82,30 @@ for n in gateway redis seaweedfs; do
   docker push "ghcr.io/agenta-ai/agenta-preview-$n:spike"
 done
 # New GHCR packages default to PRIVATE; make them public so Railway can pull
-# (verified: they contain no secrets — config + entrypoints reading env only):
-#   gh api -X PATCH orgs/agenta-ai/packages/container/agenta-preview-<n> -f visibility=public
+# (verified: they contain no secrets — config + entrypoints reading env only).
+# There is NO API for this (PATCH returns 404): use the GitHub web UI —
+# org Packages -> agenta-preview-<n> -> Package settings -> Danger Zone ->
+# Change visibility -> Public.
 ```
 
-LIVE BLOCKER (2026-08-02): this push needs a token with `write:packages`. The
-`gh` OAuth token does not have that scope by default; run
-`gh auth refresh -s write:packages` interactively first. Without it the push
-fails `denied: permission_denied: The token provided does not match expected
-scopes` in every namespace. (ttl.sh as an anonymous fallback registry was
-probed and does not work from this network: blob uploads stall.)
+LIVE STATUS (2026-08-02): the push is DONE — all three images are on GHCR at
+`:spike` (needed an interactive `gh auth refresh -s write:packages` first;
+without that scope every namespace fails `denied: permission_denied`; ttl.sh
+as an anonymous fallback registry does not work from this network — blob
+uploads stall). What remains is UI-only: GHCR packages default to PRIVATE and
+GitHub has NO API to change package visibility. An org admin must open each
+package (org Packages -> agenta-preview-<name> -> Package settings -> Danger
+Zone -> Change visibility) and set Public. Then run:
+
+```bash
+docs/design/railway-preview-clone-spike/spike/switch-template-to-ghcr-images.sh --deploy
+```
+
+It is pull-gated (refuses while any package is private), switches the three
+services to the GHCR images, CLEARS the Option B startCommand overrides so the
+images' own entrypoints are what deploys, and (with `--deploy`) redeploys them
+in the template for a health check. Finish with one patch-mode cycle (phase 3
+command) to certify the registry-backed path end to end.
 
 **Option B — registry-free startCommand wrappers (what the live spike runs):**
 Railway's start command overrides the image ENTRYPOINT in exec form, so the

@@ -26,3 +26,5 @@ cycle,start_iso,env_name,image_tag,deploy_mode,result,clone_s,patch_s,deploy_s,s
 1,2026-08-02T17:00:17Z,pr-clone-c1-1785690017,pr-5651-a46168f,patch,pass,4,1,51,15,1,72,16,""
 1,2026-08-02T17:22:52Z,pr-clone-c1-1785691372,pr-5651-a46168f,patch,pass,3,1,50,2,0,56,16,""
 2,2026-08-02T17:23:48Z,pr-clone-c2-1785691428,pr-5651-a46168f,patch,pass,4,1,50,1,1,57,16,""
+1,2026-08-02T18:04:06Z,pr-clone-c1-1785693846,pr-5651-a46168f,patch,fail,4,0,417,-,0,421,35,"deploy failed"
+1,2026-08-02T18:11:29Z,pr-clone-c1-1785694289,pr-5651-a46168f,patch,pass,4,0,51,2,-,57,15,"kept env pr-clone-c1-1785694289"
