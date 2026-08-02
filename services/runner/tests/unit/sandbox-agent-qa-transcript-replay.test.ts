@@ -26,6 +26,7 @@ import {
   runSandboxAgent,
   type SandboxAgentDeps,
 } from "../../src/engines/sandbox_agent.ts";
+import { buildRunPlan } from "../../src/engines/sandbox_agent/run-plan.ts";
 import { createSandboxAgentOtel } from "../../src/tracing/otel.ts";
 import {
   agentRunRequestFromTranscript,
@@ -187,12 +188,17 @@ describe("runSandboxAgent replays real captured QA transcripts", () => {
       assert.deepEqual(calls.promptBlocks, [
         { type: "text", text: calls.workspacePlan.turnText },
       ]);
-      // The declared builtin tool (e.g. "bash") must reach the plan's forced-tool grant set --
-      // asserted generically so this holds whether or not a given green cell declares tools.
-      for (const tool of request.tools ?? []) {
-        assert.ok(
-          calls.workspacePlan.builtinGrants.includes(tool),
-          `expected builtin tool '${tool}' to reach the plan's builtinGrants`,
+      // The recorded request's deprecated `tools` field is accepted and ignored: built-ins are
+      // activated unconditionally, so replanning without it must reach the same gating decision.
+      const withoutTools = buildRunPlan(
+        { ...request, tools: undefined },
+        { createLocalCwd: () => "/tmp/replay-cwd" },
+      );
+      assert.equal(withoutTools.ok, true);
+      if (withoutTools.ok) {
+        assert.equal(
+          withoutTools.plan.builtinGatingActive,
+          calls.workspacePlan.builtinGatingActive,
         );
       }
     },

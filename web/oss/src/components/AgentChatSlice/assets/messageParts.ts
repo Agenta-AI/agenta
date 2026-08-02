@@ -1,6 +1,6 @@
 import {type UIMessage} from "ai"
 
-/** A part the transcript actually renders — non-empty text/reasoning, files, sources, tools. */
+/** A part the transcript renders: non-empty prose, files, sources, or tools. */
 export const isVisiblePart = (p: UIMessage["parts"][number]): boolean =>
     (p.type === "text" && Boolean((p as {text?: string}).text?.trim())) ||
     (p.type === "reasoning" && Boolean((p as {text?: string}).text?.trim())) ||

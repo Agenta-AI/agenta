@@ -19,6 +19,9 @@ recipe additionally installs python3 and typescript/ts-node.
 
 Run: DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py [--force]
 
+The snapshot name is pinned, so Daytona keeps serving whatever was built under it. Whenever this
+recipe changes, every Daytona account using it must rerun the build with --force; see README.md.
+
 Licensing (see services/runner/docker/README.md):
     This script is the build recipe we ship, NOT a snapshot we distribute. Whoever
     runs it builds the snapshot in their own Daytona account: Agenta Cloud builds
@@ -105,8 +108,16 @@ def main() -> None:
             "RUN test -x /home/sandbox/.local/share/sandbox-agent/bin/opencode "
             "&& echo opencode-baked-in-base-image",
             # Durable cwd: fuse + geesefs so the remote sandbox can mount its store prefix.
+            # unzip/zip + python-is-python3 (symlinks /usr/bin/python -> python3): an agent
+            # handed an archive reaches for `unzip` and plain `python`; without them every
+            # such task burns failed bash calls and extra approval round-trips. The base is
+            # Debian bookworm (node:22-bookworm), so python-is-python3 is the right package.
+            # ripgrep/fd-find/jq/procps/file/tree are the same bet on habit: `rg` and `fd` are
+            # the first commands every harness reaches for when searching a tree, and Debian
+            # ships fd as `fdfind`, so the symlink is what makes the typed command resolve.
             "RUN apt-get update && apt-get install -y --no-install-recommends fuse curl "
-            "python3 "
+            "python3 python-is-python3 unzip zip ripgrep fd-find jq procps file tree "
+            '&& ln -s "$(which fdfind)" /usr/local/bin/fd '
             "&& rm -rf /var/lib/apt/lists/* && echo user_allow_other >> /etc/fuse.conf",
             # Code-evaluator runtimes: this snapshot is shared with the SDK DaytonaRunner.
             # typescript@5: ts-node needs the JS compiler API; typescript 7+ is the Go

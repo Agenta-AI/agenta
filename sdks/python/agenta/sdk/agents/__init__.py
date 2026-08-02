@@ -83,6 +83,7 @@ from .dtos import (
     to_messages,
 )
 from .errors import (
+    AgentRunFailed,
     AgentRunnerConfigurationError,
     LocalSandboxNotAllowedError,
     SandboxNotAllowedError,
@@ -132,6 +133,7 @@ from .tools import (
     MissingToolSecretError,
     PlatformToolConfig,
     ReferenceToolConfig,
+    ReservedToolNameError,
     ResolvedToolSet,
     ToolCall,
     ToolConfig,
@@ -216,6 +218,7 @@ __all__ = [
     "UnsupportedToolProviderError",
     "MissingToolSecretError",
     "DuplicateToolNameError",
+    "ReservedToolNameError",
     # MCP is a sibling subsystem
     "MCPServerConfig",
     "ResolvedMCPServer",
@@ -262,6 +265,7 @@ __all__ = [
     "Environment",
     "Harness",
     # Errors
+    "AgentRunFailed",
     "AgentRunnerConfigurationError",
     "SandboxNotAllowedError",
     "LocalSandboxNotAllowedError",

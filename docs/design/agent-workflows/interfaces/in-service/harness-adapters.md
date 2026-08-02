@@ -13,13 +13,15 @@ review lens: the wire-shape differences and what to check when one moves.
 
 Each adapter implements `_to_harness_config(...)` and emits a different `/run` wire shape:
 
-- **`PiHarness`** delivers built-in tool names and native custom tools, supports Pi prompt
+- **`PiHarness`** delivers native custom tools (built-ins are not configured: the runner
+  activates all seven on every Pi run), supports Pi prompt
   overrides (`system`, `append_system`), and carries the same `permissions` block as the other
   harnesses. Pi has no native permission gate of its own (no `.claude/settings.json` equivalent),
   so the runner's tool relay enforces `permissions` for Pi at execution time; an `ask` verdict
   pauses the run and Pi gets the same human-in-the-loop approval Claude gets at its gate.
-- **`ClaudeHarness`** delivers tools over MCP, not natively, and has no Pi built-ins (it warns
-  if any are set). It carries `permissions` and renders `.claude/settings.json` from four
+- **`ClaudeHarness`** delivers tools over MCP, not natively, and has no Pi built-ins. It carries
+  `permissions` and renders
+  `.claude/settings.json` from four
   sources — the author's `harness_kwargs["claude"]["permissions"]` slice, the sandbox permission,
   each user MCP server's permission (`mcp__<server>` rules), and each resolved EXECUTABLE tool's
   permission (`mcp__agenta-tools__<name>` rules; F-046) — shipped as `harnessFiles`. It carries
@@ -45,13 +47,18 @@ The wire shapes, side by side:
 - `sdks/python/agenta/sdk/agents/adapters/harnesses.py`: the three adapters.
 - `sdks/python/agenta/sdk/agents/dtos.py`: the `PiAgentConfig`/`ClaudeAgentConfig`/
   `AgentaAgentConfig` wire emitters.
+- `sdks/python/agenta/sdk/agents/pi_builtins.py`: `PI_BUILTIN_TOOL_NAMES`, the names
+  `PiAgentTemplate.wire_tools` sends on the deprecated `tools` field for older runners.
 
 ## Watch for when changing
 
 - **Tool delivery per harness.** Native versus MCP is the load-bearing difference. Pi takes
   tools natively; everyone else gets them over the MCP bridge.
 - **Prompt override behavior.** Pi replaces or appends; Claude reads options; Agenta composes.
-- **Forced Agenta behavior.** Instruction composition and the forced tool set are deliberate.
+- **Forced Agenta behavior.** Instruction composition and the forced skills are deliberate.
+- **The deprecated `tools` wire field.** `PiAgentTemplate.wire_tools` fills it with every built-in
+  name so a runner from before the always-active rework activates the same set. Emitting `[]`
+  there would leave such a runner with no built-ins at all (issue #5590).
 - **Claude skill delivery.** Claude wires inline skills like the other harnesses; the runner
   materializes them under `.claude/skills`. (An earlier revision suppressed Claude's
   `wire_skills()` to `{}`; that override is gone, and `test_claude_carries_skills_for_project_local_materialization`

@@ -17,6 +17,7 @@ import type {
   AgentEvent,
   AgentRunRequest,
   AgentRunResult,
+  ChatMessage,
 } from "../../src/protocol.ts";
 import {
   runWithKeepalive,
@@ -889,6 +890,187 @@ describe("runWithKeepalive: approval resume validation degrades to cold", () => 
     assert.equal(calls.acquire, 2);
     assert.equal(calls.resumes.length, 0);
   });
+
+  it("an out-of-band answer carrying NO history resumes live instead of evicting", async () => {
+    // What an inbox / webhook / CLI sends: the parked call and its {approved} envelope, built
+    // from the durable interaction row, with no conversation attached. Its prior-history
+    // fingerprint can never equal the parked session's, so comparing it would evict the only
+    // session that could resume — issue #5593's "approval-mismatch (history)".
+    const outOfBand: AgentRunRequest = {
+      harness: "claude",
+      model: "m1",
+      sessionId: "s1",
+      ...auth,
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_call", toolCallId: "tc-gate", toolName: "commit" },
+            {
+              type: "tool_result",
+              toolCallId: "tc-gate",
+              toolName: "commit",
+              output: { approved: true, interactionToken: "tok-1" },
+            },
+          ],
+        },
+      ],
+    };
+    const { calls, env1 } = await parkThenResume(outOfBand);
+    assert.equal(env1.destroyed, 0, "the parked session was NOT evicted");
+    assert.equal(calls.acquire, 1, "no cold re-acquire");
+    assert.equal(calls.resumes.length, 1, "the gate was answered live");
+    assert.equal(calls.resumes[0].reply, "once");
+    assert.equal(calls.resumes[0].permissionId, "perm-1");
+  });
+
+  it("an out-of-band DENY carrying no history also resumes live", async () => {
+    const outOfBand: AgentRunRequest = {
+      harness: "claude",
+      model: "m1",
+      sessionId: "s1",
+      ...auth,
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_call", toolCallId: "tc-gate", toolName: "commit" },
+            {
+              type: "tool_result",
+              toolCallId: "tc-gate",
+              toolName: "commit",
+              output: { approved: false, interactionToken: "tok-1" },
+            },
+          ],
+        },
+      ],
+    };
+    const { calls, env1 } = await parkThenResume(outOfBand);
+    assert.equal(env1.destroyed, 0);
+    assert.equal(calls.acquire, 1);
+    assert.equal(calls.resumes.length, 1);
+    assert.equal(calls.resumes[0].reply, "reject");
+  });
+});
+
+describe("runWithKeepalive: an approval park from a last-message-only turn", () => {
+  // Issue #5638. The playground sends only the new user turn on a normal message, so a gate that
+  // parks on turn 2+ records a fingerprint covering ONE user turn — while the approval resume
+  // carries the WHOLE transcript (the AI SDK rewrites the gated assistant message in place). The
+  // park is compared against the resume's trailing-user-turn slice, which still catches an edit.
+  const ATTACHMENT_A = "019a52c2-14c0-7c14-b874-2f5798f9cd21";
+  const ATTACHMENT_B = "019a52c2-14c0-7c14-b874-2f5798f9cd22";
+
+  /** Turn 2 as the frontend sends it: the fresh user turn alone, no prior conversation. */
+  function turnTwoOnly(content: ChatMessage["content"]): AgentRunRequest {
+    return {
+      harness: "claude",
+      model: "m1",
+      sessionId: "s1",
+      ...auth,
+      messages: [{ role: "user", content }],
+    };
+  }
+
+  /** The approval resume: turn 1, turn 2, the gated call, and the {approved} envelope. */
+  function fullTranscriptResume(tail: ChatMessage["content"]): AgentRunRequest {
+    return {
+      harness: "claude",
+      model: "m1",
+      sessionId: "s1",
+      ...auth,
+      messages: [
+        { role: "user", content: "do X" },
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_call", toolCallId: "tc-turn1", toolName: "read" },
+            {
+              type: "tool_result",
+              toolCallId: "tc-turn1",
+              output: { ok: true },
+            },
+          ],
+        },
+        { role: "user", content: tail },
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_call", toolCallId: "tc-gate", toolName: "commit" },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "tc-gate",
+              output: { approved: true },
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  async function parkThenResume(
+    park: AgentRunRequest,
+    resume: AgentRunRequest,
+  ) {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+      { result: { ok: true, output: "resumed", stopReason: "complete" } },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(park, undefined, undefined, ctx);
+    const env1 = calls.acquiredEnvs[0];
+    await runWithKeepalive(resume, undefined, undefined, ctx);
+    return { calls, env1, ctx };
+  }
+
+  it("resumes WARM when the full transcript's trailing turn matches the parked one", async () => {
+    const { calls, env1 } = await parkThenResume(
+      turnTwoOnly("do Y"),
+      fullTranscriptResume("do Y"),
+    );
+    assert.equal(env1.destroyed, 0, "the parked session was NOT evicted");
+    assert.equal(calls.acquire, 1, "no cold re-acquire");
+    assert.equal(calls.resumes.length, 1, "the gate was answered live");
+    assert.equal(calls.resumes[0].reply, "once");
+  });
+
+  it("evicts when the resume's trailing user text was edited", async () => {
+    const { calls, env1 } = await parkThenResume(
+      turnTwoOnly("do Y"),
+      fullTranscriptResume("do Y EDITED"),
+    );
+    assert.equal(env1.destroyed, 1, "the parked approval session is destroyed");
+    assert.equal(calls.acquire, 2, "cold-started a fresh env");
+    assert.equal(calls.resumes.length, 0, "no live respondPermission");
+  });
+
+  it("evicts when the resume's trailing turn swaps an attachment id", async () => {
+    const { calls, env1 } = await parkThenResume(
+      turnTwoOnly([
+        { type: "text", text: "do Y" },
+        { type: "attachment", attachmentId: ATTACHMENT_A },
+      ]),
+      fullTranscriptResume([
+        { type: "text", text: "do Y" },
+        { type: "attachment", attachmentId: ATTACHMENT_B },
+      ]),
+    );
+    assert.equal(env1.destroyed, 1, "the parked approval session is destroyed");
+    assert.equal(calls.acquire, 2, "cold-started a fresh env");
+    assert.equal(calls.resumes.length, 0, "no live respondPermission");
+  });
 });
 
 describe("runWithKeepalive: approval resume ignores re-minted credentials/config", () => {
@@ -1714,6 +1896,14 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       assert.equal(createCall.body["turn_id"], "turn-no-workflow-start");
       const createData = createCall.body["data"] as Record<string, unknown>;
       assert.equal("references" in createData, false);
+      // The row's `token` is the permission gate's id; `tool_call_id` is the harness's id for the
+      // gated call. An answer built from this row alone needs the latter (issue #5593).
+      assert.equal(createCall.body["token"], "perm-no-workflow");
+      assert.deepEqual(createData["request"], {
+        tool: "commit",
+        args: { message: "hi" },
+        tool_call_id: "tc-no-workflow",
+      });
 
       const parked = env.parkedApprovals.get("tc-no-workflow");
       assert.ok(parked);

@@ -204,13 +204,24 @@ describe("buildPiExtensionEnv", () => {
     const env = buildPiExtensionEnv({} as AgentRunRequest, false, {
       relayDir: "/tmp/relay",
       builtinGatingActive: true,
-      builtinGrants: ["read", "write"],
     });
 
     assert.equal(env.AGENTA_AGENT_BUILTIN_GATING, "1");
-    assert.equal(env.AGENTA_AGENT_BUILTIN_GRANTS, "read,write");
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
     assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
+  });
+
+  it("always sets the builtin activation env and never a grant list", () => {
+    const gating = buildPiExtensionEnv({} as AgentRunRequest, false, {
+      builtinGatingActive: true,
+    });
+    const noGating = buildPiExtensionEnv({} as AgentRunRequest, false, {});
+
+    assert.equal(gating.AGENTA_AGENT_BUILTIN_ACTIVATION, "1");
+    assert.equal(noGating.AGENTA_AGENT_BUILTIN_ACTIVATION, "1");
+    assert.equal(noGating.AGENTA_AGENT_BUILTIN_GATING, undefined);
+    assert.equal(gating.AGENTA_AGENT_BUILTIN_GRANTS, undefined);
+    assert.equal(noGating.AGENTA_AGENT_BUILTIN_GRANTS, undefined);
   });
 
   it("accepts snake_case tool schemas from older Python wire payloads", () => {

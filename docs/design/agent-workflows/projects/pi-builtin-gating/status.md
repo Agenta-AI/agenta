@@ -1,5 +1,10 @@
 # Status
 
+> **Partly superseded.** The grant-list half of this work is gone: Agenta now activates every Pi
+> built-in on every run and the `/run` request's `tools` field is ignored. The permission gate
+> itself is unchanged. See
+> [default-agent-builtins/addendum-always-active.md](../default-agent-builtins/addendum-always-active.md).
+
 ## State
 
 MERGED to big-agents via PR #5066 (2026-07-05), after Mahmoud's review, all CI suites

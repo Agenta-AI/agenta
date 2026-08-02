@@ -311,7 +311,6 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             trace=comp.trace_context(),
             run_context=rc,
             session_id=session_id,
-            builtin_names=resolved_tools.builtin_names,
             tool_specs=resolved_tools.tool_specs,
             tool_callback=resolved_tools.tool_callback,
             mcp_servers=resolved_mcp,

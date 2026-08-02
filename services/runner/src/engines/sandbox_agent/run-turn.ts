@@ -3,6 +3,7 @@ import {
   permissionsFromRequest,
 } from "../../permission-plan.ts";
 import {
+  currentUserTurn,
   resolvePromptText,
   type AgentRunRequest,
   type AgentRunResult,
@@ -44,6 +45,15 @@ import {
   relayWritesPausedAnswer,
 } from "./client-tools.ts";
 import { invalidateContinuity } from "./environment.ts";
+import {
+  attachmentCapabilityGate,
+  buildPromptBlocks,
+  collectAttachmentRefs,
+  collectLegacyInlineImages,
+  resolveCurrentTurnAttachments,
+  restoreReferencedWorkingCopies,
+  type AcpPromptBlock,
+} from "./attachments.ts";
 import { conciseError } from "./errors.ts";
 import {
   PAUSED,
@@ -77,6 +87,7 @@ import {
   sessionContinuityStore,
 } from "./session-continuity.ts";
 import { reconstructHistoryIfNeeded } from "./reconstruct-history.ts";
+import { carriesApprovalReplyOnly } from "./session-identity.ts";
 import { buildTurnText, priorMessages } from "./transcript.ts";
 import { resolveRunUsage } from "./usage.ts";
 
@@ -95,6 +106,7 @@ export async function runTurn(
   opts: RunTurnOptions = {},
 ): Promise<AgentRunResult> {
   const { plan, logger, deps } = env;
+  const credential = opts.credential ?? (() => runCredential(request));
   const sessionId = env.sessionId;
   // Race marker for a user Stop (the control-plane `cancel`/`steer` command drops the alive lock, the
   // heartbeat aborts `signal`). Distinct from PAUSED/RUN_LIMIT_TRIPPED so the turn ends CLEANLY
@@ -150,26 +162,89 @@ export async function runTurn(
   });
 
   try {
-    // Server-side history reconstruction (on by default; AGENTA_SESSIONS_RECONSTRUCT=false
-    // disables): when the client sent a minimal history, rebuild prior turns from the durable
-    // record log so a cold turn still has full context. Runs before the current user turn is
-    // persisted, so records hold only prior turns. Reassigns `request` so every downstream
-    // reader (turnText, priorMessages, responder, otel) sees the same reconstructed history.
-    const reconstructed = await reconstructHistoryIfNeeded(
-      request,
-      sessionId,
-      () => runCredential(request),
-      logger,
-    );
+    // AGENTA_SESSIONS_RECONSTRUCT defaults on so minimal-history clients keep their conversation;
+    // only the literal "false" opts out. The compose default supplies an empty string, not "true".
+    // Server-side history reconstruction rebuilds prior turns from the durable record log.
+    // The server already persisted this turn, so reconstruction filters its turn id.
+    // Reassign `request` so every downstream reader sees the same reconstructed history.
+    // An out-of-band approval reply carries no user text of its own, so this must be decided from
+    // the INBOUND request: reconstruction prepends the original user turn, after which
+    // `resolvePromptText` would hand back that stale command and the model would restart the task.
+    const approvalReplyOnly = carriesApprovalReplyOnly(request);
+    const inboundRequest = request;
+    // On a LIVE approval resume the rebuilt history is never sent to the harness: the resume
+    // continues the ORIGINAL prompt promise (`opts.resume` below), so `turnText` is discarded and
+    // the harness already holds the conversation. Reconstruction there only enriches the trace and
+    // the responder's view, so a failed records fetch must NOT fail the turn: `{ok:false}` makes
+    // the dispatch evict the live session and retry cold, where reconstruction throws again — one
+    // 500 from the records endpoint would lose the human's approval AND the parked session. Keep
+    // the inbound request and continue. A cold turn still fails loudly, where it matters.
+    let reconstructed: AgentRunRequest | null = null;
+    let historicalWorkingCopiesRestored = false;
+    let historicalAttachmentsPresent = false;
+    const restoreHistoricalWorkingCopies = async (
+      messages: NonNullable<AgentRunRequest["messages"]>,
+    ) => {
+      historicalWorkingCopiesRestored = true;
+      historicalAttachmentsPresent ||= messages.some(
+        (message) => collectAttachmentRefs(message).length > 0,
+      );
+      return restoreReferencedWorkingCopies(
+        env.sandbox,
+        plan,
+        messages,
+        sessionId,
+        credential,
+        { log: logger },
+      );
+    };
+    try {
+      reconstructed = await reconstructHistoryIfNeeded(
+        request,
+        sessionId,
+        credential,
+        logger,
+        !opts.continuation && !opts.resume
+          ? { restore: restoreHistoricalWorkingCopies }
+          : undefined,
+      );
+    } catch (err) {
+      if (!opts.resume) throw err;
+      const detail = err instanceof Error ? err.message : String(err);
+      logger(
+        `[reconstruct] live resume: keeping the inbound history (${detail})`,
+      );
+    }
     if (reconstructed) request = reconstructed;
 
-    const promptText = resolvePromptText(request);
+    if (
+      !opts.continuation &&
+      !opts.resume &&
+      !historicalWorkingCopiesRestored
+    ) {
+      const messages = request.messages ?? [];
+      const current = currentUserTurn(request);
+      const historical = current.message ? messages.slice(0, -1) : messages;
+      const restored = await restoreHistoricalWorkingCopies(historical);
+      request = {
+        ...request,
+        messages: current.message ? [...restored, current.message] : restored,
+      };
+    }
+
+    const promptText = approvalReplyOnly
+      ? resolvePromptText(request)
+      : currentUserTurn(request).text;
     // Cold: replay the full transcript. Continuation or loaded: send only new text. When history
     // was rebuilt from records, recompute the transcript from it — the prebuilt plan.turnText
-    // predates the reconstruction.
+    // predates the reconstruction. An approval reply has no new text either way, so it sends the
+    // approval-resume frame `buildTurnText` renders (the harness already holds the prior turns
+    // when the session was loaded natively; otherwise the rebuilt transcript comes with it).
     const turnText = sendLastMessageOnly(opts)
-      ? promptText
-      : reconstructed
+      ? approvalReplyOnly
+        ? buildTurnText(inboundRequest, logger)
+        : promptText
+      : reconstructed || historicalAttachmentsPresent
         ? buildTurnText(request, logger)
         : plan.turnText;
 
@@ -208,6 +283,63 @@ export async function runTurn(
         { role: "user", content: promptText },
       ],
     });
+
+    let promptBlocks: AcpPromptBlock[] = [{ type: "text", text: turnText }];
+    if (!opts.resume) {
+      const current = currentUserTurn(request);
+      const refs = collectAttachmentRefs(current.message);
+      const resolved =
+        refs.length > 0
+          ? await resolveCurrentTurnAttachments({
+              message: current.message,
+              sessionId,
+              auth: credential,
+              sandbox: env.sandbox,
+              plan,
+              capabilities: env.capabilities,
+              modelCapabilities: request.modelCapabilities,
+              provider: request.provider,
+              emit: (event) => run.emitEvent(event),
+            })
+          : [];
+      const legacyImages = collectLegacyInlineImages(current.message);
+      const nativeLegacyImages = [];
+      for (const image of legacyImages) {
+        const gate = attachmentCapabilityGate({
+          acpAgent: plan.acpAgent,
+          provider: request.provider,
+          capabilities: env.capabilities,
+          // Legacy inline images predate the catalog, so a caller that declares nothing keeps
+          // the historical image-capable assumption; a caller that declares modalities is
+          // authoritative and its answer decides.
+          modelCapabilities: request.modelCapabilities ?? {
+            inputModalities: ["image"],
+          },
+          mediaType: image.mimeType,
+          byteLength: Buffer.from(image.data, "base64").byteLength,
+        });
+        if (gate.outcome === "native") nativeLegacyImages.push(image);
+        logger(
+          `[attachments] legacy inline image delivery=${
+            gate.outcome === "native" ? "native" : "degraded"
+          } reason=${gate.reasonCode}`,
+        );
+      }
+      promptBlocks = buildPromptBlocks(
+        turnText,
+        resolved,
+        nativeLegacyImages,
+        current.text,
+      );
+      if (promptBlocks.length === 0) {
+        promptBlocks = [
+          {
+            type: "text",
+            text: "[inline image could not be delivered to this harness]",
+          },
+        ];
+      }
+    }
 
     const sessionTurnClient = deps.appendSessionTurn ?? appendSessionTurn;
     const syncCred = runCredential(request);
@@ -458,6 +590,7 @@ export async function runTurn(
       toolName: string | undefined,
       toolArgs: unknown,
       kind: "user_approval" | "client_tool" = "user_approval",
+      toolCallId?: string,
     ): void => {
       const cred = runCredential(request);
       if (!cred) return;
@@ -468,7 +601,16 @@ export async function runTurn(
         request.turnId ?? "",
         token,
         kind,
-        { request: { tool: toolName ?? token, args: toolArgs }, references },
+        {
+          request: {
+            tool: toolName ?? token,
+            args: toolArgs,
+            // The gate id (`token`) and the harness's tool-call id differ; an out-of-band answer
+            // needs the latter to name the call it is answering.
+            ...(toolCallId ? { tool_call_id: toolCallId } : {}),
+          },
+          references,
+        },
         () => cred,
       );
     };
@@ -764,7 +906,7 @@ export async function runTurn(
       if (opts.resume.carriedForward.length > 0) pause.pause();
     } else {
       promptPromise = Promise.resolve(
-        env.session.prompt([{ type: "text", text: turnText }]),
+        env.session.prompt(promptBlocks),
       );
       promptPromise.catch(() => {});
     }

@@ -76,9 +76,15 @@ DAYTONA_API_KEY=<daytona-api-key> DAYTONA_TARGET=eu uv run build_snapshot.py --f
 ```
 
 The recipe starts from the sandbox base image, which already contains Claude Code, Codex, and
-OpenCode. It adds the Pi harness at the version the runner expects, plus the FUSE tooling that
-mounts durable working directories inside the sandbox. It builds a snapshot named
-`agenta-agent-sandbox-v1` and sets each sandbox to 2 vCPU, 4 GB of memory, and 5 GB of disk.
+OpenCode. It adds the Pi harness at the version the runner expects, the FUSE tooling that
+mounts durable working directories inside the sandbox, and the everyday shell tools agents reach
+for on their own: `python3` (also available as `python`), `unzip`, `zip`, `rg` (ripgrep), `fd`,
+`jq`, `ps`, `file`, and `tree`. It builds a snapshot named `agenta-agent-sandbox-v1` and sets each
+sandbox to 2 vCPU, 4 GB of memory, and 5 GB of disk.
+
+If you already built `agenta-agent-sandbox-v1` from an earlier release, rebuild it with `--force`
+after upgrading. Daytona keeps the snapshot you built, so a snapshot built from an older recipe
+keeps its older toolset until you rebuild it.
 
 Point the runner at it:
 

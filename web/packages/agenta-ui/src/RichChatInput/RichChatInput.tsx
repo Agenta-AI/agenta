@@ -67,6 +67,10 @@ export interface RichChatInputProps {
     onPasteFile?: (files: FileList) => void
     /** Keep the send button enabled with empty text (e.g. attachments pending) — sends "". */
     sendForceEnabled?: boolean
+    /** Disable submit without locking the editor (e.g. an attachment upload failed). */
+    sendDisabled?: boolean
+    /** Explain why submit is disabled without locking the editor. */
+    sendDisabledReason?: ReactNode
     /** Hide the built-in send button (keyboard-only). */
     hideSendButton?: boolean
     /** A stream is in flight — the send button becomes a Stop button. */
@@ -126,6 +130,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             trailing,
             onPasteFile,
             sendForceEnabled,
+            sendDisabled,
             hideSendButton,
             streaming,
             onStop,
@@ -133,6 +138,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             size = "compact",
             textSizeClassName = "text-xs",
             hideShortcutHints = false,
+            sendDisabledReason,
             submitOnEnter = true,
             onChange,
             initialMarkdown,
@@ -281,7 +287,8 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                 <SendButton
                                     onSubmit={onSubmit}
                                     forceEnabled={sendForceEnabled}
-                                    disabled={disabled}
+                                    disabled={disabled || sendDisabled}
+                                    disabledReason={sendDisabledReason}
                                     streaming={streaming}
                                     onStop={onStop}
                                 />
@@ -307,7 +314,9 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                     <MarkdownShortcutPlugin transformers={CHAT_TRANSFORMERS} />
                     {/* Enter on a lone ``` fence opener → code block (runs before SubmitPlugin). */}
                     <CodeFencePlugin />
-                    {submitOnEnter ? <SubmitPlugin onSubmit={onSubmit} /> : null}
+                    {submitOnEnter ? (
+                        <SubmitPlugin onSubmit={onSubmit} disabled={sendDisabled} />
+                    ) : null}
                     <FocusStatePlugin onFocusChange={setFocused} />
                     {onChange ? <CharacterCountPlugin onTextChange={onChange} /> : null}
                 </div>
