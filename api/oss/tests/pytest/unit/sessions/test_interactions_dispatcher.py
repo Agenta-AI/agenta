@@ -12,6 +12,7 @@ from oss.src.core.sessions.records.dtos import SessionRecord
 
 from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
     InteractionsDispatcher,
+    build_wire_messages,
 )
 
 
@@ -251,10 +252,12 @@ async def test_approval_respond_composes_resume_messages_from_records():
         "toolName": "bash",
         "input": {"command": "alembic upgrade head"},
     }
-    # The envelope: exactly what storedApprovalDecisionOf (responder.ts) parses.
+    # The envelope: exactly what storedApprovalDecisionOf (responder.ts) parses, plus the
+    # toolName the cold replay needs to name the call in its resume nudge.
     assert blocks[-1] == {
         "type": "tool_result",
         "toolCallId": "tc-1",
+        "toolName": "bash",
         "output": {"approved": True, "interactionToken": "tok-abc"},
     }
     # No extra user message was introduced (prompt count parity for warm resume).
@@ -311,6 +314,31 @@ async def test_approval_respond_without_records_synthesizes_the_anchor():
         "input": {"command": "rm -rf ./build"},
     }
     assert blocks[1]["output"] == {"approved": True, "interactionToken": "tok-abc"}
+    assert blocks[1]["toolName"] == "bash"
+
+
+async def test_replayed_tool_results_carry_the_call_s_tool_name():
+    """A tool_result record stores only the call id. The runner's cold replay renders results as
+    "[<toolName> returned: ...]" and matches approval nudges by name, so the name must be carried
+    forward from the tool_call — otherwise every replayed result is an anonymous "tool" and the
+    resume nudge tells the model to call something that does not exist.
+    """
+    project_id = uuid4()
+    records = _approval_records(project_id) + [
+        _record(
+            project_id,
+            rtype="tool_result",
+            attributes={"type": "tool_result", "id": "tc-1", "output": "ok"},
+            index=3,
+        ),
+    ]
+
+    messages = build_wire_messages(records)
+
+    blocks = messages[1]["content"]
+    result = next(block for block in blocks if block["type"] == "tool_result")
+    assert result["toolName"] == "bash"
+    assert result["output"] == "ok"
 
 
 async def test_explicit_tool_call_id_wins_over_the_records_lookup():

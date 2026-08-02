@@ -46,6 +46,11 @@ def build_wire_messages(records: List[SessionRecord]) -> List[Dict[str, Any]]:
     """
     messages: List[Dict[str, Any]] = []
     assistant_blocks: Optional[List[Dict[str, Any]]] = None
+    # A tool_result record stores only the call id, but the runner's cold replay renders each
+    # result as "[<toolName> returned: ...]" and matches approval nudges by tool name
+    # (`approvalRenderHints`). Carry the name forward from the call, exactly as the runner's own
+    # `reconstructMessages` does — without it every replayed result is an anonymous "tool".
+    call_names: Dict[str, str] = {}
 
     def close_assistant() -> None:
         nonlocal assistant_blocks
@@ -79,6 +84,8 @@ def build_wire_messages(records: List[SessionRecord]) -> List[Dict[str, Any]]:
                 block["toolCallId"] = attributes["id"]
             if attributes.get("name"):
                 block["toolName"] = attributes["name"]
+                if attributes.get("id"):
+                    call_names[attributes["id"]] = attributes["name"]
             if attributes.get("input") is not None:
                 block["input"] = attributes["input"]
             assistant().append(block)
@@ -86,6 +93,8 @@ def build_wire_messages(records: List[SessionRecord]) -> List[Dict[str, Any]]:
             block = {"type": "tool_result"}
             if attributes.get("id"):
                 block["toolCallId"] = attributes["id"]
+                if attributes["id"] in call_names:
+                    block["toolName"] = call_names[attributes["id"]]
             output = attributes.get("data")
             if output is None:
                 output = attributes.get("output")
@@ -172,16 +181,21 @@ def compose_approval_messages(
     messages = build_wire_messages(records)
     gated_id = resolve_gated_tool_call_id(records, interaction, answer)
 
-    has_gated_call = any(
-        block.get("type") == "tool_call" and block.get("toolCallId") == gated_id
-        for message in messages
-        if isinstance(message.get("content"), list)
-        for block in message["content"]
+    gated_call = next(
+        (
+            block
+            for message in messages
+            if isinstance(message.get("content"), list)
+            for block in message["content"]
+            if block.get("type") == "tool_call" and block.get("toolCallId") == gated_id
+        ),
+        None,
     )
+    has_gated_call = gated_call is not None
+    shape = _gated_call_shape(records, interaction)
     if not has_gated_call:
         # No durable tool_call record (e.g. records unavailable): synthesize the anchor the
         # runner's call-shape index needs to bind the envelope to name+args.
-        shape = _gated_call_shape(records, interaction)
         block = {"type": "tool_call", "toolCallId": gated_id}
         if shape.get("name"):
             block["toolName"] = shape["name"]
@@ -197,6 +211,13 @@ def compose_approval_messages(
             "interactionToken": interaction.token,
         },
     }
+    # The runner renders the resume nudge as "Call <toolName> again with the same arguments" and
+    # matches stale-vs-live approvals by name. An unnamed envelope renders the literal word
+    # "tool", which names nothing the model can call — it then narrates a fabricated execution
+    # instead of re-issuing the call.
+    gated_name = (gated_call or {}).get("toolName") or shape.get("name")
+    if gated_name:
+        envelope["toolName"] = gated_name
     tail = messages[-1] if messages else None
     if (
         tail is not None
