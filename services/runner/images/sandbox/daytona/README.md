@@ -41,9 +41,11 @@ The snapshot recipe therefore:
 - verifies that the Claude, Codex, and OpenCode binaries are still present;
 - installs the FUSE and geesefs dependencies used for durable remote working directories;
 - installs `python3` and `typescript`/`ts-node` for the shared custom-code evaluator runtimes; and
-- installs `unzip`, `zip`, and `python-is-python3` (which puts a plain `python` on PATH), the
-  everyday tools an agent reaches for unprompted. Without them a task as ordinary as "read this
-  zip" costs the agent several failed shell calls and the operator several approval prompts.
+- installs the everyday command-line tools an agent reaches for unprompted: `unzip`, `zip`,
+  `python-is-python3` (which puts a plain `python` on PATH), `ripgrep`, `fd-find`, `jq`, `procps`,
+  `file`, and `tree`, and symlinks `fdfind` to `fd` because Debian ships the binary under the
+  other name. Without them a task as ordinary as "read this zip" or a first search of the working
+  directory costs the agent several failed shell calls and the operator several approval prompts.
 
 The Pi CLI and Pi ACP adapter are separate dependencies. Keep both pins explicit. The CLI
 runs the agent; the adapter translates Pi events and dialogs onto ACP. In particular, the

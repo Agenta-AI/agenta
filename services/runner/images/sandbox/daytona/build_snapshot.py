@@ -112,8 +112,12 @@ def main() -> None:
             # handed an archive reaches for `unzip` and plain `python`; without them every
             # such task burns failed bash calls and extra approval round-trips. The base is
             # Debian bookworm (node:22-bookworm), so python-is-python3 is the right package.
+            # ripgrep/fd-find/jq/procps/file/tree are the same bet on habit: `rg` and `fd` are
+            # the first commands every harness reaches for when searching a tree, and Debian
+            # ships fd as `fdfind`, so the symlink is what makes the typed command resolve.
             "RUN apt-get update && apt-get install -y --no-install-recommends fuse curl "
-            "python3 python-is-python3 unzip zip "
+            "python3 python-is-python3 unzip zip ripgrep fd-find jq procps file tree "
+            '&& ln -s "$(which fdfind)" /usr/local/bin/fd '
             "&& rm -rf /var/lib/apt/lists/* && echo user_allow_other >> /etc/fuse.conf",
             # Code-evaluator runtimes: this snapshot is shared with the SDK DaytonaRunner.
             # typescript@5: ts-node needs the JS compiler API; typescript 7+ is the Go
