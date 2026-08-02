@@ -11,6 +11,7 @@ import {
   userTurnCarriesContent,
 } from "../../protocol.ts";
 import { approvalDecisionOf } from "../../responder.ts";
+import { resolveCodexMode } from "./codex-mode.ts";
 import type { TeardownReason } from "./teardown.ts";
 import { loadRunnerConfig } from "../../config/runner-config.ts";
 
@@ -149,10 +150,12 @@ export function configFingerprint(request: AgentRunRequest): string {
     harness: request.harness ?? null,
     sandbox: request.sandbox ?? null,
     model: request.model ?? null,
-    // Harness mode is applied once, at session acquire (codex-mode.ts). Two turns of one warm
-    // session that differ only in mode must NOT share a parked session, or the second mode is
-    // silently never applied.
-    harnessMode: request.harnessMode ?? null,
+    // Harness mode is applied once, at session acquire (codex-mode.ts). Normalize Codex defaults
+    // and ignore the field for other harnesses so only effective mode changes evict warm sessions.
+    harnessMode:
+      request.harness === "codex"
+        ? resolveCodexMode(request.harnessMode)
+        : null,
     provider: request.provider ?? null,
     connection: request.connection ?? null,
     deployment: request.deployment ?? null,

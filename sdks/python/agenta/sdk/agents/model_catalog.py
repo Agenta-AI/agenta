@@ -191,6 +191,7 @@ def model_input_modalities(
         catalog = claude_model_catalog()
         catalog_id = model_id
     elif harness == "codex":
+        # Unknown ids deliberately return None, degrading to a workspace copy instead of guessing.
         catalog = codex_model_catalog()
         catalog_id = model_id
     else:

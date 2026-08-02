@@ -104,8 +104,8 @@ export function buildExecutableToolGate({
           availableReplies: ["once", "reject"],
         },
       });
-      // The 5th argument persists the harness's tool-call id on the interaction row, so an
-      // out-of-band approval reply can name this parked gate by tool-call id (server.ts).
+      // The 5th argument keys the durable interaction row by the harness's tool-call id, so
+      // server.ts can match an out-of-band approval reply by tool_call_id.
       recordPendingInteraction(
         request.id,
         request.toolName,

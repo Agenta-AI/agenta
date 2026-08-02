@@ -301,10 +301,12 @@ export async function runTurn(
           capabilities: env.capabilities,
           // Legacy inline images predate the catalog, so a caller that declares nothing keeps
           // the historical image-capable assumption; a caller that declares modalities is
-          // authoritative and its answer decides.
-          modelCapabilities: request.modelCapabilities ?? {
-            inputModalities: ["image"],
-          },
+          // authoritative and its answer decides. Codex is excluded because its bridge rejects
+          // the whole prompt rather than degrading.
+          modelCapabilities:
+            plan.acpAgent === "codex"
+              ? request.modelCapabilities
+              : (request.modelCapabilities ?? { inputModalities: ["image"] }),
           mediaType: image.mimeType,
           byteLength: Buffer.from(image.data, "base64").byteLength,
         });
