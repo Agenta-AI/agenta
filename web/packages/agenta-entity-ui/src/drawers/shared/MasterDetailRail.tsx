@@ -1,7 +1,7 @@
 import type {ReactNode} from "react"
 
+import {Button, Spinner} from "@agenta/ui/ui"
 import {Plus, X} from "@phosphor-icons/react"
-import {Button, Spin, Typography} from "antd"
 
 // Draft list ids are prefixed so they're distinguishable from real entity ids.
 export const DRAFT_PREFIX = "draft:"
@@ -145,25 +145,23 @@ export function MasterDetailRail({
     return (
         <div className="flex w-[240px] shrink-0 flex-col overflow-hidden border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)]">
             <div className="shrink-0 px-3 pb-2 pt-3">
-                <Button block icon={<Plus size={14} />} onClick={onNew} disabled={!canCreate}>
+                <Button variant="outline" className="w-full" onClick={onNew} disabled={!canCreate}>
+                    <Plus size={14} />
                     {newLabel}
                 </Button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
                 {isLoading ? (
                     <div className="flex justify-center py-8">
-                        <Spin />
+                        <Spinner />
                     </div>
                 ) : (
                     <div className="flex flex-col gap-0.5">
                         {children}
                         {isEmpty && (
-                            <Typography.Text
-                                type="secondary"
-                                className="!text-[11px] block px-2 py-3 leading-snug"
-                            >
+                            <span className="block px-2 py-3 text-[11px] leading-snug text-[var(--ag-colorTextDescription)]">
                                 {emptyText}
-                            </Typography.Text>
+                            </span>
                         )}
                     </div>
                 )}

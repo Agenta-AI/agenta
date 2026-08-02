@@ -5,6 +5,24 @@
  */
 export {RailField, railInfoLabel, type RailFieldProps} from "./RailField"
 export {SectionRail, type SectionRailItem, type SectionRailProps} from "./SectionRail"
+export {DrawerFooter} from "./DrawerFooter"
+export {
+    DraftListRow,
+    EntityListRow,
+    MasterDetailRail,
+    RowRemoveButton,
+    isDraftId,
+    DRAFT_PREFIX,
+} from "./MasterDetailRail"
+export {AddItemMenu, type AddItemGroup, type AddItemMenuItem} from "./AddItemMenu"
+export {AppCard, AppLogo} from "./CatalogAppCard"
+export {CatalogChooser, type CatalogChooserProps, type CatalogItemState} from "./CatalogChooser"
+export {
+    GatewayCatalogDrawer,
+    type CatalogAdapter,
+    type CatalogConfig,
+    type ItemTrailing,
+} from "./GatewayCatalogDrawer"
 
 // "Which properties have uncommitted changes" — lets a rail row mark the exact changed property and
 // a sub-section open itself when it owns one. Structural, so any config surface can provide it.

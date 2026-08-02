@@ -12,8 +12,16 @@
 import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {ScrollSentinel} from "@agenta/ui"
+import {
+    Button,
+    InputAffix,
+    Spinner,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {ArrowClockwise, ArrowLeft, Check, MagnifyingGlass, Plus} from "@phosphor-icons/react"
-import {Button, Input, Spin, Tooltip, Typography} from "antd"
 
 import {AppCard, AppLogo} from "./CatalogAppCard"
 
@@ -121,7 +129,7 @@ export interface CatalogChooserProps<I, T, C> {
 }
 
 function ItemTrailing({state}: {state: CatalogItemState}) {
-    if (state === "pending") return <Spin size="small" />
+    if (state === "pending") return <Spinner size="small" />
     if (state === "selected")
         return <Check size={13} className="shrink-0 text-[var(--ag-colorPrimary)]" />
     return <Plus size={13} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
@@ -150,14 +158,14 @@ function CatalogItemList<I, T, C>({
 
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-2.5">
-            <Input
+            <InputAffix
                 allowClear
                 placeholder={props.itemsSearchPlaceholder ?? "Search…"}
                 prefix={
                     <MagnifyingGlass size={13} className="text-[var(--ag-colorTextTertiary)]" />
                 }
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onValueChange={setQuery}
             />
             <div
                 ref={setListEl}
@@ -165,7 +173,7 @@ function CatalogItemList<I, T, C>({
             >
                 {isLoading && items.length === 0 ? (
                     <div className="flex justify-center py-8">
-                        <Spin size="small" />
+                        <Spinner size="small" />
                     </div>
                 ) : items.length === 0 ? (
                     <div className="px-2 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
@@ -252,7 +260,7 @@ function CatalogItemList<I, T, C>({
                         })}
                         {isFetchingNextPage && (
                             <div className="flex justify-center py-3">
-                                <Spin size="small" />
+                                <Spinner size="small" />
                             </div>
                         )}
                         <ScrollSentinel
@@ -459,15 +467,20 @@ function AppRailItem({
                 )}
             </span>
             {state && (
-                <Tooltip title={state === "active" ? "Active" : "Pending"}>
-                    <span
-                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                            state === "active"
-                                ? "bg-[var(--ag-colorSuccess)]"
-                                : "bg-[var(--ag-colorWarning)]"
-                        }`}
-                    />
-                </Tooltip>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span
+                                className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                                    state === "active"
+                                        ? "bg-[var(--ag-colorSuccess)]"
+                                        : "bg-[var(--ag-colorWarning)]"
+                                }`}
+                            />
+                        </TooltipTrigger>
+                        <TooltipContent>{state === "active" ? "Active" : "Pending"}</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
             )}
         </button>
     )
@@ -496,7 +509,7 @@ function ConnectInvite<I, T, C>({
                     {description}
                 </div>
             )}
-            <Button type="primary" onClick={onConnect}>
+            <Button variant="default" onClick={onConnect}>
                 Connect {name ?? "app"}
             </Button>
         </div>
@@ -843,7 +856,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                                     </span>
                                                     <span className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-[var(--ag-colorPrimary)]">
                                                         {busy ? (
-                                                            <Spin size="small" />
+                                                            <Spinner size="small" />
                                                         ) : (
                                                             <ArrowClockwise size={13} />
                                                         )}
@@ -853,12 +866,9 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                             )
                                         })()}
                                     <div className="mb-2 mt-4 flex items-center justify-between gap-2">
-                                        <Typography.Text
-                                            type="secondary"
-                                            className="!text-[10px] uppercase !tracking-wide"
-                                        >
+                                        <span className="text-[10px] uppercase tracking-wide text-[var(--ag-colorTextDescription)]">
                                             {props.itemsLabel}
-                                        </Typography.Text>
+                                        </span>
                                         {selectedIntegration && (
                                             <button
                                                 type="button"
@@ -891,7 +901,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                     </div>
                 ) : (
                     <>
-                        <Input
+                        <InputAffix
                             allowClear
                             autoFocus
                             placeholder="Search apps…"
@@ -902,7 +912,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                 />
                             }
                             value={searchInput}
-                            onChange={(e) => setSearchInput(e.target.value)}
+                            onValueChange={setSearchInput}
                             onKeyDown={(e) => {
                                 // Esc clears a query first; only then falls through to close the drawer.
                                 if (e.key === "Escape" && searchInput) {
@@ -935,7 +945,12 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                         Couldn&apos;t load apps.
                                     </span>
                                     {refetchIntegrations && (
-                                        <Button onClick={() => refetchIntegrations()}>Retry</Button>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => refetchIntegrations()}
+                                        >
+                                            Retry
+                                        </Button>
                                     )}
                                 </div>
                             ) : integrations.length === 0 ? (
@@ -987,7 +1002,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                     <div className="col-span-full">
                                         {isFetchingNextPage && (
                                             <div className="flex justify-center py-3">
-                                                <Spin size="small" />
+                                                <Spinner size="small" />
                                             </div>
                                         )}
                                         <ScrollSentinel
