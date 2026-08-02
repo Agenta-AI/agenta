@@ -1,35 +1,67 @@
 ---
 title: "Automations"
 sidebar_label: "Automations"
-description: "An automation is an agent that runs without anyone in the chat, started by a schedule or by an event in a connected app."
+description: "Learn how AI agent automations run on schedules or app events, and how to prepare instructions, permissions, and outputs for unattended work."
 ---
 
-An automation is an agent that runs with nobody in the chat. Instead of you opening a session and typing, something else starts the run: a clock, or something that happened in an app you connected. The agent does the work and leaves the result somewhere. This page covers what starts a run and what has to be settled before an agent runs unattended.
+An automation is the same agent you use in a conversation, started another way. A schedule can start it at a set time, or an event in a connected app can start it when something happens.
 
-## What starts a run
+The agent uses the same job, instructions, skills, tools, permissions, and files. No one needs to open the chat and type the first message.
 
-Two examples run through this page: an agent that posts a report to a channel every weekday at eight, and an agent that runs each time a new row lands in a sheet. The first is started by a schedule, the second by an event.
+## A schedule can start a familiar job
 
-**On a schedule.** The run happens at a time you set: every weekday at eight, the first of the month, every hour. See [Schedule an automation](/guides/schedule-an-automation).
+Suppose the marketing launch agent prepares a campaign report with you every Monday. It reads the latest analytics, explains what changed, and posts a short summary to the team channel.
 
-**On an event in a connected app.** Something happens in an app the agent is connected to and the run starts in response: a new row in a sheet, a new issue, a message in a channel. See [Trigger an automation from an app](/guides/trigger-an-automation-from-an-app).
+Once the report follows a stable pattern, you can schedule it for Monday morning. The schedule supplies the message the agent receives on each run, for example:
 
-Either way the agent is the same agent. Same [instructions](/concepts/instructions), same [skills](/concepts/skills), same [tools](/concepts/tools-and-integrations), same agent folder. What changes is who starts it and who is watching.
+> Summarize last week's Team Workspaces campaign. Compare results with the previous week, explain the two largest changes, and post the report to the launch channel.
 
-## What to settle before the agent runs unattended
+The agent uses the same working setup as in the playground. The schedule only supplies when to begin and what to do.
 
-In a chat you fill in the gaps as they appear. The agent asks which quarter you meant, you tell it, and it moves on. An automation has nobody to ask, so three things have to be settled before it runs.
+## An app event can start work when something changes
 
-**The instructions have to answer the questions you would have answered.** For the weekday report: which report, which format, how to handle the case where the data is missing. In a chat that comes out in conversation. In an automation it has to be written down, in the instructions or in the files the agent reads.
+Some jobs should begin when an event happens rather than at a particular time.
 
-**Permissions have to be decided up front.** An agent that stops to request approval waits for an answer that is not coming, and the run does not finish. See [Permissions](/concepts/permissions).
+The launch agent could start when a campaign changes to `completed`, when a new row appears in the launch tracker, or when a review issue receives a particular label. The event carries details about what happened, and the trigger can include those details in the message the agent receives.
 
-**The output has to go somewhere you will look.** Give the agent a way to deliver: a message in a channel, an email, a row in a sheet, a page in a doc. That means giving it the [tool](/concepts/tools-and-integrations) for that destination and saying in the instructions where the result goes.
+The agent does not need to check every hour for a change. The connected app starts the run when the relevant event arrives.
 
-Anything a run should leave behind for later runs goes in the agent folder, which every session shares and which outlives any single run. See [Files and knowledge](/concepts/files-and-knowledge).
+## An unattended run needs a complete starting point
 
-## Next
+In a chat, the agent can ask what you meant by "the campaign," which date range to use, or where to put the result. An automation should begin with those choices already made.
 
-- [Create an automation](/guides/create-an-automation) sets one up.
-- [Schedule an automation](/guides/schedule-an-automation) runs it on a clock.
-- [Trigger an automation from an app](/guides/trigger-an-automation-from-an-app) runs it on an event.
+Prepare three layers of context:
+
+- The agent's **[instructions](/concepts/instructions)** hold facts and rules that apply to all of its work.
+- The trigger message describes this recurring job and includes the details supplied by the schedule or event.
+- The agent's **[files](/concepts/files-and-knowledge)** and **[skills](/concepts/skills)** provide the reference material and task process it may need.
+
+For the Monday report, the instructions describe the company and audience, the reporting skill describes the analysis process, and the scheduled message names the campaign, comparison period, and destination.
+
+## The agent needs permission to finish the job
+
+No one is in the playground to answer an approval card during an automated run. If a required tool waits for approval, the report cannot reach its destination on its own.
+
+Before activating the automation, review the exact actions it needs. The launch agent may need permission to read analytics and post to one team channel, but it does not need every available action in those apps.
+
+Set required actions to run without asking, deny actions the automation should never take, and remove tools that do not belong to the job. See [Permissions](/concepts/permissions) for the model and [Control what an agent can do](/guides/control-what-an-agent-can-do) for the settings.
+
+## The result needs a destination
+
+When you work in the playground, the answer appears in front of you. An automation should leave its result somewhere your team will see it.
+
+That destination might be a channel, an email, a document, a task, or a row in a sheet. Give the agent the appropriate [tool](/concepts/tools-and-integrations) and name the destination in the trigger message. Also decide what should happen if delivery fails.
+
+If later runs should use the result, the agent can also save a copy in its shared files. Monday's report can then compare itself with the report from the week before.
+
+## Each automation runs a version you choose
+
+A schedule or event trigger points to a committed agent version. Draft changes in the playground do not silently change an automation that is already running.
+
+This gives you a clear review point. Improve the agent and test the recurring message in the playground. Then commit the new version and choose when the automation should use it.
+
+## Continue with the guides
+
+- [Create an automation](/guides/create-an-automation)
+- [Schedule an automation](/guides/schedule-an-automation)
+- [Trigger an automation from an app](/guides/trigger-an-automation-from-an-app)
