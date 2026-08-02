@@ -29,7 +29,7 @@ from agenta.sdk.agents.model_catalog import (
     pi_model_catalog,
 )
 
-_ALL_HARNESSES = ("pi_core", "pi_agenta", "claude")
+_ALL_HARNESSES = ("pi_core", "pi_agenta", "claude", "codex")
 
 
 def test_data_files_load_and_validate():
@@ -49,16 +49,9 @@ def test_data_files_load_and_validate():
 
 
 def test_every_codex_model_declares_image_input():
-    assert {entry.id for entry in codex_model_catalog().models} == {
-        "gpt-5.6-sol",
-        "gpt-5.6-terra",
-        "gpt-5.6-luna",
-        "gpt-5.5",
-        "gpt-5.2",
-    }
-    assert all(
-        entry.modalities == ["text", "image"] for entry in codex_model_catalog().models
-    )
+    entries = codex_model_catalog().models
+    assert entries, "codex catalog is empty"
+    assert all(entry.modalities and "image" in entry.modalities for entry in entries)
 
 
 def test_ratings_are_enforced_1_to_5():

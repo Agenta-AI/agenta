@@ -72,6 +72,7 @@ function seam(
     toolName: string | undefined;
     args: unknown;
     kind: string;
+    toolCallId: string | undefined;
   }> = [];
   let pauses = 0;
   const toolCallIndex = withIndex
@@ -92,8 +93,8 @@ function seam(
         pauses += 1;
       },
     },
-    recordPendingInteraction: (token, toolName, args, kind) => {
-      recorded.push({ token, toolName, args, kind });
+    recordPendingInteraction: (token, toolName, args, kind, toolCallId) => {
+      recorded.push({ token, toolName, args, kind, toolCallId });
     },
     toolCallIndex,
     executionGrants,
@@ -151,6 +152,7 @@ describe("buildExecutableToolGate", () => {
         toolName: "publish",
         args: input,
         kind: "user_approval",
+        toolCallId: "acp-call-1",
       },
     ]);
     assert.equal(s.events.length, 1);
@@ -175,6 +177,16 @@ describe("buildExecutableToolGate", () => {
     assert.equal(s.pauses(), 0, "the MCP handler owns the pause transition");
     s.gate.onPause?.();
     assert.equal(s.pauses(), 1);
+  });
+
+  it("falls back to the minted tool-call id when the correlation index has no entry", async () => {
+    const s = seam(request.spec, undefined, true);
+
+    assert.deepEqual(await s.gate.onExecutableTool(s.request), {
+      kind: "pendingApproval",
+    });
+    assert.deepEqual(s.pausedToolCalls, ["minted-call-1"]);
+    assert.equal(s.recorded[0]?.toolCallId, "minted-call-1");
   });
 
   it.each([

@@ -152,16 +152,22 @@ describe("attachment capability gate", () => {
     );
   });
 
-  it("caps inline Codex/OpenAI images while keeping the boundary native", () => {
-    assert.equal(
-      attachmentCapabilityGate({
-        ...IMAGE_INPUT,
-        acpAgent: "codex",
-        provider: "openai",
-        byteLength: CODEX_OVER_CAP_BYTES,
-      }).reasonCode,
-      "provider_inline_cap",
-    );
+  it.each(["openai", "my-gateway", undefined])(
+    "caps oversized Codex images independently of provider=%s",
+    (provider) => {
+      assert.equal(
+        attachmentCapabilityGate({
+          ...IMAGE_INPUT,
+          acpAgent: "codex",
+          provider,
+          byteLength: CODEX_OVER_CAP_BYTES,
+        }).reasonCode,
+        "provider_inline_cap",
+      );
+    },
+  );
+
+  it("keeps an exact-boundary Codex image native", () => {
     assert.equal(
       attachmentCapabilityGate({
         ...IMAGE_INPUT,
