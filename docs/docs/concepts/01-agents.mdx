@@ -1,50 +1,59 @@
 ---
 title: "Agents"
 sidebar_label: "Agents"
-description: "An agent in Agenta is an assistant you build for a specific job. This page covers when to use an agent, what it is made of, how to create one, and how it improves over time."
+description: "An agent is a configurable AI worker. Its instructions, skills, tools, files, permissions, harness, and model shape how it works."
 ---
 
 An agent in Agenta is an assistant you build for a specific job. This page covers when to use an agent, what an agent is made of, how you create one, and how you can improve it over time.
 
-## When to use an agent
+## When to create an agent
 
-You create an agent when you want an assistant that is set up for one job. The job can be broad or narrow:
+Create an agent when you want an AI system to handle a recurring kind of work with the context and behavior you define. The job can be broad, narrow, or automated:
 
-- A general marketing agent that drafts copy, reviews your drafts, and answers questions about your product.
-- A more specific agent that helps with your SEO. It knows your pages, your keywords, and what you already tried.
-- An [automation](/concepts/automations), such as an agent that checks your competitors every week and reports what changed.
+- A marketing agent helps plan campaigns, review copy, and answer questions about your market.
+- An SEO agent researches keywords, updates briefs, and checks whether content follows your search strategy.
+- A competition monitor checks selected sources every week and sends a report when something changes.
 
-## What an agent is made of
+A general assistant starts with broad instructions and adapts to each request. A custom agent starts with your purpose, context, and working rules. You can then refine its configuration as you learn what produces the results you want.
 
-An agent is a configuration you build, run by a harness and a model. The configuration has five parts. Each part has its own page; here is the short version.
+The useful boundary is a stable job, not a single task. If the same context, capabilities, and rules apply across many requests, they belong to one agent.
 
-- **[Instructions](/concepts/instructions)** describe the job. For the SEO agent, they say what the site is, who it serves, and how to report findings.
-- **[Tools](/concepts/tools-and-integrations)** are actions the agent can take in other systems. The competitor-watch agent needs web search; the marketing agent might post drafts to Slack.
-- **[Skills](/concepts/skills)** are short handbooks for tasks the agent does sometimes, loaded only when needed.
-- **[Permissions](/concepts/permissions)** decide which actions the agent takes on its own and which wait for your approval.
-- **[Files](/concepts/files-and-knowledge)** live in the agent's folder: the drafts it writes, the notes it keeps, the reference material you give it.
+## What an agent contains
 
-Two more parts run the agent rather than define it. The harness is the program that drives the model: it sends the messages, runs the tool calls the model asks for, and feeds the results back. The model is the language model that produces the replies. Both are choices you can change without rebuilding the agent. See [Harnesses and models](/concepts/harnesses-and-models).
+An agent combines the context that defines its job with the runtime that performs it.
 
-<img src="/images/agents/agent-three-layers.svg" alt="The configuration you write feeds the harness, and the harness drives the model" style={{ display: "block", margin: "24px 0", maxWidth: "100%" }} />
+| Part | What it contributes | Marketing example |
+|---|---|---|
+| **Instructions** | The agent's role, goals, standing context, and rules. | Define the company, audience, tone, and work the agent should handle. |
+| **Skills** | Guidance for tasks that need a specific process. | Load the team's campaign-brief process when the agent creates a brief. |
+| **Tools and integrations** | Actions the agent can take in Agenta or connected systems. | Read campaign data, create a task, or send an approved message. |
+| **Files** | Reference material and working documents. | Store product notes, brand guidelines, and examples of approved copy. |
+| **Permissions** | Rules for which actions run, require approval, or are refused. | Let the agent read analytics, but require approval before it publishes. |
+| **Harness and model** | The software that runs the agent and the language model it uses. | Run the same marketing configuration with the harness and model you select. |
+
+These parts work together. The SEO agent might use its instructions to follow your search strategy, load a content-audit skill for the procedure, read a keyword file for evidence, and call an analytics tool for current traffic. Its permissions decide whether it can update a content brief or must ask first.
 
 ## How to create an agent
 
-There are two ways to create an agent: chat with it, or configure it yourself.
+You can create an agent in two ways:
 
-The first way is to chat. In the playground, a new agent has access to build tools that let it change its own configuration. You describe the job in conversation, and the agent writes its instructions and adds tools and skills as you talk.
+- **Build it through conversation.** Describe the job in the playground. The playground build kit lets the agent update its own configuration as you clarify what you need.
+- **Configure it directly.** Edit the instructions and select the skills, tools, files, permissions, harness, and model yourself.
 
-The second way is to configure the agent directly. Set **Playground mode** to `Build` and edit each part yourself: the instructions, the tools, the skills, the permissions.
+Both paths create the same configuration. You can also move between them: ask the agent to make a change, then inspect or edit the result before you commit it.
 
-## Agents are versioned and improve over time
 
-An agent's configuration is versioned. Every commit creates a version, and you can read back what changed, when, and why on the **Registry** page. See [Sessions and versions](/concepts/sessions-and-versions).
+## How agents improve over time
 
-Versioning is what makes an agent improve. When the agent gets something wrong, say the SEO agent pulls numbers from the wrong report, you tell it in chat. It updates its own instructions, the change is recorded as a new version, and that mistake does not happen again. After a few weeks of this, the instructions describe the job accurately, because each rule was added the moment something went wrong. [Write your agent's instructions](/guides/write-your-agents-instructions) covers this loop in practice.
+Improve an agent by turning feedback from real work into configuration changes. Suppose the SEO agent recommends topics that your company has already covered. You can tell it where the content inventory lives and require it to check that inventory before proposing a topic. The agent can update its configuration in the playground, or you can make the change directly.
 
-## Go deeper
+Agenta saves committed configuration changes as versions. Each version records the agent's instructions, skills, tools, permissions, harness, and model at that point.
 
-- [Instructions](/concepts/instructions): what goes in them and why they stay short.
-- [Automations](/concepts/automations): run an agent on a schedule or on an event in a connected app.
-- [Harnesses and models](/concepts/harnesses-and-models): the two choices that run the agent.
-- [Cost and usage](/concepts/cost-and-usage): what you are charged for.
+## Learn about each part
+
+- [Write your agent's instructions](/guides/write-your-agents-instructions)
+- [Skills](/concepts/skills)
+- [Tools and integrations](/concepts/tools-and-integrations)
+- [Files and knowledge](/concepts/files-and-knowledge)
+- [Permissions](/concepts/permissions)
+- [Harnesses and models](/concepts/harnesses-and-models)
