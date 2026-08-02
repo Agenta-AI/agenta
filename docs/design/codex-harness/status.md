@@ -1,7 +1,39 @@
 # Status
 
-Last updated: 2026-07-31 (PR OPEN, retargeted to `main`; warm approvals landed per the D-008
-amendment; awaiting Mahmoud review)
+Last updated: 2026-08-02 (PR OPEN on `main`; rebased onto v0.107.0 with codex multimodality
+enabled and live-QA'ed 8/8; awaiting Mahmoud review)
+
+## 2026-08-02 — Rebased onto v0.107.0; codex multimodality enabled
+
+Main merged release v0.107.0 (the attachment/multimodality pipeline, the Pi built-ins rework,
+wire-contract changes). This branch was brought up to date and codex was wired into the new
+attachment path. Pipeline: analysis → merge → implementation (gpt-5.6-sol via codex CLI) → dual
+review (opus + gpt-5.6-sol high) → scoped live QA. Evidence:
+`reports/107-rebase-multimodality-qa.md`.
+
+- **Merge `9d0ba57a35`** (single merge commit, 0 behind main). Four textual conflicts resolved
+  as unions; four semantic breaks fixed in the same pass: dead `builtin_names`/`log` code in
+  `CodexHarness` (main deleted both), two dead tests, the 5th `toolCallId` argument through
+  `executable-tools.ts` (out-of-band approval matching), and `harnessMode` added to
+  `configFingerprint` (normalized: codex modes resolve via `resolveCodexMode`, non-codex
+  fingerprints ignore the field).
+- **Multimodality: codex was blocked by three independent gates, all fixed** — no `codex` row in
+  `ADAPTER_NATIVE_SUPPORT` (attachments.ts), no codex arm in the SDK `model_input_modalities()`,
+  and `codex_models.curated.json` declaring text-only. Landed data-first because codex-acp
+  hard-fails a prompt whose image the catalog disclaims (`invalidRequest`), unlike Claude/Pi
+  which degrade. Plus `CODEX_INLINE_BASE64_MAX_BYTES` (10 MiB) with the `provider_inline_cap`
+  outcome, and the legacy inline-image path no longer assumes image capability on codex.
+- **Dual review** found one MEDIUM each (the legacy-path hard-fail route; untested semantic
+  fixes) and test gaps; all nine findings fixed (`f9064459c1`, `b5a7cf6615`). Merge audited
+  against the pure auto-merge: only the eight intended files carry manual choices.
+- **Live QA 8/8** on the rebuilt worktree stack: native codex image delivery (local AND
+  daytona, model read the digits), over-cap downgrade, warm-turn workspace reuse, pi_core
+  regression sanity, approval park/resume smoke, legacy-image degrade.
+- **Incident: dev Daytona snapshot drift.** `agenta-agent-sandbox-v1` was rebuilt from main's
+  recipe on 2026-08-02, silently reverting the codex pin AND the approval patch. Re-rebuilt from
+  this branch (build asserts `codex-acp-approvals=on-request` in-image). The hazard recurs on
+  every main-recipe rebuild until this PR merges.
+- Suites after everything: runner 1477 (96 files) + tsc clean; SDK agents 731; ruff clean.
 
 ## 2026-07-31 — Warm approvals (D-008 amendment) + Daytona snapshot fix
 
