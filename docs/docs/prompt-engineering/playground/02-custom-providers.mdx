@@ -209,6 +209,23 @@ Base URL: https://your-api-endpoint.com/v1
 Make sure to include `/v1` at the end of the Base URL.
 :::
 
+### Example: multi-model OpenAI-compatible gateway (DaoXE)
+
+[DaoXE](https://daoxe.com) exposes an OpenAI-compatible Chat Completions API. Use the same **OpenAI-compatible** custom provider form:
+
+```
+API Key: <your DaoXE API key>
+Base URL: https://daoxe.com/v1
+```
+
+Then add one or more **exact** model IDs available to your DaoXE account (`GET /v1/models` or the dashboard). Do not hardcode a static public catalog — availability is account-scoped.
+
+Notes:
+
+- This path uses OpenAI Chat Completions only. DaoXE also supports other protocols (for example Anthropic Messages) for other clients.
+- DaoXE is not available in mainland China.
+- Contributor disclosure: this example was contributed by a DaoXE affiliate.
+
 :::warning
 If you're running both Ollama and self-hosting Agenta on your local machine, set the Base URL to http://host.docker.internal:11434/v1 to allow Agenta's completion service (running behind Docker) to access Ollama.
 :::
