@@ -1,6 +1,19 @@
 # Status
 
-**State: implemented and in review. All four pieces are committed on the branch
+**State: superseded.** All four pieces below shipped in 0.107.0, and all four are now replaced by
+the rework in [addendum-always-active.md](addendum-always-active.md): built-in tools left the agent
+config entirely, the runner activates all seven on every Pi run, and the Permissions drawer's three
+rule lists are the only lever over them. Read the addendum for what is true now; everything from
+"Where the work stands" down is the dated record of the 0.107.0 change.
+
+| Shipped piece | Superseded by |
+| --- | --- |
+| 1. Ship Pi's built-ins in the default template | The template carries no tool entries; the runner activates all seven |
+| 2. Narrow the Claude harness warning | The warning is gone with the `builtin_names` field it read |
+| 3. Correct the picker's statements and the built-in row label | The picker is replaced by the permissions editor; built-ins never reach the Tools list |
+| 4. Update the documentation that describes the default | Rewritten for the new contract |
+
+**Original state (0.107.0): implemented and in review. All four pieces are committed on the branch
 `fix/pi-default-builtins` and open as
 [PR #5597](https://github.com/Agenta-AI/agenta/pull/5597).**
 

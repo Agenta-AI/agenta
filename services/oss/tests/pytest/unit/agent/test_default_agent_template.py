@@ -13,7 +13,6 @@ under the `harness` / `runner` / `sandbox` siblings.
 from __future__ import annotations
 
 from agenta.sdk.agents import AgentTemplate
-from agenta.sdk.agents.pi_builtins import PI_DEFAULT_ACTIVE_BUILTINS
 from agenta.sdk.engines.running.interfaces import agent_v0_interface
 from agenta.sdk.utils.types import build_agent_v0_default
 
@@ -90,16 +89,12 @@ def test_authoring_extras_absent_from_every_published_default():
     assert "skills" not in builtin_default
 
 
-def test_published_default_grants_pi_default_builtins():
-    """A new agent must be able to read, run shell commands, and edit and write files wherever
-    it runs, not only in the playground (issue #5590). The runner reads an empty tools list as
-    "grant nothing", so shipping `tools: []` left every saved agent with no built-ins outside
-    the playground overlay."""
-    expected = [
-        {"type": "builtin", "name": name} for name in PI_DEFAULT_ACTIVE_BUILTINS
-    ]
-    assert _inspect_agent_default()["tools"] == expected
-    assert _builtin_agent_default()["tools"] == expected
+def test_published_default_carries_no_tool_entries():
+    """Built-in tools are activated by the runner on every Pi run, so they are not configured
+    here. A new agent can still read, run shell commands, and edit and write files wherever it
+    runs (issue #5590), without any entry in `tools`."""
+    assert _inspect_agent_default()["tools"] == []
+    assert _builtin_agent_default()["tools"] == []
 
 
 def test_harness_default_is_pi_core_in_every_source():

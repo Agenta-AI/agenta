@@ -127,6 +127,17 @@ describe("wire contract: requests (vs Python golden)", () => {
     // No explicit author permission is derived onto the tool spec; the plan decides it.
     assert.equal(tool.permission, undefined);
     assert.deepEqual(req.permissions, { default: "allow_reads" });
+    // Compatibility only: a current runner ignores `tools`, but the SDK still ships all seven
+    // built-in names so a runner from before the rework activates the same set.
+    assert.deepEqual(req.tools, [
+      "read",
+      "bash",
+      "edit",
+      "write",
+      "grep",
+      "find",
+      "ls",
+    ]);
     // The direct-call tool (direct-call tools, Phase 1) reaches the runner carrying its `call`
     // descriptor and NO `callRef` (the `call` XOR `callRef` rule). Plumbing only here: the runner
     // forwards it opaquely; no dispatch branch reads it yet.

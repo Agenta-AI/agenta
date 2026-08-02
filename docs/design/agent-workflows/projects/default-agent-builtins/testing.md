@@ -1,5 +1,9 @@
 # How this is tested
 
+> **Superseded.** Built-in tools left the agent config entirely. This file is a dated record of
+> the 0.107.0 change; read [addendum-always-active.md](addendum-always-active.md) for what is true
+> now.
+
 All targets below are existing test suites in this repository. Run them with the commands in
 [docs/designs/testing/README.md](../../../../designs/testing/README.md): `cd services && py-run-tests`,
 `cd sdks/python && py-run-tests`, `cd api && py-run-tests`, and `pnpm test` inside

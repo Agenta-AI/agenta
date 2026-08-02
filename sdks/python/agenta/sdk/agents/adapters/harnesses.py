@@ -4,12 +4,13 @@ This is where the per-harness adaptation lives (the logic that used to sit in th
 turning the neutral :class:`SessionConfig` into the harness's own config, especially the
 *tools*. The harnesses genuinely differ, so the two adapters do different work:
 
-- **pi_core** takes built-in tools by name *and* resolved tool specs, delivered natively (Pi
-  has no MCP). The runner relay enforces the shared permission plan.
+- **pi_core** takes resolved tool specs, delivered natively (Pi has no MCP). Built-in tools are
+  not configured: the runner activates all of them on every run. The runner relay enforces the
+  shared permission plan.
 - **claude** has no built-in tools (they are a Pi concept), delivers tools over MCP, and
   receives the same runner permission plan.
-- **pi_agenta** is Pi with an opinion: the same engine and config shape, plus a fixed set of
-  forced tools, a base AGENTS.md preamble, and a persona (see :mod:`.agenta_builtins`).
+- **pi_agenta** is Pi with an opinion: the same engine and config shape, plus a base AGENTS.md
+  preamble and a persona (see :mod:`.agenta_builtins`).
   Skills ride the neutral config as resolved inline packages. Pi and Agenta install them
   through Pi skill dirs; Claude carries them so the runner can write project-local
   `.claude/skills` packages. Seeding platform default skills is a separate workstream.
@@ -21,8 +22,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Type
 
-from agenta.sdk.utils.logging import get_module_logger
-
 from ..dtos import (
     AgentaAgentTemplate,
     ClaudeAgentTemplate,
@@ -31,16 +30,12 @@ from ..dtos import (
     SessionConfig,
 )
 from ..interfaces import Environment, Harness
-from ..pi_builtins import PI_DEFAULT_ACTIVE_BUILTINS
 from ..tools.models import ToolSpec, coerce_tool_spec
 from .agenta_builtins import (
     compose_append_system,
     compose_instructions,
     force_skills,
-    force_tools,
 )
-
-log = get_module_logger(__name__)
 
 
 def _opt_str(value: Any) -> Any:
@@ -60,8 +55,8 @@ class PiHarness(Harness):
     harness_type = HarnessKind.PI
 
     def _to_harness_config(self, config: SessionConfig) -> PiAgentTemplate:
-        # Pi delivers tools natively: built-in names plus resolved specs registered through
-        # the Pi extension. The runner relay enforces the shared permission plan.
+        # Pi delivers resolved tool specs natively, registered through the Pi extension.
+        # The runner relay enforces the shared permission plan.
         # Pi reads the selected harness's escape-hatch `extras`: `system` replaces Pi's base
         # prompt, `append_system` extends it (both leave AGENTS.md untouched).
         extras = config.agent.harness_extras
@@ -73,7 +68,6 @@ class PiHarness(Harness):
             # loses its slug and the runner cannot build its models.json plan.
             model_ref=config.agent.model_ref,
             resolved_connection=config.resolved_connection,
-            builtin_names=list(config.builtin_names),
             tool_specs=list(config.tool_specs),
             tool_callback=config.tool_callback,
             mcp_servers=list(config.mcp_servers),
@@ -90,18 +84,8 @@ class ClaudeHarness(Harness):
     harness_type = HarnessKind.CLAUDE
 
     def _to_harness_config(self, config: SessionConfig) -> ClaudeAgentTemplate:
-        # Claude has no Pi built-in tools; drop them rather than ship a name Claude cannot
-        # honor. Tools go over MCP, and the shared permission plan is carried through.
-        # Exact-set equality, not a per-name filter: the shipped default carries exactly Pi's
-        # defaults, so that is the only set we can assume the author never touched, and a
-        # per-name filter would silence an authored subset such as ["bash"].
-        if config.builtin_names and set(config.builtin_names) != set(
-            PI_DEFAULT_ACTIVE_BUILTINS
-        ):
-            log.warning(
-                "ClaudeHarness ignores built-in tool(s) %s; built-ins are a Pi concept",
-                ", ".join(config.builtin_names),
-            )
+        # Claude has no Pi built-in tools. Tools go over MCP, and the shared permission plan
+        # is carried through.
         # Skills stay on the harness config; the runner materializes them under `.claude/skills`
         # in the session cwd so Claude ACP can load the same resolved inline packages.
         # The harness's first-class `permissions` slice (plus sandbox_permission + mcp_servers) is
@@ -125,7 +109,7 @@ class ClaudeHarness(Harness):
 class AgentaHarness(Harness):
     """Pi with an Agenta opinion. Same engine as :class:`PiHarness`, but every run carries the
     forced Agenta extras (see :mod:`.agenta_builtins`): a base AGENTS.md preamble the author's
-    instructions are appended to, a forced persona ``append_system``, and forced tools. The
+    instructions are appended to, and a forced persona ``append_system``. The
     author's own Pi ``harness.extras`` (``system`` / ``append_system``) still apply, layered
     after the forced bits. The author's resolved inline skills ride the neutral config, and the
     forced platform skill(s) are unioned in (de-duped by name) so a custom config that drops the
@@ -144,7 +128,6 @@ class AgentaHarness(Harness):
             # reaches the /run wire and the runner can build its models.json plan.
             model_ref=config.agent.model_ref,
             resolved_connection=config.resolved_connection,
-            builtin_names=force_tools(list(config.builtin_names)),
             tool_specs=list(config.tool_specs),
             tool_callback=config.tool_callback,
             mcp_servers=list(config.mcp_servers),

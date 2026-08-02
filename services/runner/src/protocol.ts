@@ -496,7 +496,7 @@ export interface AgentRunRequest {
   credentialMode?: string;
   /** The conversation so far; the runner picks the latest turn and replays the rest. */
   messages?: ChatMessage[];
-  /** Built-in tools to enable. */
+  /** Deprecated: accepted and ignored. Pi activates every built-in tool on every run. */
   tools?: string[];
   /**
    * Resolved inline skill packages. Each rode the wire as concrete content (references

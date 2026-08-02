@@ -1,17 +1,26 @@
-"""Facts about the Pi harness itself, independent of any Agenta opinion.
+"""The Pi built-in tools Agenta always activates.
 
-``PI_DEFAULT_ACTIVE_BUILTINS`` is Pi's OWN default active built-in set: what Pi turns on when
-nobody tells it otherwise. It is deliberately not in :mod:`.adapters.agenta_builtins`, which
-holds the ``pi_agenta`` harness's forced Agenta opinions (``AGENTA_FORCED_TOOLS`` and friends).
+``PI_BUILTIN_TOOL_NAMES`` is the set the runner turns on for every Pi run, not Pi's own
+default set (Pi alone activates only four of them). Built-in tools are never configured in an
+agent's ``tools`` list; whether a call runs, asks or is refused comes from
+``runner.permissions.default`` and the ``harness.permissions`` rule lists.
 
-The TypeScript side holds the same list under the same name
-(``services/runner/src/engines/sandbox_agent/run-plan.ts``). Neither language owns it: both are
-pinned against the shared golden fixture
-``sdks/python/oss/tests/pytest/unit/agents/golden/pi_default_active_builtins.json``.
+The TypeScript counterpart is ``PI_BUILTIN_TOOL_IDENTITY`` in
+``services/runner/src/permission-plan.ts``, which also carries each tool's canonical rule name
+and read-only flag. Neither language owns the list: both are pinned against the shared golden
+fixture ``sdks/python/oss/tests/pytest/unit/agents/golden/pi_builtin_tools.json``.
 """
 
 from __future__ import annotations
 
 from typing import Tuple
 
-PI_DEFAULT_ACTIVE_BUILTINS: Tuple[str, ...] = ("read", "bash", "edit", "write")
+PI_BUILTIN_TOOL_NAMES: Tuple[str, ...] = (
+    "read",
+    "bash",
+    "edit",
+    "write",
+    "grep",
+    "find",
+    "ls",
+)

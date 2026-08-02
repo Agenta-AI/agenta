@@ -158,7 +158,6 @@ export function configFingerprint(request: AgentRunRequest): string {
     agentsMd: request.agentsMd ?? null,
     systemPrompt: request.systemPrompt ?? null,
     appendSystemPrompt: request.appendSystemPrompt ?? null,
-    tools: request.tools ?? null,
     skills: request.skills ?? null,
     customTools: request.customTools ?? null,
     mcpServers: request.mcpServers ?? null,

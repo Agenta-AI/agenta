@@ -19,7 +19,6 @@ import {
   RESERVED_MCP_SERVER_NAME_MESSAGE,
 } from "./mcp.ts";
 import {
-  PI_BUILTIN_TOOL_IDENTITY,
   permissionsFromRequest,
   piBuiltinIdentity,
   type PermissionPlan,
@@ -133,9 +132,7 @@ export interface RunPlan {
   usageOutPath?: string;
   toolSpecs: ResolvedToolSpec[];
   executableToolSpecs: ResolvedToolSpec[];
-  /** Normalized Pi builtin grants for the extension active-tool edit. */
-  builtinGrants: string[];
-  /** True when Pi builtin grants or permissions need extension enforcement. */
+  /** True when the permission policy needs the extension to intercept Pi builtin calls. */
   builtinGatingActive: boolean;
   useToolRelay: boolean;
   /**
@@ -192,46 +189,6 @@ function hasCodeTool(specs: ResolvedToolSpec[]): boolean {
   return specs.some((spec) => spec.kind === "code");
 }
 
-/**
- * Pi's own default active built-in set. Exported so the cross-language parity test can pin it
- * against the shared golden the Python `PI_DEFAULT_ACTIVE_BUILTINS` also asserts; not part of the
- * engine's public surface.
- */
-export const PI_DEFAULT_ACTIVE_BUILTINS = ["read", "bash", "edit", "write"];
-const PI_BUILTIN_TOOL_NAMES = Object.keys(PI_BUILTIN_TOOL_IDENTITY);
-const PI_BUILTIN_TOOL_NAME_SET = new Set<string>(PI_BUILTIN_TOOL_NAMES);
-
-function normalizePiBuiltinGrants(tools: string[] | undefined): string[] {
-  if (tools === undefined) return [...PI_DEFAULT_ACTIVE_BUILTINS];
-  if (!Array.isArray(tools)) return [];
-  const grants: string[] = [];
-  const seen = new Set<string>();
-  for (const tool of tools) {
-    if (typeof tool !== "string") continue;
-    const name = tool.trim().toLowerCase();
-    if (!PI_BUILTIN_TOOL_NAME_SET.has(name) || seen.has(name)) continue;
-    seen.add(name);
-    grants.push(name);
-  }
-  return grants;
-}
-
-function sameStringSet(
-  left: readonly string[],
-  right: readonly string[],
-): boolean {
-  if (left.length !== right.length) return false;
-  const rightSet = new Set(right);
-  return left.every((value) => rightSet.has(value));
-}
-
-function permissionPlanCouldGatePiBuiltin(plan: PermissionPlan): boolean {
-  if (plan.default !== "allow") return true;
-  return plan.rules.some((rule) =>
-    permissionRuleTargetsPiBuiltin(rule.pattern),
-  );
-}
-
 function permissionRuleTargetsPiBuiltin(pattern: string): boolean {
   const open = pattern.indexOf("(");
   const toolName = open === -1 ? pattern : pattern.slice(0, open);
@@ -241,15 +198,15 @@ function permissionRuleTargetsPiBuiltin(pattern: string): boolean {
 function computeBuiltinGatingActive(
   isPi: boolean,
   permissionPlan: PermissionPlan,
-  builtinGrants: readonly string[],
 ): boolean {
   if (!isPi) return false;
   try {
-    return (
-      permissionPlanCouldGatePiBuiltin(permissionPlan) ||
-      !sameStringSet(builtinGrants, PI_DEFAULT_ACTIVE_BUILTINS)
+    if (permissionPlan.default !== "allow") return true;
+    return permissionPlan.rules.some((rule) =>
+      permissionRuleTargetsPiBuiltin(rule.pattern),
     );
   } catch {
+    // A plan we cannot read gates rather than runs built-ins unattended.
     return true;
   }
 }
@@ -375,12 +332,7 @@ export function buildRunPlan(
   const toolSpecs = (request.customTools as ResolvedToolSpec[]) ?? [];
   const executableToolSpecsForRun = executableToolSpecs(toolSpecs);
   const permissionPlan = permissionsFromRequest(request);
-  const builtinGrants = normalizePiBuiltinGrants(request.tools);
-  const builtinGatingActive = computeBuiltinGatingActive(
-    isPi,
-    permissionPlan,
-    builtinGrants,
-  );
+  const builtinGatingActive = computeBuiltinGatingActive(isPi, permissionPlan);
 
   // Not-implemented boundary gates (sidecar-trust Part 2): a declared capability the runner
   // cannot actually enforce fails loudly, the way code tools do (`tools/code.ts`), rather than
@@ -543,7 +495,6 @@ export function buildRunPlan(
       usageOutPath: isPi ? join(relayDir, ".agenta-usage.json") : undefined,
       toolSpecs,
       executableToolSpecs: executableToolSpecsForRun,
-      builtinGrants,
       builtinGatingActive,
       // The relay carries tool EXECUTION only (permission gates ride the extension's
       // `ctx.ui.confirm` dialog onto the ACP plane), so a builtin-gating-only run needs no relay.

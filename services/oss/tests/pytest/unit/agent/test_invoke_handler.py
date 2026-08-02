@@ -25,6 +25,7 @@ from agenta.sdk.agents import (
     ResolvedConnection,
     ResolvedToolSet,
 )
+from agenta.sdk.agents.pi_builtins import PI_BUILTIN_TOOL_NAMES
 from agenta.sdk.engines.running.errors import ForceNotSupportedV0Error
 
 from agenta.sdk.models.workflows import WorkflowServiceRequest
@@ -43,10 +44,10 @@ def _request(*, stream=None, session_id=None):
     return WorkflowServiceRequest(flags=flags, session_id=session_id)
 
 
-def _patch_handler(monkeypatch, backend, *, builtins=(), tool_callback=None):
+def _patch_handler(monkeypatch, backend, *, tool_specs=(), tool_callback=None):
     """Stub the network-touching helpers and pin one ``backend`` for the run.
 
-    ``builtins`` are the resolved built-in tool names ``resolve_tools`` hands back, so a turn
+    ``tool_specs`` are the resolved custom tool specs ``resolve_tools`` hands back, so a turn
     can carry a real tool list and the per-harness translation has something to diverge on.
     Returns the ``recorded`` dict the usage hook writes into.
     """
@@ -54,7 +55,7 @@ def _patch_handler(monkeypatch, backend, *, builtins=(), tool_callback=None):
 
     async def _tools(tools, **_kw):
         return ResolvedToolSet(
-            builtin_names=list(builtins),
+            tool_specs=list(tool_specs),
             tool_callback=tool_callback,
         )
 
@@ -186,11 +187,7 @@ async def test_batch_paused_run_replays_gated_bash_builtin(monkeypatch, fake_bac
             events=events,
         )
     )
-    _patch_handler(
-        monkeypatch,
-        backend,
-        builtins=["read", "bash", "edit", "write", "grep", "find", "ls"],
-    )
+    _patch_handler(monkeypatch, backend)
 
     body = await _invoke("pi_core", permission_default="allow_reads")
 
@@ -262,7 +259,11 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
     forced skill-name list anymore.
     """
     backend = fake_backend(result=AgentResult(output="echo", usage={"total": 15}))
-    _patch_handler(monkeypatch, backend, builtins=["web_search"])
+    _patch_handler(
+        monkeypatch,
+        backend,
+        tool_specs=[{"name": "pick", "description": "pick one", "kind": "client"}],
+    )
 
     skill = {
         "name": "release-notes",
@@ -297,21 +298,21 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
     agenta_wire = agenta_cfg.wire_tools()
     claude_wire = claude_cfg.wire_tools()
 
-    # Pi keeps its built-in tool natively; the runner relay enforces the shared plan.
-    # Skills never ride the tool wire.
-    assert pi_wire["tools"] == ["web_search"]
+    # Pi carries its custom tool natively and always names every built-in on the deprecated
+    # `tools` field; the runner relay enforces the shared plan. Skills never ride the tool wire.
+    assert pi_wire["tools"] == list(PI_BUILTIN_TOOL_NAMES)
+    assert [tool["name"] for tool in pi_wire["customTools"]] == ["pick"]
     assert pi_wire["permissions"] == {"default": "deny"}
     assert "skills" not in pi_wire
 
-    # Claude has no Pi built-ins (the `web_search` name is dropped) and carries the same plan.
+    # Claude has no Pi built-ins and carries the same plan.
     assert claude_wire["tools"] == []
     assert claude_wire["permissions"] == {"default": "deny"}
     assert "skills" not in claude_wire
 
-    # Agenta is Pi-with-an-opinion: it unions the forced tools onto the author's set. Skills are
-    # not tools, so they never appear in the tool wire.
-    assert agenta_wire["tools"] == ["web_search", "read", "bash"]
-    assert agenta_wire["permissions"] == {"default": "deny"}
+    # Agenta is Pi-with-an-opinion, and the opinion is prompt-shaped, not tool-shaped: the two
+    # share a tool wire. Skills are not tools, so they never appear in it either.
+    assert agenta_wire == pi_wire
     assert "skills" not in agenta_wire
 
     # skills ride the dedicated wire_skills seam, not the tool wire
@@ -321,7 +322,7 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
 
     # configs genuinely differ; the body's sameness is not a tautology
     assert pi_wire != claude_wire
-    assert agenta_wire != pi_wire
+    assert agenta_cfg.wire_prompt() != pi_cfg.wire_prompt()
 
 
 async def test_stream_tool_resolution_failure_is_raised_before_backend_setup(
@@ -389,7 +390,7 @@ def _patch_resolution(monkeypatch, backend, *, resolve):
         return cfg
 
     async def _tools(tools, **_kw):
-        return ResolvedToolSet(builtin_names=[], tool_callback=None)
+        return ResolvedToolSet(tool_callback=None)
 
     async def _no_mcp(mcp_servers, **_kw):
         return []

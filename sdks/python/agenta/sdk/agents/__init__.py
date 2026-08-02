@@ -133,6 +133,7 @@ from .tools import (
     MissingToolSecretError,
     PlatformToolConfig,
     ReferenceToolConfig,
+    ReservedToolNameError,
     ResolvedToolSet,
     ToolCall,
     ToolConfig,
@@ -217,6 +218,7 @@ __all__ = [
     "UnsupportedToolProviderError",
     "MissingToolSecretError",
     "DuplicateToolNameError",
+    "ReservedToolNameError",
     # MCP is a sibling subsystem
     "MCPServerConfig",
     "ResolvedMCPServer",

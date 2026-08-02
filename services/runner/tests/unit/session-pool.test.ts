@@ -242,8 +242,9 @@ describe("configFingerprint", () => {
     );
   });
 
-  it("changes when tools change", () => {
-    assert.notEqual(
+  it("ignores the deprecated tools field", () => {
+    // The runner activates every built-in regardless, so `tools` must not force a cold restart.
+    assert.equal(
       configFingerprint(base),
       configFingerprint({ ...base, tools: ["read"] }),
     );

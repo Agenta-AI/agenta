@@ -96,8 +96,8 @@ const PI_BUILTIN_CANONICAL_NAMES = new Map<string, PiBuiltinIdentity>(
       readOnly: identity.readOnly,
     };
     return [
-      [toolName, builtin],
-      [identity.ruleName, builtin],
+      [toolName.toLowerCase(), builtin],
+      [identity.ruleName.toLowerCase(), builtin],
     ];
   }),
 );
@@ -171,7 +171,8 @@ export function decide(
 export function piBuiltinIdentity(
   toolName: string,
 ): PiBuiltinIdentity | undefined {
-  return PI_BUILTIN_CANONICAL_NAMES.get(toolName);
+  // Built-in names are matched case-insensitively so an authored rule `bash` governs `Bash`.
+  return PI_BUILTIN_CANONICAL_NAMES.get(toolName.trim().toLowerCase());
 }
 
 export function storedDecisionKeyShape(
@@ -219,12 +220,26 @@ function ruleMatches(gate: GateDescriptor, pattern: string): boolean {
   if (gate.toolName === undefined) return false;
 
   const prefixPattern = parsePrefixPattern(pattern);
-  if (prefixPattern === undefined) return pattern === gate.toolName;
-  if (prefixPattern.toolName !== gate.toolName) return false;
+  const ruleToolName = prefixPattern?.toolName ?? pattern;
+  if (!toolNamesMatch(ruleToolName, gate.toolName)) return false;
+  if (prefixPattern === undefined) return true;
 
   const firstArg = firstStringArgument(gate.args);
   // Prefix rules with uninspectable args fail toward the default instead of guessing.
   return firstArg !== undefined && firstArg.startsWith(prefixPattern.prefix);
+}
+
+/**
+ * Names inside the seven built-ins fold to one identity, so case never matters for them; every
+ * other name is author-chosen and stays case-significant.
+ */
+function toolNamesMatch(ruleToolName: string, gateToolName: string): boolean {
+  const ruleIdentity = piBuiltinIdentity(ruleToolName);
+  const gateIdentity = piBuiltinIdentity(gateToolName);
+  if (ruleIdentity !== undefined && gateIdentity !== undefined) {
+    return ruleIdentity.toolName === gateIdentity.toolName;
+  }
+  return ruleToolName === gateToolName;
 }
 
 function parsePrefixPattern(
