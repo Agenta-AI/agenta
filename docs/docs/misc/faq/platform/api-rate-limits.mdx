@@ -4,16 +4,20 @@ description: "Rate limits by endpoint type and plan"
 slug: /faq/platform/api-rate-limits
 ---
 
-Agenta applies rate limits per organization to ensure fair usage and system stability. Limits vary by plan and endpoint type.
+Rate limits apply to Agenta Cloud. If you self-host the open-source edition, Agenta does not enforce any rate limits; capacity is set by your own infrastructure. In self-hosted Enterprise deployments, limits are configured per deployment.
 
-Each limit has two values. Burst is the maximum number of requests that can be served at once. Rate is the sustained number of requests per minute.
+Agenta Cloud limits requests per organization. Limits vary by plan and endpoint type.
 
-| Endpoint Type | Example | Free | Pro | Business | Enterprise |
-|---------------|---------|------|-----|----------|------------|
-| Data retrieval | `POST */retrieve` | 1,200 / 1,200 per min | 3,600 / 3,600 per min | 36,000 / 36,000 per min | Custom |
-| Trace ingestion | `POST /otlp/v1/traces` | 1,200 / 1,200 per min | 3,600 / 3,600 per min | 36,000 / 36,000 per min | Custom |
-| Queries and analytics | `POST /spans/*/query`, `POST /traces/query` | 120 / 1 per min | 180 / 1 per min | 1,800 / 1 per min | Custom |
-| Other endpoints | General API calls | 120 / 120 per min | 360 / 360 per min | 3,600 / 3,600 per min | Custom |
+Each limit has two values. Burst is the number of requests you can send back to back when you have not made requests recently. Refill is the number of requests added back to your budget per minute, which sets the sustained rate. Each endpoint type has its own budget, so using up one does not affect the others.
+
+Cells show burst / refill per minute.
+
+| Endpoint type | Example | Hobby | Pro | Business | Enterprise |
+|---------------|---------|-------|-----|----------|------------|
+| Configuration fetching and trace ingestion | `POST */retrieve`, `POST /otlp/v1/traces` | 1,200 / 1,200 | 3,600 / 3,600 | 36,000 / 36,000 | Custom |
+| Trace queries and analytics | `POST /tracing/spans/query`, `POST /tracing/spans/analytics` | 120 / 1 | 180 / 1 | 1,800 / 1 | Custom |
+| AI services | `POST /ai/services/tools/call` | 10 / 30 | 30 / 90 | 300 / 900 | Custom |
+| All other endpoints | General API calls | 480 / 480 | 1,440 / 1,440 | 3,600 / 3,600 | Custom |
 
 ## Rate limit response
 

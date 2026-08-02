@@ -4,12 +4,12 @@ description: "Supported model providers and custom endpoints"
 slug: /faq/integrations/llm-providers
 ---
 
-Agenta works with almost any provider.
+Agenta has built-in support for OpenAI, Anthropic, Google Gemini, Mistral AI, Cohere, Groq, Together AI, OpenRouter, Perplexity AI, DeepInfra, and MiniMax. For these providers you add your API key under **Settings > Model Hub** and pick from a maintained model list.
 
-Common providers include OpenAI, Anthropic, Cohere, OpenRouter, Perplexity AI, TogetherAI, DeepInfra, Groq, Gemini, Mistral AI, and Ollama.
+Agenta also supports Azure OpenAI, AWS Bedrock, and Google Vertex AI. These are added as custom providers because they need more than an API key (for example a deployment URL, an AWS region, or service account credentials).
 
-Agenta also supports AWS Bedrock, Azure OpenAI, and Vertex AI.
+You can add any OpenAI-compatible endpoint as a custom provider. This covers self-hosted models (for example through Ollama), fine-tuned models, and custom deployments.
 
-You can add any OpenAI compatible endpoint, including self hosted models and custom deployments.
+You can also add models that are missing from a built-in provider's list, for example a newly released model on OpenRouter.
 
-See [custom providers](/prompt-engineering/playground/custom-providers).
+See [custom providers](/1.0/prompt-engineering/playground/custom-providers) for setup instructions.

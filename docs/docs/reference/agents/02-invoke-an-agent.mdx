@@ -1,0 +1,242 @@
+---
+title: "Invoke an agent"
+sidebar_label: "Invoke an agent"
+description: "The endpoint, request body, headers, and response shapes for running one agent turn over HTTP."
+---
+
+One turn of an agent conversation is one HTTP request.
+
+```
+POST {AGENTA_HOST}/services/agent/v0/invoke?project_id={PROJECT_ID}
+```
+
+This is the endpoint the playground drives. It is served by the agent workflow service, not by the `/api` surface, so it is not in the [API Reference](/reference/api/category).
+
+| Deployment | Host |
+|---|---|
+| Cloud (US) | `https://us.cloud.agenta.ai` |
+| Cloud (EU) | `https://eu.cloud.agenta.ai` |
+| Self-hosted | your Agenta origin |
+
+The same service also serves `POST /services/agent/v0/inspect`, which returns the agent workflow's resolved revision plus a ready-made invoke request.
+
+## Authentication
+
+| Item | Value |
+|---|---|
+| Header | `Authorization: ApiKey {API_KEY}` |
+| Query parameter | `project_id={PROJECT_ID}` |
+
+The project is not read from the request body. The service checks the credential against the Agenta API before the run starts, and returns `401` for an invalid credential or `403` when the key may not run services in that project.
+
+## Request headers
+
+| Header | Values | Effect |
+|---|---|---|
+| `Content-Type` | `application/json` | Required. |
+| `Accept` | `application/json` | One JSON response after the turn finishes. |
+| | `text/event-stream` | Server-sent events. |
+| | `application/x-ndjson`, `application/jsonl` | Newline-delimited JSON. |
+| | absent or `*/*` | The server picks the format that matches what the handler produced. |
+| `x-ag-messages-format` | `vercel` | Messages and frames use the Vercel AI SDK representation. Absent means the Agenta representation. |
+| `x-ag-messages-transcript` | `last` \| `full` | `last` trims the output to the trailing unit of the turn. `full` returns the whole message list. |
+| `x-ag-session-control` | `force` | Take over or attach to an existing run on the session. |
+| `x-ag-workflow-embeds` | `resolve` | Resolve `@ag.embed` references in the configuration. |
+| `x-ag-session-id` | a session id | Used when the body carries no `session_id`. |
+
+Each of the last four headers maps onto a field in the body's `flags` object (`stream`, `trim`, `force`, `resolve`). A value in `flags` wins over the header.
+
+See [Chat message format](/reference/agents/chat-message-format) for what each representation looks like.
+
+## Request body
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `data` | object | No | `null` | The turn's payload. See below. |
+| `session_id` | string | No | server-minted | 1 to 128 characters matching `^[A-Za-z0-9._:-]{1,128}$`. When absent, the server mints one and returns it. An invalid value returns `400`. |
+| `references` | object | No | `null` | Points the run at a stored configuration. See [Running a stored agent](#running-a-stored-agent). |
+| `flags` | object | No | `null` | `stream`, `trim`, `force`, `resolve`. Each is a boolean. |
+| `tags` | object | No | `null` | Free-form key-value pairs recorded on the trace. |
+| `meta` | object | No | `null` | Free-form key-value pairs recorded on the trace. |
+| `links` | object | No | `null` | `{trace_id, span_id}` pairs linking this run to another trace. |
+| `selector` | object | No | `null` | `{key, path}`, used when resolving a reference through an environment. |
+| `secrets` | object | No | `null` | Per-request secret values. |
+| `credentials` | string | No | `null` | Credential passed to the run. |
+| `version` | string | No | `"2025.07.14"` | Request contract version. |
+
+### data
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `inputs` | object | No | `null` | For an agent, `{"messages": [...]}`. |
+| `parameters` | object | No | `null` | For an agent, `{"agent": {...}}`, the [agent template](/reference/agents/agent-configuration). |
+| `revision` | object | No | `null` | An inline workflow revision. |
+| `testcase` | object | No | `null` | A test case supplying the inputs. |
+| `trace` | object | No | `null` | Trace context for the run. |
+| `outputs` | any | No | `null` | Reserved. |
+
+## Running an inline configuration
+
+Send the whole agent template in `data.parameters.agent`. Nothing has to be stored first.
+
+```bash
+curl -N -X POST \
+  "https://eu.cloud.agenta.ai/services/agent/v0/invoke?project_id=019d952f-0000-0000-0000-000000000000" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{
+    "session_id": "019d952f-0000-0000-0000-000000000001",
+    "data": {
+      "inputs": {
+        "messages": [
+          {"role": "user", "content": "List the files in the working directory."}
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "instructions": {"agents_md": "Be terse. Report only what you observed."},
+          "llm": {
+            "provider": "openai",
+            "model": "gpt-5.6-luna",
+            "connection": {"mode": "agenta"}
+          },
+          "tools": [
+            {"type": "builtin", "name": "bash"},
+            {"type": "builtin", "name": "read"}
+          ],
+          "mcps": [],
+          "skills": [],
+          "harness": {"kind": "pi_core"},
+          "runner": {"kind": "sidecar", "permissions": {"default": "allow_reads"}},
+          "sandbox": {"kind": "local"}
+        }
+      }
+    }
+  }'
+```
+
+## Running a stored agent
+
+Send `references` instead of `data.parameters`. Agenta fetches the stored revision and runs it.
+
+```json
+{
+  "session_id": "019d952f-0000-0000-0000-000000000001",
+  "references": {
+    "workflow_revision": {"id": "019d952f-0000-0000-0000-000000000002"}
+  },
+  "data": {
+    "inputs": {
+      "messages": [{"role": "user", "content": "Draft this week's changelog."}]
+    }
+  }
+}
+```
+
+A reference is `{id, slug, version}`; supply whichever you have. `id` is always sufficient.
+
+| Family | Keys |
+|---|---|
+| Workflow | `workflow`, `workflow_variant`, `workflow_revision` |
+| Application | `application`, `application_variant`, `application_revision` |
+| Evaluator | `evaluator`, `evaluator_variant`, `evaluator_revision` |
+| Environment | `environment`, `environment_variant`, `environment_revision` |
+
+Two rules govern this object:
+
+- Populate exactly one of the workflow, application, and evaluator families. Two of them together returns `400`. The environment keys combine with any of the three.
+- The stored configuration is fetched only when `data.parameters` is absent. Sending both means the inline parameters run and the reference identifies the run.
+
+## JSON response
+
+With `Accept: application/json` the response arrives once, after the turn finishes.
+
+```json
+{
+  "version": "2025.07.14",
+  "status": {"code": 200, "message": "Success"},
+  "trace_id": "019d952f000000000000000000000003",
+  "span_id": "019d952f00000004",
+  "session_id": "019d952f-0000-0000-0000-000000000001",
+  "data": {
+    "outputs": {
+      "messages": [
+        {"role": "tool", "content": "", "tool_call_id": "call_019d952f", "tool_name": "bash", "input": {"command": "ls"}},
+        {"role": "tool", "content": "AGENTS.md\nREADME.md\n", "tool_call_id": "call_019d952f", "is_error": false},
+        {"role": "assistant", "content": "Two files: AGENTS.md and README.md."}
+      ],
+      "stop_reason": "end_turn"
+    }
+  }
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `version` | string | Response contract version. |
+| `status.code` | integer | Repeated as the HTTP status code. |
+| `status.message` | string | Status text. |
+| `status.type` | string or `null` | Error type, when the run failed. |
+| `status.stacktrace` | string, array of string, or `null` | Present on some failures. |
+| `trace_id` | string or `null` | The run's trace. |
+| `span_id` | string or `null` | The run's span. |
+| `session_id` | string or `null` | The resolved session id. |
+| `data.outputs.messages` | array | The folded turn. |
+| `data.outputs.stop_reason` | string | Present when the turn produced one. `paused` means the run stopped for an approval. |
+| `data.outputs.pending_interaction` | object | Present when `stop_reason` is `paused`. Carries the interaction `id`, `kind`, `payload`, and the derived `tool` name. |
+
+Fields that are `null` are omitted from the response.
+
+## Streaming response
+
+With `Accept: text/event-stream`, frames arrive as server-sent events for the length of the turn. With `application/x-ndjson` or `application/jsonl` the same objects arrive as newline-delimited JSON.
+
+Add `x-ag-messages-format: vercel` for the Vercel AI SDK UI Message Stream, which terminates with `data: [DONE]`. Without it, each frame is a raw Agenta event and there is no terminator. Frame vocabularies for both are in [Chat message format](/reference/agents/chat-message-format).
+
+## Response headers
+
+| Header | Present when |
+|---|---|
+| `x-ag-version` | always |
+| `x-ag-trace-id` | the run produced a trace |
+| `x-ag-span-id` | the run produced a span |
+| `x-ag-session-id` | a session is in play |
+| `baggage` | a session is in play, carrying `ag.session.id=<id>` |
+| `traceparent` | both a trace id and a span id exist |
+| `x-vercel-ai-ui-message-stream: v1`, `x-ag-messages-format: vercel`, `x-ag-messages-version: v1` | the Vercel UI Message Stream was requested |
+
+## Continuing a conversation
+
+Reuse the same `session_id` across turns and send the conversation so far in `data.inputs.messages`.
+
+A turn that stops for an approval ends with `stop_reason: "paused"`. Two ways to answer it exist.
+
+**In band.** Re-post the paused assistant message with the decision recorded on its tool part, in the same `session_id`. This is what the playground does. The shape is in [Chat message format](/reference/agents/chat-message-format#answering-an-approval).
+
+**Out of band.** Answer the interaction record through the API:
+
+```
+POST /api/sessions/interactions/{interaction_id}/respond
+```
+
+with a body of `{"answer": {...}}`. Related endpoints:
+
+| Method and path | Purpose |
+|---|---|
+| `POST /api/sessions/interactions/query` | List interactions for a session. |
+| `GET /api/sessions/interactions/{interaction_id}` | Fetch one interaction. |
+| `POST /api/sessions/interactions/{interaction_id}/respond` | Answer a pending interaction. |
+| `POST /api/sessions/interactions/transition` | Move an interaction to another status. |
+
+An interaction has a `kind` of `user_approval`, `user_input`, or `client_tool`, and a `status` of `pending`, `responded`, `resolved`, or `cancelled`. Responding to an interaction that is not `pending` returns `409`.
+
+## Errors
+
+| Status | Cause |
+|---|---|
+| `400` | The agent template uses a pre-migration flat key, or an unknown key inside `harness`, `runner`, or `sandbox`. The `runner.permissions.default` value is not one of the four modes. The `session_id` does not match the allowed pattern. Two execution reference families are populated at once. |
+| `401` | Missing or invalid credential. |
+| `403` | The credential may not run services in that project. |
+| `406` | `Accept` asked for a stream but the handler produced a batch response, or the reverse. |
+| `4xx` / `5xx` in `status.code` | A run that fails returns a JSON body with the real status, even when a stream was requested. |
