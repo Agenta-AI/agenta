@@ -1,44 +1,72 @@
 ---
 title: "Instructions"
 sidebar_label: "Instructions"
-description: "An agent's instructions live in AGENTS.md and are sent at the start of every session. This page covers what goes in them, why they stay short, and how they grow."
+description: "Learn how to write effective AI agent instructions in AGENTS.md, keep them concise with progressive disclosure, and improve them through feedback."
 ---
 
-The instructions are the part of an agent that describes its job. This page covers where instructions live, what belongs in them, why they stay short, and how they grow over time.
+The instructions are the part of an agent's configuration usually used to describe its job. This page covers what belongs in them, where they live, and how to use them.
 
-## Where the instructions live
+## Instructions give the agent the context it should always know
 
-The instructions live in a file named `AGENTS.md`, and they are sent to the model at the start of every session. Harnesses usually call this the system prompt. An agent with no instructions is a general assistant; the instructions are what make it yours. They are part of the agent's configuration, so every change to them is versioned.
+Imagine that your marketing launch agent is preparing a brief for Team Workspaces. It should not need you to repeat your audience, product position, or company voice each time.
 
-## What goes in the instructions
+A useful first set of instructions might say:
 
-The instructions hold the context the agent must always have. For a marketing agent, that means who you are, what the company sells, who the customers are, how you want the agent to talk to you, and the problems you want help with.
+```markdown
+# Role
 
-This content belongs in the instructions rather than in a file because the instructions come with a guarantee: they are sent at the start of every session, so the agent always has them. A file in the agent's folder is read only if the agent decides to read it. So context that must be present every time goes in the instructions, and reference material the agent can look up when the moment comes goes in a file. See [Files and knowledge](/concepts/files-and-knowledge).
+You are the marketing launch agent for Acme.
 
-## The instructions are sent on every turn
+## Audience
 
-Everything in the instructions goes to the model again on every turn. A turn is one call to the model, and a single request from you often takes several turns. Long instructions are therefore a recurring cost, paid each time the agent thinks, not a one-time cost.
+Write for operations leaders at enterprise software companies.
 
-This creates a tension. More context makes the agent better at the job. It also makes every turn more expensive and leaves less room for the work itself. The way out is to keep in the instructions only what must be present every turn, and to move everything else into a skill or a file.
+## Working style
 
-## The context window is one shared budget
+Lead with the customer problem. Support claims with product notes or campaign data.
+Ask before publishing or sending anything outside the team.
+```
 
-The model reads a fixed amount of text per turn, called the context window. The instructions, the tool descriptions, the skills, the files, and the conversation so far all draw on that same window.
+This is standing context. It should guide a launch brief, a positioning review, and a quick answer about the product.
 
-- **Instructions are always loaded.** They are sent every turn, so they stay short.
-- **Tools cost a little, always.** Each tool the agent has puts its name and description into every turn. See [Tools and integrations](/concepts/tools-and-integrations).
-- **Skills load on demand.** Until the agent needs one, it sees only a name and a description, so an agent can carry many. See [Skills](/concepts/skills).
-- **Files are read on demand.** Nothing is loaded until the agent opens the file, so a knowledge folder can grow without adding to every turn. See [Files and knowledge](/concepts/files-and-knowledge).
+## What are agent instructions?
+
+The instructions, sometimes called the system prompt, are sent to the model at the start of every session. They live in a file named `AGENTS.md`.
+
+An agent without instructions is a general agent, similar to ChatGPT or Google AI. Adding instructions turns that general agent into a custom agent.
+
+## What goes in the instructions?
+
+The instructions hold the context the agent must always have.
+
+Good instructions answer questions the agent faces throughout its work:
+
+- What job is the agent here to do?
+- Who does it work with and for?
+- What goals and limits should guide its choices?
+- How should it communicate?
+- How should it organize its work?
+
+## Keep instructions short {#the-context-window-is-one-shared-budget}
+
+It might be tempting to put everything in the instructions, including feedback and notes, because you assume more context will improve the agent's performance. That is not the case.
+
+Instructions go to the model on every turn. Long instructions send more tokens to the model each time. This increases the cost of running the agent and can also decrease its performance. LLMs can perform worse with larger contexts. The more information you provide, the greater the chance the model misses an important point (just like humans).
+
+So always limit the size of the instructions and use progressive disclosure.
+
+Progressive disclosure works like a book index. Say you are building a custom outreach agent, and one step is writing the final email. Instead of adding the email templates to the instructions, write `When writing emails, read the templates in <file>`. Put the templates themselves in the agent's folder. The instructions stay short, but the context remains available. When the agent reaches that step, it follows the instruction and reads the templates. [Skills](/concepts/skills) provide a similar way to use progressive disclosure.
 
 One pattern follows from this: the instructions work as a map to everything else. A single line such as "the style guide is in `writing/style.md`, read it before drafting" spends a few always-loaded words and buys a whole document that costs nothing until it is needed.
 
-## How instructions grow
+## How to build and improve your instructions
 
-Instructions start short: a few lines saying what the agent is for and who it works with.
+Instructions describe how the agent should act. They are the working manual it follows. A well-built manual creates a useful agent. However, you often do not know how the agent should work at first. When you build your first GTM agent, you do not yet know everything it will do or the mistakes it will make.
 
-Then they grow one line at a time, against real failures. The agent answers a customer in the wrong tone, so a line about tone goes in. It pulls numbers from the wrong dashboard, so the right one gets named. After a few weeks the instructions describe the job accurately, because each line was written the moment the agent got something wrong rather than guessed in advance.
+Building the instructions is similar to training someone for a new job. Start with something simple: a few lines explaining what the agent is for and who it works with. Then work with it and improve the instructions over time. Here are some examples:
 
-Most instructions end up saying how the agent should talk. Left alone, an agent tends to write long and to restate the question before answering it. If you want short answers with no preamble, that goes in writing.
+Say you are building a GTM agent and use it for an SEO task for the first time. When you finish, tell it to update its instructions with what it learned and use progressive disclosure. It can add a few lines to the instructions and write a file about the SEO task in its folder. Next time, it will know how to approach the task.
+
+You continue working with the agent on SEO articles, but it keeps writing AI slop. You work with it, add some skills, and give feedback until the quality is good. Then tell it to learn from that feedback (`Reflect`). It will update its instructions, and its work will be better next time.
 
 [Write your agent's instructions](/guides/write-your-agents-instructions) covers the editor, a worked first version, and how to fold a correction back in.
