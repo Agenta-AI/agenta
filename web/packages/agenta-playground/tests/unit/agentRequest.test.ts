@@ -341,10 +341,10 @@ describe("buildAgentRequest", () => {
         expect(config).toEqual(before)
     })
 
-    it("does not duplicate Pi built-ins the default template already carries", async () => {
-        // The shipped default grants Pi's four built-ins (issue #5590) and the kit overlay
-        // prepends `read` and `bash`. The `name:<name>` identity merge is what keeps the two
-        // copies from both landing in the run's tools list.
+    it("passes a saved config's legacy built-in entries through the overlay merge untouched", async () => {
+        // Dual-read on the run path: neither side writes built-in entries any more, but a
+        // revision saved before the rework still carries them. They must survive the merge
+        // verbatim (the SDK ignores them) and must not disturb the overlay's own tools.
         const builtin = (name: string) => ({type: "builtin", name})
         const config = {
             agent: {
@@ -354,11 +354,7 @@ describe("buildAgentRequest", () => {
         seed(store, "e", {
             config,
             overlay: {
-                tools: [
-                    builtin("read"),
-                    builtin("bash"),
-                    {type: "platform", op: "commit_revision"},
-                ],
+                tools: [{type: "platform", op: "commit_revision"}],
             },
             buildKitEnabled: true,
         })
@@ -374,9 +370,6 @@ describe("buildAgentRequest", () => {
             builtin("write"),
             {type: "platform", op: "commit_revision"},
         ])
-        for (const name of ["read", "bash", "edit", "write"]) {
-            expect(template.tools.filter((tool) => tool?.name === name)).toHaveLength(1)
-        }
     })
 
     it("applies the build-kit overlay to a BARE template (no agent wrapper)", async () => {
