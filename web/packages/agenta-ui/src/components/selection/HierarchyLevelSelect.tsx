@@ -296,6 +296,7 @@ export function HierarchyLevelSelect<T>({
             )}
             <Combobox
                 className="w-full"
+                aria-label={label ?? placeholder}
                 placeholder={effectivePlaceholder}
                 value={selectedId ?? undefined}
                 onChange={handleChange}

@@ -339,6 +339,7 @@ const DiffView: React.FC<DiffViewProps> = ({
                 disabled={true}
                 codeOnly={true}
                 showToolbar={false}
+                ariaLabel="Diff view"
             />
         </div>
     )

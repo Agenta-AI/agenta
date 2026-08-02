@@ -1,4 +1,4 @@
-import type {ReactNode} from "react"
+import {useId, type ReactNode} from "react"
 
 import {Button, Divider, LoadingButton, Switch} from "@agenta/ui/ui"
 
@@ -32,6 +32,8 @@ export function DrawerFooter({
     submitLabel: string
     onSubmit: () => void
 }) {
+    // Names the Switch from the adjacent visible "Active" text (axe button-name).
+    const activeLabelId = useId()
     return (
         <>
             <Divider className="m-0" />
@@ -39,8 +41,15 @@ export function DrawerFooter({
                 <div className="flex items-center gap-2">
                     {onEnabledChange ? (
                         <>
-                            <Switch checked={enabled} onCheckedChange={onEnabledChange} />
-                            <span className="text-xs text-[var(--ag-colorTextSecondary)]">
+                            <Switch
+                                checked={enabled}
+                                onCheckedChange={onEnabledChange}
+                                aria-labelledby={activeLabelId}
+                            />
+                            <span
+                                id={activeLabelId}
+                                className="text-xs text-[var(--ag-colorTextSecondary)]"
+                            >
                                 Active
                             </span>
                         </>

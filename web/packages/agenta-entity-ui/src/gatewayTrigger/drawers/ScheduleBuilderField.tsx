@@ -224,6 +224,7 @@ function CadenceDetails({
                     <InputNumber
                         min={1}
                         max={23}
+                        aria-label="Hour"
                         value={builder.everyNHours}
                         onChange={(n) =>
                             onChange({...builder, everyNHours: Math.max(1, Number(n) || 1)})
@@ -236,6 +237,7 @@ function CadenceDetails({
                     <InputNumber
                         min={0}
                         max={59}
+                        aria-label="Minute"
                         value={minute}
                         onChange={(m) =>
                             onChange({

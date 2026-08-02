@@ -136,7 +136,11 @@ export function RailField({label, align = "top", path, children}: RailFieldProps
                 {changed ? (
                     <Popover>
                         <PopoverTrigger asChild>
-                            <span className="cursor-pointer underline decoration-[var(--ag-colorInfo)] decoration-dotted underline-offset-4">
+                            {/* role=button makes the Radix aria-haspopup/expanded attrs valid here. */}
+                            <span
+                                role="button"
+                                className="cursor-pointer underline decoration-[var(--ag-colorInfo)] decoration-dotted underline-offset-4"
+                            >
                                 {label}
                             </span>
                         </PopoverTrigger>

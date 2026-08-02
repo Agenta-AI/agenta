@@ -59,7 +59,12 @@ export function TemplateFormatPicker({
         >
             {/* `w-auto`: antd's Select sized to its content (the trigger primitive is w-full);
              *  the 180px floor mirrors the pre-migration `style={{minWidth: 180}}`. */}
-            <SelectTrigger size="sm" className={cn("w-auto min-w-[180px]", className)}>
+            {/* role=combobox takes no name from content — the visible value text doesn't name it. */}
+            <SelectTrigger
+                size="sm"
+                aria-label="Prompt syntax"
+                className={cn("w-auto min-w-[180px]", className)}
+            >
                 <SelectValue />
             </SelectTrigger>
             {/* antd had popupMatchSelectWidth={false}: the panel sizes to its content,

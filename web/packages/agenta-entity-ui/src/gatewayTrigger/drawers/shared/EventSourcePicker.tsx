@@ -189,6 +189,7 @@ export function EventSourcePicker({
             <PopoverContent
                 side={side}
                 align={align}
+                aria-label="Select event source"
                 className="p-3"
                 container={container}
                 onOpenAutoFocus={(e) => e.preventDefault()}

@@ -113,12 +113,19 @@ export const AntdVsAgenta: Story = {
             <Row
                 label="boolean leaf"
                 a={<AntSwitch checked onChange={noop} />}
-                s={<Switch checked onCheckedChange={noop} />}
+                s={<Switch checked onCheckedChange={noop} aria-label="boolean leaf" />}
             />
             <Row
                 label="boolean leaf · off, disabled"
                 a={<AntSwitch checked={false} disabled onChange={noop} />}
-                s={<Switch checked={false} disabled onCheckedChange={noop} />}
+                s={
+                    <Switch
+                        checked={false}
+                        disabled
+                        onCheckedChange={noop}
+                        aria-label="boolean leaf, off and disabled"
+                    />
+                }
             />
             <Row
                 label="null leaf"

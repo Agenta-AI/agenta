@@ -46,7 +46,8 @@ const VariantDetails = ({
                 ) : (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <AgentaTag draft className="cursor-pointer" />
+                            {/* role=button makes the Radix aria-haspopup/expanded attrs valid on the span. */}
+                            <AgentaTag draft role="button" className="cursor-pointer" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent side="bottom" align="start">
                             <DropdownMenuItem

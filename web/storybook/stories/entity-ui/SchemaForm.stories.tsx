@@ -184,7 +184,7 @@ function ControlsComparison() {
                 label="date-time"
                 expected="antd DatePicker popup calendar not reproduced — native datetime-local input styled as ui Input (no calendar primitive in @agenta/ui); value stays dayjs"
                 a={<AntDatePicker className="w-full" showTime />}
-                s={<DateTimeInput showTime />}
+                s={<DateTimeInput showTime aria-label="Date and time" />}
             />
         </div>
     )

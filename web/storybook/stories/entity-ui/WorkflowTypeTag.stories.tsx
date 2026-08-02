@@ -70,9 +70,9 @@ const AntdTypePill = ({workflowType}: {workflowType: string}) => {
     )
 }
 
-// One workflow-type key per preset hue the color map produces. The first 8 map to Badge
-// preset variants; the last 5 (volcano/geekblue/lime/pink/yellow) exercise the
-// `--ant-<hue>-1/-7` cssvar fallback.
+// One workflow-type key per preset hue the color map produces. All 13 map to Badge
+// preset variants (pink/yellow/volcano/geekblue/lime added post-wave-1; the inline
+// `--ant-<hue>-1/-7` cssvar fallback is gone).
 const TYPE_PER_HUE: [string, string][] = [
     ["chat", "blue"],
     ["completion", "cyan"],
@@ -92,7 +92,19 @@ const TYPE_PER_HUE: [string, string][] = [
 // Badge preset text colours for these hues sit one/two steps down antd's own ramp for
 // WCAG AA (4.5:1) — see `presetTag` in oss/src/styles/theme/palette.ts. purple deviates
 // in dark only.
-const AA_HUES = new Set(["green", "orange", "cyan", "gold", "purple"])
+// yellow/lime light text = step 9, volcano light = step 8, geekblue dark = step 8;
+// pink's AA step happens to equal antd's own step 7, so it needs no annotation.
+const AA_HUES = new Set([
+    "green",
+    "orange",
+    "cyan",
+    "gold",
+    "purple",
+    "yellow",
+    "volcano",
+    "geekblue",
+    "lime",
+])
 const AA_NOTE =
     "WCAG AA: this hue sits one/two steps down antd's own ramp so preset tags reach 4.5:1 — see presetTag in palette.ts"
 

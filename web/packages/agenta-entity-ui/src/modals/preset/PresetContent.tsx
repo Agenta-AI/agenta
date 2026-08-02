@@ -105,6 +105,7 @@ export const PresetContent = memo(function PresetContent({
                         editorProps={{
                             codeOnly: true,
                             language: format,
+                            ariaLabel: "Preset preview",
                         }}
                         syncWithInitialValueChanges={true}
                     />

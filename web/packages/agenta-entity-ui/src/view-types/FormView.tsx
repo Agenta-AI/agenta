@@ -24,7 +24,7 @@
  * Promoted from the design-mockups POC (`ProposalV2FormView.tsx`).
  */
 
-import {useCallback, useMemo, useState, type ReactNode} from "react"
+import {useCallback, useId, useMemo, useState, type ReactNode} from "react"
 
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
@@ -186,6 +186,8 @@ interface FormFieldProps {
 
 function FormField({label, value, depth, editable, onChange, schema, headerRight}: FormFieldProps) {
     const kind = detectNestedKind(value)
+    // Names label-less leaf controls (the boolean Switch) from the field label (axe button-name).
+    const labelId = useId()
 
     // For string fields we manage a per-field view mode (Text / Markdown /
     // JSON / YAML). The view-type selector lives in the label row, on the
@@ -209,7 +211,9 @@ function FormField({label, value, depth, editable, onChange, schema, headerRight
                      *  Children must NOT visually outweigh their parent — the
                      *  parent's name + chip set the bar, the nested fields
                      *  use the same vocabulary. */}
-                    <label style={styles.fieldLabel}>{label}</label>
+                    <label id={labelId} style={styles.fieldLabel}>
+                        {label}
+                    </label>
                     <TypeChip variant={NESTED_KIND_CHIP[kind]} value={value} />
                 </div>
                 <div style={styles.labelRight}>
@@ -233,6 +237,7 @@ function FormField({label, value, depth, editable, onChange, schema, headerRight
                     onChange={onChange}
                     stringMode={stringMode}
                     schema={schema}
+                    labelId={labelId}
                 />
             </div>
         </div>
@@ -356,6 +361,8 @@ interface FieldBodyProps {
     /** For strings only — the active view mode chosen via the labelRow dropdown. */
     stringMode?: ViewType
     schema?: unknown
+    /** Id of the field's label element — names label-less controls (the Switch). */
+    labelId?: string
 }
 
 function FieldBody({
@@ -366,6 +373,7 @@ function FieldBody({
     onChange,
     stringMode,
     schema,
+    labelId,
 }: FieldBodyProps): ReactNode {
     if (kind === "object") {
         return (
@@ -424,6 +432,7 @@ function FieldBody({
                 checked={value as boolean}
                 disabled={!editable}
                 onCheckedChange={(next) => onChange(next)}
+                aria-labelledby={labelId}
             />
         )
     }

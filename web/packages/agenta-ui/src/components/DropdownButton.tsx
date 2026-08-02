@@ -103,6 +103,8 @@ export interface DropdownButtonProps {
     placement?: "bottom" | "bottomLeft" | "bottomRight" | "top" | "topLeft" | "topRight"
     /** Custom dropdown icon (defaults to a chevron-down). */
     dropdownIcon?: React.ReactNode
+    /** Accessible name for the icon-only chevron segment. */
+    dropdownAriaLabel?: string
     /**
      * Optional localStorage key for persisting the last selected option.
      * When provided, the main button will show the last selected option's label
@@ -132,6 +134,7 @@ export function DropdownButton({
     dropdownDisabled = false,
     placement = "bottomRight",
     dropdownIcon,
+    dropdownAriaLabel = "More actions",
     storageKey,
     defaultSelectedKey,
     loading = false,
@@ -256,6 +259,7 @@ export function DropdownButton({
                     <Button
                         variant={variant}
                         size={size === "sm" ? "icon-sm" : "icon"}
+                        aria-label={dropdownAriaLabel}
                         disabled={dropdownDisabled || disabled}
                         className={cn(
                             "relative -ml-px rounded-l-none hover:z-[1] focus:z-[1]",

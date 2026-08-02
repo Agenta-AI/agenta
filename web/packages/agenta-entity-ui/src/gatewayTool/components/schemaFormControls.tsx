@@ -120,8 +120,10 @@ export function Chip({
         <Badge variant="default" className={cn("max-w-full", className)}>
             <span className="truncate">{label}</span>
             {onRemove && !disabled && (
-                <button
-                    type="button"
+                // Non-focusable span, not a <button>: chips render inside the MultiSelect trigger
+                // button and a tabbable control there is an axe nested-interactive violation.
+                <span
+                    role="button"
                     aria-label={`Remove ${label}`}
                     onClick={(e) => {
                         e.stopPropagation()
@@ -130,7 +132,7 @@ export function Chip({
                     className="inline-flex cursor-pointer border-0 bg-transparent p-0 text-colorIcon hover:text-colorText"
                 >
                     <X size={10} />
-                </button>
+                </span>
             )}
         </Badge>
     )
@@ -278,6 +280,7 @@ export function ChipsInput({
                 id={id}
                 variant="ghost"
                 disabled={disabled}
+                aria-label={placeholder}
                 placeholder={selected.length === 0 ? placeholder : undefined}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
@@ -307,18 +310,24 @@ export function DateTimeInput({
     showTime,
     disabled,
     id,
+    "aria-label": ariaLabel,
+    "aria-labelledby": ariaLabelledby,
 }: {
     value?: Dayjs
     onChange?: (v: Dayjs | undefined) => void
     showTime?: boolean
     disabled?: boolean
     id?: string
+    "aria-label"?: string
+    "aria-labelledby"?: string
 }) {
     const format = showTime ? "YYYY-MM-DDTHH:mm" : "YYYY-MM-DD"
     const text = value && dayjs(value).isValid() ? dayjs(value).format(format) : ""
     return (
         <Input
             id={id}
+            aria-label={ariaLabel}
+            aria-labelledby={ariaLabelledby}
             type={showTime ? "datetime-local" : "date"}
             disabled={disabled}
             value={text}

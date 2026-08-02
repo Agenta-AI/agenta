@@ -60,7 +60,48 @@ const STORIES = [
     {id: "agenta-ui-primitives-forms-field--antd-vs-agenta"},
     {id: "agenta-ui-primitives-display-breadcrumb--antd-vs-agenta"},
     {id: "agenta-ui-primitives-display-emptystate--antd-vs-agenta"},
+    // entity-ui wave 1 — composite components, audited on their agenta half (parity stories)
+    // or their natural rendered state (data-seam showcases).
+    {id: "agenta-entity-ui-drawers-additemmenu--antd-vs-agenta"},
+    {id: "agenta-entity-ui-drawers-drawerfooter--antd-vs-agenta"},
+    {id: "agenta-entity-ui-drawers-masterdetailrail--antd-vs-agenta"},
+    {id: "agenta-entity-ui-drawers-railfield--antd-vs-agenta"},
+    {id: "agenta-entity-ui-drawers-sectionrail--antd-vs-agenta"},
+    {id: "agenta-entity-ui-gatewaytool-connectionstatusbadge--antd-vs-agenta"},
+    {id: "agenta-entity-ui-gatewaytool-resultviewer--antd-vs-agenta"},
+    {id: "agenta-entity-ui-gatewaytool-schemaform--antd-vs-agenta"},
+    {id: "agenta-entity-ui-gatewaytrigger-activetoggle--antd-vs-agenta"},
+    {id: "agenta-entity-ui-gatewaytrigger-eventsourcepicker--open-state"},
+    {id: "agenta-entity-ui-gatewaytrigger-messagecomposer--antd-vs-agenta"},
+    {id: "agenta-entity-ui-gatewaytrigger-runbuttons--antd-vs-agenta"},
+    {id: "agenta-entity-ui-gatewaytrigger-schedulebuilderfield--antd-vs-agenta"},
+    {id: "agenta-entity-ui-gatewaytrigger-windowfield--antd-vs-agenta"},
+    {id: "agenta-entity-ui-modals-entitycommitmodal--clean-revision"},
+    {id: "agenta-entity-ui-modals-entitydeletemodal--default"},
+    {id: "agenta-entity-ui-modals-entitysavemodal--save-existing"},
+    {id: "agenta-entity-ui-modals-loadevaluatorpresetmodal--default"},
+    {id: "agenta-entity-ui-secretprovider-customproviderform--new-provider"},
+    {id: "agenta-entity-ui-secretprovider-modelnameinput--antd-vs-agenta"},
+    {id: "agenta-entity-ui-selection-entityselectormodal--open"},
+    {id: "agenta-entity-ui-selection-unifiedentitypicker--cascading"},
+    {id: "agenta-entity-ui-selection-unifiedentitypicker--breadcrumb"},
+    {id: "agenta-entity-ui-shared-entitytable--multi-select"},
+    {id: "agenta-entity-ui-shared-runnableoutputvalue--antd-vs-agenta"},
+    {id: "agenta-entity-ui-templateformat-templateformatpicker--antd-vs-agenta"},
+    {id: "agenta-entity-ui-testcase-testcasedrawer--default"},
+    {id: "agenta-entity-ui-variant-environmentstatus--antd-vs-agenta"},
+    {id: "agenta-entity-ui-variant-variantdetails--antd-vs-agenta"},
+    {id: "agenta-entity-ui-viewtypes-formview--antd-vs-agenta"},
+    {id: "agenta-entity-ui-workflow-workflowkindtag--antd-vs-agenta"},
+    {id: "agenta-entity-ui-workflow-workflowtypetag--antd-vs-agenta"},
 ]
+
+// Per-story runs: `node parity/a11y.mjs <story-id>...` audits just those ids (registered
+// entries keep their `open` config; unknown ids run bare). Mirrors the VRT's argv contract.
+const argvIds = process.argv.slice(2)
+const SELECTED = argvIds.length
+    ? argvIds.map((id) => STORIES.find((s) => s.id === id) ?? {id})
+    : STORIES
 
 /**
  * DECLARED, UNGATED deviations — reported every run so they stay visible, but not failures.
@@ -111,13 +152,121 @@ const EXPECTED = [
             "antd Form description colour colorTextDescription #758391 on white = 3.88:1. " +
             "antd half fails the same 1 node at the same ratio.",
     },
+    // entity-ui wave 1: token-inherited contrast, declared story-wide (no slot to key on).
+    {
+        story: "agenta-entity-ui-drawers-drawerfooter--antd-vs-agenta",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-drawers-masterdetailrail--antd-vs-agenta",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-gatewaytool-connectionstatusbadge--antd-vs-agenta",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-gatewaytrigger-eventsourcepicker--open-state",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-gatewaytrigger-messagecomposer--antd-vs-agenta",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-gatewaytrigger-schedulebuilderfield--antd-vs-agenta",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-gatewaytrigger-windowfield--antd-vs-agenta",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-modals-entitycommitmodal--clean-revision",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-selection-entityselectormodal--open",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-selection-unifiedentitypicker--cascading",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-selection-unifiedentitypicker--breadcrumb",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-shared-entitytable--multi-select",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-shared-runnableoutputvalue--antd-vs-agenta",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-secretprovider-customproviderform--new-provider",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-variant-variantdetails--antd-vs-agenta",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
 ]
 
 const isExpected = (storyId, rule, slot) =>
-    EXPECTED.find((e) => e.story === storyId && e.rule === rule && e.slot && e.slot === slot)
+    EXPECTED.find(
+        (e) => e.story === storyId && e.rule === rule && (e.slot ? e.slot === slot : true),
+    )
 
 /** Audit one story. Returns {roots, rulesRun, violations} or {error}. */
-async function auditOne(page, {id, open}) {
+async function auditOne(page, {id, open, waitFor}) {
     let lastError = null
     for (let attempt = 0; attempt <= RETRIES; attempt++) {
         try {
@@ -125,8 +274,26 @@ async function auditOne(page, {id, open}) {
                 waitUntil: "domcontentloaded",
                 timeout: 120_000,
             })
-            // Open stories may have no .grid — wait for their trigger instead.
-            await page.waitForSelector(open || ".grid, [data-open-compare]", {timeout: 30_000})
+            // Open stories may have no .grid — wait for their trigger instead. Data-seam
+            // showcases (modals/drawers portaled to body, plain tables/forms) have neither
+            // grid nor compare marker, so accept their overlay/subject roots too.
+            // waitForSelector pins on the FIRST DOM match — Storybook's permanently-mounted
+            // (hidden) error overlay contains a <table>, so a comma list can wait forever on a
+            // hidden node. Wait for any VISIBLE candidate instead. Visibility must be
+            // getClientRects(), not offsetParent: position:fixed overlays (sheets/dialogs)
+            // have offsetParent === null while fully visible.
+            const readySel =
+                waitFor ||
+                open ||
+                ".grid, [data-open-compare], [data-slot=dialog-content], [data-slot=sheet-content], [data-slot=alert-dialog-content], [data-vrt-subject], form, table"
+            await page.waitForFunction(
+                (sel) =>
+                    [...document.querySelectorAll(sel)].some(
+                        (el) => el.getClientRects().length > 0,
+                    ),
+                readySel,
+                {timeout: 30_000},
+            )
             await page.waitForTimeout(300)
             if (open) {
                 await page.locator(open).first().click() // natural, Radix-managed open
@@ -140,13 +307,18 @@ async function auditOne(page, {id, open}) {
                     "[data-slot=select-content], [data-slot=dropdown-menu-content], [data-slot=dialog-content], [data-slot=sheet-content], [data-slot=alert-dialog-content]",
                 )
                 const oc = document.querySelector("[data-open-compare]")
-                const context = overlay
+                let context = overlay
                     ? [overlay]
                     : oc
                       ? [oc.children[1]]
                       : [...document.querySelectorAll(".grid")]
                             .map((r) => r.children[2])
                             .filter(Boolean)
+                // Showcase stories (no parity layout at all) audit the whole story root.
+                if (!context.length) {
+                    const root = document.querySelector("#storybook-root")
+                    if (root) context = [root]
+                }
                 // color-contrast is ON. It used to be disabled on the grounds that "the palette is
                 // matched 1:1 to antd" — no longer true: `presetTag` in palette.ts deliberately
                 // steps 5 of its 16 tag pairs down antd's ramp to reach WCAG AA. A palette that
@@ -195,12 +367,12 @@ async function run() {
     const browser = await chromium.launch()
     const page = await browser.newPage()
     const all = []
-    for (const story of STORIES) {
+    for (const story of SELECTED) {
         all.push({id: story.id, ...(await auditOne(page, story))})
     }
     await browser.close()
 
-    console.log(`\naxe a11y audit — @agenta/ui half of ${STORIES.length} stories (light)\n`)
+    console.log(`\naxe a11y audit — @agenta/ui half of ${SELECTED.length} stories (light)\n`)
 
     const errors = []
     const unaudited = []

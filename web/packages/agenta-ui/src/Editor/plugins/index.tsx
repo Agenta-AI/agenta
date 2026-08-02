@@ -86,6 +86,7 @@ const EditorPlugins = ({
     loadingFallback = "skeleton",
     useNativeCodeNodes = false,
     isDiffView = false,
+    ariaLabel,
 }: EditorPluginsProps) => {
     const markdown = useAtomValue(markdownViewAtom(id))
 
@@ -116,6 +117,8 @@ const EditorPlugins = ({
             <RichTextPlugin
                 contentEditable={
                     <ContentEditable
+                        // Lexical 0.46 spreads standard aria-* onto the div; `ariaLabel` is dropped.
+                        aria-label={ariaLabel}
                         className={clsx(
                             `editor-input relative outline-none min-h-[inherit] ${
                                 singleLine ? "single-line whitespace-nowrap overflow-x-auto" : ""

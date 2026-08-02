@@ -1,4 +1,6 @@
 /** The schedule drawer's optional [start, end) active-window bounds. */
+import {useId} from "react"
+
 import {localFaceToUtcIso, utcIsoToLocalFace} from "@agenta/entities/gatewayTrigger"
 
 import {DateTimeInput} from "../../../gatewayTool/components/schemaFormControls"
@@ -25,14 +27,23 @@ export function WindowField({
     onChangeStart: (next: string | null) => void
     onChangeEnd: (next: string | null) => void
 }) {
+    // Names each native date input from its visible Start/End label (axe label rule).
+    const startLabelId = useId()
+    const endLabelId = useId()
     return (
         <div className="flex flex-col gap-2">
             <div className="flex gap-3">
                 <div className="flex w-[116px] shrink-0 flex-col gap-2">
-                    <span className="flex h-8 items-center px-2.5 text-xs text-[var(--ag-colorTextSecondary)]">
+                    <span
+                        id={startLabelId}
+                        className="flex h-8 items-center px-2.5 text-xs text-[var(--ag-colorTextSecondary)]"
+                    >
                         Start
                     </span>
-                    <span className="flex h-8 items-center px-2.5 text-xs text-[var(--ag-colorTextSecondary)]">
+                    <span
+                        id={endLabelId}
+                        className="flex h-8 items-center px-2.5 text-xs text-[var(--ag-colorTextSecondary)]"
+                    >
                         End
                     </span>
                 </div>
@@ -40,6 +51,7 @@ export function WindowField({
                     <div className="w-full max-w-prose">
                         <DateTimeInput
                             showTime
+                            aria-labelledby={startLabelId}
                             value={utcIsoToLocalFace(startTime) ?? undefined}
                             onChange={(d) => onChangeStart(localFaceToUtcIso(d ?? null))}
                         />
@@ -47,6 +59,7 @@ export function WindowField({
                     <div className="w-full max-w-prose">
                         <DateTimeInput
                             showTime
+                            aria-labelledby={endLabelId}
                             value={utcIsoToLocalFace(endTime) ?? undefined}
                             onChange={(d) => onChangeEnd(localFaceToUtcIso(d ?? null))}
                         />
