@@ -3,8 +3,8 @@ import {useCallback} from "react"
 
 import {getScheduleMessagePreview} from "@agenta/entities/gatewayTrigger"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
+import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {Lightning} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
 import {useSetAtom} from "jotai"
 
 import {EventSourcePicker, type SampledEvent} from "../shared/EventSourcePicker"
@@ -45,20 +45,31 @@ export function RunSubscriptionButton({
 
     if (disabled) {
         return (
-            <Tooltip title="Create the trigger first to run it">
-                <span>
-                    <Button icon={<Lightning size={14} />} disabled>
-                        Run in playground
-                    </Button>
-                </span>
-            </Tooltip>
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <span>
+                            <Button variant="outline" disabled>
+                                <Lightning size={14} />
+                                Run in playground
+                            </Button>
+                        </span>
+                    </TooltipTrigger>
+                    <TooltipContent>Create the trigger first to run it</TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
         )
     }
 
     return (
         <EventSourcePicker
             placement="topRight"
-            trigger={<Button icon={<Lightning size={14} />}>Run in playground</Button>}
+            trigger={
+                <Button variant="outline">
+                    <Lightning size={14} />
+                    Run in playground
+                </Button>
+            }
             recentEvents={[]}
             onPick={run}
         />

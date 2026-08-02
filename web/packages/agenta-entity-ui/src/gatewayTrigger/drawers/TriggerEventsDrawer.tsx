@@ -9,8 +9,9 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {Badge, Divider, EmptyState, InputAffix, Spinner} from "@agenta/ui/ui"
 import {ArrowLeft, MagnifyingGlass} from "@phosphor-icons/react"
-import {Card, Divider, Drawer, Empty, Form, Input, Spin, Tag, Typography} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import SchemaForm from "../../gatewayTool/components/SchemaForm"
@@ -37,7 +38,7 @@ export default function TriggerEventsDrawer() {
     }, [])
 
     return (
-        <Drawer
+        <EnhancedDrawer
             open={open}
             onClose={handleClose}
             title={
@@ -45,7 +46,8 @@ export default function TriggerEventsDrawer() {
                     ? "Event"
                     : `Events${state?.integrationName ? ` · ${state.integrationName}` : ""}`
             }
-            size="large"
+            // antd `size="large"` = 736px; the EnhancedDrawer facade sizes via `width`.
+            width={736}
             destroyOnClose
             styles={{
                 body: {
@@ -66,7 +68,7 @@ export default function TriggerEventsDrawer() {
                 ) : (
                     <EventsView integrationKey={state.integrationKey} onSelect={setSelectedEvent} />
                 ))}
-        </Drawer>
+        </EnhancedDrawer>
     )
 }
 
@@ -103,20 +105,19 @@ function EventsView({
     return (
         <div className="flex flex-col h-full overflow-hidden">
             <div className="flex flex-col gap-3 px-6 pt-4 pb-3 shrink-0">
-                <Input
+                <InputAffix
                     placeholder="Search events…"
                     prefix={<MagnifyingGlass size={16} />}
                     value={search.value}
-                    onChange={(e) => search.onChange(e.target.value)}
+                    onValueChange={(v) => search.onChange(v)}
                     allowClear
-                    onClear={() => search.onChange("")}
                 />
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="text-xs text-[var(--ag-colorTextDescription)]">
                     {total} event{total !== 1 ? "s" : ""}
-                </Typography.Text>
+                </span>
             </div>
 
-            <Divider className="!m-0" />
+            <Divider className="m-0" />
 
             <div
                 ref={scrollRef}
@@ -124,10 +125,10 @@ function EventsView({
             >
                 {isLoading && events.length === 0 ? (
                     <div className="flex items-center justify-center py-8">
-                        <Spin />
+                        <Spinner />
                     </div>
                 ) : events.length === 0 ? (
-                    <Empty description="No events found" />
+                    <EmptyState description="No events found" />
                 ) : (
                     <div className="flex flex-col gap-2">
                         {events.map((event, i) => (
@@ -139,30 +140,39 @@ function EventsView({
                                         isFetching={isFetchingNextPage}
                                     />
                                 )}
-                                <Card
-                                    hoverable
+                                {/* antd Card (size="small" hoverable): colorBorderSecondary
+                                    border, borderRadiusLG, 12px body padding; hover swaps the
+                                    border for boxShadowCard. */}
+                                <div
+                                    role="button"
+                                    tabIndex={0}
                                     onClick={() => onSelect(event)}
-                                    className="cursor-pointer"
-                                    size="small"
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" || e.key === " ") {
+                                            e.preventDefault()
+                                            onSelect(event)
+                                        }
+                                    }}
+                                    className="box-border cursor-pointer rounded-control-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgContainer)] p-3 transition-shadow hover:border-transparent hover:shadow-[0_1px_2px_-2px_rgba(0,0,0,0.16),0_3px_6px_0_rgba(0,0,0,0.12),0_5px_12px_4px_rgba(0,0,0,0.09)]"
                                 >
                                     <div className="flex flex-col gap-0.5">
                                         <div className="flex items-center gap-2">
-                                            <Typography.Text strong className="truncate">
+                                            <span className="truncate font-semibold">
                                                 {event.name}
-                                            </Typography.Text>
+                                            </span>
                                             {event.categories?.slice(0, 2).map((c) => (
-                                                <Tag key={c} className="text-xs">
+                                                <Badge key={c} className="text-xs">
                                                     {c}
-                                                </Tag>
+                                                </Badge>
                                             ))}
                                         </div>
                                         {event.description && (
-                                            <Typography.Text type="secondary" className="text-xs">
+                                            <span className="text-xs text-[var(--ag-colorTextDescription)]">
                                                 {event.description}
-                                            </Typography.Text>
+                                            </span>
                                         )}
                                     </div>
-                                </Card>
+                                </div>
                             </React.Fragment>
                         ))}
 
@@ -174,7 +184,7 @@ function EventsView({
 
                         {isFetchingNextPage && (
                             <div className="flex items-center justify-center py-4">
-                                <Spin size="small" />
+                                <Spinner size="small" />
                             </div>
                         )}
                     </div>
@@ -199,7 +209,6 @@ function EventDetailView({
     event: TriggerCatalogEvent
     onBack: () => void
 }) {
-    const [form] = Form.useForm()
     const {event: detail, isLoading} = useTriggerEvent(integrationKey, event.key)
 
     const schema = (detail?.trigger_config ?? null) as Record<string, unknown> | null
@@ -216,32 +225,28 @@ function EventDetailView({
                     >
                         <ArrowLeft size={16} />
                     </button>
-                    <Typography.Text strong className="truncate flex-1">
-                        {event.name}
-                    </Typography.Text>
+                    <span className="truncate flex-1 font-semibold">{event.name}</span>
                 </div>
                 {event.description && (
-                    <Typography.Paragraph type="secondary" className="!text-xs !mb-0">
+                    <p className="text-xs m-0 text-[var(--ag-colorTextDescription)]">
                         {event.description}
-                    </Typography.Paragraph>
+                    </p>
                 )}
             </div>
 
-            <Divider className="!m-0" />
+            <Divider className="m-0" />
 
             <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4">
-                <Typography.Text className="text-sm font-medium">
-                    Trigger configuration
-                </Typography.Text>
+                <span className="text-sm font-medium">Trigger configuration</span>
                 <div className="mt-3">
                     {isLoading ? (
                         <div className="flex items-center justify-center py-8">
-                            <Spin />
+                            <Spinner />
                         </div>
                     ) : schema && Object.keys(schema).length > 0 ? (
-                        <SchemaForm schema={schema} form={form} disabled />
+                        <SchemaForm schema={schema} disabled />
                     ) : (
-                        <Empty description="This event has no configuration" />
+                        <EmptyState description="This event has no configuration" />
                     )}
                 </div>
             </div>

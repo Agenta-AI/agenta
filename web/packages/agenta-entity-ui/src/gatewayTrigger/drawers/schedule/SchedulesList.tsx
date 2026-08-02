@@ -1,6 +1,6 @@
 /** The schedule drawer's master-detail left rail. */
 import {describeCron, isEntityActive, type TriggerSchedule} from "@agenta/entities/gatewayTrigger"
-import {Modal} from "antd"
+import {modal} from "@agenta/ui"
 
 import {
     DraftListRow,
@@ -36,10 +36,6 @@ export function SchedulesList({
     onRemoveDraft: (id: string) => void
     onDeleteSchedule: (id: string) => void
 }) {
-    // Use the hook form so the confirm renders inside the theme context (static
-    // Modal.confirm escapes ConfigProvider and renders unstyled in dark mode).
-    const [modal, modalContextHolder] = Modal.useModal()
-
     const confirmRemoveDraft = (draftId: string, name: string) =>
         modal.confirm({
             title: "Discard draft?",
@@ -71,7 +67,6 @@ export function SchedulesList({
             isEmpty={schedules.length === 0 && drafts.length === 0}
             emptyText="No schedules yet."
         >
-            {modalContextHolder}
             {/* One row per unsaved draft slot; each persists its own form state. */}
             {drafts.map((draftId) => (
                 <DraftListRow

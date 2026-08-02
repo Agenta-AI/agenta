@@ -1,10 +1,23 @@
-import {useCallback, useRef, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {createTriggerConnection, fetchTriggerConnection} from "@agenta/entities/gatewayTrigger"
 import {getAgentaApiUrl, getAgentaWebUrl, queryClient} from "@agenta/shared/api"
 import {generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
-import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
-import {Divider, Form, Input, message, Select, Tooltip, Typography} from "antd"
+import {EnhancedModal, message, ModalContent, ModalFooter} from "@agenta/ui"
+import {
+    Divider,
+    Field,
+    Input,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import Image from "next/image"
 
 const DEFAULT_PROVIDER = "composio"
@@ -44,6 +57,20 @@ function invalidateConnections() {
     queryClient.invalidateQueries({queryKey: ["triggers", "catalog"]})
 }
 
+/** Label with an antd-style hover tooltip (no info icon — the label itself is the trigger). */
+function LabelTooltip({label, tip}: {label: string; tip: string}) {
+    return (
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span>{label}</span>
+                </TooltipTrigger>
+                <TooltipContent>{tip}</TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    )
+}
+
 export default function TriggerConnectDrawer({
     open,
     integrationKey,
@@ -55,34 +82,57 @@ export default function TriggerConnectDrawer({
     onSuccess,
 }: Props) {
     const [loading, setLoading] = useState(false)
-    const [form] = Form.useForm()
     const slugTouchedRef = useRef(false)
     const slugSuffixRef = useRef(randomAlphanumeric(3))
-
-    const availableModes = resolveAvailableModes(authSchemes)
-    const [selectedMode, setSelectedMode] = useState<AuthMode>(availableModes[0] || "oauth")
-
-    const handleClose = useCallback(() => {
-        form.resetFields()
-        slugTouchedRef.current = false
-        slugSuffixRef.current = randomAlphanumeric(3)
-        setLoading(false)
-        onClose()
-    }, [form, onClose])
 
     const buildDefaultSlug = useCallback((name: string) => {
         return generateDefaultSlug(name, slugSuffixRef.current)
     }, [])
 
+    // Explicit controlled fields (the antd Form/useForm pair is gone). `slugError` carries
+    // the one antd rule ({required: true, message: "Required"}), checked on submit.
+    const [name, setName] = useState(integrationName)
+    const [slug, setSlug] = useState(() => buildDefaultSlug(integrationName || ""))
+    const [slugError, setSlugError] = useState<string | null>(null)
+
+    const availableModes = resolveAvailableModes(authSchemes)
+    const [selectedMode, setSelectedMode] = useState<AuthMode>(availableModes[0] || "oauth")
+
+    // Re-seed per open (was antd `initialValues` + `destroyOnClose` remount semantics):
+    // the state lives on this component, which stays mounted across opens.
+    useEffect(() => {
+        if (!open) return
+        setName(integrationName)
+        setSlug(buildDefaultSlug(integrationName || ""))
+        slugTouchedRef.current = false
+        setSlugError(null)
+    }, [open, integrationKey, integrationName, buildDefaultSlug])
+
+    const handleClose = useCallback(() => {
+        // Was `form.resetFields()`: rewind the controlled fields to their defaults.
+        slugTouchedRef.current = false
+        slugSuffixRef.current = randomAlphanumeric(3)
+        setName(integrationName)
+        setSlug(generateDefaultSlug(integrationName || "", slugSuffixRef.current))
+        setSlugError(null)
+        setLoading(false)
+        onClose()
+    }, [integrationName, onClose])
+
     const handleSubmit = useCallback(async () => {
+        // Was `form.validateFields()`: the only rule is slug required.
+        if (!slug.trim()) {
+            setSlugError("Required")
+            return
+        }
+        setSlugError(null)
         try {
-            const values = await form.validateFields()
             setLoading(true)
 
             const result = await createTriggerConnection({
                 connection: {
-                    slug: values.slug,
-                    name: values.name || values.slug,
+                    slug,
+                    name: name || slug,
                     provider_key: DEFAULT_PROVIDER,
                     integration_key: integrationKey,
                     data: {auth_scheme: selectedMode},
@@ -161,7 +211,7 @@ export default function TriggerConnectDrawer({
         } catch {
             setLoading(false)
         }
-    }, [form, selectedMode, integrationKey, handleClose, onSuccess])
+    }, [slug, name, selectedMode, integrationKey, handleClose, onSuccess])
 
     return (
         <EnhancedModal
@@ -185,89 +235,81 @@ export default function TriggerConnectDrawer({
                         />
                     )}
                     <div className="flex flex-col min-w-0">
-                        <Typography.Text strong className="leading-snug">
-                            {integrationName}
-                        </Typography.Text>
+                        <span className="font-semibold leading-snug">{integrationName}</span>
                         {integrationDescription && (
-                            <Typography.Text type="secondary" className="!text-xs line-clamp-2">
+                            <span className="text-xs line-clamp-2 text-[var(--ag-colorTextDescription)]">
                                 {integrationDescription}
-                            </Typography.Text>
+                            </span>
                         )}
                     </div>
                 </div>
 
-                <Divider className="!m-0" />
+                <Divider className="m-0" />
 
-                <Form
-                    form={form}
-                    layout="vertical"
-                    className="!mb-0"
-                    initialValues={{
-                        name: integrationName,
-                        slug: buildDefaultSlug(integrationName || ""),
-                    }}
-                    requiredMark={(label, {required}) => (
-                        <>
-                            {label}
-                            {required && <span className="text-red-500 ml-1">*</span>}
-                        </>
-                    )}
-                >
-                    <Form.Item
-                        name="name"
-                        label={
-                            <Tooltip title="Display name for this connection">
-                                <span>Name</span>
-                            </Tooltip>
-                        }
-                        className="!mb-4"
+                <div className="flex flex-col gap-4">
+                    <Field
+                        label={<LabelTooltip label="Name" tip="Display name for this connection" />}
                     >
                         <Input
                             placeholder={`e.g. My ${integrationName} Account`}
+                            value={name}
                             onChange={(e) => {
+                                setName(e.target.value)
                                 if (!slugTouchedRef.current) {
-                                    form.setFieldValue(
-                                        "slug",
+                                    // Was Form.setFieldValue("slug", …) inside onChange —
+                                    // moved onto the direct controlled path.
+                                    setSlug(
                                         buildDefaultSlug(e.target.value || integrationName || ""),
                                     )
                                 }
                             }}
                         />
-                    </Form.Item>
+                    </Field>
 
-                    <Form.Item
-                        name="slug"
+                    <Field
                         label={
-                            <Tooltip title="Unique identifier — lowercase letters, numbers, and hyphens only">
-                                <span>Slug</span>
-                            </Tooltip>
+                            <LabelTooltip
+                                label="Slug"
+                                tip="Unique identifier — lowercase letters, numbers, and hyphens only"
+                            />
                         }
-                        rules={[{required: true, message: "Required"}]}
-                        className={availableModes.length > 1 ? "!mb-4" : "!mb-0"}
+                        required
+                        error={slugError}
                     >
                         <Input
                             placeholder={`e.g. my-${integrationKey}`}
-                            onChange={() => {
+                            value={slug}
+                            aria-invalid={slugError ? true : undefined}
+                            onChange={(e) => {
                                 slugTouchedRef.current = true
+                                setSlug(e.target.value)
+                                if (slugError && e.target.value.trim()) setSlugError(null)
                             }}
                         />
-                    </Form.Item>
+                    </Field>
 
                     {availableModes.length > 1 && (
-                        <Form.Item label="Auth Method" className="!mb-0">
+                        <Field label="Auth Method">
                             <Select
                                 value={selectedMode}
-                                onChange={setSelectedMode}
-                                options={availableModes.map((m) => ({
-                                    value: m,
-                                    label: m === "oauth" ? "OAuth" : "API Key",
-                                }))}
-                            />
-                        </Form.Item>
+                                onValueChange={(v) => setSelectedMode(v as AuthMode)}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {availableModes.map((m) => (
+                                        <SelectItem key={m} value={m}>
+                                            {m === "oauth" ? "OAuth" : "API Key"}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </Field>
                     )}
-                </Form>
+                </div>
 
-                <Divider className="!m-0" />
+                <Divider className="m-0" />
 
                 <ModalFooter
                     onCancel={handleClose}

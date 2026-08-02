@@ -10,8 +10,8 @@ import {
     splitTemplate,
 } from "@agenta/entities/gatewayTrigger"
 import {Editor} from "@agenta/ui/editor"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {Lightning, Plus} from "@phosphor-icons/react"
-import {Tooltip, Typography} from "antd"
 
 import {EventSourcePicker, type SampledEvent} from "../shared/EventSourcePicker"
 
@@ -137,9 +137,9 @@ export function MappingSection({
         return (
             <div className="flex min-w-0 flex-col gap-2">
                 <div className="flex items-center justify-between gap-2">
-                    <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+                    <span className="text-[11px] leading-snug text-[var(--ag-colorTextDescription)]">
                         Map the event into the workflow inputs (JSON).
-                    </Typography.Text>
+                    </span>
                     <EventSourcePicker
                         placement="bottomRight"
                         trigger={
@@ -170,11 +170,11 @@ export function MappingSection({
 
     return (
         <div className="flex min-w-0 flex-col gap-2">
-            <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+            <span className="text-[11px] leading-snug text-[var(--ag-colorTextDescription)]">
                 {isChat
                     ? "Write the message your agent receives. Click a field to drop in its live value."
                     : "Build the agent's input from the event. Click a field to drop in its live value."}
-            </Typography.Text>
+            </span>
 
             {raw ? (
                 <div className="overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorder)]">
@@ -192,12 +192,9 @@ export function MappingSection({
                     {/* Left rail = the data (event fields + live values), like the other sections' rails. */}
                     <div className="flex w-[200px] shrink-0 flex-col gap-1">
                         <div className="flex items-center justify-between gap-2">
-                            <Typography.Text
-                                type="secondary"
-                                className="!text-[11px] font-medium uppercase tracking-wide"
-                            >
+                            <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--ag-colorTextDescription)]">
                                 Event fields
-                            </Typography.Text>
+                            </span>
                             <EventSourcePicker
                                 placement="bottomRight"
                                 trigger={
@@ -218,37 +215,39 @@ export function MappingSection({
                         <div className="flex max-h-[220px] flex-col gap-0.5 overflow-y-auto">
                             {fieldRows.length > 0 ? (
                                 fieldRows.map((f) => (
-                                    <Tooltip
-                                        key={f.key}
-                                        title={`${f.label}: ${f.value.slice(0, 300)}${
-                                            f.value.length > 300 ? "…" : ""
-                                        }`}
-                                        placement="left"
-                                        mouseEnterDelay={0.4}
-                                    >
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                insertApi.current?.insert(
-                                                    `event.attributes.${f.key}`,
-                                                )
-                                            }
-                                            className="group flex w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left hover:bg-[var(--ag-colorFillSecondary)]"
-                                        >
-                                            <span className="min-w-0 flex-1">
-                                                <span className="block truncate text-xs font-medium text-[var(--ag-colorText)]">
-                                                    {f.label}
-                                                </span>
-                                                <span className="block truncate font-mono text-[11px] text-[var(--ag-colorTextSecondary)]">
-                                                    {f.value}
-                                                </span>
-                                            </span>
-                                            <Plus
-                                                size={13}
-                                                className="shrink-0 text-[var(--ag-colorTextTertiary)] opacity-0 group-hover:text-[var(--ag-colorPrimary)] group-hover:opacity-100"
-                                            />
-                                        </button>
-                                    </Tooltip>
+                                    <TooltipProvider key={f.key} delayDuration={400}>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        insertApi.current?.insert(
+                                                            `event.attributes.${f.key}`,
+                                                        )
+                                                    }
+                                                    className="group flex w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left hover:bg-[var(--ag-colorFillSecondary)]"
+                                                >
+                                                    <span className="min-w-0 flex-1">
+                                                        <span className="block truncate text-xs font-medium text-[var(--ag-colorText)]">
+                                                            {f.label}
+                                                        </span>
+                                                        <span className="block truncate font-mono text-[11px] text-[var(--ag-colorTextSecondary)]">
+                                                            {f.value}
+                                                        </span>
+                                                    </span>
+                                                    <Plus
+                                                        size={13}
+                                                        className="shrink-0 text-[var(--ag-colorTextTertiary)] opacity-0 group-hover:text-[var(--ag-colorPrimary)] group-hover:opacity-100"
+                                                    />
+                                                </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="left">
+                                                {`${f.label}: ${f.value.slice(0, 300)}${
+                                                    f.value.length > 300 ? "…" : ""
+                                                }`}
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
                                 ))
                             ) : (
                                 <div className="rounded-md border border-dashed border-[var(--ag-colorBorder)] px-2 py-3 text-center text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
@@ -260,12 +259,9 @@ export function MappingSection({
 
                     {/* Right = the message built from that data (divider mirrors the other sections). */}
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
-                        <Typography.Text
-                            type="secondary"
-                            className="!text-[11px] font-medium uppercase tracking-wide"
-                        >
+                        <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--ag-colorTextDescription)]">
                             Message
-                        </Typography.Text>
+                        </span>
                         <PillEditor
                             value={template}
                             onChange={setTpl}
@@ -308,11 +304,7 @@ export function MappingSection({
                 {raw ? "← Back to composer" : "Advanced · raw JSON"}
             </button>
 
-            {error && (
-                <Typography.Text type="danger" className="!text-[11px]">
-                    {error}
-                </Typography.Text>
-            )}
+            {error && <span className="text-[11px] text-[var(--ag-colorErrorText)]">{error}</span>}
         </div>
     )
 }

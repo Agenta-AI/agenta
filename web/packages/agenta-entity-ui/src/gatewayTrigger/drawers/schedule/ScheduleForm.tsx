@@ -25,8 +25,8 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {dayjs} from "@agenta/shared/utils"
 import {message} from "@agenta/ui"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
+import {Input, Spinner} from "@agenta/ui/ui"
 import {CalendarBlank, ChatText, Clock, GitBranch, Tag} from "@phosphor-icons/react"
-import {Form, Input, Spin} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 import {DrawerFooter} from "../../../drawers/shared/DrawerFooter"
@@ -468,7 +468,7 @@ export function ScheduleForm({
     if (isEdit && scheduleLoading) {
         return (
             <div className="flex items-center justify-center py-12">
-                <Spin />
+                <Spinner />
             </div>
         )
     }
@@ -480,86 +480,85 @@ export function ScheduleForm({
             }`}
         >
             <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4">
-                <Form layout="vertical">
-                    <ConfigAccordionSection
-                        size="compact"
-                        collapsible={false}
-                        icon={<Tag size={15} />}
-                        title="Name"
-                        status={name.trim() ? "complete" : "default"}
-                    >
-                        <Input
-                            placeholder="Schedule name"
-                            value={name}
-                            onChange={(e) => {
-                                setName(e.target.value)
-                                onNameChange?.(e.target.value)
-                            }}
-                        />
-                    </ConfigAccordionSection>
+                <ConfigAccordionSection
+                    size="compact"
+                    collapsible={false}
+                    icon={<Tag size={15} />}
+                    title="Name"
+                    status={name.trim() ? "complete" : "default"}
+                >
+                    <Input
+                        placeholder="Schedule name"
+                        value={name}
+                        onChange={(e) => {
+                            setName(e.target.value)
+                            onNameChange?.(e.target.value)
+                        }}
+                    />
+                </ConfigAccordionSection>
 
-                    <ConfigAccordionSection
-                        size="compact"
-                        icon={<Clock size={15} />}
-                        title={<RequiredTitle>When should it run?</RequiredTitle>}
-                        status={cronValid ? "complete" : "warning"}
-                        summary={cronValid ? describeCron(cron) : undefined}
-                        summaryCollapsedOnly
-                    >
-                        <ScheduleBuilderField value={cron} onChange={setCron} />
-                    </ConfigAccordionSection>
+                <ConfigAccordionSection
+                    size="compact"
+                    icon={<Clock size={15} />}
+                    title={<RequiredTitle>When should it run?</RequiredTitle>}
+                    status={cronValid ? "complete" : "warning"}
+                    summary={cronValid ? describeCron(cron) : undefined}
+                    summaryCollapsedOnly
+                >
+                    <ScheduleBuilderField value={cron} onChange={setCron} />
+                </ConfigAccordionSection>
 
-                    <ConfigAccordionSection
-                        size="compact"
-                        defaultOpen={false}
-                        icon={<CalendarBlank size={15} />}
-                        title="Active window"
-                        status={windowSet ? "complete" : "default"}
-                        summary={windowSummary}
-                        summaryCollapsedOnly
-                    >
-                        <WindowField
-                            startTime={startTime}
-                            endTime={endTime}
-                            onChangeStart={setStartTime}
-                            onChangeEnd={setEndTime}
-                        />
-                    </ConfigAccordionSection>
+                <ConfigAccordionSection
+                    size="compact"
+                    defaultOpen={false}
+                    icon={<CalendarBlank size={15} />}
+                    title="Active window"
+                    status={windowSet ? "complete" : "default"}
+                    summary={windowSummary}
+                    summaryCollapsedOnly
+                >
+                    <WindowField
+                        startTime={startTime}
+                        endTime={endTime}
+                        onChangeStart={setStartTime}
+                        onChangeEnd={setEndTime}
+                    />
+                </ConfigAccordionSection>
 
-                    <ConfigAccordionSection
-                        size="compact"
-                        icon={<GitBranch size={15} />}
-                        title={<RequiredTitle>Which version runs?</RequiredTitle>}
-                        status={versionChosen ? "complete" : "warning"}
-                        summary={versionSummary}
-                        summaryCollapsedOnly
-                    >
-                        <RunVersionField
-                            bindMode={bindMode}
-                            onBindModeChange={setBindMode}
-                            revisionAdapter={revisionAdapter}
-                            revisionPlaceholder={
-                                workflowLabel ??
-                                resolvedRevisionName ??
-                                (playgroundEntityId
-                                    ? "Select a variant revision"
-                                    : "Select workflow revision")
-                            }
-                            onRevisionSelect={(selection) => {
-                                setWorkflowRevId(selection.id)
-                                setWorkflowSelection(selection)
-                                const m = selection.metadata
-                                const app = playgroundAppName ?? m.workflowName
-                                const segs: string[] = []
-                                if (app) segs.push(app)
-                                if (m.variantName && m.variantName !== app) segs.push(m.variantName)
-                                let label = segs.join(" / ")
-                                if (m.revision != null)
-                                    label = label ? `${label} · v${m.revision}` : `v${m.revision}`
-                                setWorkflowLabel(label || selection.label)
-                            }}
-                            hideEnvironment
-                            /* Deployed option temporarily hidden — drop `hideEnvironment`
+                <ConfigAccordionSection
+                    size="compact"
+                    icon={<GitBranch size={15} />}
+                    title={<RequiredTitle>Which version runs?</RequiredTitle>}
+                    status={versionChosen ? "complete" : "warning"}
+                    summary={versionSummary}
+                    summaryCollapsedOnly
+                >
+                    <RunVersionField
+                        bindMode={bindMode}
+                        onBindModeChange={setBindMode}
+                        revisionAdapter={revisionAdapter}
+                        revisionPlaceholder={
+                            workflowLabel ??
+                            resolvedRevisionName ??
+                            (playgroundEntityId
+                                ? "Select a variant revision"
+                                : "Select workflow revision")
+                        }
+                        onRevisionSelect={(selection) => {
+                            setWorkflowRevId(selection.id)
+                            setWorkflowSelection(selection)
+                            const m = selection.metadata
+                            const app = playgroundAppName ?? m.workflowName
+                            const segs: string[] = []
+                            if (app) segs.push(app)
+                            if (m.variantName && m.variantName !== app) segs.push(m.variantName)
+                            let label = segs.join(" / ")
+                            if (m.revision != null)
+                                label = label ? `${label} · v${m.revision}` : `v${m.revision}`
+                            setWorkflowLabel(label || selection.label)
+                        }}
+                        hideEnvironment
+                        /* Deployed option temporarily hidden — drop `hideEnvironment`
                                and uncomment to restore.
                             envOptions={envOptions}
                             envLoading={
@@ -573,27 +572,26 @@ export function ScheduleForm({
                                     : undefined
                             }
                             */
-                        />
-                    </ConfigAccordionSection>
+                    />
+                </ConfigAccordionSection>
 
-                    <ConfigAccordionSection
-                        size="compact"
-                        noDivider
-                        icon={<ChatText size={15} />}
-                        title="What should the agent do?"
-                        status={messageStatus}
-                        summary={composedMessage.trim() || undefined}
-                        summaryCollapsedOnly
-                    >
-                        <MessageComposer
-                            inputsText={inputsText}
-                            onChange={setInputsText}
-                            isChat={isChatInput}
-                            primaryKey={primaryInputKey}
-                            disabled={isMutating}
-                        />
-                    </ConfigAccordionSection>
-                </Form>
+                <ConfigAccordionSection
+                    size="compact"
+                    noDivider
+                    icon={<ChatText size={15} />}
+                    title="What should the agent do?"
+                    status={messageStatus}
+                    summary={composedMessage.trim() || undefined}
+                    summaryCollapsedOnly
+                >
+                    <MessageComposer
+                        inputsText={inputsText}
+                        onChange={setInputsText}
+                        isChat={isChatInput}
+                        primaryKey={primaryInputKey}
+                        disabled={isMutating}
+                    />
+                </ConfigAccordionSection>
             </div>
 
             <DrawerFooter

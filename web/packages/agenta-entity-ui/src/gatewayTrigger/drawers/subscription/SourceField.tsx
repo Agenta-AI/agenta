@@ -7,7 +7,6 @@ import {
     type TriggerConnection,
 } from "@agenta/entities/gatewayTrigger"
 import {PencilSimple, Plus} from "@phosphor-icons/react"
-import {Form, Typography} from "antd"
 
 import {AppLogo} from "../../../drawers/shared/CatalogAppCard"
 import SchemaForm, {type SchemaFormHandle} from "../../../gatewayTool/components/SchemaForm"
@@ -40,7 +39,8 @@ export function SourceField({
     onBrowse: () => void
     isEdit: boolean
     triggerConfigSchema: Record<string, unknown> | null
-    configForm: ReturnType<typeof Form.useForm>[0]
+    /** antd FormInstance bridge — SchemaForm (gatewayTool) still requires one; typed via its props so this file stays antd-free. */
+    configForm: React.ComponentProps<typeof SchemaForm>["form"]
     configFormRef: React.RefObject<SchemaFormHandle | null>
 }) {
     const {integrations} = useTriggerCatalogIntegrations()
@@ -94,9 +94,9 @@ export function SourceField({
                 </button>
             </div>
             <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
-                <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+                <span className="text-[11px] leading-snug text-[var(--ag-colorTextDescription)]">
                     Event filters
-                </Typography.Text>
+                </span>
                 {triggerConfigSchema ? (
                     <div className="max-w-prose">
                         <SchemaForm
@@ -107,9 +107,9 @@ export function SourceField({
                         />
                     </div>
                 ) : (
-                    <Typography.Text type="secondary" className="!text-[11px]">
+                    <span className="text-[11px] text-[var(--ag-colorTextDescription)]">
                         No filters for this event.
-                    </Typography.Text>
+                    </span>
                 )}
             </div>
         </div>

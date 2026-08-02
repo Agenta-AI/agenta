@@ -15,3 +15,12 @@ export {default as TriggerScheduleDrawer} from "./drawers/TriggerScheduleDrawer"
 export {default as TriggerDeliveriesDrawer} from "./drawers/TriggerDeliveriesDrawer"
 export {default as ActiveToggle} from "./components/ActiveToggle"
 export type {ActiveToggleProps} from "./components/ActiveToggle"
+
+// Inner pieces exported for the Storybook parity harness (and any future host):
+// presentational leaves of the schedule/subscription drawers.
+export {ScheduleBuilderField} from "./drawers/ScheduleBuilderField"
+export {MessageComposer} from "./drawers/schedule/MessageComposer"
+export {WindowField} from "./drawers/schedule/WindowField"
+export {RunInPlaygroundButton} from "./drawers/schedule/RunInPlaygroundButton"
+export {RunSubscriptionButton} from "./drawers/subscription/RunSubscriptionButton"
+export {EventSourcePicker, type SampledEvent} from "./drawers/shared/EventSourcePicker"
