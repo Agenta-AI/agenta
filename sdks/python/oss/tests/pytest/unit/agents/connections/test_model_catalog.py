@@ -20,7 +20,9 @@ from agenta.sdk.agents.model_catalog import (
     ModelCatalogEntry,
     ModelRatings,
     claude_model_catalog,
+    codex_model_catalog,
     load_claude_model_catalog,
+    load_codex_model_catalog,
     load_pi_model_catalog,
     model_catalog_entries,
     model_input_modalities,
@@ -33,13 +35,30 @@ _ALL_HARNESSES = ("pi_core", "pi_agenta", "claude")
 def test_data_files_load_and_validate():
     pi = load_pi_model_catalog()
     claude = load_claude_model_catalog()
+    codex = load_codex_model_catalog()
     assert pi.schema_version == "1"
     assert claude.schema_version == "1"
+    assert codex.schema_version == "1"
     assert pi.models, "pi catalog is empty"
     assert claude.models, "claude catalog is empty"
+    assert codex.models, "codex catalog is empty"
     # Every entry is a validated ModelCatalogEntry (pydantic enforced on load).
     assert all(isinstance(e, ModelCatalogEntry) for e in pi.models)
     assert all(isinstance(e, ModelCatalogEntry) for e in claude.models)
+    assert all(isinstance(e, ModelCatalogEntry) for e in codex.models)
+
+
+def test_every_codex_model_declares_image_input():
+    assert {entry.id for entry in codex_model_catalog().models} == {
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
+        "gpt-5.5",
+        "gpt-5.2",
+    }
+    assert all(
+        entry.modalities == ["text", "image"] for entry in codex_model_catalog().models
+    )
 
 
 def test_ratings_are_enforced_1_to_5():

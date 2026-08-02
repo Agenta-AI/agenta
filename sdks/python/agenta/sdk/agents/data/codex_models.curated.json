@@ -18,7 +18,7 @@
         "currency": "USD"
       },
       "context_window": 1050000,
-      "modalities": ["text"],
+      "modalities": ["text", "image"],
       "label": "Sol (default)",
       "description": "The default Codex model: the strongest reasoning tier for agentic coding.",
       "ratings": {"cost": 2, "intelligence": 5, "speed": 3}
@@ -35,7 +35,7 @@
         "currency": "USD"
       },
       "context_window": 1050000,
-      "modalities": ["text"],
+      "modalities": ["text", "image"],
       "label": "Terra",
       "description": "A balanced Codex tier: strong capability at lower latency than Sol.",
       "ratings": {"cost": 3, "intelligence": 4, "speed": 4}
@@ -52,7 +52,7 @@
         "currency": "USD"
       },
       "context_window": 1050000,
-      "modalities": ["text"],
+      "modalities": ["text", "image"],
       "label": "Luna (cheapest)",
       "description": "The fastest, cheapest Codex tier. Use for high-volume or latency-sensitive work.",
       "ratings": {"cost": 5, "intelligence": 3, "speed": 5}
@@ -69,7 +69,7 @@
         "currency": "USD"
       },
       "context_window": 1050000,
-      "modalities": ["text"],
+      "modalities": ["text", "image"],
       "label": "GPT-5.5",
       "description": "The prior Codex generation, still capable for everyday coding tasks.",
       "ratings": {"cost": 3, "intelligence": 4, "speed": 3}
@@ -86,7 +86,7 @@
         "currency": "USD"
       },
       "context_window": 272000,
-      "modalities": ["text"],
+      "modalities": ["text", "image"],
       "label": "GPT-5.2",
       "description": "An older Codex generation kept for compatibility with existing configurations.",
       "ratings": {"cost": 4, "intelligence": 3, "speed": 4}
