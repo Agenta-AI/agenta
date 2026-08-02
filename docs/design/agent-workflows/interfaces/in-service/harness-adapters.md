@@ -28,14 +28,14 @@ Each adapter implements `_to_harness_config(...)` and emits a different `/run` w
   inline skill packages on the wire like the others; the runner materializes them under
   `.claude/skills` in the session cwd, matching Claude's project-local skill layout.
 - **`AgentaHarness`** runs on the same Pi engine but forces Agenta's opinion: it composes the
-  base instructions over the author's, forces the Agenta tool set, and layers the Agenta
+  base instructions over the author's, forces the Agenta skills and persona, and layers the
   persona into `append_system`.
 
 The wire shapes, side by side:
 
 | | Pi | Claude | Agenta |
 |---|---|---|---|
-| built-in tools | yes | no | forced set |
+| built-in tools | yes | no | yes |
 | custom tools | native | over MCP | native |
 | prompt overrides | `system`/`append_system` | none (reads `harness_kwargs`) | forced `append_system` + author `system` |
 | permission policy | carried, enforced by the relay | carried, enforced by settings + the responder | carried, enforced by the relay |

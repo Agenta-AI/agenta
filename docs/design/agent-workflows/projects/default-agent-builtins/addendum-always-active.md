@@ -30,11 +30,12 @@ remember to carry the four entries along. The location was the problem, not the 
    The runner activates all seven every time it starts Pi; Pi alone activates only four.
    Activation is unconditional platform behavior. Permission interception stays conditional on the
    policy.
-2. Permission control for Pi happens only through the main policy
+2. Permission control for the seven Pi built-ins happens only through the main policy
    (`runner.permissions.default`: `allow`, `allow_reads`, `ask`, `deny`) and the three editable
-   rule lists `harness.permissions.{allow, ask, deny}`. The default is unchanged: all three lists
-   empty, policy `allow_reads`, so `read`, `grep`, `find` and `ls` run unattended and `bash`,
-   `edit` and `write` show the approval card.
+   rule lists `harness.permissions.{allow, ask, deny}`. Custom tools may still carry an explicit
+   `permission` override. The default is unchanged: all three lists empty, policy `allow_reads`,
+   so `read`, `grep`, `find` and `ls` run unattended and `bash`, `edit` and `write` show the
+   approval card.
 3. The Permissions drawer shows the three lists, editable. The author can pick any of the seven
    canonical names (`Read`, `Bash`, `Edit`, `Write`, `Grep`, `Find`, `Ls`) into allow, ask or
    deny, and pattern rules such as `Bash(npm run:*)` stay supported and visible. A grant made from
