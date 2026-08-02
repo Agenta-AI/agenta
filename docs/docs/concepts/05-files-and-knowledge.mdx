@@ -55,7 +55,7 @@ You can build a wiki for your agent with Markdown files. Over time, it can colle
 
 To make the agent folder useful, write what the agent learns into files, then point to them from the [instructions](/concepts/instructions).
 
-[Build a knowledge base for your agent](/guides/build-a-knowledge-base) uses launch emails to show this pattern. After the marketing agent writes a few good examples, save them in `examples/launch-emails/` in the agent folder. Then add one line to the instructions: "Before writing a launch email, read the files in `examples/launch-emails/` and follow their structure."
+For example, after the marketing agent writes a few good launch emails, save them in `examples/launch-emails/` in the agent folder. Then add one line to the instructions: "Before writing a launch email, read the files in `examples/launch-emails/` and follow their structure."
 
 ### A subfolder can carry its own AGENTS.md
 
@@ -65,11 +65,10 @@ A `twitter-ads` folder can carry its own rules for campaign names, spending limi
 
 :::info Files cost nothing until the agent opens them
 
-A file adds nothing to the context until the agent opens it. This lets the agent's knowledge grow to hundreds of files without making every turn larger. Knowledge therefore belongs in files rather than in the instructions, which are sent on every turn. See [Cost and usage](/concepts/cost-and-usage).
+A file adds nothing to the context until the agent opens it. This lets the agent's knowledge grow to hundreds of files without making every turn larger. Knowledge therefore belongs in files rather than in the instructions, which are sent on every turn.
 :::
 
 ## Next
 
-- [Build a knowledge base for your agent](/guides/build-a-knowledge-base) walks through setting one up.
 - [Instructions](/concepts/instructions) covers how to point the agent at these files.
 - [Skills](/concepts/skills) covers the other on-demand way to give an agent know-how.

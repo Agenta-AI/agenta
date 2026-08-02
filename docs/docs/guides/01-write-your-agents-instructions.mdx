@@ -1,14 +1,14 @@
 ---
 title: "Write your agent's instructions"
 sidebar_label: "Write instructions"
-description: "Edit an agent's AGENTS.md file in the playground, write a first version, and fold corrections back into it."
+description: "Edit an agent's AGENTS.md instructions, write a first version, and update them as you work."
 ---
 
 ```mdx-code-block
 import Image from "@theme/IdealImage";
 ```
 
-An agent's instructions live in a file called `AGENTS.md`, sent to the agent at the start of every session. This page covers where to edit that file, what a first version looks like, and how to fold a correction back into it. For what belongs in the instructions rather than in a file or a skill, see [Instructions](/concepts/instructions).
+An agent's instructions live in `AGENTS.md`. Agenta sends this file to the agent at the start of every session. This guide shows you how to edit it, write a first version, and add corrections. To learn what belongs in instructions rather than a file or skill, see [Instructions](/concepts/instructions).
 
 ## Open the editor
 
@@ -23,11 +23,7 @@ An agent's instructions live in a file called `AGENTS.md`, sent to the agent at 
   loading="lazy"
 />
 
-The dialog has an `Edit` / `Preview` control and a formatting toolbar. `Source` on that toolbar switches to raw Markdown, which is the fastest way to paste a version in or copy one out. The `SUGGESTED` chips on the right (`+ Output format`, `+ Tone & style`, `+ Guardrails`) each insert an empty heading.
-
 ## Write a first version
-
-Keep it to the facts the agent cannot work without: who you are, what it is for, who it talks to, and what it must not do.
 
 A first version for a marketing coworker:
 
@@ -59,11 +55,11 @@ Then:
 2. Click `Commit` in the **Configuration** header.
 3. Pick `New version`, keep or edit the commit message, and click `Commit`.
 
-## Fold a correction back in
+## Add a correction
 
-Instructions grow against real failures. When the agent gets something wrong, write the rule that would have prevented it, and put it in the section it belongs to.
+Improve the instructions as you work with the agent. When it gets something wrong, add the rule that would have prevented the mistake.
 
-Say the agent drafts a LinkedIn post that opens with "In today's fast-paced world" and carries three emoji. Reopen `AGENTS.md` and extend the tone section rather than adding a new one:
+For example, the agent drafts a LinkedIn post that opens with "In today's fast-paced world" and includes three emoji. Reopen `AGENTS.md` and add the correction to the existing tone section:
 
 ```markdown
 ## How to talk to me
@@ -73,28 +69,12 @@ question. In social copy: no emoji, and never open with a scene-setting sentence
 Open with the claim.
 ```
 
-Save and commit again. Every commit is a version, so you can read back what changed and when on the **Registry** page.
+Save and commit again. Each commit creates a version. You can review what changed and when on the **Registry** page.
 
 ## Ask the agent to edit the instructions
 
-You can also describe the change in chat instead of opening the editor. While `Playground build kit` is on in the **Advanced** dialog (it is on by default), the agent can revise its own configuration as you talk to it, including its instructions.
-
-The build kit itself does not ship with the agent. Everything the build kit adds is removed on commit.
-
-## Keep the instructions short
-
-Every word in `AGENTS.md` goes to the model again on every turn of every session, so a long identity is a recurring charge rather than a one-time one. See [Cost and usage](/concepts/cost-and-usage).
-
-Two ways to keep the file short while the agent still knows more:
-
-- Move a procedure into a [skill](/concepts/skills), which the agent loads only when it needs it. See [Manage skills](/guides/manage-skills).
-- Move reference material into the agent folder and point at it from the instructions in one line, such as "the style guide is in `agent-files/writing/style.md`, read it before drafting". See [Build a knowledge base for your agent](/guides/build-a-knowledge-base).
-
-:::note
-`AGENTS.md` is the only instruction file an agent has today. The `Add instruction file` button next to **Instructions** is disabled, with the tooltip `Multiple instruction files coming soon`.
-:::
+You can also describe the change in chat. When `Playground build kit` is on in the **Advanced** dialog, the agent can update its own configuration, including its instructions. This setting is on by default.
 
 ## Next
 
-- [Build a knowledge base for your agent](/guides/build-a-knowledge-base) covers folder-level `AGENTS.md` files, which carry rules for one area of work.
 - [Control what an agent can do](/guides/control-what-an-agent-can-do) covers the limits that are settings rather than sentences.

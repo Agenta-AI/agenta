@@ -1,14 +1,14 @@
 ---
 title: "Choose a harness and model"
 sidebar_label: "Choose harness and model"
-description: "Set an agent's harness, its model, and the credential that serves that model, from the Model & harness section of the agent configuration."
+description: "Choose the harness, model, and provider credential that an Agenta agent uses."
 ---
 
 ```mdx-code-block
 import Image from "@theme/IdealImage";
 ```
 
-An agent's runtime is three separate settings: the harness, the model, and the credential that serves the model. This page sets all three. For what each one does, see [Harnesses and models](/concepts/harnesses-and-models).
+Choose the harness, model, and provider credential that your agent uses. For what each choice changes, see [Harnesses and models](/concepts/harnesses-and-models).
 
 ## Open the settings
 
@@ -21,7 +21,7 @@ Go to `Sidebar > Agents > <agent name>`, set `Playground mode` to `Build`, and o
   loading="lazy"
 />
 
-The inline panel covers the small changes: pick a different model or add a provider key here. To change the harness, or to see which models and hosting options a harness supports, click `Detailed configuration` and use the `Model & harness` dialog.
+Use the inline panel to change the model or add a provider key. To change the harness or compare its available models and hosting options, click `Detailed configuration`.
 
 ## Choose the harness
 
@@ -34,7 +34,7 @@ In the `Model & harness` dialog, open the `Harness` section. It offers `Pi` and 
   loading="lazy"
 />
 
-Each option lists the providers it can reach under `PROVIDERS` and the hosting options it accepts under `HOSTING`. `Claude Code` reaches Anthropic models and accepts hosting through Bedrock and Vertex AI as well as direct and custom. `Pi` reaches a wider set of providers, with direct and custom hosting. Read the two lists in the dialog before you pick, since they are the current state for your deployment.
+Each harness lists its supported providers under `PROVIDERS` and its hosting options under `HOSTING`. These lists reflect what is available in your deployment.
 
 <Image
   style={{ display: "block", margin: "24px 0" }}
@@ -53,7 +53,7 @@ If the harness you pick shows `⚠ model not available`, the agent has no workin
 
 Open the `Model` section and use the combobox. The list is filtered to the models the selected harness can reach, and choosing a model also sets its provider.
 
-The picker has a `Search` box and a provider list with the number of models each one offers. Hover a provider to see its models in a second column. If your model comes from somewhere not in the list, use `+ Add custom provider` at the bottom.
+Search for a model or select a provider to see its models. If the provider is not listed, click `+ Add custom provider`.
 
 <Image
   style={{ display: "block", margin: "24px 0" }}
@@ -103,9 +103,3 @@ The `Subscription` mode runs the agent against a Claude or ChatGPT subscription 
 Click `Save` in the dialog footer. The change is a draft on the agent configuration.
 
 To publish it, click `Commit` in the `Configuration` header. Deployments and triggers run a pinned revision, so commit before an automation should use the new harness or model.
-
-## Related
-
-- [Harnesses and models](/concepts/harnesses-and-models) explains what the harness does around the model.
-- [Analyze cost and usage](/guides/analyze-cost-and-usage) shows what the model you picked is costing.
-- [Sessions and versions](/concepts/sessions-and-versions) covers the version history these changes land in.

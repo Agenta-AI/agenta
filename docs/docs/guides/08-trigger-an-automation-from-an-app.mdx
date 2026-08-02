@@ -1,18 +1,18 @@
 ---
 title: "Trigger an automation from an app"
 sidebar_label: "Trigger from an app"
-description: "Start an agent run when an event fires in a connected app: connect the app, pick the event, filter it, and write the message the agent receives."
+description: "Start an agent run from an event in a connected app and pass event data to the agent."
 ---
 
 ```mdx-code-block
 import Image from "@theme/IdealImage";
 ```
 
-An event trigger starts an agent run when something happens in an app you connected, with nobody in the chat. This page sets one up. Prepare the agent first with [Create an automation](/guides/create-an-automation), because the run cannot ask you anything once it starts.
+An event trigger starts an agent when something happens in a connected app. First, [prepare the agent for automation](/guides/create-an-automation).
 
 ## Connect the app first
 
-An event trigger fires from an app this project is connected to. To connect one, go to `Sidebar > Settings > Triggers` and click `+ Connect` on the `Connections` section. Connected apps are listed there with their `Integration`, `Name`, `Slug`, `Status`, and `Created at`.
+Go to `Sidebar > Settings > Triggers`, then click `+ Connect` under `Connections`. Select the app and connect an account.
 
 The trigger picker shows your connections in its left rail, under `YOUR CONNECTIONS`, and each app card has a `+ Connect another account` button for adding a second account.
 
@@ -28,7 +28,7 @@ You can open the trigger picker from two places.
 
 **From project settings.** `Sidebar > Settings > Triggers`, then `+ Subscribe` on the `Event triggers` section.
 
-The `Choose a trigger` dialog opens with your connections in the left rail, a `Search apps…` box, and the `ALL APPS` grid.
+The `Choose a trigger` dialog shows your connections and the available apps.
 
 <Image
   style={{ display: "block", margin: "24px 0" }}
@@ -37,7 +37,7 @@ The `Choose a trigger` dialog opens with your connections in the left rail, a `S
   loading="lazy"
 />
 
-Click the app. Its card shows the connection, then `CHOOSE AN EVENT` with a `Search events` box and the events that app can fire. Click the event you want.
+Click the app, choose a connection, then select an event under `CHOOSE AN EVENT`.
 
 <Image
   style={{ display: "block", margin: "24px 0" }}
@@ -63,23 +63,23 @@ Type a `Trigger name`. It is what identifies this trigger in the `Event triggers
 
 ### 2. When this happens
 
-The event you chose is shown here with the app it comes from. Below it, `Event filters` narrows which occurrences start a run. The fields depend on the event. A GitHub event asks for `Owner` and `Repo`, and for an `Interval` in minutes, which is how often the event is checked.
+`Event filters` controls which events start a run. The fields depend on the event. A GitHub event asks for `Owner`, `Repo`, and an `Interval` in minutes.
 
 Fill in every field marked with an asterisk.
 
 ### 3. Which version runs?
 
-Choose `Pinned`, which runs one exact variant and revision, then select the variant. Every run of this trigger uses that revision.
+Choose `Pinned`, then select the variant and revision. Every run uses that version until you update the trigger.
 
 ### 4. What the agent gets
 
-Write the message the agent receives when the event fires. The left column, `EVENT FIELDS`, lists the fields the event carries. Click a field to drop its live value into the message, so each run tells the agent which issue, branch, or record it is about.
+Write the message the agent receives when the event fires. `EVENT FIELDS` lists the data the event carries. Click a field to add its live value, such as the issue, branch, or record that started the run.
 
 To see real values in that column, use `Test event`.
 
 ## Test it, then switch it on
 
-Click `Run in playground` in the footer to run the agent with the message you built. Once the run does what you want, set the `Active` toggle and click `Create`.
+Click `Run in playground` to test the message. Then turn on `Active` and click `Create`.
 
 To create the trigger without arming it, leave `Active` off.
 

@@ -83,7 +83,6 @@ The `session_id` decides whether the runs share a conversation.
 | One `session_id` for every input, with the growing history in `data.inputs.messages` | One conversation. Each turn sees the previous ones, and the session folder persists across them. |
 | No `session_id` | The server mints one per request and returns it in `session_id` and in the `x-ag-session-id` response header. |
 
-See [Sessions and versions](/concepts/sessions-and-versions).
 
 ## What the client handles
 

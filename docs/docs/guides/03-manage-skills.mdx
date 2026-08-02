@@ -1,24 +1,22 @@
 ---
 title: "Manage skills"
 sidebar_label: "Manage skills"
-description: "Write a skill in the New skill dialog, or upload one by dropping a folder or archive, and write the description that decides when the skill fires."
+description: "Create an Agenta skill or upload a skill folder or archive. Write a clear description so the agent knows when to use it."
 ---
 
 ```mdx-code-block
 import Image from "@theme/IdealImage";
 ```
 
-A skill is a short handbook the agent loads when it needs it. There are two ways to add one: write it yourself in the `New skill` dialog, or upload one you already have by dropping its folder into that dialog. This page covers both routes, plus the description that decides when the agent reaches for the skill. For how skills are loaded, see [Skills](/concepts/skills).
+A skill is a short handbook the agent loads when it needs it. Add one by writing it in the `New skill` dialog or uploading an existing skill. To learn how agents load skills, see [Skills](/concepts/skills).
 
 ## Open the New skill dialog
 
-Both routes start in the same dialog.
-
 1. In the playground, set **Playground mode** to `Build`.
-2. In the **Configuration** column, find **Skills**. Its summary reads `None` when the agent has no skills yet.
+2. In the **Configuration** column, find **Skills**.
 3. Click `Add skill`.
 
-`Add skill` goes straight to an authoring form titled `New skill`. There is no catalog of existing skills to browse, so a skill comes either from what you write here or from a folder you already have.
+The `New skill` form opens.
 
 <Image
   style={{ display: "block", margin: "24px 0" }}
@@ -29,7 +27,7 @@ Both routes start in the same dialog.
 
 ## Write a skill in the New skill dialog
 
-To write a skill from scratch, fill in three fields:
+To create a skill, fill in three fields:
 
 | Field | What to put in it |
 |---|---|
@@ -37,7 +35,7 @@ To write a skill from scratch, fill in three fields:
 | `Description` | When the agent should reach for this skill. See the next section. |
 | `SKILL.md` | The steps the agent follows. Imperative, numbered where order matters. |
 
-A short one, end to end:
+Here is a complete example:
 
 ```markdown
 # Handling a refund request
@@ -55,27 +53,23 @@ Click `Create`, then `Commit` in the **Configuration** header to make the skill 
 
 ### Write the description
 
-The description is the only part of the skill the agent sees before it decides to use it, so it decides whether the skill fires. Name the situations the agent can recognize, not the subject the skill is about.
+The agent reads the description before it loads the skill. Describe situations it can recognize, not just the subject.
 
-A description that gives the agent something to match against:
+A description that tells the agent when to use the skill:
 
 > Use when a customer asks for a refund, a credit, or to cancel mid-term. Covers the eligibility check, the amount you can approve without a manager, and how to word the reply.
 
-A description that names the subject and nothing else:
+A description that names only the subject:
 
 > Our refund policy.
 
-The second one is accurate and the agent still has no situation to match it to, so the skill sits unused while the agent improvises the task.
+The second description gives the agent no situation to match, so it may not load the skill.
 
-Keep the description to a sentence or two, since it is sent on every turn. The body is read only once the skill fires, so it can be as long as the task needs.
+Keep the description to one or two sentences. It is sent on every turn, while the body loads only when the skill fires.
 
-### Add supporting files
+## Upload a skill
 
-The `Files` column on the left of the dialog holds `SKILL.md` plus anything else the skill needs, such as a template or an example output. Click `Add file` to add one, and refer to it by name from `SKILL.md`.
-
-## Upload a skill by dropping a folder
-
-If you have a skill as a folder or an archive, drop it on the target inside the dialog that reads `Drag a skill folder, .zip, or .skill here`, or click `Browse files`. Skills are plain folders in a format shared across the agent ecosystem, so a skill written for another tool works here.
+Drop a skill folder or archive on `Drag a skill folder, .zip, or .skill here`, or click `Browse files`. Agenta uses a shared skill format, so you can also upload skills written for other tools.
 
 The dialog fills itself in from what you dropped:
 
@@ -83,7 +77,7 @@ The dialog fills itself in from what you dropped:
 - Everything after the frontmatter becomes the `SKILL.md` body.
 - Any files sitting beside `SKILL.md` come in as supporting files, keeping their relative paths.
 
-The `SKILL.md` body is plain text, so you can read exactly what you are handing the agent before you click `Create`. Then, as with a written skill, click `Create` and `Commit` in the **Configuration** header to make the skill part of a version.
+The `SKILL.md` body is plain text, so you can review it before you click `Create`. Then click `Commit` in the **Configuration** header to make the skill part of a version.
 
 If you have the text but not the folder, paste a whole `SKILL.md`, frontmatter included, anywhere in the dialog. It fills the same fields.
 
@@ -97,4 +91,3 @@ If you have the text but not the folder, paste a whole `SKILL.md`, frontmatter i
 ## Next
 
 - [Write your agent's instructions](/guides/write-your-agents-instructions) covers the other place text goes, the one that is loaded every turn.
-- [Build a knowledge base for your agent](/guides/build-a-knowledge-base) covers reference files, which the agent opens only when the instructions send it there.
