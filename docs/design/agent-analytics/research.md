@@ -44,6 +44,10 @@ spine and reads a few response fields the current mapper drops.
   - `tokens.cumulative.prompt` and `tokens.cumulative.completion` for the Tokens split.
   - `duration.cumulative` flat fields `min`, `max`, and the nested `pcts.p95` percentile for
     the Latency tooltip and marker.
+- This page does not reuse the existing mapper's `errors.cumulative`-based failure count. A
+  failed run is a run whose root span status is `ERROR`, which a metric spec cannot
+  read, so the page gets the failed-run count from a separate status-filtered query. See
+  data-contract.md.
 - `calculateIntervalFromDuration(durationMinutes)` picks a bucket size that keeps the bar
   count reasonable and stays under the backend's ~1024-bucket limit. Reuse it directly for
   the time-range-to-interval mapping.
@@ -54,7 +58,8 @@ spine and reads a few response fields the current mapper drops.
   `references in [{id: appId}]` condition when an app id is present), computes the interval,
   and calls `fetchSpansAnalytics({focus: "trace", ...})`. This is the template for the new
   page's fetch function. For project scope, omit the single-app reference condition and add
-  reference conditions only for the agents the user selects in the filter.
+  reference conditions only for the agents the user selects in the filter. The new page also
+  issues a second query per window with a `status_code = ERROR` filter to count failed runs.
 
 ## The dashboard state atoms (reuse pattern, new atoms for this page)
 

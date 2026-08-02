@@ -20,7 +20,7 @@ It shows:
   window, and a Filters popover with an Agents multi-select that narrows the query to chosen
   agents. The time-range control reuses the existing observability time windowing (the `Sort`
   control and its `SortResult`), so it supports the standard presets and a custom
-  start-and-end range. It is not a fixed list of options.
+  start-and-end range. It is not a fixed list of options. It opens on the last 7 days.
 - A summary panel: a health donut (0 to 100, with a Healthy / Watch / At risk band and a
   one-line read-out) and four stat tiles (Total runs, Success rate, Avg latency, Total cost).
   Each tile shows a change badge against the previous window of equal length and a small trend
@@ -35,20 +35,26 @@ It shows:
 
 ## Locked scope decisions
 
-Three decisions are settled and drive the plan. Do not reopen them without the requester.
+These decisions are settled and drive the plan. Do not reopen them without the requester.
 
 1. Frontend-first. Build the four charts above, the four stat tiles, the health donut, the
    Agents filter, and the time-range control against today's endpoint. The endpoint already
    returns every field these need, so this scope ships without any change under `api/`.
 
-2. Health donut computed in the browser. The page derives the health score from
-   `0.72 x successRate + 0.28 x latencyScore`, where `latencyScore` maps average latency onto
-   a 0 to 1 range (higher is faster). The bands are Healthy at 85 and above, Watch from 65 to
-   84, At risk below 65. This is a display aid; it is not sent to or stored on the backend.
+2. Health donut computed in the browser. The health score is the success rate:
+   `round(100 x successRate)`, banded Healthy at 85 and above, Watch from 65 to 84, At risk
+   below 65. Latency does not factor in, because a fixed latency band mislabels agents that
+   are legitimately slow. Below a minimum run count the donut shows a neutral "Not enough runs
+   yet" state instead of a band. This is a display aid; it is not sent to or stored on the
+   backend.
 
 3. New page at project scope. This is a net-new page named Analytics. It aggregates every
    agent in the project by default. The Agents multi-select narrows the set, so the default
    query carries no single-app reference filter.
+
+4. A failed run means a run whose root span status is `ERROR`, a run-level outcome. Success
+   rate and the health score build on that, not on a count of errored steps. data-contract.md
+   has the definition and the query it needs.
 
 ## Showing model usage and tool usage needs backend work
 

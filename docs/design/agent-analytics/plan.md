@@ -34,12 +34,16 @@ Goal: the page can fetch mapped analytics for the current and previous windows.
   entities package still builds (`pnpm turbo run build --filter=@agenta/entities`).
 - Add a new mapper next to the existing one in `web/oss/src/services/tracing/lib/` (do not
   change `analyticsToGeneration`; the observability page depends on it). The new mapper reads
-  the split cost and token paths and the duration min, max, and p95 fields, and returns the
-  per-bucket and window-total shape in data-contract.md. Reuse `metricField` and
-  `calculateIntervalFromDuration`.
+  the split cost and token paths and the duration min, max, and p95 fields, combines the
+  unfiltered and status-filtered run counts into success and failed, and returns the per-bucket
+  and window-total shape in data-contract.md. Reuse `metricField` and
+  `calculateIntervalFromDuration`, and add a small `pcts` accessor for p95.
 - Add a fetch function in `web/oss/src/services/tracing/api/` that builds the project-scope
-  conditions (no single-app reference by default; one reference condition per selected agent),
-  passes the explicit `specs`, and calls `fetchSpansAnalytics`.
+  conditions (no single-app reference by default; the selected agents' reference conditions),
+  passes the explicit `specs`, and calls `fetchSpansAnalytics`. It issues two queries per
+  window: the unfiltered one for totals and latency/cost/tokens, and a second one that adds
+  `{field: "status_code", operator: "eq", value: "ERROR"}` and reads the run count as failed
+  runs (see data-contract.md). The failed-run query needs only the run-count spec.
 - The spec `type` strings (`numeric/continuous`) and the nested `pcts.p95` shape are already
   verified in the backend code (see data-contract.md); validate them against one live response
   while building this phase, and check the prompt/completion split reads non-zero on real
@@ -56,11 +60,11 @@ window is fetched for comparison.
 Goal: the page is interactive; controls drive the data.
 
 - Add atoms under `web/oss/src/state/analytics/` following
-  `state/observability/dashboard.ts`: a time-range atom holding a `SortResult` (default
-  matching the observability windowing default), an agents-filter atom, a current-window
-  query atom, and a previous-window query atom (or one query returning both). Key every atom
-  on project id, time range, and the agents filter. Set `staleTime` to one minute and
-  `refetchOnWindowFocus: false`.
+  `state/observability/dashboard.ts`: a time-range atom holding a `SortResult` (default: the
+  last 7 days), an agents-filter atom, a current-window query atom, and a previous-window
+  query atom (or one query returning both). Each query atom drives the two calls per window
+  (unfiltered and status-filtered). Key every atom on project id, time range, and the agents
+  filter. Set `staleTime` to one minute and `refetchOnWindowFocus: false`.
 - Build the header controls: the time-range control and the Filters popover with the Agents
   multi-select. Reuse the observability time windowing (the `Sort` control and its
   `SortResult`) for the time range, so any window, including a custom start-and-end range,
@@ -77,10 +81,11 @@ with correct loading and empty states.
 Goal: the full locked-scope UI.
 
 - Summary panel: a health donut component (recharts `RadialBarChart` or a small SVG ring)
-  with the band label and prose, plus four stat tiles. Each tile shows the value, a change
-  badge versus the previous window (green when the change is good for that metric, red
-  otherwise; note that lower latency and lower cost are good), and a sparkline of the current
-  window.
+  showing `round(100 x successRate)` with the band label and prose. Below the run-count floor
+  it renders the neutral "Not enough runs yet" state instead of a band. Plus four stat tiles;
+  each shows the value, a change badge versus the previous window (green when the change is
+  good for that metric, red otherwise; note that lower latency and lower cost are good), and a
+  sparkline of the current window.
 - Chart components, each a card with a title, a one-line description, a recharts chart, and a
   toggleable legend:
   - Runs: stacked bars, successful and failed.
@@ -160,5 +165,6 @@ chart-card component as a reusable shell so Phase 5 only supplies data and serie
 - The correct agents-list atom for the filter options (resolve in Phase 1).
 - Whether the multi-agent reference filter uses `or` grouping or a single `in` with multiple
   values in this dialect (resolve in Phase 2 against the existing filter builder).
-- The two latency-score constants that set where "fast" and "slow" fall (confirm before
-  Phase 4).
+- Whether the runner marks a failed run's root span `status_code = ERROR`. The failed-run
+  count and the health score depend on it; validate on live traffic in Phase 2.
+- The run-count floor for the neutral health state (tune in Phase 4; start around 20).
