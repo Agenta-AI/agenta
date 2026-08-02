@@ -190,6 +190,9 @@ def model_input_modalities(
     elif harness == "claude":
         catalog = claude_model_catalog()
         catalog_id = model_id
+    elif harness == "codex":
+        catalog = codex_model_catalog()
+        catalog_id = model_id
     else:
         return None
 

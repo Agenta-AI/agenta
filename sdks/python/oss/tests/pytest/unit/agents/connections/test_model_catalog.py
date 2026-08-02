@@ -205,6 +205,17 @@ def test_claude_input_modalities_lookup_uses_bare_alias():
     ]
 
 
+def test_codex_input_modalities_lookup_uses_bare_model_id():
+    assert model_input_modalities("codex", "gpt-5.6-sol", provider="openai") == [
+        "text",
+        "image",
+    ]
+
+
+def test_unknown_codex_model_input_modalities_returns_none():
+    assert model_input_modalities("codex", "codex-not-real", provider="openai") is None
+
+
 @pytest.mark.parametrize("model_id", ["claude-sonnet-4-6", "claude-opus-4-8"])
 def test_claude_dated_model_input_modalities_reuse_pi_catalog_fact(model_id):
     assert model_input_modalities("claude", model_id, provider="anthropic") == [
