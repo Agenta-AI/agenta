@@ -15,6 +15,7 @@ import {AdaptiveList} from "@agenta/ui/components/selection"
 import type {ExtendedDiffLine} from "@agenta/ui/diff"
 import {DiffView} from "@agenta/ui/editor"
 import {cn, textColors} from "@agenta/ui/styles"
+import {Badge, type BadgeProps} from "@agenta/ui/ui"
 import {
     ArrowLeft,
     ArrowRight,
@@ -32,9 +33,6 @@ import {
     SlidersHorizontal,
     Wrench,
 } from "@phosphor-icons/react"
-import {Tag, Typography} from "antd"
-
-const {Text} = Typography
 
 const INLINE_TEXT_DIFF_LINES = 6
 const SUBGROUP_VISIBLE = 5
@@ -68,7 +66,7 @@ const SECTION_ICON: Record<ChangeSection["id"], React.ReactNode> = {
     params: <SlidersHorizontal />,
 }
 
-const KIND_COLOR: Record<string, string> = {
+const KIND_COLOR: Record<string, BadgeProps["variant"]> = {
     added: "green",
     removed: "red",
     edited: "gold",
@@ -91,17 +89,16 @@ function StatusTags({tags, small}: {tags: ChangeSection["tags"]; small?: boolean
     return (
         <>
             {tags.map((t, i) => (
-                <Tag
+                <Badge
                     key={i}
-                    color={KIND_COLOR[t.kind]}
-                    bordered={false}
+                    variant={KIND_COLOR[t.kind] ?? "default"}
                     className={cn(
-                        "!m-0 rounded-full",
-                        small ? "!px-1.5 !text-[10px] !leading-[18px]" : "!px-2 !text-[10.5px]",
+                        "rounded-full",
+                        small ? "px-1.5 text-[10px] leading-[18px]" : "px-2 text-[10.5px]",
                     )}
                 >
                     {t.label}
-                </Tag>
+                </Badge>
             ))}
         </>
     )
@@ -434,13 +431,12 @@ export default function AgentChangesSummary({
                         Changes
                     </button>
                 ) : (
-                    // Compact forces 12px (antd Text otherwise wins at 14px) to match its host pane.
-                    <Text className={cn("font-semibold", compact ? "!text-xs" : "text-xs")}>
+                    <span className="text-xs font-semibold text-colorText">
                         What&apos;s changing
                         <span className={cn("ml-1.5 font-normal", textColors.tertiary)}>
                             {totalChanges} {totalChanges === 1 ? "change" : "changes"}
                         </span>
-                    </Text>
+                    </span>
                 )}
                 {view.kind === "summary" && !compact ? (
                     <button

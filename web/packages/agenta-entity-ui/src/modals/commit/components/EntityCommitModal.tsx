@@ -491,11 +491,8 @@ export function EntityCommitModal({
 
     return (
         <>
-            {/* Scoped override: zero antd's container padding for the agent two-pane layout only.
-                This antd build puts the padding on `.ant-modal-container` (not `.ant-modal-content`). */}
-            {isAgentTwoPane ? (
-                <style>{`.${AGENT_TWO_PANE_ROOT_CLASS} .ant-modal-container{padding:0 !important;overflow:hidden;}`}</style>
-            ) : null}
+            {/* The old `.ant-modal-container` padding override is gone: EnhancedModal renders the
+                Radix Dialog (no antd DOM), and the two-pane layout zeroes padding via styles.body. */}
             <EnhancedModal
                 open={isOpen}
                 onCancel={handleClose}

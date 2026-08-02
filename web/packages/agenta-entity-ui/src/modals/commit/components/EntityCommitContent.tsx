@@ -20,8 +20,8 @@ import {CommitMessageInput} from "@agenta/ui/components/presentational"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {DiffView} from "@agenta/ui/editor"
 import {cn, textColors} from "@agenta/ui/styles"
+import {Alert, Badge, Button, Input, InputAffix, RadioGroup, RadioGroupItem} from "@agenta/ui/ui"
 import {ArrowClockwise, WarningCircle} from "@phosphor-icons/react"
-import {Input, Alert, Typography, Radio, Button, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {SectionRail} from "../../../drawers/shared/SectionRail"
@@ -48,8 +48,6 @@ import AgentChangesSummary from "./changes/AgentChangesSummary"
 
 // Lazy load DiffView to avoid bundling Lexical editor in _app chunk
 // const DiffView = dynamic(() => import("@agenta/ui/editor").then((mod) => ({default: mod.DiffView})))
-
-const {Text} = Typography
 
 export interface CommitModeOption {
     id: string
@@ -297,25 +295,30 @@ export function EntityCommitContent({
                             <label htmlFor="entity-slug" className="font-medium mb-1">
                                 Slug
                             </label>
-                            <Input
+                            <InputAffix
                                 id="entity-slug"
                                 value={entitySlug}
-                                onChange={(e) => handleSlugInputChange(e.target.value)}
-                                status={slugFieldError || slugValidationError ? "error" : undefined}
-                                autoFocus
-                                className={
-                                    isAgentCommit
-                                        ? "!bg-[var(--ag-colorFillQuaternary)] [&_.ant-input]:!bg-transparent"
-                                        : undefined
+                                onValueChange={handleSlugInputChange}
+                                aria-invalid={
+                                    slugFieldError || slugValidationError ? true : undefined
                                 }
+                                autoFocus
+                                className={cn(
+                                    // aria-invalid lands on the inner <input>; the wrapper span
+                                    // carries the border, so the error skin is applied here.
+                                    (slugFieldError || slugValidationError) &&
+                                        "!border-error focus-within:!shadow-[0_0_0_2px_var(--ag-errorOutline)]",
+                                    isAgentCommit && "!bg-[var(--ag-colorFillQuaternary)]",
+                                )}
                                 suffix={
                                     <Button
-                                        type="text"
-                                        size="small"
-                                        icon={<ArrowClockwise size={14} />}
+                                        variant="ghost"
+                                        size="icon-sm"
                                         onClick={handleRegenerate}
                                         title="Regenerate random suffix"
-                                    />
+                                    >
+                                        <ArrowClockwise size={14} />
+                                    </Button>
                                 }
                             />
                             {(slugFieldError || slugValidationError) && (
@@ -325,24 +328,25 @@ export function EntityCommitContent({
                                 </div>
                             )}
                             {!slugFieldError && !slugValidationError && (
-                                <Text className={cn(textColors.tertiary)}>
+                                <span className={cn(textColors.tertiary)}>
                                     Edit freely - use the regenerate button to add a random suffix
                                     back.
-                                </Text>
+                                </span>
                             )}
                         </>
                     ) : (
                         <div className="flex min-w-0 items-center gap-2">
-                            <Text className="shrink-0 font-medium">Slug:</Text>
-                            <Tag
-                                className="min-w-0 max-w-[min(220px,calc(100%-88px))] truncate bg-gray-100 font-mono text-gray-500"
+                            <span className="shrink-0 font-medium">Slug:</span>
+                            <Badge
+                                variant="outlined"
+                                className="inline-block min-w-0 max-w-[min(220px,calc(100%-88px))] truncate bg-gray-100 font-mono text-gray-500"
                                 title={entitySlug}
                             >
                                 {entitySlug}
-                            </Tag>
+                            </Badge>
                             <Button
-                                type="link"
-                                size="small"
+                                variant="link"
+                                size="sm"
                                 className="shrink-0"
                                 onClick={handleEditClick}
                             >
@@ -376,9 +380,9 @@ export function EntityCommitContent({
                 )}
             >
                 {isAgentCommit ? (
-                    <Text className="shrink-0 text-base font-semibold">
+                    <span className="shrink-0 text-base font-semibold text-colorText">
                         {actionLabel} {appName || originalEntityName}
-                    </Text>
+                    </span>
                 ) : null}
 
                 {/* Body scrolls so a tall variant form can't squeeze the message textarea;
@@ -404,7 +408,7 @@ export function EntityCommitContent({
                         >
                             {(selectedMode ?? "version") === "variant" ? (
                                 <div className="flex flex-col gap-3">
-                                    <Text
+                                    <span
                                         className={cn(
                                             "text-xs leading-relaxed",
                                             textColors.secondary,
@@ -415,7 +419,7 @@ export function EntityCommitContent({
                                             {appName || originalEntityName}
                                         </span>{" "}
                                         stays on v{context.versionInfo.currentVersion}.
-                                    </Text>
+                                    </span>
                                     {nameEditorInRail ? (
                                         <div className="border-t border-[var(--ag-colorBorderSecondary)] pt-3">
                                             {nameSlugEditor}
@@ -423,7 +427,7 @@ export function EntityCommitContent({
                                     ) : null}
                                 </div>
                             ) : (
-                                <Text
+                                <span
                                     className={cn("text-xs leading-relaxed", textColors.secondary)}
                                 >
                                     Saves as{" "}
@@ -432,7 +436,7 @@ export function EntityCommitContent({
                                     </span>
                                     . Everyone using {appName || originalEntityName} gets your
                                     changes.
-                                </Text>
+                                </span>
                             )}
                         </SectionRail>
                     )}
@@ -441,12 +445,12 @@ export function EntityCommitContent({
                     since there's no existing entity to show version transitions for */}
                     {context?.versionInfo && actionLabel === "Commit" && !isAgentCommit && (
                         <div className="rounded-lg border border-zinc-2 bg-zinc-1 p-3">
-                            <Text className={textColors.secondary}>
+                            <span className={textColors.secondary}>
                                 {selectedMode === "variant"
                                     ? "This will create a new variant from "
                                     : "This will create a new revision of "}
                                 <span className="font-medium">{originalEntityName}</span>.
-                            </Text>
+                            </span>
                             <div className="mt-2 flex items-center gap-2 min-w-0">
                                 <span className="flex items-center gap-1 min-w-0">
                                     <span
@@ -500,7 +504,7 @@ export function EntityCommitContent({
                     {!canCommit && (
                         <Alert
                             type="warning"
-                            title="This entity cannot be committed"
+                            message="This entity cannot be committed"
                             description="Check that there are changes to commit and the entity is in a valid state."
                             showIcon
                         />
@@ -512,17 +516,22 @@ export function EntityCommitContent({
                             <label htmlFor="commit-mode" className="font-medium text-gray-700">
                                 Save mode
                             </label>
-                            <Radio.Group
+                            <RadioGroup
                                 id="commit-mode"
                                 value={selectedMode}
-                                onChange={(e) => onModeChange?.(e.target.value)}
+                                onValueChange={(v) => onModeChange?.(v)}
+                                className="flex-row flex-wrap items-center gap-2"
                             >
                                 {commitModes.map((mode) => (
-                                    <Radio key={mode.id} value={mode.id}>
+                                    <label
+                                        key={mode.id}
+                                        className="flex cursor-pointer items-center gap-2"
+                                    >
+                                        <RadioGroupItem value={mode.id} />
                                         {mode.label}
-                                    </Radio>
+                                    </label>
                                 ))}
-                            </Radio.Group>
+                            </RadioGroup>
                         </div>
                     )}
 
@@ -568,9 +577,8 @@ export function EntityCommitContent({
                     {error && (
                         <Alert
                             type="error"
-                            title={`${actionLabel} failed`}
+                            message={`${actionLabel} failed`}
                             description={error.message}
-                            className="[&_.ant-alert]:!py-5"
                             showIcon
                         />
                     )}
@@ -597,17 +605,17 @@ export function EntityCommitContent({
             ) : hasDiffData ? (
                 <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-zinc-2 bg-zinc-1">
                     <div className="flex items-center justify-between border-b border-zinc-2 bg-zinc-1 px-3 py-2 shrink-0">
-                        <Text
+                        <span
                             className={cn(
                                 "text-xs font-semibold uppercase tracking-wide",
                                 textColors.secondary,
                             )}
                         >
                             Changes preview
-                        </Text>
-                        <Text className={cn("text-xs", textColors.quaternary)}>
+                        </span>
+                        <span className={cn("text-xs", textColors.quaternary)}>
                             {formatCount(totalChanges, "change")}
-                        </Text>
+                        </span>
                     </div>
                     <div className="flex-1 overflow-auto">
                         <DiffView

@@ -4,7 +4,7 @@
  * Modal content with name input and save-as-new option.
  */
 
-import {Input, Alert, Checkbox} from "antd"
+import {Alert, Checkbox, Input} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -57,9 +57,10 @@ export function EntitySaveContent() {
             {/* Save as new option */}
             {showSaveAsNewOption && (
                 <div className="flex flex-col gap-2">
-                    <Checkbox checked={saveAsNew} onChange={() => toggleSaveAsNew()}>
-                        Save as new copy
-                    </Checkbox>
+                    <label className="inline-flex cursor-pointer items-center gap-2">
+                        <Checkbox checked={saveAsNew} onCheckedChange={() => toggleSaveAsNew()} />
+                        <span>Save as new copy</span>
+                    </label>
                     {saveAsNew && originalName && (
                         <p className="text-gray-500 ml-6">
                             Original: <span className="font-medium">{originalName}</span>
