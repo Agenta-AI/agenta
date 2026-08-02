@@ -78,16 +78,25 @@ const DURATION_PATH = "attributes.ag.metrics.duration.cumulative"
 const ERRORS_PATH = "attributes.ag.metrics.errors.cumulative"
 const TRACE_TYPE_PATH = "attributes.ag.type.trace"
 
-type BucketMetrics = AnalyticsResponse["buckets"] extends (infer B)[] | null | undefined
+export type BucketMetrics = AnalyticsResponse["buckets"] extends (infer B)[] | null | undefined
     ? B extends {metrics?: infer M}
         ? M
         : never
     : never
 
-/** Read a numeric field (e.g. `sum`, `count`, `mean`) from one metric blob. */
-const metricField = (metrics: BucketMetrics, path: string, field: string): number => {
+/** Read a flat numeric field (e.g. `sum`, `count`, `mean`) from one metric blob. */
+export const metricField = (metrics: BucketMetrics, path: string, field: string): number => {
     const blob = metrics?.[path]
     const value = blob?.[field]
+    return typeof value === "number" && Number.isFinite(value) ? value : 0
+}
+
+/** Read a nested percentile (e.g. `pcts.p95`); `metricField`'s flat read cannot reach it. */
+export const metricPct = (metrics: BucketMetrics, path: string, pct: string): number => {
+    const pcts = (metrics?.[path] as Record<string, unknown> | undefined)?.pcts as
+        | Record<string, unknown>
+        | undefined
+    const value = pcts?.[pct]
     return typeof value === "number" && Number.isFinite(value) ? value : 0
 }
 

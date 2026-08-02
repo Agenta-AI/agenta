@@ -4,8 +4,34 @@ Source of truth for progress. Update as work lands.
 
 ## Current state
 
-Planning is complete, and a grilling session on 2026-08-02 sharpened the design. No code is
-written. The workspace holds the plan; implementation has not started, and no branch exists yet.
+Phases 1–4 implemented (frontend-first scope). Typecheck clean, `pnpm lint-fix` clean, and
+the mapper + health-score unit tests pass (9 tests). Not yet verified against a live stack;
+Phase 5 (Tools/Models) remains deferred behind the backend prerequisites.
+
+### Landed files
+
+- Route + nav: `web/oss/src/pages/w/[workspace_id]/p/[project_id]/analytics/index.tsx`
+  **plus the EE mirror** `web/ee/src/pages/.../analytics/index.tsx` (EE's Pages Router
+  re-exports each OSS page; without the mirror the route 404s in EE builds);
+  `app-analytics-link` entry in `Sidebar/hooks/useSidebarConfig/index.tsx`.
+- Data layer: `specs` added to `SpansAnalyticsParams`/`fetchSpansAnalytics`
+  (`web/packages/agenta-entities/src/trace/api/api.ts`); new mapper + health-score
+  (`web/oss/src/services/tracing/lib/agentAnalytics.ts`, with `metricField`/`metricPct`
+  exported from `helpers.ts`); fetch fn
+  (`web/oss/src/services/tracing/api/agentAnalytics.ts`); types
+  (`web/oss/src/services/tracing/types/agentAnalytics.ts`).
+- State: `web/oss/src/state/analytics/dashboard.ts` (time-range, agents-filter, query atoms).
+- UI: `web/oss/src/components/pages/analytics/` (page, header controls, summary panel with
+  health donut + 4 stat tiles, and the four charts via a reusable `ChartCard` shell).
+- Tests: `web/oss/src/services/tracing/lib/agentAnalytics.test.ts`.
+
+### Still to verify on a live stack (Phase 2 open questions)
+
+- Nested `pcts.p95` reads correctly and the prompt/completion split is non-zero on real
+  traffic.
+- The runner marks a failed run's root span `status_code = ERROR`.
+- The multi-agent `references in [...]` encoding returns the expected narrowed set.
+- Tune the `HEALTH_RUN_FLOOR` (currently 20) against real volume.
 
 ## Locked decisions
 
@@ -63,8 +89,11 @@ the scope carries two backend prerequisites (Phase 0) rather than none.
 
 ## Open questions to resolve during the build
 
-- The agents-list atom for the filter options (Phase 1).
-- The multi-agent reference filter encoding: a single `in` with all ids, or one condition per
+- ~~Agents-list atom for the filter options (Phase 1).~~ **Resolved:** use
+  `agentsWorkflowsAtom` from `web/oss/src/components/pages/agents/store.ts`. It returns
+  `AppWorkflowRow[]` (`{workflowId, name, ...}`); the `workflowId` is the `references` id
+  the analytics filter narrows by.
+- Multi-agent reference filter encoding: a single `in` with all ids, or one condition per
   agent combined with `or` (Phase 2, against the existing filter builder).
 - Whether the runner marks a failed run's root span `status_code = STATUS_CODE_ERROR`. The
   failed-run count depends on it; validate on live traffic (Phase 2).

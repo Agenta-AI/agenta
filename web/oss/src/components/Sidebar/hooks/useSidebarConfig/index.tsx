@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
 import {
+    ChartBarIcon,
     ChartLineUpIcon,
     DesktopIcon,
     FlaskIcon,
@@ -136,6 +137,13 @@ export const useSidebarConfig = (): MainSidebarItems => {
                             : undefined,
                     },
                 ],
+            },
+            {
+                key: "app-analytics-link",
+                title: "Analytics",
+                link: `${projectURL}/analytics`,
+                icon: <ChartBarIcon size={14} />,
+                disabled: !hasProjectURL,
             },
             {
                 key: "app-observability-link",

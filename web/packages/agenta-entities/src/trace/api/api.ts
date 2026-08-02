@@ -306,6 +306,12 @@ export interface SpansAnalyticsParams {
      * query param expected by the new endpoint.
      */
     filter?: unknown
+    /**
+     * Explicit metric specs (`[{type, path}, ...]`) naming the JSON paths to
+     * summarize. Serialized to the JSON-string `specs` query param, the same way
+     * `filter` is. Omit to let the backend apply its `DEFAULT_ANALYTICS_SPECS`.
+     */
+    specs?: unknown
     abortSignal?: AbortSignal
 }
 
@@ -314,11 +320,13 @@ export interface SpansAnalyticsParams {
  * deprecated `POST /tracing/spans/analytics` used by the observability
  * generation dashboard (AGE-3788 Phase 6).
  *
- * `specs` is intentionally omitted: when absent, the backend applies its
+ * `specs` is optional: when absent, the backend applies its
  * `DEFAULT_ANALYTICS_SPECS` (duration / errors / costs / tokens cumulative +
- * trace/span type counts), which is exactly the set the dashboard needs. The
- * response `buckets[].metrics` dict is keyed by each spec's dotted path; the
- * OSS transform (`analyticsToGeneration`) reads the numeric fields it needs.
+ * trace/span type counts), which is exactly the set the observability dashboard
+ * needs. Callers that need a finer breakdown (e.g. the agent analytics page's
+ * prompt/completion cost split and latency percentiles) pass an explicit `specs`
+ * list. The response `buckets[].metrics` dict is keyed by each spec's dotted
+ * path; the caller's transform reads the numeric fields it needs.
  */
 export async function fetchSpansAnalytics(
     params: SpansAnalyticsParams,
@@ -331,6 +339,7 @@ export async function fetchSpansAnalytics(
         oldest,
         newest,
         filter,
+        specs,
         abortSignal,
     } = params
 
@@ -342,6 +351,7 @@ export async function fetchSpansAnalytics(
     if (newest) request.newest = newest
     // `filter`/`specs` are JSON-string query params on the new endpoint.
     if (filter !== undefined && filter !== null) request.filter = JSON.stringify(filter)
+    if (specs !== undefined && specs !== null) request.specs = JSON.stringify(specs)
 
     const data = await callFern("[fetchSpansAnalytics]", () =>
         getTracesClient().querySpansAnalytics(
