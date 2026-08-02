@@ -59,7 +59,6 @@ export function DrawerFooter({
                         disabled={!canSave}
                         onClick={onSubmit}
                         // antd dims a loading button to opacityLoading (0.65); LoadingButton doesn't.
-                        className={isMutating ? "opacity-[0.65]" : undefined}
                     >
                         {submitLabel}
                     </LoadingButton>

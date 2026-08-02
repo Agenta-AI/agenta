@@ -508,6 +508,18 @@ export const presetTag = {
     magentaText: {light: "#c41d7f", dark: "#e0529c"},
     goldBg: {light: "#fffbe6", dark: "#2b2111"},
     goldText: {light: "#874d00", dark: "#e8b339"},
+    // The remaining antd preset hues (WorkflowTypeTag needs all 13). Same AA rule:
+    // text steps down antd's own ramp until >=4.5:1 on the paired bg (yellow/lime hit s9).
+    pinkBg: {light: "#fff0f6", dark: "#291321"},
+    pinkText: {light: "#c41d7f", dark: "#e0529c"},
+    yellowBg: {light: "#feffe6", dark: "#2b2611"},
+    yellowText: {light: "#876800", dark: "#e8d639"},
+    volcanoBg: {light: "#fff2e8", dark: "#2b1611"},
+    volcanoText: {light: "#ad2102", dark: "#e87040"},
+    geekblueBg: {light: "#f0f5ff", dark: "#131629"},
+    geekblueText: {light: "#1d39c4", dark: "#7f9ef3"},
+    limeBg: {light: "#fcffe6", dark: "#1f2611"},
+    limeText: {light: "#3f6600", dark: "#a9d134"},
 } satisfies Record<string, Pair>
 
 // antd Tabs item colours. antd-themeConfig.json overrides itemColor/itemHoverColor in LIGHT

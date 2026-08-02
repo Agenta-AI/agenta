@@ -38,8 +38,7 @@ export interface WorkflowTypeTagProps {
     className?: string
 }
 
-// Preset hues that exist as Badge variants. The remaining hues (pink/yellow/
-// volcano/geekblue/lime) fall back to antd's own theme-flipping cssvars below.
+// All 13 antd preset hues now exist as Badge variants (palette `presetTag`).
 const BADGE_PRESET: Partial<Record<string, BadgeProps["variant"]>> = {
     blue: "blue",
     green: "green",
@@ -49,13 +48,12 @@ const BADGE_PRESET: Partial<Record<string, BadgeProps["variant"]>> = {
     cyan: "cyan",
     magenta: "magenta",
     gold: "gold",
+    pink: "pink",
+    yellow: "yellow",
+    volcano: "volcano",
+    geekblue: "geekblue",
+    lime: "lime",
 }
-
-/** Filled preset-tag colors for hues Badge has no variant for (bg = hue-1, text = hue-7). */
-const presetFallbackStyle = (name: string) => ({
-    backgroundColor: `var(--ant-${name}-1)`,
-    color: `var(--ant-${name}-7)`,
-})
 
 /**
  * Shared preset-pill tag used for both app and evaluator type badges.
@@ -81,13 +79,7 @@ const TypePill = ({
         <TooltipProvider>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <Badge
-                        variant={variant}
-                        style={
-                            !variant && color?.name ? presetFallbackStyle(color.name) : undefined
-                        }
-                        className={cn("max-w-[160px]", className)}
-                    >
+                    <Badge variant={variant} className={cn("max-w-[160px]", className)}>
                         <span className="truncate">{label}</span>
                     </Badge>
                 </TooltipTrigger>
