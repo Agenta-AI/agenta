@@ -13,16 +13,14 @@ review lens: the wire-shape differences and what to check when one moves.
 
 Each adapter implements `_to_harness_config(...)` and emits a different `/run` wire shape:
 
-- **`PiHarness`** delivers built-in tool names and native custom tools, supports Pi prompt
+- **`PiHarness`** delivers native custom tools (built-ins are not configured: the runner
+  activates all seven on every Pi run), supports Pi prompt
   overrides (`system`, `append_system`), and carries the same `permissions` block as the other
   harnesses. Pi has no native permission gate of its own (no `.claude/settings.json` equivalent),
   so the runner's tool relay enforces `permissions` for Pi at execution time; an `ask` verdict
   pauses the run and Pi gets the same human-in-the-loop approval Claude gets at its gate.
-- **`ClaudeHarness`** delivers tools over MCP, not natively, and has no Pi built-ins: it drops
-  the names. It warns only when the set differs from `PI_DEFAULT_ACTIVE_BUILTINS`, because the
-  shipped default template carries exactly that set and warning on it would fire on nearly every
-  Claude run. A set the author touched (a subset, a superset, an unrelated name) still warns, and
-  the message names the dropped tools. It carries `permissions` and renders
+- **`ClaudeHarness`** delivers tools over MCP, not natively, and has no Pi built-ins. It carries
+  `permissions` and renders
   `.claude/settings.json` from four
   sources — the author's `harness_kwargs["claude"]["permissions"]` slice, the sandbox permission,
   each user MCP server's permission (`mcp__<server>` rules), and each resolved EXECUTABLE tool's
@@ -49,19 +47,18 @@ The wire shapes, side by side:
 - `sdks/python/agenta/sdk/agents/adapters/harnesses.py`: the three adapters.
 - `sdks/python/agenta/sdk/agents/dtos.py`: the `PiAgentConfig`/`ClaudeAgentConfig`/
   `AgentaAgentConfig` wire emitters.
-- `sdks/python/agenta/sdk/agents/pi_builtins.py`: `PI_DEFAULT_ACTIVE_BUILTINS`, the set
-  `ClaudeHarness` stays silent about.
+- `sdks/python/agenta/sdk/agents/pi_builtins.py`: `PI_BUILTIN_TOOL_NAMES`, the names
+  `PiAgentTemplate.wire_tools` sends on the deprecated `tools` field for older runners.
 
 ## Watch for when changing
 
 - **Tool delivery per harness.** Native versus MCP is the load-bearing difference. Pi takes
   tools natively; everyone else gets them over the MCP bridge.
 - **Prompt override behavior.** Pi replaces or appends; Claude reads options; Agenta composes.
-- **Forced Agenta behavior.** Instruction composition and the forced tool set are deliberate.
-- **The Claude built-in warning predicate.** It is exact-set equality against
-  `PI_DEFAULT_ACTIVE_BUILTINS`, not a per-name filter. A per-name filter would silence an
-  authored subset such as `["bash"]`, which is exactly the case the warning exists for. If the
-  default template's built-in set changes, this predicate changes with it.
+- **Forced Agenta behavior.** Instruction composition and the forced skills are deliberate.
+- **The deprecated `tools` wire field.** `PiAgentTemplate.wire_tools` fills it with every built-in
+  name so a runner from before the always-active rework activates the same set. Emitting `[]`
+  there would leave such a runner with no built-ins at all (issue #5590).
 - **Claude skill delivery.** Claude wires inline skills like the other harnesses; the runner
   materializes them under `.claude/skills`. (An earlier revision suppressed Claude's
   `wire_skills()` to `{}`; that override is gone, and `test_claude_carries_skills_for_project_local_materialization`

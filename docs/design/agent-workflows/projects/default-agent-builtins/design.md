@@ -1,5 +1,9 @@
 # What we change and why
 
+> **Superseded.** Built-in tools left the agent config entirely. This file is a dated record of
+> the 0.107.0 change; read [addendum-always-active.md](addendum-always-active.md) for what is true
+> now.
+
 ## The change
 
 `build_agent_v0_default()` in `sdks/python/agenta/sdk/utils/types.py:1412` stops emitting an

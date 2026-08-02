@@ -25,7 +25,7 @@
   "secrets": {},
   "context": null,
   "telemetry": null,
-  "tools": [],
+  "tools": ["read", "bash", "edit", "write", "grep", "find", "ls"],
   "customTools": [],
   "toolCallback": null,
   "permissions": {

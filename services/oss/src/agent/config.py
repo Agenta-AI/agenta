@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List, Optional
 
-from agenta.sdk.agents.pi_builtins import PI_DEFAULT_ACTIVE_BUILTINS
 from agenta.sdk.agents.sandbox_providers import enabled_sandbox_providers
 from agenta.sdk.utils.logging import get_module_logger
 
@@ -23,13 +22,10 @@ _DEFAULT_AGENT_DIR = _SERVICES_DIR / "runner"
 
 # Fallback config used when the editable files are missing or a field is absent.
 # Kept in sync with the catalog template and the `/inspect` schema defaults
-# (schemas.py: _DEFAULT_MODEL / _DEFAULT_AGENTS_MD), including the shipped grant list: an
-# empty `tools` reaches the runner as "grant no built-ins", so the fallback carries Pi's own
-# defaults exactly as the catalog template does (issue #5590).
+# (schemas.py: _DEFAULT_MODEL / _DEFAULT_AGENTS_MD). No tool entries: built-in tools are
+# always active and are not configured here.
 DEFAULT_MODEL = "gpt-5.6-luna"
-DEFAULT_TOOLS: List[Any] = [
-    {"type": "builtin", "name": name} for name in PI_DEFAULT_ACTIVE_BUILTINS
-]
+DEFAULT_TOOLS: List[Any] = []
 DEFAULT_AGENTS_MD = (
     "You are a friendly hello-world agent running on the Agenta agent service.\n\n"
     "- Greet the user warmly.\n"
@@ -113,15 +109,13 @@ def load_config() -> AgentTemplate:
     if meta_path.exists():
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         model = meta.get("model") or DEFAULT_MODEL
-        # Only an explicit `tools` key overrides the shipped grant list: an older agent.json
-        # written before the defaults existed must not silently strip them, while an explicit
-        # empty list still means "grant no built-ins" (issue #5590).
-        if "tools" in meta:
-            tools = meta["tools"] or []
+        # An operator adds gateway, client or platform entries here; built-in tools are always
+        # active and are never listed.
+        tools = list(meta.get("tools") or DEFAULT_TOOLS)
     else:
         log.warning(
             "agent: template not found at %s; falling back to the built-in default "
-            "model %r with the default built-in tools (set AGENTA_AGENT_TEMPLATE_DIR if this "
+            "model %r with no tool entries (set AGENTA_AGENT_TEMPLATE_DIR if this "
             "path is unexpected)",
             meta_path,
             DEFAULT_MODEL,

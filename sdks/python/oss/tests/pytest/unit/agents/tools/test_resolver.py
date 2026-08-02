@@ -10,12 +10,14 @@ from agenta.sdk.agents.tools import (
     ClientToolConfig,
     CodeToolConfig,
     DuplicateToolNameError,
+    coerce_tool_configs,
     GatewayToolConfig,
     GatewayToolResolution,
     MissingSecretPolicy,
     MissingToolSecretError,
     PlatformToolConfig,
     ReferenceToolConfig,
+    ReservedToolNameError,
     ToolCallback,
     ToolResolver,
     UnsupportedToolProviderError,
@@ -103,17 +105,15 @@ class FakePlatformResolver:
         )
 
 
-async def test_resolves_builtin_code_client_and_scopes_secrets():
+async def test_resolves_code_client_and_scopes_secrets():
     secrets = DictSecretProvider({"A": "a", "B": "b"})
     resolved = await ToolResolver(secret_provider=secrets).resolve(
         [
-            BuiltinToolConfig(name="read"),
             CodeToolConfig(name="one", script="...", secrets=["A"]),
             CodeToolConfig(name="two", script="...", secrets=["B"]),
             ClientToolConfig(name="pick"),
         ]
     )
-    assert resolved.builtin_names == ["read"]
     assert secrets.requests == [["A", "B"]]
     by_name = {spec.name: spec for spec in resolved.tool_specs}
     assert by_name["one"].env == {"A": "a"}
@@ -201,17 +201,48 @@ async def test_resolved_spec_omits_permission_when_unset():
 @pytest.mark.parametrize(
     "configs",
     [
-        [BuiltinToolConfig(name="read"), BuiltinToolConfig(name="read")],
-        [
-            BuiltinToolConfig(name="same"),
-            ClientToolConfig(name="same"),
-        ],
         [ClientToolConfig(name="same"), ClientToolConfig(name="same")],
+        [CodeToolConfig(name="same", script="..."), ClientToolConfig(name="same")],
     ],
 )
 async def test_duplicate_model_visible_names_are_rejected(configs):
     with pytest.raises(DuplicateToolNameError):
         await ToolResolver().resolve(configs)
+
+
+# --- legacy `builtin` entries: accepted, ignored, warned (one release of dual-read) ---------
+
+
+async def test_legacy_builtin_entry_is_ignored_with_a_warning(caplog):
+    with caplog.at_level("WARNING"):
+        resolved = await ToolResolver().resolve([BuiltinToolConfig(name="read")])
+
+    assert resolved.tool_specs == []
+    assert any(
+        "built-in tools are always available" in r.message for r in caplog.records
+    )
+
+
+async def test_a_custom_tool_may_not_take_a_builtin_name():
+    # The harness registers custom tools beside its built-ins under the same keys, so a same-named
+    # custom tool would silently replace the built-in the platform activates on every run.
+    with pytest.raises(ReservedToolNameError):
+        await ToolResolver().resolve(
+            [BuiltinToolConfig(name="read"), ClientToolConfig(name="read")]
+        )
+
+
+@pytest.mark.parametrize("name", ["read", "Bash", "GREP", " ls "])
+async def test_a_builtin_name_is_reserved_whatever_its_case(name):
+    with pytest.raises(ReservedToolNameError):
+        await ToolResolver().resolve([ClientToolConfig(name=name)])
+
+
+async def test_a_bare_tool_name_string_is_ignored_too():
+    # `coerce_tool_config` turns a bare string into a BuiltinToolConfig.
+    resolved = await ToolResolver().resolve(coerce_tool_configs(["read"]))
+
+    assert resolved.tool_specs == []
 
 
 # --- type:"reference" workflow tool resolution -------------------------------

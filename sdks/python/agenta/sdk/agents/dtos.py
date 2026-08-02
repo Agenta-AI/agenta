@@ -31,6 +31,7 @@ from .mcp import (
     mcp_servers_to_wire,
     parse_mcp_server_configs,
 )
+from .pi_builtins import PI_BUILTIN_TOOL_NAMES
 from .skills import SkillTemplate, parse_skill_templates, skills_to_wire
 from .permission_rules import wire_author_permission_rules
 from .tools import ToolCallback, ToolConfig, ToolSpec, coerce_tool_configs
@@ -853,9 +854,10 @@ class HarnessAgentTemplate(BaseModel):
 
 
 class PiAgentTemplate(HarnessAgentTemplate):
-    """Pi's config. Built-in tools by name plus resolved specs delivered natively (Pi has no
-    MCP; the runner registers them through the Pi extension). Pi has no native gate; the runner
-    relay enforces the shared permission plan.
+    """Pi's config. Resolved tool specs are delivered natively (Pi has no MCP; the runner
+    registers them through the Pi extension). Built-in tools are not configured here: the
+    runner activates all of them on every run. Pi has no native gate; the runner relay
+    enforces the shared permission plan.
 
     ``system`` and ``append_system`` are Pi's two system-prompt layers, distinct from
     ``agents_md``. ``system`` *replaces* Pi's built-in base prompt outright (Pi's ``SYSTEM.md``
@@ -867,10 +869,6 @@ class PiAgentTemplate(HarnessAgentTemplate):
 
     harness: ClassVar[HarnessKind] = HarnessKind.PI
 
-    builtin_names: List[str] = Field(
-        default_factory=list,
-        validation_alias=AliasChoices("builtin_names", "builtin_tools"),
-    )
     tool_specs: List[ToolSpec] = Field(
         default_factory=list,
         validation_alias=AliasChoices("tool_specs", "custom_tools"),
@@ -884,16 +882,14 @@ class PiAgentTemplate(HarnessAgentTemplate):
         return [coerce_tool_spec(item) for item in value or []]
 
     @property
-    def builtin_tools(self) -> List[str]:
-        return list(self.builtin_names)
-
-    @property
     def custom_tools(self) -> List[Dict[str, Any]]:
         return [tool_spec.to_wire() for tool_spec in self.tool_specs]
 
     def wire_tools(self) -> Dict[str, Any]:
         return {
-            "tools": list(self.builtin_names),
+            # Deprecated field, ignored by a current runner. Populated with every built-in so an
+            # older runner (which still reads it as a grant list) activates the same set.
+            "tools": list(PI_BUILTIN_TOOL_NAMES),
             "customTools": [tool_spec.to_wire() for tool_spec in self.tool_specs],
             "toolCallback": self.tool_callback.to_wire()
             if self.tool_callback
@@ -983,9 +979,10 @@ class SessionConfig(BaseModel):
     """Everything one run needs except where it runs.
 
     ``agent`` is the agent definition. ``secrets`` are provider keys injected as harness
-    env, never written to the agent filesystem. The ``builtin_tools`` / ``custom_tools`` /
-    ``tool_callback`` triple is the resolved tool delivery (Agenta produces it server-side;
-    empty for a bare standalone run). The agent config's ``sandbox`` field is a
+    env, never written to the agent filesystem. The ``custom_tools`` / ``tool_callback`` pair
+    is the resolved tool delivery (Agenta produces it server-side; empty for a bare standalone
+    run); built-in tools are not part of it, the runner activates them. The agent config's
+    ``sandbox`` field is a
     backend/environment concern: the caller reads it to pick a backend BEFORE the session is
     built, and the run itself never consumes it (no adapter reads ``agent.sandbox``)."""
 
@@ -1004,10 +1001,6 @@ class SessionConfig(BaseModel):
     # wire when unset, so a run that needs no binding is byte-identical to before.
     run_context: Optional[RunContext] = None
     session_id: Optional[str] = None
-    builtin_names: List[str] = Field(
-        default_factory=list,
-        validation_alias=AliasChoices("builtin_names", "builtin_tools"),
-    )
     tool_specs: List[ToolSpec] = Field(
         default_factory=list,
         validation_alias=AliasChoices("tool_specs", "custom_tools"),
@@ -1029,10 +1022,6 @@ class SessionConfig(BaseModel):
             else ResolvedMCPServer.model_validate(item)
             for item in value or []
         ]
-
-    @property
-    def builtin_tools(self) -> List[str]:
-        return list(self.builtin_names)
 
     @property
     def custom_tools(self) -> List[Dict[str, Any]]:

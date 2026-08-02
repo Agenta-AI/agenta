@@ -383,133 +383,24 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.useToolRelay, true);
   });
 
-  it("turns builtin gating on when blanket allow has a reduced grant set", () => {
+  it("leaves builtin gating off under a blanket allow with no builtin rules", () => {
     const result = buildRunPlan(
       {
         harness: "pi_core",
         messages: [{ role: "user", content: "hello" }],
         permissions: { default: "allow", rules: [] },
-        tools: ["read", "write"],
       } as AgentRunRequest,
       { createLocalCwd: () => "/tmp/local-cwd" },
     );
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.deepEqual(result.plan.builtinGrants, ["read", "write"]);
-    assert.equal(result.plan.builtinGatingActive, true);
+    assert.equal(result.plan.builtinGatingActive, false);
     // Builtin gating rides the ACP dialog plane, not the relay: no custom tools, no relay.
     assert.equal(result.plan.useToolRelay, false);
   });
 
-  it("turns builtin gating on when grants include Pi-nondefault builtins", () => {
-    const result = buildRunPlan(
-      {
-        harness: "pi_core",
-        messages: [{ role: "user", content: "hello" }],
-        permissions: { default: "allow", rules: [] },
-        tools: ["read", "bash", "edit", "write", "grep", "find", "ls"],
-      } as AgentRunRequest,
-      { createLocalCwd: () => "/tmp/local-cwd" },
-    );
-
-    assert.equal(result.ok, true);
-    if (!result.ok) return;
-    assert.deepEqual(result.plan.builtinGrants, [
-      "read",
-      "bash",
-      "edit",
-      "write",
-      "grep",
-      "find",
-      "ls",
-    ]);
-    assert.equal(result.plan.builtinGatingActive, true);
-  });
-
-  it("leaves the all-allow default-grants Pi fast path off", () => {
-    const result = buildRunPlan(
-      {
-        harness: "pi_core",
-        messages: [{ role: "user", content: "hello" }],
-        permissions: { default: "allow", rules: [] },
-      } as AgentRunRequest,
-      { createLocalCwd: () => "/tmp/local-cwd" },
-    );
-
-    assert.equal(result.ok, true);
-    if (!result.ok) return;
-    assert.deepEqual(result.plan.builtinGrants, [
-      "read",
-      "bash",
-      "edit",
-      "write",
-    ]);
-    assert.equal(result.plan.builtinGatingActive, false);
-    assert.equal(result.plan.useToolRelay, false);
-  });
-
-  it("distinguishes omitted tools from an explicit empty grant set", () => {
-    const omitted = buildRunPlan(
-      {
-        harness: "pi_core",
-        messages: [{ role: "user", content: "hello" }],
-        permissions: { default: "allow", rules: [] },
-      } as AgentRunRequest,
-      { createLocalCwd: () => "/tmp/local-cwd" },
-    );
-    const none = buildRunPlan(
-      {
-        harness: "pi_core",
-        messages: [{ role: "user", content: "hello" }],
-        permissions: { default: "allow", rules: [] },
-        tools: [],
-      } as AgentRunRequest,
-      { createLocalCwd: () => "/tmp/local-cwd" },
-    );
-
-    assert.equal(omitted.ok, true);
-    assert.equal(none.ok, true);
-    if (!omitted.ok || !none.ok) return;
-    assert.deepEqual(omitted.plan.builtinGrants, [
-      "read",
-      "bash",
-      "edit",
-      "write",
-    ]);
-    assert.equal(omitted.plan.builtinGatingActive, false);
-    assert.deepEqual(none.plan.builtinGrants, []);
-    assert.equal(none.plan.builtinGatingActive, true);
-    assert.equal(none.plan.useToolRelay, false);
-  });
-
-  it("keeps the fast path off for the shipped default's explicit four-builtin grant list", () => {
-    // The shipped default agent template now sends exactly Pi's own default set (issue #5590).
-    // Under a blanket allow that must stay equal to PI_DEFAULT_ACTIVE_BUILTINS, so gating stays
-    // off and no approval relay round trip is added per tool call — the reason this set was chosen.
-    const result = buildRunPlan(
-      {
-        harness: "pi_core",
-        messages: [{ role: "user", content: "hello" }],
-        permissions: { default: "allow", rules: [] },
-        tools: ["read", "bash", "edit", "write"],
-      } as AgentRunRequest,
-      { createLocalCwd: () => "/tmp/local-cwd" },
-    );
-
-    assert.equal(result.ok, true);
-    if (!result.ok) return;
-    assert.deepEqual(result.plan.builtinGrants, [
-      "read",
-      "bash",
-      "edit",
-      "write",
-    ]);
-    assert.equal(result.plan.builtinGatingActive, false);
-    assert.equal(result.plan.useToolRelay, false);
-  });
-
-  it("turns builtin gating on for the same grant list under the default allow_reads mode", () => {
+  it("turns builtin gating on under the default allow_reads mode", () => {
     // allow_reads is the shipped default permission mode, and it can gate a builtin, so the
     // fast path above is the blanket-allow case only.
     const result = buildRunPlan(
@@ -517,19 +408,12 @@ describe("buildRunPlan", () => {
         harness: "pi_core",
         messages: [{ role: "user", content: "hello" }],
         permissions: { default: "allow_reads", rules: [] },
-        tools: ["read", "bash", "edit", "write"],
       } as AgentRunRequest,
       { createLocalCwd: () => "/tmp/local-cwd" },
     );
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.deepEqual(result.plan.builtinGrants, [
-      "read",
-      "bash",
-      "edit",
-      "write",
-    ]);
     assert.equal(result.plan.builtinGatingActive, true);
   });
 
@@ -547,12 +431,6 @@ describe("buildRunPlan", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.deepEqual(result.plan.builtinGrants, [
-      "read",
-      "bash",
-      "edit",
-      "write",
-    ]);
     assert.equal(result.plan.builtinGatingActive, true);
     assert.equal(result.plan.useToolRelay, false);
   });

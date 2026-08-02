@@ -1,4 +1,0 @@
-{
-  "description": "Pi's own default active built-in tool names. Neither language owns this list: the Python constant PI_DEFAULT_ACTIVE_BUILTINS (agenta/sdk/agents/pi_builtins.py) and the TypeScript PI_DEFAULT_ACTIVE_BUILTINS (services/runner/src/engines/sandbox_agent/run-plan.ts) are two implementations of this one pinned contract. The shipped default agent template grants exactly these, so the two must not drift.",
-  "names": ["read", "bash", "edit", "write"]
-}

@@ -47,6 +47,7 @@ from agenta.sdk.agents.utils.wire import (
     result_from_wire,
     sanitize_runner_error,
 )
+from agenta.sdk.agents.pi_builtins import PI_BUILTIN_TOOL_NAMES
 from agenta.sdk.utils.types import build_agent_v0_default
 
 # The full set of top-level keys ``request_to_wire`` may emit. The TS ``AgentRunRequest``
@@ -129,7 +130,6 @@ def _pi_payload():
     config = PiAgentTemplate(
         agents_md="You are a helpful assistant.",
         model="openai-codex/gpt-5.5",
-        builtin_tools=["read", "write"],
         custom_tools=[dict(_CUSTOM_TOOL), dict(_DIRECT_CALL_TOOL)],
         tool_callback=_CALLBACK,
         skills=[dict(_SKILL)],
@@ -201,7 +201,6 @@ def _agenta_payload():
     config = AgentaAgentTemplate(
         agents_md="Agenta preamble + project rules.",
         model="gpt-5.5",
-        builtin_tools=["read", "bash"],
         custom_tools=[dict(_CUSTOM_TOOL)],
         tool_callback=_CALLBACK,
         append_system="You are an Agenta agent.",
@@ -254,7 +253,7 @@ def test_request_to_wire_agenta_carries_skills_and_pi_shape():
     assert set(payload) <= KNOWN_REQUEST_KEYS
     # Agenta is a Pi config: same tool shape and shared permission plan, plus prompt overrides.
     assert payload["permissions"] == {"default": "allow_reads"}
-    assert payload["tools"] == ["read", "bash"]
+    assert payload["tools"] == list(PI_BUILTIN_TOOL_NAMES)
     assert payload["appendSystemPrompt"] == "You are an Agenta agent."
     # ...plus the resolved inline skill packages, on their own seam (not in `wire_tools`).
     assert payload["skills"][0]["name"] == "release-notes"
@@ -364,23 +363,26 @@ def test_request_to_wire_attachment_matches_golden(golden):
     }
 
 
-async def test_default_template_grants_pi_default_builtins_on_the_wire(make_env):
-    """A default-derived agent must reach the runner with Pi's built-ins granted (issue #5590).
+async def test_default_template_carries_no_tool_entries_and_still_names_every_builtin_on_the_wire(
+    make_env,
+):
+    """Two guarantees at once, both of which a future edit could silently break.
 
-    The runner reads ``tools: []`` as "grant nothing" and deletes every built-in from Pi's
-    active set, so an empty list here means a saved agent has no read, bash, edit or write
-    anywhere outside the playground. This starts from the SHIPPED default rather than a
-    hand-written template, and it runs the real chain (template parse, tool resolution, the Pi
-    harness adapter, the wire serializer), because any of those layers could drop the built-ins
-    on the way.
+    The shipped default template carries NO tool entries: built-ins are activated by the
+    runner, never configured. And the wire's deprecated ``tools`` field still names every
+    built-in, so an older runner that reads it as a grant list activates the same set instead
+    of the empty list that caused issue #5590. This starts from the SHIPPED default rather than
+    a hand-written template, and it runs the real chain (template parse, tool resolution, the Pi
+    harness adapter, the wire serializer).
     """
+    assert build_agent_v0_default()["tools"] == []
+
     template = AgentTemplate.from_params({"agent": build_agent_v0_default()})
     resolved = await ToolResolver().resolve(template.tools)
     harness = PiHarness(make_env(supported=[HarnessKind.PI]))
     config = harness._to_harness_config(
         SessionConfig(
             agent=template,
-            builtin_names=resolved.builtin_names,
             tool_specs=resolved.tool_specs,
         )
     )
@@ -392,7 +394,7 @@ async def test_default_template_grants_pi_default_builtins_on_the_wire(make_env)
         messages=[Message(role="user", content="hi")],
     )
 
-    assert payload["tools"] == ["read", "bash", "edit", "write"]
+    assert payload["tools"] == list(PI_BUILTIN_TOOL_NAMES)
 
 
 def test_request_to_wire_omits_run_context_when_none():

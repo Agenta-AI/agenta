@@ -196,7 +196,6 @@ export async function prepareEnvironmentSetup(
         usageOutPath: plan.usageOutPath,
         otlpAuthFilePath,
         builtinGatingActive: plan.builtinGatingActive,
-        builtinGrants: plan.builtinGrants,
         // The materialized skill names (author + forced `_agenta.*`) so Pi's own agent span
         // records which skills loaded; local Pi self-instruments, so the runner's sandbox-agent
         // otel has no span to stamp here.

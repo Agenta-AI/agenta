@@ -10,7 +10,6 @@ from pydantic import Field, model_validator, AliasChoices
 
 from agenta.sdk.agents.dtos import HARNESS_IDENTITIES, SandboxPermission
 from agenta.sdk.agents.mcp import MCPServerConfig
-from agenta.sdk.agents.pi_builtins import PI_DEFAULT_ACTIVE_BUILTINS
 from agenta.sdk.agents.tools import ToolConfig
 from agenta.sdk.agents.wire_models import run_contract_schemas
 from agenta.sdk.utils.assets import supported_llm_models, model_metadata
@@ -1271,12 +1270,13 @@ class AgentTemplateSchema(AgSchemaMixin):
 
 
 class _HarnessPermissionsSchema(BaseModel):
-    """A permission-gating harness's allow/ask/deny posture (was
-    ``harness_kwargs.claude.permissions``). Lifted first-class because it is a security posture.
+    """The harness's allow/ask/deny rule lists (was ``harness_kwargs.claude.permissions``).
+    Lifted first-class because it is a security posture.
 
-    For Claude this renders into ``.claude/settings.json``. ``default_mode`` is Claude's
-    permission mode; ``allow`` / ``ask`` / ``deny`` are per-tool rule strings. A non-gating
-    harness (Pi) leaves this empty."""
+    Each rule is a tool name (``Bash``) or a prefix pattern (``Bash(npm run:*)``). The lists are
+    how a Pi agent's built-in tools are controlled, since built-ins are always active and are
+    never listed in ``tools``. For Claude they also render into ``.claude/settings.json``.
+    ``default_mode`` is Claude's own permission mode and does not apply to Pi."""
 
     model_config = ConfigDict(extra="forbid", title="Permissions")
 
@@ -1285,22 +1285,22 @@ class _HarnessPermissionsSchema(BaseModel):
     ] = Field(
         default=None,
         title="Default mode",
-        description="The harness's default permission mode (Claude: default / acceptEdits / plan / bypassPermissions).",
+        description="Claude's default permission mode (default / acceptEdits / plan / bypassPermissions). Not used by Pi.",
     )
     allow: List[str] = Field(
         default_factory=list,
         title="Allow",
-        description="Per-tool rules auto-approved without prompting.",
+        description="Tools that run without asking.",
     )
     ask: List[str] = Field(
         default_factory=list,
         title="Ask",
-        description="Per-tool rules that raise a prompt.",
+        description="Tools that ask before running.",
     )
     deny: List[str] = Field(
         default_factory=list,
         title="Deny",
-        description="Per-tool rules always rejected.",
+        description="Tools that are never allowed to run.",
     )
 
 
@@ -1309,7 +1309,7 @@ class _HarnessSchema(BaseModel):
     its ``harness_kwargs`` slice).
 
     ``kind`` is the harness selector (the bare ``pi_core`` / ``pi_agenta`` / ``claude`` value).
-    ``permissions`` is the gating posture for harnesses that gate tool use (Claude). ``extras``
+    ``permissions`` is the allow/ask/deny rule lists that decide which tools may run. ``extras``
     is the per-harness escape hatch (Pi's ``system`` / ``append_system`` prompt overrides)."""
 
     model_config = ConfigDict(extra="forbid", title="Harness")
@@ -1326,7 +1326,7 @@ class _HarnessSchema(BaseModel):
     permissions: _HarnessPermissionsSchema = Field(
         default_factory=_HarnessPermissionsSchema,
         title="Permissions",
-        description="The harness's tool-use gating posture (gating harnesses only, e.g. Claude).",
+        description="The allow / ask / deny rules that decide which tools may run.",
     )
     extras: Dict[str, Any] = Field(
         default_factory=dict,
@@ -1427,12 +1427,8 @@ def build_agent_v0_default(
     template: Dict[str, Any] = {
         "instructions": {"agents_md": _DEFAULT_AGENTS_MD},
         "llm": {"provider": _DEFAULT_AGENT_PROVIDER, "model": _DEFAULT_AGENT_MODEL},
-        # Pi's own default active built-ins, in the typed form the strict schema describes. The
-        # runner reads an empty list as "grant nothing", which left a saved agent with no
-        # read/bash/edit/write anywhere outside the playground overlay (issue #5590).
-        "tools": [
-            {"type": "builtin", "name": name} for name in PI_DEFAULT_ACTIVE_BUILTINS
-        ],
+        # Built-in tools are always active and are not configured here.
+        "tools": [],
         "mcps": [],
     }
     if skill_slug is not None:

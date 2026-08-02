@@ -44,7 +44,6 @@ async def test_resolve_tools_builds_local_specs_with_scoped_secrets():
         secret_provider=provider,
     )
     assert provider.requests == [["TOKEN"]]
-    assert resolved.builtin_names == ["read"]
     code = next(spec for spec in resolved.tool_specs if spec.name == "calc")
     assert isinstance(code, CodeToolSpec)
     assert code.env == {"TOKEN": "secret"}
