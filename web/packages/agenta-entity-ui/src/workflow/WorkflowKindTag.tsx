@@ -1,7 +1,7 @@
 import {memo} from "react"
 
 import {cn} from "@agenta/ui"
-import {Tag} from "antd"
+import {Badge} from "@agenta/ui/ui"
 
 export interface WorkflowKindTagProps {
     isEvaluator: boolean
@@ -10,13 +10,13 @@ export interface WorkflowKindTagProps {
 
 /**
  * "Kind" pill for a workflow row — `App` for applications, `Evaluator` for
- * evaluator workflows. Uses Ant preset colors (`blue`/`purple`) so it stays
+ * evaluator workflows. Uses the preset tag colors (`blue`/`purple`) so it stays
  * visually distinct from the category-palette `WorkflowTypeTag`.
  */
 const WorkflowKindTag = memo(({isEvaluator, className}: WorkflowKindTagProps) => (
-    <Tag color={isEvaluator ? "purple" : "blue"} className={cn(className)}>
+    <Badge variant={isEvaluator ? "purple" : "blue"} className={cn(className)}>
         {isEvaluator ? "Evaluator" : "App"}
-    </Tag>
+    </Badge>
 ))
 
 WorkflowKindTag.displayName = "WorkflowKindTag"

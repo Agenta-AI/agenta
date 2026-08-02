@@ -57,8 +57,8 @@ import {
     type TableScopeConfig,
     type TypeChipConfig,
 } from "@agenta/ui/table"
+import {Checkbox, RadioGroup, RadioGroupItem} from "@agenta/ui/ui"
 import type {GroupColumnsOptions} from "@agenta/ui/utils"
-import {Checkbox, Radio} from "antd"
 import type {ColumnType, ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -423,10 +423,10 @@ export function EntityTable<
             key: "__selection",
             title: multiSelect ? (
                 <Checkbox
-                    checked={isAllSelected}
-                    indeterminate={isSomeSelected}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    checked={isSomeSelected ? "indeterminate" : isAllSelected}
+                    onCheckedChange={(checked) => handleSelectAll(checked === true)}
                     disabled={selectionDisabled}
+                    aria-label="Select all rows"
                 />
             ) : null,
             width: SELECTION_COLUMN_WIDTH,
@@ -437,28 +437,33 @@ export function EntityTable<
                     return (
                         <Checkbox
                             checked={checked}
-                            onChange={(e) => handleRowSelect(record.id, e.target.checked)}
+                            onCheckedChange={(next) => handleRowSelect(record.id, next === true)}
                             disabled={selectionDisabled}
                             onClick={(e) => e.stopPropagation()}
+                            aria-label="Select row"
                         />
                     )
                 }
-                // Single-select: render a Radio. Clicking an unchecked radio
+                // Single-select: render a radio. Clicking an unchecked radio
                 // selects (and replaces the previous selection via the
                 // `multiSelect ? … : [rowId]` branch in `handleRowSelect`).
-                // Clicking a checked radio is a no-op in antd by default —
-                // we don't try to "uncheck" because single-select tables
-                // are semantically "pick one"; the user can pick a
-                // different row instead.
+                // Clicking a checked radio is a no-op (Radix only fires
+                // `onValueChange` on an actual change) — we don't try to
+                // "uncheck" because single-select tables are semantically
+                // "pick one"; the user can pick a different row instead.
+                // Each row is its own single-item RadioGroup: rows render in
+                // independent cells, so a shared Radix group root can't wrap them.
                 return (
-                    <Radio
-                        checked={checked}
-                        onChange={() => {
+                    <RadioGroup
+                        value={checked ? record.id : ""}
+                        onValueChange={() => {
                             if (!checked) handleRowSelect(record.id, true)
                         }}
                         disabled={selectionDisabled}
                         onClick={(e) => e.stopPropagation()}
-                    />
+                    >
+                        <RadioGroupItem value={record.id} aria-label="Select row" />
+                    </RadioGroup>
                 )
             },
         }

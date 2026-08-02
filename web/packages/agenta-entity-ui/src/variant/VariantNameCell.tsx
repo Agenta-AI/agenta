@@ -7,7 +7,7 @@ import {
     workflowVariantsListDataAtomFamily,
 } from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
-import {Tag} from "antd"
+import {Badge} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {VariantStatusInfo} from "./types"
@@ -59,11 +59,7 @@ const VariantNameCell = memo(
         }, [currentRevisionId, discard])
 
         if (!workflowData) {
-            return (
-                <Tag color="default" variant="filled" className="-ml-1">
-                    No deployment
-                </Tag>
-            )
+            return <Badge className="-ml-1">No deployment</Badge>
         }
 
         const variantEntity = variants.find((v) => v.id === workflowData.workflow_variant_id)

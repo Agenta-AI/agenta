@@ -15,7 +15,7 @@
 import {memo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {Tag} from "antd"
+import {Badge} from "@agenta/ui/ui"
 import clsx from "clsx"
 
 import {resolveAnyOfSchema} from "../DrillInView/SchemaControls/schemaUtils"
@@ -111,9 +111,9 @@ const RunnableOutputValue = memo(function RunnableOutputValue({
     if (effectiveType === "boolean" || typeof value === "boolean") {
         const boolVal = typeof value === "boolean" ? value : value === "true"
         return (
-            <Tag color={boolVal ? "green" : "default"} className={clsx("!m-0 text-xs", className)}>
+            <Badge variant={boolVal ? "green" : "default"} className={clsx("text-xs", className)}>
                 {String(value)}
-            </Tag>
+            </Badge>
         )
     }
 
