@@ -20,6 +20,12 @@ for it, so this work adds a page, not a new data layer.
    boundary where the deferred model and tool views drop in once the backend supports them.
 5. **status.md** : current state, open questions, and decisions. This is the source of
    truth for progress; update it as work lands.
+6. **capability-review.md** : an independent, evidence-backed review of what the analytics
+   backend can actually answer today, written after the four documents above. It tests each
+   wanted capability against the running code with live queries, measures how long those
+   queries take, and proposes a v1 and a v2. It contradicts the four documents above in
+   several places, so read it before building anything. Where the two disagree, the review
+   carries the evidence.
 
 ## Glossary
 
