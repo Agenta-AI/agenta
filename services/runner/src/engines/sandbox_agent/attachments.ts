@@ -101,9 +101,11 @@ export const CLAUDE_INLINE_BASE64_MAX_BYTES = 10 * 1024 * 1024;
 const DEFAULT_RESTORE_CONCURRENCY = 4;
 const DEFAULT_RESTORE_TIMEOUT_MS = 15_000;
 
-// Adapter fidelity at the pinned versions: claude-agent-acp 0.58.1 and pi-acp 0.0.29.
+// Adapter fidelity at the pinned versions: claude-agent-acp 0.58.1, codex-acp 1.1.7, and
+// pi-acp 0.0.29.
 const ADAPTER_NATIVE_SUPPORT = {
   claude: { image: true, audio: false, document: false },
+  codex: { image: true, audio: false, document: false },
   pi: { image: true, audio: false, document: false },
 } as const;
 

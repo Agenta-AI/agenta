@@ -21,7 +21,7 @@ const IMAGE_INPUT = {
 };
 
 describe("attachment capability gate", () => {
-  it("delivers images natively through both pinned adapters", () => {
+  it("delivers images natively through all pinned adapters", () => {
     assert.equal(
       attachmentCapabilityGate(IMAGE_INPUT).outcome,
       "native",
@@ -30,6 +30,14 @@ describe("attachment capability gate", () => {
       attachmentCapabilityGate({
         ...IMAGE_INPUT,
         acpAgent: "pi",
+        provider: "openai",
+      }).outcome,
+      "native",
+    );
+    assert.equal(
+      attachmentCapabilityGate({
+        ...IMAGE_INPUT,
+        acpAgent: "codex",
         provider: "openai",
       }).outcome,
       "native",
