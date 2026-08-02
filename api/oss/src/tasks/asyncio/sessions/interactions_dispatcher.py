@@ -160,8 +160,10 @@ def _gated_call_shape(
             return {"name": name, "args": args}
 
     data: Optional[SessionInteractionData] = interaction.data
-    request = (data.request if data else None) or {}
-    return {"name": request.get("tool"), "args": request.get("args")}
+    request = data.request if data else None
+    if request is None:
+        return {"name": None, "args": None}
+    return {"name": request.tool, "args": request.args}
 
 
 def compose_approval_messages(
