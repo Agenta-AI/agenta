@@ -29,8 +29,8 @@ import {useCallback, useMemo, useState, type ReactNode} from "react"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
+import {Button, Input, InputNumber, Switch} from "@agenta/ui/ui"
 import {MinusCircle, Plus} from "@phosphor-icons/react"
-import {Button as AntdButton, Input, InputNumber, Switch} from "antd"
 import {dump as yamlDump, load as yamlLoad} from "js-yaml"
 
 import {
@@ -324,28 +324,24 @@ function ArrayBody({arr, depth, editable, onChange, schema}: ArrayBodyProps) {
                     // — not inset by the button. Arda QA 2026-06-02.
                     headerRight={
                         editable ? (
-                            <AntdButton
-                                type="text"
-                                size="small"
-                                icon={<MinusCircle size={14} />}
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
                                 aria-label={`Remove row ${idx}`}
                                 onClick={() => removeIndex(idx)}
                                 style={styles.arrayRowRemove}
-                            />
+                            >
+                                <MinusCircle size={14} />
+                            </Button>
                         ) : undefined
                     }
                 />
             ))}
             {editable ? (
-                <AntdButton
-                    type="dashed"
-                    size="small"
-                    icon={<Plus size={14} />}
-                    onClick={addRow}
-                    style={styles.arrayAddRow}
-                >
+                <Button variant="dashed" size="sm" onClick={addRow} style={styles.arrayAddRow}>
+                    <Plus size={14} />
                     Add row
-                </AntdButton>
+                </Button>
             ) : null}
         </div>
     )
@@ -415,6 +411,9 @@ function FieldBody({
                 disabled={!editable}
                 onChange={(next) => onChange(next ?? 0)}
                 placeholder="Enter number value"
+                // Pre-migration the 13px rode root `fontSize` and the inner input inherited
+                // it; the @agenta/ui inner input pins its own ramp, so target it directly.
+                className="[&_input]:text-[13px]"
                 style={styles.numberInput}
             />
         )
@@ -424,14 +423,13 @@ function FieldBody({
             <Switch
                 checked={value as boolean}
                 disabled={!editable}
-                onChange={(next) => onChange(next)}
+                onCheckedChange={(next) => onChange(next)}
             />
         )
     }
     if (kind === "null") {
         return (
             <Input
-                size="middle"
                 value=""
                 placeholder="null"
                 disabled={!editable}
@@ -659,7 +657,7 @@ const styles = {
         maxWidth: 480,
     },
     numberInput: {
-        fontSize: 13,
+        // 13px lives in the `[&_input]` className override; the wrapper only sizes.
         width: 240,
     },
     emptyHint: {

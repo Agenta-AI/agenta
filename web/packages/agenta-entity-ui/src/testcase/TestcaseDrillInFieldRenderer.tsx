@@ -8,7 +8,6 @@ import {
 } from "@agenta/ui/drill-in"
 import {EditorProvider, SET_MARKDOWN_VIEW, useLexicalComposerContext} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-// import {InputNumber, Switch} from "antd"
 
 import {parseCodeString, toCodeString} from "./codeFormat"
 import {inferPrimitiveFromText} from "./TestcasePrimitiveValue.utils"

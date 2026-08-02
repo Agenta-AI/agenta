@@ -1,5 +1,8 @@
+import type {MutableRefObject} from "react"
+
+import type {CustomProviderFormHandle} from "@agenta/entity-ui/secretProvider"
 import type {LlmProvider} from "@agenta/shared/types"
-import {DrawerProps, FormInstance, InputProps} from "antd"
+import {DrawerProps, InputProps} from "antd"
 
 export interface ConfigureProviderDrawerProps extends DrawerProps {
     selectedProvider?: LlmProvider | null
@@ -15,6 +18,6 @@ export interface ModelNameInputProps extends InputProps {
 export interface ConfigureProviderDrawerContentProps {
     selectedProvider?: LlmProvider | null
     initialProviderKind?: string
-    form: FormInstance<LlmProvider>
+    formRef: MutableRefObject<CustomProviderFormHandle | null>
     onClose: () => void
 }

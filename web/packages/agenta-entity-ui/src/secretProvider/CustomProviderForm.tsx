@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from "react"
+import React, {useCallback, useEffect, useMemo, useState} from "react"
 
 import {
     PROVIDER_AUTH_REQUIREMENTS,
@@ -12,39 +12,54 @@ import {
 import type {LlmProvider} from "@agenta/shared/types"
 import {isSlugInputValid} from "@agenta/shared/utils"
 import {LabelInput} from "@agenta/ui"
-import {
-    SelectLLMProviderBase,
-    capitalize,
-    type ProviderGroup,
-    type SelectLLMProviderBaseProps,
-} from "@agenta/ui/select-llm-provider"
+import {SelectLLMProviderBase, capitalize, type ProviderGroup} from "@agenta/ui/select-llm-provider"
+import {Button, Textarea} from "@agenta/ui/ui"
 import {Plus, WarningCircle} from "@phosphor-icons/react"
-import {Button, Form, Input, Typography} from "antd"
-import type {FormInstance} from "antd"
-import {useWatch} from "antd/lib/form/Form"
 
 import ModelNameInput from "./ModelNameInput"
 
-const {Text} = Typography
+/** Imperative surface the host's footer (Submit button) drives — replaces the antd
+ * `FormInstance` the pre-migration API shared with the caller. */
+export interface CustomProviderFormHandle {
+    submit: () => void
+    reset: () => void
+}
 
 export interface CustomProviderFormProps {
     selectedProvider?: LlmProvider | null
     /** Pre-selects the provider kind for a NEW provider (editing ignores it — `selectedProvider`
      * already carries its own kind). */
     initialProviderKind?: string
-    form: FormInstance<LlmProvider>
+    /** The host assigns `.current` here; its footer button calls `formRef.current?.submit()`. */
+    formRef?: React.MutableRefObject<CustomProviderFormHandle | null>
     onClose: () => void
 }
 
-/** antd's `Select` read `FormItemInputContext` itself to paint its error border; the antd-free
- * `SelectLLMProviderBase` can't, so bridge that exact context via `Form.Item.useStatus()`. */
-const ProviderSelect = (props: SelectLLMProviderBaseProps) => {
-    const {status} = Form.Item.useStatus()
-    return <SelectLLMProviderBase {...props} invalid={status === "error"} />
+type FormValues = Partial<LlmProvider> & {provider?: string; models?: string[]}
+
+const INITIAL_VALUES: FormValues = {
+    provider: "",
+    name: "",
+    apiKey: "",
+    apiBaseUrl: "",
+    accessKeyId: "",
+    accessKey: "",
+    sessionToken: "",
+    models: [""],
 }
 
+/** Error line under a control — replaces antd `Form.Item`'s validation message. */
+const FieldError = ({error}: {error?: string}) =>
+    error ? <span className="text-xs text-colorError">{error}</span> : null
+
 /** Render control based on field.attributes */
-const renderControl = (field: ProviderFieldConfig, isRequired?: boolean) => {
+const renderControl = (
+    field: ProviderFieldConfig,
+    isRequired: boolean | undefined,
+    value: string,
+    onChange: (next: string) => void,
+    error?: string,
+) => {
     const a = field.attributes
 
     if (!a || a.kind === "text") {
@@ -54,41 +69,32 @@ const renderControl = (field: ProviderFieldConfig, isRequired?: boolean) => {
                 label={`${field.label}${isRequired ? " *" : ""}`}
                 placeholder={field.placeholder}
                 type={a?.type ?? a?.inputType ?? "text"}
+                value={value}
+                onChange={(event) => onChange(event.target.value)}
             />
         )
     }
 
-    if (a.kind === "textarea") {
-        return (
-            <div className="flex flex-col gap-1">
-                <Text className="font-medium">
-                    {field.label}
-                    {isRequired ? <span aria-hidden> *</span> : null}
-                </Text>
-                <Input.TextArea
-                    placeholder={field.placeholder}
-                    rows={a.rows ?? 6}
-                    className={a.monospace ? "font-mono" : undefined}
-                    spellCheck={false}
-                    autoComplete="off"
-                />
-            </div>
-        )
-    }
-
-    // a.kind === "json"
+    const isJson = a.kind === "json"
     return (
         <div className="flex flex-col gap-1">
-            <Text className="font-medium">
+            <span className="font-medium text-colorText">
                 {field.label}
                 {isRequired ? <span aria-hidden> *</span> : null}
-            </Text>
-            <Input.TextArea
-                placeholder={field.placeholder ?? '{\n  "type": "service_account",\n  ...\n}'}
-                rows={a.rows ?? 10}
-                className={a.monospace !== false ? "font-mono" : undefined}
+            </span>
+            <Textarea
+                placeholder={
+                    isJson
+                        ? (field.placeholder ?? '{\n  "type": "service_account",\n  ...\n}')
+                        : field.placeholder
+                }
+                rows={a.rows ?? (isJson ? 10 : 6)}
+                className={(isJson ? a.monospace !== false : a.monospace) ? "font-mono" : undefined}
                 spellCheck={false}
                 autoComplete="off"
+                value={value}
+                onChange={(event) => onChange(event.target.value)}
+                aria-invalid={error ? true : undefined}
             />
         </div>
     )
@@ -97,17 +103,28 @@ const renderControl = (field: ProviderFieldConfig, isRequired?: boolean) => {
 /**
  * Custom-provider add/edit form: provider select, credential fields (driven by
  * `PROVIDER_FIELDS`/`PROVIDER_AUTH_REQUIREMENTS`), and a repeatable model-name list.
- * Renders inline in any host (drawer, panel) — the caller owns the antd `Form` chrome
- * (title, footer, submit trigger) and supplies the shared `form` instance.
+ * Renders inline in any host (drawer, panel) — the caller owns the chrome (title, footer,
+ * submit trigger) and drives submit/reset via `formRef` (`CustomProviderFormHandle`).
  */
 const CustomProviderForm = ({
-    form,
+    formRef,
     onClose,
     selectedProvider,
     initialProviderKind,
 }: CustomProviderFormProps) => {
     const [errorMessage, setErrorMessage] = useState("")
+    const [values, setValues] = useState<FormValues>(INITIAL_VALUES)
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
     const {handleModifyCustomVaultSecret} = useVaultSecret()
+
+    const setField = useCallback((key: string, next: unknown) => {
+        setValues((prev) => ({...prev, [key]: next}))
+        setFieldErrors((prev) => {
+            if (!(key in prev)) return prev
+            const {[key]: _removed, ...rest} = prev
+            return rest
+        })
+    }, [])
 
     const standardProviders = useMemo(() => [...STANDARD_PROVIDER_KINDS], [])
     const customProviders = useMemo(() => ["azure", "bedrock", "vertex_ai", "custom"], [])
@@ -132,7 +149,7 @@ const CustomProviderForm = ({
         })
     }, [standardProviders, customProviders])
 
-    const providerValue = useWatch("provider", form) || ""
+    const providerValue = values.provider || ""
     const normalizedProviderKind = useMemo(() => {
         if (!providerValue || typeof providerValue !== "string") {
             return ""
@@ -157,22 +174,112 @@ const CustomProviderForm = ({
         [normalizedProviderKind],
     )
 
+    const reset = useCallback(() => {
+        setValues(
+            initialProviderKind
+                ? {...INITIAL_VALUES, provider: initialProviderKind}
+                : INITIAL_VALUES,
+        )
+        setFieldErrors({})
+        setErrorMessage("")
+    }, [initialProviderKind])
+
     useEffect(() => {
         if (selectedProvider) {
             const rawProvider = String(selectedProvider.provider ?? "")
-            form.setFieldsValue({
+            setValues({
+                ...INITIAL_VALUES,
                 ...selectedProvider,
                 provider: PROVIDER_KINDS[rawProvider] ?? rawProvider,
             })
+            setFieldErrors({})
         } else {
-            form.resetFields()
-            if (initialProviderKind) form.setFieldsValue({provider: initialProviderKind})
+            reset()
         }
     }, [selectedProvider, initialProviderKind])
 
-    const onSubmit = async (values: LlmProvider) => {
+    const visibleFields = useMemo(
+        () =>
+            PROVIDER_FIELDS.filter((field) => {
+                if (shouldFilter) {
+                    return !field.model || field.model.includes(normalizedProviderKind)
+                }
+                return true
+            }),
+        [shouldFilter, normalizedProviderKind],
+    )
+
+    const isFieldRequired = useCallback(
+        (field: ProviderFieldConfig) => {
+            const isEitherOrAuthField = eitherOrAuthKeys.has(field.key)
+            return field.key === "apiBaseUrl" || isEitherOrAuthField
+                ? false
+                : !shouldFilter
+                  ? !!field.required
+                  : true
+        },
+        [eitherOrAuthKeys, shouldFilter],
+    )
+
+    /** Per-field checks the antd `Form.Item` rules used to run — errors render under the field. */
+    const validate = useCallback((): Record<string, string> => {
+        const errors: Record<string, string> = {}
+        if (!providerValue.trim()) {
+            errors.provider = "Please select a provider"
+        }
+
+        for (const field of visibleFields) {
+            const raw = String((values as Record<string, unknown>)[field.key] ?? "")
+            const isJson = field.attributes?.kind === "json"
+
+            if (field.key === "name") {
+                if (!raw) {
+                    errors.name = "Please enter name"
+                } else if (!isSlugInputValid(raw)) {
+                    errors.name =
+                        "Name must contain only letters, numbers, underscore, or dash without any spaces."
+                } else if (defaultProviderNames.has(raw.trim().toLowerCase())) {
+                    errors.name =
+                        "Name cannot match a default provider. Please choose a different name."
+                }
+                continue
+            }
+
+            if (isFieldRequired(field) && !raw.trim()) {
+                errors[field.key] = `Please enter ${field.label}`
+                continue
+            }
+
+            if (isJson && raw) {
+                try {
+                    JSON.parse(raw)
+                } catch {
+                    errors[field.key] = "Must be valid JSON"
+                }
+            }
+        }
+
+        ;(values.models ?? []).forEach((model, index) => {
+            if (!model?.trim()) errors[`models.${index}`] = "Please add a model name"
+        })
+
+        return errors
+    }, [providerValue, visibleFields, values, defaultProviderNames, isFieldRequired])
+
+    const onSubmit = useCallback(async () => {
+        if (!hasSelectedProvider) {
+            setFieldErrors({provider: "Please select a provider"})
+            return
+        }
+        const errors = validate()
+        if (Object.keys(errors).length) {
+            setFieldErrors(errors)
+            return
+        }
+        setFieldErrors({})
+
         try {
-            const models = form.getFieldValue("models") as string[] | undefined
+            const models = values.models
             if (!models?.length || !models[0]) {
                 setErrorMessage("Please add a model name before submitting")
                 return
@@ -190,9 +297,12 @@ const CustomProviderForm = ({
             }
 
             if (selectedProvider?.id) {
-                await handleModifyCustomVaultSecret({...values, id: selectedProvider?.id})
+                await handleModifyCustomVaultSecret({
+                    ...(values as LlmProvider),
+                    id: selectedProvider?.id,
+                })
             } else {
-                await handleModifyCustomVaultSecret(values)
+                await handleModifyCustomVaultSecret(values as LlmProvider)
             }
 
             onClose()
@@ -207,172 +317,133 @@ const CustomProviderForm = ({
                 setErrorMessage("Something went wrong! Please try again with the right credential.")
             }
         }
+    }, [
+        hasSelectedProvider,
+        validate,
+        values,
+        normalizedProviderKind,
+        selectedProvider,
+        handleModifyCustomVaultSecret,
+        onClose,
+    ])
+
+    useEffect(() => {
+        if (!formRef) return
+        formRef.current = {submit: () => void onSubmit(), reset}
+        return () => {
+            formRef.current = null
+        }
+    }, [formRef, onSubmit, reset])
+
+    const models = values.models ?? []
+    const addModel = () => setField("models", [...models, ""])
+    const removeModel = (index: number) =>
+        setField(
+            "models",
+            models.filter((_, i) => i !== index),
+        )
+    const updateModel = (index: number, next: string) => {
+        setField(
+            "models",
+            models.map((model, i) => (i === index ? next : model)),
+        )
+        setFieldErrors((prev) => {
+            const key = `models.${index}`
+            if (!(key in prev)) return prev
+            const {[key]: _removed, ...rest} = prev
+            return rest
+        })
     }
 
     return (
-        <Form
-            form={form}
-            layout="vertical"
-            onFinish={onSubmit}
-            initialValues={{
-                provider: "",
-                name: "",
-                apiKey: "",
-                apiBaseUrl: "",
-                accessKeyId: "",
-                accessKey: "",
-                sessionToken: "",
-                models: [""],
+        <form
+            onSubmit={(event) => {
+                event.preventDefault()
+                void onSubmit()
             }}
         >
-            <section className="[&_>.ant-form-item]:!mb-0 flex flex-col gap-4">
+            <section className="flex flex-col gap-4">
                 {hasSelectedProvider && errorMessage && (
-                    <Typography.Text className="mb-1 flex items-center gap-1" type="danger">
+                    <span className="mb-1 flex items-center gap-1 text-colorError">
                         <WarningCircle size={16} /> {errorMessage.replace("Value error,", "")}
-                    </Typography.Text>
+                    </span>
                 )}
 
                 <div className="flex flex-col gap-1">
-                    <Text className="font-medium">
+                    <span className="font-medium text-colorText">
                         Provider<span aria-hidden> *</span>
-                    </Text>
-                    <Form.Item name="provider" className="mb-0" rules={[{required: true}]}>
-                        <ProviderSelect options={providerOptions} />
-                    </Form.Item>
+                    </span>
+                    <SelectLLMProviderBase
+                        options={providerOptions}
+                        value={providerValue}
+                        onChange={(next) => setField("provider", next)}
+                        invalid={!!fieldErrors.provider}
+                    />
+                    <FieldError error={fieldErrors.provider} />
                 </div>
 
                 {hasSelectedProvider && (
                     <>
-                        {PROVIDER_FIELDS.filter((field) => {
-                            if (shouldFilter) {
-                                return !field.model || field.model.includes(normalizedProviderKind)
-                            }
-                            return true
-                        }).map((field) => {
-                            const isJson = field.attributes?.kind === "json"
-                            // A field in an either/or auth group is not individually required — the
-                            // group is validated as a whole on submit. Other fields (e.g. region)
-                            // keep their own requirement.
-                            const isEitherOrAuthField = eitherOrAuthKeys.has(field.key)
-                            const isRequired =
-                                field.key === "apiBaseUrl" || isEitherOrAuthField
-                                    ? false
-                                    : !shouldFilter
-                                      ? !!field.required
-                                      : true
+                        {visibleFields.map((field) => {
+                            const isRequired = isFieldRequired(field)
+                            const fieldValue = String(
+                                (values as Record<string, unknown>)[field.key] ?? "",
+                            )
 
                             return (
                                 <React.Fragment key={field.key}>
-                                    <Form.Item
-                                        name={field.key}
-                                        rules={[
-                                            {
-                                                required: isRequired,
-                                                ...(field.key === "name"
-                                                    ? {
-                                                          validator(_, value) {
-                                                              if (!value)
-                                                                  return Promise.reject(
-                                                                      "Please enter name",
-                                                                  )
-                                                              if (!isSlugInputValid(value)) {
-                                                                  return Promise.reject(
-                                                                      "Name must contain only letters, numbers, underscore, or dash without any spaces.",
-                                                                  )
-                                                              }
-                                                              if (
-                                                                  defaultProviderNames.has(
-                                                                      value.trim().toLowerCase(),
-                                                                  )
-                                                              ) {
-                                                                  return Promise.reject(
-                                                                      "Name cannot match a default provider. Please choose a different name.",
-                                                                  )
-                                                              }
-                                                              return Promise.resolve()
-                                                          },
-                                                      }
-                                                    : {}),
-                                            },
-                                            ...(isJson
-                                                ? [
-                                                      {
-                                                          validator(_: unknown, value: string) {
-                                                              if (!value) return Promise.resolve()
-                                                              try {
-                                                                  JSON.parse(value)
-                                                                  return Promise.resolve()
-                                                              } catch {
-                                                                  return Promise.reject(
-                                                                      "Must be valid JSON",
-                                                                  )
-                                                              }
-                                                          },
-                                                      },
-                                                  ]
-                                                : []),
-                                        ]}
-                                    >
-                                        {renderControl(field, isRequired)}
-                                    </Form.Item>
+                                    <div className="flex flex-col gap-1">
+                                        {renderControl(
+                                            field,
+                                            isRequired,
+                                            fieldValue,
+                                            (next) => setField(field.key, next),
+                                            fieldErrors[field.key],
+                                        )}
+                                        <FieldError error={fieldErrors[field.key]} />
+                                    </div>
 
                                     {field.note && (
-                                        <Text className="text-[var(--ag-c-586673)] -mt-2">
+                                        <span className="text-[var(--ag-c-586673)] -mt-2">
                                             {field.note}
-                                        </Text>
+                                        </span>
                                     )}
                                 </React.Fragment>
                             )
                         })}
 
-                        <Form.List name="models">
-                            {(fields, {add, remove}) => (
-                                <div className="flex flex-col gap-2">
-                                    <div className="w-full flex items-center justify-between">
-                                        <Text className="font-medium">Models</Text>
-                                        <Button
-                                            icon={<Plus size={14} />}
-                                            size="small"
-                                            onClick={() => add()}
-                                        >
-                                            Add
-                                        </Button>
-                                    </div>
+                        <div className="flex flex-col gap-2">
+                            <div className="w-full flex items-center justify-between">
+                                <span className="font-medium text-colorText">Models</span>
+                                <Button variant="outline" size="sm" onClick={() => addModel()}>
+                                    <Plus size={14} />
+                                    Add
+                                </Button>
+                            </div>
 
-                                    {fields.length === 0 ? (
-                                        <Text className="text-[var(--ag-c-586673)]">
-                                            No custom models configured
-                                        </Text>
-                                    ) : (
-                                        fields.map((field) => {
-                                            const {key, ...restField} = field
-                                            return (
-                                                <Form.Item
-                                                    key={key}
-                                                    {...restField}
-                                                    rules={[
-                                                        {
-                                                            required: true,
-                                                            message: "Please add a model name",
-                                                            min: 1,
-                                                        },
-                                                    ]}
-                                                    className="mb-0"
-                                                >
-                                                    <ModelNameInput
-                                                        onDelete={() => remove(field.name)}
-                                                    />
-                                                </Form.Item>
-                                            )
-                                        })
-                                    )}
-                                </div>
+                            {models.length === 0 ? (
+                                <span className="text-[var(--ag-c-586673)]">
+                                    No custom models configured
+                                </span>
+                            ) : (
+                                models.map((model, index) => (
+                                    <div key={index} className="flex flex-col gap-1">
+                                        <ModelNameInput
+                                            value={model}
+                                            onChange={(event) =>
+                                                updateModel(index, event.target.value)
+                                            }
+                                            onDelete={() => removeModel(index)}
+                                        />
+                                        <FieldError error={fieldErrors[`models.${index}`]} />
+                                    </div>
+                                ))
                             )}
-                        </Form.List>
+                        </div>
                     </>
                 )}
             </section>
-        </Form>
+        </form>
     )
 }
 
