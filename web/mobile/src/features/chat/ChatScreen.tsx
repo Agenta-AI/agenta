@@ -6,6 +6,8 @@ import {
     getPendingApprovals,
 } from "@agenta/chat/model"
 
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+
 import {useLivenessPoll} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
@@ -76,22 +78,33 @@ export const ChatScreen = ({
     }
 
     return (
-        <div className="bg-background text-foreground flex h-dvh flex-col">
-            <ChatHeader sessionId={sessionId} projectId={projectId} workspaceId={workspaceId} />
-            {running ? (
-                <div className="border-border flex shrink-0 items-center justify-between border-b px-4 py-2">
-                    <span className="text-primary text-xs">A turn is running</span>
-                    <StopButton sessionId={sessionId} projectId={projectId} />
-                </div>
-            ) : null}
-            <div
-                ref={autoScroll.ref}
-                onScroll={autoScroll.onScroll}
-                className="flex flex-1 flex-col overflow-y-auto overscroll-contain"
-            >
-                {body}
-            </div>
-            <ApprovalDock approvals={pendingApprovals} actions={approvals} />
-        </div>
+        <ScreenScaffold
+            scrollRef={autoScroll.ref}
+            onScroll={autoScroll.onScroll}
+            header={
+                <>
+                    <ChatHeader
+                        sessionId={sessionId}
+                        projectId={projectId}
+                        workspaceId={workspaceId}
+                    />
+                    {running ? (
+                        <div className="border-border flex shrink-0 items-center justify-between border-b px-4 py-2">
+                            <span className="text-primary text-xs">A turn is running</span>
+                            <StopButton sessionId={sessionId} projectId={projectId} />
+                        </div>
+                    ) : null}
+                </>
+            }
+            // Only a rendering dock counts as a footer — it owns the safe-area inset, and
+            // ApprovalDock renders nothing when no gate is pending.
+            footer={
+                pendingApprovals.length > 0 ? (
+                    <ApprovalDock approvals={pendingApprovals} actions={approvals} />
+                ) : undefined
+            }
+        >
+            {body}
+        </ScreenScaffold>
     )
 }

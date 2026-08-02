@@ -3,6 +3,7 @@ import {useEffect, useRef, useState} from "react"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
+import {AgentaLogo} from "@/components/AgentaLogo"
 import {completeOidcSignIn} from "@/lib/auth"
 
 import {useAuthSuccess} from "./useAuthSuccess"
@@ -40,7 +41,8 @@ export const OidcCallbackScreen = () => {
     }, [router, router.isReady, onSuccess])
 
     return (
-        <div className="bg-background text-foreground flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
+        <div className="bg-background text-foreground flex min-h-dvh flex-col items-center justify-center gap-6 p-6 text-center">
+            <AgentaLogo className="text-foreground h-6 w-auto" />
             {error ? (
                 <>
                     <p className="text-destructive text-xs" role="alert">

@@ -1,5 +1,6 @@
 import {useEffect, useState} from "react"
 
+import {AgentaLogo} from "@/components/AgentaLogo"
 import {
     getEmailSignInMode,
     isOidcEnabled,
@@ -66,8 +67,11 @@ export const SignInScreen = () => {
     }
 
     return (
-        <div className="bg-background text-foreground flex min-h-dvh flex-col items-center justify-center gap-4 p-6">
-            <p className="text-sm font-medium">Sign in to Agenta</p>
+        <div className="bg-background text-foreground flex min-h-dvh flex-col items-center justify-center gap-8 p-6">
+            <header className="flex flex-col items-center gap-3">
+                <AgentaLogo className="text-foreground h-6 w-auto" />
+                <p className="text-muted-foreground text-xs">Sign in or create an account.</p>
+            </header>
             <div className="flex w-full max-w-sm flex-col items-center gap-4">{body}</div>
         </div>
     )
