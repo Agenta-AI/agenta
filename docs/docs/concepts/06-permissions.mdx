@@ -1,33 +1,43 @@
 ---
 title: "Permissions"
 sidebar_label: "Permissions"
-description: "Permissions decide what an agent may do on its own, and when it stops to ask you first."
+description: "Learn how AI agent permissions control which tool actions run automatically, require human approval, or stay blocked."
 ---
 
 ```mdx-code-block
 import Image from "@theme/IdealImage";
 ```
 
-An agent does not only answer questions. It sends messages, writes files, and changes records in the apps you connect to it. Permissions are how you decide in advance which of those actions it may take on its own, and which ones it has to check with you first. This page covers the answers an action can get, what happens when the agent checks with you, and why an unattended run needs the decisions made up front.
+Giving an agent a tool does not mean every use should happen without review. Permissions and approvals let the agent move quickly when risk is low and pause when a person should make the final call.
+
+## Reading and acting need different boundaries
+
+Suppose the marketing launch agent is preparing a weekly campaign report. It needs to read analytics data, draft a summary, and post the result to the team channel.
+
+Reading the campaign numbers changes nothing in the source system. Posting the report sends information to other people. You may want the first action to run immediately and the second to wait for approval.
+
+Permissions let you express that difference before the agent starts the work.
 
 ## How permissions work
 
-Take an agent that reads records in a connected app and sends messages. You may want it to read on its own and check with you before anything goes out. Permissions make that split, and this example comes back throughout the page.
+For an agent that reads records and sends messages, you may allow reads to run on their own while messages require approval.
 
 Every action an agent wants to take gets one of three answers before it runs: go ahead, ask you first, or refuse.
 
-A tool can carry its own answer. Any tool that does not falls back to the agent's default, which is one of four:
+Each tool can have its own permission. A tool without one falls back to the agent's default, which has four options:
 
 - Actions that only read run on their own, and anything that writes or sends asks you first. This is where a new agent starts.
 - Everything runs on its own, and you see what the agent did after the fact.
 - Everything asks you first.
 - Nothing runs.
 
-The first default is the one the example agent needs: it reads the records on its own, and the send waits for you. You set the default once and it applies from then on without you being asked at run time. [Control what an agent can do](/guides/control-what-an-agent-can-do) covers setting it and reviewing the actions your agent actually has.
+The first default fits the example: the agent reads records on its own, but sending waits for you. You set the default once, and it applies to future runs. [Control what an agent can do](/guides/control-what-an-agent-can-do) covers how to set it and review the actions your agent has.
 
 ## When the agent checks with you
 
-An agent set to check first does the reading and the thinking on its own, and it stops at the moment it is about to act. It tells you what it wants to do and waits. Approve it and the run continues from where it paused. Turn it down and the action does not happen. For the example agent, that moment is the send: the reading is already done, and the message goes out only after you approve it.
+An agent set to check first can read and think on its own. It stops when it is about to act, explains what it wants to do, and waits. Approve the action, and the run continues from where it paused. Say no, and the action does not happen.
+
+For the example agent, that moment is the send. The reading is already done, and the message goes out only after you approve it.
 
 <Image
   style={{ display: "block", margin: "24px 0" }}
@@ -38,11 +48,13 @@ An agent set to check first does the reading and the thinking on its own, and it
 
 ## An approval costs a second in a chat and stalls an unattended run
 
-What a stop for approval costs depends on whether you are there.
+The cost of an approval depends on whether you are there.
 
-When you are chatting with the agent, it costs a second. You are already looking at the screen, you can read what the agent wants to do, and you can say no.
+When you are chatting with the agent, approval costs a second. You can read what the agent wants to do and say no.
 
-When the agent runs as an [automation](/concepts/automations) at six in the morning, nobody is there to answer. A request for approval has no one to approve it, and the run waits instead of finishing. For an unattended agent the decision has to be made up front: what it may do without asking, and what it must not do at all. Its [instructions](/concepts/instructions) and the [tools](/concepts/tools-and-integrations) you give it carry the weight that you would have carried in a chat.
+When the agent runs as an [automation](/concepts/automations) at six in the morning, nobody may be there to answer. The run waits instead of finishing.
+
+For an unattended agent, decide up front what it may do without asking and what it must not do at all. Its [instructions](/concepts/instructions) and [tools](/concepts/tools-and-integrations) carry the weight that you would have carried in a chat.
 
 ## Next
 
