@@ -39,13 +39,8 @@ const KNOWN_REQUEST_KEYS = [
   "model",
   "harnessMode",
   "modelCapabilities",
-  "provider",
-  "connection",
-  "deployment",
-  "endpoint",
-  "credentialMode",
+  "modelConnection",
   "messages",
-  "secrets",
   "context",
   "telemetry",
   "runContext",
@@ -268,7 +263,7 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(req.appendSystemPrompt, undefined);
     // A managed codex run carries the file-free auth provider block in `.codex/config.toml` (D-002
     // final ruling): the runner writes it blind; codex reads OPENAI_API_KEY from the daemon env at
-    // request time. The secret is NOT in the file (it rides `secrets`).
+    // request time. The secret is NOT in the file (it rides `modelConnection.credentials`).
     const files = req.harnessFiles!;
     assert.equal(files.length, 1);
     assert.equal(files[0].path, ".codex/config.toml");
@@ -276,7 +271,13 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.match(files[0].content, /env_key = "OPENAI_API_KEY"/);
     assert.equal(files[0].content.includes("sk-openai"), false);
     assert.equal(req.sandboxPermission, undefined);
-    assert.deepEqual(req.secrets, { OPENAI_API_KEY: "sk-openai" });
+    assert.deepEqual(req.modelConnection?.credentials, [
+      {
+        binding: { kind: "environment", name: "OPENAI_API_KEY" },
+        value: "sk-openai",
+        usage: "opaque_http",
+      },
+    ]);
     assert.equal(
       resolveRunSessionId(req, "runner-ephemeral"),
       "runner-ephemeral",

@@ -151,6 +151,8 @@ redisDurable:
 #       autodeleteMinutes: 30
 #       sessionIdleTtlMs: ""
 #       sessionMaxWarm: ""
+#       opaqueSecrets: process_local   # hide model/MCP keys from the sandbox; needs a Daytona
+#                                      # API key that may manage Secrets
 #   auth:
 #     tokenSecretRef:          # AGENTA_RUNNER_TOKEN; Services sends it, the runner verifies it
 #       name: agenta-runner

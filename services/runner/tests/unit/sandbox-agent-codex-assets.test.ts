@@ -45,9 +45,9 @@ describe("Codex managed-credential assets", () => {
     const env: Record<string, string> = {};
     const plan = {
       acpAgent: "codex",
-      credentialMode: "env",
+      credentials: { credentialMode: "env" },
       isDaytona: false,
-      cwd,
+      workspace: { cwd },
       secrets: { OPENAI_API_KEY: "sk-live" },
       legacyHarnessApiKeyVar: "OPENAI_API_KEY",
     } as any;
@@ -77,9 +77,9 @@ describe("Codex managed-credential assets", () => {
     const env: Record<string, string> = {};
     const plan = {
       acpAgent: "claude",
-      credentialMode: "env",
+      credentials: { credentialMode: "env" },
       isDaytona: false,
-      cwd,
+      workspace: { cwd },
       secrets: { OPENAI_API_KEY: "sk-live" },
       legacyHarnessApiKeyVar: "OPENAI_API_KEY",
     } as any;
@@ -97,9 +97,9 @@ describe("Codex managed-credential assets", () => {
     };
     const plan = {
       acpAgent: "codex",
-      credentialMode: "runtime_provided",
+      credentials: { credentialMode: "runtime_provided" },
       isDaytona: false,
-      cwd,
+      workspace: { cwd },
       secrets: { OPENAI_API_KEY: "sk-live" },
       legacyHarnessApiKeyVar: "OPENAI_API_KEY",
     } as any;
@@ -121,9 +121,9 @@ describe("Codex managed-credential assets", () => {
     const env: Record<string, string> = {};
     const plan = {
       acpAgent: "codex",
-      credentialMode: "env",
+      credentials: { credentialMode: "env" },
       isDaytona: false,
-      cwd,
+      workspace: { cwd },
       secrets: { OPENAI_API_KEY: "sk-live" },
       legacyHarnessApiKeyVar: "OPENAI_API_KEY",
     } as any;
@@ -137,9 +137,9 @@ describe("Codex managed-credential assets", () => {
     const env: Record<string, string> = {};
     const plan = {
       acpAgent: "codex",
-      credentialMode: "env",
+      credentials: { credentialMode: "env" },
       isDaytona: true,
-      cwd,
+      workspace: { cwd },
       secrets: { OPENAI_API_KEY: "sk-live" },
       legacyHarnessApiKeyVar: "OPENAI_API_KEY",
     } as any;
@@ -156,9 +156,9 @@ describe("Codex managed-credential assets", () => {
     const env: Record<string, string> = {};
     const plan = {
       acpAgent: "codex",
-      credentialMode: "env",
+      credentials: { credentialMode: "env" },
       isDaytona: false,
-      cwd,
+      workspace: { cwd },
       secrets: { OPENAI_API_KEY: "sk-live" },
       legacyHarnessApiKeyVar: "OPENAI_API_KEY",
     } as any;
@@ -173,35 +173,35 @@ describe("Codex managed-credential assets", () => {
     assert.equal(
       isManagedCodexRun({
         acpAgent: "codex",
-        credentialMode: "env",
+        credentials: { credentialMode: "env" },
       } as any),
       true,
     );
     assert.equal(
       isManagedCodexRun({
         acpAgent: "codex",
-        credentialMode: "none",
+        credentials: { credentialMode: "none" },
       } as any),
       true,
     );
     assert.equal(
       isManagedCodexRun({
         acpAgent: "codex",
-        credentialMode: undefined,
+        credentials: { credentialMode: undefined },
       } as any),
       true,
     );
     assert.equal(
       isManagedCodexRun({
         acpAgent: "codex",
-        credentialMode: "runtime_provided",
+        credentials: { credentialMode: "runtime_provided" },
       } as any),
       false,
     );
     assert.equal(
       isManagedCodexRun({
         acpAgent: "claude",
-        credentialMode: "env",
+        credentials: { credentialMode: "env" },
       } as any),
       false,
     );
@@ -211,21 +211,21 @@ describe("Codex managed-credential assets", () => {
     assert.equal(
       isSubscriptionCodexRun({
         acpAgent: "codex",
-        credentialMode: "runtime_provided",
+        credentials: { credentialMode: "runtime_provided" },
       } as any),
       true,
     );
     assert.equal(
       isSubscriptionCodexRun({
         acpAgent: "codex",
-        credentialMode: "env",
+        credentials: { credentialMode: "env" },
       } as any),
       false,
     );
     assert.equal(
       isSubscriptionCodexRun({
         acpAgent: "claude",
-        credentialMode: "runtime_provided",
+        credentials: { credentialMode: "runtime_provided" },
       } as any),
       false,
     );
@@ -253,9 +253,9 @@ describe("Codex managed-credential assets", () => {
     const subPlan = () =>
       ({
         acpAgent: "codex",
-        credentialMode: "runtime_provided",
+        credentials: { credentialMode: "runtime_provided" },
         isDaytona: false,
-        cwd,
+        workspace: { cwd },
       }) as any;
 
     it("symlinks <cwd>/.codex/auth.json to the mount's auth.json and links nothing else", async () => {
@@ -338,18 +338,23 @@ describe("Codex managed-credential assets", () => {
 
     it("is a no-op for a managed run, a Daytona subscription run, and a non-codex run", async () => {
       const plans = [
-        { acpAgent: "codex", credentialMode: "env", isDaytona: false, cwd },
         {
           acpAgent: "codex",
-          credentialMode: "runtime_provided",
+          credentials: { credentialMode: "env" },
+          isDaytona: false,
+          workspace: { cwd },
+        },
+        {
+          acpAgent: "codex",
+          credentials: { credentialMode: "runtime_provided" },
           isDaytona: true,
-          cwd,
+          workspace: { cwd },
         },
         {
           acpAgent: "claude",
-          credentialMode: "runtime_provided",
+          credentials: { credentialMode: "runtime_provided" },
           isDaytona: false,
-          cwd,
+          workspace: { cwd },
         },
       ] as any[];
       for (const plan of plans) {
@@ -379,9 +384,9 @@ describe("Codex managed-credential assets", () => {
     const subPlan = () =>
       ({
         acpAgent: "codex",
-        credentialMode: "runtime_provided",
+        credentials: { credentialMode: "runtime_provided" },
         isDaytona: false,
-        cwd,
+        workspace: { cwd },
       }) as any;
 
     it("reports the empty login instead of a missing key, and names no secret", () => {
@@ -432,18 +437,23 @@ describe("Codex managed-credential assets", () => {
 
     it("stays silent for managed, Daytona, and non-codex runs", () => {
       const plans = [
-        { acpAgent: "codex", credentialMode: "env", isDaytona: false, cwd },
         {
           acpAgent: "codex",
-          credentialMode: "runtime_provided",
+          credentials: { credentialMode: "env" },
+          isDaytona: false,
+          workspace: { cwd },
+        },
+        {
+          acpAgent: "codex",
+          credentials: { credentialMode: "runtime_provided" },
           isDaytona: true,
-          cwd,
+          workspace: { cwd },
         },
         {
           acpAgent: "claude",
-          credentialMode: "runtime_provided",
+          credentials: { credentialMode: "runtime_provided" },
           isDaytona: false,
-          cwd,
+          workspace: { cwd },
         },
       ] as any[];
       for (const plan of plans) {
@@ -457,9 +467,9 @@ describe("Codex managed-credential assets", () => {
       const env: Record<string, string> = {};
       const plan = {
         acpAgent: "codex",
-        credentialMode: "env",
+        credentials: { credentialMode: "env" },
         isDaytona: true,
-        cwd,
+        workspace: { cwd },
       } as any;
 
       configureDaytonaCodexEnv(plan, env);
@@ -475,15 +485,30 @@ describe("Codex managed-credential assets", () => {
 
     it("configureDaytonaCodexEnv is a no-op for local, subscription, and non-codex Daytona runs", () => {
       const plans = [
-        { acpAgent: "codex", credentialMode: "env", isDaytona: false, cwd },
         {
           acpAgent: "codex",
-          credentialMode: "runtime_provided",
-          isDaytona: true,
-          cwd,
+          credentials: { credentialMode: "env" },
+          isDaytona: false,
+          workspace: { cwd },
         },
-        { acpAgent: "claude", credentialMode: "env", isDaytona: true, cwd },
-        { acpAgent: "pi", credentialMode: "env", isDaytona: true, cwd },
+        {
+          acpAgent: "codex",
+          credentials: { credentialMode: "runtime_provided" },
+          isDaytona: true,
+          workspace: { cwd },
+        },
+        {
+          acpAgent: "claude",
+          credentials: { credentialMode: "env" },
+          isDaytona: true,
+          workspace: { cwd },
+        },
+        {
+          acpAgent: "pi",
+          credentials: { credentialMode: "env" },
+          isDaytona: true,
+          workspace: { cwd },
+        },
       ] as any[];
       for (const plan of plans) {
         const env: Record<string, string> = {};
@@ -500,9 +525,9 @@ describe("Codex managed-credential assets", () => {
       configureDaytonaCodexEnv(
         {
           acpAgent: "codex",
-          credentialMode: "env",
+          credentials: { credentialMode: "env" },
           isDaytona: true,
-          cwd,
+          workspace: { cwd },
         } as any,
         env,
       );

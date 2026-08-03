@@ -8,12 +8,14 @@ from .errors import (
 )
 from .interfaces import MCPSecretProvider
 from .models import (
+    HeaderCredentialBinding,
     MCPConnection,
     MCPHeaderSecretRefs,
     MCPPolicy,
     MCPServerConfig,
     MCPToolPolicy,
     NoMCPCredentials,
+    ResolvedMCPCredential,
     ResolvedMCPServer,
 )
 from .parsing import parse_mcp_server_config, parse_mcp_server_configs
@@ -27,6 +29,8 @@ __all__ = [
     "MCPPolicy",
     "MCPToolPolicy",
     "NoMCPCredentials",
+    "HeaderCredentialBinding",
+    "ResolvedMCPCredential",
     "ResolvedMCPServer",
     "MCPSecretProvider",
     "MCPResolver",

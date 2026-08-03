@@ -13,9 +13,8 @@
 #                                            # $RAILWAY_PREVIEW_ENV_NAME)
 #   preview-clone-destroy.sh --stale-hours N # delete preview environments in
 #                                            # the template project older than
-#                                            # N hours (cron equivalent of
-#                                            # scripts/preview-cleanup-stale.sh
-#                                            # for clone mode)
+#                                            # N hours (daily cron in
+#                                            # workflow 45)
 #
 # The stale sweep matches only preview-shaped names: pr-<digits>, pr-clone-*,
 # and wp3-* (the test-cycle prefixes). The template environment and
@@ -25,10 +24,11 @@
 # Environment variables:
 #   PR_NUMBER                 PR number; default environment name pr-<PR_NUMBER>.
 #   RAILWAY_PREVIEW_ENV_NAME  Override the environment name.
-#   RAILWAY_TEMPLATE_PROJECT  Template project name.
-#                             TODO(cutover): default becomes the production
-#                             preview project at rollout; until then it is the
-#                             proven test bed.
+#   RAILWAY_TEMPLATE_PROJECT  Template project name (default
+#                             agenta-oss-clone-spike). CI passes the repo
+#                             variables RAILWAY_TEMPLATE_PROJECT /
+#                             RAILWAY_TEMPLATE_ENV, so a template project move
+#                             needs no code change (see ../README.md).
 #   RAILWAY_TEMPLATE_ENV      Template environment name (default pr-template).
 #   RAILWAY_PREVIEW_DRY_RUN   'true' with --stale-hours: report, delete nothing.
 #   RAILWAY_API_TOKEN         Account token (auto-sourced from
@@ -64,8 +64,9 @@ if [ -n "$STALE_HOURS" ]; then
     printf '%s' "$STALE_HOURS" | grep -qE '^[0-9]+$' || die "--stale-hours must be a whole number of hours"
 fi
 
-# TODO(cutover): default becomes the production preview template project at
-# rollout (also re-point ../template/template.json's "project").
+# Defaults match ../template/template.json's "project"/"templateEnvironment"
+# and the CI fallbacks for the RAILWAY_TEMPLATE_PROJECT/ENV repo variables;
+# a template project move updates all of them together (see ../README.md).
 PROJECT_NAME="${RAILWAY_TEMPLATE_PROJECT:-agenta-oss-clone-spike}"
 TEMPLATE_ENV_NAME="${RAILWAY_TEMPLATE_ENV:-pr-template}"
 DRY_RUN="${RAILWAY_PREVIEW_DRY_RUN:-false}"

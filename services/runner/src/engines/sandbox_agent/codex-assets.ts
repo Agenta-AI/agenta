@@ -30,7 +30,11 @@ import {
   ensureDurableSymlink,
   type EnsureDurableSymlinkDeps,
 } from "./durable-symlink.ts";
-import type { RunPlan } from "./run-plan.ts";
+import type {
+  RunPlan,
+  RunPlanCredentials,
+  RunPlanWorkspace,
+} from "./run-plan.ts";
 
 type Log = (message: string) => void;
 
@@ -50,6 +54,17 @@ export function codexHomeDir(cwd: string): string {
  * constant across a session's turns and is NOT a config-fingerprint input, preserving warm daemon
  * reuse.
  */
+/** The slice that decides which Codex auth mode a run is in. */
+type CodexModePlan = Pick<RunPlan, "acpAgent"> & {
+  credentials: Pick<RunPlanCredentials, "credentialMode">;
+};
+
+/** The mode slice plus where the run's Codex home is rooted. */
+type CodexHomePlan = CodexModePlan &
+  Pick<RunPlan, "isDaytona"> & {
+    workspace: Pick<RunPlanWorkspace, "cwd">;
+  };
+
 export function codexSqliteHomeDir(cwd: string): string {
   return join(tmpdir(), "agenta", "codex-sqlite", basename(cwd));
 }
@@ -60,18 +75,20 @@ export function codexSqliteHomeDir(cwd: string): string {
  * own mounted OAuth login instead, so it is excluded here.
  */
 export function isManagedCodexRun(
-  plan: Pick<RunPlan, "acpAgent" | "credentialMode">,
+  plan: CodexModePlan,
 ): boolean {
   return (
-    plan.acpAgent === "codex" && plan.credentialMode !== "runtime_provided"
+    plan.acpAgent === "codex" &&
+    plan.credentials.credentialMode !== "runtime_provided"
   );
 }
 
 export function isSubscriptionCodexRun(
-  plan: Pick<RunPlan, "acpAgent" | "credentialMode">,
+  plan: CodexModePlan,
 ): boolean {
   return (
-    plan.acpAgent === "codex" && plan.credentialMode === "runtime_provided"
+    plan.acpAgent === "codex" &&
+    plan.credentials.credentialMode === "runtime_provided"
   );
 }
 
@@ -92,7 +109,7 @@ function codexSubscriptionMountDir(): string | undefined {
  * for best-effort teardown cleanup. Subscription additionally pins the credential store to `file`.
  */
 export function configureCodexHome(
-  plan: Pick<RunPlan, "acpAgent" | "credentialMode" | "isDaytona" | "cwd">,
+  plan: CodexHomePlan,
   env: Record<string, string>,
 ): string | undefined {
   // Local codex only (managed or subscription). Daytona and non-codex runs are no-ops.
@@ -100,10 +117,10 @@ export function configureCodexHome(
   // Runner-owned per-session home in both modes. For subscription this overrides the operator's
   // mount path that buildDaemonEnv inherited into env.CODEX_HOME, so only the auth.json we symlink
   // in (see symlinkCodexSubscriptionAuthFile) is visible — not the operator's config/plugins/apps.
-  env.CODEX_HOME = codexHomeDir(plan.cwd);
+  env.CODEX_HOME = codexHomeDir(plan.workspace.cwd);
   // Both modes redirect SQLite off the home so neither the geesefs cwd nor the operator mount
   // accumulates per-run WAL SQLite.
-  const sqliteHome = codexSqliteHomeDir(plan.cwd);
+  const sqliteHome = codexSqliteHomeDir(plan.workspace.cwd);
   mkdirSync(sqliteHome, { recursive: true });
   env.CODEX_SQLITE_HOME = sqliteHome;
   // Subscription: pin the credential store to `file` so a keyring/auto mode (from any config layer)
@@ -139,12 +156,12 @@ export function codexDaytonaSqliteHomeDir(cwd: string): string {
  * (run-plan.ts); local runs and non-codex runs are no-ops.
  */
 export function configureDaytonaCodexEnv(
-  plan: Pick<RunPlan, "acpAgent" | "credentialMode" | "isDaytona" | "cwd">,
+  plan: CodexHomePlan,
   daytonaEnv: Record<string, string>,
 ): void {
   if (!plan.isDaytona || !isManagedCodexRun(plan)) return;
-  daytonaEnv.CODEX_HOME = codexHomeDir(plan.cwd);
-  daytonaEnv.CODEX_SQLITE_HOME = codexDaytonaSqliteHomeDir(plan.cwd);
+  daytonaEnv.CODEX_HOME = codexHomeDir(plan.workspace.cwd);
+  daytonaEnv.CODEX_SQLITE_HOME = codexDaytonaSqliteHomeDir(plan.workspace.cwd);
 }
 
 /** The link the runner-owned home authenticates from, and the operator login it points at. */
@@ -168,7 +185,7 @@ function codexSubscriptionAuthLinkPath(cwd: string): string {
  * Idempotent, so it is safe to call on first acquire and again after every durable-cwd remount.
  */
 export async function symlinkCodexSubscriptionAuthFile(
-  plan: Pick<RunPlan, "acpAgent" | "credentialMode" | "isDaytona" | "cwd">,
+  plan: CodexHomePlan,
   log: Log = () => {},
   deps: EnsureDurableSymlinkDeps = {},
 ): Promise<void> {
@@ -180,8 +197,8 @@ export async function symlinkCodexSubscriptionAuthFile(
     return;
   }
 
-  mkdirSync(codexHomeDir(plan.cwd), { recursive: true, mode: 0o700 });
-  const linkPath = codexSubscriptionAuthLinkPath(plan.cwd);
+  mkdirSync(codexHomeDir(plan.workspace.cwd), { recursive: true, mode: 0o700 });
+  const linkPath = codexSubscriptionAuthLinkPath(plan.workspace.cwd);
   const target = join(mount, "auth.json");
   const outcome = await ensureDurableSymlink(
     linkPath,
@@ -207,13 +224,13 @@ export const CODEX_SUBSCRIPTION_LOGIN_UNUSABLE_MESSAGE =
   "CODEX_HOME mount, not a project key. Sign in again on the host, then retry.";
 
 export function describeCodexSubscriptionAuthFault(
-  plan: Pick<RunPlan, "acpAgent" | "credentialMode" | "isDaytona" | "cwd">,
+  plan: CodexHomePlan,
   deps: { stat?: typeof statSync } = {},
 ): string | undefined {
   if (!isSubscriptionCodexRun(plan) || plan.isDaytona) return undefined;
   const stat = deps.stat ?? statSync;
   try {
-    const login = stat(codexSubscriptionAuthLinkPath(plan.cwd));
+    const login = stat(codexSubscriptionAuthLinkPath(plan.workspace.cwd));
     if (login.size > 0) return undefined;
   } catch {
     // Missing, dangling, or unreadable — indistinguishable to the run, and the same advice.

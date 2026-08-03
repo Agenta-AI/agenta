@@ -39,7 +39,7 @@ describe("attachment materialization", () => {
     assert.equal(
       await materializeWorkingCopy(
         {},
-        { cwd, isDaytona: false },
+        { workspace: { cwd }, isDaytona: false },
         ref,
         new Uint8Array([1, 2, 3]),
       ),
@@ -56,7 +56,7 @@ describe("attachment materialization", () => {
     const ref = { attachmentId: ID_ONE, filename: "photo.png" };
     await materializeWorkingCopy(
       {},
-      { cwd, isDaytona: false },
+      { workspace: { cwd }, isDaytona: false },
       ref,
       new Uint8Array([1]),
     );
@@ -66,7 +66,7 @@ describe("attachment materialization", () => {
     assert.equal(
       await materializeWorkingCopy(
         {},
-        { cwd, isDaytona: false },
+        { workspace: { cwd }, isDaytona: false },
         ref,
         new Uint8Array([2]),
       ),
@@ -81,13 +81,13 @@ describe("attachment materialization", () => {
     const second = { attachmentId: ID_TWO, filename: "same.txt" };
     await materializeWorkingCopy(
       {},
-      { cwd, isDaytona: false },
+      { workspace: { cwd }, isDaytona: false },
       first,
       new Uint8Array([1]),
     );
     await materializeWorkingCopy(
       {},
-      { cwd, isDaytona: false },
+      { workspace: { cwd }, isDaytona: false },
       second,
       new Uint8Array([2]),
     );
@@ -125,7 +125,7 @@ describe("attachment materialization", () => {
     assert.equal(
       await materializeWorkingCopy(
         sandbox,
-        { cwd, isDaytona: true },
+        { workspace: { cwd }, isDaytona: true },
         ref,
         bytes,
       ),
@@ -159,7 +159,7 @@ describe("attachment materialization", () => {
     await assert.rejects(
       materializeWorkingCopy(
         sandbox,
-        { cwd: "/home/sandbox/cwd", isDaytona: true },
+        { workspace: { cwd: "/home/sandbox/cwd" }, isDaytona: true },
         { attachmentId: ID_ONE, filename: "photo.png" },
         new Uint8Array([1]),
       ),
@@ -180,7 +180,7 @@ describe("attachment materialization", () => {
     const existing = { attachmentId: ids[0], filename: `.png` };
     await materializeWorkingCopy(
       {},
-      { cwd, isDaytona: false },
+      { workspace: { cwd }, isDaytona: false },
       existing,
       new Uint8Array([9]),
     );
@@ -215,7 +215,7 @@ describe("attachment materialization", () => {
 
     const restored = await restoreReferencedWorkingCopies(
       {},
-      { cwd, isDaytona: false },
+      { workspace: { cwd }, isDaytona: false },
       messages,
       "session-1",
       () => "ApiKey test",
@@ -272,7 +272,7 @@ describe("attachment materialization", () => {
 
     const restored = await restoreReferencedWorkingCopies(
       {},
-      { cwd, isDaytona: false },
+      { workspace: { cwd }, isDaytona: false },
       messages,
       "session-1",
       () => "ApiKey test",
