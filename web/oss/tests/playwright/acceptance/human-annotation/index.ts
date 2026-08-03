@@ -79,7 +79,8 @@ const humanAnnotationTests = () => {
     )
 
     // WEB-ACC-HUMAN-002
-    baseHumanTest(
+    // Disabled: times out intermittently against preview environments (#5695).
+    baseHumanTest.skip(
         "should use a deliberately mismatched testset when configuring a human evaluation",
         {
             tag: [

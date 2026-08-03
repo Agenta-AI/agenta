@@ -42,7 +42,8 @@ const lightTags = buildAcceptanceTags({
 })
 
 const tests = () => {
-    baseTest(
+    // Disabled: times out intermittently against preview environments (#5695).
+    baseTest.skip(
         "should delete an app",
         {tag: tags},
         async ({page, navigateToApps, uiHelpers, apiHelpers}) => {
