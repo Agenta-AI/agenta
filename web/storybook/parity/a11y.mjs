@@ -259,6 +259,34 @@ const EXPECTED = [
             "palette-level decision, not a component defect (see the note above EXPECTED).",
     },
     {
+        story: "agenta-entity-ui-drillin-buildkitsection--antd-vs-agenta",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-drillin-providerkeyfield--antd-vs-agenta",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-drillin-providercredentialssection--antd-vs-agenta",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-drillin-permissionpolicyselect--open-state",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
         story: "agenta-entity-ui-drillin-agenttemplatecontrol--antd-vs-agenta",
         rule: "color-contrast",
         reason:
@@ -321,14 +349,25 @@ async function auditOne(page, {id, open, waitFor}) {
                 waitFor ||
                 open ||
                 ".grid, [data-open-compare], [data-slot=dialog-content], [data-slot=sheet-content], [data-slot=alert-dialog-content], [data-vrt-subject], form, table"
-            await page.waitForFunction(
-                (sel) =>
-                    [...document.querySelectorAll(sel)].some(
-                        (el) => el.getClientRects().length > 0,
-                    ),
-                readySel,
-                {timeout: 30_000},
-            )
+            const visibleMatch = (sel) =>
+                [...document.querySelectorAll(sel)].some((el) => el.getClientRects().length > 0)
+            // Two-stage wait. Showcase stories render plain markup that matches none of the
+            // layout selectors above, so waiting only on those burns the full timeout on every
+            // one of them; falling back to "the story root rendered something visible" keeps
+            // them auditable. The specific wait goes first (and stays short) so a parity story
+            // is never audited before its grid exists.
+            try {
+                await page.waitForFunction(visibleMatch, readySel, {timeout: 8_000})
+            } catch {
+                await page.waitForFunction(
+                    () =>
+                        [...(document.querySelector("#storybook-root")?.children ?? [])].some(
+                            (el) => el.getClientRects().length > 0,
+                        ),
+                    null,
+                    {timeout: 15_000},
+                )
+            }
             await page.waitForTimeout(300)
             if (open) {
                 await page.locator(open).first().click() // natural, Radix-managed open
@@ -398,14 +437,38 @@ async function auditOne(page, {id, open, waitFor}) {
     return {error: lastError?.message ?? "unknown failure"}
 }
 
+// One browser cannot survive a full sweep: each story loads a heavy bundle, memory climbs,
+// and Chromium eventually dies — after which every page call hangs on a dead connection
+// instead of throwing, so the run wedges at 0% CPU. Recycle on a fixed interval.
+const STORIES_PER_BROWSER = 25
+
 async function run() {
-    const browser = await chromium.launch()
-    const page = await browser.newPage()
+    let browser = await chromium.launch()
+    let page = await browser.newPage()
     const all = []
+    let sinceLaunch = 0
     for (const story of SELECTED) {
-        all.push({id: story.id, ...(await auditOne(page, story))})
+        if (sinceLaunch >= STORIES_PER_BROWSER) {
+            await browser.close().catch(() => {})
+            browser = await chromium.launch()
+            page = await browser.newPage()
+            sinceLaunch = 0
+        }
+        sinceLaunch++
+        let res
+        try {
+            res = await auditOne(page, story)
+        } catch (e) {
+            // A dead browser surfaces here; relaunch once and retry this story.
+            await browser.close().catch(() => {})
+            browser = await chromium.launch()
+            page = await browser.newPage()
+            sinceLaunch = 1
+            res = await auditOne(page, story).catch((e2) => ({error: e2.message}))
+        }
+        all.push({id: story.id, ...res})
     }
-    await browser.close()
+    await browser.close().catch(() => {})
 
     console.log(`\naxe a11y audit — @agenta/ui half of ${SELECTED.length} stories (light)\n`)
 
