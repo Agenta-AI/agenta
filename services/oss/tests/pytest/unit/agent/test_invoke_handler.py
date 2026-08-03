@@ -33,6 +33,17 @@ from agenta.sdk.models.workflows import WorkflowServiceRequest
 from oss.src.agent import app
 
 
+def _first_allowed_provider(harness):
+    """The first provider ``harness`` can consume, per the SDK's own capability table.
+
+    Used by the no-credential stub so one stub satisfies the post-resolve capability gate for
+    every harness this file runs, without the test restating the capability matrix.
+    """
+    from agenta.sdk.agents.capabilities import HARNESS_CONNECTION_CAPABILITIES
+
+    return HARNESS_CONNECTION_CAPABILITIES[harness].providers[0]
+
+
 def _request(*, stream=None, session_id=None):
     """Build the request `_agent` reads stream/session_id off of.
 
@@ -63,15 +74,18 @@ def _patch_handler(monkeypatch, backend, *, tool_specs=(), tool_callback=None):
         return []
 
     async def _no_connection(*, model, context):
-        # No connection is configured for the default model, so the resolve fails and the handler
-        # degrades to a no-credential ``runtime_provided`` plan (harness login / self-managed).
-        # This is the realistic "no connection" simulation: it exercises the degraded path that
-        # every harness tolerates, so the response-body / lifecycle / cross-harness tests run
-        # clean regardless of harness. A stubbed *successful* resolve would instead pin a single
-        # provider and be rejected by the post-resolve capability gate on a mismatched harness
-        # (e.g. ``openai`` on ``claude``), which is not what these tests are exercising.
-        raise ConnectionResolutionError(
-            "no connection configured for the default model"
+        # The run has no key of its own: the harness authenticates with its own login, so the
+        # resolve succeeds with a no-credential ``runtime_provided`` plan. Resolution FAILURES
+        # are fail-closed now, so a raising stub would abort every test in this file instead of
+        # exercising the response-body / lifecycle / cross-harness paths they are about.
+        #
+        # The provider is read from the harness's own capability table rather than hardcoded,
+        # because the post-resolve gate rejects a provider the harness cannot consume (e.g.
+        # ``openai`` on ``claude``) and this stub serves every harness the file exercises.
+        return ResolvedConnection(
+            provider=_first_allowed_provider(context.harness),
+            model=model.model,
+            credential_mode="runtime_provided",
         )
 
     monkeypatch.setattr(app, "resolve_tools", _tools)
@@ -420,8 +434,9 @@ _STRUCTURED_MODEL = {
 async def test_named_connection_env_reaches_session(monkeypatch, fake_backend):
     """A structured ModelRef with a named connection resolves one key onto the session.
 
-    The resolved ``env`` reaches ``SessionConfig.secrets`` (the wire's credential channel) and
-    the ``ResolvedConnection`` is set on the session. The resolver is called with a ``ModelRef``
+    The resolved credential reaches the session on ``SessionConfig.resolved_connection`` (the
+    single credential channel) and is materialized as plaintext only at the local backend
+    boundary. The resolver is called with a ``ModelRef``
     carrying the config's connection and a ``RuntimeAuthContext`` for the run.
     """
     backend = fake_backend(result=AgentResult(output="echo", usage={"total": 1}))
@@ -434,7 +449,14 @@ async def test_named_connection_env_reaches_session(monkeypatch, fake_backend):
             provider="openai",
             model="gpt-5.5",
             credential_mode="env",
-            env={"OPENAI_API_KEY": "sk-x"},
+            credentials=[
+                {
+                    "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+                    "value": "sk-x",
+                    "usage": "opaque_http",
+                }
+            ],
+            endpoint={"base_url": "https://api.openai.com/v1"},
         )
 
     built = _patch_resolution(monkeypatch, backend, resolve=_resolve)
@@ -451,11 +473,13 @@ async def test_named_connection_env_reaches_session(monkeypatch, fake_backend):
     assert captured["context"].harness == "pi_core"
     assert captured["context"].project_id is None
 
-    # the resolved key reached the backend boundary as the session's secrets
+    # the resolved key reached the local backend boundary as plaintext environment
     assert backend.created_secrets == [{"OPENAI_API_KEY": "sk-x"}]
     session_cfg = built[0]
-    assert session_cfg.secrets == {"OPENAI_API_KEY": "sk-x"}
     assert session_cfg.resolved_connection is not None
+    assert session_cfg.resolved_connection.plaintext_environment() == {
+        "OPENAI_API_KEY": "sk-x"
+    }
     assert session_cfg.resolved_connection.provider == "openai"
 
 
@@ -471,8 +495,7 @@ async def test_runtime_auth_context_harness_matches_selection(
         return ResolvedConnection(
             provider="anthropic",
             model="claude-x",
-            credential_mode="env",
-            env={},
+            credential_mode="runtime_provided",
         )
 
     _patch_resolution(monkeypatch, backend, resolve=_resolve)
@@ -498,28 +521,26 @@ async def test_named_connection_resolution_failure_fails_loud(
         await _invoke("pi_core", model=_STRUCTURED_MODEL)
 
 
-async def test_default_connection_resolution_failure_degrades(
+async def test_default_connection_resolution_failure_fails_closed(
     monkeypatch, fake_backend
 ):
-    """An unconfigured default-mode run degrades gracefully: no raise, empty secrets.
+    """A default-mode resolution failure propagates instead of degrading.
 
-    This is the common playground case (a default model on every run, no configured
-    connection). A resolution failure must NOT crash the run; the harness uses its own login,
-    exactly as the old whole-vault dump returned ``{}`` and the run proceeded.
+    A vault outage or a missing key used to degrade into an empty ``runtime_provided`` plan, so
+    the run continued with no credential and failed later as a confusing provider auth error. It
+    now fails closed: a caller that genuinely wants harness-owned authentication must say so with
+    a ``self_managed`` connection (see ``test_self_managed_connection_reaches_session``), which
+    stays an explicit choice rather than an implicit fallback.
     """
     backend = fake_backend(result=AgentResult(output="echo", usage={"total": 1}))
 
     async def _resolve(*, model, context):
         raise ConnectionResolutionError("connection resolution request failed")
 
-    built = _patch_resolution(monkeypatch, backend, resolve=_resolve)
+    _patch_resolution(monkeypatch, backend, resolve=_resolve)
 
-    body = await _invoke("pi_core", model={"provider": "openai", "model": "gpt-5.5"})
-
-    assert body == {"messages": [{"role": "assistant", "content": "echo"}]}
-    assert backend.created_secrets == [{}]
-    assert built[0].secrets == {}
-    assert built[0].resolved_connection.credential_mode == "runtime_provided"
+    with pytest.raises(ConnectionResolutionError):
+        await _invoke("pi_core", model={"provider": "openai", "model": "gpt-5.5"})
 
 
 async def test_default_connection_missing_provider_fails_loud(
@@ -573,7 +594,14 @@ async def test_claude_bedrock_reaches_session(monkeypatch, fake_backend):
             model="anthropic.claude-x",
             deployment="bedrock",
             credential_mode="env",
-            env={"AWS_ACCESS_KEY_ID": "AKIA", "AWS_REGION": "us-east-1"},
+            environment={"AWS_REGION": "us-east-1"},
+            credentials=[
+                {
+                    "binding": {"kind": "environment", "name": "AWS_ACCESS_KEY_ID"},
+                    "value": "AKIA",
+                    "usage": "local_use",
+                }
+            ],
         )
 
     built = _patch_resolution(monkeypatch, backend, resolve=_resolve)
@@ -584,7 +612,12 @@ async def test_claude_bedrock_reaches_session(monkeypatch, fake_backend):
 
     assert body == {"messages": [{"role": "assistant", "content": "echo"}]}
     assert built[0].resolved_connection.deployment == "bedrock"
-    assert built[0].secrets == {"AWS_ACCESS_KEY_ID": "AKIA", "AWS_REGION": "us-east-1"}
+    # Public config (the region) and the local-use credential materialize together only at the
+    # local execution boundary; on the wire they stay separate fields.
+    assert built[0].resolved_connection.plaintext_environment() == {
+        "AWS_ACCESS_KEY_ID": "AKIA",
+        "AWS_REGION": "us-east-1",
+    }
 
 
 async def test_pi_bedrock_rejected_post_resolve(monkeypatch, fake_backend):
@@ -599,7 +632,13 @@ async def test_pi_bedrock_rejected_post_resolve(monkeypatch, fake_backend):
             model="anthropic.claude-x",
             deployment="bedrock",
             credential_mode="env",
-            env={"AWS_ACCESS_KEY_ID": "AKIA"},
+            credentials=[
+                {
+                    "binding": {"kind": "environment", "name": "AWS_ACCESS_KEY_ID"},
+                    "value": "AKIA",
+                    "usage": "local_use",
+                }
+            ],
         )
 
     _patch_resolution(monkeypatch, backend, resolve=_resolve)
@@ -726,7 +765,6 @@ async def test_pi_openai_codex_self_managed_reaches_session(monkeypatch, fake_ba
             provider="openai-codex",
             model=model.model,
             credential_mode="runtime_provided",
-            env={},
         )
 
     built = _patch_resolution(monkeypatch, backend, resolve=_resolve)
@@ -746,5 +784,5 @@ async def test_pi_openai_codex_self_managed_reaches_session(monkeypatch, fake_ba
     assert captured["model"].connection.mode == "self_managed"
     # No key injected: the harness uses its own subscription login.
     assert backend.created_secrets == [{}]
-    assert built[0].secrets == {}
+    assert built[0].resolved_connection.plaintext_environment() == {}
     assert built[0].resolved_connection.credential_mode == "runtime_provided"

@@ -814,6 +814,30 @@ class HarnessAgentTemplate(BaseModel):
         """The harness-specific ACP session mode override for the ``/run`` payload."""
         return {}
 
+    def wire_connection_ref(self) -> Dict[str, Any]:
+        """The author's connection CHOICE for the ``/run`` payload, not its resolved contents.
+
+        This is the reference the author picked in the config (``self_managed``, or an Agenta
+        connection named by slug). It stays separate from ``modelConnection`` because the two
+        answer different questions: this one is "which connection did the author select", which
+        the runner reads to route a named OpenAI-compatible Pi run through its models.json path
+        (``pi-model-config.ts``); ``modelConnection`` is "what did that connection resolve to",
+        which is credential material.
+
+        Empty when ``model_ref`` is unset, and empty for the project default (``agenta`` with no
+        slug) because that carries no information beyond the model itself, so a default run's
+        payload stays byte-identical.
+        """
+        if self.model_ref is None:
+            return {}
+        connection = self.model_ref.connection
+        if connection.mode == "agenta" and connection.slug is None:
+            return {}
+        wire: Dict[str, Any] = {"mode": connection.mode}
+        if connection.slug is not None:
+            wire["slug"] = connection.slug
+        return {"connection": wire}
+
     def wire_model_connection(self) -> Dict[str, Any]:
         """The resolved model route and credentials, grouped under their consumer.
 

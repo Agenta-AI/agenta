@@ -103,9 +103,11 @@ def request_to_wire(
     packages, likewise omitted when there are none (skills ride their own seam, not the tool
     wire). ``config.wire_sandbox_permission()`` adds the declared sandbox security boundary,
     omitted when unset (plumbing only; the runner does not enforce it yet).
-    ``config.wire_model_connection()`` adds the resolved model route and typed credentials as one
-    consumer-owned object. It is omitted when no connection was resolved and overrides the base
-    model id with the exact resolved model.
+    ``config.wire_connection_ref()`` adds the author's connection CHOICE (``self_managed``, or an
+    Agenta connection named by slug), omitted for the project default because it carries nothing
+    beyond the model. ``config.wire_model_connection()`` adds what that choice RESOLVED to: the
+    model route and typed credentials as one consumer-owned object. It is omitted when no
+    connection was resolved and overrides the base model id with the exact resolved model.
     ``config.wire_harness_files()`` adds the generic ``harnessFiles`` array: files the active
     harness's config rendered from its own ``permissions`` / ``extras`` slice, to materialize in the session
     cwd before the session starts (``path`` relative to cwd, ``content`` the file text). Omitted
@@ -137,6 +139,7 @@ def request_to_wire(
         **config.wire_mcp(),
         **config.wire_skills(),
         **config.wire_sandbox_permission(),
+        **config.wire_connection_ref(),
         **config.wire_model_connection(),
         **config.wire_harness_mode(),
         **config.wire_harness_files(),

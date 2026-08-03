@@ -54,7 +54,6 @@ class FakeRunnerSession(Session):
         config: HarnessAgentTemplate,
         *,
         harness: HarnessKind,
-        secrets: Optional[Mapping[str, str]],
         trace: Optional[TraceContext],
         run_context: Optional[RunContext],
         session_id: Optional[str],
@@ -62,7 +61,6 @@ class FakeRunnerSession(Session):
         self._backend = backend
         self._config = config
         self._harness = harness
-        self._secrets = dict(secrets or {})
         self._trace = trace
         self._run_context = run_context
         self._session_id = session_id
@@ -78,7 +76,6 @@ class FakeRunnerSession(Session):
             sandbox="local",
             config=self._config,
             messages=messages,
-            secrets=self._secrets,
             trace=self._trace,
             run_context=self._run_context,
             session_id=self._session_id,
@@ -150,6 +147,9 @@ class FakeRunnerBackend(Backend):
         config: HarnessAgentTemplate,
         *,
         harness: HarnessKind,
+        # Accepted for interface parity and ignored, exactly like the production sandbox-agent
+        # backend: resolved credentials reach the runner inside `config` as the typed
+        # `modelConnection`, never as a separate plaintext map on the wire.
         secrets: Optional[Mapping[str, str]] = None,
         trace: Optional[TraceContext] = None,
         run_context: Optional[RunContext] = None,
@@ -159,7 +159,6 @@ class FakeRunnerBackend(Backend):
             self,
             config,
             harness=harness,
-            secrets=secrets,
             trace=trace,
             run_context=run_context,
             session_id=session_id,

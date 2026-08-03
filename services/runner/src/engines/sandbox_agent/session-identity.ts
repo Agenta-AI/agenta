@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 
 import {
   currentUserTurn,
@@ -119,6 +119,33 @@ export function resolvesToLocalProvider(
 
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+/**
+ * A random key minted once per runner process, used to key the credential-epoch digest below.
+ *
+ * The epoch is only ever compared against other epochs computed in the SAME process (the warm
+ * session pool is process-local and dies with the process), so a per-process key costs nothing
+ * and is never persisted or shared. What it buys: the digest becomes a keyed tag rather than a
+ * plain hash of secret material, so anyone who somehow obtains one cannot test candidate API
+ * keys against it offline. A fresh key per process also means two runners never produce the
+ * same tag for the same credential.
+ */
+const CREDENTIAL_EPOCH_KEY = randomBytes(32);
+
+/**
+ * The keyed digest of a run's credential material. Separate from `sha256` on purpose: this is
+ * the ONLY place secret values are digested, and it must stay keyed.
+ */
+function credentialTag(material: string): string {
+  // codeql[js/insufficient-password-hash] This is not a stored password hash. It is an
+  // in-memory, keyed change-detection tag for the warm-session pool: it is compared only
+  // against other tags from the same process, never persisted, transmitted, or logged, and
+  // it authenticates nothing. A deliberately slow KDF here would add per-turn latency to
+  // every request and protect nothing that the random per-process key does not already.
+  return createHmac("sha256", CREDENTIAL_EPOCH_KEY)
+    .update(material)
+    .digest("hex");
 }
 
 /** Deterministic JSON: object keys sorted recursively so equal values hash equal. */
@@ -461,10 +488,10 @@ export function tailIsFreshUserMessage(request: AgentRunRequest): boolean {
 
 /**
  * The credential epoch bounds how long a parked session may reuse its baked credentials. It is
- * a PROCESS-LOCAL hash over the actual resolved secret VALUES (held only in runner memory —
- * never logged, persisted, or emitted), combined with the mount credential expiry. A rotated
- * same-slug secret changes the hash; an elapsed expiry invalidates the epoch. Either way the
- * dispatch evicts and cold-starts with fresh credentials.
+ * a PROCESS-LOCAL keyed digest over the actual resolved secret VALUES (see `credentialTag`;
+ * held only in runner memory, never logged, persisted, or emitted), combined with the mount
+ * credential expiry. A rotated same-slug secret changes the digest; an elapsed expiry
+ * invalidates the epoch. Either way the dispatch evicts and cold-starts with fresh credentials.
  *
  * The tool-callback bearer is deliberately EXCLUDED: it is per-turn material the backend
  * re-mints on its auth-cache cadence (~60s), and every turn — continuation included — starts
@@ -474,7 +501,7 @@ export function tailIsFreshUserMessage(request: AgentRunRequest): boolean {
  * environment (the sandbox env secrets) belongs in the hash; the mount expiry bounds the rest.
  */
 export interface CredentialEpoch {
-  /** sha256 over canonical(secrets). In-memory only; never surfaced. */
+  /** Keyed digest over canonical(secrets); see `credentialTag`. In-memory only, never surfaced. */
   secretsHash: string;
   /**
    * Parked epochs only: the environment's installed-mount lease as epoch millis, or undefined when
@@ -524,7 +551,7 @@ export function computeCredentialEpoch(
       })),
     ),
   });
-  return { secretsHash: sha256(material) };
+  return { secretsHash: credentialTag(material) };
 }
 
 /** True when credentials baked into a parked sandbox/session changed (rotation ⇒ evict). */
