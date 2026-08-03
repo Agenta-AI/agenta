@@ -3,7 +3,6 @@
 from typing import Any, Dict, List, Optional
 
 from agenta.sdk.agents.adapters.agenta_builtins import (
-    AGENTA_FORCED_TOOLS,
     BUILD_AN_AGENT_SKILL,
     BUILD_AN_AGENT_SLUG,
 )
@@ -76,7 +75,6 @@ def build_agent_template_overlay() -> Dict[str, Any]:
     """Build the playground-only agent-template overlay from platform-owned sources."""
     return {
         "tools": [
-            *[{"type": "builtin", "name": name} for name in AGENTA_FORCED_TOOLS],
             *[{"type": "platform", "op": op_name} for op_name in DEFAULT_BUILD_KIT_OPS],
             *_reserved_static_tool_embeds(),
         ],

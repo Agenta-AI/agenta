@@ -1,0 +1,277 @@
+---
+title: "Build a marketing coworker"
+sidebar_label: "Marketing coworker"
+description: "Build an agent that writes marketing copy in your voice, correct it in chat, then put the part that repeats on a weekly schedule that runs with nobody watching."
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+In this tutorial you build an agent that works on your marketing, teach it your company and your voice, correct it once, and then hand the recurring part of its job to a schedule. By the end, the agent produces next week's content plan every Monday morning without you opening a chat.
+
+## Before you start
+
+This tutorial assumes:
+
+- You finished [Build your first agent](/learn/build-your-first-agent), so you know the project home, the playground, and how an agent configures itself while you talk to it.
+- Your project has a model provider key. If the chat input is read-only and asks you to connect a model, add a key under `Settings` > `LLMs` first.
+- You have about thirty minutes. The example company below is fictional. Replace its facts with yours as you go, or copy it as written and swap them later.
+
+Times in the scheduling dialog are UTC.
+
+## Step 1. Describe the coworker
+
+Open `Sidebar` > `Home`. Under **What do you want to build?**, type the description of the agent you want and press `Create agent`.
+
+Use this description:
+
+```text
+A marketing coworker for a small B2B software company. It drafts and reviews
+marketing copy, keeps our product facts straight, and plans what we publish each
+week. It should work from a written brief about the company rather than guessing.
+```
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/home-what-do-you-want-to-build.png")}
+  alt="The project home with the composer under the heading What do you want to build, and the Create agent button"
+  loading="lazy"
+/>
+
+Agenta creates the agent, names it, and opens its playground. The conversation opens with a card summarizing what it is about to set up and a `Start →` button.
+
+Leave `Playground mode` on `Build`. The left column is `Configuration` and the right column is the conversation, so you can watch the configuration change while you talk.
+
+The agent works, but it knows nothing about you. Giving it that context is the next step.
+
+## Step 2. Give it your context
+
+An agent's instructions are its identity. They live in a file called `AGENTS.md` and they are sent at the start of every session, so whatever is in them is guaranteed to be there every time the agent thinks. See [Instructions](/concepts/instructions) for the full picture.
+
+In the `Configuration` column, open the `Instructions` section and click the `AGENTS.md` row. The editor opens with an `Edit` and `Preview` control at the top. Click `Source` in the toolbar to edit the raw markdown.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/instructions-agents-md-editor.png")}
+  alt="The AGENTS.md editor dialog with its toolbar and the writing tips rail"
+  loading="lazy"
+/>
+
+Replace what is there with this, then press `Save`:
+
+```markdown
+# Role
+
+You are the marketing coworker for Kettleworks. You draft copy, review copy I
+write, and help me decide what to publish next.
+
+# The company
+
+Kettleworks sells inventory software to independent coffee roasters. It tracks
+green coffee, roast batches, and wholesale orders in one place. We are six
+people. The product is self-serve at $79 a month and there are no sales calls.
+
+# Who we write for
+
+Owner-operators who roast in the morning and do the books at night. They are not
+software buyers. Most of them are moving off a spreadsheet, and that spreadsheet
+is what we get compared against.
+
+# How to write
+
+- Short sentences. No adjective a competitor could also use about themselves.
+- Open with the concrete thing the reader gets, not with the problem.
+- Say "roaster", not "customer" or "user".
+- No exclamation marks.
+
+# How to talk to me
+
+- Answer first, explain after. Do not restate my question back to me.
+- When you draft something, give me one version, not three, unless I ask for
+  options.
+```
+
+The file has four sections, all of them facts. Everything in it is resent on every turn, which is why it holds only what has to be present every time.
+
+Reference material the agent can look up when it needs it goes in a file instead, and you add that in the next step.
+
+You can also ask the agent to make this edit for you in the chat. Writing it yourself here means you see exactly what the agent will read.
+
+## Step 3. Work with it, then fold the correction back in
+
+Ask it for something real. In the conversation on the right, send:
+
+```text
+Draft the announcement email for batch scheduling. It lets a roaster plan a
+week of roasts in advance and see green coffee shortfalls before they happen.
+```
+
+Read the draft. The tone should already be close, because you wrote the tone rules down.
+
+What the agent cannot get right yet is anything factual: it does not know your prices, which integrations exist, or which features have shipped, so if the draft needs one it will make it up.
+
+Say the draft claims a Shopify integration and "over a thousand roasters". Both are wrong. There are two ways to answer that, and this tutorial uses both.
+
+**Put the facts in a file.** Send this in the conversation:
+
+```text
+Write our product facts to agent-files/product-facts.md:
+
+Pricing: $79 a month, one plan, billed monthly. 14-day trial, no card.
+Integrations that exist: Cropster import, QuickBooks Online export, CSV import
+and export.
+Not built, never mention: Shopify, Square, WooCommerce, mobile app,
+multi-roastery accounts.
+Public numbers: 400+ roasters on the product; first roast batch logged in
+under 10 minutes.
+```
+
+`agent-files/` is the agent folder. Every session of this agent sees it and it survives after a chat ends, so a fact you write there today is still there next month. The other folder in the file browser belongs to the current chat and disappears with it. See [Files and knowledge](/concepts/files-and-knowledge).
+
+The agent stops before it writes and shows a card titled `Approval needed to continue`. By default an agent reads on its own and asks before it writes. Press `Approve`.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/chat-approval-card.png")}
+  alt="An approval card in the conversation showing the tool the agent wants to use, with Deny and Approve buttons"
+  loading="lazy"
+/>
+
+The card also offers to always allow that one tool for this agent. Its note reads `Applies when you approve; commit to use it in triggers.` Leave it alone for now. Step 4 handles permissions in one place.
+
+**Point at the file from the instructions.** A file only helps if the agent knows to open it. Open `AGENTS.md` again and add one line to `# How to write`:
+
+```diff
+ # How to write
+
+ - Short sentences. No adjective a competitor could also use about themselves.
+ - Open with the concrete thing the reader gets, not with the problem.
+ - Say "roaster", not "customer" or "user".
+ - No exclamation marks.
++- Every product fact (price, integration, number, shipped feature) comes from
++  `agent-files/product-facts.md`. Read it before you draft. If a fact is not in
++  that file, ask me instead of writing it.
+```
+
+Save, then send `Redo that email` in the conversation. The agent reads the file first and the invented Shopify line is gone.
+
+That is the loop for the rest of this agent's life: one line of instructions per correction, with the detail behind it in a file. The instructions stay short and turn into a map of where things are. [Write your agent's instructions](/guides/write-your-agents-instructions) covers the writing, and [Build a knowledge base for your agent](/guides/build-a-knowledge-base) covers the files.
+
+## Step 4. Hand the recurring part to a schedule
+
+Some of this work repeats on a clock. Planning what to publish next week is a Monday job, and there is no reason for you to be in the chat while it happens. An agent that runs on a schedule is an [automation](/concepts/automations): same instructions, same files, same tools, different starter.
+
+Three things change when nobody is watching.
+
+- **The agent cannot ask you anything.** A question mid-run has no one to answer it, so the answer has to be in the instructions before the run starts.
+- **Permissions have to be settled in advance.** A run that stops for approval waits for an approval that is not coming.
+- **The output has to land somewhere you will look.** Here that is a file in the agent folder.
+
+### 4a. Write the job into the instructions
+
+Open `AGENTS.md` and add this section at the end, then press `Save`:
+
+```markdown
+# Weekly content plan
+
+Every Monday you produce next week's content plan without me.
+
+- Read `agent-files/product-facts.md`, then the four most recent plans in
+  `agent-files/plans/`.
+- Propose five items: two blog posts, two emails, one changelog note. For each
+  one give a title, the roaster problem it answers, and two sentences of angle.
+- Do not repeat anything that appears in the last four plans.
+- Write the result to `agent-files/plans/<YYYY-MM-DD>-content-plan.md`, where the
+  date is the Monday of the coming week.
+- If something you need is missing, do not ask me. Write the plan anyway and list
+  what was missing under a final heading called "Gaps".
+```
+
+The last two bullets are the ones that matter for an unattended run. One says where the output goes, so you can find it. The other tells the agent what to do instead of asking, so a missing fact ends up as a note in the file rather than as a run that never finishes.
+
+### 4b. Settle the permissions
+
+In `Configuration`, open the `Advanced` section and go to `Permissions`. Set `Policy` to `Allow all`, then press `Save`.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/advanced-permissions.png")}
+  alt="The Permissions section of the Advanced dialog, showing Policy, the harness built-in tools, and Auto-approve"
+  loading="lazy"
+/>
+
+This agent's tools read and write files in its own folders and nothing else, so `Allow all` lets the Monday run finish on its own. The `Auto-approve` field in the same section lists any single tool you granted from an approval card, which is the narrower way to reach the same result.
+
+:::warning
+`Allow all` means every tool call runs without asking. Check the tool list before you set it on an agent that can send messages or change records in a connected app. See [Control what an agent can do](/guides/control-what-an-agent-can-do).
+:::
+
+### 4c. Commit the version
+
+A schedule runs one exact version of the configuration, so the work from the last three steps has to be committed before a schedule can point at it.
+
+At the top of the `Configuration` column, press `Commit`. The left pane lists what changed. On the right, keep `New version`, edit the commit message if you want, and press `Commit`.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/commit-dialog.png")}
+  alt="The commit dialog listing what is changing, with the New version choice and the commit message"
+  loading="lazy"
+/>
+
+Every commit is kept, so you can see what the agent looked like at any point and compare. See [Sessions and versions](/concepts/sessions-and-versions).
+
+### 4d. Create the schedule
+
+In `Configuration`, scroll to the `Triggers` heading and its `Schedules` section. Press `Add schedule`. The `New schedule` dialog has four parts.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/schedules-new-schedule.png")}
+  alt="The New schedule dialog with its cadence list, day and time pickers, version selector, and message box"
+  loading="lazy"
+/>
+
+1. **`Name`.** Type `Weekly content plan` in `Schedule name`.
+2. **`When should it run?`** Choose `Weekly`. Under `On these days` pick `Mon`. Under `At these times (UTC)` set `09:00`. A green line confirms the schedule it parsed and the next time it fires.
+3. **`Which version runs?`** Leave it on `Pinned` and pick the variant you just committed. Pinned runs one exact variant and revision, so a later draft in the playground cannot change what Monday does.
+4. **`What should the agent do?`** This text is sent to the agent as the user message on every run. Write:
+
+   ```text
+   Produce next week's content plan, following the "Weekly content plan" section
+   of your instructions.
+   ```
+
+The message is short because the instructions carry the job. That is the trade: work you would have explained in a chat has to be written down once, in a place the agent reads every time.
+
+### 4e. Watch it run once, then create it
+
+You do not have to wait until Monday to see the result. Before you save the dialog, press `Run in playground` in its footer. That runs the message once in the playground, so you can watch the whole job end to end.
+
+Once the run has finished, leave `Active` on and press `Create`. The schedule is live from the next Monday at 09:00 UTC.
+
+Now go and find the output where you told the agent to put it. Switch `Playground mode` to `Chat`, open the files panel on the right, and press `Open the files drawer`. Browse into `agent-files/` and open `plans/`.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/files-drawer-agent-files.png")}
+  alt="The file drawer open inside the agent-files folder, listing the files that persist across sessions"
+  loading="lazy"
+/>
+
+The plan is there, written by a run you did not type into. Every Monday at 09:00 UTC another one appears next to it, and each run reads the four before it.
+
+## What you built
+
+- An agent that knows your company, your audience, and how you want it to write, because you put that in `AGENTS.md`.
+- A fact file in the agent folder that the instructions point at, so corrections do not make the instructions longer.
+- A committed version, so this configuration has a history.
+- A weekly run that starts on a clock, finishes on its own, and leaves its output in a folder you can open.
+
+## Next
+
+- [Trigger an automation from an app](/guides/trigger-an-automation-from-an-app) starts a run when something happens in a connected app instead of on a clock.
+- [Tools and integrations](/concepts/tools-and-integrations) covers giving the agent actions in other systems, including sending the plan somewhere instead of writing it to a file.
+- [Skills](/concepts/skills) covers packaging a repeated procedure so the agent loads it only when it is relevant.
+- [Cost and usage](/concepts/cost-and-usage) covers what these runs cost.

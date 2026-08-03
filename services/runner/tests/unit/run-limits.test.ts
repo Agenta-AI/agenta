@@ -129,6 +129,17 @@ describe("resolveRunLimits", () => {
       },
     );
   });
+
+  it("a degenerate total cannot derive an idle timeout that fires instantly", () => {
+    // A total at the timer floor makes "half the total" round to 0; every field must still
+    // leave here armable, since createRunLimits feeds all four straight to setTimeout.
+    withEnv({ [TOTAL_DEADLINE_ENV]: "0.5" }, () => {
+      const limits = resolveRunLimits();
+      for (const [name, ms] of Object.entries(limits)) {
+        assert.ok(Number.isInteger(ms) && ms >= 1, `${name}=${ms} is not an armable delay`);
+      }
+    });
+  });
 });
 
 describe("createRunLimits", () => {

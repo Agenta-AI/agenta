@@ -64,6 +64,8 @@ services:
             - AGENTA_STORE_REGION=${AGENTA_STORE_REGION:-us-east-1}
             - AGENTA_STORE_BUCKET=${AGENTA_STORE_BUCKET:-}
             - AGENTA_STORE_SIGNING_KEY=${AGENTA_STORE_SIGNING_KEY:-}
+            # Unset leaves the code default (3600s) in place.
+            - AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS=${AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -289,6 +291,8 @@ services:
     runner:
         # === IMAGE ================================================ #
         image: ghcr.io/agenta-ai/${AGENTA_RUNNER_IMAGE_NAME:-agenta-runner}:${AGENTA_RUNNER_IMAGE_TAG:-latest}
+        # === EXECUTION ============================================ #
+        init: true
         # === CONFIGURATION ======================================== #
         environment:
             AGENTA_RUNNER_PORT: "8765"
@@ -302,6 +306,9 @@ services:
             AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
             AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: ${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}
             AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER: ${AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER:-local}
+            # Worst-case turn duration. Keep AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS (API) above it
+            # plus 60s of skew, or every dispatch rebuilds the environment cold.
+            AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS: ${AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS:-}
             PI_CODING_AGENT_DIR: ${PI_CODING_AGENT_DIR:-/pi-agent}
             AGENTA_RUNNER_DAYTONA_API_KEY: ${AGENTA_RUNNER_DAYTONA_API_KEY:-}
             AGENTA_RUNNER_DAYTONA_API_URL: ${AGENTA_RUNNER_DAYTONA_API_URL:-}
@@ -313,9 +320,10 @@ services:
             AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM: ${AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM:-}
             AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES: ${AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES:-}
             # This service has no env_file (see above), so the session flags must be listed
-            # here or they can never be set. AGENTA_SESSIONS_RECONSTRUCT must be enabled
-            # together with the web NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY, or a turn that
-            # carries only its last message loses the conversation.
+            # here or they can never be set. Both default ON: absent or empty means on, and
+            # only the literal "false" disables. Disable AGENTA_SESSIONS_RECONSTRUCT together
+            # with the web NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY, or a turn that carries
+            # only its last message loses the conversation.
             AGENTA_SESSIONS_RECONSTRUCT: ${AGENTA_SESSIONS_RECONSTRUCT:-}
             AGENTA_RECORDS_DURABLE: ${AGENTA_RECORDS_DURABLE:-}
         # === SUBSCRIPTION MOUNTS (opt-in) ========================= #

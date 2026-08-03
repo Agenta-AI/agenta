@@ -527,32 +527,26 @@ export class MountsClient {
     }
 
     /**
-     * @param {AgentaApi.MountArchiveRequest} request
-     * @param {MountsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
      * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.mounts.exportMountFiles()
      */
     public exportMountFiles(
         request: AgentaApi.MountArchiveRequest = {},
         requestOptions?: MountsClient.RequestOptions,
-    ): core.HttpResponsePromise<unknown> {
+    ): core.HttpResponsePromise<core.BinaryResponse> {
         return core.HttpResponsePromise.fromPromise(this.__exportMountFiles(request, requestOptions));
     }
 
     private async __exportMountFiles(
         request: AgentaApi.MountArchiveRequest = {},
         requestOptions?: MountsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<unknown>> {
+    ): Promise<core.WithRawResponse<core.BinaryResponse>> {
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
             this._options?.headers,
             requestOptions?.headers,
         );
-        const _response = await core.fetcher({
+        const _response = await core.fetcher<core.BinaryResponse>({
             url: core.url.join(
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
@@ -565,6 +559,7 @@ export class MountsClient {
             queryParameters: requestOptions?.queryParams,
             requestType: "json",
             body: request,
+            responseType: "binary-response",
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,
@@ -897,28 +892,19 @@ export class MountsClient {
     }
 
     /**
-     * @param {AgentaApi.DownloadMountFileRequest} request
-     * @param {MountsClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
      * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.mounts.downloadMountFile({
-     *         mount_id: "mount_id",
-     *         path: "path"
-     *     })
      */
     public downloadMountFile(
         request: AgentaApi.DownloadMountFileRequest,
         requestOptions?: MountsClient.RequestOptions,
-    ): core.HttpResponsePromise<unknown> {
+    ): core.HttpResponsePromise<core.BinaryResponse> {
         return core.HttpResponsePromise.fromPromise(this.__downloadMountFile(request, requestOptions));
     }
 
     private async __downloadMountFile(
         request: AgentaApi.DownloadMountFileRequest,
         requestOptions?: MountsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<unknown>> {
+    ): Promise<core.WithRawResponse<core.BinaryResponse>> {
         const { mount_id: mountId, path } = request;
         const _queryParams: Record<string, unknown> = {
             path,
@@ -929,7 +915,7 @@ export class MountsClient {
             this._options?.headers,
             requestOptions?.headers,
         );
-        const _response = await core.fetcher({
+        const _response = await core.fetcher<core.BinaryResponse>({
             url: core.url.join(
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
@@ -939,6 +925,7 @@ export class MountsClient {
             method: "GET",
             headers: _headers,
             queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            responseType: "binary-response",
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,

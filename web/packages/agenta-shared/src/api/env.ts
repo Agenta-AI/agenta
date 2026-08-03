@@ -49,7 +49,7 @@ export const processEnv = {
 export const getEnv = (envKey: string): string => {
     // Check for runtime config first (browser/worker)
     const runtimeEnv = (globalThis as RuntimeGlobal).__env
-    if (runtimeEnv && Object.keys(runtimeEnv).length > 0 && runtimeEnv[envKey]) {
+    if (runtimeEnv && Object.prototype.hasOwnProperty.call(runtimeEnv, envKey)) {
         return runtimeEnv[envKey]
     }
 
@@ -87,13 +87,14 @@ export const isSandboxLocalEnabled = (): boolean => {
 
 /**
  * Send only the trailing user message per agent turn and let the runner rebuild prior history
- * from the durable record log. Default OFF — enable ONLY where the backend runs with
- * `AGENTA_SESSIONS_RECONSTRUCT=true` (they must be flipped together), or a cold turn loses its
+ * from the durable record log. ON unless set to the literal "false"; absent AND empty both mean
+ * on (compose passes `${VAR:-}`, which sets an empty string when unset). Disable it ONLY
+ * together with the backend `AGENTA_SESSIONS_RECONSTRUCT=false`, or a cold turn loses its
  * context.
  */
 export const isSessionsLastMessageOnlyEnabled = (): boolean => {
-    const raw = getEnv("NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY") || "false"
-    return SANDBOX_LOCAL_TRUTHY.has(raw.trim().toLowerCase())
+    const raw = getEnv("NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY")
+    return raw.trim().toLowerCase() !== "false"
 }
 
 /** The sandbox providers this deployment enabled, normalized to lowercase ids. Unset/empty

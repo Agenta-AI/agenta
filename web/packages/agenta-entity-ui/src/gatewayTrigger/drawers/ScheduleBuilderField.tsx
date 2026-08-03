@@ -12,7 +12,7 @@ import {
     type ScheduleBuilderState,
 } from "@agenta/entities/gatewayTrigger"
 import {dayjs} from "@agenta/shared/utils"
-import {Plus} from "@phosphor-icons/react"
+import {Plus, X} from "@phosphor-icons/react"
 import {
     Alert,
     Button,
@@ -21,7 +21,6 @@ import {
     InputNumber,
     Modal,
     Select,
-    Tag,
     TimePicker,
     Typography,
     message,
@@ -363,10 +362,16 @@ function CronEditor({
 }
 
 // ---------------------------------------------------------------------------
-// TimesField — one or more run times as removable chips. Cron's minute and hour
-// fields are independent, so a new time that would force cross-product runs is
-// refused with a hint to use a second schedule.
+// TimesField — one or more run times, each a live time input so "this is
+// editable" needs no discovering. The last one can't be removed, so the list is
+// never empty (an empty list would emit `0 0 * * *` and silently reschedule to
+// midnight). Cron's minute and hour fields are independent, so a time that
+// would force cross-product runs is refused with a hint to use a second
+// schedule.
 // ---------------------------------------------------------------------------
+
+const GRID_WARNING =
+    "Cron can't combine these times in one schedule — they'd trigger extra runs. Add a second schedule instead."
 
 function TimesField({
     times,
@@ -376,41 +381,63 @@ function TimesField({
     onChange: (times: CronTimeOfDay[]) => void
 }) {
     const [adding, setAdding] = useState(false)
+    const sorted = sortTimes(times)
 
-    const addTime = (t: CronTimeOfDay) => {
+    const commit = (next: CronTimeOfDay[]) => {
         setAdding(false)
-        if (times.some((x) => x.hour === t.hour && x.minute === t.minute)) return
-        const next = [...times, t]
         if (!timesFormCleanGrid(next)) {
-            message.warning(
-                "Cron can't combine these times in one schedule — they'd trigger extra runs. Add a second schedule instead.",
-            )
+            message.warning(GRID_WARNING)
             return
         }
         onChange(sortTimes(next))
     }
 
-    const removeTime = (t: CronTimeOfDay) => {
-        if (times.length <= 1) return
-        onChange(times.filter((x) => !(x.hour === t.hour && x.minute === t.minute)))
+    const addTime = (t: CronTimeOfDay) => {
+        if (sorted.some((x) => sameTime(x, t))) {
+            setAdding(false)
+            return
+        }
+        commit([...sorted, t])
+    }
+
+    // Rejected edits keep the old value: the input is controlled off `times`.
+    const setTimeAt = (index: number, t: CronTimeOfDay) => {
+        if (sorted.some((x, i) => i !== index && sameTime(x, t))) return
+        commit(sorted.map((x, i) => (i === index ? t : x)))
+    }
+
+    const removeTimeAt = (index: number) => {
+        if (sorted.length <= 1) return
+        onChange(sorted.filter((_, i) => i !== index))
     }
 
     return (
         <div>
             <FieldLabel>At these times (UTC)</FieldLabel>
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                {sortTimes(times).map((t) => (
-                    <Tag
-                        key={fmtTime(t)}
-                        closable={times.length > 1}
-                        onClose={(e) => {
-                            e.preventDefault()
-                            removeTime(t)
-                        }}
-                        className="!m-0 !px-2 !py-1 !text-xs"
-                    >
-                        {fmtTime(t)}
-                    </Tag>
+                {sorted.map((t, i) => (
+                    <div key={fmtTime(t)} className="flex items-center">
+                        <TimePicker
+                            value={dayjs().hour(t.hour).minute(t.minute)}
+                            format="HH:mm"
+                            minuteStep={5}
+                            needConfirm={false}
+                            allowClear={false}
+                            className="w-[104px]"
+                            onChange={(d) =>
+                                d && setTimeAt(i, {hour: d.hour(), minute: d.minute()})
+                            }
+                        />
+                        {sorted.length > 1 && (
+                            <Button
+                                type="text"
+                                size="small"
+                                aria-label={`Remove ${fmtTime(t)}`}
+                                icon={<X size={12} />}
+                                onClick={() => removeTimeAt(i)}
+                            />
+                        )}
+                    </div>
                 ))}
                 {adding ? (
                     <TimePicker
@@ -419,6 +446,7 @@ function TimesField({
                         format="HH:mm"
                         minuteStep={5}
                         needConfirm={false}
+                        className="w-[104px]"
                         defaultValue={dayjs().hour(9).minute(0)}
                         onChange={(d) => d && addTime({hour: d.hour(), minute: d.minute()})}
                         onOpenChange={(o) => !o && setAdding(false)}
@@ -431,6 +459,10 @@ function TimesField({
             </div>
         </div>
     )
+}
+
+function sameTime(a: CronTimeOfDay, b: CronTimeOfDay): boolean {
+    return a.hour === b.hour && a.minute === b.minute
 }
 
 function FieldLabel({children}: {children: ReactNode}) {

@@ -2,7 +2,7 @@ import {
     createRowHeightAtom,
     DEFAULT_ROW_HEIGHT_CONFIG,
     type RowHeightConfig,
-} from "@/oss/components/InfiniteVirtualTable"
+} from "@agenta/ui/table"
 
 /**
  * Testcase table row height configuration

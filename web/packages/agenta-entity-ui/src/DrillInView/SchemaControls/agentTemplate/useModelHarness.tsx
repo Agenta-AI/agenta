@@ -10,7 +10,11 @@ import {
     vaultSecretsQueryAtom,
 } from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
+import {
+    harnessCapabilitiesAtomFamily,
+    harnessCatalogFailedAtom,
+    retryHarnessCatalogAtom,
+} from "@agenta/entities/workflow"
 import {getEnabledSandboxProviders} from "@agenta/shared/api"
 import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
@@ -26,8 +30,8 @@ import {
     Sparkle,
     Warning,
 } from "@phosphor-icons/react"
-import {Button, Popconfirm, Select, Typography} from "antd"
-import {atom, useAtomValue} from "jotai"
+import {Alert, Button, Popconfirm, Select, Typography} from "antd"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {useHasChangedUnder, useRevertUnder} from "../../../drawers/shared/ChangedPathsContext"
 import {useFocusPaths, useHasFocusUnder} from "../../../drawers/shared/FocusPathsContext"
@@ -51,8 +55,7 @@ import {
 import {EnumSelectControl, getEnumOptions} from "../EnumSelectControl"
 import {GroupedChoiceControl} from "../GroupedChoiceControl"
 import {HarnessSelectControl} from "../HarnessSelectControl"
-import {PiAutoApproveControl} from "../PiAutoApproveControl"
-import {PiSettingsControl} from "../PiSettingsControl"
+import {PiPermissionsControl} from "../PiPermissionsControl"
 import {SandboxPermissionControl} from "../SandboxPermissionControl"
 
 import {enumLabel} from "./agentTemplateUtils"
@@ -148,21 +151,11 @@ export function useModelHarness({
         (key: string, sectionValue: unknown) => onChange({...config, [key]: sectionValue}),
         [config, onChange],
     )
-    // Set one flat field of the agent definition (here `llm` and `tools`).
+    // Set one flat field of the agent definition (here `llm`).
     const setAgentField = useCallback(
         (key: string, fieldValue: unknown) => onChange({...config, [key]: fieldValue}),
         [config, onChange],
     )
-    const setAgentTools = useCallback(
-        (tools: unknown[] | undefined) => {
-            const next = {...config}
-            if (tools === undefined) delete next.tools
-            else next.tools = tools
-            onChange(next)
-        },
-        [config, onChange],
-    )
-
     const sandboxValue = typeof sandbox.kind === "string" ? sandbox.kind : null
     useEffect(() => {
         const availableValue = sandboxOptions.some((option) => option.value === sandboxValue)
@@ -197,6 +190,11 @@ export function useModelHarness({
         useMemo(() => harnessCapabilitiesAtomFamily(harnessRefKey ?? ""), [harnessRefKey]),
     )
     const capabilities = harnessRefKey ? capabilitiesFromCatalog : null
+    const catalogFailed = useAtomValue(harnessCatalogFailedAtom)
+    const retryCatalog = useSetAtom(retryHarnessCatalogAtom)
+    // The schema asked for the catalog and we could not fetch it: say so instead of silently
+    // falling through to the pre-catalog controls, which look like an old build.
+    const catalogUnavailable = Boolean(harnessRefKey) && !capabilities && catalogFailed
     const mcpSupported = harnessSupportsUserMcp(capabilities, harnessValue)
 
     // Narrowed to the loaded flag (all this hook reads) — the raw query atom churns identity on
@@ -378,11 +376,7 @@ export function useModelHarness({
 
     const hasModelOrHarness = Boolean(props.llm || harnessProps.kind)
     const hasClaudePermissions = harnessValue === "claude"
-    const hasPiSettings = isPiHarness
-    const agentTools = useMemo(
-        () => (Array.isArray(config.tools) ? (config.tools as unknown[]) : null),
-        [config.tools],
-    )
+    const hasPiPermissions = isPiHarness
     const runnerPermissionOptions = useMemo(() => {
         const schemaValues = Array.isArray(runnerPermissionSchema?.enum)
             ? new Set((runnerPermissionSchema.enum as unknown[]).filter(isPermissionPolicy))
@@ -506,7 +500,7 @@ export function useModelHarness({
         sandboxProps.permissions ||
         runnerProps.permissions ||
         hasClaudePermissions ||
-        hasPiSettings ||
+        hasPiPermissions ||
         hasBuildKitOverlay,
     )
 
@@ -747,6 +741,20 @@ export function useModelHarness({
         </div>
     )
 
+    const catalogUnavailableNotice = (
+        <Alert
+            type="warning"
+            showIcon
+            message="Couldn't load the model catalog"
+            description="The harness and model options come from the server. Until it responds, only the basic controls are available."
+            action={
+                <Button size="small" onClick={() => retryCatalog()}>
+                    Retry
+                </Button>
+            }
+        />
+    )
+
     const modelHarnessControls = capabilities ? (
         <>
             {harnessKindInFocus ? (
@@ -808,6 +816,7 @@ export function useModelHarness({
         </>
     ) : (
         <>
+            {catalogUnavailable ? catalogUnavailableNotice : null}
             {harnessKindInFocus && harnessProps.kind && (
                 <RailField label="Harness" align="center" path="harness.kind">
                     <HarnessSelectControl
@@ -846,7 +855,7 @@ export function useModelHarness({
     // Advanced drawer body: two panels like Model & harness (settings left, version history right).
     const hasExecutionGroup = Boolean(sandboxProps.kind || sandboxProps.permissions)
     const hasPermissionsGroup = Boolean(
-        runnerPermissionSchema || hasClaudePermissions || hasPiSettings,
+        runnerPermissionSchema || hasClaudePermissions || hasPiPermissions,
     )
     // Shared Advanced controls, rendered by both the wide drawer body and the tabs-inline body.
     // Each group is a `ConfigAccordionSection` (the shared drawer section shell used by the trigger
@@ -963,23 +972,16 @@ export function useModelHarness({
                     />
                 </>
             ) : null}
-            {hasPiSettings ? (
+            {hasPiPermissions ? (
                 <>
                     {focus.active ? null : (
                         <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
                             Pi harness
                         </span>
                     )}
-                    {/* Availability, not permission — it declares no config path, so a focus
-                        filter drops it and only the changed permission rows remain. */}
-                    {focus.active ? null : (
-                        <PiSettingsControl
-                            tools={agentTools}
-                            onChange={setAgentTools}
-                            disabled={disabled}
-                        />
-                    )}
-                    <PiAutoApproveControl
+                    {/* Peer rail rows (allow / ask / deny) sharing the section rail. Each
+                        declares its config path, so a focus filter keeps the changed row. */}
+                    <PiPermissionsControl
                         value={(harness.permissions as Record<string, unknown> | null) ?? null}
                         onChange={(permissions) => setSection("harness", {...harness, permissions})}
                         disabled={disabled}

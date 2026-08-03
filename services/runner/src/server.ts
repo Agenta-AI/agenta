@@ -28,7 +28,11 @@ import type {
   EmitEvent,
   StreamRecord,
 } from "./protocol.ts";
-import { resolvePromptText } from "./protocol.ts";
+import { currentUserTurn } from "./protocol.ts";
+import {
+  attachmentCountError,
+  claimAttachments,
+} from "./sessions/attachments.ts";
 import {
   acquireEnvironment,
   destroyInFlightSandboxes,
@@ -46,13 +50,21 @@ import type { MountCredentials } from "./engines/sandbox_agent/mount.ts";
 import type { TeardownReason } from "./engines/sandbox_agent/teardown.ts";
 import {
   approvalDecisionForToolCall,
+  assertsPriorConversation,
   computeCredentialEpoch,
   configFingerprint,
   credentialEpochMismatch,
+  carriesApprovalReplyOnly,
   carriesMinimalHistory,
+  installedMountLease,
+  leaseExpiresBy,
   mountCredentialsExpired,
+  mountCredentialsExpireBy,
+  MOUNT_LEASE_SKEW_MS,
+  type CredentialEpoch,
   expectedNextHistoryFingerprint,
   historyFingerprint,
+  historyTailFromLastUserTurn,
   poolKeyFor,
   priorConversation,
   readKeepaliveConfig,
@@ -71,6 +83,10 @@ import {
   loadRunnerConfig,
   runnerConfigSummary,
 } from "./config/runner-config.ts";
+import {
+  resolveRunLimits,
+  TOTAL_DEADLINE_ENV,
+} from "./engines/sandbox_agent/run-limits.ts";
 import { applyDaytonaSdkEnv } from "./engines/sandbox_agent/daytona-provider.ts";
 import { isEntrypoint } from "./entry.ts";
 import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
@@ -153,6 +169,8 @@ function isAuthorized(req: IncomingMessage): boolean {
  */
 export interface RunAgentOptions {
   clientGone?: () => boolean;
+  /** Latest session credential; the alive watchdog refreshes it during long turns. */
+  credential?: () => string;
 }
 
 /** Run one request through an engine. Tests inject a fake to avoid a live harness. */
@@ -249,6 +267,7 @@ export interface KeepaliveEngine {
     signal?: AbortSignal,
     presignedMount?: MountCredentials | null,
     clientGone?: () => boolean,
+    credential?: () => string,
   ): Promise<AgentRunResult>;
 }
 
@@ -264,7 +283,14 @@ const realKeepaliveEngine: KeepaliveEngine = {
   },
   // Same acquire -> runTurn -> destroy composition as `runSandboxAgent`, with the presigned
   // mount threaded through so an up-front keep-alive sign is never repeated.
-  runCold: async (request, emit, signal, presignedMount, clientGone) => {
+  runCold: async (
+    request,
+    emit,
+    signal,
+    presignedMount,
+    clientGone,
+    credential,
+  ) => {
     const acquired = await acquireEnvironment(
       request,
       {},
@@ -276,6 +302,7 @@ const realKeepaliveEngine: KeepaliveEngine = {
     try {
       result = await runTurn(acquired.env, request, emit, signal, {
         loaded: acquired.env.loadedFromContinuity,
+        ...(credential ? { credential } : {}),
       });
       return result;
     } finally {
@@ -302,6 +329,8 @@ export interface KeepaliveContext {
   config: KeepaliveConfig;
   /** Reports a mid-turn client disconnect on the streaming edge (see `RunAgentOptions`). */
   clientGone?: () => boolean;
+  /** Latest session credential accessor supplied by the alive watchdog. */
+  credential?: () => string;
 }
 
 /**
@@ -337,7 +366,8 @@ export async function runWithKeepalive(
   signal: AbortSignal | undefined,
   ctx: KeepaliveContext,
 ): Promise<AgentRunResult> {
-  const { engine, pool, config, clientGone } = ctx;
+  const { engine, pool, config, clientGone, credential } = ctx;
+  const turnCredential = credential ? { credential } : {};
   const sessionId = request.sessionId?.trim();
   // Every execution carries an id: callers that omit `turnId` get one minted here, so the
   // turns-ledger append and interaction rows are never written without their execution id.
@@ -361,7 +391,14 @@ export async function runWithKeepalive(
   // never park; run cold as today
   // (no up-front sign happened, so the cold path signs itself: still exactly once).
   if (!sessionId) {
-    return engine.runCold(request, emit, signal, undefined, clientGone);
+    return engine.runCold(
+      request,
+      emit,
+      signal,
+      undefined,
+      clientGone,
+      credential,
+    );
   }
 
   // Sign the mount once, up front. The mount's owning project is the FALLBACK project scope; the
@@ -377,7 +414,14 @@ export async function runWithKeepalive(
   const scope = poolKeyFor(request, signed?.projectId);
   if (!scope) {
     klog(`miss (no project scope) session=${sessionId}; cold`);
-    return engine.runCold(request, emit, signal, signed, clientGone);
+    return engine.runCold(
+      request,
+      emit,
+      signal,
+      signed,
+      clientGone,
+      credential,
+    );
   }
   const key = scope.key;
   klog(`scope=${scope.source} key=${key} session=${sessionId}`);
@@ -389,7 +433,11 @@ export async function runWithKeepalive(
   // the mount unconditionally past this point — a keep-alive gap may only ever cost a cold
   // restart, never a failed turn.
   const cfgFp = configFingerprint(request);
-  const incomingEpoch = computeCredentialEpoch(request, signed?.expiresAt);
+  const incomingEpoch = computeCredentialEpoch(request);
+  // Resolved once per dispatch: the longest a turn started now could still be running.
+  const turnBudgetMs = resolveRunLimits().totalMs;
+  const requiredValidThroughMs =
+    Date.now() + turnBudgetMs + MOUNT_LEASE_SKEW_MS;
 
   // The fingerprint the NEXT request's prior conversation is expected to hash to; the same
   // one works for an approval park, whose gated tool_call id the FE folds back into the
@@ -399,6 +447,10 @@ export async function runWithKeepalive(
       request.messages ?? [],
       env.lastTurnToolCallIds ?? [],
     );
+
+  // A park can only assert what its request carried: a last-message-only turn hashes ONE user
+  // turn, so its fingerprint must not later be compared against a full transcript.
+  const historyAsserted = assertsPriorConversation(request);
 
   const resultTeardownReason = (result: AgentRunResult): TeardownReason =>
     shouldPark(result, signal, clientGone)
@@ -423,12 +475,13 @@ export async function runWithKeepalive(
   };
 
   // Whether a paused turn is fully parkable: every pending gate is a parkable ACP permission gate
-  // (Claude ACP or Pi ACP) that carries a `respondPermission`-answerable id, so the warm resume
-  // can answer them all. A turn parks when it has at least one parked gate AND every pending gate
-  // is parkable: no client-tool MCP pause (unanswerable across a turn boundary), and no approval
-  // gate that lacked a resumable id. A mixed or partly-unresumable set stays on the cold path,
-  // which is the only path that can multiplex it. Any count of parkable gates parks — a turn with
-  // several parallel gates is answered by several `respondPermission` calls on the resume.
+  // (Claude, Codex, or Pi ACP) that carries a `respondPermission`-answerable id, so the warm
+  // resume can answer them all. A turn parks when it has at least one parked gate AND every
+  // pending gate is parkable: no client-tool MCP pause (unanswerable across a turn boundary), and
+  // no approval gate that lacked a resumable id. A mixed or partly-unresumable set stays on the
+  // cold path, which is the only path that can multiplex it. Any count of parkable gates parks —
+  // a turn with several parallel gates is answered by several `respondPermission` calls on the
+  // resume.
   const approvalToPark = (
     env: SessionEnvironment,
     result: AgentRunResult,
@@ -486,6 +539,16 @@ export async function runWithKeepalive(
     }
   };
 
+  // A parked epoch's expiry comes from the credentials installed in the environment's mounts, not
+  // from whatever this dispatch signed to compute the pool key.
+  const parkedEpoch = (
+    env: SessionEnvironment,
+    secretsHash: string,
+  ): CredentialEpoch => ({
+    secretsHash,
+    mountExpiresAtMs: installedMountLease(env.installedMountExpiries),
+  });
+
   // Park a freshly cold-acquired environment (new pool slot) as approval / idle, or tear it down.
   const parkFreshOrDestroy = async (
     env: SessionEnvironment,
@@ -497,7 +560,8 @@ export async function runWithKeepalive(
       environment: env,
       configFingerprint: cfgFp,
       historyFingerprint: nextHistoryFp(env),
-      credentialEpoch: incomingEpoch,
+      historyAsserted,
+      credentialEpoch: parkedEpoch(env, incomingEpoch.secretsHash),
       teardown: (reason: TeardownReason) => env.destroy({ reason }),
     };
     if (approvalToPark(env, result)) {
@@ -523,7 +587,10 @@ export async function runWithKeepalive(
     }
   };
 
-  // Re-park a checked-out pool session (same slot) as approval / idle, or evict it.
+  // Re-park a checked-out pool session (same slot) as approval / idle, or evict it. A re-park
+  // describes the LIVE environment, so it always keeps the live secrets hash: on the idle path the
+  // mismatch gate already proved the live and incoming hashes equal, and the approval-resume path
+  // deliberately keeps the live one (the resume's re-minted secrets were never baked in).
   const reparkOrEvict = async (
     live: LiveSession<SessionEnvironment>,
     result: AgentRunResult,
@@ -533,7 +600,8 @@ export async function runWithKeepalive(
     const update = {
       configFingerprint: cfgFp,
       historyFingerprint: nextHistoryFp(env),
-      credentialEpoch: incomingEpoch,
+      historyAsserted,
+      credentialEpoch: parkedEpoch(env, live.credentialEpoch.secretsHash),
     };
     if (approvalToPark(env, result)) {
       klog(
@@ -571,13 +639,25 @@ export async function runWithKeepalive(
     const acq = await engine.acquireEnvironment(request, signal, signed);
     if (!acq.ok) return { ok: false, error: acq.error };
     const env = acq.env;
+    const leaseMs = installedMountLease(env.installedMountExpiries);
+    if (leaseExpiresBy(leaseMs, requiredValidThroughMs)) {
+      // A misconfigured TTL must never fail a turn: warn once per acquisition and run it.
+      klog(
+        `lease-short key=${key} leaseExpiresAtMs=${leaseMs} ` +
+          `requiredValidThroughMs=${requiredValidThroughMs} ` +
+          `(AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS on the API vs ` +
+          `${TOTAL_DEADLINE_ENV}=${turnBudgetMs}ms + skew ${MOUNT_LEASE_SKEW_MS}ms); ` +
+          `running anyway, every dispatch will rebuild cold`,
+      );
+    }
     let result: AgentRunResult;
     try {
-      // Park mode on: a Claude ACP permission gate this turn keeps the session alive instead of
-      // tearing down. A non-parkable pause (Pi relay/builtin, client tool) still destroys as today.
+      // Park mode keeps a parkable ACP permission gate alive. A non-parkable relay or client-tool
+      // pause still destroys the session.
       result = await engine.runTurn(env, request, trackedEmit, signal, {
         approvalParkMode: true,
         loaded: env.loadedFromContinuity,
+        ...turnCredential,
       });
     } catch (err) {
       await env.destroy({ reason: "failed-turn" });
@@ -610,6 +690,12 @@ export async function runWithKeepalive(
     else if (clientAssertsHistory && priorFp !== existing.historyFingerprint)
       mismatch = "history";
     else if (credMismatch) mismatch = credMismatch;
+    else if (
+      // Still-valid credentials that cannot cover a worst-case turn are expiring, not expired:
+      // rebuild at the boundary rather than let the turn die under the mount.
+      mountCredentialsExpireBy(existing.credentialEpoch, requiredValidThroughMs)
+    )
+      mismatch = "credentials-expiring";
     else if (!tailIsFreshUserMessage(request)) mismatch = "tail";
 
     if (mismatch) {
@@ -634,6 +720,7 @@ export async function runWithKeepalive(
           {
             continuation: true,
             approvalParkMode: true,
+            ...turnCredential,
           },
         );
       } catch (err) {
@@ -677,7 +764,7 @@ export async function runWithKeepalive(
     // checkout lost a race; fall through to cold.
   } else if (existing && existing.state === "awaiting_approval") {
     // An approval-parked session. A validated approval decision that matches the parked
-    // Claude ACP gate resumes it live; anything else evicts and degrades to cold.
+    // ACP gate resumes it live; anything else evicts and degrades to cold.
     //
     // Unlike the idle-continuation branch above, this branch does NOT require the resume request's
     // configFingerprint or credential epoch to EQUAL the parked session's. Every approval reply is
@@ -690,7 +777,8 @@ export async function runWithKeepalive(
     // park would evict a perfectly good live session on every approval (the "approve twice" bug).
     //
     // We keep the checks that DO bound the parked environment: the approval-decision match, the
-    // history fingerprint (an edited transcript must not continue wrongly), and a hard mount-expiry
+    // history fingerprint (an edited transcript must not continue wrongly, but only for a client
+    // that asserts a transcript at all — see `clientAssertsHistory` below), and a hard mount-expiry
     // bound — if the parked session's mount credentials are past expiry, its durable cwd can no
     // longer be written, so evict to cold.
     // Split parallel parked gates by tool-call id. Any non-empty answer set resumes live; untouched
@@ -706,10 +794,11 @@ export async function runWithKeepalive(
       for (const gate of parkedList) {
         if (
           gate.gateType !== "claude-acp-permission" &&
+          gate.gateType !== "codex-acp-permission" &&
           gate.gateType !== "pi-acp-permission"
         ) {
-          // Defensive: only a parkable gate type (Claude ACP or Pi ACP) ever parks here. Both
-          // resume via `respondPermission` on the live session; the daemon maps the reply by kind.
+          // Defensive: only a parkable ACP gate type ever parks here. All resume through
+          // `respondPermission` on the live session; the daemon maps the reply by kind.
           mismatch = "unrecognized-gate-type";
           break;
         }
@@ -729,12 +818,32 @@ export async function runWithKeepalive(
         });
       }
     }
-    const priorFp = historyFingerprint(priorConversation(request));
+    const incomingPrior = priorConversation(request);
+    // A park that asserted a full transcript is checked against the whole incoming one; a park
+    // that only ever saw its own trailing user turn is checked against that turn's slice of it,
+    // which still catches an edited tail (text, attachment ids, or tool-call ids).
+    const priorFp = historyFingerprint(
+      existing.historyAsserted
+        ? incomingPrior
+        : historyTailFromLastUserTurn(incomingPrior),
+    );
+    // An out-of-band answer (an inbox, a webhook, a CLI) builds its reply from the durable
+    // interaction row and carries no conversation at all, so its prior fingerprint can never equal
+    // the parked one and comparing it would evict the very session that could resume — the
+    // idle branch's `clientAssertsHistory` escape hatch, which this branch lacked. It cannot reuse
+    // `carriesMinimalHistory`: that helper wants a fresh user tail, and an approval reply is never
+    // one. The parked gate's tool-call id, matched above, is what binds this answer to this
+    // session; the history check only guards a client that DID assert a transcript.
+    const clientAssertsHistory = !carriesApprovalReplyOnly(request);
     if (!mismatch) {
-      if (priorFp !== existing.historyFingerprint) {
+      if (clientAssertsHistory && priorFp !== existing.historyFingerprint) {
         mismatch = "history";
       } else if (mountCredentialsExpired(existing.credentialEpoch)) {
         mismatch = "credentials-expired";
+      } else if (
+        mountCredentialsExpireBy(existing.credentialEpoch, requiredValidThroughMs)
+      ) {
+        mismatch = "credentials-expiring";
       }
     }
 
@@ -774,6 +883,7 @@ export async function runWithKeepalive(
           {
             approvalParkMode: true,
             resume: { decisions: resumeDecisions, carriedForward },
+            ...turnCredential,
           },
         );
       } catch (err) {
@@ -840,13 +950,18 @@ const keepalivePools: Record<
 
 const runAgent: RunAgent = (request, emit, signal, options) => {
   const provider = resolveKeepaliveDispatch(request, keepaliveConfigs);
-  if (!provider) return runSandboxAgent(request, emit, signal);
+  if (!provider) {
+    return runSandboxAgent(request, emit, signal, {}, {
+      ...(options?.credential ? { credential: options.credential } : {}),
+    });
+  }
   const config = keepaliveConfigs[provider];
   return runWithKeepalive(request, emit, signal, {
     engine: realKeepaliveEngine,
     pool: keepalivePools[provider],
     config,
     clientGone: options?.clientGone,
+    credential: options?.credential,
   });
 };
 
@@ -962,13 +1077,28 @@ async function runAndStreamWithApiBaseResolved(
     res.write(JSON.stringify(record) + "\n");
   };
   const liveEmit: EmitEvent = (event) => writeRecord({ kind: "event", event });
+  const turn = currentUserTurn(request);
+  const attachmentError = attachmentCountError(turn.attachments.length);
+  if (attachmentError) {
+    writeRecord({
+      kind: "result",
+      result: { ok: false, error: attachmentError, events: [] },
+    });
+    res.end();
+    return;
+  }
 
   // For session-owned runs: wrap the live emitter so every event is also persisted
   // producer-side, independent of whether the client is still connected.
   let emitFn: EmitEvent = liveEmit;
   let flushPersist: (() => Promise<void>) | undefined;
   let persistError: ((message: string) => void) | undefined;
-  let aliveWatchdog: { release: () => Promise<void> } | undefined;
+  let aliveWatchdog:
+    | {
+        release: () => Promise<void>;
+        credential: () => string;
+      }
+    | undefined;
 
   if (sessionOwned) {
     // The request's api base (if any) is already scoped for this call via
@@ -1019,12 +1149,23 @@ async function runAndStreamWithApiBaseResolved(
     );
     // Record the inbound user turn first so the session record is the full conversation, not just
     // agent output. Guard on `tailIsFreshUserMessage`: an approval RESUME's tail is the tool_result
-    // envelope (no text), so `resolvePromptText` falls back to the ORIGINAL prompt and would
-    // re-persist it as a DUPLICATE user row. The guard writes the prompt only on the turn that first
-    // introduced it — a real new turn's tail IS a fresh user message; a resume's is not.
-    const promptText = resolvePromptText(request);
-    if (promptText && tailIsFreshUserMessage(request))
-      persist({ type: "message", text: promptText }, "user");
+    // envelope, so it must not re-persist the ORIGINAL prompt as a duplicate user row. The guard
+    // writes the prompt only on the turn that first introduced it.
+    if (tailIsFreshUserMessage(request)) {
+      persist(
+        { type: "message", text: turn.text, attachments: turn.attachments },
+        "user",
+      );
+      if (turn.attachments.length > 0) {
+        // A failed claim is accepted as graceful loss: the worst case is that the sweeper
+        // reclaims the attachment and cold replay renders it as no longer available.
+        await claimAttachments(
+          sessionId,
+          turn.attachments.map((attachment) => attachment.attachmentId),
+          watchdog.credential,
+        );
+      }
+    }
     emitFn = persistingEmit;
     flushPersist = flush;
     persistError = (message) => persist({ type: "error", message }, "agent");
@@ -1034,6 +1175,7 @@ async function runAndStreamWithApiBaseResolved(
   try {
     result = await run(request, emitFn, controller.signal, {
       clientGone: () => clientDisconnected,
+      credential: aliveWatchdog?.credential,
     });
     // A failed engine run ({ok:false}) already emitted its own error EVENT through the
     // persisting emitter, so no extra persist here (it would duplicate the record). Drain
@@ -1249,7 +1391,7 @@ export function createRequestListener(
       // Only .message goes on the wire: the raw thrown value (even via String()) is
       // stack-trace-tainted to CodeQL, and the stack itself stays server-side.
       const message = err instanceof Error ? err.message : "Internal error";
-      console.error(err instanceof Error ? err.stack ?? err.message : err);
+      console.error(err instanceof Error ? (err.stack ?? err.message) : err);
       return send(res, 500, { ok: false, error: message });
     }
   };
@@ -1307,7 +1449,7 @@ if (isEntrypoint(import.meta.url)) {
   // run still returns its own error to its caller.
   process.on("unhandledRejection", (reason) => {
     process.stderr.write(
-      `[sandbox-agent] unhandledRejection: ${reason instanceof Error ? reason.stack ?? reason.message : String(reason)}\n`,
+      `[sandbox-agent] unhandledRejection: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}\n`,
     );
   });
   process.on("uncaughtException", (err) => {

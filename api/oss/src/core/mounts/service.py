@@ -29,22 +29,26 @@ from oss.src.core.mounts.interfaces import MountsDAOInterface
 from oss.src.core.store.dtos import StoreObject
 from oss.src.core.store.storage import ObjectStore
 from oss.src.core.mounts.types import (
+    ATTACHMENTS_MOUNT_NAME,
+    ATTACHMENTS_MOUNT_PURPOSE,
+    RESERVED_SLUG_PREFIX,
+    SESSION_SLUG_PREFIX,
     MountArtifactIdInvalid,
     MountArtifactNotFound,
     MountFileNotFound,
+    MountImmutableField,
     MountNameInvalid,
     MountNotFound,
     MountPathInvalid,
+    MountProtected,
     MountSlugReserved,
     MountStorageUnavailable,
 )
 from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
-
-# Reserved slug prefix for service-minted (session) slugs; a caller may not author one.
-_RESERVED_SLUG_PREFIX = "__ag__"
 
 # Deterministic UUIDv5 namespace: the project-wide root (uuid5(NAMESPACE_DNS, "agenta"))
 # sub-namespaced under "mounts". Stable across instances/restarts so the same session id
@@ -54,9 +58,11 @@ _MOUNTS_NAMESPACE = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "mounts")
 # The single session-bound mount: the agent's durable working directory.
 _SESSION_CWD_NAME = "cwd"
 
-# Default TTL (seconds) for signed mount credentials. Covers the mount lifetime for a
-# turn; geesefs holds the creds without refresh, so a turn outliving this hits ExpiredToken.
-_CREDENTIALS_TTL_SECONDS = 3600
+# The name the runner symlinks the agent mount into the cwd as (runner: `AGENT_FILES_LINK_NAME`).
+# The runner unlinks whatever else sits at that path on every attach, so the name is reserved AT THE
+# CWD MOUNT ROOT and nowhere else. geesefs degrades the symlink to a plain object of the same name in
+# the cwd store; that object is a runner artifact, never user content.
+_AGENT_FILES_LINK_NAME = "agent-files"
 
 
 def _slugify(value: str) -> str:
@@ -83,7 +89,19 @@ def mint_session_slug(*, session_id: str, name: str) -> str:
     without truncation, so the existing unique(project_id, slug) constraint holds
     for both session and non-session mounts.
     """
-    return f"{_RESERVED_SLUG_PREFIX}session__{uuid5(_MOUNTS_NAMESPACE, session_id)}__{slugify_mount_name(name)}"
+    return f"{SESSION_SLUG_PREFIX}{uuid5(_MOUNTS_NAMESPACE, session_id)}__{slugify_mount_name(name)}"
+
+
+def is_protected_mount(mount: Mount) -> bool:
+    # Purpose is durable classification; slug is the transitional fallback for pre-column rows.
+    if mount.purpose == ATTACHMENTS_MOUNT_PURPOSE:
+        return True
+    if not mount.session_id:
+        return False
+    return mount.slug == mint_session_slug(
+        session_id=mount.session_id,
+        name=ATTACHMENTS_MOUNT_NAME,
+    )
 
 
 def mint_agent_id(*, artifact_id: str) -> str:
@@ -106,12 +124,12 @@ def mint_agent_slug(*, artifact_id: str, name: str) -> str:
     """
     canonical_artifact_id = mint_agent_id(artifact_id=artifact_id)
     slug_name = slugify_mount_name(name)
-    return f"{_RESERVED_SLUG_PREFIX}agent__{canonical_artifact_id}__{slug_name}"
+    return f"{RESERVED_SLUG_PREFIX}agent__{canonical_artifact_id}__{slug_name}"
 
 
 def reject_reserved_slug(slug: str) -> None:
     """A caller may not author a slug in the reserved namespace (the service mints those)."""
-    if slug.startswith(_RESERVED_SLUG_PREFIX):
+    if slug.startswith(RESERVED_SLUG_PREFIX):
         raise MountSlugReserved(slug)
 
 
@@ -149,6 +167,50 @@ def _safe_zip_segments(path: str) -> List[str]:
     """Segments safe to place in a zip entry name: drop empty / `.` / `..` (both separators) so a
     prefix can't mint a `../x` or `..\\x` entry."""
     return [s for s in _zip_segments(path) if s not in ("", ".", "..")]
+
+
+def _is_session_cwd_mount(mount: Mount) -> bool:
+    """The session's durable working directory — the one mount the runner links `agent-files` into."""
+    return mount.session_id is not None and mount.name == _SESSION_CWD_NAME
+
+
+def _resolve_zip_namespace(
+    work: List[Tuple[str, str, int, Optional[int]]],
+) -> List[Tuple[str, str, int, Optional[int]]]:
+    """Drop members that cannot coexist in ONE zip namespace.
+
+    The archive carries no directory entries: `a/b` IMPLIES the directory `a`, so a member that is a
+    FILE named `a` blocks it and everything under `a/` is lost on extraction. An object store holds
+    `a` and `a/b` side by side happily, and the drive merges several mounts into one zip (cwd at the
+    root, the agent mount under `agent-files/`), so the collision is reachable across sources — it is
+    how the degraded `agent-files` symlink swallowed the agent's files (#5482). Directories win; a
+    duplicate path keeps the first member.
+    """
+    directories: set[str] = set()
+    for zip_path, *_rest in work:
+        segments = zip_path.split("/")
+        for i in range(1, len(segments)):
+            directories.add("/".join(segments[:i]))
+
+    resolved: List[Tuple[str, str, int, Optional[int]]] = []
+    seen: set[str] = set()
+    for member in work:
+        zip_path = member[0]
+        if zip_path in directories:
+            log.warning(
+                "mounts.archive: skipping file member shadowed by a directory",
+                zip_path=zip_path,
+            )
+            continue
+        if zip_path in seen:
+            log.warning(
+                "mounts.archive: skipping duplicate member",
+                zip_path=zip_path,
+            )
+            continue
+        seen.add(zip_path)
+        resolved.append(member)
+    return resolved
 
 
 def _is_internal_mount_path(path: str) -> bool:
@@ -378,6 +440,9 @@ class MountsService:
         #
         mount_create: MountCreate,
     ) -> Mount:
+        if mount_create.purpose is not None:
+            raise MountImmutableField("purpose")
+
         # The caller may not author a reserved slug; the service mints those for session mounts.
         reject_reserved_slug(mount_create.slug)
 
@@ -386,6 +451,11 @@ class MountsService:
         # session id, so unique(project_id, slug) holds for both without a scope-aware constraint.
         if mount_create.session_id is not None:
             name = mount_create.name or mount_create.slug
+            if ATTACHMENTS_MOUNT_NAME in {
+                slugify_mount_name(mount_create.slug),
+                slugify_mount_name(name),
+            }:
+                raise MountNameInvalid(name)
             mount_create = mount_create.model_copy(
                 update={
                     "name": name,
@@ -409,6 +479,7 @@ class MountsService:
         user_id: UUID,
         session_id: str,
         name: str = _SESSION_CWD_NAME,
+        purpose: Optional[str] = None,
     ) -> Mount:
         """Bind (idempotently) one durable mount for a session, keyed by `name`.
 
@@ -421,10 +492,13 @@ class MountsService:
         stored `name` is the slug so it never disagrees with it.
         """
         slug_name = slugify_mount_name(name)
+        if purpose is None and slug_name == ATTACHMENTS_MOUNT_NAME:
+            raise MountNameInvalid(name)
         mount_create = MountCreate(
             slug=mint_session_slug(session_id=session_id, name=slug_name),
             name=slug_name,
             session_id=session_id,
+            purpose=purpose,
         )
         return await self.mounts_dao.upsert_mount(
             project_id=project_id,
@@ -502,6 +576,85 @@ class MountsService:
             name=_SESSION_CWD_NAME,
         )
 
+    # These narrow operations are the only protected-mount bypass.
+    async def get_or_create_attachment_mount(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        session_id: str,
+    ) -> UUID:
+        mount = await self.get_or_create_session_mount(
+            project_id=project_id,
+            user_id=user_id,
+            session_id=session_id,
+            name=ATTACHMENTS_MOUNT_NAME,
+            purpose=ATTACHMENTS_MOUNT_PURPOSE,
+        )
+        return mount.id
+
+    async def write_attachment_original(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        path: str,
+        data: bytes,
+    ) -> None:
+        if self.mounts_store is None:
+            raise MountStorageUnavailable()
+
+        validate_file_path(path)
+        mount = await self._resolve_mount(
+            project_id=project_id,
+            mount_id=mount_id,
+            allow_protected=True,
+        )
+        key = self._storage_key(project_id=project_id, mount=mount, path=path)
+        await self.mounts_store.put_object(
+            bucket=self._bucket(),
+            key=key,
+            body=data,
+        )
+
+    async def read_attachment_original(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        path: str,
+    ) -> bytes:
+        if self.mounts_store is None:
+            raise MountStorageUnavailable()
+
+        validate_file_path(path)
+        mount = await self._resolve_mount(
+            project_id=project_id,
+            mount_id=mount_id,
+            allow_protected=True,
+        )
+        key = self._storage_key(project_id=project_id, mount=mount, path=path)
+        return await self.mounts_store.get_object(bucket=self._bucket(), key=key)
+
+    async def delete_attachment_original(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        path: str,
+    ) -> None:
+        if self.mounts_store is None:
+            raise MountStorageUnavailable()
+
+        validate_file_path(path)
+        mount = await self._resolve_mount(
+            project_id=project_id,
+            mount_id=mount_id,
+            allow_protected=True,
+        )
+        key = self._storage_key(project_id=project_id, mount=mount, path=path)
+        await self.mounts_store.delete_keys(bucket=self._bucket(), keys=[key])
+
     async def fetch_mount(
         self,
         *,
@@ -509,10 +662,13 @@ class MountsService:
         #
         mount_id: UUID,
     ) -> Optional[Mount]:
-        return await self.mounts_dao.fetch_mount(
+        mount = await self.mounts_dao.fetch_mount(
             project_id=project_id,
             mount_id=mount_id,
         )
+        if mount and is_protected_mount(mount):
+            return None
+        return mount
 
     async def fetch_agent_mount(
         self,
@@ -523,10 +679,11 @@ class MountsService:
     ) -> Optional[Mount]:
         """Fetch the active artifact mount keyed by name without creating it."""
         slug = mint_agent_slug(artifact_id=artifact_id, name=name)
-        return await self.mounts_dao.fetch_mount_by_slug(
+        mount = await self.mounts_dao.fetch_mount_by_slug(
             project_id=project_id,
             slug=slug,
         )
+        return mount
 
     async def edit_mount(
         self,
@@ -536,12 +693,10 @@ class MountsService:
         #
         mount_edit: MountEdit,
     ) -> Optional[Mount]:
-        existing = await self.mounts_dao.fetch_mount(
+        await self._resolve_mount(
             project_id=project_id,
             mount_id=mount_edit.id,
         )
-        if not existing:
-            raise MountNotFound()
 
         return await self.mounts_dao.edit_mount(
             project_id=project_id,
@@ -557,6 +712,10 @@ class MountsService:
         #
         mount_id: UUID,
     ) -> Optional[Mount]:
+        await self._resolve_mount(
+            project_id=project_id,
+            mount_id=mount_id,
+        )
         return await self.mounts_dao.archive_mount(
             project_id=project_id,
             user_id=user_id,
@@ -571,6 +730,10 @@ class MountsService:
         #
         mount_id: UUID,
     ) -> Optional[Mount]:
+        await self._resolve_mount(
+            project_id=project_id,
+            mount_id=mount_id,
+        )
         return await self.mounts_dao.unarchive_mount(
             project_id=project_id,
             user_id=user_id,
@@ -586,11 +749,13 @@ class MountsService:
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Mount]:
-        return await self.mounts_dao.query_mounts(
+        mounts = await self.mounts_dao.query_mounts(
             project_id=project_id,
             mount_query=mount_query,
             windowing=windowing,
         )
+        # Session lifecycle bypasses this filter to retain protected mounts for teardown and archival.
+        return [mount for mount in mounts if not is_protected_mount(mount)]
 
     async def delete_session_mounts(
         self,
@@ -671,6 +836,7 @@ class MountsService:
         *,
         project_id: UUID,
         mount_id: UUID,
+        allow_protected: bool = False,
     ) -> Mount:
         mount = await self.mounts_dao.fetch_mount(
             project_id=project_id,
@@ -678,6 +844,8 @@ class MountsService:
         )
         if not mount:
             raise MountNotFound()
+        if not allow_protected and is_protected_mount(mount):
+            raise MountProtected()
         return mount
 
     def _bucket(self) -> str:
@@ -690,12 +858,13 @@ class MountsService:
         *,
         project_id: UUID,
         mount_id: UUID,
-        duration_seconds: int = _CREDENTIALS_TTL_SECONDS,
     ) -> MountCredentials:
         """Mint short-lived, prefix-scoped credentials for one mount.
 
         The master key signs the STS request API-side and never leaves; the returned
         key pair + session token are scoped to this mount's prefix and expire in minutes.
+        geesefs holds the credentials without refresh, so a turn outliving the TTL hits
+        ExpiredToken.
         """
         if self.mounts_store is None:
             raise MountStorageUnavailable()
@@ -708,7 +877,7 @@ class MountsService:
         creds = await self.mounts_store.sign_temp_credentials(
             bucket=bucket,
             prefix=prefix,
-            duration_seconds=duration_seconds,
+            duration_seconds=env.mounts.credentials_ttl_seconds,
         )
         return MountCredentials(
             endpoint=self.mounts_store.endpoint_url,
@@ -1200,6 +1369,10 @@ class MountsService:
         all"); ``zip_prefix`` places its files under ``prefix/`` in the zip (e.g. "agent-files" for
         the folded agent mount). Folder markers are skipped. Each work item is a
         ``(zip_path, storage_key, size, mtime)`` tuple.
+
+        The sources share ONE zip namespace, so the merged list is passed through
+        ``_resolve_zip_namespace`` — a member the store allows but a zip cannot carry alongside its
+        neighbours (a file shadowing a directory, a duplicate path) is dropped there.
         """
         bucket = self._bucket()
 
@@ -1213,6 +1386,7 @@ class MountsService:
                 project_id=project_id, mount_id=source.mount_id
             )
             mount_base = self._storage_key(project_id=project_id, mount=mount)
+            is_session_cwd = _is_session_cwd_mount(mount)
             pfx_segments = _safe_zip_segments(source.archive_prefix)
             src = source.source_path.strip("/")
             # Scope the listing to a folder when `source_path` is set (folder download); the
@@ -1229,6 +1403,11 @@ class MountsService:
                     if obj.key.startswith(mount_base)
                     else obj.key
                 )
+                # The runner's `agent-files` link, degraded by geesefs into an object in the cwd
+                # store. A runner artifact, not user content (the runner unlinks anything else at
+                # that path), and the drive hides it — so it has no place in the zip either.
+                if is_session_cwd and rel.strip("/") == _AGENT_FILES_LINK_NAME:
+                    continue
                 rel_segments = _zip_segments(rel)
                 # Store keys come from signed-credential writers, so `rel` can carry `..` or a
                 # backslash. Don't REWRITE such a key — `a/../report.txt` would collapse onto a real
@@ -1242,7 +1421,7 @@ class MountsService:
                 zip_path = "/".join([*pfx_segments, *rel_segments])
                 work.append((zip_path, obj.key, obj.size or 0, obj.mtime))
 
-        return work
+        return _resolve_zip_namespace(work)
 
     async def iter_archive_members(
         self,

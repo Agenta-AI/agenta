@@ -165,6 +165,10 @@ from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.store.storage import ObjectStore
 from oss.src.core.sessions.mounts.service import SessionMountsService
+from oss.src.core.sessions.attachments.dtos import AttachmentLimits
+from oss.src.core.sessions.attachments.service import SessionAttachmentsService
+from oss.src.dbs.postgres.sessions.attachments.dao import SessionAttachmentsDAO
+from oss.src.tasks.asyncio.sessions.attachment_sweep import attachment_sweep_loop
 from oss.src.apis.fastapi.mounts.router import MountsRouter
 
 # Session streams
@@ -271,6 +275,16 @@ async def lifespan(*args, **kwargs):
         orphan_sweep_loop(_transactions_engine, _lock_engine)
     )
 
+    _attachment_sweep_task = asyncio.create_task(
+        attachment_sweep_loop(
+            attachments_dao=session_attachments_dao,
+            original_store=mounts_service,
+            lock_engine=_lock_engine,
+            pending_ttl_seconds=env.agenta.sessions.attachments.pending_ttl_seconds,
+            unreferenced_ttl_seconds=env.agenta.sessions.attachments.unreferenced_ttl_seconds,
+            sweep_interval_seconds=env.agenta.sessions.attachments.sweep_interval_seconds,
+        )
+    )
     # Best-effort: ingestion re-resolves on demand if this fails.
     if env.composio.enabled:
         try:
@@ -282,7 +296,16 @@ async def lifespan(*args, **kwargs):
 
     yield
 
-    _orphan_sweep_task.cancel()
+    for task in (
+        _orphan_sweep_task,
+        _attachment_sweep_task,
+    ):
+        task.cancel()
+    await asyncio.gather(
+        _orphan_sweep_task,
+        _attachment_sweep_task,
+        return_exceptions=True,
+    )
 
     await _triggers_broker.shutdown()
 
@@ -490,8 +513,13 @@ app.add_middleware(
 )
 
 
+# The middleware resolves trailing slashes against the route table instead, so no redirect
+# is emitted: Starlette's would be built from the post-strip path and lose the /api prefix.
+app.router.redirect_slashes = False
+
 # Added last => outermost: normalizes the path before auth/routing see it.
-app.add_middleware(ApiPrefixStripMiddleware)
+_ROUTED_APP = app
+app.add_middleware(ApiPrefixStripMiddleware, routes=lambda: _ROUTED_APP.routes)
 
 if ee and is_ee():
     app = ee.extend_main(app)
@@ -554,6 +582,7 @@ session_turns_dao = SessionTurnsDAO(engine=_transactions_engine)
 
 connections_dao = ConnectionsDAO(engine=_transactions_engine)
 mounts_dao = MountsDAO(engine=_transactions_engine)
+session_attachments_dao = SessionAttachmentsDAO(engine=_transactions_engine)
 
 # SERVICES ---------------------------------------------------------------------
 
@@ -878,6 +907,21 @@ session_mounts_service = SessionMountsService(
     mounts_service=mounts_service,
 )
 
+session_attachments_service = SessionAttachmentsService(
+    attachments_dao=session_attachments_dao,
+    original_store=mounts_service,
+    limits=AttachmentLimits(
+        max_image_bytes=env.agenta.sessions.attachments.max_image_bytes,
+        max_audio_bytes=env.agenta.sessions.attachments.max_audio_bytes,
+        max_document_bytes=env.agenta.sessions.attachments.max_document_bytes,
+        max_other_bytes=env.agenta.sessions.attachments.max_other_bytes,
+        max_per_session_count=env.agenta.sessions.attachments.max_per_session_count,
+        max_per_session_bytes=env.agenta.sessions.attachments.max_per_session_bytes,
+        max_pending_per_session=env.agenta.sessions.attachments.max_pending_per_session,
+        pending_ttl_seconds=env.agenta.sessions.attachments.pending_ttl_seconds,
+    ),
+)
+
 _t_services_done = time.perf_counter() - _t_services
 print(f"[STARTUP] Service initialization completed (+{_t_services_done:.3f}s)")
 _t_routers = time.perf_counter()
@@ -1048,6 +1092,7 @@ sessions = SessionsRouter(
     records_service=records_service,
     interactions_service=interactions_service,
     workflows_service=workflows_service,
+    attachments_service=session_attachments_service,
     session_mounts_service=session_mounts_service,
     mounts_service=mounts_service,
     turns_service=session_turns_service,
@@ -1475,6 +1520,12 @@ app.include_router(
     router=mounts.router,
     prefix="/mounts",
     tags=["Mounts"],
+)
+
+app.include_router(
+    router=sessions.attachments.router,
+    prefix="/sessions",
+    tags=["Sessions"],
 )
 
 app.include_router(

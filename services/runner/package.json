@@ -5,6 +5,11 @@
   "type": "module",
   "packageManager": "pnpm@10.30.0",
   "description": "Agenta sandbox-agent runner. Reads one /run request and drives a coding harness.",
+  "runtimeAgentPins": {
+    "_comment": "Harness adapters the sandbox-agent daemon installs at runtime (not npm dependencies of this package). Codex is pinned in the runner image build (docker/Dockerfile.{gh,dev}) via `install-agent codex --agent-process-version`, per decision D-005; recorded here next to the sandbox-agent pin so a version bump is discoverable. Codex is Apache-2.0 (bakeable); Claude Code is proprietary and installed at runtime by Anthropic (never pinned/baked).",
+    "@agentclientprotocol/codex-acp": "1.1.7",
+    "@openai/codex": "0.145.0"
+  },
   "scripts": {
     "run:cli": "tsx src/cli.ts",
     "serve": "tsx src/server.ts",
@@ -25,7 +30,7 @@
     "@daytonaio/sdk": "npm:@daytona/sdk@^0.198.0",
     "@earendil-works/pi-coding-agent": "0.80.6",
     "@opentelemetry/api": "1.9.1",
-    "@opentelemetry/core": "2.0.1",
+    "@opentelemetry/core": "2.8.0",
     "@opentelemetry/exporter-trace-otlp-proto": "0.220.0",
     "@opentelemetry/resources": "2.0.1",
     "@opentelemetry/sdk-trace-base": "2.0.1",
@@ -39,7 +44,7 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@vitest/coverage-v8": "^4.1.4",
-    "esbuild": "0.23.1",
+    "esbuild": "0.28.1",
     "tsx": "4.19.2",
     "typescript": "^5.9.3",
     "vitest": "^4.1.4"

@@ -1,18 +1,17 @@
 import {memo} from "react"
 
+import type {SpanCategory} from "@agenta/entities/trace"
 import {Typography} from "antd"
-
-import {SpanCategory} from "@/oss/services/tracing/types"
 
 import {spanTypeStyles} from "../assets/constants"
 
 interface Props {
-    name?: string
-    type?: SpanCategory
+    name?: string | null
+    type?: SpanCategory | null
 }
 
 const NodeNameCell = memo(({name, type}: Props) => {
-    const {icon: Icon} = spanTypeStyles[type ?? "undefined"]
+    const {icon: Icon} = spanTypeStyles[type ?? "unknown"] ?? spanTypeStyles.unknown
 
     return (
         <div className="flex items-center gap-1 min-w-0">

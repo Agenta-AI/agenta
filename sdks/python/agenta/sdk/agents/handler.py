@@ -33,7 +33,7 @@ from agenta.sdk.agents.connections import (
 )
 from agenta.sdk.agents.tools import ResolvedToolSet
 from agenta.sdk.agents.adapters import SandboxAgentBackend, make_harness
-from agenta.sdk.agents.errors import LocalSandboxNotAllowedError
+from agenta.sdk.agents.errors import SandboxNotAllowedError
 from agenta.sdk.agents.sandbox_providers import sandbox_provider_enabled
 from agenta.sdk.agents.mcp import ResolvedMCPServer
 from agenta.sdk.agents.platform import (
@@ -85,7 +85,7 @@ def _default_select_backend(agent_template: AgentTemplate) -> Backend:
     same `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS` registry.
     """
     if not sandbox_provider_enabled(agent_template.sandbox):
-        raise LocalSandboxNotAllowedError(sandbox=agent_template.sandbox)
+        raise SandboxNotAllowedError(sandbox=agent_template.sandbox)
     url = os.getenv("AGENTA_RUNNER_INTERNAL_URL", "").strip() or None
     return SandboxAgentBackend(sandbox=agent_template.sandbox, url=url, cwd=os.getcwd())
 
@@ -311,7 +311,6 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             trace=comp.trace_context(),
             run_context=rc,
             session_id=session_id,
-            builtin_names=resolved_tools.builtin_names,
             tool_specs=resolved_tools.tool_specs,
             tool_callback=resolved_tools.tool_callback,
             mcp_servers=resolved_mcp,

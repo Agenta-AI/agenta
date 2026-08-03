@@ -20,10 +20,10 @@ POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"
 AGENTA_STORE_ACCESS_KEY="${AGENTA_STORE_ACCESS_KEY:-}"
 AGENTA_STORE_SECRET_KEY="${AGENTA_STORE_SECRET_KEY:-}"
 AGENTA_STORE_BUCKET="${AGENTA_STORE_BUCKET:-agenta-store}"
-AGENTA_STORE_SIGNING_KEY="${AGENTA_STORE_SIGNING_KEY:-$(openssl rand -base64 32)}"
+AGENTA_STORE_SIGNING_KEY="${AGENTA_STORE_SIGNING_KEY:-}"
 # RSA key the API signs its store web-identity token with; the bundled SeaweedFS verifies it
-# against the API's JWKS. Generated once per configure run if unset (single-replica Railway).
-AGENTA_STORE_JWT_PRIVATE_KEY="${AGENTA_STORE_JWT_PRIVATE_KEY:-$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 2>/dev/null)}"
+# against the API's JWKS.
+AGENTA_STORE_JWT_PRIVATE_KEY="${AGENTA_STORE_JWT_PRIVATE_KEY:-}"
 
 # Populated by resolve_railway_ids() after `railway link`. Used by the GraphQL
 # variableCollectionUpsert path; left empty -> upsert_service_vars falls back
@@ -44,6 +44,44 @@ resolve_postgres_password() {
     else
         POSTGRES_PASSWORD="$(openssl rand -hex 24)"
     fi
+}
+
+_store_variable_from_json() {
+    local variables_json="$1"
+    local key="$2"
+
+    jq -r --arg key "$key" \
+        '.[$key] // empty | select(type == "string" and length > 0)' \
+        <<<"$variables_json"
+}
+
+resolve_store_configuration() {
+    local api_variables
+    api_variables="$(railway_call variable list --json --service api --environment "$ENV_NAME")"
+    if ! jq -e 'type == "object"' >/dev/null 2>&1 <<<"$api_variables"; then
+        printf "Unable to read existing mount storage configuration from the Railway API service.\n" >&2
+        return 1
+    fi
+
+    if [ -z "$AGENTA_STORE_ACCESS_KEY" ]; then
+        AGENTA_STORE_ACCESS_KEY="$(_store_variable_from_json "$api_variables" AGENTA_STORE_ACCESS_KEY)"
+    fi
+    if [ -z "$AGENTA_STORE_SECRET_KEY" ]; then
+        AGENTA_STORE_SECRET_KEY="$(_store_variable_from_json "$api_variables" AGENTA_STORE_SECRET_KEY)"
+    fi
+    if [ -z "$AGENTA_STORE_SIGNING_KEY" ]; then
+        AGENTA_STORE_SIGNING_KEY="$(_store_variable_from_json "$api_variables" AGENTA_STORE_SIGNING_KEY)"
+    fi
+    if [ -z "$AGENTA_STORE_JWT_PRIVATE_KEY" ]; then
+        AGENTA_STORE_JWT_PRIVATE_KEY="$(_store_variable_from_json "$api_variables" AGENTA_STORE_JWT_PRIVATE_KEY)"
+    fi
+
+    AGENTA_STORE_ACCESS_KEY="${AGENTA_STORE_ACCESS_KEY:-$(openssl rand -hex 10)}"
+    AGENTA_STORE_SECRET_KEY="${AGENTA_STORE_SECRET_KEY:-$(openssl rand -hex 32)}"
+    AGENTA_STORE_SIGNING_KEY="${AGENTA_STORE_SIGNING_KEY:-$(openssl rand -base64 32)}"
+    AGENTA_STORE_JWT_PRIVATE_KEY="${AGENTA_STORE_JWT_PRIVATE_KEY:-$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 2>/dev/null)}"
+
+    printf "Mount storage credentials are configured for this Railway environment.\n"
 }
 
 require_cmd() {
@@ -146,6 +184,10 @@ _cli_set_vars() {
             continue
         fi
         [ -n "$output" ] && printf '%s\n' "$output" >&2
+        if printf '%s' "$output" | grep -qi "not found"; then
+            printf "Service '%s' is missing from the Railway environment — bootstrap likely failed to create it.\n" "$service" >&2
+            printf "Fix: use 'Re-run all jobs' (re-running only failed jobs skips the green setup job, so bootstrap never gets a chance to recreate the missing service).\n" >&2
+        fi
         return 1
     done
 }
@@ -175,7 +217,7 @@ upsert_service_vars() {
 
     if [ -z "${RAILWAY_API_TOKEN:-}" ] || [ -z "$RAILWAY_PROJECT_ID" ]; then
         _cli_set_vars "$service" "$@"
-        return 0
+        return $?
     fi
 
     local svc_id
@@ -186,7 +228,7 @@ upsert_service_vars() {
         # back to it.
         printf "Could not resolve service id for '%s'; falling back to CLI variable set.\n" "$service" >&2
         _cli_set_vars "$service" "$@"
-        return 0
+        return $?
     fi
 
     # replace:false makes the merge intent explicit: configure.sh calls set_vars
@@ -262,6 +304,10 @@ main() {
     # Resolve IDs for the GraphQL variableCollectionUpsert path (after link, so
     # the project/environment/services exist and are linked).
     resolve_railway_ids
+
+    # The API service is the canonical durable copy. Explicit operator values win;
+    # otherwise reuse the current values and generate only what a fresh project lacks.
+    resolve_store_configuration
 
     railway_call domain --service gateway --json >/dev/null 2>&1 || true
 
@@ -365,6 +411,7 @@ main() {
         "DAYTONA_API_KEY=${DAYTONA_API_KEY:-}"
 
     set_vars runner \
+        AGENTA_RUNNER_HOST=0.0.0.0 \
         AGENTA_RUNNER_PORT=8765 \
         AGENTA_RUNNER_TOKEN="$AGENTA_RUNNER_TOKEN" \
         AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS="${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}" \

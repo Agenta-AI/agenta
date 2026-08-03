@@ -6,7 +6,7 @@ Layers (Agenta's hexagonal vocabulary):
 - ``interfaces.py`` — the ports (ABCs): ``Backend``, ``Environment``, ``Sandbox``,
   ``Session``, ``Harness``.
 - ``adapters/`` — implementations: ``SandboxAgentBackend`` / ``LocalBackend``
-  and ``PiHarness`` / ``ClaudeHarness``.
+  and ``PiHarness`` / ``ClaudeHarness`` / ``CodexHarness``.
 - ``utils/`` — shared plumbing (the ``/run`` wire and the transports to the TS runner).
 
 Standalone usage::
@@ -23,6 +23,7 @@ Standalone usage::
 from .adapters import (
     AgentaHarness,
     ClaudeHarness,
+    CodexHarness,
     LocalBackend,
     PiHarness,
     SandboxAgentBackend,
@@ -60,6 +61,7 @@ from .dtos import (
     Event,
     AgentResult,
     ClaudeAgentTemplate,
+    CodexAgentTemplate,
     ContentBlock,
     HARNESS_IDENTITIES,
     HarnessAgentTemplate,
@@ -83,8 +85,10 @@ from .dtos import (
     to_messages,
 )
 from .errors import (
+    AgentRunFailed,
     AgentRunnerConfigurationError,
     LocalSandboxNotAllowedError,
+    SandboxNotAllowedError,
     ToolResolutionError,
     UnsupportedHarnessError,
 )
@@ -131,6 +135,7 @@ from .tools import (
     MissingToolSecretError,
     PlatformToolConfig,
     ReferenceToolConfig,
+    ReservedToolNameError,
     ResolvedToolSet,
     ToolCall,
     ToolConfig,
@@ -159,6 +164,7 @@ __all__ = [
     "HarnessAgentTemplate",
     "PiAgentTemplate",
     "ClaudeAgentTemplate",
+    "CodexAgentTemplate",
     "AgentaAgentTemplate",
     "HarnessKind",
     "HarnessIdentity",
@@ -215,6 +221,7 @@ __all__ = [
     "UnsupportedToolProviderError",
     "MissingToolSecretError",
     "DuplicateToolNameError",
+    "ReservedToolNameError",
     # MCP is a sibling subsystem
     "MCPServerConfig",
     "ResolvedMCPServer",
@@ -261,7 +268,9 @@ __all__ = [
     "Environment",
     "Harness",
     # Errors
+    "AgentRunFailed",
     "AgentRunnerConfigurationError",
+    "SandboxNotAllowedError",
     "LocalSandboxNotAllowedError",
     "UnsupportedHarnessError",
     "ToolResolutionError",
@@ -272,6 +281,7 @@ __all__ = [
     "LocalBackend",
     "PiHarness",
     "ClaudeHarness",
+    "CodexHarness",
     "AgentaHarness",
     "make_harness",
 ]

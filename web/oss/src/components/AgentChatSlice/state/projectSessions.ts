@@ -5,13 +5,10 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
+import {isValidUUID} from "@/oss/lib/helpers/validators"
 import {projectIdAtom} from "@/oss/state/project"
 
-import {
-    GLOBAL_APP_KEY,
-    reconcileServerSessionsAtomFamily,
-    type ServerSessionSummary,
-} from "./sessions"
+import {reconcileServerSessionsAtomFamily, type ServerSessionSummary} from "./sessions"
 
 /**
  * The durable session list for ONE agent, from the server — the cross-device source the sidebar
@@ -20,11 +17,11 @@ import {
  * (`references: [{id: appId}]`). Includes ended sessions (a row with `deleted_at` set).
  *
  * Mirrors `liveness.ts`: ONE low-priority query per agent backs the whole list, revalidated on tab
- * refocus and on a slow interval, so it stays out of the live conversation's way. Disabled for the
- * non-agent scopes (`__global__`, the revision drawer) where there is no artifact id to match.
+ * refocus and on a slow interval, so it stays out of the live conversation's way. Disabled for
+ * non-agent scopes (`__global__`, the revision drawer, the onboarding pseudo-scope) that have no
+ * real app UUID to match — the API validates `references[].id` as a UUID and 422s otherwise.
  */
-const isQueryableScope = (appId: string): boolean =>
-    Boolean(appId) && appId !== GLOBAL_APP_KEY && !appId.startsWith("drawer:")
+const isQueryableScope = (appId: string): boolean => Boolean(appId) && isValidUUID(appId)
 
 export const projectSessionsQueryAtomFamily = atomFamily((appId: string) =>
     atomWithQuery<SessionStream[] | null>((get) => {
@@ -74,6 +71,8 @@ const toSummary = (s: SessionStream): ServerSessionSummary => ({
     id: s.session_id,
     title: s.name?.trim() ? s.name : undefined,
     createdAt: s.created_at ? Date.parse(s.created_at) || undefined : undefined,
+    // Heartbeat `updated_at` (falls back to created_at) = last-activity time for ordering history.
+    lastMessageAt: activity(s) || undefined,
     // A soft-deleted stream row is a killed/ended session (still resumable) — the list includes it
     // via include_ended; the sidebar shows it muted.
     ended: Boolean(s.deleted_at),

@@ -38,14 +38,41 @@ The snapshot recipe therefore:
   would not resolve;
 - fails the build unless the private launcher exists and its installed package reports
   version `0.0.29`;
+- reinstalls the Codex ACP adapter (`@agentclientprotocol/codex-acp`) pinned to the SAME
+  version the runner image pins (D-005; the base image's copy floats and served an older
+  model set — the #5537 gap), and fails the build unless the installed version matches;
+- applies the codex-acp approval patch (D-008 amendment): the `agent-full-access` preset is
+  rewritten from `approvalPolicy: "never"` to `on-request` so Agenta-tool calls raise
+  codex-native gates that park warm. Without this, a Daytona `ask` tool executes with NO
+  approval (the runner-side seam gate is off remotely). The anchor is single-sourced from
+  `services/runner/src/engines/sandbox_agent/codex-acp-patch.json` (shared with the runner
+  image build), the step verifies its own write, and the build fails loudly if the preset
+  drifts;
 - verifies that the Claude, Codex, and OpenCode binaries are still present;
-- installs the FUSE and geesefs dependencies used for durable remote working directories; and
-- installs `python3` and `typescript`/`ts-node` for the shared custom-code evaluator runtimes.
+- installs the FUSE and geesefs dependencies used for durable remote working directories;
+- installs `python3` and `typescript`/`ts-node` for the shared custom-code evaluator runtimes; and
+- installs the everyday command-line tools an agent reaches for unprompted: `unzip`, `zip`,
+  `python-is-python3` (which puts a plain `python` on PATH), `ripgrep`, `fd-find`, `jq`, `procps`,
+  `file`, and `tree`, and symlinks `fdfind` to `fd` because Debian ships the binary under the
+  other name. Without them a task as ordinary as "read this zip" or a first search of the working
+  directory costs the agent several failed shell calls and the operator several approval prompts.
 
 The Pi CLI and Pi ACP adapter are separate dependencies. Keep both pins explicit. The CLI
 runs the agent; the adapter translates Pi events and dialogs onto ACP. In particular, the
 adapter version must not be inherited implicitly from the base image because older versions
 do not forward Pi extension dialogs as ACP permission requests.
+
+## Refreshing an existing snapshot
+
+The snapshot name is pinned, so Daytona keeps serving whatever you built under it. When this recipe
+changes, rebuild it in each Daytona account that uses it:
+
+```bash
+DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py --force
+```
+
+`--force` is required: without it the script sees the existing snapshot and exits. Sandboxes already
+running keep the old contents; only sandboxes created after the rebuild pick up the change.
 
 ## Pi installation
 

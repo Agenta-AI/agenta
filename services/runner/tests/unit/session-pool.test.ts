@@ -242,10 +242,44 @@ describe("configFingerprint", () => {
     );
   });
 
-  it("changes when tools change", () => {
-    assert.notEqual(
+  it("ignores the deprecated tools field", () => {
+    // The runner activates every built-in regardless, so `tools` must not force a cold restart.
+    assert.equal(
       configFingerprint(base),
       configFingerprint({ ...base, tools: ["read"] }),
+    );
+  });
+
+  it("changes when resolved model capabilities change", () => {
+    assert.notEqual(
+      configFingerprint(base),
+      configFingerprint({
+        ...base,
+        modelCapabilities: { inputModalities: ["text", "image"] },
+      }),
+    );
+  });
+
+  it("distinguishes different Codex harness modes", () => {
+    const codex = { ...base, harness: "codex" };
+    assert.notEqual(
+      configFingerprint({ ...codex, harnessMode: "agent" }),
+      configFingerprint({ ...codex, harnessMode: "read-only" }),
+    );
+  });
+
+  it("treats omitted Codex mode as the explicit default", () => {
+    const codex = { ...base, harness: "codex" };
+    assert.equal(
+      configFingerprint(codex),
+      configFingerprint({ ...codex, harnessMode: "agent-full-access" }),
+    );
+  });
+
+  it("ignores harness mode for non-Codex harnesses", () => {
+    assert.equal(
+      configFingerprint(base),
+      configFingerprint({ ...base, harnessMode: "read-only" }),
     );
   });
 
@@ -315,6 +349,53 @@ describe("historyFingerprint (pruned-array contract)", () => {
     assert.notEqual(
       historyFingerprint([u1]),
       historyFingerprint([{ role: "user", content: "hello!" }]),
+    );
+  });
+
+  it("changes when ordered user attachment ids change", () => {
+    const withAttachment = (attachmentId: string) => ({
+      role: "user",
+      content: [{ type: "attachment", attachmentId }],
+    });
+    assert.notEqual(
+      historyFingerprint([withAttachment("019a52c2-14c0-7c14-b874-2f5798f9cd21")]),
+      historyFingerprint([withAttachment("019a52c2-14c0-7c14-b874-2f5798f9cd22")]),
+    );
+  });
+
+  it("changes when the order of user attachment ids changes", () => {
+    const ids = [
+      "019a52c2-14c0-7c14-b874-2f5798f9cd21",
+      "019a52c2-14c0-7c14-b874-2f5798f9cd22",
+    ];
+    const withAttachments = (attachmentIds: string[]) => ({
+      role: "user",
+      content: attachmentIds.map((attachmentId) => ({
+        type: "attachment",
+        attachmentId,
+      })),
+    });
+    assert.notEqual(
+      historyFingerprint([withAttachments(ids)]),
+      historyFingerprint([withAttachments([...ids].reverse())]),
+    );
+  });
+
+  it("changes when a legacy inline image's content changes", () => {
+    const withImage = (data: string) => ({
+      role: "user",
+      content: [
+        { type: "image", uri: `data:image/png;base64,${data}` },
+        { type: "text", text: "describe this" },
+      ],
+    });
+    assert.notEqual(
+      historyFingerprint([withImage("AQID")]),
+      historyFingerprint([withImage("BAUG")]),
+    );
+    assert.equal(
+      historyFingerprint([withImage("AQID")]),
+      historyFingerprint([withImage("AQID")]),
     );
   });
 
@@ -404,6 +485,39 @@ describe("tailIsFreshUserMessage", () => {
       false,
     );
   });
+  it("true for an attachment-only trailing user message", () => {
+    assert.equal(
+      tailIsFreshUserMessage({
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "attachment",
+                attachmentId: "019a52c2-14c0-7c14-b874-2f5798f9cd21",
+              },
+            ],
+          },
+        ],
+      } as unknown as AgentRunRequest),
+      true,
+    );
+  });
+
+  it("true for both legacy inline-image-only trailing user messages", () => {
+    for (const block of [
+      { type: "image", uri: "data:image/png;base64,AQID" },
+      { type: "image", data: "AQID", mimeType: "image/webp" },
+    ]) {
+      assert.equal(
+        tailIsFreshUserMessage({
+          messages: [{ role: "user", content: [block] }],
+        } as AgentRunRequest),
+        true,
+      );
+    }
+  });
+
   it("false when the tail user turn carries a tool_result (approval reply)", () => {
     assert.equal(
       tailIsFreshUserMessage({
@@ -478,10 +592,10 @@ describe("credential epoch", () => {
   });
 
   it("valid until the mount expiry elapses; invalid once expired", () => {
-    const parked = computeCredentialEpoch(
-      { secrets: { A: "1" } },
-      "2026-01-01T00:00:10.000Z",
-    );
+    const parked = {
+      ...computeCredentialEpoch({ secrets: { A: "1" } }),
+      mountExpiresAtMs: Date.parse("2026-01-01T00:00:10.000Z"),
+    };
     const incoming = computeCredentialEpoch({ secrets: { A: "1" } });
     const before = Date.parse("2026-01-01T00:00:05.000Z");
     const after = Date.parse("2026-01-01T00:00:15.000Z");
@@ -500,10 +614,10 @@ describe("credential epoch", () => {
   });
 
   it("credentialEpochMismatch splits the reason: expired vs rotated vs none", () => {
-    const parked = computeCredentialEpoch(
-      { secrets: { A: "1" } },
-      "2026-01-01T00:00:10.000Z",
-    );
+    const parked = {
+      ...computeCredentialEpoch({ secrets: { A: "1" } }),
+      mountExpiresAtMs: Date.parse("2026-01-01T00:00:10.000Z"),
+    };
     const same = computeCredentialEpoch({ secrets: { A: "1" } });
     const rotated = computeCredentialEpoch({ secrets: { A: "2" } });
     const before = Date.parse("2026-01-01T00:00:05.000Z");
@@ -525,10 +639,10 @@ describe("credential epoch", () => {
   });
 
   it("mountCredentialsExpired checks only the mount lifetime, ignoring the secret hash", () => {
-    const parked = computeCredentialEpoch(
-      { secrets: { A: "1" } },
-      "2026-01-01T00:00:10.000Z",
-    );
+    const parked = {
+      ...computeCredentialEpoch({ secrets: { A: "1" } }),
+      mountExpiresAtMs: Date.parse("2026-01-01T00:00:10.000Z"),
+    };
     const before = Date.parse("2026-01-01T00:00:05.000Z");
     const after = Date.parse("2026-01-01T00:00:15.000Z");
     assert.equal(mountCredentialsExpired(parked, before), false);
