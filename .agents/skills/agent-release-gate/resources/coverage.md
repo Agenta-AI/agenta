@@ -58,7 +58,7 @@ cell — keep them in sync if a cell changes.
 | `commit` | Save an agent config as a new workflow revision, then fetch it back. | The changed parameter survives the round trip and the version bumps (v0 seed → v1; see LESSONS #14). Harness-agnostic — it drives the config REST API, not a turn. |
 | `warm` | Continuity tier 1: three turns on one live daemon, over a store-backed cwd. | The durable token written in turn 1 comes back in the last turn, and the turn ledger shows one harness session and one sandbox (a second id means the turn was not warm). |
 | `cold1` | Continuity tier 2: the pooled session is **evicted** (the client changes the agent's instructions, which changes the config fingerprint) and the runner rebuilds it — unmounting and remounting the durable cwd. | The token survives the store round trip AND the agent can read a file the client wrote directly into the object store. |
-| `cold2` | Continuity tier 3: the runner **replica is replaced** (operator hook: SIGKILL, then wait out the owner TTL). | On a **local** sandbox the resume must REFUSE (`local sandbox requires a single runner`); on a remote sandbox it must complete with both files intact. SKIPs without `--cold2-replace-cmd`. |
+| `cold2` | Continuity tier 3: the runner **replica is replaced** (operator hook: SIGKILL, then wait out the owner TTL plus a margin). | On a **local** sandbox the resume must REFUSE (the runner's `… is not the owner of session …`, the substring the driver asserts); on a remote sandbox it must complete with both files intact. SKIPs without `--cold2-replace-cmd`. |
 | `mcp` | Deliver an MCP server in the agent config and call one of its tools. | A `tool-output-available` frame fires for an `mcp__*` tool. **Claude only** — Pi rejects user MCP, so this `SKIP`s on every Pi cell. Uses the public DeepWiki server by default; override with `--mcp-url`. |
 | `rule_deny` | Policy `allow`, plus a `deny` rule for `Bash`. Ask for a bash command. | The model still attempts the call (the tool is not hidden), the call never executes, no approval card appears, and no real shell token reaches the reply. **Pi only.** |
 | `rule_allow` | Policy `ask`, plus an `allow` rule for `Bash`. Ask for the same command. | No approval card fires and the call executes — the rule overrode the policy. **Pi only.** |
@@ -116,7 +116,10 @@ on SIGTERM the runner runs its shutdown handler and destroys every sandbox it ow
 session under test. The driver then waits `--owner-ttl` seconds (default 120,
 `AGENTA_SESSIONS_REDIS_OWNER_TTL_SECONDS`) because the killed replica never released
 `owner:session:<id>` and `claim_owner` never steals from an owner that still looks live; resuming
-inside that window fails for an unrelated, misleading reason (#5611). Expected results differ per
+inside that window fails for an unrelated, misleading reason (#5611). The driver waits the TTL
+**plus a 20s margin**, because the key lapses at the boundary and the replacement replica may
+still be starting; the hook itself is bounded (3 minutes) and must return once the replacement is
+serving. Expected results differ per
 sandbox: a **local** sandbox lives inside the runner process, so a replacement replica genuinely
 cannot adopt it and the correct outcome is a loud refusal; a **remote** sandbox resumes cold. If
 the deployment pins `AGENTA_RUNNER_REPLICA_ID`, the replacement replica is not a *different*

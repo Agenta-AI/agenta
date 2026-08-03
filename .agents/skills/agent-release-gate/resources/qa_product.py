@@ -728,6 +728,20 @@ REQUIRE_STORE = False
 STORE_SETTLE_SECONDS = 45.0
 COLD2_REPLACE_CMD: str | None = None
 OWNER_TTL_SECONDS = 120.0
+# A hung operator hook must not hang the whole gate run.
+COLD2_REPLACE_TIMEOUT_SECONDS = 180.0
+# The owner key lapses AT the TTL, and the replacement replica may still be coming up, so a
+# resume timed exactly on the boundary races both and fails for an unrelated, misleading reason.
+# The approval-matrix driver waits for container health plus the same margin
+# (docs/design/codex-harness/spike/scripts/codex-approval-matrix-qa.py).
+OWNER_TTL_MARGIN_SECONDS = 20.0
+
+# The runner's refusal when a replacement replica tries to adopt a local-sandbox session
+# (`LocalSandboxNotOwnerError`, session-continuity.ts). Asserted by the cold2 journey and quoted
+# in coverage.md — one spelling, one source, so the doc and the assertion cannot drift apart.
+# Full text: "local sandbox requires a single runner: replica '<a>' is not the owner of session
+# '<b>' (owned by '<c>'). Refusing to cold-start on the wrong host."
+LOCAL_NOT_OWNER_MARKER = "is not the owner of session"
 
 CWD_PROBE_FILE = "qa-cwd.txt"
 STORE_PROBE_FILE = "qa-store.txt"
@@ -976,9 +990,26 @@ def _continuity(cell: dict, tier: str) -> dict:
                     "(warm-approvals-qa.md)."
                 ),
             }
-        proc = subprocess.run(
-            COLD2_REPLACE_CMD, shell=True, capture_output=True, text=True
-        )
+        try:
+            # `shell=True` on an operator-supplied hook (a flag or an env var set by whoever
+            # runs the gate), never on anything that came off the wire. Bounded, because a hook
+            # that hangs would otherwise hang the entire gate run with no output.
+            proc = subprocess.run(
+                COLD2_REPLACE_CMD,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=COLD2_REPLACE_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            return {
+                "pass": False,
+                "why": (
+                    "cold 2: the replica-replacement command did not finish within "
+                    f"{COLD2_REPLACE_TIMEOUT_SECONDS:.0f}s. The hook must return once the "
+                    "replacement replica is serving, not block on it."
+                ),
+            }
         if proc.returncode != 0:
             return {
                 "pass": False,
@@ -986,9 +1017,12 @@ def _continuity(cell: dict, tier: str) -> dict:
             }
         # Wait out the session-owner key. The killed replica never released `owner:session:<id>`
         # and `claim_owner` never steals from an owner that still looks live, so a resume inside
-        # the window fails for the wrong reason (issue #5611's misleading MCP-shim error).
-        time.sleep(OWNER_TTL_SECONDS)
-        transition = f"replica replaced via the operator hook, then {int(OWNER_TTL_SECONDS)}s of owner-TTL wait"
+        # the window fails for the wrong reason (issue #5611's misleading MCP-shim error). The
+        # margin matters as much as the TTL: the key lapses AT the boundary, so a resume timed
+        # exactly on it races the lapse and the replacement replica's own startup.
+        wait = OWNER_TTL_SECONDS + OWNER_TTL_MARGIN_SECONDS
+        time.sleep(wait)
+        transition = f"replica replaced via the operator hook, then {int(wait)}s of owner-TTL wait"
     else:  # pragma: no cover - guarded by the JOURNEYS table
         raise ValueError(f"unknown continuity tier {tier}")
 
@@ -1030,13 +1064,14 @@ def _continuity(cell: dict, tier: str) -> dict:
         # cannot adopt it. The correct outcome is the ownership guard refusing, loudly — not a
         # completed resume (`assertLocalRunnerOwnership` -> LocalSandboxNotOwnerError). This
         # per-sandbox expectation is the one warm-approvals-qa.md already worked out.
-        refused = any("is not the owner of session" in e for e in t_last.errors)
+        refused = any(LOCAL_NOT_OWNER_MARKER in str(e) for e in t_last.errors)
         return {
             "pass": refused,
             "why": (
-                "cold 2 on a local sandbox must REFUSE: the replacement replica is not the "
-                f"session owner (observed refusal={refused}). A completed resume here would mean "
-                "a wrong-host cold start, which is the failure the guard exists to prevent."
+                "cold 2 on a local sandbox must REFUSE with "
+                f'"{LOCAL_NOT_OWNER_MARKER}" (observed refusal={refused}). A completed resume '
+                "here would mean a wrong-host cold start, which is the failure the guard exists "
+                "to prevent."
             ),
             "evidence": evidence,
             "turn_resumed": t_last.summary(),
@@ -1051,14 +1086,27 @@ def _continuity(cell: dict, tier: str) -> dict:
         # A warm continuation cannot have rebuilt the harness session or the sandbox. More than
         # one distinct id across the ledger means the turn was NOT served warm, so the cell did
         # not test the tier it claims (the runner log grep says which mismatch evicted it).
-        warm_ids_stable = len(agents) <= 1 and len(sandboxes) <= 1
+        #
+        # Exactly one, not "at most one": an EMPTY ledger is missing evidence, not evidence of
+        # stability (`_turn_ledger` returns [] on any non-200), and letting it pass would be the
+        # same false green this whole journey exists to remove.
+        ledger_available = bool(agents or sandboxes)
+        warm_ids_stable = len(agents) == 1 and len(sandboxes) == 1
+        evidence["ledger_available"] = ledger_available
         evidence["warm_ids_stable"] = warm_ids_stable
         ok = ok and warm_ids_stable
 
     why = {
         "warm": (
             f"warm: 3 turns on one live daemon; the durable cwd token survived (in reply={cwd_back}), "
-            f"and the turn ledger shows a single harness session + sandbox (stable={evidence.get('warm_ids_stable')})"
+            f"and the turn ledger shows a single harness session + sandbox (stable={evidence.get('warm_ids_stable')}"
+            + (
+                ""
+                if evidence.get("ledger_available", True)
+                else "; the turn ledger returned NO rows, so there is no warm corroboration to "
+                "read — check that the deployment records session turns"
+            )
+            + ")"
         ),
         "cold1": (
             f"cold 1: the pooled session was evicted and rebuilt on the same runner; the cwd token "
