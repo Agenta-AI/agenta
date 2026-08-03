@@ -93,6 +93,7 @@ import {
 } from "./agent-mount-guidance.ts";
 import { claudeThinkingMeta } from "./claude-thinking.ts";
 import {
+  describeCodexSubscriptionAuthFault,
   isSubscriptionCodexRun,
   symlinkCodexSubscriptionAuthFile,
 } from "./codex-assets.ts";
@@ -444,6 +445,18 @@ export async function acquireEnvironment(
       environment.installedMountExpiries.cwd = mountExpiryMs(
         environment.mountCreds.expiresAt,
       );
+      // Session-local links belong to the mount's lifecycle, not to first acquire: this mount is
+      // object storage, which has no symlinks, so a remount hands back a 0-byte file where the
+      // link was. Re-materialize the subscription Codex login link here, AFTER the mount is live
+      // (linking before it would be shadowed) — the same reason `mountLocalAgentCwd` re-runs
+      // `linkAgentFiles` on every mount. Idempotent, and a no-op for every other kind of run.
+      if (isSubscriptionCodexRun(plan)) {
+        await symlinkCodexSubscriptionAuthFile(plan, logger).catch((err) => {
+          logger(
+            `codex subscription auth.json link failed after mount: ${conciseError(err, plan.harness)}`,
+          );
+        });
+      }
       return true;
     }
     // A false result means mountStorage stopped the attempt and confirmed the path detached.
@@ -861,9 +874,11 @@ export async function acquireEnvironment(
     // <cwd>/.codex/config.toml; codex reads the key from the daemon env at request time), so there is
     // nothing to write. A local subscription run still needs the operator's OAuth token file, so
     // symlink <cwd>/.codex/auth.json to the mounted login now, after the durable cwd mount (linking
-    // before it would be shadowed). Non-Codex runs, managed runs, and Daytona are no-ops.
+    // before it would be shadowed). `mountLocalDurableCwd` links on every mount, so this covers the
+    // run that has no durable mount at all (object store unconfigured) and is a no-op otherwise.
+    // Non-Codex runs, managed runs, and Daytona are no-ops.
     if (isSubscriptionCodexRun(plan))
-      symlinkCodexSubscriptionAuthFile(plan, logger);
+      await symlinkCodexSubscriptionAuthFile(plan, logger);
 
     // Pi native transcripts belong to the conversation workspace, not the temporary agent
     // directory that holds credentials, settings, extensions, skills, and system prompts.
@@ -1085,7 +1100,9 @@ export async function acquireEnvironment(
     timingLog("acquire_total", acquireStartedAt);
     return { ok: true, env: environment };
   } catch (err) {
-    const error = conciseError(err, plan.harness, request.provider);
+    const error = conciseError(err, plan.harness, request.provider, {
+      authFault: () => describeCodexSubscriptionAuthFault(plan),
+    });
     // Mirror today's shared teardown: no otel exists yet during acquire, so there is no partial
     // trace to flush — just run the incrementally-registered finalizers and surface the error.
     await environment.destroy({ reason: "failed-turn" });

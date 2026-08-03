@@ -55,6 +55,7 @@ import {
   restoreReferencedWorkingCopies,
   type AcpPromptBlock,
 } from "./attachments.ts";
+import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
 import { conciseError } from "./errors.ts";
 import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
 import { findSwallowedPiError } from "./pi-error.ts";
@@ -1121,7 +1122,9 @@ export async function runTurn(
       traceId: run.traceId(),
     } as AgentRunResult;
   } catch (err) {
-    const error = conciseError(err, plan.harness, request.provider);
+    const error = conciseError(err, plan.harness, request.provider, {
+      authFault: () => describeCodexSubscriptionAuthFault(plan),
+    });
     otel?.recordError(error, request.provider);
     otel?.emitEvent({ type: "error", message: error });
     // An aborted turn may have left a partial turn in the native transcript.
