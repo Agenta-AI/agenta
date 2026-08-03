@@ -41,7 +41,7 @@ const OVERLAY_COPY: Record<Exclude<ChartState, "data">, {title: string; subtitle
 }
 
 // Reusable chart-card shell: title, one-line description, a toggleable legend, and
-// the four page states. Breakdown cards drop in through this same shell.
+// the four page states.
 const ChartCard = ({
     title,
     description,

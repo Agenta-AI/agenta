@@ -1,18 +1,11 @@
 import {useMemo} from "react"
 
-import {useAtomValue} from "jotai"
-
-import {agentsWorkflowsAtom} from "@/oss/components/pages/agents/store"
 import {hasCoverage} from "@/oss/services/tracing/lib/agentAnalytics"
-import type {
-    AgentAnalyticsBreakdownItem,
-    AgentAnalyticsWindow,
-} from "@/oss/services/tracing/types/agentAnalytics"
+import type {AgentAnalyticsWindow} from "@/oss/services/tracing/types/agentAnalytics"
 
 import {formatCost, formatLatency, formatRuns, formatTokens} from "../assets/format"
 import {useChartColors} from "../hooks/useChartColors"
 
-import BreakdownBarChart from "./BreakdownBarChart"
 import ChartCard, {type ChartState} from "./ChartCard"
 import CostAreaChart from "./CostAreaChart"
 import LatencyChart from "./LatencyChart"
@@ -25,36 +18,17 @@ interface ChartsGridProps {
 }
 
 const EMPTY_BUCKETS: AgentAnalyticsWindow["buckets"] = []
-const EMPTY_BREAKDOWN: AgentAnalyticsBreakdownItem[] = []
 
-// The locked-scope charts plus the category breakdowns, in a two-column grid.
-// Each card reuses the ChartCard shell so its four states render consistently.
+// The locked-scope charts in a two-column grid. Each card reuses the ChartCard
+// shell so its four states render consistently.
 const ChartsGrid = ({current, failed}: ChartsGridProps) => {
     const colors = useChartColors()
-    const agents = useAtomValue(agentsWorkflowsAtom)
 
     const data = current?.buckets ?? EMPTY_BUCKETS
     const totals = current?.totals
-    const breakdowns = current?.breakdowns
 
     const totalRuns = totals?.totalRuns ?? 0
     const hasRuns = totalRuns > 0
-
-    // A friendly label for each agent id in the breakdown, when one is known.
-    const agentNameById = useMemo(() => {
-        const map = new Map<string, string>()
-        for (const a of agents) if (a.workflowId) map.set(a.workflowId, a.name)
-        return map
-    }, [agents])
-
-    const agentBreakdown = useMemo(
-        () =>
-            (breakdowns?.agent ?? EMPTY_BREAKDOWN).map((item) => ({
-                ...item,
-                label: agentNameById.get(item.key) ?? `${item.key.slice(0, 8)}…`,
-            })),
-        [breakdowns, agentNameById],
-    )
 
     const runsSeries = useMemo(
         () => [
@@ -97,9 +71,6 @@ const ChartsGrid = ({current, failed}: ChartsGridProps) => {
           : costHasCoverage
             ? "data"
             : "unavailable"
-
-    const breakdownState = (items: AgentAnalyticsBreakdownItem[]): ChartState =>
-        failed ? "failed" : items.length > 0 ? "data" : "no-data"
 
     return (
         <div className="grid grid-cols-1 gap-4 min-[1024px]:grid-cols-2">
@@ -154,43 +125,6 @@ const ChartsGrid = ({current, failed}: ChartsGridProps) => {
                         valueFormatter={formatTokens}
                     />
                 )}
-            </ChartCard>
-
-            <ChartCard
-                title="Runs per harness"
-                description="Which harness each run used."
-                series={[{key: "count", label: "Runs", color: colors.primary}]}
-                state={breakdownState(breakdowns?.harness ?? EMPTY_BREAKDOWN)}
-            >
-                {() => (
-                    <BreakdownBarChart
-                        data={breakdowns?.harness ?? EMPTY_BREAKDOWN}
-                        valueFormatter={formatRuns}
-                    />
-                )}
-            </ChartCard>
-
-            <ChartCard
-                title="Runs per configured model"
-                description="Which configured model each run used."
-                series={[{key: "count", label: "Runs", color: colors.primary}]}
-                state={breakdownState(breakdowns?.model ?? EMPTY_BREAKDOWN)}
-            >
-                {() => (
-                    <BreakdownBarChart
-                        data={breakdowns?.model ?? EMPTY_BREAKDOWN}
-                        valueFormatter={formatRuns}
-                    />
-                )}
-            </ChartCard>
-
-            <ChartCard
-                title="Runs per agent"
-                description="Which agent each run belonged to."
-                series={[{key: "count", label: "Runs", color: colors.primary}]}
-                state={breakdownState(agentBreakdown)}
-            >
-                {() => <BreakdownBarChart data={agentBreakdown} valueFormatter={formatRuns} />}
             </ChartCard>
         </div>
     )

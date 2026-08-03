@@ -32,7 +32,7 @@ export interface AgentAnalyticsTotals {
 }
 
 export interface AgentAnalyticsBreakdownItem {
-    /** stable category value (harness kind, model alias, or agent id) */
+    /** stable category value (harness kind or model alias) */
     key: string
     /** display label; falls back to the key when no friendlier name is known */
     label: string
@@ -42,13 +42,11 @@ export interface AgentAnalyticsBreakdownItem {
 export interface AgentAnalyticsBreakdowns {
     harness: AgentAnalyticsBreakdownItem[]
     model: AgentAnalyticsBreakdownItem[]
-    agent: AgentAnalyticsBreakdownItem[]
 }
 
 export interface AgentAnalyticsWindow {
     buckets: AgentAnalyticsBucket[]
     totals: AgentAnalyticsTotals
-    breakdowns: AgentAnalyticsBreakdowns
 }
 
 export interface AgentAnalyticsDashboard {

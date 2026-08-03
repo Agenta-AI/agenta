@@ -11,8 +11,6 @@ const TOK_PROMPT = "attributes.ag.metrics.tokens.cumulative.prompt"
 const TOK_COMPLETION = "attributes.ag.metrics.tokens.cumulative.completion"
 const HARNESS = "attributes.ag.data.parameters.agent.harness.kind"
 const MODEL = "attributes.ag.data.parameters.agent.llm.model"
-const WORKFLOW_VARIANT = "attributes.ag.references.workflow_variant.id"
-const APPLICATION_VARIANT = "attributes.ag.references.application_variant.id"
 
 const bucket = (timestamp: string, metrics: Record<string, Record<string, unknown>>) => ({
     timestamp,
@@ -99,7 +97,7 @@ describe("hasCoverage", () => {
 })
 
 describe("analyticsToBreakdowns", () => {
-    it("sums freq counts per category, sorts descending, and unions agent families", () => {
+    it("sums freq counts per category and sorts descending", () => {
         const response: AnalyticsResponse = {
             buckets: [
                 bucket("t1", {
@@ -110,29 +108,20 @@ describe("analyticsToBreakdowns", () => {
                         ],
                     },
                     [MODEL]: {freq: [{value: "gpt-4o", count: 4}]},
-                    [WORKFLOW_VARIANT]: {freq: [{value: "wf-a", count: 2}]},
-                    [APPLICATION_VARIANT]: {freq: [{value: "app-b", count: 1}]},
                 }),
                 bucket("t2", {
                     [HARNESS]: {freq: [{value: "pi", count: 5}]},
-                    [WORKFLOW_VARIANT]: {freq: [{value: "wf-a", count: 3}]},
                 }),
             ],
         }
 
-        const {harness, model, agent} = analyticsToBreakdowns(response, (id) =>
-            id === "wf-a" ? "Support agent" : id,
-        )
+        const {harness, model} = analyticsToBreakdowns(response)
 
         expect(harness).toEqual([
             {key: "pi", label: "pi", count: 6},
             {key: "claude", label: "claude", count: 3},
         ])
         expect(model).toEqual([{key: "gpt-4o", label: "gpt-4o", count: 4}])
-        expect(agent).toEqual([
-            {key: "wf-a", label: "Support agent", count: 5},
-            {key: "app-b", label: "app-b", count: 1},
-        ])
     })
 
     it("skips empty/nullish category values and tolerates a null response", () => {
@@ -140,6 +129,6 @@ describe("analyticsToBreakdowns", () => {
             buckets: [bucket("t", {[HARNESS]: {freq: [{value: "", count: 2}, {count: 3}]}})],
         }
         expect(analyticsToBreakdowns(response).harness).toEqual([])
-        expect(analyticsToBreakdowns(null)).toEqual({harness: [], model: [], agent: []})
+        expect(analyticsToBreakdowns(null)).toEqual({harness: [], model: []})
     })
 })

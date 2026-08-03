@@ -22,11 +22,9 @@ const TOKENS_TOTAL_PATH = "attributes.ag.metrics.tokens.cumulative.total"
 const TOKENS_PROMPT_PATH = "attributes.ag.metrics.tokens.cumulative.prompt"
 const TOKENS_COMPLETION_PATH = "attributes.ag.metrics.tokens.cumulative.completion"
 
-// Breakdown category paths. Agent runs union two reference families.
+// Category paths for the harness and configured-model filter option lists.
 const HARNESS_PATH = "attributes.ag.data.parameters.agent.harness.kind"
 const MODEL_PATH = "attributes.ag.data.parameters.agent.llm.model"
-const WORKFLOW_VARIANT_PATH = "attributes.ag.references.workflow_variant.id"
-const APPLICATION_VARIANT_PATH = "attributes.ag.references.application_variant.id"
 
 // Below this share of runs, a coverage-gated metric (cost, token split) is treated
 // as unavailable rather than shown as a misleading zero. See data-contract.md.
@@ -51,15 +49,6 @@ export const AGENT_ANALYTICS_FAILED_SPECS = [
     {type: "categorical/single", path: TRACE_TYPE_PATH},
 ] as const
 
-// Category breakdowns run as their own bucketed call to stay under the per-request
-// spec budget; each spec's `freq` array carries the per-category counts.
-export const AGENT_ANALYTICS_BREAKDOWN_SPECS = [
-    {type: "categorical/single", path: HARNESS_PATH},
-    {type: "categorical/single", path: MODEL_PATH},
-    {type: "categorical/single", path: WORKFLOW_VARIANT_PATH},
-    {type: "categorical/single", path: APPLICATION_VARIANT_PATH},
-] as const
-
 // Just the harness/model freqs, for the filter dropdowns' option lists.
 export const AGENT_ANALYTICS_FILTER_OPTION_SPECS = [
     {type: "categorical/single", path: HARNESS_PATH},
@@ -77,7 +66,7 @@ const metricFreq = (metrics: BucketMetrics, path: string): FreqEntry[] => {
     return Array.isArray(freq) ? (freq as FreqEntry[]) : []
 }
 
-const emptyBreakdowns = (): AgentAnalyticsBreakdowns => ({harness: [], model: [], agent: []})
+const emptyBreakdowns = (): AgentAnalyticsBreakdowns => ({harness: [], model: []})
 
 // Combine the unfiltered window (totals/latency/cost/tokens) with the
 // status-filtered window (failed-run count); success = runs − failed per bucket.
@@ -146,7 +135,7 @@ export function analyticsToAgentWindow(
         tokenSplitCount,
     }
 
-    return {buckets: mapped, totals, breakdowns: emptyBreakdowns()}
+    return {buckets: mapped, totals}
 }
 
 // Sum a category spec's `freq` counts across every bucket into a per-value map.
@@ -167,29 +156,20 @@ const reduceFreq = (
     return into
 }
 
-const toSortedItems = (
-    counts: Map<string, number>,
-    labelFor?: (key: string) => string,
-): AgentAnalyticsBreakdownItem[] =>
+const toSortedItems = (counts: Map<string, number>): AgentAnalyticsBreakdownItem[] =>
     [...counts.entries()]
-        .map(([key, count]) => ({key, label: labelFor ? labelFor(key) : key, count}))
+        .map(([key, count]) => ({key, label: key, count}))
         .sort((a, b) => b.count - a.count)
 
-// Reduce the breakdown response's `freq` arrays into sorted per-category counts.
-// `agentLabelFor` maps an agent variant id to a friendly name when one is known.
+// Reduce the response's harness/model `freq` arrays into sorted per-category counts
+// for the filter option lists.
 export function analyticsToBreakdowns(
     response: AnalyticsResponse | null | undefined,
-    agentLabelFor?: (key: string) => string,
 ): AgentAnalyticsBreakdowns {
     if (!response) return emptyBreakdowns()
-
-    const agentCounts = new Map<string, number>()
-    reduceFreq(response, WORKFLOW_VARIANT_PATH, agentCounts)
-    reduceFreq(response, APPLICATION_VARIANT_PATH, agentCounts)
 
     return {
         harness: toSortedItems(reduceFreq(response, HARNESS_PATH, new Map())),
         model: toSortedItems(reduceFreq(response, MODEL_PATH, new Map())),
-        agent: toSortedItems(agentCounts, agentLabelFor),
     }
 }

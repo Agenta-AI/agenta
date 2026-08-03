@@ -5,7 +5,6 @@ import utc from "dayjs/plugin/utc"
 import {SortResult} from "@/oss/components/Filters/Sort"
 
 import {
-    AGENT_ANALYTICS_BREAKDOWN_SPECS,
     AGENT_ANALYTICS_FAILED_SPECS,
     AGENT_ANALYTICS_FILTER_OPTION_SPECS,
     AGENT_ANALYTICS_SPECS,
@@ -113,8 +112,8 @@ const buildConditions = ({
     return conditions
 }
 
-// A single window issues three calls: unfiltered metrics, the status-filtered
-// (failed-run) count, and the category breakdowns. See data-contract.md.
+// A single window issues two calls: unfiltered metrics and the status-filtered
+// (failed-run) count. See data-contract.md.
 export const fetchAgentAnalyticsDashboard = async ({
     projectId,
     range,
@@ -136,7 +135,7 @@ export const fetchAgentAnalyticsDashboard = async ({
 
     const {oldest, newest, interval, rangeString} = resolveWindow(range)
 
-    const [unfiltered, failed, breakdown] = await Promise.all([
+    const [unfiltered, failed] = await Promise.all([
         fetchSpansAnalytics({
             projectId,
             focus: "trace",
@@ -157,16 +156,6 @@ export const fetchAgentAnalyticsDashboard = async ({
             specs: AGENT_ANALYTICS_FAILED_SPECS,
             abortSignal: signal,
         }),
-        fetchSpansAnalytics({
-            projectId,
-            focus: "trace",
-            interval,
-            oldest,
-            newest,
-            filter: {conditions},
-            specs: AGENT_ANALYTICS_BREAKDOWN_SPECS,
-            abortSignal: signal,
-        }),
     ])
 
     const current = analyticsToAgentWindow(
@@ -174,7 +163,6 @@ export const fetchAgentAnalyticsDashboard = async ({
         failed ?? {buckets: []},
         rangeString,
     )
-    current.breakdowns = analyticsToBreakdowns(breakdown)
 
     return {current}
 }
