@@ -4,7 +4,10 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {navSimplifiedOverrideAtom} from "@/oss/lib/onboarding/atoms"
 import {advancedNavHiddenAtom} from "@/oss/state/onboarding/selectors"
-import {playgroundInspectorEnabledAtom} from "@/oss/state/settings/featureFlags"
+import {
+    agentVoiceInputEnabledAtom,
+    playgroundInspectorEnabledAtom,
+} from "@/oss/state/settings/featureFlags"
 
 interface FlagRowProps {
     title: string
@@ -36,6 +39,7 @@ const FeatureFlags = () => {
     const [playgroundInspectorEnabled, setPlaygroundInspectorEnabled] = useAtom(
         playgroundInspectorEnabledAtom,
     )
+    const [agentVoiceInputEnabled, setAgentVoiceInputEnabled] = useAtom(agentVoiceInputEnabledAtom)
 
     return (
         <section className="flex max-w-[640px] flex-col gap-8">
@@ -48,6 +52,12 @@ const FeatureFlags = () => {
                     description="Show all platform areas in the navigation."
                     enabled={!advancedNavHidden}
                     onChange={(enabled) => setNavSimplifiedOverride(!enabled)}
+                />
+                <FlagRow
+                    title="Voice input"
+                    description="Dictate messages in the agent chat."
+                    enabled={agentVoiceInputEnabled}
+                    onChange={setAgentVoiceInputEnabled}
                 />
             </div>
 
