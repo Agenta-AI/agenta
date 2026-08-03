@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
+import { DaytonaNotFoundError } from "@daytonaio/sdk";
 import { describe, it } from "vitest";
 
 import type { DaytonaSecretPlan } from "../../src/engines/sandbox_agent/daytona-secret-plan.ts";
 import {
   allocateDaytonaSecrets,
   deleteDaytonaSecrets,
+  isDaytonaNotFound,
   type DaytonaSecretApi,
 } from "../../src/engines/sandbox_agent/daytona-secrets.ts";
 
@@ -104,7 +106,7 @@ describe("Daytona Secret allocation", () => {
     assert.deepEqual(deletes, ["id-2", "id-1"]);
   });
 
-  it("deletes in reverse order and treats 404 as idempotent success", async () => {
+  it("deletes in reverse order and treats not-found (typed or 404-shaped) as idempotent success", async () => {
     const deletes: string[] = [];
     const api: DaytonaSecretApi = {
       async create() {
@@ -112,7 +114,10 @@ describe("Daytona Secret allocation", () => {
       },
       async delete(id) {
         deletes.push(id);
+        // Both absence shapes the shared predicate recognizes: the SDK's typed error
+        // (no statusCode needed) and a bare 404-shaped object.
         if (id === "id-2") throw { statusCode: 404 };
+        if (id === "id-1") throw new DaytonaNotFoundError("secret not found");
       },
     };
     await deleteDaytonaSecrets(
@@ -127,5 +132,12 @@ describe("Daytona Secret allocation", () => {
       api,
     );
     assert.deepEqual(deletes, ["id-2", "id-1"]);
+  });
+
+  it("shares one not-found predicate across Secret and sandbox cleanup", () => {
+    assert.equal(isDaytonaNotFound(new DaytonaNotFoundError("gone")), true);
+    assert.equal(isDaytonaNotFound({ statusCode: 404 }), true);
+    assert.equal(isDaytonaNotFound({ statusCode: 500 }), false);
+    assert.equal(isDaytonaNotFound(new Error("gone")), false);
   });
 });

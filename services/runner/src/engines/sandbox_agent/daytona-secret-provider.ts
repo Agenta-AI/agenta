@@ -1,11 +1,10 @@
-import { DaytonaNotFoundError } from "@daytonaio/sdk";
-
 import type { McpServerConfig } from "../../protocol.ts";
 import { DaytonaReconnectTerminalError } from "./daytona-provider.ts";
 import type { DaytonaSecretPlan } from "./daytona-secret-plan.ts";
 import {
   allocateDaytonaSecrets,
   deleteDaytonaSecrets,
+  isDaytonaNotFound,
   type DaytonaSecretAllocation,
   type DaytonaSecretApi,
 } from "./daytona-secrets.ts";
@@ -49,16 +48,6 @@ function plansMatch(entry: RegistryEntry, createFingerprint: string): boolean {
   return entry.createFingerprint === createFingerprint;
 }
 
-function isNotFound(error: unknown): boolean {
-  return (
-    error instanceof DaytonaNotFoundError ||
-    (typeof error === "object" &&
-      error !== null &&
-      "statusCode" in error &&
-      error.statusCode === 404)
-  );
-}
-
 async function destroySandboxIdempotently(
   provider: DaytonaProviderLike,
   sandboxId: string,
@@ -66,7 +55,7 @@ async function destroySandboxIdempotently(
   try {
     await provider.destroy(sandboxId);
   } catch (error) {
-    if (!isNotFound(error)) throw error;
+    if (!isDaytonaNotFound(error)) throw error;
   }
 }
 

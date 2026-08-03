@@ -18,6 +18,7 @@ from agenta.sdk.agents.connections import (
     ResolvedConnection,
 )
 from agenta.sdk.agents.connections.endpoints import build_resolved_connection
+from agenta.sdk.agents.connections.errors import InvalidConnectionConfigurationError
 
 
 # ----------------------------------------------------------------- ModelRef.coerce
@@ -201,6 +202,24 @@ def test_local_use_credentials_do_not_require_an_http_endpoint():
     assert resolved.endpoint is None
     assert resolved.credential_mode == "env"
     assert [credential.usage for credential in resolved.credentials] == ["local_use"]
+
+
+@pytest.mark.parametrize("values", [{"": "value"}, {"OPENAI_API_KEY": ""}])
+def test_build_resolved_connection_maps_malformed_bindings_to_configuration_error(
+    values,
+):
+    # A malformed binding is a caller configuration problem: it must surface as the typed
+    # 422 error (like the endpoint-resolution failures), never as a bare ValueError (500).
+    with pytest.raises(
+        InvalidConnectionConfigurationError,
+        match="non-empty names and values",
+    ):
+        build_resolved_connection(
+            provider="openai",
+            model="gpt-5.5",
+            credential_mode="env",
+            values=values,
+        )
 
 
 def test_resolved_connection_credential_is_hidden_from_repr():

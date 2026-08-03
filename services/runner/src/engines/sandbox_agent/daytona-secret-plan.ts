@@ -157,6 +157,18 @@ export function buildDaytonaSecretPlan(input: {
 
   const add = (candidate: Omit<DaytonaSecretCandidate, "ordinal">): void => {
     assertBinding(candidate.binding.name);
+    // A model credential and a direct environment binding land in ONE create request as
+    // `secrets` and `envVars` respectively; a shared name would leave precedence to Daytona.
+    // (MCP candidates attach under generated AGENTA_MCP_SECRET_<n> names, so only the model
+    // consumer can collide.)
+    if (
+      candidate.consumer.kind === "model" &&
+      directBindings.has(candidate.binding.name.toLowerCase())
+    ) {
+      fail(
+        `credential binding '${candidate.binding.name}' collides with a direct environment binding`,
+      );
+    }
     const consumerKey =
       candidate.consumer.kind === "model" ? "model" : candidate.consumer.server;
     const key = `${candidate.consumer.kind}:${consumerKey}:${candidate.binding.kind}:${candidate.binding.name.toLowerCase()}`;
@@ -176,19 +188,22 @@ export function buildDaytonaSecretPlan(input: {
       opaqueCredentials.length > 0 && connection.endpoint?.baseUrl
         ? exactHttpsHost(connection.endpoint.baseUrl)
         : undefined;
+    // Two passes: settle every direct (local_use) binding first, so the collision check in
+    // `add` sees the complete direct set regardless of credential order on the wire.
     for (const credential of connection.credentials ?? []) {
-      if (credential.usage === "local_use") {
-        assertLocalUseBinding(credential.binding.name);
-        const normalized = credential.binding.name.toLowerCase();
-        if (directBindings.has(normalized)) {
-          fail(
-            `duplicate direct environment binding '${credential.binding.name}'`,
-          );
-        }
-        directBindings.add(normalized);
-        environment[credential.binding.name] = credential.value;
-        continue;
+      if (credential.usage !== "local_use") continue;
+      assertLocalUseBinding(credential.binding.name);
+      const normalized = credential.binding.name.toLowerCase();
+      if (directBindings.has(normalized)) {
+        fail(
+          `duplicate direct environment binding '${credential.binding.name}'`,
+        );
       }
+      directBindings.add(normalized);
+      environment[credential.binding.name] = credential.value;
+    }
+    for (const credential of connection.credentials ?? []) {
+      if (credential.usage === "local_use") continue;
       if (!host) {
         fail(
           "opaque model credentials require endpoint.baseUrl for exact-host restriction",

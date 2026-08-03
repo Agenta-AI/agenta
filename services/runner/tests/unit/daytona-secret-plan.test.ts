@@ -136,6 +136,51 @@ describe("Daytona Secret planning", () => {
     );
   });
 
+  it("rejects an opaque model credential that collides with a direct environment binding", () => {
+    // AWS_REGION rides `envVars` directly; a same-named (case-insensitive) Secret attachment
+    // would put the binding in BOTH `envVars` and `secrets` with undefined precedence.
+    assert.throws(
+      () =>
+        buildDaytonaSecretPlan({
+          modelConnection: {
+            ...modelConnection,
+            credentials: [
+              {
+                binding: { kind: "environment", name: "aws_region" },
+                value: "opaque-collides",
+                usage: "opaque_http",
+              },
+            ],
+          },
+        }),
+      /collides with a direct environment binding/,
+    );
+    // Wire order must not matter: an opaque credential listed BEFORE the same-named
+    // local_use credential still collides (direct bindings settle first).
+    assert.throws(
+      () =>
+        buildDaytonaSecretPlan({
+          modelConnection: {
+            ...modelConnection,
+            environment: {},
+            credentials: [
+              {
+                binding: { kind: "environment", name: "aws_profile" },
+                value: "opaque-collides",
+                usage: "opaque_http",
+              },
+              {
+                binding: { kind: "environment", name: "AWS_PROFILE" },
+                value: "local-only",
+                usage: "local_use",
+              },
+            ],
+          },
+        }),
+      /collides with a direct environment binding/,
+    );
+  });
+
   it("fails closed on plaintext credential bypasses in model environment and local_use", () => {
     assert.throws(
       () =>

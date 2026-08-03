@@ -1,5 +1,7 @@
 import { randomBytes } from "node:crypto";
 
+import { DaytonaNotFoundError } from "@daytonaio/sdk";
+
 import type {
   DaytonaSecretCandidate,
   DaytonaSecretPlan,
@@ -28,12 +30,18 @@ export interface DaytonaSecretAllocation {
   created: DaytonaSecretRecord[];
 }
 
-function isNotFound(error: unknown): boolean {
+/**
+ * True when a Daytona failure means "the resource is already gone": the SDK's typed
+ * not-found error, or any 404-shaped error object. The one absence predicate shared by
+ * Secret cleanup here and the sandbox lifecycle wrapper (`daytona-secret-provider.ts`).
+ */
+export function isDaytonaNotFound(error: unknown): boolean {
   return (
-    typeof error === "object" &&
-    error !== null &&
-    "statusCode" in error &&
-    error.statusCode === 404
+    error instanceof DaytonaNotFoundError ||
+    (typeof error === "object" &&
+      error !== null &&
+      "statusCode" in error &&
+      error.statusCode === 404)
   );
 }
 
@@ -44,7 +52,7 @@ async function deleteIdempotently(
   try {
     await api.delete(id);
   } catch (error) {
-    if (!isNotFound(error)) throw error;
+    if (!isDaytonaNotFound(error)) throw error;
   }
 }
 

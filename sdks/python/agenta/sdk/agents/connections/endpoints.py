@@ -114,7 +114,12 @@ def build_resolved_connection(
         raise InvalidConnectionConfigurationError(
             "Vertex API-key authentication is not supported by the agent connection contract"
         )
-    credentials, environment = classify_environment(values.items())
+    try:
+        credentials, environment = classify_environment(values.items())
+    except ValueError as exc:
+        # Same contract as the endpoint-resolution failure below: a malformed binding is a
+        # caller configuration problem (422), never an unhandled 500.
+        raise InvalidConnectionConfigurationError(str(exc)) from exc
     if credential_mode == "env" and not credentials:
         raise InvalidConnectionConfigurationError(
             "credential_mode 'env' requires at least one usable credential"
