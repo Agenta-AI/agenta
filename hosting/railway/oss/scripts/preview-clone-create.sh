@@ -216,7 +216,10 @@ refresh_clone_services() {
 apply_ci_auth_key() {
     [ -n "${AGENTA_AUTH_KEY:-}" ] || return 0
     local svc svc_id
-    for svc in api services; do
+    # Every service legacy configure.sh gave the key to: the workers use it for
+    # internal calls while processing evaluation runs, so partial coverage
+    # split-brains auth and evaluations finish with status "errors".
+    for svc in web api services worker-queues worker-streams cron alembic; do
         svc_id="$(clone_service_id "$svc")"
         [ -n "$svc_id" ] || { printf "No serviceId for '%s' while applying the CI auth key.\n" "$svc" >&2; return 1; }
         rw_graphql \
