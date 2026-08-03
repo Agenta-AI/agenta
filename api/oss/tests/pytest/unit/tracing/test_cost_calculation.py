@@ -467,19 +467,147 @@ def test_a_request_model_on_a_known_provider_is_still_priced(provider):
     assert _incremental_costs(span)["total"] == pytest.approx(0.00175 + 0.0014)
 
 
-def test_a_custom_connection_does_not_suppress_the_response_model():
-    """Codex reports its harness id as the provider; its response model still prices."""
+@pytest.mark.parametrize(
+    "custom",
+    [
+        {"system": "acme-gateway"},
+        {"provider": "acme-gateway"},
+        {"base_url": "https://llm.acme.internal/v1"},
+        {"endpoint": "https://llm.acme.internal/v1/chat/completions"},
+    ],
+    ids=["slug-in-system", "slug-in-provider", "base-url", "endpoint"],
+)
+def test_a_response_model_on_a_custom_connection_is_not_priced_either(custom):
+    """The guard covers the model the lookup actually prefers.
+
+    The Pi tracer stamps `gen_ai.response.model` on every assistant message, custom
+    connections included, so a guard that only withheld the request model would price a
+    customer's own deployment at public rates through the response model instead.
+    """
     span = _span(
         response_model=OPENAI_MODEL,
         request_model=OPENAI_MODEL,
-        system="openai-codex",
+        prompt=1_000,
+        completion=100,
+        **custom,
+    )
+
+    calculate_costs({span.span_id: span})
+
+    assert _incremental_costs(span) == {}
+
+
+def test_a_legacy_parameters_model_on_a_custom_connection_is_not_priced():
+    span = _span(
+        parameters_model=OPENAI_MODEL,
+        system="acme-gateway",
         prompt=1_000,
         completion=100,
     )
 
     calculate_costs({span.span_id: span})
 
+    assert _incremental_costs(span) == {}
+
+
+# ── trusted provider identities ─────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("provider_field", ["system", "provider"])
+def test_a_trusted_provider_identity_is_priced(provider_field):
+    """`openai-codex` is not a litellm provider; the map says it means OpenAI's catalog.
+
+    Codex needs an explicit pricing identity. The mere presence of a response model is
+    not that identity — every Pi assistant message has one, custom connections included.
+    """
+    span = _span(
+        response_model=OPENAI_MODEL,
+        request_model=OPENAI_MODEL,
+        prompt=1_000,
+        completion=100,
+        **{provider_field: "openai-codex"},
+    )
+
+    calculate_costs({span.span_id: span})
+
     assert _incremental_costs(span)["total"] == pytest.approx(0.00175 + 0.0014)
+
+
+def test_a_trusted_provider_behind_a_custom_endpoint_is_not_priced():
+    """A gateway charges its own prices, so the endpoint outranks the trusted identity."""
+    span = _span(
+        response_model=OPENAI_MODEL,
+        system="openai-codex",
+        base_url="https://llm.acme.internal/v1",
+        prompt=1_000,
+        completion=100,
+    )
+
+    calculate_costs({span.span_id: span})
+
+    assert _incremental_costs(span) == {}
+
+
+def test_every_trusted_provider_maps_to_a_litellm_provider():
+    """The map's values are load-bearing: a typo must withhold prices, not grant them."""
+    assert TRUSTED_PRICING_PROVIDERS
+    assert all(
+        litellm_provider in KNOWN_PRICING_PROVIDERS
+        for litellm_provider in TRUSTED_PRICING_PROVIDERS.values()
+    )
+    assert all(key == key.lower() for key in TRUSTED_PRICING_PROVIDERS)
+
+
+def test_an_unlisted_agent_provider_is_not_trusted():
+    span = _span(
+        response_model=OPENAI_MODEL,
+        system="openai-codex-lookalike",
+        prompt=1_000,
+        completion=100,
+    )
+
+    calculate_costs({span.span_id: span})
+
+    assert _incremental_costs(span) == {}
+
+
+# ── a missing measurement is not a measured zero ────────────────────────────
+
+
+def test_a_model_span_with_no_token_metrics_is_not_priced():
+    """No token bucket means nothing was measured; a zero-cost estimate would lie."""
+    span = _span(response_model=OPENAI_MODEL)
+
+    calculate_costs({span.span_id: span})
+
+    assert _incremental_costs(span) == {}
+
+
+@pytest.mark.parametrize(
+    "bucket",
+    ["prompt", "completion", "cache_read", "cache_creation"],
+)
+def test_a_single_zero_token_bucket_still_counts_as_measured(bucket):
+    """Zero is a fact a producer reported; only an absent bucket is missing."""
+    span = _span(response_model=OPENAI_MODEL, **{bucket: 0})
+
+    calculate_costs({span.span_id: span})
+
+    assert _incremental_costs(span) == {
+        "prompt": 0.0,
+        "completion": 0.0,
+        "total": 0.0,
+    }
+
+
+def test_a_token_bucket_holding_only_a_total_is_not_priceable():
+    """A total prices nothing on its own, so it must not manufacture a measured zero."""
+    span = _span(response_model=OPENAI_MODEL)
+    span.attributes["ag"]["metrics"] = {"tokens": {"incremental": {"total": 1_100}}}
+
+    calculate_costs({span.span_id: span})
+
+    assert _incremental_costs(span) == {}
 
 
 # ── roll-up ─────────────────────────────────────────────────────────────────
@@ -526,12 +654,22 @@ def test_reported_zero_cost_propagates_to_a_parent_that_reports_nothing():
 
 
 def test_a_subtree_that_measured_nothing_leaves_the_parent_without_an_attribute():
-    """The other half of the rule: never turn a missing measurement into a zero."""
+    """The other half of the rule: never turn a missing measurement into a zero.
+
+    The child is a priced span type carrying a priceable model, so estimation really runs
+    on it. A tool child would have been skipped before estimation and left this blind.
+    """
     parent = _span(span_id="parent", span_type=SpanType.AGENT)
-    child = _span(span_id="child", parent_id="parent", span_type=SpanType.TOOL)
+    child = _span(
+        span_id="child",
+        parent_id="parent",
+        span_type=SpanType.CHAT,
+        response_model=OPENAI_MODEL,
+    )
 
     spans = {s.span_id: s for s in calculate_and_propagate_metrics([parent, child])}
 
+    assert _cumulative_costs(spans["child"]) == {}
     assert _cumulative_costs(spans["parent"]) == {}
 
 
