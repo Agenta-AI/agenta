@@ -10,7 +10,9 @@ import {atom} from "jotai"
 export interface PendingSessionOpen {
     /** The owning agent's workflow artifact id — also the chat scope key. */
     appId: string
-    sessionId: string
+    /** Adopt this existing session. Omit to start a fresh one instead — which is what Home's
+     * composer does when you pick an agent and describe a task. */
+    sessionId?: string
     title?: string
 }
 

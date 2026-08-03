@@ -8,7 +8,9 @@ import {atom} from "jotai"
  */
 export interface AgentFirstRunSeed {
     appId: string
-    revisionId: string
+    /** Known only when the agent was just created. Starting a conversation with an EXISTING agent
+     * (Home's composer) has no revision in hand, and matches on the chat scope instead. */
+    revisionId?: string
     seedMessage: string
     /**
      * The seed is an explicit "go" (the onboarding Create-agent click), so send it as soon as the model

@@ -100,9 +100,15 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const pendingOpenForScope = pendingOpen?.appId === scope ? pendingOpen : null
     useEffect(() => {
         if (!pendingOpenForScope) return
-        adoptSession({id: pendingOpenForScope.sessionId, title: pendingOpenForScope.title})
+        if (pendingOpenForScope.sessionId) {
+            adoptSession({id: pendingOpenForScope.sessionId, title: pendingOpenForScope.title})
+        } else {
+            // No id means "start a fresh conversation here" — Home's composer. A new empty session
+            // is also what lets a seeded first message find an empty conversation to send into.
+            addSession()
+        }
         setPendingOpen(null)
-    }, [pendingOpenForScope, adoptSession, setPendingOpen])
+    }, [pendingOpenForScope, adoptSession, addSession, setPendingOpen])
 
     // Always keep at least one tab. Re-arms when the list drains without double-firing
     // under StrictMode. Held while a deep-linked session is pending: adopting it satisfies the

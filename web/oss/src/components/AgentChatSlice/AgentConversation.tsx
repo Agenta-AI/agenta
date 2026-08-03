@@ -272,6 +272,7 @@ const AgentConversation = ({
     const handleSubmitRef = useRef<(text: string) => void | Promise<void>>(() => {})
     const {firstRunPrompt} = useFirstRunSeed({
         entityId,
+        scopeKey,
         sessionId,
         activeSessionId,
         messagesCount: messages.length,

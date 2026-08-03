@@ -17,6 +17,7 @@ import {agentFirstRunSeedAtom} from "../state/firstRunSeed"
  */
 export const useFirstRunSeed = ({
     entityId,
+    scopeKey,
     sessionId,
     activeSessionId,
     messagesCount,
@@ -24,6 +25,9 @@ export const useFirstRunSeed = ({
     handleSubmitRef,
 }: {
     entityId: string
+    /** The chat scope — an app id. Lets a seed aimed at an existing agent match without knowing
+     * which revision the playground happens to be showing. */
+    scopeKey: string
     sessionId: string
     activeSessionId: string | null | undefined
     messagesCount: number
@@ -38,13 +42,25 @@ export const useFirstRunSeed = ({
     const seedConsumedRef = useRef(false)
     useEffect(() => {
         if (seedConsumedRef.current || !firstRunSeed) return
-        if (entityId !== firstRunSeed.revisionId && entityId !== firstRunSeed.appId) return
+        const addressesThisAgent =
+            entityId === firstRunSeed.revisionId ||
+            entityId === firstRunSeed.appId ||
+            scopeKey === firstRunSeed.appId
+        if (!addressesThisAgent) return
         if (activeSessionId !== sessionId || messagesCount > 0) return
         seedConsumedRef.current = true
         setFirstRunPrompt(firstRunSeed.seedMessage)
         setFirstRunAutoSend(!!firstRunSeed.autoSend)
         setFirstRunSeed(null)
-    }, [firstRunSeed, entityId, activeSessionId, sessionId, messagesCount, setFirstRunSeed])
+    }, [
+        firstRunSeed,
+        entityId,
+        scopeKey,
+        activeSessionId,
+        sessionId,
+        messagesCount,
+        setFirstRunSeed,
+    ])
 
     // Fires once, while the conversation is still empty, when EITHER: the model just unblocked (was
     // gated), OR the seed is an explicit "go" (`firstRunAutoSend` — the onboarding Create-agent

@@ -15,9 +15,12 @@ import StripComposer from "@/oss/components/TemplateStrip/components/StripCompos
 import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
-import {HERO} from "./assets/constants"
+import {HERO, RETURNING_HERO} from "./assets/constants"
 import {captureFirstAgentIntent, truncateForCapture} from "./assets/onboardingAnalytics"
 import {type AgentTemplate} from "./assets/templates"
+import HomeAutomationsSection from "./components/HomeAutomationsSection"
+import HomeSessionsSection from "./components/HomeSessionsSection"
+import HomeTaskComposer from "./components/HomeTaskComposer"
 import UsageSummary from "./components/UsageSummary"
 import YourAgentsTable from "./components/YourAgentsTable"
 import {useAgentHomeActions} from "./hooks/useAgentHomeActions"
@@ -109,10 +112,10 @@ const StripHome: React.FC = () => {
                 <div className="mx-auto flex w-full max-w-[840px] flex-col">
                     <div className="flex flex-col items-center gap-4 text-center">
                         <Typography.Title level={2} className="!m-0 !text-[30px] !leading-tight">
-                            {HERO.title}
+                            {firstRun ? HERO.title : RETURNING_HERO.title}
                         </Typography.Title>
                         <Typography.Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
-                            {HERO.subtitle}
+                            {firstRun ? HERO.subtitle : RETURNING_HERO.subtitle}
                         </Typography.Text>
                     </div>
 
@@ -123,27 +126,48 @@ const StripHome: React.FC = () => {
                         <div className="absolute bottom-full left-0 z-10 translate-y-[2px]">
                             {provenance.chipNode}
                         </div>
-                        <StripComposer
-                            composerRef={composerRef}
-                            onCreate={handleCreate}
-                            onCodingAgentCopy={handleCodingAgentCopy}
-                            composerClassName={provenance.composerClassName}
-                            onTextChange={provenance.onComposerTextChange}
-                            loading={loading}
-                        />
+                        {/* First run has no agent to talk to, so the composer describes one to
+                            create. Once agents exist, the daily action is starting a task with one
+                            of them — creating another moves into the picker's footer. */}
+                        {firstRun ? (
+                            <StripComposer
+                                composerRef={composerRef}
+                                onCreate={handleCreate}
+                                onCodingAgentCopy={handleCodingAgentCopy}
+                                composerClassName={provenance.composerClassName}
+                                onTextChange={provenance.onComposerTextChange}
+                                loading={loading}
+                            />
+                        ) : (
+                            <HomeTaskComposer onCreateAgent={() => void handleCreate("")} />
+                        )}
                     </div>
                 </div>
 
-                <TemplateStrip
-                    className="mt-20"
-                    surface="home"
-                    layout="grid"
-                    selectedTemplateKey={provenance.selectedTemplateKey}
-                    onPick={handlePick}
-                />
-
-                {!firstRun ? (
+                {firstRun ? (
+                    <TemplateStrip
+                        className="mt-20"
+                        surface="home"
+                        layout="grid"
+                        selectedTemplateKey={provenance.selectedTemplateKey}
+                        onPick={handlePick}
+                    />
+                ) : (
                     <>
+                        {/* Returning users get their work first: the sessions they're in the
+                            middle of, then what the automations did. Templates and the agents
+                            table are setup concerns and sit below them. */}
+                        <div className="mt-16 grid grid-cols-1 gap-12 lg:grid-cols-2">
+                            <HomeSessionsSection />
+                            <HomeAutomationsSection />
+                        </div>
+                        <TemplateStrip
+                            className="mt-16"
+                            surface="home"
+                            layout="grid"
+                            selectedTemplateKey={provenance.selectedTemplateKey}
+                            onPick={handlePick}
+                        />
                         <div className="mt-16">
                             <UsageSummary variant="strip" />
                         </div>
@@ -151,7 +175,7 @@ const StripHome: React.FC = () => {
                             <YourAgentsTable />
                         </div>
                     </>
-                ) : null}
+                )}
             </div>
 
             <CopiedToast
