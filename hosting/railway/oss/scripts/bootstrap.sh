@@ -226,9 +226,19 @@ ensure_volume() {
             return 0
         fi
 
-        if railway_call volume add --mount-path "$mount_path" --json >/dev/null; then
+        local add_output
+        if add_output="$(railway_call volume add --mount-path "$mount_path" --json 2>&1)"; then
             return 0
         fi
+
+        # Railway refusing because a volume is already mounted IS the desired
+        # end state. The volume-list pre-check above can miss existing volumes
+        # on re-runs (issue #5671), so recognize the refusal directly instead
+        # of misreading it as the creation throttle.
+        if printf "%s" "$add_output" | grep -qi "already mounted"; then
+            return 0
+        fi
+        printf "%s\n" "$add_output" >&2
 
         if [ "$attempt" -lt "$attempts" ]; then
             printf "Volume add at %s for service '%s' failed (Railway often throttles volume creation); retrying in %ds (attempt %d/%d).\n" \
