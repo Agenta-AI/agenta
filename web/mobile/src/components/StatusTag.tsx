@@ -4,11 +4,15 @@ import {cn} from "@/lib/utils"
 
 export type StatusTone = "running" | "live" | "attention" | "muted"
 
+/**
+ * Three distinct states, distinguishable without reading the label: the accent means "act on
+ * this", success means "healthy and warm", muted means "nothing is happening here". `live` and
+ * `muted` must never collapse to the same treatment — a warm session and an ended one are
+ * opposites, and rendering both as the same grey pill is what made "live" read as inert.
+ */
 const TONES: Record<StatusTone, string> = {
-    // A turn is executing right now — the only tone that earns the accent colour.
     running: "border-primary/40 text-primary bg-primary/10",
-    // The session is warm but idle: real state, not something to act on.
-    live: "border-border text-muted-foreground bg-muted/40",
+    live: "border-success/40 text-success bg-success/10",
     attention: "border-primary/40 text-primary bg-primary/10",
     muted: "border-border text-muted-foreground bg-muted/40",
 }

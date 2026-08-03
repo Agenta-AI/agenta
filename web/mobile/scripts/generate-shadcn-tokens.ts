@@ -57,6 +57,9 @@ const VARS: Record<string, [string, string]> = {
     accent: [color(p.surface.controlItemBgActive.light), color(p.scales.zinc[2].dark)],
     "accent-foreground": [color(p.text.primary.light), color(p.text.primary.dark)],
     destructive: [color(p.semantic.error.light), color(p.semantic.error.dark)],
+    // Not a shadcn role: session liveness needs a third state between the accent (a turn is
+    // running, act on it) and muted (ended). Same semantic family the desktop uses for "healthy".
+    success: [color(p.semantic.success.light), color(p.semantic.success.dark)],
     // Bright-red fill gets dark text in dark mode, matching the primary treatment.
     "destructive-foreground": [color(p.surface.white.light), p.componentsDark.Button.primaryColor],
     border: [color(p.border.secondary.light), color(p.border.secondary.dark)],
