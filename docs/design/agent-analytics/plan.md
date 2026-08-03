@@ -69,8 +69,9 @@ Goal: the page can fetch mapped analytics for the selected window.
 - Add a fetch function in `web/oss/src/services/tracing/api/` that builds the base conditions
   (the `trace_type is invocation` condition, plus the selected agents' `references`
   conditions), passes the explicit `specs`, and calls `fetchSpansAnalytics`. Per the selected
-  window it issues the two bucketed queries in data-contract.md: an unfiltered query for the
-  charts, and a status-filtered query for failed runs. The status-filtered query adds
+  window it fans out the bucketed calls in data-contract.md, each at or under ~8 specs, in
+  parallel with a per-call error state: a core-metrics call and a category-breakdown call for
+  the charts, and a status-filtered call for failed runs. The status-filtered call adds
   `{field: "status_code", operator: "is", value: "STATUS_CODE_ERROR"}` and reads the run count
   as failed runs; it needs only the run-count spec.
 - Validate three things against one live response while building this phase, because the
@@ -90,27 +91,33 @@ Goal: the page is interactive; controls drive the data.
 
 - Add atoms under `web/oss/src/state/analytics/` following
   `state/observability/dashboard.ts`: a time-range atom holding a `SortResult` (default: the
-  last 7 days), an agents-filter atom, and a query atom for the selected window. The query atom
-  drives the two bucketed calls in data-contract.md (unfiltered and status-filtered). Key every
-  atom on project id, time range, and the agents filter. Set `staleTime` to one minute and
+  last 7 days), an agents-filter atom, a harness-filter atom, a configured-model-filter atom,
+  and a query atom for the selected window. The query atom drives the two bucketed calls in
+  data-contract.md (unfiltered and status-filtered). Key every atom on project id, time range,
+  and all three filters (agents, harness, configured model) — all three are server-side, so each
+  must be in the key to refetch. Set `staleTime` to one minute and
   `refetchOnWindowFocus: false`. Do not reuse `observabilityDashboardTimeRangeAtom`; a second
   consumer already shares it, so give this page its own atoms.
-- Build the header controls: the time-range control and the Filters popover with the Agents
-  multi-select, a Harness multi-select, and a configured-Model multi-select. Reuse the
+- Build the header controls: the time-range control and the Filters popover with three
+  multi-selects — Agents, Harness, and configured Model. Each adds the filter condition in
+  data-contract.md (agents by `references`, harness and configured model by their root-span
+  attribute paths); the configured-model filter narrows by the author's alias, not the model
+  that answered. Reuse the
   observability time windowing (the `Sort` control and its `SortResult`) for the time range,
   so any window, including a custom start-and-end range, works; do not build a fixed list of
   range options. Offer day, week, and "whole window" as periods; do not offer a month period,
   because calendar months are not expressible and a fixed 30-day stride is not a month. Align
   `oldest` to the viewer's local midnight and read `buckets[].interval` back to label the axis
   with the period that actually ran. Source the Agents options from the agents atom confirmed
-  in Phase 1.
+  in Phase 1; source the Harness and configured-Model options from the distinct values already
+  in the breakdown charts' `freq` arrays, so the filters need no extra call.
 - Implement four explicit page states per card, following `AnalyticsDashboard.tsx` (antd
   `Spin` for loading): data, no data in this window, metric unavailable (coverage below the
   threshold), and request failed. The last two exist because a wrong filter or a killed query
   renders as an empty success today; do not collapse them into a single "No data" empty state.
 
-Done when: changing the time range, the agents filter, the harness filter, or the model filter
-refetches and the page reflects it, with all four states wired.
+Done when: changing the time range or any of the three filters (agents, harness, configured
+model) refetches and the page reflects it, with all four states wired.
 
 ## Phase 4: the charts
 

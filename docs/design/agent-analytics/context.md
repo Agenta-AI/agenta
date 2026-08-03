@@ -16,8 +16,10 @@ A new page named Analytics, reachable from the project sidebar and scoped to the
 It shows:
 
 - A header: the page title, a one-line description, a time-range control that accepts any
-  window, and a Filters popover whose Agents multi-select narrows the query to chosen agents.
-  The time-range control reuses the observability windowing (the `Sort` control and its
+  window, and a Filters popover with three multi-selects that narrow every query: Agents (by
+  `references`), Harness, and configured Model. All three are server-side filter conditions on
+  root-span fields, so changing any of them refetches (see data-contract.md for the condition
+  each one adds). The time-range control reuses the observability windowing (the `Sort` control and its
   `SortResult`), so it takes the standard presets and a custom start-and-end range, not a fixed
   list of options. It opens on the last 7 days.
 - Charts in a grid, each with hover tooltips and a legend whose entries toggle series on and
@@ -30,7 +32,10 @@ It shows:
   - Tokens: total tokens per bucket, with a coverage label. The prompt/completion split renders
     as stacked bars only when its coverage gate passes.
   - Runs per harness, runs per configured model, and runs per agent: category breakdowns, one
-    `categorical/single` spec each.
+    `categorical/single` spec each. "Configured model" is the model alias the agent's author
+    set on the root span; it is **not** the model that actually answered the run. The answered
+    model lives on child spans and is the deferred model-usage view below. This chart must be
+    labelled "configured model" and never implemented as the deferred model-usage view.
 
   There is no Costs prompt/completion split chart. The split paths hold no data on agent runs,
   so the Cost chart shows the total from `gen_ai.usage.cost` only. See data-contract.md and
@@ -41,7 +46,9 @@ It shows:
 These decisions are settled and drive the plan. Do not reopen them without the requester.
 
 1. Frontend-first, with two backend prerequisites. Build the charts above, the Agents / Harness /
-   configured-Model filters, and the time-range control against today's endpoint. The endpoint
+   configured-Model filters, and the time-range control against today's endpoint. Harness and
+   configured model appear both as breakdown charts and as filters; all three filters read
+   root-span attributes, so none of them needs a backend change. The endpoint
    returns most of the fields these need directly, but two backend items gate a trustworthy
    release, tracked as Phase 0 in plan.md: make a killed or rejected query distinguishable from a
    genuinely empty one, and investigate the mid-July collapse in cost and token-split coverage.
@@ -67,7 +74,10 @@ per-span status. Today's analytics endpoint reads root spans only. It accepts a 
 that would widen the scan to all spans, but the field is inert, so those fields stay out of
 reach.
 
-The two backend prerequisites are not co-equal gates; each unlocks a different thing.
+The two deferred-view enablers below — span-focus wiring and a group-by dimension — are not
+co-equal gates; each unlocks a different thing. These are distinct from the two Phase 0 blockers
+in the locked scope above (query-failure visibility and the coverage investigation); do not
+conflate the two pairs.
 
 - **Span-focus wiring** unlocks both the tool view and the model-share view in their basic form.
   `query.focus` reaches `dao.analytics()` but never reaches `build_base_cte`, which

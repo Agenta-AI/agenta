@@ -6,8 +6,9 @@ every verdict.
 
 ## The rule
 
-- **v1** is the current implementation: the charts and filters we build against today's endpoint
-  — runs, latency, cost, tokens, and the harness / configured-model / agent breakdowns.
+- **v1** is the planned release scope: the charts and Agents filter we will build against
+  today's endpoint — runs, latency, cost, tokens, and the harness / configured-model / agent
+  breakdowns. No code is written yet (see status.md); this is the plan, not a shipped state.
 - **v2** is anything that needs backend integration or a major fix — a new query capability, a
   storage change, or new instrumentation.
 - **Exception, by decision of the requester:** the two backend items in Phase 0 (make a killed or
@@ -28,8 +29,10 @@ every verdict.
 
 ## Scope v1 — build now
 
-Delivered against today's endpoint, plus the two backend blockers. Every capability here is
-verified "ready" in capability-review.md §4.2 unless a note says otherwise.
+Planned against today's endpoint, plus the two backend blockers. No code is written yet (see
+status.md). Every capability here is verified backend-*available* in capability-review.md §4.2
+unless a note says otherwise — "ready" describes what the endpoint can answer today, not shipped
+UI, and B1 and B2 remain release blockers.
 
 | Priority | Feature | What it delivers | Value | Effort | Depends on |
 |---|---|---|---|---|---|
@@ -43,9 +46,8 @@ verified "ready" in capability-review.md §4.2 unless a note says otherwise.
 | P1 | **B2 — Investigate cost / token coverage collapse** *(backend blocker)* | Restores dependable coverage for cost and the token split | High | M–? | — |
 | P1 | Cost per period (coverage-gated total) | Cost chart from `gen_ai.usage.cost`; renders only above the coverage threshold | High | M | B2 |
 | P1 | Tokens per period (total + coverage-gated split) | Tokens chart; the prompt/completion split shows only above threshold | Med | M | B2 (split only) |
-| P1 | Filter by agent + runs-per-agent breakdown | Agents multi-select; breakdown unions `workflow_variant` + `application_variant` | High | M | — |
-| P2 | Runs per harness + harness filter | Harness breakdown chart and filter | Med | S | — |
-| P2 | Runs per configured model + model filter | Configured-model breakdown and filter (author's alias, labeled "configured model") | Med | S | — |
+| P1 | Breakdown charts: runs per harness / configured model / agent | Three `categorical/single` breakdowns; agent unions `workflow_variant` + `application_variant` | High | M | — |
+| P1 | Filters: agents, harness, configured model | Three server-side filters on root-span fields; no backend change (§4.2 items 10–12). Agents by `references`; the model filter narrows the configured alias | High | M | — |
 
 Notes:
 

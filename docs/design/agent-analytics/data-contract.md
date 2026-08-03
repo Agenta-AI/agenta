@@ -32,7 +32,14 @@ feeds:
   so annotation traces (evaluator and human-annotation runs) do not inflate the run count and
   the latency, cost, and token numbers. At project scope with no agent selected, add nothing
   else so the query spans the whole project. For selected agents, add `references` conditions
-  on the chosen agent ids. The `trace_type` value is the unprefixed literal `invocation`
+  on the chosen agent ids. For a selected **harness**, add a condition on
+  `attributes.ag.data.parameters.agent.harness.kind`; for a selected **configured model**, add a
+  condition on `attributes.ag.data.parameters.agent.llm.model`. Both are root-span attributes and
+  filter today with no backend change (capability-review.md §4.2 items 11–12); the model filter
+  narrows by the configured alias, not the model that answered. Combine multiple values within one
+  filter the same way the agent filter does (the encoding to confirm in Phase 2). All three
+  filters — Agents, Harness, configured Model — are server-side, so each belongs in the query key
+  and changing any of them refetches. The `trace_type` value is the unprefixed literal `invocation`
   (verified against the `TraceType` enum, `api/oss/src/core/otel/dtos.py`); unlike
   `status_code`, it is not prefixed, and the backend validates the value against the enum, so a
   wrong literal returns an empty 200. The one encoding still to confirm against the filter
@@ -128,27 +135,47 @@ a failed run is "the root span errored"; say so in a tooltip. Catching in-run fa
 
 ### The queries per window
 
-The page issues two bucketed queries for the selected window, both with `interval` set. Every
-chart reads its data per bucket, so these two calls cover the whole page.
+The six core metric specs (run count, latency, cost, total tokens, and the two token-split
+specs) plus the four category specs (harness, configured model, and the two agent-reference
+families) come to **ten specs** — more than one request should carry. So the page does not put
+them in a single call. It fans out into small bucketed calls, each at or under about eight
+specs, in parallel with a per-call error state:
 
-1. **Bucketed, unfiltered**: drives the Runs, Latency, Cost, Tokens, and category-breakdown
-   charts.
-2. **Bucketed, status-filtered**: the per-bucket failed run count for the stacked Runs chart.
+1. **Bucketed core metrics** (six specs): run count, latency, cost, total tokens, and the
+   prompt/completion split. Drives the Runs, Latency, Cost, and Tokens charts. This is the
+   "six-spec shape" the timings below were measured on.
+2. **Bucketed category breakdowns** (four specs): the harness, configured-model, and two
+   agent-reference categorical specs. Drives the three breakdown charts.
+3. **Bucketed status-filtered** (one spec): the per-bucket failed run count for the stacked Runs
+   chart.
 
-Keep any single request at or under about eight specs, and fan the two calls out in parallel with
-a per-call error state. On the measured data a 7-day window costs about 0.26 s and a 30-day
-window about 1.7 s for the six-spec shape, so 7 days is the default and 30 or 90 days is an
-explicit user choice with a loading state.
+Every chart reads its data per bucket. On the measured data a 7-day window costs about 0.26 s
+and a 30-day window about 1.7 s for the six-spec core call, so 7 days is the default and 30 or
+90 days is an explicit user choice with a loading state; the smaller category and status calls
+run alongside it.
 
 ## Response fields the mapper reads
 
-The response is `{buckets: [{timestamp, interval, metrics: {<path>: {<field>: value}}}]}`. The
-new mapper produces, per bucket:
+The response is `{buckets: [{timestamp, interval, metrics: {<path>: {<field>: value}}}]}`.
 
-- `failed` = the `type.trace` count from the status-filtered query (runs whose root span is
-  `STATUS_CODE_ERROR`). This is a true failed-run count, never larger than the total.
-- `success` = the unfiltered `type.trace` count minus `failed`. It cannot go negative, so no
-  flooring is needed. This departs from the existing observability mapper, which subtracts the
+**Join the parallel calls by `timestamp`, not by array position.** Each call omits its empty
+buckets independently (see "Response quirks"), so the unfiltered, category, and status-filtered
+responses can have different bucket counts and different offsets — a bucket with successes but no
+failures is present in the unfiltered array and absent from the status-filtered one. The mapper
+keys each response's buckets by `timestamp`, builds the union x-axis, and fills a missing bucket
+as zero for that call. It must also read `buckets[].interval` back and treat the calls as
+comparable only when their effective `interval` agrees; if the backend coarsened one call's
+interval differently, surface a mismatch state rather than aligning mismatched buckets. Only
+under this timestamp join do the per-bucket claims below hold. The new mapper then produces, per
+bucket:
+
+- `failed` = the `type.trace` count from the status-filtered query for that `timestamp` (runs
+  whose root span is `STATUS_CODE_ERROR`), or zero if the status-filtered call omitted the
+  bucket. This is a true failed-run count, never larger than the total for the same bucket.
+- `success` = the unfiltered `type.trace` count for that `timestamp` minus `failed`. Because
+  both counts come from the same bucket after the timestamp join, `success` cannot go negative
+  and no flooring is needed; without the join (positional pairing across omitted buckets) it
+  could. This departs from the existing observability mapper, which subtracts the
   `errors.cumulative` sum. That sum counts errored steps, not failed runs, and can exceed the
   run count, so this page uses the run-level status instead.
 - `latencyAvg` = duration `sum` / duration `count`, in milliseconds.

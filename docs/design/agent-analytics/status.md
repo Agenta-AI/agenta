@@ -12,13 +12,17 @@ written. The workspace holds the plan; implementation has not started, and no br
 1. Frontend-first scope, with two backend prerequisites (Phase 0 in plan.md). Charts: Runs,
    Latency, Cost (coverage-gated total), Tokens (coverage-gated split), and runs per harness /
    configured model / agent. No Costs prompt/completion split chart; `gen_ai.usage.cost` is a
-   total only. Plus the Agents / Harness / configured-Model filters and the time-range control.
-   The two Phase 0 items: make a killed or rejected query distinguishable from an empty one, and
+   total only. Plus the Agents / Harness / configured-Model filters and the time-range control;
+   harness and configured model are both breakdown charts and filters (decision 3). The two
+   Phase 0 items: make a killed or rejected query distinguishable from an empty one, and
    investigate the cost / token-split coverage collapse.
 2. A net-new page at project scope, named Analytics. The default query aggregates every project
    agent; the Agents filter narrows the set.
-3. An **agent** is an application/workflow artifact. The Agents multi-select is the only filter;
-   it lists the project's agents and narrows by `references`.
+3. An **agent** is an application/workflow artifact. The Agents multi-select lists the project's
+   agents and narrows by `references`. v1 has three filters — Agents, Harness, and configured
+   Model — all server-side conditions on root-span fields, so all three filter today with no
+   backend change. The configured-Model filter narrows by the author's alias, not the model that
+   answered (that is the deferred resolved-Model view).
 4. One agent invocation is a **run**. The Observability dashboard calls the same metric a
    "request"; the two may diverge until Observability is aligned in a later, separate change.
 5. A **failed run** is a run whose root span `status_code` is `STATUS_CODE_ERROR` — a run-level
@@ -71,7 +75,8 @@ the scope carries two backend prerequisites (Phase 0) rather than none.
 ## Deferred to a later backend change
 
 The Tools chart, the Models chart, the Models filter, and per-model cost. They split into two
-sub-phases, because the two backend prerequisites are not co-equal gates:
+sub-phases, because the two deferred-view enablers (span-focus wiring and a group-by dimension —
+distinct from the two Phase 0 blockers) are not co-equal gates:
 
 - **5a, Tools and Models-share**: needs span-focus wiring only (thread `focus` into
   `build_base_cte`, make `WHERE parent_id IS NULL` conditional). No group-by, because a
