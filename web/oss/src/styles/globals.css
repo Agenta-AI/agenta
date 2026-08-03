@@ -111,12 +111,15 @@ body {
     margin: 0 auto;
 }
 
+/* Stay under @agenta/ui's Dialog/Sheet/Popover/Tooltip/DropdownMenu z-index scale (z-40/z-50,
+   all portalled to <body>) — antd's own Modal/Drawer used to sit at z-index 1000+, so 100 was
+   safely below them; the migrated Radix overlays sit lower, and 100 would bleed through them. */
 .playground-splitter .ant-splitter-bar,
 .playground-splitter .ant-splitter-trigger,
 .playground-splitter .ant-splitter-bar-dragger,
 .playground-splitter .ant-splitter-bar::before,
 .playground-splitter .ant-splitter-bar::after {
-    z-index: 100;
+    z-index: 5;
 }
 
 /* Splitter handle look & feel.

@@ -33,14 +33,14 @@ const TraceDrawer = () => {
 
     return (
         <EnhancedDrawer
-            closeIcon={null}
+            closable={false}
             title={null}
             open={open}
             onClose={closeDrawer}
             width={drawerWidth}
             closeOnLayoutClick={false}
             afterOpenChange={handleAfterOpenChange}
-            className="[&_.ant-drawer-body]:p-0 [&_.ant-drawer-header]:hidden"
+            styles={{body: {padding: 0}}}
             destroyOnHidden
         >
             {open && (
