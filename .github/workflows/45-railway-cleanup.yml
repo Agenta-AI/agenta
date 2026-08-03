@@ -4,8 +4,9 @@ on:
   pull_request:
     types: [closed, converted_to_draft]
   schedule:
-    # Run daily at 06:00 UTC to clean up stale previews
-    - cron: "0 6 * * *"
+    # Hourly. The sweep, not the age limit, sets the real ceiling on how long a
+    # preview can live: a daily sweep left a 6h-old preview running for up to 24h.
+    - cron: "0 * * * *"
   workflow_dispatch:
     inputs:
       pr_number:
@@ -13,10 +14,10 @@ on:
         required: false
         type: string
       max_age_hours:
-        description: "Max age in hours for stale cleanup (default: 24)"
+        description: "Max age in hours for stale cleanup (default: 6)"
         required: false
         type: string
-        default: "24"
+        default: "6"
       dry_run:
         description: "Dry run mode (true/false)"
         required: false
@@ -156,12 +157,12 @@ jobs:
         run: |
           chmod +x hosting/railway/oss/scripts/preview-clone-destroy.sh
           hosting/railway/oss/scripts/preview-clone-destroy.sh \
-            --stale-hours "${{ inputs.max_age_hours || '24' }}"
+            --stale-hours "${{ inputs.max_age_hours || '6' }}"
 
       - name: Summary
         if: always()
         run: |
           echo "### Railway Stale Preview Cleanup" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Max age:** ${{ inputs.max_age_hours || '24' }}h" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Max age:** ${{ inputs.max_age_hours || '6' }}h" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Dry run:** ${{ inputs.dry_run || 'false' }}" >> "$GITHUB_STEP_SUMMARY"
