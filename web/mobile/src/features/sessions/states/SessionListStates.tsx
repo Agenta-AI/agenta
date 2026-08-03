@@ -9,6 +9,40 @@ export const SessionListEmpty = () => (
     <p className="text-muted-foreground grow p-6 text-center text-xs">No sessions.</p>
 )
 
+/**
+ * The waiting filter matched nothing in the loaded pages. `unloaded` sessions are waiting further
+ * down, so this offers the way to reach them instead of claiming there is nothing to do.
+ */
+export const SessionListPendingEmpty = ({
+    unloaded,
+    canLoadMore,
+    loading,
+    onLoadMore,
+}: {
+    unloaded: number
+    canLoadMore: boolean
+    loading: boolean
+    onLoadMore: () => void
+}) => (
+    <div className="flex grow flex-col items-center justify-center gap-3 p-6 text-center">
+        <p className="text-muted-foreground text-xs">
+            {unloaded > 0
+                ? `${unloaded} session${unloaded === 1 ? "" : "s"} waiting further down the list.`
+                : "Nothing waiting on you."}
+        </p>
+        {unloaded > 0 && canLoadMore ? (
+            <button
+                type="button"
+                className="border-border min-h-11 rounded-md border px-3 py-2 text-xs"
+                disabled={loading}
+                onClick={onLoadMore}
+            >
+                {loading ? "Loading…" : "Load more"}
+            </button>
+        ) : null}
+    </div>
+)
+
 export const SessionListError = ({onRetry}: {onRetry: () => void}) => (
     <div className="flex grow flex-col items-center justify-center gap-3 p-6 text-center">
         <p className="text-muted-foreground text-xs">Something went wrong.</p>
