@@ -561,6 +561,21 @@ function lastAssistantText(messages: any): string {
 }
 
 /**
+ * Declares which token contract a span's `gen_ai.usage.input_tokens` follows.
+ *
+ * The runner writes `false`: its input count is EXCLUSIVE — uncached input only, with
+ * `gen_ai.usage.cache_read.input_tokens` and `gen_ai.usage.cache_creation.input_tokens`
+ * reported beside it rather than inside it. The OpenTelemetry GenAI contract means the
+ * opposite (input already includes cached tokens), and pricing derives ordinary input by
+ * subtracting the cache details from the count it is given. Agenta ingests OTLP from
+ * third-party instrumentation as well as from this runner, so without this marker the two
+ * contracts are indistinguishable and one of them is mispriced. An ABSENT marker means
+ * inclusive, the OpenTelemetry meaning; every span this runner gives an input token count
+ * carries the marker.
+ */
+const INPUT_TOKENS_INCLUDES_CACHE = "agenta.usage.input_tokens_includes_cache";
+
+/**
  * Stamp a run's cost, and only its cost, on a PARENT span (`invoke_agent`).
  *
  * A parent must not repeat its children's `gen_ai.usage.*_tokens`: ingest maps those to the
@@ -594,6 +609,7 @@ function applyAssistant(
   const u = msg.usage;
   if (u) {
     // Current GenAI names (mapped by Agenta's logfire adapter) ...
+    span.setAttribute(INPUT_TOKENS_INCLUDES_CACHE, false);
     span.setAttribute("gen_ai.usage.input_tokens", u.input ?? 0);
     span.setAttribute("gen_ai.usage.output_tokens", u.output ?? 0);
     // ... and legacy names (mapped by Agenta's semconv.py). Emit both so token
@@ -1193,6 +1209,7 @@ export function createSandboxAgentOtel(
     // stamping zeros would assert a run cost nothing and spent nothing. An ABSENT cost counts
     // as no cost here, exactly like a reported 0, so it cannot carry a token-less record.
     if (!u || (u.total <= 0 && !(u.cost != null && u.cost > 0))) return;
+    span.setAttribute(INPUT_TOKENS_INCLUDES_CACHE, false);
     span.setAttribute("gen_ai.usage.input_tokens", u.input);
     span.setAttribute("gen_ai.usage.output_tokens", u.output);
     span.setAttribute("gen_ai.usage.prompt_tokens", u.input);
