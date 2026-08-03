@@ -1456,6 +1456,36 @@ def j7_mcp(cell: dict) -> dict:
 
 GREP_TOOL_NAMES = {"grep"}
 
+# --------------------------------------------------------------------------------------------
+# Credential hiding on Daytona.
+#
+# Every other journey in this gate asks "does the product still work". This one asks "is the
+# provider key actually hidden from the sandbox", which nothing else looks at. That gap is worth
+# naming: if credential hiding silently stopped working tomorrow, every run would still succeed
+# and the whole gate would stay green, because a plaintext key works exactly as well as a
+# placeholder does. The only observable difference is what the sandbox holds, so something has
+# to go in and look.
+#
+# The probe reads the first 11 characters of the provider variable, never the whole value. Two
+# reasons. It is enough to tell the two worlds apart (`dtn_secret_` is exactly 11 characters; a
+# real key starts `sk-`), and it never asks the model to print a credential, which a
+# safety-trained model may refuse to do and which would turn this into a flaky journey that
+# fails for the wrong reason.
+DAYTONA_PLACEHOLDER_PREFIX = "dtn_secret_"
+# Prefixes real provider keys start with. Seeing one of these is positive proof that hiding did
+# not happen, as opposed to merely failing to see the placeholder.
+REAL_KEY_PREFIXES = ("sk-", "sk_")
+
+
+def _provider_key_var(cell: dict) -> str:
+    """The environment variable the harness reads its provider key from.
+
+    Mirrors the runner's own rule (`harnessApiKeyVar` in run-plan.ts): Anthropic for Claude,
+    OpenAI for everything else. Kept in step with that deliberately, since a divergence here
+    would make this journey read an empty variable and pass on nothing.
+    """
+    return "ANTHROPIC_API_KEY" if cell["harness"] == "claude" else "OPENAI_API_KEY"
+
 
 def _pi_only(cell: dict, what: str) -> dict | None:
     if cell["harness"].startswith("pi"):
@@ -1564,6 +1594,84 @@ def j_rule_case(cell: dict) -> dict:
     return _allow_rule_flow(cell, "bash")
 
 
+def j_secret_opaque(cell: dict) -> dict:
+    """The provider key reaches a Daytona sandbox as a placeholder, never in the clear.
+
+    Daytona only. On the local sandbox the harness runs inside the runner container, so its keys
+    never leave the deployment and there is nothing to hide them from; the journey SKIPs there
+    rather than asserting a property that does not apply.
+
+    PASSES when the sandbox's provider variable begins `dtn_secret_`. That is the positive
+    assertion and it carries the whole journey: an absence check alone would pass on a refused
+    bash call, an empty variable, or a model that declined to answer, none of which prove
+    anything. The bash call must also have genuinely executed, so a model inventing a
+    plausible-looking answer cannot pass it either.
+    """
+    if cell["sandbox"] != "daytona":
+        return {
+            "skip": True,
+            "why": (
+                "credential hiding applies to remote sandboxes only; on local the harness runs "
+                f"inside the runner container (cell sandbox={cell['sandbox']}). Run --cell C2 "
+                "or C4."
+            ),
+        }
+
+    var = _provider_key_var(cell)
+    s = str(uuid.uuid4())
+    t = invoke(
+        s,
+        [
+            user_msg(
+                f"Use the bash tool to run exactly: printenv {var} | cut -c1-11 "
+                "and reply with only its stdout."
+            )
+        ],
+        template(
+            cell,
+            instructions=(
+                "Use the bash tool when asked to run a command. Report only its stdout, "
+                "verbatim."
+            ),
+            permission_default="allow",
+        ),
+    )
+
+    call, outcome = _bash_call_outcome(t)
+    executed = call is not None and outcome == "available"
+    reply = t.reply or ""
+    hidden = DAYTONA_PLACEHOLDER_PREFIX in reply
+    leaked = next((p for p in REAL_KEY_PREFIXES if p in reply), None)
+
+    ok = executed and hidden and leaked is None and not t.errors
+    if executed and not hidden and leaked:
+        why = (
+            f"{var} reached the sandbox in the CLEAR: the reply starts '{leaked}', not "
+            f"'{DAYTONA_PLACEHOLDER_PREFIX}'. Credential hiding is not in effect on this "
+            "deployment. Check that the runner's Daytona API key may manage Secrets and that "
+            "AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS is not set to an off value."
+        )
+    elif not executed:
+        why = (
+            f"could not read {var}: bash outcome={outcome}. The journey proves nothing unless "
+            "the command actually ran, so this is a FAIL rather than a pass on absence."
+        )
+    else:
+        why = (
+            f"{var} in the sandbox begins '{DAYTONA_PLACEHOLDER_PREFIX}', so the agent holds a "
+            "Daytona Secret placeholder and not the real key"
+        )
+
+    return {
+        "pass": ok,
+        "why": why,
+        "variable": var,
+        "bash_outcome": outcome,
+        "placeholder_seen": hidden,
+        "turn": t.summary(),
+    }
+
+
 def j_builtin_grep(cell: dict) -> dict:
     """grep is available to every Pi agent and auto-runs under `allow_reads`.
 
@@ -1626,6 +1734,7 @@ JOURNEYS = {
     "rule_allow": j_rule_allow,
     "rule_case": j_rule_case,
     "builtin_grep": j_builtin_grep,
+    "secret_opaque": j_secret_opaque,
 }
 
 

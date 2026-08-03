@@ -64,10 +64,21 @@ cell — keep them in sync if a cell changes.
 | `rule_allow` | Policy `ask`, plus an `allow` rule for `Bash`. Ask for the same command. | No approval card fires and the call executes — the rule overrode the policy. **Pi only.** |
 | `rule_case` | The same as `rule_allow` with the rule written `bash`. | Identical result: the runner matches built-in names case-insensitively. **Pi only.** |
 | `builtin_grep` | Policy `allow_reads`. Write a file with bash, then grep it. | A `grep` call executes with no approval card — grep is one of the three built-ins Pi does not activate on its own, and it is read-only, so it runs unattended. **Pi only.** |
+| `secret_opaque` | Read the first 11 characters of the provider key variable inside the sandbox. | The value begins `dtn_secret_`, so the agent holds a Daytona Secret placeholder and not the real key. **Daytona only** (C2, C4); it `SKIP`s on every local cell, where the harness runs inside the runner container and there is nothing to hide it from. |
 
 The four rule journeys are the only coverage of `harness.permissions`. Built-in tools are always
 active and are never listed in `tools`, so those three lists are the only lever over them: if they
 stop being honored, nothing else in the gate notices.
+
+`secret_opaque` is the only journey that checks a **security property** rather than checking that
+the product works. It exists because the rest of the gate cannot see this one: a plaintext provider
+key works exactly as well as a placeholder does, so if credential hiding silently stopped working,
+every other journey would stay green and nothing would notice. Two details are deliberate. It reads
+only the first 11 characters, never the whole value, because that is enough to tell `dtn_secret_`
+from a real `sk-` key and it never asks a model to print a credential (which a safety-trained model
+may refuse, turning a real check into a flaky one). And it requires the bash call to have genuinely
+executed, so it cannot pass on an absence: a refused call, an empty variable, or a model that
+declined to answer all read as FAIL, not as "no key was leaked".
 
 Triggers are deliberately **out of scope** for this gate.
 

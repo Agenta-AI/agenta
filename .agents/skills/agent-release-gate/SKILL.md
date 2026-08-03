@@ -43,7 +43,9 @@ immediately and names exactly what is missing; a legacy `--env-file <path>` fall
 `--all` includes cell P2 (a custom OpenAI-compatible provider), which needs a vault slug passed
 via `--custom-slug`; the driver fails fast if it's missing. Cells S1, S2 and C1 additionally need
 the subscription sidecar logged in on the target deployment — see `resources/coverage.md` for what
-each cell requires.
+each cell requires. The Daytona cells (C2, C4) additionally need the runner's Daytona API key to
+have permission to manage Secrets, because credential hiding is on by default; without it those
+cells fail at sandbox creation with an error naming the permission.
 
 **The one flag a release conductor must not skip past.** The continuity journeys
 (`warm`, `cold1`, `cold2`) only mean anything on a **store-backed** deployment: with no object
