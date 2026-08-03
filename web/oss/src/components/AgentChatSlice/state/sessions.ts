@@ -829,6 +829,22 @@ export const sessionFirstUserTextAtomFamily = atomFamily((id: string) =>
     selectAtom(sessionMessagesAtom, (all) => firstUserText(all[id])),
 )
 
+/** Active tab title without subscribing to streamed assistant content. */
+export const activeSessionTitleAtomFamily = atomFamily((key: string) =>
+    atom((get) => {
+        const sessions = get(sessionsListAtomFamily(key))
+        const rawActiveId = get(activeSessionIdAtomFamily(key))
+        const activeSession =
+            sessions.find((session) => session.id === rawActiveId) ?? sessions[0] ?? null
+        if (!activeSession) return {title: "", firstUserMessage: ""}
+
+        return {
+            title: activeSession.title?.trim() ?? "",
+            firstUserMessage: get(sessionFirstUserTextAtomFamily(activeSession.id)),
+        }
+    }),
+)
+
 /**
  * Run state of a session's live conversation — the single source of truth for "what is this
  * session doing right now", surfaced as the tab bar's status dot AND the session inspector's
