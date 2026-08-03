@@ -222,7 +222,6 @@
     "runner": {
       "image": "ghcr.io/agenta-ai/agenta-runner:{app_tag}",
       "startCommand": "node_modules/.bin/tsx src/server.ts",
-      "healthcheckPath": "/health",
       "restartPolicyType": "ON_FAILURE",
       "restartPolicyMaxRetries": 10,
       "volumes": [],
