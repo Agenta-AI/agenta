@@ -1,9 +1,17 @@
 import { InMemorySessionPersistDriver, SandboxAgent } from "sandbox-agent";
 
-import { type AgentRunRequest, type HarnessCapabilities } from "../../protocol.ts";
+import {
+  type AgentRunRequest,
+  type HarnessCapabilities,
+} from "../../protocol.ts";
 import { type Responder } from "../../responder.ts";
 import type { ClientToolRelay } from "../../tools/client-tool-relay.ts";
-import { localRelayHost, sandboxRelayHost, startToolRelay } from "../../tools/relay.ts";
+import type { ExecutableToolGate } from "../../tools/executable-tool-gate.ts";
+import {
+  localRelayHost,
+  sandboxRelayHost,
+  startToolRelay,
+} from "../../tools/relay.ts";
 import { createSandboxAgentOtel } from "../../tracing/otel.ts";
 import { createAcpFetch } from "./acp-fetch.ts";
 import { type ParkedApprovalGateType } from "./acp-interactions.ts";
@@ -12,14 +20,26 @@ import { probeCapabilities } from "./capabilities.ts";
 import { createToolCallCorrelationIndex } from "./client-tools.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./daemon.ts";
 import { createCookieFetch, prepareDaytonaPiAssets } from "./daytona.ts";
+import { applyCodexMode } from "./codex-mode.ts";
 import { applyModel } from "./model.ts";
-import { discoverTunnelEndpoint, mountHarnessSessionDirs, mountStorage, mountStorageRemote, signSessionMountCredentials, unmountStorage, type MountCredentials } from "./mount.ts";
+import {
+  discoverTunnelEndpoint,
+  mountHarnessSessionDirs,
+  mountStorage,
+  mountStorageRemote,
+  signSessionMountCredentials,
+  unmountStorage,
+  type MountCredentials,
+} from "./mount.ts";
 import { PendingApprovalPauseController } from "./pause.ts";
 import { buildSandboxProvider } from "./provider.ts";
 import { createRunLimits, resolveRunLimits } from "./run-limits.ts";
 import { type BuildRunPlanDeps, type RunPlan } from "./run-plan.ts";
 import { readStoredSandboxPointer } from "./sandbox-reconnect.ts";
-import { appendSessionTurn, hydrateHarnessSessionFromDurable } from "./session-continuity-durable.ts";
+import {
+  appendSessionTurn,
+  hydrateHarnessSessionFromDurable,
+} from "./session-continuity-durable.ts";
 import { type SessionContinuityStore } from "./session-continuity.ts";
 import { type InstalledMountExpiries } from "./session-identity.ts";
 import { type TeardownReason } from "./teardown.ts";
@@ -42,6 +62,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   uploadToolMcpAssets?: typeof uploadToolMcpAssets;
   probeCapabilities?: typeof probeCapabilities;
   applyModel?: typeof applyModel;
+  applyCodexMode?: typeof applyCodexMode;
   startToolRelay?: typeof startToolRelay;
   localRelayHost?: typeof localRelayHost;
   sandboxRelayHost?: typeof sandboxRelayHost;
@@ -104,11 +125,11 @@ export interface CurrentTurn {
 
 /**
  * A permission gate that paused the turn and can be answered later on the SAME live session.
- * Recorded for a Claude ACP permission gate (keep-alive slice 2) or a Pi ACP permission gate
- * (Pi approval parking: the gate rides the extension's `ctx.ui.confirm` onto the same ACP
- * permission plane). NOT recorded for a client-tool MCP pause — that cannot be answered across
- * a turn boundary and stays on the cold path. Existence of this record is what makes the
- * dispatch park a paused session in `awaiting_approval` instead of tearing it down.
+ * Recorded for Claude and Codex ACP permission gates, or a Pi ACP permission gate (Pi approval
+ * parking: the gate rides the extension's `ctx.ui.confirm` onto the same ACP permission plane).
+ * NOT recorded for a client-tool MCP pause, which cannot be answered across a turn boundary and
+ * stays on the cold path. Existence of this record is what makes the dispatch park a paused
+ * session in `awaiting_approval` instead of tearing it down.
  */
 export interface ParkedApproval {
   /** Which gate paused; the dispatch resumes only a recognized type and treats others as cold. */
@@ -127,7 +148,7 @@ export interface ParkedApproval {
   promptPromise?: Promise<unknown>;
 }
 
-/** Answer a parked Claude ACP permission gate on the live session (the keep-alive resume input). */
+/** Answer a parked ACP permission gate on the live session (the keep-alive resume input). */
 export interface ResumeApprovalInput {
   permissionId: string;
   reply: "once" | "reject";
@@ -164,7 +185,7 @@ export interface RunTurnOptions {
    */
   loaded?: boolean;
   /**
-   * Keep-alive approval park mode: on a Claude ACP permission gate the pause keeps the session
+   * Keep-alive approval park mode: on a parkable ACP permission gate the pause keeps the session
    * alive (no settle/abort/destroy) so a later resume can answer it. A non-parkable pause (Pi
    * relay, client tool) still tears down exactly as today, so this is safe to set on any eligible
    * keep-alive turn.
@@ -208,9 +229,18 @@ export interface SessionEnvironment {
   toolCallIndex: ReturnType<typeof createToolCallCorrelationIndex>;
   /** The current turn's client-tool relay, read by the deferred ref baked into the MCP server. */
   clientToolRelayRef: { current?: ClientToolRelay };
+  /** The current turn's executable-tool gate, read by the loopback MCP server. */
+  executableToolGateRef: { current?: ExecutableToolGate };
   mcpAbort: AbortController;
   runAgentDir: string | undefined;
   otlpAuthFilePath: string | undefined;
+  /**
+   * The local off-mount directory this run pointed CODEX_SQLITE_HOME at (Codex's SQLite state,
+   * which cannot live on the geesefs cwd mount). Removed best-effort by `destroy`; the state is
+   * disposable because native resume rides the `sessions/` rollout files on CODEX_HOME, not the
+   * SQLite. Undefined when not a local managed Codex run.
+   */
+  codexSqliteHome: string | undefined;
   mountCreds: MountCredentials | null;
   agentMountCreds?: MountCredentials | null;
   /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is
@@ -290,5 +320,4 @@ export interface SessionEnvironment {
 }
 
 export type AcquireEnvironmentResult =
-  | { ok: true; env: SessionEnvironment }
-  | { ok: false; error: string };
+  { ok: true; env: SessionEnvironment } | { ok: false; error: string };

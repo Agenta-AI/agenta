@@ -3,10 +3,9 @@ import type {
   McpServerConfig,
   ResolvedToolSpec,
 } from "../../protocol.ts";
-import {
-  buildToolMcpServers,
-} from "../../tools/mcp-bridge.ts";
+import { buildToolMcpServers } from "../../tools/mcp-bridge.ts";
 import type { ClientToolRelay } from "../../tools/client-tool-relay.ts";
+import type { ExecutableToolGate } from "../../tools/executable-tool-gate.ts";
 // The shim's env contract, from the dependency-free names module — never from the shim's
 // bundle entrypoint (`tool-mcp-stdio.ts`), which server code must not import.
 import {
@@ -56,6 +55,12 @@ export interface McpServerStdio {
   command: string;
   args: string[];
   env: EnvVariable[];
+}
+
+/** Runner-local hooks accepted by the internal entry constructor but never serialized. */
+export interface BuildInternalToolMcpEntryOptions {
+  clientToolRelay?: ClientToolRelay;
+  executableToolGate?: ExecutableToolGate;
 }
 
 /** One delivered MCP server: the internal stdio shim entry or an HTTP entry. */
@@ -108,6 +113,7 @@ export function assertNoReservedUserMcpName(
 export function buildInternalToolMcpEntry(
   assets: ToolMcpAssets,
   relayDir: string,
+  _options: BuildInternalToolMcpEntryOptions = {},
 ): McpServerStdio {
   const env: EnvVariable[] = [
     { name: PUBLIC_SPECS_FILE_ENV, value: assets.specsPath },
@@ -244,11 +250,13 @@ export interface BuildSessionMcpServersInput {
    */
   internalToolMcp?: ToolMcpAssets;
   /**
-   * The shared client-tool relay. When set (local Claude), the internal channel advertises
+   * The shared client-tool relay. When set (local non-Pi), the internal channel advertises
    * `client` tools and pauses a `tools/call` for one. Omit for Pi (which uses the file relay);
    * on Daytona the channel is skipped entirely.
    */
   clientToolRelay?: ClientToolRelay;
+  /** Runner-side permission gate for local executable tools. */
+  executableToolGate?: ExecutableToolGate;
   /** Engine pause/teardown abort signal, threaded to the internal MCP server. */
   signal?: AbortSignal;
   log?: Log;
@@ -297,6 +305,7 @@ export async function buildSessionMcpServers({
   relayDir,
   internalToolMcp,
   clientToolRelay,
+  executableToolGate,
   signal,
   log = () => {},
 }: BuildSessionMcpServersInput): Promise<SessionMcpServers> {
@@ -330,6 +339,7 @@ export async function buildSessionMcpServers({
   if (!isDaytona) {
     internal = await buildToolMcpServers(toolSpecs, relayDir, {
       clientToolRelay,
+      executableToolGate,
       signal,
       log,
     });

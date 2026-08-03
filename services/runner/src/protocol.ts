@@ -462,6 +462,11 @@ export interface AgentRunRequest {
   /** Resolved model input modalities. Omitted when the resolver cannot determine them. */
   modelCapabilities?: { inputModalities?: string[] };
   /**
+   * Codex only: ACP session mode override ("agent" | "read-only" | "agent-full-access"). Absent
+   * means the Codex default (agent-full-access). Ignored by non-Codex harnesses.
+   */
+  harnessMode?: string;
+  /**
    * Provider family for the run, e.g. "openai" | "anthropic" | <custom-slug>. Non-secret.
    * Present only when the config carries a structured model ref. See the provider-model-auth
    * design (Concern 1).

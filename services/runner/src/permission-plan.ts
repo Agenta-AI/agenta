@@ -179,16 +179,43 @@ export function storedDecisionKeyShape(
   toolName: string | undefined,
   args: unknown,
 ): { toolName: string | undefined; args: unknown } {
-  if (!toolName) return { toolName, args };
+  // Normalize Codex's MCP rawInput wrapper first, symmetrically on both sides of the match: the
+  // runner-side gate keys on the bare `tools/call` arguments, while the traced `tool_call` event
+  // (and thus the resumed `{approved}` decision) carries codex-acp's `{server,tool,arguments}`
+  // envelope. Unwrapping to `arguments` makes the two keys agree so a cross-turn approval resumes.
+  const normalizedArgs = unwrapCodexMcpArgs(args);
+  if (!toolName) return { toolName, args: normalizedArgs };
   const identity = piBuiltinIdentity(toolName);
-  if (!identity) return { toolName, args };
+  if (!identity) return { toolName, args: normalizedArgs };
   return {
     toolName: identity.ruleName,
     args:
-      identity.toolName === "bash" ? projectBashStoredDecisionArgs(args) : args,
+      identity.toolName === "bash"
+        ? projectBashStoredDecisionArgs(normalizedArgs)
+        : normalizedArgs,
   };
 }
 
+/**
+ * Codex-acp reports an MCP tool call's rawInput as `{server, tool, arguments}` (the wrapper), but
+ * the actual `tools/call` arguments the runner-side gate sees are the inner `arguments`. When the
+ * input is EXACTLY that wrapper (a string `server`, a string `tool`, and an object `arguments`),
+ * return the inner `arguments` so the stored-decision key matches the gate's key. Any other shape
+ * is returned unchanged, so a real tool whose args merely include some of these keys is untouched.
+ */
+function unwrapCodexMcpArgs(args: unknown): unknown {
+  if (!isRecord(args)) return args;
+  const keys = Object.keys(args);
+  if (keys.length !== 3) return args;
+  if (
+    typeof args.server === "string" &&
+    typeof args.tool === "string" &&
+    isRecord(args.arguments)
+  ) {
+    return args.arguments;
+  }
+  return args;
+}
 function normalizeRules(rawRules: unknown): PermissionPlan["rules"] {
   if (!Array.isArray(rawRules)) return [];
   const rules: PermissionPlan["rules"] = [];

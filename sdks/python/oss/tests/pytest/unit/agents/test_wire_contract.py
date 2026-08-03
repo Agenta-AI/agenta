@@ -23,6 +23,7 @@ from agenta.sdk.agents import (
     AgentaAgentTemplate,
     AgentTemplate,
     ClaudeAgentTemplate,
+    CodexAgentTemplate,
     ContentBlock,
     Endpoint,
     HarnessKind,
@@ -59,6 +60,7 @@ KNOWN_REQUEST_KEYS = {
     "sessionId",
     "agentsMd",
     "model",
+    "harnessMode",
     "modelCapabilities",
     "provider",
     "connection",
@@ -191,6 +193,23 @@ def _claude_payload():
         config=config,
         messages=[Message(role="user", content="hi")],
         secrets={"ANTHROPIC_API_KEY": "sk-ant"},
+        trace=None,
+        run_context=RunContext(run=RunContextRun(kind="test")),
+        session_id=None,
+    )
+
+
+def _codex_payload():
+    config = CodexAgentTemplate(
+        agents_md="You are a helpful assistant.",
+        model="gpt-5.6-luna",
+    )
+    return request_to_wire(
+        harness=HarnessKind.CODEX,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+        secrets={"OPENAI_API_KEY": "sk-openai"},
         trace=None,
         run_context=RunContext(run=RunContextRun(kind="test")),
         session_id=None,
@@ -521,6 +540,128 @@ def test_request_to_wire_claude_matches_golden(golden):
     ]
 
 
+def test_request_to_wire_codex_matches_golden(golden):
+    payload = _codex_payload()
+    assert payload == golden("run_request.codex.json")
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert payload["harness"] == "codex"
+    assert payload["tools"] == []  # Codex has no Pi built-ins
+    assert payload["model"] == "gpt-5.6-luna"
+    assert "harnessMode" not in payload
+    assert payload["permissions"] == {"default": "allow_reads"}
+    assert "permissionPolicy" not in payload
+    assert "systemPrompt" not in payload  # Codex exposes no prompt overrides
+    assert "appendSystemPrompt" not in payload
+    # A managed codex run (this default, unresolved => managed) renders config.toml carrying the
+    # file-free auth provider block (env_key OPENAI_API_KEY), even with no authored options. The
+    # secret never appears in the file; it rides `secrets` (D-002 final ruling).
+    assert payload["harnessFiles"] == [
+        {
+            "path": ".codex/config.toml",
+            "content": (
+                'model_provider = "agenta-openai"\n'
+                "\n[model_providers.agenta-openai]\n"
+                'name = "Agenta OpenAI"\n'
+                'env_key = "OPENAI_API_KEY"\n'
+            ),
+        }
+    ]
+    assert payload["secrets"] == {"OPENAI_API_KEY": "sk-openai"}
+    assert payload["context"] is None
+    assert payload["telemetry"] is None
+    assert "trace" not in payload
+
+
+def test_request_to_wire_codex_renders_config_toml_from_authored_options():
+    # The Milestone 1 authoring schema does not yet carry these keys. That support lands in the
+    # permissions milestone, so this test drives the pass-through directly to pin the rendering.
+    # No resolved connection is threaded here, so the run defaults to MANAGED (file-free auth): the
+    # config gains the `model_provider` pointer + the custom provider table (env_key OPENAI_API_KEY)
+    # around the authored scalars (D-002 final ruling).
+    config = CodexAgentTemplate(
+        harness_permissions={
+            "approval_policy": "untrusted",
+            "sandbox_mode": "read-only",
+        }
+    )
+    payload = request_to_wire(
+        harness=HarnessKind.CODEX,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+
+    assert payload["harnessFiles"] == [
+        {
+            "path": ".codex/config.toml",
+            "content": (
+                'model_provider = "agenta-openai"\n'
+                'approval_policy = "untrusted"\n'
+                'sandbox_mode = "read-only"\n'
+                "\n[model_providers.agenta-openai]\n"
+                'name = "Agenta OpenAI"\n'
+                'env_key = "OPENAI_API_KEY"\n'
+            ),
+        }
+    ]
+
+
+def test_request_to_wire_codex_managed_is_file_free_provider_block():
+    # A managed codex run (unresolved connection => managed) with nothing else authored still writes
+    # config.toml carrying ONLY the file-free auth provider block. No credential appears in the file.
+    config = CodexAgentTemplate(model="gpt-5.6-luna")
+    payload = request_to_wire(
+        harness=HarnessKind.CODEX,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+        secrets={"OPENAI_API_KEY": "sk-openai"},
+    )
+    assert payload["harnessFiles"] == [
+        {
+            "path": ".codex/config.toml",
+            "content": (
+                'model_provider = "agenta-openai"\n'
+                "\n[model_providers.agenta-openai]\n"
+                'name = "Agenta OpenAI"\n'
+                'env_key = "OPENAI_API_KEY"\n'
+            ),
+        }
+    ]
+    # The secret rides the `secrets` wire field, never the file.
+    assert "sk-openai" not in payload["harnessFiles"][0]["content"]
+
+
+def test_request_to_wire_codex_subscription_renders_no_provider_block():
+    # A subscription codex run (resolved credential_mode runtime_provided) uses the built-in provider
+    # + its mounted OAuth login, so NO provider block is rendered. With nothing else authored, the
+    # run stays fileless (byte-identical to before).
+    from agenta.sdk.agents.connections.models import Connection, ResolvedConnection
+    from agenta.sdk.agents.dtos import ModelRef
+
+    config = CodexAgentTemplate(
+        model="gpt-5.6-luna",
+        model_ref=ModelRef(
+            model="gpt-5.6-luna",
+            provider="openai",
+            connection=Connection(mode="self_managed", slug=None),
+        ),
+        resolved_connection=ResolvedConnection(
+            provider="openai",
+            model="gpt-5.6-luna",
+            credential_mode="runtime_provided",
+            env={},
+        ),
+    )
+    payload = request_to_wire(
+        harness=HarnessKind.CODEX,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+    assert "harnessFiles" not in payload
+
+
 def test_author_permission_rules_exclude_mcp_from_wire_but_keep_settings():
     config = ClaudeAgentTemplate(
         harness_permissions={
@@ -571,8 +712,10 @@ def test_request_to_wire_has_no_prompt_key():
 def test_request_to_wire_emits_only_known_keys():
     pi = _pi_payload()
     claude = _claude_payload()
+    codex = _codex_payload()
     assert set(pi) <= KNOWN_REQUEST_KEYS
     assert set(claude) <= KNOWN_REQUEST_KEYS
+    assert set(codex) <= KNOWN_REQUEST_KEYS
     # The Pi case must actually exercise the prompt-override keys, otherwise this guard would
     # silently stop covering them.
     assert {"systemPrompt", "appendSystemPrompt"} <= set(pi)

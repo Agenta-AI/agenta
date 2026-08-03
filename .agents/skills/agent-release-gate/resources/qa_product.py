@@ -172,6 +172,23 @@ CELLS = {
         "provider": "openai-codex",
         "connection": {"mode": "self_managed", "slug": None},
     },
+    # X1: the CODEX harness on the local sandbox with a MANAGED vault key (mode "agenta", slug
+    # None -> the project's default OpenAI provider_key). Mirrors C3 (Pi local managed) but on the
+    # codex harness: managed auth is FILE-FREE (D-002 final ruling) — the SDK renders a custom
+    # model provider with env_key=OPENAI_API_KEY into <cwd>/.codex/config.toml and codex reads the
+    # key from the daemon env at request time (no auth.json). gpt-5.6-luna is the cheapest curated
+    # codex model (D-006). The local
+    # runner pins codex-acp 1.1.7 (D-005), so the model list stays stable. The `tool` journey
+    # exercises the runner-side gate; `approve`/`deny` ride the runner-side pause seam (D-008), not a
+    # codex-native ACP gate. Subscription codex is local-only (not a managed-key cell); Daytona codex
+    # is managed-only and verified outside the gate (M5) — the gate's product-path connection setup
+    # is already exercised here on local.
+    "X1": {
+        "harness": "codex",
+        "sandbox": "local",
+        "model": "gpt-5.6-luna",
+        "provider": "openai",
+    },
     # P2 (OpenRouter as a CUSTOM OpenAI-compatible provider) needs a `custom_provider` secret in
     # the vault; `connection.slug` points at it. Set --custom-slug to run it.
     "P2": {
@@ -542,15 +559,36 @@ def j3_tool(cell: dict) -> dict:
 
 
 def _approval_flow(cell: dict, approved: bool) -> dict:
-    """J4: with permission default `ask`, a tool call must PAUSE with a tool-approval-request,
-    then resume on the user's decision — the same in-band protocol the browser uses."""
+    """J4: with permission `ask`, a tool call must PAUSE with a tool-approval-request, then
+    resume on the user's decision — the same in-band protocol the browser uses.
+
+    The probe differs per harness because the gates live in different places. Claude/Pi gate the
+    builtin `bash`, so the probe is a shell command. Codex shell stays gateless under the default
+    `agent-full-access` mode (codex only raises exec approval when its filesystem sandbox is
+    restricted, and full access is not), but codex MCP/Agenta TOOL calls raise codex-native
+    `tool-approval-request` frames that park warm since the D-008 amendment (2026-07-31, the
+    patched codex-acp full-access preset). So the codex probe is the self-contained
+    `list_connections` platform tool with per-tool `permission: "ask"` — empty arguments, so the
+    resume matches on input exactly. Verified across {local, daytona} x {warm, cold} in
+    docs/design/codex-harness/reports/warm-approvals-qa.md.
+    """
     s = str(uuid.uuid4())
-    params = template(
-        cell,
-        instructions="Use the bash tool when asked to run a command. Report only its stdout.",
-        permission_default="ask",
-    )
-    msgs = [user_msg(MUTATE_PROMPT)]
+    if cell["harness"] == "codex":
+        params = template(
+            cell,
+            tools=[{"type": "platform", "op": "list_connections", "permission": "ask"}],
+            instructions=(
+                "Be terse. When asked to list connections, call the list_connections tool."
+            ),
+        )
+        msgs = [user_msg("List my connections using the list_connections tool.")]
+    else:
+        params = template(
+            cell,
+            instructions="Use the bash tool when asked to run a command. Report only its stdout.",
+            permission_default="ask",
+        )
+        msgs = [user_msg(MUTATE_PROMPT)]
     t1 = invoke(s, msgs, params)
 
     if not t1.approval:
@@ -639,6 +677,21 @@ def j2_mount(cell: dict) -> dict:
     throwaway /tmp cwd, every turn looked fine, and the file was gone. So the pass condition is
     the token coming back FROM DISK in turn 2, with a real tool call behind it.
     """
+    # This probe extracts the token from a builtin-shell `tool-output-available` payload
+    # (`.output`). Codex does not expose a `bash` builtin as an agenta tool; it runs shell through
+    # its native ACP exec frames, whose output does not land in the same payload field, so this
+    # extraction cannot read the token even when the file DID persist (the `tool` journey confirms
+    # codex shell runs and emits real output). A codex-shaped mount probe (asserting on codex's exec
+    # output frames) is the follow-up; until then this journey does not fit the codex harness.
+    if cell["harness"] == "codex":
+        return {
+            "skip": True,
+            "why": (
+                "the mount probe reads the token from a builtin-shell tool-output payload; codex "
+                "runs shell via native exec frames with a different output shape, so this probe "
+                "cannot extract it. A codex-shaped mount probe is a follow-up (see M5 notes)."
+            ),
+        }
     s = str(uuid.uuid4())
     token = f"QA-MOUNT-{uuid.uuid4().hex[:10]}"
     params = template(

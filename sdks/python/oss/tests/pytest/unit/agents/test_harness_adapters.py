@@ -19,6 +19,8 @@ from agenta.sdk.agents import (
     ClaudeAgentTemplate,
     ClaudeHarness,
     ClientToolSpec,
+    CodexAgentTemplate,
+    CodexHarness,
     HarnessKind,
     PiAgentTemplate,
     PiHarness,
@@ -321,6 +323,41 @@ def test_claude_without_permissions_renders_no_files(make_env):
     assert result.wire_harness_files() == {}
 
 
+# -------------------------------------------------------------------------- Codex
+
+
+def test_codex_has_no_builtins(make_env):
+    harness = CodexHarness(make_env(supported=[HarnessKind.CODEX]))
+    config = _session_config(
+        custom_tools=[{"name": "t", "callRef": "ref"}],
+        permission_default="deny",
+    )
+
+    result = harness._to_harness_config(config)
+
+    assert isinstance(result, CodexAgentTemplate)
+    assert not hasattr(result, "builtin_tools")  # Codex has no built-in tools at all
+    assert result.custom_tools[0]["name"] == "t"
+    assert result.permission_default == "deny"
+
+
+def test_codex_managed_renders_file_free_provider_block(make_env):
+    # An unresolved connection defaults to MANAGED, which renders the file-free auth provider block
+    # (env_key OPENAI_API_KEY) even with no authored options (D-002 final ruling). No credential in
+    # the file; codex reads the key from the daemon env at request time.
+    harness = CodexHarness(make_env(supported=[HarnessKind.CODEX]))
+
+    result = harness._to_harness_config(_session_config())
+    files = result.wire_harness_files()["harnessFiles"]
+
+    assert len(files) == 1
+    assert files[0]["path"] == ".codex/config.toml"
+    content = files[0]["content"]
+    assert 'model_provider = "agenta-openai"' in content
+    assert "[model_providers.agenta-openai]" in content
+    assert 'env_key = "OPENAI_API_KEY"' in content
+
+
 # --------------------------------------------------------------- _normalize_tool_specs
 
 
@@ -371,13 +408,22 @@ def test_opt_str_keeps_only_nonempty_strings():
 
 
 def test_make_harness_maps_string_to_class(make_env):
-    env = make_env(supported=[HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.AGENTA])
+    env = make_env(
+        supported=[
+            HarnessKind.PI,
+            HarnessKind.CLAUDE,
+            HarnessKind.CODEX,
+            HarnessKind.AGENTA,
+        ]
+    )
     assert isinstance(make_harness("pi_core", env), PiHarness)
     assert isinstance(
         make_harness("PI_CORE", env), PiHarness
     )  # coerced, case-insensitive
     assert isinstance(make_harness("claude", env), ClaudeHarness)
     assert isinstance(make_harness(HarnessKind.CLAUDE, env), ClaudeHarness)
+    assert isinstance(make_harness("codex", env), CodexHarness)
+    assert isinstance(make_harness(HarnessKind.CODEX, env), CodexHarness)
     assert isinstance(make_harness("pi_agenta", env), AgentaHarness)
     assert isinstance(make_harness(HarnessKind.AGENTA, env), AgentaHarness)
 

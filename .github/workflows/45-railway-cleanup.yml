@@ -29,6 +29,11 @@ permissions:
 
 env:
   RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+  # Template location (issue #5650). The repo variables let a future template
+  # project move happen without a code change; the scripts carry the same
+  # defaults, so local runs and CI agree.
+  RAILWAY_TEMPLATE_PROJECT: ${{ vars.RAILWAY_TEMPLATE_PROJECT || 'agenta-oss-clone-spike' }}
+  RAILWAY_TEMPLATE_ENV: ${{ vars.RAILWAY_TEMPLATE_ENV || 'pr-template' }}
 
 jobs:
   destroy-pr-preview:
@@ -37,23 +42,20 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Railway CLI
-        run: |
-          npm install -g @railway/cli@latest
-          railway --version
-
       - name: Install jq
         run: |
           if ! command -v jq >/dev/null 2>&1; then
             sudo apt-get update && sudo apt-get install -y jq
           fi
 
+      # The preview is an environment in the template project (issue #5650) —
+      # delete just that environment (idempotent: absent = success).
       - name: Destroy preview environment
         env:
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
         run: |
-          chmod +x hosting/railway/oss/scripts/preview-destroy.sh
-          hosting/railway/oss/scripts/preview-destroy.sh
+          chmod +x hosting/railway/oss/scripts/preview-clone-destroy.sh
+          hosting/railway/oss/scripts/preview-clone-destroy.sh
 
       - name: Update preview comment on PR
         if: github.event_name == 'pull_request'
@@ -109,24 +111,23 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Railway CLI
-        run: |
-          npm install -g @railway/cli@latest
-          railway --version
-
       - name: Install jq
         run: |
           if ! command -v jq >/dev/null 2>&1; then
             sudo apt-get update && sudo apt-get install -y jq
           fi
 
-      - name: Clean up stale previews
+      # Safety net for previews that outlived their PR (a cancelled run that
+      # died mid-cycle, a workflow bug): delete pr-* preview environments in
+      # the template project older than the max age. A sweep with nothing to
+      # delete costs ~3 API calls.
+      - name: Clean up stale preview environments
         env:
-          RAILWAY_PREVIEW_MAX_AGE_HOURS: ${{ inputs.max_age_hours || '24' }}
           RAILWAY_PREVIEW_DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
-          chmod +x hosting/railway/oss/scripts/preview-cleanup-stale.sh
-          hosting/railway/oss/scripts/preview-cleanup-stale.sh
+          chmod +x hosting/railway/oss/scripts/preview-clone-destroy.sh
+          hosting/railway/oss/scripts/preview-clone-destroy.sh \
+            --stale-hours "${{ inputs.max_age_hours || '24' }}"
 
       - name: Summary
         if: always()

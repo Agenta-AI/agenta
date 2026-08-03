@@ -17,6 +17,8 @@ code:
 - ``data/pi_models.curated.json`` — human overlay (id -> ``{label?, description?, ratings?}``),
   merged onto the generated facts at load time so a regeneration never overwrites judgments.
 - ``data/claude_models.curated.json`` — hand-curated Claude alias entries (facts + judgments).
+- ``data/codex_models.curated.json``: hand-curated Codex entries (facts + judgments), with the
+  same shape as the Claude catalog.
 
 The catalog is published ADDITIVELY on each harness capability record alongside the existing
 ``models`` map (``capabilities.py``); readers migrate to it at their own pace.
@@ -125,10 +127,20 @@ def load_claude_model_catalog() -> ModelCatalog:
     return ModelCatalog(schema_version="1", models=entries)
 
 
+def load_codex_model_catalog() -> ModelCatalog:
+    """The Codex catalog: hand-curated model entries, validated on load."""
+    curated = _read_json("codex_models.curated.json")
+    entries = [
+        ModelCatalogEntry.model_validate(raw) for raw in curated.get("models", [])
+    ]
+    return ModelCatalog(schema_version="1", models=entries)
+
+
 # Cached at import so ``capabilities.py`` builds its records once. The data files are static and
 # ship with the SDK, so a per-process load is enough.
 _PI_CATALOG: Optional[ModelCatalog] = None
 _CLAUDE_CATALOG: Optional[ModelCatalog] = None
+_CODEX_CATALOG: Optional[ModelCatalog] = None
 
 
 def pi_model_catalog() -> ModelCatalog:
@@ -143,6 +155,13 @@ def claude_model_catalog() -> ModelCatalog:
     if _CLAUDE_CATALOG is None:
         _CLAUDE_CATALOG = load_claude_model_catalog()
     return _CLAUDE_CATALOG
+
+
+def codex_model_catalog() -> ModelCatalog:
+    global _CODEX_CATALOG
+    if _CODEX_CATALOG is None:
+        _CODEX_CATALOG = load_codex_model_catalog()
+    return _CODEX_CATALOG
 
 
 def _catalog_id(provider: Optional[str], model_id: str) -> str:
@@ -171,6 +190,10 @@ def model_input_modalities(
     elif harness == "claude":
         catalog = claude_model_catalog()
         catalog_id = model_id
+    elif harness == "codex":
+        # Unknown ids deliberately return None, degrading to a workspace copy instead of guessing.
+        catalog = codex_model_catalog()
+        catalog_id = model_id
     else:
         return None
 
@@ -190,13 +213,16 @@ def model_input_modalities(
 def model_catalog_entries(harness: str) -> List[Dict[str, object]]:
     """The catalog entries for a harness, as plain JSON-able dicts (the published shape).
 
-    Pi harnesses share the pi-ai-derived catalog; Claude uses its curated alias catalog. An
-    unknown harness has an empty catalog (like the ``models`` map default).
+    Pi harnesses share the pi-ai-derived catalog; Claude uses its curated alias catalog; Codex
+    uses its curated model catalog. An unknown harness has an empty catalog (like the ``models``
+    map default).
     """
     if harness in ("pi_core", "pi_agenta"):
         catalog = pi_model_catalog()
     elif harness == "claude":
         catalog = claude_model_catalog()
+    elif harness == "codex":
+        catalog = codex_model_catalog()
     else:
         return []
     return [entry.model_dump() for entry in catalog.models]

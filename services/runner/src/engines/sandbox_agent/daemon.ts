@@ -266,6 +266,10 @@ export function buildDaemonEnv(
   // a self-managed Claude login keeps pointing at its config dir.
   if (process.env.CLAUDE_CONFIG_DIR)
     env.CLAUDE_CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR;
+  // CODEX_HOME is a config-dir path, not a credential, so it is safe to inherit on every run: a
+  // self-managed Codex login (a later milestone) mounts its directory and points CODEX_HOME at it.
+  // A managed Codex run overrides this per run with `<cwd>/.codex` (see codex-assets.configureCodexHome).
+  if (process.env.CODEX_HOME) env.CODEX_HOME = process.env.CODEX_HOME;
 
   if (process.env.HOME) env.HOME = process.env.HOME;
 

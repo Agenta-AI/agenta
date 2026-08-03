@@ -247,7 +247,7 @@ If Agenta is useful to you, star the repository and tell us what you build.
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-70-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-71-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -346,6 +346,9 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Koushik-Salammagari"><img src="https://avatars.githubusercontent.com/u/138836560?v=4?s=100" width="100px;" alt="Koushik-Salammagari"/><br /><sub><b>Koushik-Salammagari</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3AKoushik-Salammagari" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/truecallerabreham"><img src="https://avatars.githubusercontent.com/u/180291642?v=4?s=100" width="100px;" alt="Abreham Melese"/><br /><sub><b>Abreham Melese</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Atruecallerabreham" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://kunaal-portfolio.vercel.app"><img src="https://avatars.githubusercontent.com/u/126342173?v=4?s=100" width="100px;" alt="Boggavarapu Yuva Satya Kunaal"/><br /><sub><b>Boggavarapu Yuva Satya Kunaal</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Yuvakunaal" title="Tests">⚠️</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/MarceloAdan73"><img src="https://avatars.githubusercontent.com/u/112431764?v=4?s=100" width="100px;" alt="Marcelo-Palma"/><br /><sub><b>Marcelo-Palma</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=MarceloAdan73" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
