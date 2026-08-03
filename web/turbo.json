@@ -121,7 +121,7 @@
             "env": ["NODE_ENV", "NEXT_PUBLIC_*"]
         },
         "@agenta/mobile#build": {
-            "inputs": ["src/**", "public/**", "next.config.ts", "postcss.config.mjs", "tsconfig.json", "components.json"],
+            "inputs": ["$TURBO_DEFAULT$", "!tests/**", "!**/*.md"],
             "outputs": [".next/**", "!.next/cache/**"],
             "env": ["NODE_ENV", "NEXT_PUBLIC_*"]
         },
