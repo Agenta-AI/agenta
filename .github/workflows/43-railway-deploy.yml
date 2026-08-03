@@ -4,35 +4,16 @@ on:
   workflow_call:
     inputs:
       image_tag:
-        description: "Image tag to deploy (e.g. pr-123-abc1234)"
+        description: "Image tag deployed by setup (e.g. pr-123-abc1234)"
         required: true
         type: string
       pr_number:
         description: "PR number"
         required: true
         type: string
-      mode:
-        description: "Preview mode: 'legacy' (project per PR) or 'clone' (environment cloned from the template project; issue #5650)"
-        required: false
-        type: string
-        default: "legacy"
     secrets:
       RAILWAY_TOKEN:
         required: true
-      AGENTA_TEST_OSS_POSTGRES_PASSWORD:
-        required: true
-      AGENTA_TEST_OSS_AUTH_KEY:
-        required: true
-      AGENTA_TEST_OSS_CRYPT_KEY:
-        required: true
-      AGENTA_TEST_OSS_POSTHOG_API_KEY:
-        required: false
-      AGENTA_TEST_OSS_SENDGRID_API_KEY:
-        required: false
-      AGENTA_TEST_OSS_COMPOSIO_API_KEY:
-        required: false
-      AGENTA_TEST_OSS_DAYTONA_API_KEY:
-        required: false
     outputs:
       preview_url:
         description: "The URL of the deployed preview environment"
@@ -46,18 +27,13 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Image tag to deploy"
+        description: "Image tag deployed by setup"
         required: true
         type: string
       pr_number:
         description: "PR number"
         required: true
         type: string
-      mode:
-        description: "Preview mode: 'legacy' (project per PR) or 'clone' (environment cloned from the template project; issue #5650)"
-        required: false
-        type: string
-        default: "legacy"
 
 permissions:
   contents: read
@@ -69,24 +45,22 @@ concurrency:
 
 env:
   RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+  # Template location (issue #5650). The repo variables let a future template
+  # project move happen without a code change; the scripts carry the same
+  # defaults, so local runs and CI agree.
+  RAILWAY_TEMPLATE_PROJECT: ${{ vars.RAILWAY_TEMPLATE_PROJECT || 'agenta-oss-clone-spike' }}
+  RAILWAY_TEMPLATE_ENV: ${{ vars.RAILWAY_TEMPLATE_ENV || 'pr-template' }}
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     outputs:
-      # Exactly one of the two steps runs, selected by inputs.mode.
-      preview_url: ${{ steps.deploy.outputs.preview_url || steps.verify.outputs.preview_url }}
-      project_name: ${{ steps.deploy.outputs.project_name || steps.verify.outputs.project_name }}
-      environment_name: ${{ steps.deploy.outputs.environment_name || steps.verify.outputs.environment_name }}
-      railway_logs_url: ${{ steps.deploy.outputs.railway_logs_url || steps.verify.outputs.railway_logs_url }}
+      preview_url: ${{ steps.verify.outputs.preview_url }}
+      project_name: ${{ steps.verify.outputs.project_name }}
+      environment_name: ${{ steps.verify.outputs.environment_name }}
+      railway_logs_url: ${{ steps.verify.outputs.railway_logs_url }}
     steps:
       - uses: actions/checkout@v6
-
-      - name: Install Railway CLI
-        if: inputs.mode != 'clone'
-        run: |
-          npm install -g @railway/cli@latest
-          railway --version
 
       - name: Install jq
         run: |
@@ -94,148 +68,10 @@ jobs:
             sudo apt-get update && sudo apt-get install -y jq
           fi
 
-      - name: Deploy preview environment
-        if: inputs.mode != 'clone'
-        id: deploy
-        env:
-          PR_NUMBER: ${{ inputs.pr_number }}
-          IMAGE_TAG: ${{ inputs.image_tag }}
-          POSTGRES_PASSWORD: ${{ secrets.AGENTA_TEST_OSS_POSTGRES_PASSWORD }}
-          AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
-          AGENTA_CRYPT_KEY: ${{ secrets.AGENTA_TEST_OSS_CRYPT_KEY }}
-          POSTHOG_API_KEY: ${{ secrets.AGENTA_TEST_OSS_POSTHOG_API_KEY }}
-          SENDGRID_API_KEY: ${{ secrets.AGENTA_TEST_OSS_SENDGRID_API_KEY }}
-          COMPOSIO_API_KEY: ${{ secrets.AGENTA_TEST_OSS_COMPOSIO_API_KEY }}
-          DAYTONA_API_KEY: ${{ secrets.AGENTA_TEST_OSS_DAYTONA_API_KEY }}
-          RAILWAY_POST_BOOTSTRAP_SLEEP: "2"
-          RAILWAY_INFRA_SETTLE_SECONDS: "20"
-          RAILWAY_APP_SETTLE_SECONDS: "0"
-          RAILWAY_ALEMBIC_MAX_ATTEMPTS: "5"
-          RAILWAY_RETRY_MAX: "7"
-          RAILWAY_RETRY_DELAY: "5"
-          SMOKE_AUTO_REPAIR: "false"
-          SMOKE_MAX_RETRIES: "20"
-          SMOKE_SLEEP_SECONDS: "5"
-          SMOKE_MAX_WAIT_SECONDS: "300"
-          SMOKE_DOMAIN_MAX_WAIT_SECONDS: "180"
-        run: |
-          chmod +x hosting/railway/oss/scripts/*.sh
-          # shellcheck source=/dev/null
-          source hosting/railway/oss/scripts/lib.sh
-          # shellcheck source=/dev/null
-          source hosting/railway/oss/scripts/preview-resolve-env.sh
-
-          # Keep the log in the workspace so the "Upload deploy log" step can
-          # publish it as an artifact. GitHub's live log can truncate streamed
-          # output, so we always persist a full copy.
-          log_file="${GITHUB_WORKSPACE:-$PWD}/railway-deploy-${PR_NUMBER:-unknown}.log"
-
-          project="$RAILWAY_PROJECT_NAME"
-          environment_name="$RAILWAY_ENVIRONMENT_NAME"
-
-          set +e
-          hosting/railway/oss/scripts/deploy-from-images.sh 2>&1 | tee "$log_file"
-          deploy_status=${PIPESTATUS[0]}
-          set -e
-
-          deploy_failed=false
-          if [ "$deploy_status" -ne 0 ]; then
-            deploy_failed=true
-          fi
-
-          railway_logs_url="$(grep -oP 'Build Logs:\s*\Khttps://railway\.com\S+' "$log_file" | head -n 1 || true)"
-          railway_logs_url="${railway_logs_url%%$'\n'*}"
-          railway_logs_url="${railway_logs_url%%&}"
-
-          url=""
-
-          set +e
-          railway_call link --project "$project" --environment "$environment_name" --json >/dev/null 2>&1
-          status_json="$(railway_call status --json 2>/dev/null)"
-          domain="$(railway_call variable list -k --service gateway --environment "$environment_name" 2>/dev/null | grep '^RAILWAY_PUBLIC_DOMAIN=' | cut -d= -f2- || true)"
-          set -e
-
-          if [ -n "$domain" ]; then
-            url="https://${domain}/w"
-          fi
-
-          project_id="$(printf "%s" "$status_json" | jq -r '.project.id // .projectId // empty' 2>/dev/null || true)"
-          environment_id="$(printf "%s" "$status_json" | jq -r '.environment.id // .environmentId // empty' 2>/dev/null || true)"
-
-          if [ -z "$project_id" ] || [ -z "$environment_id" ]; then
-            set +e
-            projects_json="$(railway_call project list --json 2>/dev/null)"
-            project_id="$(printf "%s" "$projects_json" | jq -r --arg name "$project" '.[] | select(.name == $name) | .id' 2>/dev/null | head -n 1)"
-            environment_json="$(railway_call environment "$environment_name" --json 2>/dev/null)"
-            environment_id="$(printf "%s" "$environment_json" | jq -r '.id // .environment.id // .environmentId // empty' 2>/dev/null | head -n 1)"
-            set -e
-          fi
-
-          if [ "$project_id" = "null" ]; then
-            project_id=""
-          fi
-          if [ "$environment_id" = "null" ]; then
-            environment_id=""
-          fi
-
-          if [ -n "$project_id" ] && [ -n "$environment_id" ]; then
-            railway_logs_url="https://railway.com/project/${project_id}/logs?environmentId=${environment_id}"
-          elif [ -n "$project_id" ]; then
-            railway_logs_url="https://railway.com/project/${project_id}/logs"
-          fi
-
-          echo "preview_url=${url}" >> "$GITHUB_OUTPUT"
-          echo "project_name=${project}" >> "$GITHUB_OUTPUT"
-          echo "environment_name=${environment_name}" >> "$GITHUB_OUTPUT"
-          echo "railway_logs_url=${railway_logs_url}" >> "$GITHUB_OUTPUT"
-
-          # Best-effort diagnostics; never let these change the step outcome.
-          set +e
-          # On failure, pull the tail of the key services' Railway logs into
-          # this job so the root cause (e.g. a Postgres crash-loop) is visible
-          # here instead of only in the Railway dashboard.
-          if [ "$deploy_failed" = "true" ]; then
-            # Tee into the persisted log so the uploaded artifact and the
-            # step-summary tail include the Railway service logs too, not just
-            # the (possibly truncated) live Actions log.
-            dump_railway_logs 2>&1 | tee -a "$log_file"
-          fi
-
-          status_label="Deployed"
-          [ "$deploy_failed" = "true" ] && status_label="Failed"
-          {
-            echo "### Railway Preview Deploy"
-            echo
-            echo "| Item | Value |"
-            echo "| --- | --- |"
-            echo "| PR | \`${PR_NUMBER}\` |"
-            echo "| Image tag | \`${IMAGE_TAG}\` |"
-            echo "| Status | ${status_label} |"
-            [ -n "$url" ] && echo "| Preview URL | ${url} |"
-            [ -n "$railway_logs_url" ] && echo "| Railway logs | [Open logs](${railway_logs_url}) |"
-            if [ "$deploy_failed" = "true" ]; then
-              echo
-              echo "<details><summary>Deploy log (last 100 lines)</summary>"
-              echo
-              echo '```'
-              tail -n 100 "$log_file" 2>/dev/null
-              echo '```'
-              echo "</details>"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-          set -e
-
-          if [ "$deploy_failed" = "true" ]; then
-            exit 1
-          fi
-
-      # Clone mode (issue #5650): setup (41) already created the environment,
-      # patched the images and smoked it, so the legacy deploy is redundant.
-      # This step re-verifies the smoke endpoints (mutation-free) and emits
-      # the same outputs the legacy step would, keeping the 14-chain's job
-      # graph (tests + PR comment) intact.
-      - name: Verify clone preview environment
-        if: inputs.mode == 'clone'
+      # Setup (41) already created the environment, patched the images and
+      # smoked it. This step re-verifies the smoke endpoints (mutation-free)
+      # and emits the outputs the tests job and the PR comment consume.
+      - name: Verify preview environment
         id: verify
         env:
           PR_NUMBER: ${{ inputs.pr_number }}
@@ -243,8 +79,8 @@ jobs:
         run: |
           chmod +x hosting/railway/oss/scripts/*.sh
 
-          # Same artifact contract as the legacy step: persist the full log so
-          # "Upload deploy log" publishes it regardless of live-log truncation.
+          # Persist the full log so the "Upload deploy log" step can publish it
+          # as an artifact, regardless of live-log truncation.
           log_file="${GITHUB_WORKSPACE:-$PWD}/railway-deploy-${PR_NUMBER:-unknown}.log"
 
           set +e
@@ -255,7 +91,7 @@ jobs:
           status_label="Deployed"
           [ "$verify_status" -ne 0 ] && status_label="Failed"
           {
-            echo "### Railway Preview Deploy (clone mode)"
+            echo "### Railway Preview Deploy"
             echo
             echo "| Item | Value |"
             echo "| --- | --- |"
@@ -287,17 +123,17 @@ jobs:
           retention-days: 7
 
       - name: Post preview URL as PR comment
-        if: inputs.pr_number != '' && (steps.deploy.outputs.preview_url != '' || steps.verify.outputs.preview_url != '')
+        if: inputs.pr_number != '' && steps.verify.outputs.preview_url != ''
         uses: actions/github-script@v7
         with:
           script: |
             const prNumber = parseInt('${{ inputs.pr_number }}');
-            const previewUrl = '${{ steps.deploy.outputs.preview_url || steps.verify.outputs.preview_url }}';
-            const projectName = '${{ steps.deploy.outputs.project_name || steps.verify.outputs.project_name }}';
+            const previewUrl = '${{ steps.verify.outputs.preview_url }}';
+            const projectName = '${{ steps.verify.outputs.project_name }}';
             const imageTag = '${{ inputs.image_tag }}';
             const marker = '<!-- railway-preview-bot -->';
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const railwayLogsUrl = '${{ steps.deploy.outputs.railway_logs_url || steps.verify.outputs.railway_logs_url }}';
+            const railwayLogsUrl = '${{ steps.verify.outputs.railway_logs_url }}';
 
             const body = [
               marker,
@@ -348,8 +184,8 @@ jobs:
             const imageTag = '${{ inputs.image_tag }}';
             const marker = '<!-- railway-preview-bot -->';
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const previewUrl = '${{ steps.deploy.outputs.preview_url || steps.verify.outputs.preview_url }}';
-            const railwayLogsUrl = '${{ steps.deploy.outputs.railway_logs_url || steps.verify.outputs.railway_logs_url }}';
+            const previewUrl = '${{ steps.verify.outputs.preview_url }}';
+            const railwayLogsUrl = '${{ steps.verify.outputs.railway_logs_url }}';
 
             const body = [
               marker,

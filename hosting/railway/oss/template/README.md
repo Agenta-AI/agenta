@@ -13,14 +13,18 @@ code in the repo:
   driving Railway's GraphQL API. `--dry-run` prints a structured diff and exits
   nonzero (2) on drift; the default mode applies the delta.
 - `lib-graphql.sh` — the GraphQL client (redaction, bounded retries, call
-  accounting). Productionized copy of the spike client so this tooling stays
-  decoupled from `../scripts/` (the legacy per-PR path).
+  accounting). Shared single copy: `apply.sh` and the preview lifecycle
+  scripts (`../scripts/preview-clone-{create,destroy}.sh`) all source it.
 - `.github/workflows/47-railway-template-drift.yml` — daily scheduled
   `apply.sh --dry-run` against the template; fails loudly on drift.
 
-The template currently lives in project `agenta-oss-clone-spike`, environment
-`pr-template` (the rollout step re-points `project` in `template.json` —
-marked `TODO(WP3-project)`).
+The template lives in project `agenta-oss-clone-spike`, environment
+`pr-template`. The CI workflows (41/43/45) resolve the same location from the
+repo variables `RAILWAY_TEMPLATE_PROJECT` / `RAILWAY_TEMPLATE_ENV` (falling
+back to these values), and the preview scripts accept the same names as env
+vars. Moving the template to another project therefore needs no logic change:
+converge the new project's environment with `apply.sh --project`, then update
+`project` in `template.json` and the two repo variables.
 
 ## How to change the template
 
@@ -63,7 +67,7 @@ hosting/railway/oss/template/apply.sh
 hosting/railway/oss/template/apply.sh --env-name my-scratch-clone
 
 # Override image tag parameters (see "Image tags" below).
-hosting/railway/oss/template/apply.sh --app-tag v0.108.0 --wrapper-tag <wp1-tag>
+hosting/railway/oss/template/apply.sh --app-tag v0.109.0
 ```
 
 Auth: an **account** token in `RAILWAY_API_TOKEN` (auto-sourced from
@@ -76,21 +80,45 @@ variables query per service) against the token's 1000/hour Hobby budget.
 
 ## Image tags
 
-Two parameters in `template.json` (overridable via `--app-tag`/`--wrapper-tag`
-or `AGENTA_TEMPLATE_APP_TAG`/`AGENTA_PREVIEW_WRAPPER_TAG`):
+Four tag parameters in `template.json`:
 
 - `app_tag` — the four Agenta app images (`agenta-api`, `agenta-web`,
   `agenta-services`, `agenta-runner`), pinned to a release tag. Clones patch
   these to `pr-<n>-<sha>` tags per PR via `environmentPatchCommit`.
-- `wrapper_tag` — the three preview wrapper images
+  Overridable via `--app-tag` or `AGENTA_TEMPLATE_APP_TAG`.
+- `gateway_tag` / `redis_tag` / `seaweedfs_tag` — one content-addressed tag
+  per preview wrapper image
   (`ghcr.io/agenta-ai/agenta-preview-{gateway,redis,seaweedfs}`, built by
-  workflow 42 / WP1). Placeholder default `spike` until WP1's content-addressed
-  tag is pinned (`TODO(WP1-tag)` in `template.json`).
+  workflow 42 from `../images/{gateway,redis,seaweedfs}/`). The definition is
+  the source of truth; `--wrapper-tag` / `AGENTA_PREVIEW_WRAPPER_TAG` remains
+  as an override that forces all three to one tag.
 
 **Template tags must never be `latest` and never a `pr-*` tag.**
 `environmentPatchCommit` silently no-ops when a patched image:tag equals the
 template's, which strands a clone on template images (proven live; see
 findings.md "deploy-mode findings"). `apply.sh` refuses both.
+
+### Regenerating wrapper content tags
+
+The wrapper tags are content-addressed: `content-<12 hex>` derived from a
+deterministic hash of the image source directory. When a wrapper source
+changes (Dockerfile, nginx.conf, an entrypoint script), the tag changes with
+it and the pinned default here goes stale. To update:
+
+1. Recompute the tag for the changed wrapper:
+
+   ```bash
+   hosting/railway/oss/images/compute-tag.sh hosting/railway/oss/images/gateway
+   ```
+
+2. Let CI build and push it: the `wrapper-images` job in workflow 42
+   (`.github/workflows/42-railway-build.yml`) computes the same tag, builds
+   the image when that tag does not exist in GHCR yet, and pushes it.
+3. Update the matching `*_tag` default in `template.json` (same PR as the
+   wrapper source change), then run `apply.sh` after merge as usual.
+
+Only the changed wrapper's tag moves; the other two stay pinned. Unchanged
+sources hash to the already-published tag, so re-running the flow is a no-op.
 
 ## Secrets and variable conventions
 
@@ -140,9 +168,10 @@ deployments are irrelevant to clones — clones copy config, not deployments).
   several services (`agenta-api` alone backs api, worker-streams,
   worker-queues, cron, alembic).
 - **Healthchecks:** unset on all services, matching the live-proven template
-  (10/10 green clone cycles). The legacy per-PR path (`../scripts/configure.sh`)
-  sets healthchecks on gateway/api/services/runner; adding them to the template
-  is a deliberate WP3 decision, not silent drift.
+  (10/10 green clone cycles). The standalone deployment path
+  (`../scripts/configure.sh`) sets healthchecks on gateway/api/services/runner;
+  adding them to the template is a deliberate change to `template.json`, not
+  silent drift.
 - **Deploy order** (for anything deploying a fresh clone): infra
   (Postgres/redis/seaweedfs) → alembic → everything else; supertokens must not
   start before alembic has created its database. A single Postgres
