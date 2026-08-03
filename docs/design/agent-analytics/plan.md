@@ -23,7 +23,7 @@ the page ships behind its flag.
 - **Investigate the cost and token-split coverage collapse.** `attributes.gen_ai.usage.cost`
   and the `tokens.cumulative.prompt`/`.completion` split were populated on 70–95% of runs in
   early July on both measured stacks and fell to roughly zero within a week, cause unknown.
-  Until this is understood, the cost tile has nothing dependable to show. File it; the first
+  Until this is understood, the Cost chart has nothing dependable to show. File it; the first
   four diagnostic checks are in capability-review.md section 4.4 item 4. Both measured stacks
   were local dev; whether production shows the same collapse is unverified.
 
@@ -50,40 +50,39 @@ correct.
 
 ## Phase 2: data layer
 
-Goal: the page can fetch mapped analytics for the current and previous windows.
+Goal: the page can fetch mapped analytics for the selected window.
 
 - Extend `SpansAnalyticsParams` in `web/packages/agenta-entities/src/trace/api/api.ts` with an
-  optional `specs` field, serialized to a JSON-string query param like `filter`. Verify the
-  entities package still builds (`pnpm turbo run build --filter=@agenta/entities`).
+  optional `specs` field, and in `fetchSpansAnalytics` add `request.specs = JSON.stringify(specs)`
+  on one line beside the existing `filter` serialization. The Fern `QuerySpansAnalyticsRequest`
+  already declares `specs?: string`, so no client regeneration is needed. Verify the entities
+  package still builds (`pnpm turbo run build --filter=@agenta/entities`).
 - Add a new mapper next to the existing one in `web/oss/src/services/tracing/lib/` (do not
-  change `analyticsToGeneration`; the observability page depends on it). The new mapper reads
-  the duration min, max, sum, count, and nested `pcts.p95` fields, the total cost and total
-  token sums with their `count` for the coverage gate, the coverage-gated prompt/completion
-  token split, and the category `freq` arrays for the harness, configured-model, and agent
-  breakdowns. It combines the unfiltered and status-filtered run counts into success and
-  failed, and returns the per-bucket and window-total shape in data-contract.md. Reuse
-  `metricField` and `calculateIntervalFromDuration`, and add a small `pcts` accessor for p95
-  and a `freq` reader for the breakdowns.
+  change `analyticsToGeneration`; the observability page depends on it). Per bucket, the new
+  mapper reads the duration min, max, sum, count, and nested `pcts.p95`; the total cost and
+  total token sums with their `count` for the coverage gate; the coverage-gated
+  prompt/completion token split; and the category `freq` arrays for the harness,
+  configured-model, and agent breakdowns. It combines the unfiltered and status-filtered run
+  counts into per-bucket success and failed, and returns the per-bucket shape in
+  data-contract.md. Reuse `metricField` and `calculateIntervalFromDuration`, and add a small
+  `pcts` accessor for p95 and a `freq` reader for the breakdowns.
 - Add a fetch function in `web/oss/src/services/tracing/api/` that builds the base conditions
   (the `trace_type is invocation` condition, plus the selected agents' `references`
-  conditions), passes the explicit `specs`, and calls `fetchSpansAnalytics`. Per window it
-  issues the queries in data-contract.md: a bucketed unfiltered query for the charts, a
-  bucketed status-filtered query for failed runs, and a no-interval unfiltered query for the
-  exact summary-tile numbers including window-level p95. The status-filtered query adds
+  conditions), passes the explicit `specs`, and calls `fetchSpansAnalytics`. Per the selected
+  window it issues the two bucketed queries in data-contract.md: an unfiltered query for the
+  charts, and a status-filtered query for failed runs. The status-filtered query adds
   `{field: "status_code", operator: "is", value: "STATUS_CODE_ERROR"}` and reads the run count
-  as failed runs; it needs only the run-count spec. The previous window needs only the
-  no-interval unfiltered and status-filtered calls for the change badges.
+  as failed runs; it needs only the run-count spec.
 - Validate three things against one live response while building this phase, because the
-  backend fails silently on all three: the nested `pcts.p95` shape reads correctly; the exact
-  enum literal for the `trace_type` filter and the `STATUS_CODE_ERROR` filter both narrow
-  rather than returning an empty 200; and the coverage of `gen_ai.usage.cost` and the token
-  split on real traffic (they may be near zero — this is the Phase 0 investigation surfacing).
-- Derive the previous comparison window as the equal-length window immediately before the
-  selected one: for `[oldest, newest]`, the previous window is
-  `[oldest - (newest - oldest), oldest]`. This works for both preset and custom ranges.
+  backend fails silently on all three: the nested `pcts.p95` shape reads correctly; the
+  `trace_type is invocation` and `status_code is STATUS_CODE_ERROR` filters both narrow rather
+  than returning an empty 200 (the literals are confirmed against the `TraceType` and
+  `OTelStatusCode` enums; the live check is that the runner actually stamps those statuses); and
+  the coverage of `gen_ai.usage.cost` and the token split on real traffic (they may be near zero
+  — this is the Phase 0 investigation surfacing).
 
-Done when: a temporary log or test shows correct totals for a known window, the failed-run
-filter is confirmed to narrow the result, and the previous window is fetched for comparison.
+Done when: a temporary log or test shows correct per-bucket totals for a known window, and the
+failed-run filter is confirmed to narrow the result.
 
 ## Phase 3: state and page assembly
 
@@ -91,12 +90,11 @@ Goal: the page is interactive; controls drive the data.
 
 - Add atoms under `web/oss/src/state/analytics/` following
   `state/observability/dashboard.ts`: a time-range atom holding a `SortResult` (default: the
-  last 7 days), an agents-filter atom, a current-window query atom, and a previous-window
-  query atom (or one query returning both). Each query atom drives the calls per window
-  described in data-contract.md. Key every atom on project id, time range, and the agents
-  filter. Set `staleTime` to one minute and `refetchOnWindowFocus: false`. Do not reuse
-  `observabilityDashboardTimeRangeAtom`; a second consumer already shares it, so give this page
-  its own atoms.
+  last 7 days), an agents-filter atom, and a query atom for the selected window. The query atom
+  drives the two bucketed calls in data-contract.md (unfiltered and status-filtered). Key every
+  atom on project id, time range, and the agents filter. Set `staleTime` to one minute and
+  `refetchOnWindowFocus: false`. Do not reuse `observabilityDashboardTimeRangeAtom`; a second
+  consumer already shares it, so give this page its own atoms.
 - Build the header controls: the time-range control and the Filters popover with the Agents
   multi-select, a Harness multi-select, and a configured-Model multi-select. Reuse the
   observability time windowing (the `Sort` control and its `SortResult`) for the time range,
@@ -114,23 +112,18 @@ Goal: the page is interactive; controls drive the data.
 Done when: changing the time range, the agents filter, the harness filter, or the model filter
 refetches and the page reflects it, with all four states wired.
 
-## Phase 4: summary panel and the charts
+## Phase 4: the charts
 
 Goal: the full locked-scope UI. Every chart on this page means what its title says and needs no
 backend capability that does not exist.
 
-- **Summary panel:** a health donut component (recharts `RadialBarChart` or a small SVG ring)
-  showing `round(100 x successRate)` with the band label and prose. Below the run-count floor
-  it renders the neutral "Not enough runs yet" state instead of a band. Plus stat tiles for
-  total runs, average latency, p95 latency, and total tokens, each with a change badge versus
-  the previous window (green when the change is good for that metric, red otherwise; lower
-  latency is good) and a sparkline of the current window. Add a coverage-gated total-cost tile
-  that renders only when cost coverage clears the threshold and otherwise shows an explicit
-  "cost data not available for this window", never a zero.
-- **Charts**, each a card with a title, a one-line description, a recharts chart, and a
-  toggleable legend:
+- Each chart is a card with a title, a one-line description, a recharts chart, and a toggleable
+  legend:
   - Runs: stacked bars, successful and failed.
-  - Latency: bars of average with a p95 reference line; tooltip shows average, p95, min, max.
+  - Latency: bars of average with a per-bucket p95 line; tooltip shows average, p95, min, max.
+  - Cost: total cost per period, coverage-gated. It renders only when cost coverage clears the
+    threshold and otherwise shows an explicit "cost data not available for this window", never
+    a zero. There is no prompt/completion split; `gen_ai.usage.cost` is a total only.
   - Tokens: total tokens per period, with a coverage label. Show the prompt/completion split
     as stacked bars only when the split coverage gate passes; below it, show total only.
   - Runs per harness: one `categorical/single` spec, per period.
@@ -138,14 +131,11 @@ backend capability that does not exist.
     model" (this is the author's alias, not the model that answered).
   - Runs per agent: one `categorical/single` spec over the unioned `workflow_variant` and
     `application_variant` reference families, per period.
-- There is no Costs prompt/completion chart. The cost split does not exist in the data, and the
-  one working cost path (`gen_ai.usage.cost`) is a coverage-gated total, shown as the tile
-  above rather than a per-part chart.
 - Lay the charts out in a responsive grid. All colors come from theme tokens and the theme
   scale; verify both light and dark themes and hover, empty, unavailable, and loading states.
 
-Done when: the in-scope charts and the summary panel render correctly in both themes across all
-four states, and `pnpm lint-fix` passes.
+Done when: the in-scope charts render correctly in both themes across all four states, and
+`pnpm lint-fix` passes.
 
 ## Phase 5 (deferred, after a backend change): Tools and resolved Models
 
@@ -210,9 +200,8 @@ reusable shell so Phase 5 only supplies data and series config.
 ## Testing and verification
 
 - Follow `docs/designs/testing/README.md`. Add unit tests for the new mapper (pure function:
-  buckets in, dashboard shape out), for the success/failed split, for the coverage gate (a
-  metric below threshold is suppressed, not shown as zero), and for the health-score
-  computation. These need no live database.
+  buckets in, chart shape out), for the success/failed split, and for the coverage gate (a
+  metric below threshold is suppressed, not shown as zero). These need no live database.
 - Verify the charts against one live project by running the local stack per the root
   `AGENTS.md` local dev loop. Confirm the `trace_type` and `status_code` filters narrow rather
   than widen, and confirm the p95 nested read.
@@ -221,18 +210,19 @@ reusable shell so Phase 5 only supplies data and series config.
 ## Risks and unknowns to resolve during the build
 
 - **Cost and token-split coverage** (Phase 0). Whether either has usable coverage on the target
-  data, and the cause of the mid-July collapse. The cost tile and the token split chart depend
-  on it. Both measured stacks were local dev; production is unverified.
-- **Silent-failure validation** (Phase 2). The exact `trace_type` and `status_code` enum
-  literals that narrow rather than returning an empty 200, and the nested `pcts.p95` read.
+  data, and the cause of the mid-July collapse. The Cost chart and the token split depend on it.
+  Both measured stacks were local dev; production is unverified.
+- **Silent-failure validation** (Phase 2). Confirm that the `trace_type is invocation` and
+  `status_code is STATUS_CODE_ERROR` filters narrow rather than return an empty 200 — the literals
+  are confirmed against the enums, so the open part is whether the runner stamps those statuses —
+  and confirm the nested `pcts.p95` read.
 - The correct agents-list atom for the filter options (resolve in Phase 1).
 - Whether the multi-agent reference filter uses `or` grouping or a single `in` with multiple
   values in this dialect (resolve in Phase 2 against the existing filter builder).
 - Whether the runner marks a failed run's root span `status_code = STATUS_CODE_ERROR`. The
-  failed-run count and the health score depend on it; validate on live traffic in Phase 2. The
-  root-status definition also misses in-run failures that recovered a clean root (~1.2% of runs
-  on the measured data); state the definition in a tooltip.
-- The run-count floor for the neutral health state (tune in Phase 4; start around 20).
+  failed-run count depends on it; validate on live traffic in Phase 2. The root-status definition
+  also misses in-run failures that recovered a clean root (~1.2% of runs on the measured data);
+  state the definition in a tooltip.
 - Performance at scale: the 30-day window is the shape most at risk of crossing the 15-second
   statement timeout as a project grows. Keep 7 days the default and treat longer windows as an
   explicit choice with a loading state.
