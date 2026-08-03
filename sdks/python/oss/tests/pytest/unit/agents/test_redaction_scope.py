@@ -233,3 +233,42 @@ async def test_concurrent_runs_have_isolated_deny_sets():
     run_b = backend_b.captured_redactors[0]
     assert _knows(run_a, SECRET_A) and not _knows(run_a, SECRET_B)
     assert _knows(run_b, SECRET_B) and not _knows(run_b, SECRET_A)
+
+
+# --------------------------------------------------------------------------- #
+# Cross-context close: the stream's scope must not raise when it unwinds elsewhere
+# --------------------------------------------------------------------------- #
+async def test_stream_scope_survives_being_closed_in_another_context():
+    """Closing the stream from a different task must not raise out of the run.
+
+    PEP 567 gives generators no context of their own, so the install inside
+    `_stream_in_redaction_scope` lands in whichever caller's context ran the first
+    `__anext__`, while the matching `finally` runs wherever the stream is finally
+    exhausted or closed. In the real service those are routinely different tasks, and
+    `ContextVar.reset` rejects a token from another context. When that `ValueError`
+    escaped, every streamed turn ended with an `error` frame on the browser's wire even
+    though the answer itself was fine.
+
+    The scope must still close: the finished run's secret stops being reachable from the
+    ambient redactor, which is the whole reason the reset exists.
+    """
+    backend = _CapturingBackend(output="no secret here")
+    stream = await _make_handler(SECRET_A, backend)(
+        request=WorkflowServiceRequest(flags={"stream": True}),
+        messages=_messages(),
+        parameters=_params(),
+    )
+
+    # First pull installs the redactor in THIS task's context copy.
+    await asyncio.create_task(stream.__anext__())
+
+    # Draining from a second task unwinds the scope against a foreign token.
+    async def drain() -> None:
+        async for _ in stream:
+            pass
+
+    await asyncio.create_task(drain())
+
+    assert not _knows(get_active_redactor(), SECRET_A), (
+        "the finished run's secret must not linger in the ambient redactor"
+    )

@@ -31,7 +31,23 @@ def set_active_redactor(redactor: Redactor) -> Token:
 
 
 def reset_active_redactor(token: Token) -> None:
-    _redactor_context.reset(token)
+    """Restore whatever redactor was active before `set_active_redactor` installed this one.
+
+    The token can come back in a DIFFERENT context from the one that created it, and
+    `ContextVar.reset` raises `ValueError` when that happens. PEP 567 gives generators no
+    context of their own, so `_stream_in_redaction_scope`'s install lands in whichever
+    caller's context ran the first `__anext__`, while the matching `finally` runs whenever
+    the stream is exhausted or closed — routinely another task. Letting that `ValueError`
+    escape turns every streamed turn into a mid-stream `error` frame in the browser.
+
+    Falling back to a fresh empty redactor keeps the property the reset exists for: the
+    finished run's deny-set stops being reachable, so a later run sharing this context can
+    neither see nor accumulate it.
+    """
+    try:
+        _redactor_context.reset(token)
+    except ValueError:
+        _redactor_context.set(Redactor())
 
 
 @contextmanager
