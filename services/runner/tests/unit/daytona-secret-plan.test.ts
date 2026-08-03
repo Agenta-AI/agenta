@@ -268,19 +268,37 @@ describe("Daytona Secret planning", () => {
     );
   });
 
-  it("keeps the feature default-off and accepts only the explicit process_local mode", () => {
+  it("hides credentials by default, and only an explicit off value stops it", () => {
     const plan = buildDaytonaSecretPlan({ modelConnection });
-    assert.throws(
-      () => assertDaytonaOpaqueSecretsEnabled(plan),
-      /AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=process_local/,
-    );
+
+    // Doing nothing gets you the protected behavior.
+    assert.doesNotThrow(() => assertDaytonaOpaqueSecretsEnabled(plan));
+    assert.doesNotThrow(() => assertDaytonaOpaqueSecretsEnabled(plan, ""));
     assert.doesNotThrow(() =>
       assertDaytonaOpaqueSecretsEnabled(plan, "process_local"),
     );
-    assert.throws(() => assertDaytonaOpaqueSecretsEnabled(plan, "true"));
+
+    // Only a recognized off value switches it off, in any case and with stray whitespace.
+    for (const off of ["off", "false", "0", "no", "disabled", "plaintext"]) {
+      assert.throws(
+        () => assertDaytonaOpaqueSecretsEnabled(plan, off),
+        /no plaintext fallback/,
+        `'${off}' should switch hiding off`,
+      );
+    }
+    assert.throws(() => assertDaytonaOpaqueSecretsEnabled(plan, "  OFF  "));
+
+    // A typo must fail SAFE. Someone who meant to switch hiding off and mistyped keeps the
+    // protection they would have had by doing nothing, rather than silently losing it.
+    for (const typo of ["of", "flase", "disable", "true", "process-local"]) {
+      assert.doesNotThrow(
+        () => assertDaytonaOpaqueSecretsEnabled(plan, typo),
+        `'${typo}' is not a recognized off value and must leave hiding on`,
+      );
+    }
   });
 
-  it("keeps flag-off Daytona runs on today's plaintext delivery and secretizes only when on", () => {
+  it("hides credentials on a default Daytona run, and only when switched off does not", () => {
     const request = {
       harness: "claude",
       sandbox: "daytona",
@@ -288,8 +306,9 @@ describe("Daytona Secret planning", () => {
       modelConnection,
     } satisfies AgentRunRequest;
 
-    // Flag OFF (the hermetic default): behavior-identical to main — the run proceeds and the
-    // opaque key rides the plaintext model environment; no secret plan, no fail-closed.
+    // Switched OFF explicitly: behavior-identical to the pre-feature runner — the run proceeds
+    // and the opaque key rides the plaintext model environment; no secret plan, no fail-closed.
+    process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS = "off";
     const disabled = buildRunPlan(request, {
       createDaytonaCwd: () => "/sandbox/cwd",
     });
@@ -302,8 +321,10 @@ describe("Daytona Secret planning", () => {
     assert.equal(disabled.plan.credentials.daytonaSecretPlan, undefined);
     assert.equal(disabled.plan.credentials.hasApiKey, true);
 
-    // Flag ON: the opaque value leaves the plaintext environment for the secret plan.
-    process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS = "process_local";
+    // ON, which is the default: the opaque value leaves the plaintext environment for the
+    // secret plan. Unset rather than set, so this asserts the DEFAULT and not just the
+    // explicit mode.
+    delete process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS;
     const enabled = buildRunPlan(request, {
       createDaytonaCwd: () => "/sandbox/cwd",
     });

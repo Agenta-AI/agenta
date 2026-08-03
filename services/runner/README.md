@@ -118,26 +118,32 @@ reads `CODEX_HOME`. Set `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` to override local
 
 ### Hiding keys from the sandbox
 
-By default a key reaches the sandbox as an ordinary environment variable or HTTP header, so the
-agent running there can read it. That matters because an agent writes and runs its own code: a
+A key would otherwise reach the sandbox as an ordinary environment variable or HTTP header, where
+the agent running there can read it. That matters because an agent writes and runs its own code: a
 prompt injection that convinces it to print its environment prints the key.
 
-Set `AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=process_local` and, on Daytona, the runner instead
-stores each key as a Daytona Secret restricted to the one hostname that key authenticates
-against, and puts a placeholder in the sandbox. Daytona substitutes the real value into outbound
-requests to that host, so the model call and the MCP call still work while the agent only ever
-holds a placeholder. A request to any other host carries the placeholder, which is what makes
-exfiltration fail.
+So on Daytona the runner hides them, by default. It stores each key as a Daytona Secret restricted
+to the one hostname that key authenticates against, and puts a placeholder in the sandbox. Daytona
+substitutes the real value into outbound requests to that host, so the model call and the MCP call
+still work while the agent only ever holds a placeholder. A request to any other host carries the
+placeholder, which is what makes exfiltration fail.
+
+Set `AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=off` to turn it off and go back to plain environment
+variables. Anything the runner does not recognize as an off value leaves hiding on, so a typo
+cannot silently remove the protection.
 
 Three things to know:
 
 - The runner's Daytona API key needs permission to manage Secrets. A key that can create
-  sandboxes does not automatically have it. Without it, every run carrying a model or MCP key
-  fails at sandbox creation; the runner never quietly falls back to plaintext. The error names
-  the variable and the permission (`DAYTONA_SECRETS_PERMISSION_MESSAGE` in `daytona-secrets.ts`).
-- `process_local` names the guarantee: the runner tracks the Secret records it created in its own
-  memory and deletes them when the sandbox goes away. Restart the runner while sandboxes are live
-  and those records are orphaned until someone removes them.
+  sandboxes does not automatically have it. Because hiding is on by default, a key without that
+  permission fails every run carrying a model or MCP key, at sandbox creation. The runner never
+  quietly falls back to plaintext. The error names the variable and the permission
+  (`DAYTONA_SECRETS_PERMISSION_MESSAGE` in `daytona-secrets.ts`).
+- `process_local` names the guarantee, and setting it is the same as leaving the variable unset:
+  the runner tracks the Secret records it created in its own memory and deletes them when the
+  sandbox goes away. Restart the runner while sandboxes are live and those records are orphaned
+  until someone removes them. A future mode will add durable tracking, which is why the setting
+  takes a mode name rather than a plain `on`.
 - Keys a provider SDK signs with locally instead of sending, which today means the AWS keys behind
   Bedrock, cannot be hidden this way. There is no outbound request to substitute them into, so the
   sandbox holds the real value. They are marked `usage: "local_use"` and the set of names allowed

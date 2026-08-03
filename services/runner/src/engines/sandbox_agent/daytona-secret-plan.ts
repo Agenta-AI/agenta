@@ -12,7 +12,7 @@ import type { McpServerConfig, ModelConnection } from "../../protocol.ts";
  * list. The provider then takes each candidate and actually creates the Daytona Secret record,
  * which can fail, needs cleanup, and turns the candidate into a real `dtn_secret_<id>`
  * placeholder. Keeping the two apart is what makes the decision unit-testable without a Daytona
- * account, and what lets the flag-off path build the same plan and simply not act on it.
+ * account, and what would let a caller build the same plan and simply not act on it.
  */
 export interface DaytonaSecretCandidate {
   /**
@@ -303,10 +303,41 @@ export function buildDaytonaSecretPlan(input: {
   return { candidates, environment };
 }
 
+/** The values that turn credential hiding OFF. Everything else leaves it on. */
+const OPAQUE_SECRETS_OFF_VALUES = new Set([
+  "off",
+  "false",
+  "0",
+  "no",
+  "disabled",
+  "plaintext",
+]);
+
+/**
+ * Whether a Daytona run hides its model and MCP keys behind Daytona Secrets.
+ *
+ * **On by default.** An operator who does nothing gets the protected behavior, and the variable
+ * exists only to turn it off. The reasoning is that the unprotected path is the one that needs a
+ * deliberate choice: leaving keys readable inside a sandbox that runs model-written code is the
+ * surprising option, so it should be the one someone has to ask for in writing.
+ *
+ * Unrecognized values leave hiding ON rather than off. A typo in this variable then fails safe:
+ * the operator keeps the protection they would have had by doing nothing, instead of silently
+ * losing it. `process_local` is still accepted and still names the cleanup guarantee (the runner
+ * tracks the Secret records it created in its own memory), so it stays meaningful as more modes
+ * arrive.
+ *
+ * Note the operational consequence of the default: the runner's Daytona API key now needs
+ * permission to manage Secrets on every deployment that uses Daytona, not only on ones that
+ * opted in. See `DAYTONA_SECRETS_PERMISSION_MESSAGE` in `daytona-secrets.ts` for what an
+ * under-permissioned key looks like, and the upgrade note in the configuration reference.
+ */
 export function daytonaOpaqueSecretsEnabled(
   value: string | undefined = process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS,
 ): boolean {
-  return value === "process_local";
+  const normalized = (value ?? "").trim().toLowerCase();
+  if (!normalized) return true;
+  return !OPAQUE_SECRETS_OFF_VALUES.has(normalized);
 }
 
 export function assertDaytonaOpaqueSecretsEnabled(
@@ -315,9 +346,9 @@ export function assertDaytonaOpaqueSecretsEnabled(
 ): void {
   if (plan.candidates.length > 0 && !daytonaOpaqueSecretsEnabled(value)) {
     throw new Error(
-      "Daytona opaque credentials are disabled. Set " +
-        "AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=process_local to enable process-local Secret cleanup; " +
-        "plaintext fallback is not allowed.",
+      "Daytona credential hiding is switched off, but this run has credentials that would " +
+        "have been hidden. Unset AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS to restore the default " +
+        "(hide them behind Daytona Secrets); there is no plaintext fallback.",
     );
   }
 }

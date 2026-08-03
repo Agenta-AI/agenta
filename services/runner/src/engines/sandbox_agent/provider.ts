@@ -172,15 +172,15 @@ export function buildSandboxProvider(
         { client: buildDaytonaClient(config.daytona) },
       );
     // The process-local Secret wrapper applies to EVERY plan-bearing Daytona run
-    // (`buildRunPlan` builds a plan only when AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=process_local is
-    // enabled), INCLUDING a zero-candidate plan: the wrapper then allocates no Secrets and
+    // (`buildRunPlan` builds a plan unless AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS switched hiding
+    // off), INCLUDING a zero-candidate plan: the wrapper then allocates no Secrets and
     // attaches nothing, but its create-fingerprint check still governs reconnects, so a parked
     // sandbox holding plaintext local_use credentials (AWS/GCP) is rebuilt — never reconnected
-    // with stale values — after those credentials rotate. Every flag-off run carries no plan and
-    // takes the plain plaintext-env provider below, unchanged from the pre-feature behavior.
-    // The assert is defense-in-depth against a direct caller handing a candidate-bearing plan
-    // while the flag is off: that plan's environment already dropped the opaque values, so
-    // proceeding unwrapped would silently run without credentials.
+    // with stale values — after those credentials rotate. A run with hiding switched off carries
+    // no plan and takes the plain plaintext-env provider below, unchanged from the pre-feature
+    // behavior. The assert is defense-in-depth against a direct caller handing a
+    // candidate-bearing plan while hiding is off: that plan's environment already dropped the
+    // opaque values, so proceeding unwrapped would silently run without credentials.
     //
     // Accepted design limit: Secret ownership is PROCESS-LOCAL. The wrapper's registry dies
     // with the runner process, so a hard crash can orphan a Daytona Secret until Daytona's own

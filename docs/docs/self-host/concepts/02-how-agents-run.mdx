@@ -57,18 +57,21 @@ subscription. See [Use your own subscription](/self-host/use-your-own-subscripti
 
 ### What the sandbox can see
 
-A model key normally arrives in the sandbox as an environment variable, and an MCP server's key as
-a request header. Both are readable by the agent running there, which matters because an agent
-writes and runs its own code: a prompt injection that convinces it to print its environment prints
-your keys.
+A model key would normally arrive in the sandbox as an environment variable, and an MCP server's
+key as a request header. Both would be readable by the agent running there, which matters because
+an agent writes and runs its own code: a prompt injection that convinces it to print its
+environment would print your keys.
 
-On Daytona you can close that gap. Set
-[`AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=process_local`](/self-host/configuration#hiding-api-keys-from-the-sandbox)
-and the runner stores each key as a Daytona Secret restricted to the single hostname that key
-authenticates against, then puts a placeholder in the sandbox. Daytona swaps the placeholder for
-the real value on requests to that host, so the model call and the MCP call still work while the
-agent itself only ever holds a useless string. A request to any other host carries the placeholder,
-which is what makes exfiltration fail.
+On Daytona the runner closes that gap, and it does so by default. It stores each key as a Daytona
+Secret restricted to the single hostname that key authenticates against, then puts a placeholder in
+the sandbox. Daytona swaps the placeholder for the real value on requests to that host, so the
+model call and the MCP call still work while the agent itself only ever holds a useless string. A
+request to any other host carries the placeholder, which is what makes exfiltration fail.
+
+This needs a Daytona API key that is allowed to manage Secrets, which is a different permission
+from creating sandboxes. See
+[Hiding API keys from the sandbox](/self-host/configuration#hiding-api-keys-from-the-sandbox) for
+the upgrade note and for how to switch it off if you would rather not grant that permission.
 
 This works for a key the remote service reads over HTTPS, which covers the provider keys and the
 MCP keys. It does not work for a key a provider SDK signs with locally, which today means the AWS

@@ -151,8 +151,11 @@ redisDurable:
 #       autodeleteMinutes: 30
 #       sessionIdleTtlMs: ""
 #       sessionMaxWarm: ""
-#       opaqueSecrets: process_local   # hide model/MCP keys from the sandbox; needs a Daytona
-#                                      # API key that may manage Secrets
+#       opaqueSecrets: "off"           # QUOTE IT: bare off is a YAML boolean, and the template
+#                                      # would then skip the variable and leave hiding ON.
+#                                      # Hiding model/MCP keys from the sandbox is the DEFAULT
+#                                      # and needs a Daytona API key that may manage Secrets.
+#                                      # Set "off" only to send them as plain env vars instead.
 #   auth:
 #     tokenSecretRef:          # AGENTA_RUNNER_TOKEN; Services sends it, the runner verifies it
 #       name: agenta-runner
