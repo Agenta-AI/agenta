@@ -19,11 +19,19 @@ import {
 } from "../../src/responder.ts";
 import type { ClientToolRelayRequest } from "../../src/tools/client-tool-relay.ts";
 import {
+  bareToolName,
   buildClientToolRelay,
   createToolCallCorrelationIndex,
   emitClientToolInteraction,
   relayWritesPausedAnswer,
 } from "../../src/engines/sandbox_agent/client-tools.ts";
+
+describe("bareToolName", () => {
+  it("strips Claude and Codex MCP prefixes at the first server boundary", () => {
+    assert.equal(bareToolName("mcp__agenta-tools__foo"), "foo");
+    assert.equal(bareToolName("mcp.agenta-tools.foo"), "foo");
+  });
+});
 
 describe("relayWritesPausedAnswer (client-tool pause disposition)", () => {
   it("only the cold-acknowledge disposition writes the paused answer", () => {

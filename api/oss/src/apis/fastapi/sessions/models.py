@@ -178,6 +178,34 @@ class SessionMountsResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Attachments request/response models
+# ---------------------------------------------------------------------------
+
+
+class SessionAttachment(BaseModel):
+    attachment_id: UUID
+    filename: str
+    media_type: str
+    size: int
+    created_at: datetime
+
+
+class SessionAttachmentResponse(BaseModel):
+    count: int = 0
+    attachment: SessionAttachment
+
+
+class SessionAttachmentReferenceRequest(BaseModel):
+    session_id: str
+    attachment_ids: List[UUID] = Field(max_length=100)
+
+
+class SessionAttachmentsResponse(BaseModel):
+    count: int = 0
+    attachments: List[SessionAttachment] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
 # Turns request/response models
 # ---------------------------------------------------------------------------
 

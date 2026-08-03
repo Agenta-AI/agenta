@@ -55,6 +55,253 @@ describe("buildRunPlan", () => {
     assert.equal(created, false);
   });
 
+  it("accepts an attachment-only current user turn", () => {
+    const result = buildRunPlan(
+      {
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "attachment",
+                attachmentId: "019a52c2-14c0-7c14-b874-2f5798f9cd21",
+              },
+            ],
+          },
+        ],
+      } as unknown as AgentRunRequest,
+      { createLocalCwd: () => "local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.ok && result.plan.prompt, "");
+  });
+
+  it("accepts both legacy image-only current user turn shapes", () => {
+    for (const content of [
+      [{ type: "image", uri: "data:image/png;base64,AQID" }],
+      [{ type: "image", data: "AQID", mimeType: "image/webp" }],
+    ]) {
+      const result = buildRunPlan(
+        {
+          messages: [{ role: "user", content }],
+        } as AgentRunRequest,
+        { createLocalCwd: () => "local-cwd" },
+      );
+
+      assert.equal(result.ok, true);
+      assert.equal(result.ok && result.plan.prompt, "");
+    }
+  });
+
+  it("rejects more than the configured current-turn attachment count", () => {
+    // Override the cap rather than generating a default-sized batch, so the case stays small.
+    process.env.AGENTA_ATTACHMENTS_MAX_PER_TURN = "2";
+    const attachmentIds = [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+      "33333333-3333-4333-8333-333333333333",
+    ];
+    try {
+      const result = buildRunPlan(
+        {
+          messages: [
+            {
+              role: "user",
+              content: attachmentIds.map((attachmentId) => ({
+                type: "attachment",
+                attachmentId,
+              })),
+            },
+          ],
+        } as AgentRunRequest,
+        { createLocalCwd: () => "local-cwd" },
+      );
+
+      assert.deepEqual(result, {
+        ok: false,
+        error: "A user turn may carry at most 2 attachments.",
+      });
+    } finally {
+      delete process.env.AGENTA_ATTACHMENTS_MAX_PER_TURN;
+    }
+  });
+
+  it("still refuses a request whose only message is an unresolved tool call", () => {
+    // No user text AND no approval envelope: a caller bug, not an approval reply.
+    const result = buildRunPlan(
+      {
+        messages: [
+          {
+            role: "assistant",
+            content: [
+              { type: "tool_call", toolCallId: "tc-1", toolName: "Write" },
+            ],
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/unused" },
+    );
+
+    assert.deepEqual(result, {
+      ok: false,
+      error: "No user message to send (prompt/messages empty).",
+    });
+  });
+
+  it("refuses a stalled history whose newest tool envelope is an unresolved call", () => {
+    // The approval was answered earlier; the newest envelope is a call nobody replied to, so
+    // this is not an approval reply and there is still no prompt to send.
+    const result = buildRunPlan(
+      {
+        messages: [
+          {
+            role: "assistant",
+            content: [
+              { type: "tool_call", toolCallId: "tc-1", toolName: "Write" },
+              {
+                type: "tool_result",
+                toolCallId: "tc-1",
+                toolName: "Write",
+                output: { approved: true, interactionToken: "tok-1" },
+              },
+            ],
+          },
+          {
+            role: "assistant",
+            content: [
+              { type: "tool_call", toolCallId: "tc-2", toolName: "Bash" },
+            ],
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/unused" },
+    );
+
+    assert.deepEqual(result, {
+      ok: false,
+      error: "No user message to send (prompt/messages empty).",
+    });
+  });
+
+  it("accepts an out-of-band approval reply that carries no user text", () => {
+    // What a caller answering from the durable interaction row sends: the parked call plus its
+    // {approved} envelope, and nothing else. The conversation is rebuilt from the record log
+    // inside runTurn, which happens after this plan is built.
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        sessionId: "s1",
+        messages: [
+          {
+            role: "assistant",
+            content: [
+              { type: "tool_call", toolCallId: "tc-1", toolName: "Write" },
+              {
+                type: "tool_result",
+                toolCallId: "tc-1",
+                toolName: "Write",
+                output: { approved: true, interactionToken: "tok-1" },
+              },
+            ],
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.ok && result.plan.prompt, "");
+    assert.ok(
+      result.ok && result.plan.turnText.includes("user APPROVED Write"),
+      "the plan's turn text carries the approval-resume frame",
+    );
+  });
+
+  it("accepts an in-band approval reply carrying the full transcript", () => {
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        messages: [
+          { role: "user", content: "write the report" },
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_call",
+                toolCallId: "tc-1",
+                toolName: "Write",
+                input: { path: "report.md" },
+              },
+            ],
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "tool_result",
+                toolCallId: "tc-1",
+                toolName: "Write",
+                output: { approved: true, interactionToken: "tok-1" },
+              },
+            ],
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+  });
+
+  it("accepts a tool-role tail when an earlier user message supplies the prompt", () => {
+    const result = buildRunPlan(
+      {
+        messages: [
+          { role: "user", content: "inspect the repository" },
+          {
+            role: "tool",
+            content: [
+              {
+                type: "tool_result",
+                toolCallId: "tc-1",
+                toolName: "read",
+                output: "contents",
+              },
+            ],
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+  });
+
+  it("accepts a client-tool-result tail when an earlier user message supplies the prompt", () => {
+    const result = buildRunPlan(
+      {
+        messages: [
+          { role: "user", content: "collect the form response" },
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_result",
+                toolCallId: "client-1",
+                toolName: "request_input",
+                output: { value: "approved by finance" },
+              },
+            ],
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+  });
+
   it("normalizes an Agenta/Pi local run and filters executable tools", () => {
     process.env.PI_CODING_AGENT_DIR = "/tmp/pi-agent";
     const logs: string[] = [];
@@ -136,104 +383,38 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.useToolRelay, true);
   });
 
-  it("turns builtin gating on when blanket allow has a reduced grant set", () => {
+  it("leaves builtin gating off under a blanket allow with no builtin rules", () => {
     const result = buildRunPlan(
       {
         harness: "pi_core",
         messages: [{ role: "user", content: "hello" }],
         permissions: { default: "allow", rules: [] },
-        tools: ["read", "write"],
       } as AgentRunRequest,
       { createLocalCwd: () => "/tmp/local-cwd" },
     );
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.deepEqual(result.plan.builtinGrants, ["read", "write"]);
-    assert.equal(result.plan.builtinGatingActive, true);
+    assert.equal(result.plan.builtinGatingActive, false);
     // Builtin gating rides the ACP dialog plane, not the relay: no custom tools, no relay.
     assert.equal(result.plan.useToolRelay, false);
   });
 
-  it("turns builtin gating on when grants include Pi-nondefault builtins", () => {
+  it("turns builtin gating on under the default allow_reads mode", () => {
+    // allow_reads is the shipped default permission mode, and it can gate a builtin, so the
+    // fast path above is the blanket-allow case only.
     const result = buildRunPlan(
       {
         harness: "pi_core",
         messages: [{ role: "user", content: "hello" }],
-        permissions: { default: "allow", rules: [] },
-        tools: ["read", "bash", "edit", "write", "grep", "find", "ls"],
+        permissions: { default: "allow_reads", rules: [] },
       } as AgentRunRequest,
       { createLocalCwd: () => "/tmp/local-cwd" },
     );
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.deepEqual(result.plan.builtinGrants, [
-      "read",
-      "bash",
-      "edit",
-      "write",
-      "grep",
-      "find",
-      "ls",
-    ]);
     assert.equal(result.plan.builtinGatingActive, true);
-  });
-
-  it("leaves the all-allow default-grants Pi fast path off", () => {
-    const result = buildRunPlan(
-      {
-        harness: "pi_core",
-        messages: [{ role: "user", content: "hello" }],
-        permissions: { default: "allow", rules: [] },
-      } as AgentRunRequest,
-      { createLocalCwd: () => "/tmp/local-cwd" },
-    );
-
-    assert.equal(result.ok, true);
-    if (!result.ok) return;
-    assert.deepEqual(result.plan.builtinGrants, [
-      "read",
-      "bash",
-      "edit",
-      "write",
-    ]);
-    assert.equal(result.plan.builtinGatingActive, false);
-    assert.equal(result.plan.useToolRelay, false);
-  });
-
-  it("distinguishes omitted tools from an explicit empty grant set", () => {
-    const omitted = buildRunPlan(
-      {
-        harness: "pi_core",
-        messages: [{ role: "user", content: "hello" }],
-        permissions: { default: "allow", rules: [] },
-      } as AgentRunRequest,
-      { createLocalCwd: () => "/tmp/local-cwd" },
-    );
-    const none = buildRunPlan(
-      {
-        harness: "pi_core",
-        messages: [{ role: "user", content: "hello" }],
-        permissions: { default: "allow", rules: [] },
-        tools: [],
-      } as AgentRunRequest,
-      { createLocalCwd: () => "/tmp/local-cwd" },
-    );
-
-    assert.equal(omitted.ok, true);
-    assert.equal(none.ok, true);
-    if (!omitted.ok || !none.ok) return;
-    assert.deepEqual(omitted.plan.builtinGrants, [
-      "read",
-      "bash",
-      "edit",
-      "write",
-    ]);
-    assert.equal(omitted.plan.builtinGatingActive, false);
-    assert.deepEqual(none.plan.builtinGrants, []);
-    assert.equal(none.plan.builtinGatingActive, true);
-    assert.equal(none.plan.useToolRelay, false);
   });
 
   it("turns builtin gating on when the permission kill switch is set", () => {
@@ -250,12 +431,6 @@ describe("buildRunPlan", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.deepEqual(result.plan.builtinGrants, [
-      "read",
-      "bash",
-      "edit",
-      "write",
-    ]);
     assert.equal(result.plan.builtinGatingActive, true);
     assert.equal(result.plan.useToolRelay, false);
   });
@@ -985,6 +1160,30 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.hasSystemPrompt, false);
     assert.deepEqual(result.plan.skillDirs, []);
   });
+
+  it("normalizes a local managed Codex run", () => {
+    const result = buildRunPlan(
+      {
+        harness: "codex",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        secrets: { OPENAI_API_KEY: "sk-openai" },
+        credentialMode: "env",
+      },
+      {
+        createLocalCwd: () => "/tmp/local-cwd",
+      },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.plan.acpAgent, "codex");
+    assert.equal(result.plan.isPi, false);
+    assert.equal(result.plan.isDaytona, false);
+    assert.equal(result.plan.legacyHarnessApiKeyVar, "OPENAI_API_KEY");
+    assert.equal(result.plan.hasApiKey, true);
+    assert.equal(result.plan.credentialMode, "env");
+  });
 });
 
 describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
@@ -1134,6 +1333,60 @@ describe("buildRunPlan runtime_provided (subscription) gates", () => {
         },
       },
     );
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE);
+    assert.equal(created, false);
+  });
+
+  it("rejects a local Codex runtime_provided run when CODEX_HOME is unset", () => {
+    withEnv({ CODEX_HOME: undefined }, () => {
+      const result = buildRunPlan({
+        harness: "codex",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        credentialMode: "runtime_provided",
+      });
+
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.equal(result.error, LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE);
+    });
+  });
+
+  it("accepts a local Codex runtime_provided run when CODEX_HOME names a mount", () => {
+    withEnv({ CODEX_HOME: "/agenta/harness/codex" }, () => {
+      const result = buildRunPlan({
+        harness: "codex",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        credentialMode: "runtime_provided",
+      });
+
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.equal(result.plan.credentialMode, "runtime_provided");
+      assert.equal(result.plan.acpAgent, "codex");
+    });
+  });
+
+  it("rejects a Daytona Codex runtime_provided run", () => {
+    let created = false;
+    const result = buildRunPlan(
+      {
+        harness: "codex",
+        sandbox: "daytona",
+        messages: [{ role: "user", content: "hello" }],
+        credentialMode: "runtime_provided",
+      },
+      {
+        createDaytonaCwd: () => {
+          created = true;
+          return "/home/sandbox/should-not-happen";
+        },
+      },
+    );
+
     assert.equal(result.ok, false);
     if (result.ok) return;
     assert.equal(result.error, DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE);

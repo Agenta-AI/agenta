@@ -370,7 +370,7 @@ const ApprovalDock = ({
                             leave the yellow Approve competing, so the redirect panel below becomes the
                             entire action surface. Mirrors the panel's expand (open={!steerOpen} vs
                             open={steerOpen}) for one smooth swap. */}
-                        <HeightCollapse open={!steerOpen} fade>
+                        <HeightCollapse open={!steerOpen} fade inert>
                             <div className="flex items-center gap-2">
                                 {onViewTrace && !chatMode ? (
                                     <button
@@ -480,46 +480,50 @@ const ApprovalDock = ({
                             It and the always-allow row below share this bottom slot and animate as a
                             complementary pair (open={steerOpen} vs open={!steerOpen}, same primitive,
                             same fade) so one expands exactly as the other collapses — no pop-vs-slide. */}
-                        <HeightCollapse open={steerOpen} fade>
-                            <div className="flex flex-col gap-2 border-0 border-t border-solid border-colorBorderSecondary pt-2.5">
-                                <Text type="secondary" className="!text-[11px]">
-                                    Deny this step and tell the agent what to do instead — your note
-                                    runs as the next message.
-                                </Text>
-                                {/* Filled + borderless-at-rest so the redirect reads as a nested field
+                        {/* Unmounted (not merely collapsed) while the flag is off: a collapsed
+                            HeightCollapse still leaves its controls in the DOM and tab order. */}
+                        {steerEnabled ? (
+                            <HeightCollapse open={steerOpen} fade inert>
+                                <div className="flex flex-col gap-2 border-0 border-t border-solid border-colorBorderSecondary pt-2.5">
+                                    <Text type="secondary" className="!text-[11px]">
+                                        Deny this step and tell the agent what to do instead — your
+                                        note runs as the next message.
+                                    </Text>
+                                    {/* Filled + borderless-at-rest so the redirect reads as a nested field
                                     of the approval card, subordinate to the main composer below — not a
                                     second, louder input competing with it. The filled variant lights its
                                     border with the full primary on focus (louder than the composer), so
                                     we pin hover/focus to a neutral border and drop the focus glow. */}
-                                <Input.TextArea
-                                    ref={steerInputRef}
-                                    variant="filled"
-                                    autoSize={{minRows: 2, maxRows: 6}}
-                                    value={steerMessage}
-                                    onChange={(e) => setSteerMessage(e.target.value)}
-                                    placeholder="e.g. write to staging, not prod — or ask for something else entirely"
-                                    disabled={responding}
-                                    className="!text-xs hover:!border-colorBorder focus:!border-colorBorder focus:!shadow-none"
-                                />
-                                <div className="flex items-center justify-end gap-1.5">
-                                    <Button
-                                        type="text"
+                                    <Input.TextArea
+                                        ref={steerInputRef}
+                                        variant="filled"
+                                        autoSize={{minRows: 2, maxRows: 6}}
+                                        value={steerMessage}
+                                        onChange={(e) => setSteerMessage(e.target.value)}
+                                        placeholder="e.g. write to staging, not prod — or ask for something else entirely"
                                         disabled={responding}
-                                        onClick={() => setSteerOpen(false)}
-                                    >
-                                        Cancel
-                                    </Button>
-                                    {/* Default, not primary: Approve is the card's single primary. This
+                                        className="!text-xs hover:!border-colorBorder focus:!border-colorBorder focus:!shadow-none"
+                                    />
+                                    <div className="flex items-center justify-end gap-1.5">
+                                        <Button
+                                            type="text"
+                                            disabled={responding}
+                                            onClick={() => setSteerOpen(false)}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        {/* Default, not primary: Approve is the card's single primary. This
                                         is the confirm for the redirect sub-action, so it stays quiet. */}
-                                    <Button
-                                        disabled={responding || !steerMessage.trim()}
-                                        onClick={() => respond(false, steerMessage)}
-                                    >
-                                        Deny &amp; send
-                                    </Button>
+                                        <Button
+                                            disabled={responding || !steerMessage.trim()}
+                                            onClick={() => respond(false, steerMessage)}
+                                        >
+                                            Deny &amp; send
+                                        </Button>
+                                    </div>
                                 </div>
-                            </div>
-                        </HeightCollapse>
+                            </HeightCollapse>
+                        ) : null}
 
                         {/* Always-allow: arms a config write-through so this tool stops asking. The
                             switch only ARMS the intent (it must not progress the flow); the grant is
@@ -528,7 +532,7 @@ const ApprovalDock = ({
                             steering (open={!steerOpen}) — "applies when you approve" contradicts a
                             deny+redirect — as the mirror of the steer panel's expand, for one smooth swap. */}
                         {canAlwaysAllow ? (
-                            <HeightCollapse open={!steerOpen} fade>
+                            <HeightCollapse open={!steerOpen} fade inert>
                                 <div className="flex items-center gap-2 border-0 border-t border-solid border-colorBorderSecondary pt-2.5">
                                     <Switch
                                         checked={alwaysAllowArmed}

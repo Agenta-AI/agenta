@@ -20,7 +20,7 @@ and [Pi adapter](pi.md) pages first. This page assumes them.
 
 The forced *policy* lives in the SDK harness layer, in one editable module:
 `sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py` (`AGENTA_PREAMBLE`,
-`AGENTA_FORCED_APPEND_SYSTEM`, `AGENTA_FORCED_TOOLS`, `AGENTA_FORCED_SKILLS`). `AgentaHarness`
+`AGENTA_FORCED_APPEND_SYSTEM`, `AGENTA_FORCED_SKILLS`). `AgentaHarness`
 (`adapters/harnesses.py`) reads them in `_to_harness_config` and layers them onto the neutral
 `SessionConfig`, exactly where `PiHarness` and `ClaudeHarness` do their own translation.
 
@@ -31,8 +31,9 @@ text. The contract between the two halves is the skill **name**: `AGENTA_FORCED_
 names, and each must match a committed directory under the runner's skills root.
 
 Because the Agenta harness IS Pi, its tools are delivered the Pi-native way (through the
-extension on the ACP path), never over MCP. The forced `read` and `bash` tools are Pi
-built-ins, so they ride the wire as built-in names, not resolved specs.
+extension on the ACP path), never over MCP. There is no forced tool set any more: the runner
+activates all seven Pi built-ins on every Pi run, so `read` and `bash` are there without anything
+forcing them.
 
 ## How a skill reaches the model
 

@@ -3,7 +3,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-orchestration.test.ts)
  */
-import { beforeEach, describe, it } from "vitest";
+import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -31,6 +31,10 @@ beforeEach(() => {
   process.env.AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS = "local,daytona";
   process.env.AGENTA_RUNNER_DAYTONA_API_KEY = "test-key";
   resetRunnerConfigCache();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 function flushPromises(): Promise<void> {
@@ -99,6 +103,7 @@ function fakeHarness(options: FakeOptions = {}) {
     recordedErrors: [] as Array<{ message: string; provider?: string }>,
   };
   const events: AgentEvent[] = [];
+  const logs: string[] = [];
   let eventHandler: ((event: any) => void) | undefined;
   let permissionHandler: ((request: any) => void) | undefined;
   // The in-flight prompt resolver, so a `destroySession` (the managed cancel) can resolve a
@@ -229,7 +234,7 @@ function fakeHarness(options: FakeOptions = {}) {
   };
 
   const deps: SandboxAgentDeps = {
-    log: () => {},
+    log: (message) => logs.push(message),
     createLocalCwd: (durable?: string) =>
       durable ?? options.cwd ?? "/tmp/agenta-fake-cwd",
     createDaytonaCwd: (durable?: string) =>
@@ -303,7 +308,7 @@ function fakeHarness(options: FakeOptions = {}) {
     }),
   };
 
-  return { calls, deps, events };
+  return { calls, deps, events, logs };
 }
 
 describe("PendingApprovalPauseController", () => {
@@ -382,6 +387,285 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(calls.sandboxDestroyed, 1);
     assert.equal(calls.sandboxDisposed, 1);
     assert.equal(calls.workspaceCleanup, 1);
+  });
+
+  it("delivers the current legacy inline image before one text block", async () => {
+    const { calls, deps } = fakeHarness({ capabilities: { images: true } });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "image", uri: "data:image/png;base64,AQID" },
+              { type: "text", text: "inspect this" },
+            ],
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(calls.promptBlocks, [
+      { type: "image", data: "AQID", mimeType: "image/png" },
+      { type: "text", text: "inspect this" },
+    ]);
+  });
+
+  it("delivers a legacy image-only turn as a non-empty image-only prompt", async () => {
+    const { calls, deps, logs } = fakeHarness({
+      capabilities: { images: true },
+    });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        messages: [
+          {
+            role: "user",
+            content: [{ type: "image", uri: "data:image/png;base64,AQID" }],
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(
+      calls.promptBlocks,
+      [{ type: "image", data: "AQID", mimeType: "image/png" }],
+    );
+    assert.ok(calls.promptBlocks.length > 0);
+    assert.deepEqual(
+      logs.filter((message) => message.includes("legacy inline image")),
+      [
+        "[attachments] legacy inline image delivery=native reason=native_supported",
+      ],
+    );
+  });
+
+  it("keeps a degraded legacy image-only prompt non-empty", async () => {
+    const { calls, deps } = fakeHarness({
+      capabilities: { images: false },
+    });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        messages: [
+          {
+            role: "user",
+            content: [{ type: "image", uri: "data:image/png;base64,AQID" }],
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(calls.promptBlocks, [
+      {
+        type: "text",
+        text: "[inline image could not be delivered to this harness]",
+      },
+    ]);
+  });
+  it.each([
+    { mimeType: "image/png", capabilities: { images: false } },
+    { mimeType: "image/svg+xml", capabilities: { images: true } },
+  ])(
+    "a legacy inline $mimeType image degrades rather than throws",
+    async (testCase) => {
+      const { calls, deps, events, logs } = fakeHarness({
+        capabilities: testCase.capabilities,
+      });
+      const result = await runSandboxAgent(
+        {
+          harness: "pi_core",
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "image",
+                  uri: `data:${testCase.mimeType};base64,AQID`,
+                },
+                { type: "text", text: "inspect this" },
+              ],
+            },
+          ],
+        },
+        undefined,
+        undefined,
+        deps,
+      );
+
+      assert.equal(result.ok, true, testCase.mimeType);
+      assert.deepEqual(calls.promptBlocks, [
+        { type: "text", text: "inspect this" },
+      ]);
+      assert.equal(
+        events.some((event) => event.type === "attachment_delivery"),
+        false,
+      );
+      assert.match(
+        logs.find((message) => message.includes("legacy inline image")) ?? "",
+        /delivery=degraded reason=[a-z_]+$/,
+      );
+    },
+  );
+
+  it("degrades a legacy inline image when the caller's model declares no image input", async () => {
+    const { calls, deps, logs } = fakeHarness({
+      capabilities: { images: true },
+    });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        modelCapabilities: { inputModalities: ["text"] },
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "image", uri: "data:image/png;base64,AQID" },
+              { type: "text", text: "inspect this" },
+            ],
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(calls.promptBlocks, [
+      { type: "text", text: "inspect this" },
+    ]);
+    assert.equal(
+      logs.find((message) => message.includes("legacy inline image")),
+      "[attachments] legacy inline image delivery=degraded reason=model_modality_unknown",
+    );
+  });
+
+  it("delivers a legacy inline image natively when the caller declares no capabilities", async () => {
+    const { calls, deps, logs } = fakeHarness({
+      capabilities: { images: true },
+    });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "image", uri: "data:image/png;base64,AQID" },
+              { type: "text", text: "inspect this" },
+            ],
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(calls.promptBlocks, [
+      { type: "image", data: "AQID", mimeType: "image/png" },
+      { type: "text", text: "inspect this" },
+    ]);
+    assert.equal(
+      logs.find((message) => message.includes("legacy inline image")),
+      "[attachments] legacy inline image delivery=native reason=native_supported",
+    );
+  });
+
+  it("a failed historical restore is survivable through a full cold turn", async () => {
+    const deadId = "11111111-1111-4111-8111-111111111111";
+    const healthyId = "22222222-2222-4222-8222-222222222222";
+    vi.stubGlobal("fetch", async (input: Parameters<typeof fetch>[0]) => {
+      if (String(input).includes(deadId)) {
+        return new Response("gone", { status: 404 });
+      }
+      if (String(input).includes(healthyId)) {
+        return new Response(new Uint8Array([7, 8]), {
+          status: 200,
+          headers: {
+            "content-type": "text/plain",
+            "content-disposition": "attachment; filename=healthy.txt",
+          },
+        });
+      }
+      throw new Error(`unexpected URL ${String(input)}`);
+    });
+    const cwd = join(
+      tmpdir(),
+      "agenta-attachment-restore-" + process.pid + "-" + Date.now(),
+    );
+    mkdirSync(cwd, { recursive: true });
+    const { calls, deps } = fakeHarness({ cwd });
+
+    try {
+      const result = await runSandboxAgent(
+        {
+          harness: "pi_core",
+          sessionId: "session-1",
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "attachment",
+                  attachmentId: deadId,
+                  filename: "report.pdf",
+                },
+                {
+                  type: "attachment",
+                  attachmentId: healthyId,
+                  filename: "healthy.txt",
+                },
+                { type: "text", text: "old request" },
+              ],
+            },
+            { role: "assistant", content: "ready" },
+            { role: "user", content: "continue" },
+          ],
+        },
+        undefined,
+        undefined,
+        deps,
+      );
+
+      assert.equal(result.ok, true);
+      assert.equal(
+        existsSync(join(cwd, "attachments", healthyId, "healthy.txt")),
+        true,
+      );
+      const promptText = calls.promptBlocks.at(-1)?.text ?? "";
+      assert.match(
+        promptText,
+        /\[attached file: report\.pdf - no longer available\]/,
+      );
+      assert.match(
+        promptText,
+        new RegExp(`attachments/${healthyId}/healthy\\.txt`),
+      );
+      assert.match(promptText, /The user now says:\ncontinue$/);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
   });
 
   it("points local Pi and pi-acp at the conversation workspace transcript directory", async () => {

@@ -58,6 +58,29 @@ const assistantWithOrphanApproval = () => ({
     ],
 })
 
+/**
+ * Cold approval resume, as the record→message mapper now rebuilds it: the harness re-raised the
+ * approved call under a new toolCallId, and the mapper folds that duplicate back into the gated
+ * part instead of leaving an orphan stuck `approval-requested` (which would freeze the queue and
+ * show a live dock for a call that already ran).
+ */
+const assistantAfterColdResume = () => ({
+    id: "a1",
+    role: "assistant",
+    parts: [
+        {type: "step-start"},
+        {
+            type: "tool-deleteFile",
+            toolCallId: "call_old",
+            state: "output-error",
+            input: {path: "/x"},
+            errorText: "boom",
+            approval: {id: "perm_1", approved: true},
+        },
+        {type: "text", text: "That failed."},
+    ],
+})
+
 describe("isHitlPending", () => {
     it("is true while awaiting the user's decision (approval-requested)", () => {
         expect(isHitlPending([user("do it"), assistantWithTool("approval-requested")])).toBe(true)
@@ -71,6 +94,10 @@ describe("isHitlPending", () => {
 
     it("is false for an orphaned approval-responded turn (no approval-requested → nothing to act on)", () => {
         expect(isHitlPending([user("do it"), assistantWithOrphanApproval()])).toBe(false)
+    })
+
+    it("is false for a cold-resume turn whose re-raised call was folded back into the gated part", () => {
+        expect(isHitlPending([user("do it"), assistantAfterColdResume()])).toBe(false)
     })
 
     it("is false once the tool has run (output-available)", () => {

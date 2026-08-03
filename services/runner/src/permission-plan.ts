@@ -96,8 +96,8 @@ const PI_BUILTIN_CANONICAL_NAMES = new Map<string, PiBuiltinIdentity>(
       readOnly: identity.readOnly,
     };
     return [
-      [toolName, builtin],
-      [identity.ruleName, builtin],
+      [toolName.toLowerCase(), builtin],
+      [identity.ruleName.toLowerCase(), builtin],
     ];
   }),
 );
@@ -171,23 +171,51 @@ export function decide(
 export function piBuiltinIdentity(
   toolName: string,
 ): PiBuiltinIdentity | undefined {
-  return PI_BUILTIN_CANONICAL_NAMES.get(toolName);
+  // Built-in names are matched case-insensitively so an authored rule `bash` governs `Bash`.
+  return PI_BUILTIN_CANONICAL_NAMES.get(toolName.trim().toLowerCase());
 }
 
 export function storedDecisionKeyShape(
   toolName: string | undefined,
   args: unknown,
 ): { toolName: string | undefined; args: unknown } {
-  if (!toolName) return { toolName, args };
+  // Normalize Codex's MCP rawInput wrapper first, symmetrically on both sides of the match: the
+  // runner-side gate keys on the bare `tools/call` arguments, while the traced `tool_call` event
+  // (and thus the resumed `{approved}` decision) carries codex-acp's `{server,tool,arguments}`
+  // envelope. Unwrapping to `arguments` makes the two keys agree so a cross-turn approval resumes.
+  const normalizedArgs = unwrapCodexMcpArgs(args);
+  if (!toolName) return { toolName, args: normalizedArgs };
   const identity = piBuiltinIdentity(toolName);
-  if (!identity) return { toolName, args };
+  if (!identity) return { toolName, args: normalizedArgs };
   return {
     toolName: identity.ruleName,
     args:
-      identity.toolName === "bash" ? projectBashStoredDecisionArgs(args) : args,
+      identity.toolName === "bash"
+        ? projectBashStoredDecisionArgs(normalizedArgs)
+        : normalizedArgs,
   };
 }
 
+/**
+ * Codex-acp reports an MCP tool call's rawInput as `{server, tool, arguments}` (the wrapper), but
+ * the actual `tools/call` arguments the runner-side gate sees are the inner `arguments`. When the
+ * input is EXACTLY that wrapper (a string `server`, a string `tool`, and an object `arguments`),
+ * return the inner `arguments` so the stored-decision key matches the gate's key. Any other shape
+ * is returned unchanged, so a real tool whose args merely include some of these keys is untouched.
+ */
+function unwrapCodexMcpArgs(args: unknown): unknown {
+  if (!isRecord(args)) return args;
+  const keys = Object.keys(args);
+  if (keys.length !== 3) return args;
+  if (
+    typeof args.server === "string" &&
+    typeof args.tool === "string" &&
+    isRecord(args.arguments)
+  ) {
+    return args.arguments;
+  }
+  return args;
+}
 function normalizeRules(rawRules: unknown): PermissionPlan["rules"] {
   if (!Array.isArray(rawRules)) return [];
   const rules: PermissionPlan["rules"] = [];
@@ -219,12 +247,26 @@ function ruleMatches(gate: GateDescriptor, pattern: string): boolean {
   if (gate.toolName === undefined) return false;
 
   const prefixPattern = parsePrefixPattern(pattern);
-  if (prefixPattern === undefined) return pattern === gate.toolName;
-  if (prefixPattern.toolName !== gate.toolName) return false;
+  const ruleToolName = prefixPattern?.toolName ?? pattern;
+  if (!toolNamesMatch(ruleToolName, gate.toolName)) return false;
+  if (prefixPattern === undefined) return true;
 
   const firstArg = firstStringArgument(gate.args);
   // Prefix rules with uninspectable args fail toward the default instead of guessing.
   return firstArg !== undefined && firstArg.startsWith(prefixPattern.prefix);
+}
+
+/**
+ * Names inside the seven built-ins fold to one identity, so case never matters for them; every
+ * other name is author-chosen and stays case-significant.
+ */
+function toolNamesMatch(ruleToolName: string, gateToolName: string): boolean {
+  const ruleIdentity = piBuiltinIdentity(ruleToolName);
+  const gateIdentity = piBuiltinIdentity(gateToolName);
+  if (ruleIdentity !== undefined && gateIdentity !== undefined) {
+    return ruleIdentity.toolName === gateIdentity.toolName;
+  }
+  return ruleToolName === gateToolName;
 }
 
 function parsePrefixPattern(

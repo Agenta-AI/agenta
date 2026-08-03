@@ -16,6 +16,7 @@
  */
 import {parseGatewayToolSlug} from "@agenta/shared/utils"
 
+import {PI_BUILTIN_RULE_NAMES} from "./piPermissions"
 import {parseGatewayTool} from "./toolUtils"
 
 export type ToolPermission = "allow" | "ask" | "deny"
@@ -83,19 +84,20 @@ export interface GrantableTool {
 // Harness tools (bash / Terminal / Write / …): the `harness.permissions.allow` path
 // ---------------------------------------------------------------------------
 //
-// A harness tool carries NO per-tool `permission` (a builtin's own permission is dropped as
-// unenforceable). The only lever is an authored allow-rule: `harness.permissions.allow += [<gate
-// name>]` flows through `wire_author_permission_rules` into a runner rule
-// `{pattern, permission:"allow"}`, while `runner.permissions.default` stays as authored so platform
-// ops (commit_revision, schedules) keep gating. Works on Pi AND Claude — `_parse_harness_slice`
-// reads `harness.permissions` for any harness.
+// A harness tool carries NO per-tool `permission`. The only lever is an authored rule:
+// `harness.permissions.allow += [<gate name>]` flows through `wire_author_permission_rules` into a
+// runner rule `{pattern, permission:"allow"}`, while `runner.permissions.default` stays as authored
+// so platform ops (commit_revision, schedules) keep gating. Works on Pi AND Claude —
+// `_parse_harness_slice` reads `harness.permissions` for any harness.
 //
-// THE PATTERN IS THE GATE NAME, VERBATIM. The runner matches rules with `pattern === gate.toolName`
+// THE PATTERN IS THE GATE NAME, VERBATIM. The runner matches a rule against `gate.toolName`
 // (permission-plan.ts `ruleMatches`), and `gate.toolName` is exactly what the approval card shows:
 // the runner stamps it onto the gate as `resolvedName` (acp-interactions.ts) and the SDK's
 // `_approval_tool_name` prefers that field for the part. Do NOT "canonicalize" the name — an ACP
-// gate reports `bash`/`Terminal` verbatim (buildGateDescriptor: `spec?.name ?? displayName`), so a
-// rule for `Bash` would silently never match.
+// gate reports `Terminal` verbatim (buildGateDescriptor: `spec?.name ?? displayName`), so an
+// invented rule name would silently never match. The one tolerance: the seven Pi built-ins, which
+// the runner matches case-insensitively, so the pattern is written under the canonical name the
+// rule editor also offers.
 
 /** Platform ops (overlay-injected). These must ALWAYS gate — never auto-allowable from the card. */
 const PLATFORM_OPS = new Set([
@@ -124,6 +126,11 @@ const PLATFORM_OPS = new Set([
 /** Browser-fulfilled client tools — they carry their own widget/decline UI; never auto-allowable. */
 const CLIENT_TOOLS = new Set(["request_connection", "request_input"])
 
+/** The seven built-ins by lower-cased name, so a gate can be written under its canonical name. */
+const PI_BUILTIN_CANONICAL_NAMES = new Map<string, string>(
+    PI_BUILTIN_RULE_NAMES.map((name) => [name.toLowerCase(), name]),
+)
+
 /**
  * The runner rule pattern for a gate, or `null` when the gate must never be auto-allowed:
  * a platform op, a client tool, or an MCP tool — `wire_author_permission_rules` DROPS `mcp__`
@@ -134,18 +141,64 @@ export function gateRulePattern(toolName: string): string | null {
     if (!toolName) return null
     if (PLATFORM_OPS.has(toolName) || CLIENT_TOOLS.has(toolName)) return null
     if (toolName.startsWith("mcp__")) return null
-    return toolName
+    // A built-in reaches the card lower-cased (the run frame's part is `tool-bash`); the rule list
+    // reads one way only if both writers use the canonical name.
+    return PI_BUILTIN_CANONICAL_NAMES.get(toolName.trim().toLowerCase()) ?? toolName
+}
+
+type HarnessRuleList = "allow" | "ask" | "deny"
+type HarnessRuleLists = Record<HarnessRuleList, string[]>
+
+/**
+ * Whether an authored rule governs a gate pattern. The runner folds case for the seven built-in
+ * names and compares every other name exactly (`toolNamesMatch` in `permission-plan.ts`); this
+ * mirrors that, so a hand-typed `bash` is recognized as already covering the `Bash` gate.
+ */
+function ruleCoversPattern(rule: string, pattern: string): boolean {
+    if (rule === pattern) return true
+    const ruleKey = rule.trim().toLowerCase()
+    return ruleKey === pattern.trim().toLowerCase() && PI_BUILTIN_CANONICAL_NAMES.has(ruleKey)
+}
+
+function listCovers(rules: string[], pattern: string): boolean {
+    return rules.some((rule) => ruleCoversPattern(rule, pattern))
+}
+
+/**
+ * Whether `pattern` runs without asking. The runner ranks deny above ask above allow, so an allow
+ * entry shadowed by either list does not actually let the tool run.
+ */
+function runsWithoutAsking(lists: HarnessRuleLists, pattern: string): boolean {
+    return (
+        listCovers(lists.allow, pattern) &&
+        !listCovers(lists.ask, pattern) &&
+        !listCovers(lists.deny, pattern)
+    )
+}
+
+function readStringList(source: Record<string, unknown>, key: string): string[] {
+    const raw = source[key]
+    return Array.isArray(raw) ? (raw.filter((v) => typeof v === "string") as string[]) : []
+}
+
+function readRuleLists(permissions: Record<string, unknown>): HarnessRuleLists {
+    return {
+        allow: readStringList(permissions, "allow"),
+        ask: readStringList(permissions, "ask"),
+        deny: readStringList(permissions, "deny"),
+    }
+}
+
+function readHarnessPermissions(parameters: unknown): Record<string, unknown> {
+    if (!isRecord(parameters)) return {}
+    const {template} = locateTemplate(parameters)
+    const harness = isRecord(template.harness) ? template.harness : {}
+    return isRecord(harness.permissions) ? harness.permissions : {}
 }
 
 /** The authored `harness.permissions.allow` patterns. */
 export function readHarnessAllowList(parameters: unknown): string[] {
-    if (!isRecord(parameters)) return []
-    const {template} = locateTemplate(parameters)
-    const harness = isRecord(template.harness) ? template.harness : {}
-    const permissions = isRecord(harness.permissions) ? harness.permissions : {}
-    return Array.isArray(permissions.allow)
-        ? (permissions.allow.filter((v) => typeof v === "string") as string[])
-        : []
+    return readStringList(readHarnessPermissions(parameters), "allow")
 }
 
 export interface GrantableHarnessTool {
@@ -166,11 +219,13 @@ export function findGrantableHarnessTool(
 ): GrantableHarnessTool | null {
     const pattern = gateRulePattern(toolName)
     if (!pattern || !isRecord(parameters)) return null
-    return {pattern, allowed: readHarnessAllowList(parameters).includes(pattern)}
+    const lists = readRuleLists(readHarnessPermissions(parameters))
+    return {pattern, allowed: runsWithoutAsking(lists, pattern)}
 }
 
-/** Return a new `parameters` with `pattern` present (or absent, when `allowed` is false) in
- *  `harness.permissions.allow`. Preserves the rest of the harness/permissions object. */
+/** Return a new `parameters` where `pattern` does (or does not, when `allowed` is false) run
+ *  without asking. Granting also clears the pattern from `ask`/`deny`, which outrank `allow` at
+ *  the runner. Preserves the rest of the harness/permissions object. */
 export function withHarnessToolAllow(
     parameters: unknown,
     pattern: string,
@@ -180,16 +235,21 @@ export function withHarnessToolAllow(
     const {template, wrap} = locateTemplate(parameters)
     const harness = isRecord(template.harness) ? {...template.harness} : {}
     const permissions = isRecord(harness.permissions) ? {...harness.permissions} : {}
-    const current = Array.isArray(permissions.allow)
-        ? (permissions.allow.filter((v) => typeof v === "string") as string[])
-        : []
-    const has = current.includes(pattern)
-    if (allowed === has) return wrap({...template, harness: {...harness, permissions}})
-    const nextAllow = allowed ? [...current, pattern] : current.filter((name) => name !== pattern)
-    return wrap({
-        ...template,
-        harness: {...harness, permissions: {...permissions, allow: nextAllow}},
-    })
+    const lists = readRuleLists(permissions)
+    if (allowed === runsWithoutAsking(lists, pattern))
+        return wrap({...template, harness: {...harness, permissions}})
+
+    const next: Record<string, unknown> = {...permissions}
+    if (allowed) {
+        if (!listCovers(lists.allow, pattern)) next.allow = [...lists.allow, pattern]
+        for (const list of ["ask", "deny"] as const) {
+            if (listCovers(lists[list], pattern))
+                next[list] = lists[list].filter((rule) => !ruleCoversPattern(rule, pattern))
+        }
+    } else {
+        next.allow = lists.allow.filter((rule) => !ruleCoversPattern(rule, pattern))
+    }
+    return wrap({...template, harness: {...harness, permissions: next}})
 }
 
 /**

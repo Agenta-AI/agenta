@@ -1,3 +1,40 @@
+# Mount naming vocabulary. It lives here, below the service, because the protected-mount
+# policy is enforced twice against the same rows — as a SQL predicate in the Postgres DAO
+# and in Python in `MountsService` — and the two must not be able to drift apart.
+RESERVED_SLUG_PREFIX = "__ag__"
+SESSION_SLUG_PREFIX = f"{RESERVED_SLUG_PREFIX}session__"
+ATTACHMENTS_MOUNT_NAME = "attachments"
+ATTACHMENTS_MOUNT_PURPOSE = "session_attachment_originals"
+
+# Backslash, so the escaped pattern below survives a `LIKE ... ESCAPE` round trip.
+PROTECTED_MOUNT_SLUG_LIKE_ESCAPE = "\\"
+
+
+def _escape_like(value: str) -> str:
+    escaped = value.replace(
+        PROTECTED_MOUNT_SLUG_LIKE_ESCAPE,
+        PROTECTED_MOUNT_SLUG_LIKE_ESCAPE * 2,
+    )
+    for wildcard in ("%", "_"):
+        escaped = escaped.replace(
+            wildcard,
+            f"{PROTECTED_MOUNT_SLUG_LIKE_ESCAPE}{wildcard}",
+        )
+    return escaped
+
+
+def protected_mount_slug_like_pattern() -> str:
+    """The `LIKE` pattern matching every attachments slug `mint_session_slug` can mint.
+
+    The session uuid5 segment is the only wildcard; the literal underscores are escaped
+    so they cannot match an arbitrary character.
+    """
+    return (
+        f"{_escape_like(SESSION_SLUG_PREFIX)}%"
+        f"{_escape_like(f'__{ATTACHMENTS_MOUNT_NAME}')}"
+    )
+
+
 class MountError(Exception):
     def __init__(self, message: str = "Mount error."):
         self.message = message
@@ -73,4 +110,9 @@ class MountFileNotFound(MountError):
 
 class MountStorageUnavailable(MountError):
     def __init__(self, message: str = "Mount storage backend is not configured."):
+        super().__init__(message)
+
+
+class MountProtected(MountError):
+    def __init__(self, message: str = "Mount is protected."):
         super().__init__(message)
