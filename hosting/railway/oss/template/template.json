@@ -91,7 +91,7 @@
     "gateway": {
       "image": "ghcr.io/agenta-ai/agenta-preview-gateway:{gateway_tag}",
       "startCommand": "",
-      "healthcheckPath": null,
+      "healthcheckPath": "/",
       "restartPolicyType": "ON_FAILURE",
       "restartPolicyMaxRetries": 10,
       "volumes": [],
@@ -127,7 +127,7 @@
     "api": {
       "image": "ghcr.io/agenta-ai/agenta-api:{app_tag}",
       "startCommand": "gunicorn entrypoints.routers:app --bind 0.0.0.0:8000 --worker-class uvicorn.workers.UvicornWorker --workers 2 --max-requests 10000 --max-requests-jitter 1000 --timeout 60 --graceful-timeout 60 --log-level info --access-logfile - --error-logfile -",
-      "healthcheckPath": null,
+      "healthcheckPath": "/health",
       "restartPolicyType": "ON_FAILURE",
       "restartPolicyMaxRetries": 10,
       "volumes": [],
@@ -175,7 +175,7 @@
     "services": {
       "image": "ghcr.io/agenta-ai/agenta-services:{app_tag}",
       "startCommand": "gunicorn entrypoints.main:app --bind 0.0.0.0:8080 --worker-class uvicorn.workers.UvicornWorker --workers 2 --max-requests 10000 --max-requests-jitter 1000 --timeout 60 --graceful-timeout 60 --log-level info --access-logfile - --error-logfile -",
-      "healthcheckPath": null,
+      "healthcheckPath": "/health",
       "restartPolicyType": "ON_FAILURE",
       "restartPolicyMaxRetries": 10,
       "volumes": [],
@@ -222,7 +222,7 @@
     "runner": {
       "image": "ghcr.io/agenta-ai/agenta-runner:{app_tag}",
       "startCommand": "node_modules/.bin/tsx src/server.ts",
-      "healthcheckPath": null,
+      "healthcheckPath": "/health",
       "restartPolicyType": "ON_FAILURE",
       "restartPolicyMaxRetries": 10,
       "volumes": [],
