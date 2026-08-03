@@ -86,7 +86,8 @@ import { resolveRunUsage } from "./usage.ts";
  * controller / decisions / responder into `env.currentTurn`, restart the tool relay,
  * send the prompt, resolve usage, and finish + flush the trace. It does NOT tear down the
  * environment (the caller owns `env.destroy`). On a continuation the prompt is only the new user
- * text (`buildTurnText` does not run); on a cold turn it is `plan.prompt.turnText`, exactly as before.
+ * text (`buildTurnText` does not run); on a cold turn it is `plan.prompt.turnText`,
+ * exactly as before.
  */
 export async function runTurn(
   env: SessionEnvironment,
@@ -227,10 +228,10 @@ export async function runTurn(
       : currentUserTurn(request).text;
     // Cold: replay the full transcript. Continuation or loaded: send only new text. When history
     // was rebuilt from records, recompute the transcript from it — the prebuilt
-    // plan.prompt.turnText
-    // predates the reconstruction. An approval reply has no new text either way, so it sends the
-    // approval-resume frame `buildTurnText` renders (the harness already holds the prior turns
-    // when the session was loaded natively; otherwise the rebuilt transcript comes with it).
+    // plan.prompt.turnText predates the reconstruction. An approval reply has no new text
+    // either way, so it sends the approval-resume frame `buildTurnText` renders (the
+    // harness already holds the prior turns when the session was loaded natively;
+    // otherwise the rebuilt transcript comes with it).
     const turnText = sendLastMessageOnly(opts)
       ? approvalReplyOnly
         ? buildTurnText(inboundRequest, logger)
@@ -1044,8 +1045,9 @@ export async function runTurn(
       !plan.isDaytona &&
       !run.output().trim() &&
       !run.events().some((e) => e.type === "tool_call")
-        ? // The helper derives the transcript location from `piSessionWorkspaceDir(plan.workspace.cwd)`,
-          // the same shared helper `configurePiSessionWorkspace` used to point Pi at it.
+        ? // The helper derives the transcript location from
+          // `piSessionWorkspaceDir(plan.workspace.cwd)`, the same shared helper
+          // `configurePiSessionWorkspace` used to point Pi at it.
           findSwallowedPiError(plan.workspace.cwd)
         : undefined;
     let swallowedError: string | undefined;

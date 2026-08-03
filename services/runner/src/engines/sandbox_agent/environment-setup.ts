@@ -167,7 +167,8 @@ export async function prepareEnvironmentSetup(
 
   // Clear-then-apply (Security rule 5): on a managed run (credentialMode "env") the daemon
   // inherits NONE of the sidecar's own provider keys, so only the resolved
-  // `plan.credentials.modelEnvironment` is present and an inherited key for another provider cannot leak.
+  // `plan.credentials.modelEnvironment` is present and an inherited key for another
+  // provider cannot leak.
   // "none" asserts NO credential (connections/models.py), so it clears too — otherwise the
   // daemon would inherit the declared provider's keys (e.g. OPENAI_API_KEY) from the sidecar.
   // Only runtime_provided keeps the inherited keys: the harness uses its own login there.
@@ -191,7 +192,9 @@ export async function prepareEnvironmentSetup(
   // local Pi's OTLP bearer rides a runner-written 0600 file, never a plain env var —
   // Daytona never receives telemetry env here at all (`!plan.isDaytona` gates it off above).
   const otlpAuthFilePath =
-    plan.isPi && !plan.isDaytona ? `${plan.workspace.relayDir}.otlp-auth` : undefined;
+    plan.isPi && !plan.isDaytona
+      ? `${plan.workspace.relayDir}.otlp-auth`
+      : undefined;
   const otlpAuthorization =
     request.telemetry?.exporters?.otlp?.headers?.authorization;
   if (otlpAuthFilePath && otlpAuthorization) {
@@ -321,7 +324,9 @@ export async function prepareEnvironmentSetup(
   // lifecycle, exactly like a normal local install (interface.md section 6). buildRunPlan already
   // rejected a runtime_provided Claude run with no configured CLAUDE_CONFIG_DIR.
 
-  logger(`harness=${plan.harness} sandbox=${plan.sandboxId} cwd=${plan.workspace.cwd}`);
+  logger(
+    `harness=${plan.harness} sandbox=${plan.sandboxId} cwd=${plan.workspace.cwd}`,
+  );
 
   // The resolved model ref as it reaches the runner (key NAMES only, never values) — the one
   // line that answers "what model/provider/deployment/credential did this run actually use".
