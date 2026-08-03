@@ -29,6 +29,14 @@ from agenta.sdk.agents.dtos import (
 
 log = get_module_logger(__name__)
 
+# Declares which token contract a span's ``gen_ai.usage.input_tokens`` follows. ``False`` means
+# EXCLUSIVE — uncached input only, with cache reads/writes counted beside it, which is what every
+# harness aggregate reports. An ABSENT marker means the OpenTelemetry meaning (input already
+# includes cached tokens), and ingest prices the two differently, so any span carrying an input
+# count must declare its contract. Mirrors ``INPUT_TOKENS_INCLUDES_CACHE`` in the runner's
+# ``services/runner/src/tracing/otel.ts``.
+INPUT_TOKENS_INCLUDES_CACHE = "agenta.usage.input_tokens_includes_cache"
+
 _CAPTURE_CONTENT = os.getenv(
     "AGENTA_AGENT_CONTENT_CAPTURE_ENABLED", "true"
 ).lower() not in (
@@ -227,20 +235,53 @@ def record_usage(
     task driving the stream in between carries only a COPY of that context — so the ambient span
     at write time is not reliably the workflow span, and a write to a non-recording one is
     silently discarded. Omitting it falls back to the ambient span for standalone callers.
+
+    Tokens and cost are INDEPENDENT measurements. The runner keeps a cost it was billed even when
+    it has no trustworthy token split (``mergePromptAndStreamUsage`` in the runner returns
+    ``{input: 0, output: 0, total: 0, cost}`` for exactly that case), and dropping such a record
+    would leave the workflow span with nothing: the harness ships its own spans in a separate OTLP
+    batch, the roll-up runs per batch, and trace-focused analytics read root spans only.
+
+    MISSING vs MEASURED ZERO. A cost is reported whenever the key carries a number, so a reported
+    ``0.0`` (a free model, a fully cached turn) is stamped as a measurement and a record with no
+    cost key stamps nothing. This is sound only because the producer can omit the key: the
+    runner's ``AgentUsage.cost`` is optional and left off when the harness reported no cost. A
+    token TOTAL of zero is the one value read as absence rather than measurement: it is the
+    runner's sentinel for "no trustworthy split", and no model call spends zero tokens — so a
+    zero total writes no token attributes at all, rather than asserting a run that consumed
+    nothing. Within a reported split, a zero input or output is written as the 0 it is (a split
+    can honestly be one-sided).
+
+    INPUT TOKEN CONTRACT. Every input token count Agenta ingests must declare whether it already
+    includes cached tokens, or pricing derives ordinary input by subtracting cache buckets from a
+    count that never contained them. This record is the harness's aggregate, and both upstream
+    schemas that produce it report cache counts BESIDE the input count rather than inside it (Pi's
+    session ``tokens`` carries ``input``/``cacheRead``/``cacheWrite`` as siblings; ACP's ``Usage``
+    carries ``inputTokens``/``cachedReadTokens``/``cachedWriteTokens`` as siblings). The aggregate
+    is therefore exclusive, and this span declares ``False`` alongside the counts — the same
+    declaration the runner stamps on the leaf span that carries these very numbers.
     """
-    if not usage or not usage.get("total"):
-        return
     try:
+        if not usage:
+            return
+        raw_total = usage.get("total")
+        total_tokens = int(raw_total) if raw_total is not None else 0
+        raw_cost = usage.get("cost")
+        has_tokens = total_tokens > 0
+        has_cost = raw_cost is not None
+        if not has_tokens and not has_cost:
+            return
         span = span if span is not None else otel_trace.get_current_span()
-        input_tokens = int(usage.get("input") or 0)
-        output_tokens = int(usage.get("output") or 0)
-        span.set_attribute("gen_ai.usage.input_tokens", input_tokens)
-        span.set_attribute("gen_ai.usage.output_tokens", output_tokens)
-        span.set_attribute("gen_ai.usage.prompt_tokens", input_tokens)
-        span.set_attribute("gen_ai.usage.completion_tokens", output_tokens)
-        span.set_attribute("gen_ai.usage.total_tokens", int(usage.get("total") or 0))
-        cost = usage.get("cost")
-        if cost:
-            span.set_attribute("gen_ai.usage.cost", float(cost))
+        if has_tokens:
+            input_tokens = int(usage.get("input") or 0)
+            output_tokens = int(usage.get("output") or 0)
+            span.set_attribute(INPUT_TOKENS_INCLUDES_CACHE, False)
+            span.set_attribute("gen_ai.usage.input_tokens", input_tokens)
+            span.set_attribute("gen_ai.usage.output_tokens", output_tokens)
+            span.set_attribute("gen_ai.usage.prompt_tokens", input_tokens)
+            span.set_attribute("gen_ai.usage.completion_tokens", output_tokens)
+            span.set_attribute("gen_ai.usage.total_tokens", total_tokens)
+        if has_cost:
+            span.set_attribute("gen_ai.usage.cost", float(raw_cost))
     except Exception:  # pylint: disable=broad-except
         log.warning("agent: failed to record usage on workflow span", exc_info=True)
