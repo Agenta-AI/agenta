@@ -105,9 +105,48 @@ pnpm run build:extension
 
 ## Auth
 
-Provider keys arrive as `request.secrets` (resolved from the project vault) or fall back to
-the harness's own login: Pi reads `~/.pi/agent/auth.json` (`pnpm exec pi` then `/login`),
-Claude Code reads `~/.claude`. Set `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` to override.
+Credentials arrive grouped by the consumer that owns them, not as one flat map. The model's
+key and route ride `request.modelConnection`; each MCP server's key rides its own
+`mcpServers[].connection.credentials`. That grouping is what lets the runner know which host a
+given key is allowed to reach, which the section below depends on. A request that still sends
+the retired flat fields (`secrets`, `provider`, `deployment`, `credentialMode`, `endpoint`) is
+rejected outright rather than run without the credential it meant to supply.
+
+A run can also carry no key and fall back to the harness's own login: Pi reads
+`~/.pi/agent/auth.json` (`pnpm exec pi` then `/login`), Claude Code reads `~/.claude`, Codex
+reads `CODEX_HOME`. Set `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` to override locally.
+
+### Hiding keys from the sandbox
+
+By default a key reaches the sandbox as an ordinary environment variable or HTTP header, so the
+agent running there can read it. That matters because an agent writes and runs its own code: a
+prompt injection that convinces it to print its environment prints the key.
+
+Set `AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=process_local` and, on Daytona, the runner instead
+stores each key as a Daytona Secret restricted to the one hostname that key authenticates
+against, and puts a placeholder in the sandbox. Daytona substitutes the real value into outbound
+requests to that host, so the model call and the MCP call still work while the agent only ever
+holds a placeholder. A request to any other host carries the placeholder, which is what makes
+exfiltration fail.
+
+Three things to know:
+
+- The runner's Daytona API key needs permission to manage Secrets. A key that can create
+  sandboxes does not automatically have it. Without it, every run carrying a model or MCP key
+  fails at sandbox creation; the runner never quietly falls back to plaintext. The error names
+  the variable and the permission (`DAYTONA_SECRETS_PERMISSION_MESSAGE` in `daytona-secrets.ts`).
+- `process_local` names the guarantee: the runner tracks the Secret records it created in its own
+  memory and deletes them when the sandbox goes away. Restart the runner while sandboxes are live
+  and those records are orphaned until someone removes them.
+- Keys a provider SDK signs with locally instead of sending, which today means the AWS keys behind
+  Bedrock, cannot be hidden this way. There is no outbound request to substitute them into, so the
+  sandbox holds the real value. They are marked `usage: "local_use"` and the set of names allowed
+  to claim that is a short explicit allowlist in `daytona-secret-plan.ts`.
+
+The local sandbox is unaffected: the harness runs inside the runner container, so its keys never
+leave the deployment. See
+[the configuration reference](../../docs/docs/self-host/reference/01-configuration.mdx) for the
+operator-facing version.
 
 ## config/
 

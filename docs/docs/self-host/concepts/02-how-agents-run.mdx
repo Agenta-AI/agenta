@@ -55,6 +55,29 @@ Two kinds of credential meet at the runner:
 A run can also carry no managed key at all and authenticate the harness from a mounted personal
 subscription. See [Use your own subscription](/self-host/use-your-own-subscription).
 
+### What the sandbox can see
+
+A model key normally arrives in the sandbox as an environment variable, and an MCP server's key as
+a request header. Both are readable by the agent running there, which matters because an agent
+writes and runs its own code: a prompt injection that convinces it to print its environment prints
+your keys.
+
+On Daytona you can close that gap. Set
+[`AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=process_local`](/self-host/configuration#hiding-api-keys-from-the-sandbox)
+and the runner stores each key as a Daytona Secret restricted to the single hostname that key
+authenticates against, then puts a placeholder in the sandbox. Daytona swaps the placeholder for
+the real value on requests to that host, so the model call and the MCP call still work while the
+agent itself only ever holds a useless string. A request to any other host carries the placeholder,
+which is what makes exfiltration fail.
+
+This works for a key the remote service reads over HTTPS, which covers the provider keys and the
+MCP keys. It does not work for a key a provider SDK signs with locally, which today means the AWS
+access keys behind Bedrock: that secret never leaves the sandbox, so there is no outbound request
+to substitute it into, and the sandbox holds the real value.
+
+The local sandbox is unaffected. The harness runs inside the runner container there, so its keys are
+already inside your own deployment rather than a third party's.
+
 ## Persistence depends on the run
 
 What a run keeps depends on what the run is:

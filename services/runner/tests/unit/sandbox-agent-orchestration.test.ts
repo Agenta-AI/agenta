@@ -101,6 +101,7 @@ function fakeHarness(options: FakeOptions = {}) {
     runFinished: 0,
     runFlushed: 0,
     recordedErrors: [] as Array<{ message: string; provider?: string }>,
+    handledUpdates: [] as unknown[],
   };
   const events: AgentEvent[] = [];
   const logs: string[] = [];
@@ -193,7 +194,9 @@ function fakeHarness(options: FakeOptions = {}) {
     start(input: any) {
       calls.runStart = input;
     },
-    handleUpdate(_update: any) {},
+    handleUpdate(update: any) {
+      calls.handledUpdates.push(update);
+    },
     emitEvent(event: AgentEvent) {
       events.push(event);
     },
@@ -344,6 +347,11 @@ describe("PendingApprovalPauseController", () => {
 });
 
 describe("runSandboxAgent orchestration", () => {
+  // NOTE: in-band redaction of the LIVE event stream / result / trace-start input was a
+  // daytona-secret-materialization concept that was not adopted. Redaction happens at the
+  // durable/exported sinks (persisted transcript + exported spans; see redaction-sinks.test.ts),
+  // seeded per run from the typed model and MCP credentials.
+
   it("returns a successful one-shot result and cleans up acquired resources", async () => {
     const { calls, deps } = fakeHarness();
 
@@ -735,6 +743,8 @@ describe("runSandboxAgent orchestration", () => {
     // endpoint. The runner must pass the exact `<connection-slug>/<model-id>` so it always wins.
     const { calls, deps } = fakeHarness();
     deps.prepareDaytonaPiAssets = (async () => true) as any;
+    // The opaque vault key on a Daytona run requires the process-local Secret gate.
+    process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS = "process_local";
 
     const result = await runSandboxAgent(
       {
@@ -742,12 +752,20 @@ describe("runSandboxAgent orchestration", () => {
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
         model: "gpt-4o",
-        provider: "openai",
-        deployment: "custom",
         connection: { mode: "agenta", slug: "my-conn" },
-        endpoint: { baseUrl: "https://proxy.test/v1" },
-        credentialMode: "env",
-        secrets: { OPENAI_API_KEY: "sk-vault-xyz" },
+        modelConnection: {
+          provider: "openai",
+          deployment: "custom",
+          endpoint: { baseUrl: "https://proxy.test/v1" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "OPENAI_API_KEY" },
+              value: "sk-vault-xyz",
+              usage: "opaque_http",
+            },
+          ],
+        },
       },
       undefined,
       undefined,
@@ -818,7 +836,7 @@ describe("runSandboxAgent orchestration", () => {
     });
     let agentDirSkillCount = -1;
     deps.prepareDaytonaPiAssets = (async ({ plan }: any) => {
-      agentDirSkillCount = plan.skillDirs.length;
+      agentDirSkillCount = plan.workspace.skillDirs.length;
       return true;
     }) as any;
 
@@ -922,7 +940,7 @@ describe("runSandboxAgent orchestration", () => {
       (calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR,
       undefined,
     );
-    assert.equal(calls.workspacePlan.appendSystemPrompt, undefined);
+    assert.equal(calls.workspacePlan.prompt.appendSystemPrompt, undefined);
     assert.equal(existsSync(`${cwd}-agent`), false);
     rmSync(cwd, { recursive: true, force: true });
   });
@@ -1728,9 +1746,19 @@ describe("runSandboxAgent orchestration", () => {
       {
         harness: "claude",
         messages: [{ role: "user", content: "hello" }],
-        credentialMode: "env",
-        secrets: { ANTHROPIC_API_KEY: "resolved" },
-        endpoint: { baseUrl: "https://claude-gw.example/v1" },
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "custom",
+          endpoint: { baseUrl: "https://claude-gw.example/v1" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+              value: "resolved",
+              usage: "opaque_http",
+            },
+          ],
+        },
       } as AgentRunRequest,
       undefined,
       undefined,
@@ -1807,10 +1835,22 @@ describe("runSandboxAgent orchestration", () => {
         harness: "claude",
         messages: [{ role: "user", content: "hello" }],
         model: "anthropic.claude-x",
-        deployment: "bedrock",
-        credentialMode: "env",
-        secrets: { AWS_ACCESS_KEY_ID: "AKIA" },
-        endpoint: { region: "us-east-1" },
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "bedrock",
+          endpoint: {
+            baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
+          },
+          credentialMode: "env",
+          environment: { AWS_REGION: "us-east-1" },
+          credentials: [
+            {
+              binding: { kind: "environment", name: "AWS_ACCESS_KEY_ID" },
+              value: "AKIA",
+              usage: "local_use",
+            },
+          ],
+        },
       } as AgentRunRequest,
       undefined,
       undefined,
@@ -1838,11 +1878,28 @@ describe("runSandboxAgent orchestration", () => {
         harness: "claude",
         messages: [{ role: "user", content: "hello" }],
         model: "claude-sonnet-4",
-        deployment: "vertex_ai",
-        credentialMode: "env",
-        secrets: {
-          GOOGLE_CLOUD_PROJECT: "proj",
-          GOOGLE_CLOUD_LOCATION: "us-central1",
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "vertex_ai",
+          endpoint: {
+            baseUrl: "https://us-central1-aiplatform.googleapis.com",
+            region: "us-central1",
+          },
+          credentialMode: "env",
+          environment: {
+            GOOGLE_CLOUD_PROJECT: "proj",
+            GOOGLE_CLOUD_LOCATION: "us-central1",
+          },
+          credentials: [
+            {
+              binding: {
+                kind: "environment",
+                name: "GOOGLE_APPLICATION_CREDENTIALS",
+              },
+              value: "/tmp/adc.json",
+              usage: "local_use",
+            },
+          ],
         },
       } as AgentRunRequest,
       undefined,
@@ -1870,7 +1927,12 @@ describe("runSandboxAgent orchestration", () => {
         {
           harness: "claude",
           messages: [{ role: "user", content: "hello" }],
-          credentialMode: "runtime_provided",
+          modelConnection: {
+            provider: "anthropic",
+            deployment: "direct",
+            credentialMode: "runtime_provided",
+            credentials: [],
+          },
         } as AgentRunRequest,
         undefined,
         undefined,
@@ -1902,9 +1964,12 @@ describe("runSandboxAgent orchestration", () => {
         {
           harness: "claude",
           messages: [{ role: "user", content: "hello" }],
-          credentialMode: "runtime_provided",
-          provider: "anthropic",
-          deployment: "bedrock",
+          modelConnection: {
+            provider: "anthropic",
+            deployment: "bedrock",
+            credentialMode: "runtime_provided",
+            credentials: [],
+          },
         } as AgentRunRequest,
         undefined,
         undefined,
@@ -1919,6 +1984,29 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(result.ok, true);
     assert.equal(calls.daemonOptions?.provider, "anthropic");
     assert.equal(calls.daemonOptions?.deployment, "bedrock");
+  });
+
+  it("clears inherited provider env when the resolved credential mode is none", async () => {
+    const { calls, deps } = fakeHarness();
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "direct",
+          credentialMode: "none",
+          credentials: [],
+        },
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+    assert.equal(result.ok, true);
+    // "none" means the run declared it uses NO ambient credential: the daemon must not inherit
+    // the sidecar's own provider keys either (only runtime_provided keeps them).
+    assert.equal(calls.daemonOptions?.clearProviderEnv, true);
   });
 });
 
@@ -2186,7 +2274,10 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
               sessionUpdate: "tool_call",
               toolCallId: "tool-late",
               title: "request_connection",
-              rawInput: { integration: "slack" },
+              rawInput: {
+                integration: "slack",
+                token: "marker-late-secret-9a21",
+              },
             },
           },
         },
@@ -2201,6 +2292,19 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
         harness: "claude",
         permissions: { default: "ask" },
         messages: [{ role: "user", content: "commit and connect" }],
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://api.openai.com/v1" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "OPENAI_API_KEY" },
+              value: "marker-late-secret-9a21",
+              usage: "opaque_http",
+            },
+          ],
+        },
       } as AgentRunRequest,
       undefined,
       undefined,
@@ -2241,21 +2345,23 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
             },
           },
         },
+      ],
+      emitPermission: true,
+      permissionToolCallId: "tool-a",
+      permissionToolName: "commit_revision",
+      permissionRawInput: { revision: "r1" },
+      postPermissionEvents: [
         {
           payload: {
             update: {
               sessionUpdate: "tool_call",
               toolCallId: "tool-b",
               title: "create_subscription",
-              rawInput: { plan: "pro" },
+              rawInput: { plan: "pro", token: "marker-live-secret-42bd" },
             },
           },
         },
       ],
-      emitPermission: true,
-      permissionToolCallId: "tool-a",
-      permissionToolName: "commit_revision",
-      permissionRawInput: { revision: "r1" },
       hangPrompt: true,
     });
     delete deps.responderFactory;
@@ -2266,6 +2372,19 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
         harness: "claude",
         permissions: { default: "ask" },
         messages: [{ role: "user", content: "commit and subscribe" }],
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://api.openai.com/v1" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "OPENAI_API_KEY" },
+              value: "marker-live-secret-42bd",
+              usage: "opaque_http",
+            },
+          ],
+        },
       } as AgentRunRequest,
       (event) => emitted.push(event),
       undefined,
@@ -2277,21 +2396,48 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     const interactionIndex = emitted.findIndex(
       (event) => event.type === "interaction_request",
     );
+    const siblingCallIndex = emitted.findIndex(
+      (event) => event.type === "tool_call" && (event as any).id === "tool-b",
+    );
     const siblingResultIndex = emitted.findIndex(
       (event) => event.type === "tool_result" && (event as any).id === "tool-b",
     );
     const doneIndex = emitted.findIndex((event) => event.type === "done");
 
     assert.notEqual(interactionIndex, -1, "approval request is emitted");
+    assert.notEqual(siblingCallIndex, -1, "late sibling call is emitted");
     assert.notEqual(siblingResultIndex, -1, "sibling result is emitted");
     assert.notEqual(doneIndex, -1, "done is emitted");
     assert.ok(
-      interactionIndex < siblingResultIndex,
-      "approval request is emitted before the teardown sweep runs",
+      interactionIndex < siblingCallIndex &&
+        siblingCallIndex < siblingResultIndex,
+      "the queued late call is emitted and settled after the approval request",
     );
     assert.ok(
       siblingResultIndex < doneIndex,
       "sibling result reaches the live sink before turn finish",
+    );
+    assert.equal(
+      emitted.filter(
+        (event) =>
+          event.type === "tool_result" && (event as any).id === "tool-b",
+      ).length,
+      1,
+      "the late sibling is settled exactly once",
+    );
+    assert.equal(
+      emitted.some(
+        (event) =>
+          event.type === "tool_result" && (event as any).id === "tool-a",
+      ),
+      false,
+      "the gated call remains open for human approval",
+    );
+    await flushPromises();
+    assert.equal(
+      emitted.at(-1)?.type,
+      "done",
+      "done remains terminal after another event-loop turn",
     );
   });
 

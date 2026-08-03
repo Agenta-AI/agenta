@@ -17,8 +17,8 @@ const PROVIDER_KEY_LABELS: Record<string, string> = {
  * harness name (`pi_core`/`claude`) is not the provider, so deriving the hint from it mislabels
  * every cross-provider run (e.g. Pi + Anthropic wrongly read "check the project's OpenAI key").
  *
- * `provider` is the resolved provider the runner already knows (`request.provider`, from the
- * resolved connection). When it is absent (un-migrated caller) fall back to the harness default
+ * `provider` is the resolved provider the runner already knows (`request.modelConnection.provider`, from the
+ * resolved connection). When it is absent, fall back to the harness default
  * — Claude is always Anthropic; every other harness defaults to OpenAI, matching the old
  * behavior for that path only.
  */

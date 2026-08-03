@@ -339,7 +339,8 @@
                 "autostopMinutes":   { "type": ["integer", "string"], "description": "AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES." },
                 "autodeleteMinutes": { "type": ["integer", "string"], "description": "AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES." },
                 "sessionIdleTtlMs":  { "type": ["integer", "string"], "description": "AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS." },
-                "sessionMaxWarm":    { "type": ["integer", "string"], "description": "AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM." }
+                "sessionMaxWarm":    { "type": ["integer", "string"], "description": "AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM." },
+                "opaqueSecrets":     { "type": "string", "enum": ["process_local"], "description": "AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS; hide model and MCP keys from the sandbox behind Daytona Secrets. Omit to keep passing them as plain environment variables." }
               }
             }
           }
