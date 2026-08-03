@@ -85,13 +85,19 @@ const SessionListCard = ({
         return byId
     }, [pinnedQuery.data?.pages, listRows, usePins])
 
-    const pinnedRows = usePins
+    // `limit` caps the CARD, not each group. Applying it per-group made every pin add a row at
+    // the top without dropping one at the bottom, so the card grew by a row each time — which is
+    // the height change you see mid-transition. Pinning a visible row is now a pure reorder.
+    const allPinned = usePins
         ? pinnedIds.flatMap((id) => {
               const row = knownById.get(id)
               return row ? [row] : []
           })
         : []
-    const rows = listRows.filter((row) => !pinnedSet.has(row.session_id)).slice(0, limit)
+    const pinnedRows = allPinned.slice(0, limit)
+    const rows = listRows
+        .filter((row) => !pinnedSet.has(row.session_id))
+        .slice(0, Math.max(0, limit - pinnedRows.length))
 
     const handleOpen = useCallback(
         (row: SessionStream) => {
