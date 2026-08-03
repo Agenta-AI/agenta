@@ -143,6 +143,9 @@ const tests = () => {
         "should render the app overview page with environment cards and variant list",
         {tag: lightTags},
         async ({page, uiHelpers, apiHelpers}) => {
+            // getApp() may create the app through the UI; that does not fit the 60s default (#5695).
+            baseTest.setTimeout(120000)
+
             let appId: string
 
             await scenarios.given("the user is authenticated", async () => {
