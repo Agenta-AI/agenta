@@ -172,9 +172,12 @@ jobs:
           done
           curl -sf http://127.0.0.1:3000/m >/dev/null || { docker logs mobile-smoke; exit 1; }
           curl -sf http://127.0.0.1:3000/m/__env.js >/dev/null || { docker logs mobile-smoke; exit 1; }
-          # basePath /m owns the prefix: the bare root must 404.
-          if curl -sf http://127.0.0.1:3000/ >/dev/null; then
-            echo "::error::expected / to 404 (basePath /m)"; exit 1
+          # basePath /m owns the prefix: the bare root must 404. Assert the status itself —
+          # `curl -sf` fails on any 4xx or 5xx alike, so a root that 500s would pass this check.
+          ROOT_STATUS="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/)"
+          if [ "$ROOT_STATUS" != "404" ]; then
+            echo "::error::expected / to 404 (basePath /m), got ${ROOT_STATUS}"
+            docker logs mobile-smoke; exit 1
           fi
           docker rm -f mobile-smoke
 
