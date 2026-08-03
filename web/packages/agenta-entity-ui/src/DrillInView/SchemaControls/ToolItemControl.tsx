@@ -732,6 +732,7 @@ export const ToolItemControl = memo(function ToolItemControl({
                 />
                 {!minimized && (
                     <textarea
+                        aria-label="Tool configuration"
                         className="font-mono text-xs p-2 border rounded min-h-[120px] resize-y w-full"
                         value={editorText}
                         onChange={(e) => onEditorChange(e.target.value)}

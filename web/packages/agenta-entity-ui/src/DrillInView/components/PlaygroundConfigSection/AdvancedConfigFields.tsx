@@ -162,7 +162,7 @@ const AdvancedJsonField = memo(function AdvancedJsonField({
                         href="https://agenta.ai/docs/prompt-engineering/playground/chat-template-kwargs"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-gray-500"
+                        className="text-gray-500 underline decoration-dotted underline-offset-2"
                     >
                         Learn more
                     </a>

@@ -57,6 +57,9 @@ export interface SliderInputProps {
     placeholder?: string
     /** Additional CSS classes */
     className?: string
+    /** Accessible name for both the number field and the slider thumb (there is no visible label). */
+    "aria-label"?: string
+    "aria-labelledby"?: string
 }
 
 // ============================================================================
@@ -78,6 +81,8 @@ export const SliderInput = memo(function SliderInput({
     inputWidth = 70,
     placeholder,
     className,
+    "aria-label": ariaLabel,
+    "aria-labelledby": ariaLabelledby,
 }: SliderInputProps) {
     // Local state for immediate UI feedback
     const [localValue, setLocalValue] = useState<number | null>(value ?? null)
@@ -119,6 +124,8 @@ export const SliderInput = memo(function SliderInput({
                     style={{width: inputWidth}}
                     placeholder={placeholder}
                     size="small"
+                    aria-label={ariaLabel}
+                    aria-labelledby={ariaLabelledby}
                 />
 
                 {allowClear && localValue !== null && (
@@ -140,6 +147,8 @@ export const SliderInput = memo(function SliderInput({
                 value={[localValue ?? min]}
                 disabled={disabled}
                 onValueChange={handleSliderChange}
+                aria-label={ariaLabel}
+                aria-labelledby={ariaLabelledby}
             />
         </div>
     )

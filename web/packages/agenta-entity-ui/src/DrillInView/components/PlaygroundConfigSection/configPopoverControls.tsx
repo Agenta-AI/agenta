@@ -41,6 +41,8 @@ export interface ConfigSelectProps {
     disabled?: boolean
     size?: SelectTriggerProps["size"]
     id?: string
+    "aria-label"?: string
+    "aria-labelledby"?: string
 }
 
 export function ConfigSelect({
@@ -52,6 +54,8 @@ export function ConfigSelect({
     disabled,
     size,
     id,
+    "aria-label": ariaLabel,
+    "aria-labelledby": ariaLabelledby,
 }: ConfigSelectProps) {
     const showClear = !!allowClear && value != null && value !== "" && !disabled
     return (
@@ -61,7 +65,13 @@ export function ConfigSelect({
                 onValueChange={(next) => onChange(next === "" ? null : next)}
                 disabled={disabled}
             >
-                <SelectTrigger id={id} size={size}>
+                {/* role=combobox takes no name from its contents; fall back to the placeholder. */}
+                <SelectTrigger
+                    id={id}
+                    size={size}
+                    aria-label={ariaLabelledby ? undefined : (ariaLabel ?? placeholder)}
+                    aria-labelledby={ariaLabelledby}
+                >
                     <SelectValue placeholder={placeholder} />
                 </SelectTrigger>
                 <SelectContent>

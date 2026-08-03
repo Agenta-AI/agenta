@@ -500,6 +500,7 @@ export function EntityCommitModal({
                 rootClassName={isAgentTwoPane ? AGENT_TWO_PANE_ROOT_CLASS : undefined}
                 // Agent commits render title + footer inside the body (two full-bleed panels).
                 title={isAgentTwoPane ? null : <EntityCommitTitle />}
+                aria-label={`${actionLabel} changes`}
                 footer={isAgentTwoPane ? null : footerNode}
                 width={hasDiffData ? 900 : 520}
                 styles={

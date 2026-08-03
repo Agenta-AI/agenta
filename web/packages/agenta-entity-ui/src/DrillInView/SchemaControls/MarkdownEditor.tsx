@@ -285,10 +285,14 @@ export function MarkdownEditor({
             style={boundStyle}
         >
             {toolbar}
-            <div className="md-prose min-h-0 flex-1 overflow-y-auto">{editorEl}</div>
+            {/* tabIndex: a scroll region must be keyboard-reachable (axe scrollable-region-focusable)
+                — in rendered/read-only view it has no focusable content of its own. */}
+            <div tabIndex={0} className="md-prose min-h-0 flex-1 overflow-y-auto">
+                {editorEl}
+            </div>
         </div>
     ) : boundStyle ? (
-        <div className="md-prose overflow-y-auto" style={boundStyle}>
+        <div tabIndex={0} className="md-prose overflow-y-auto" style={boundStyle}>
             {editorEl}
         </div>
     ) : (

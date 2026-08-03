@@ -41,9 +41,10 @@ export const ModelConfigEditor = memo(function ModelConfigEditor({
         const enumValues = (resolved?.enum ?? schema?.enum) as string[] | undefined
 
         if (enumValues && enumValues.length > 0) {
+            const fieldLabel = formatLabel(schema.title || key)
             return (
                 <div key={key} className="flex flex-col gap-1">
-                    <span className="font-medium">{formatLabel(schema.title || key)}</span>
+                    <span className="font-medium">{fieldLabel}</span>
                     <ConfigSelect
                         value={(value?.[key] as string | null) ?? null}
                         onChange={(v) => onChange(key, v)}
@@ -51,6 +52,8 @@ export const ModelConfigEditor = memo(function ModelConfigEditor({
                         size="sm"
                         allowClear
                         placeholder="Select one"
+                        // The visible label above; the shared "Select one" placeholder names nothing.
+                        aria-label={fieldLabel}
                         options={enumValues.map((v) => ({
                             label: formatLabel(String(v)),
                             value: v,

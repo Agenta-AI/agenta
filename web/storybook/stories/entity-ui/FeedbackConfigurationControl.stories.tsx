@@ -280,7 +280,12 @@ export const AntdVsAgenta: Story = {
                         tooltip="Choose the format for your evaluation results"
                     >
                         <Select value="boolean">
-                            <SelectTrigger size="sm" className="w-full">
+                            {/* Field's htmlFor lands on the Radix Root, not this button. */}
+                            <SelectTrigger
+                                size="sm"
+                                className="w-full"
+                                aria-label="Response Format"
+                            >
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>

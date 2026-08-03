@@ -855,25 +855,27 @@ function ChoiceCards({
                     {i < 9 && <DigitBadge digit={i + 1} />}
                 </div>
             ))}
-            <div
-                role={multiple ? "checkbox" : "radio"}
-                aria-checked={otherActive}
-                tabIndex={-1}
-                onClick={focusOther}
-                onKeyDown={(e) => {
-                    // Enter/Space on the focused Other card jumps into its input, mirroring how a
-                    // normal card is keyboard-actionable. Ignore keys bubbling up from the input.
-                    if (e.target !== e.currentTarget) return
-                    if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault()
-                        focusOther()
-                    }
-                }}
-                className={choiceCardCls(otherActive)}
-            >
+            {/* The radio/checkbox role sits on the LABEL, not the card: this card also holds a text
+                input, and interactive-inside-interactive is axe `nested-interactive`. */}
+            <div onClick={focusOther} className={choiceCardCls(otherActive)}>
                 <CardIndicator checked={otherActive} multiple={multiple} />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <span className="text-xs font-medium">Other</span>
+                    <span
+                        role={multiple ? "checkbox" : "radio"}
+                        aria-checked={otherActive}
+                        tabIndex={-1}
+                        onKeyDown={(e) => {
+                            // Enter/Space on the focused Other card jumps into its input.
+                            if (e.target !== e.currentTarget) return
+                            if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault()
+                                focusOther()
+                            }
+                        }}
+                        className="text-xs font-medium"
+                    >
+                        Other
+                    </span>
                     {multiple && customValues.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                             {customValues.map((v) => (

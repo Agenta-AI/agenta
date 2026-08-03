@@ -14,8 +14,8 @@
  */
 import {memo, useCallback, useMemo} from "react"
 
-import {ChipsInput} from "../../gatewayTool/components/schemaFormControls"
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
+import {ChipsInput} from "../../gatewayTool/components/schemaFormControls"
 
 import {
     PI_BUILTIN_RULE_NAMES,

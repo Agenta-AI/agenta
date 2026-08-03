@@ -539,7 +539,8 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                         onValueChange={(v) => handleResponseFormatChange(v as ResponseFormatType)}
                         disabled={disabled}
                     >
-                        <SelectTrigger size="sm" className="w-full">
+                        {/* Field's htmlFor lands on the Radix Root, not this button. */}
+                        <SelectTrigger size="sm" className="w-full" aria-label="Response Format">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

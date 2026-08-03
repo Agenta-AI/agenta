@@ -95,7 +95,7 @@ export const RetryConfigTab = memo(function RetryConfigTab({
                             href="https://agenta.ai/docs/prompt-engineering/integrating-prompts/fallback-models-and-retry"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-gray-500"
+                            className="text-gray-500 underline decoration-dotted underline-offset-2"
                         >
                             Learn more
                         </a>
@@ -111,6 +111,8 @@ export const RetryConfigTab = memo(function RetryConfigTab({
                             options={retryPolicyOptions}
                             placeholder={isPolicyEnabled ? "Select one" : retryRequiredMessage}
                             disabled={!isPolicyEnabled}
+                            // The visible title above; the placeholder is generic/state-dependent.
+                            aria-label={policyTitle}
                         />
                     </span>
                 </HintTooltip>

@@ -50,6 +50,8 @@ export function SelectControl({
     allowClear,
     disabled,
     id,
+    "aria-label": ariaLabel,
+    "aria-labelledby": ariaLabelledby,
 }: {
     value?: string
     onChange?: (v: string | undefined) => void
@@ -58,6 +60,8 @@ export function SelectControl({
     allowClear?: boolean
     disabled?: boolean
     id?: string
+    "aria-label"?: string
+    "aria-labelledby"?: string
 }) {
     const showClear = !!allowClear && value != null && value !== "" && !disabled
     return (
@@ -67,7 +71,14 @@ export function SelectControl({
                 onValueChange={(next) => onChange?.(next === "" ? undefined : next)}
                 disabled={disabled}
             >
-                <SelectTrigger id={id}>
+                {/* role=combobox is NOT named from its contents, and a Form.Item `<label for>`
+                    does not apply to a button — fall back to the placeholder (the field label
+                    every call site passes) so the trigger is never anonymous. */}
+                <SelectTrigger
+                    id={id}
+                    aria-label={ariaLabelledby ? undefined : (ariaLabel ?? placeholder)}
+                    aria-labelledby={ariaLabelledby}
+                >
                     <SelectValue placeholder={placeholder} />
                 </SelectTrigger>
                 <SelectContent>

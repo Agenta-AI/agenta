@@ -82,18 +82,10 @@ export function CollapsibleProviderGroup({
 }) {
     return (
         <div className="overflow-hidden rounded border border-solid border-[var(--ag-colorBorderSecondary)]">
+            {/* Header stays clickable but is not the role=button node — it holds the + button
+                (nested-interactive). The role lives on the name span below. */}
             <div
-                role="button"
-                tabIndex={0}
-                aria-expanded={open}
                 onClick={onToggle}
-                onKeyDown={(e) => {
-                    if (e.target !== e.currentTarget) return
-                    if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault()
-                        onToggle()
-                    }
-                }}
                 // pr = section header's caret gutter (14px caret + 8px gap) minus the card border,
                 // so the group's + button sits in the same column as the section header's +.
                 className="flex cursor-pointer items-center gap-2.5 bg-[var(--ag-colorFillQuaternary)] py-2 pl-3 pr-[21px] transition-colors hover:bg-[var(--ag-colorFillSecondary)]"
@@ -107,7 +99,21 @@ export function CollapsibleProviderGroup({
                     />
                 )}
                 <ProviderLogo logo={logo} size={20} />
-                <span className="min-w-0 flex-1 truncate text-xs font-medium">{name}</span>
+                <span
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={open}
+                    onKeyDown={(e) => {
+                        if (e.target !== e.currentTarget) return
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            onToggle()
+                        }
+                    }}
+                    className="min-w-0 flex-1 truncate text-xs font-medium"
+                >
+                    {name}
+                </span>
                 {statusTag ? <span className="shrink-0">{statusTag}</span> : null}
                 <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
                     {countText}

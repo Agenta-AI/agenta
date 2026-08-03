@@ -428,7 +428,11 @@ export function EntityTable<
                     disabled={selectionDisabled}
                     aria-label="Select all rows"
                 />
-            ) : null,
+            ) : (
+                // Single-select has no select-all, but a header cell must not be empty
+                // (axe empty-table-header). sr-only is absolute, so it takes no space.
+                <span className="sr-only">Select</span>
+            ),
             width: SELECTION_COLUMN_WIDTH,
             fixed: "left",
             render: (_, record) => {

@@ -117,6 +117,7 @@ export const McpServerItemControl = memo(function McpServerItemControl({
             <div className={clsx("group/mcp flex flex-col gap-2 border rounded-lg p-3", className)}>
                 {header}
                 <textarea
+                    aria-label="MCP server configuration"
                     className="font-mono text-xs p-2 border rounded min-h-[120px] resize-y w-full"
                     value={editorText}
                     onChange={(e) => handleEditorChange(e.target.value)}

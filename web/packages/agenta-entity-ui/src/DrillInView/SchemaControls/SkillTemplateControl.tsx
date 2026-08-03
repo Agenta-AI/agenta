@@ -225,6 +225,7 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
             >
                 {header}
                 <textarea
+                    aria-label="Skill template"
                     className="font-mono text-xs p-2 border rounded min-h-[120px] resize-y w-full"
                     value={editorText}
                     onChange={(e) => handleEditorChange(e.target.value)}

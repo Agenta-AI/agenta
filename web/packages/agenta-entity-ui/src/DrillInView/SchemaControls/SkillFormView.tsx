@@ -102,16 +102,10 @@ function FileRow({
     disabled?: boolean
 }) {
     return (
+        // Row stays clickable but is not the role=button node — it holds the remove button
+        // (nested-interactive). The button role lives on the label span below.
         <div
-            role="button"
-            tabIndex={0}
             onClick={onSelect}
-            onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault()
-                    onSelect()
-                }
-            }}
             className={cn(
                 "group/file flex cursor-pointer items-center gap-1.5 rounded px-2 py-1",
                 // The list panel is the elevated/item colour; the selected row gets a fill overlay
@@ -122,7 +116,19 @@ function FileRow({
             )}
         >
             <FileIcon size={13} className="shrink-0 text-[var(--ag-c-97A4B0,#97a4b0)]" />
-            <span className="min-w-0 flex-1 truncate font-mono text-xs">{label}</span>
+            <span
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        onSelect()
+                    }
+                }}
+                className="min-w-0 flex-1 truncate font-mono text-xs"
+            >
+                {label}
+            </span>
             {onRemove && !disabled ? (
                 <button
                     type="button"

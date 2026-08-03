@@ -67,6 +67,8 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
                     options={fallbackPolicyOptions}
                     placeholder="Select one"
                     disabled={disabled}
+                    // The visible title above; the shared "Select one" placeholder names nothing.
+                    aria-label={policyTitle}
                 />
             </div>
             <div className="flex flex-col gap-2">
@@ -78,7 +80,7 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
                             href="https://agenta.ai/docs/prompt-engineering/integrating-prompts/fallback-models-and-retry"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-gray-500"
+                            className="text-gray-500 underline decoration-dotted underline-offset-2"
                         >
                             Learn more
                         </a>
