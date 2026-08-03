@@ -7,11 +7,13 @@ import {Button, Dropdown, Space, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/pages/agents/store"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import DeploymentOverview from "@/oss/components/pages/overview/deployments/DeploymentOverview"
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
+import SessionListCard from "@/oss/components/pages/sessions/components/SessionListCard"
 import WorkflowPageTitle from "@/oss/components/PageTitle/WorkflowPageTitle"
 import RequireWorkflowKind from "@/oss/components/RequireWorkflowKind"
 import {useAppId} from "@/oss/hooks/useAppId"
@@ -143,6 +145,14 @@ const OverviewContent = () => {
     // apps), so the Deployment section is hidden for them.
     const currentWorkflow = useAtomValue(currentWorkflowAtom)
     const isEvaluator = Boolean(currentWorkflow?.flags?.is_evaluator)
+    // Membership of the classified agents list, not the artifact's `is_agent` flag — agent
+    // identity is revision-derived, so the artifact flag reads false for real agents.
+    const agents = useAtomValue(agentsWorkflowsAtom)
+    const agentsLoading = useAtomValue(agentsWorkflowsLoadingAtom)
+    const isAgent = Boolean(appId) && agents.some((agent) => agent.workflowId === appId)
+    // An agent's overview is about its work, not its prompt revisions or evaluation runs.
+    // Held while the list resolves so those sections never flash in and then vanish.
+    const showWorkflowSections = !isAgent && !agentsLoading
     const [isCustomWorkflowHistoryDrawerOpen, setIsCustomWorkflowHistoryDrawerOpen] =
         useState(false)
 
@@ -151,24 +161,47 @@ const OverviewContent = () => {
             <WorkflowPageTitle title="Overview" />
             <PageLayout className="gap-8">
                 <AppDetailsSection />
+
+                {isAgent && appId ? (
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                        <SessionListCard
+                            withPinned
+                            agentId={appId}
+                            title="Sessions"
+                            emptyText="Conversations with this agent will show up here."
+                        />
+                        <SessionListCard
+                            agentId={appId}
+                            origin="trigger"
+                            title="Automation runs"
+                            emptyText="Runs from automations bound to this agent will show up here."
+                            limit={5}
+                        />
+                    </div>
+                ) : null}
+
                 <ObservabilityOverview />
                 {!isEvaluator ? <DeploymentOverview /> : null}
-                <VariantsOverview />
 
-                <LatestEvaluationRunsTable
-                    title="Auto Evaluations"
-                    evaluationKind="auto"
-                    appId={appId}
-                    appScoped
-                    withContainerStyles={false}
-                />
-                <LatestEvaluationRunsTable
-                    title="Human Evaluations"
-                    evaluationKind="human"
-                    appId={appId}
-                    appScoped
-                    withContainerStyles={false}
-                />
+                {showWorkflowSections ? (
+                    <>
+                        <VariantsOverview />
+                        <LatestEvaluationRunsTable
+                            title="Auto Evaluations"
+                            evaluationKind="auto"
+                            appId={appId}
+                            appScoped
+                            withContainerStyles={false}
+                        />
+                        <LatestEvaluationRunsTable
+                            title="Human Evaluations"
+                            evaluationKind="human"
+                            appId={appId}
+                            appScoped
+                            withContainerStyles={false}
+                        />
+                    </>
+                ) : null}
             </PageLayout>
 
             <CustomWorkflowHistory

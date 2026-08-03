@@ -1,4 +1,4 @@
-import HomeSessionList from "./HomeSessionList"
+import SessionListCard from "@/oss/components/pages/sessions/components/SessionListCard"
 
 /**
  * What the automations actually did — the sessions they produced, not a schedule of what's next.
@@ -8,7 +8,7 @@ import HomeSessionList from "./HomeSessionList"
  * are only separated out because they aren't your own work.
  */
 const HomeAutomationsSection = () => (
-    <HomeSessionList
+    <SessionListCard
         origin="trigger"
         title="Automation runs"
         emptyText="Runs from your automations will show up here."

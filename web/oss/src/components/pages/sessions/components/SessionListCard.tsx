@@ -10,23 +10,24 @@ import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionO
 import {useOpenAgentSession} from "@/oss/components/AgentChatSlice/hooks/useOpenAgentSession"
 import {useSessionActions} from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
 import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
-import {sessionRowStatus} from "@/oss/components/pages/sessions/assets/sessionRowStatus"
-import SessionAgentLabel from "@/oss/components/pages/sessions/components/SessionAgentLabel"
-import {
-    pinnedSessionIdsAtom,
-    toggleSessionPinAtom,
-} from "@/oss/components/pages/sessions/state/pins"
+import useURL from "@/oss/hooks/useURL"
+import {projectIdAtom} from "@/oss/state/project"
+
+import {sessionRowStatus} from "../assets/sessionRowStatus"
+import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "../state/pins"
 import {
     pendingCountBySession,
     rowsFromPages,
     useActionableInteractions,
     useSessionList,
-} from "@/oss/components/pages/sessions/state/useSessionList"
-import useURL from "@/oss/hooks/useURL"
-import {projectIdAtom} from "@/oss/state/project"
+} from "../state/useSessionList"
+
+import SessionAgentLabel from "./SessionAgentLabel"
 
 interface Props {
     title: string
+    /** Scope to one agent's sessions — the app overview. Omit for the whole project. */
+    agentId?: string
     /** Restrict to one origin (e.g. automation runs). Omit for everything but automations. */
     origin?: string
     emptyText: string
@@ -39,7 +40,14 @@ interface Props {
  * A session list for Home — the same rows and the same right-click actions as the sessions page,
  * so the two surfaces stay one thing rather than two that look alike.
  */
-const HomeSessionList = ({title, origin, emptyText, limit = 7, withPinned = false}: Props) => {
+const SessionListCard = ({
+    title,
+    agentId,
+    origin,
+    emptyText,
+    limit = 7,
+    withPinned = false,
+}: Props) => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
     const togglePin = useSetAtom(toggleSessionPinAtom)
@@ -54,8 +62,9 @@ const HomeSessionList = ({title, origin, emptyText, limit = 7, withPinned = fals
     )
 
     const usePins = withPinned && pinnedIds.length > 0
-    const pinnedQuery = useSessionList({origin, sessionIds: pinnedIds, enabled: usePins})
+    const pinnedQuery = useSessionList({agentId, origin, sessionIds: pinnedIds, enabled: usePins})
     const listQuery = useSessionList({
+        agentId,
         origin,
         excludeSessionIds: withPinned ? pinnedIds : undefined,
         // Automations are their own list here, so they must not also appear in the recent one.
@@ -166,4 +175,4 @@ const HomeSessionList = ({title, origin, emptyText, limit = 7, withPinned = fals
     )
 }
 
-export default HomeSessionList
+export default SessionListCard
