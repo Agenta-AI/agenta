@@ -59,6 +59,16 @@ def calculate_and_propagate_metrics(
     # Propagate errors up the tree (children to parents)
     cumulate_errors(span_id_tree, span_idx)
 
+    # Cheap ownership check on the result we just wrote, so a producer that repeats its
+    # children's totals is named in the logs instead of silently inflating the trace.
+    double_counted = find_token_rollup_violations(span_id_tree, span_idx)
+    if double_counted:
+        log.warn(
+            "Token roll-up double counted: a span's own incremental tokens restate the "
+            "total its children already carry",
+            span_ids=double_counted,
+        )
+
     # Return updated span DTOs
     return list(span_idx.values())
 
@@ -513,6 +523,67 @@ def cumulate_tokens(
         _accumulate,
         _set_cumulative,
     )
+
+
+def _metric_total(span: OTelFlatSpan, metric: str, bucket: str) -> float:
+    if not isinstance(span.attributes, dict):
+        return 0.0
+
+    node = span.attributes
+    for key in ("ag", "metrics", metric, bucket, "total"):
+        if not isinstance(node, dict):
+            return 0.0
+        node = node.get(key)
+
+    return node if isinstance(node, (int, float)) else 0.0
+
+
+def find_token_rollup_violations(
+    spans_id_tree: OrderedDict,
+    spans_idx: Dict[str, OTelFlatSpan],
+) -> List[str]:
+    """
+    Span ids whose own incremental tokens merely restate the total already below them.
+
+    INVARIANT: an incremental token observation is owned by exactly one span. `cumulate_tokens`
+    starts from a span's OWN incremental tokens and adds its children's cumulative values, so a
+    span that repeats a run total it did not itself measure — a producer emitting
+    `gen_ai.usage.*_tokens` on a parent, which ingest maps to the incremental bucket — is added
+    on top of the same tokens the children already contributed.
+
+    The comparison is against what the roll-up should actually produce from this span, its own
+    contribution, and not against the subtree's graph leaves. A leaves-only total made every
+    non-leaf that ran its own model call look like a repeat, because such a span legitimately
+    owns incremental tokens; here it is quiet unless the span's own count is exactly the total
+    its children already carry, which is a restatement rather than a measurement.
+
+    Comparing a span's cumulative against the sum of every incremental in its subtree cannot
+    work: the roll-up computes the cumulative as exactly that sum, so the two are equal by
+    construction and the check would never fire.
+
+    A span may legitimately be the ONLY carrier — a harness that reports run-level usage and
+    emits no per-call spans — so a subtree that measured nothing is not a violation.
+    """
+    violations: List[str] = []
+
+    def _visit(span_id: str, children: OrderedDict) -> None:
+        for child_span_id, grandchildren in children.items():
+            _visit(child_span_id, grandchildren)
+
+        children_total = sum(
+            _metric_total(spans_idx[child_span_id], "tokens", "cumulative")
+            for child_span_id in children
+        )
+
+        if children_total > 0 and (
+            _metric_total(spans_idx[span_id], "tokens", "incremental") == children_total
+        ):
+            violations.append(span_id)
+
+    for span_id, children in spans_id_tree.items():
+        _visit(span_id, children)
+
+    return violations
 
 
 def cumulate_errors(
