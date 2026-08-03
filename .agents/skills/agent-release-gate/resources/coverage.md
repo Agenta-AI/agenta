@@ -58,13 +58,15 @@ cell — keep them in sync if a cell changes.
 | `commit` | Save an agent config as a new workflow revision, then fetch it back. | The changed parameter survives the round trip and the version bumps (v0 seed → v1; see LESSONS #14). Harness-agnostic — it drives the config REST API, not a turn. |
 | `warm` | Continuity tier 1: three turns on one live daemon, over a store-backed cwd. | The durable token written in turn 1 comes back in the last turn, and the turn ledger shows one harness session and one sandbox (a second id means the turn was not warm). |
 | `cold1` | Continuity tier 2: the pooled session is **evicted** (the client changes the agent's instructions, which changes the config fingerprint) and the runner rebuilds it — unmounting and remounting the durable cwd. | The token survives the store round trip AND the agent can read a file the client wrote directly into the object store. |
-| `cold2` | Continuity tier 3: the runner **replica is replaced** (operator hook: SIGKILL, then wait out the owner TTL plus a margin). | On a **local** sandbox the resume must REFUSE (the runner's `… is not the owner of session …`, the substring the driver asserts); on a remote sandbox it must complete with both files intact. SKIPs without `--cold2-replace-cmd`. |
+| `park` | Continuity tier 3: the session **idles out** with nothing changed, so the pool expires it and the sandbox is PARKED (stopped, not deleted); the next turn must reconnect to that same sandbox. | Both files come back AND the turn ledger shows exactly one sandbox id with more than one harness session — the wire signature of a reconnect rather than a recreate. **Daytona only.** This is the resume users actually hit, because the pool TTL is two minutes, and on Daytona it is the only tier that proves a credential Secret still resolves after a stop/start. Tune the idle with `--park-wait`. |
+| `cold2` | Continuity tier 4: the runner **replica is replaced** (operator hook: SIGKILL, then wait out the owner TTL plus a margin). | The resume completes with both files intact, on local and remote alike. On local that is the point: the dead replica took its sandbox with it, so the conversation had to come back from the object store alone. A `… is not the owner of session …` refusal is a FAIL, because it means the owner key outlived the wait and the run measured the wait rather than the product. SKIPs without `--cold2-replace-cmd`. |
 | `mcp` | Deliver an MCP server in the agent config and call one of its tools. | A `tool-output-available` frame fires for an `mcp__*` tool. **Claude only** — Pi rejects user MCP, so this `SKIP`s on every Pi cell. Uses the public DeepWiki server by default; override with `--mcp-url`. |
 | `rule_deny` | Policy `allow`, plus a `deny` rule for `Bash`. Ask for a bash command. | The model still attempts the call (the tool is not hidden), the call never executes, no approval card appears, and no real shell token reaches the reply. **Pi only.** |
 | `rule_allow` | Policy `ask`, plus an `allow` rule for `Bash`. Ask for the same command. | No approval card fires and the call executes — the rule overrode the policy. **Pi only.** |
 | `rule_case` | The same as `rule_allow` with the rule written `bash`. | Identical result: the runner matches built-in names case-insensitively. **Pi only.** |
 | `builtin_grep` | Policy `allow_reads`. Write a file with bash, then grep it. | A `grep` call executes with no approval card — grep is one of the three built-ins Pi does not activate on its own, and it is read-only, so it runs unattended. **Pi only.** |
-| `secret_opaque` | Read the first 11 characters of the provider key variable inside the sandbox. | The value begins `dtn_secret_`, so the agent holds a Daytona Secret placeholder and not the real key. **Daytona only** (C2, C4); it `SKIP`s on every local cell, where the harness runs inside the runner container and there is nothing to hide it from. |
+| `secret_opaque` | Ask the sandbox to classify its own provider key variable and echo back a verdict word carrying a nonce this run invented. | The verdict says the value begins `dtn_secret_`, so the agent holds a Daytona Secret placeholder and not the real key. **Daytona only** (C2, C4, X2); it `SKIP`s on every local cell, where the harness runs inside the runner container and there is nothing to hide it from. |
+| `rotate` | Change the provider key in the vault **mid-conversation** to a decoy no provider accepts, send a turn, then put the real key back and keep talking. | The turn under the decoy must FAIL (a success means the runner kept serving the old credential), and the turn after the restore must succeed with the durable working directory intact. Skips on subscription cells, which have no vault key. The vault is restored in a `finally`. |
 
 The four rule journeys are the only coverage of `harness.permissions`. Built-in tools are always
 active and are never listed in `tools`, so those three lists are the only lever over them: if they
@@ -73,12 +75,19 @@ stop being honored, nothing else in the gate notices.
 `secret_opaque` is the only journey that checks a **security property** rather than checking that
 the product works. It exists because the rest of the gate cannot see this one: a plaintext provider
 key works exactly as well as a placeholder does, so if credential hiding silently stopped working,
-every other journey would stay green and nothing would notice. Two details are deliberate. It reads
-only the first 11 characters, never the whole value, because that is enough to tell `dtn_secret_`
-from a real `sk-` key and it never asks a model to print a credential (which a safety-trained model
-may refuse, turning a real check into a flaky one). And it requires the bash call to have genuinely
-executed, so it cannot pass on an absence: a refused call, an empty variable, or a model that
-declined to answer all read as FAIL, not as "no key was leaked".
+every other journey would stay green and nothing would notice. Two details are deliberate. The classification happens INSIDE
+the sandbox and only a verdict word comes back, so no key material can ever reach the results file
+— an earlier version asked for the first 11 characters, which is safe only while hiding works and
+would have written a slice of a real key into the transcript on the exact failure this journey
+exists to catch. And the verdict word carries a per-run nonce, so it cannot pass on an absence: a
+refused call, an unset variable, or a model that declined all read as FAIL, not as "no key was
+leaked". Carrying the proof in the nonce rather than in a tool-call frame is also what lets it run
+on the codex harness, whose shell goes through native exec frames the tool-call probe cannot read.
+
+`rotate` is the other security-shaped journey. Credential VALUES are deliberately excluded from the
+session config fingerprint and live only in a separate credential epoch, so that epoch check is the
+only thing standing between a rotated key and a warm sandbox that goes on using the old one. Nothing
+else in the gate would notice if it stopped working, because a stale key still answers.
 
 Triggers are deliberately **out of scope** for this gate.
 

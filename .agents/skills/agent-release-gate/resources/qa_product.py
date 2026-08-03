@@ -736,6 +736,13 @@ COLD2_REPLACE_TIMEOUT_SECONDS = 180.0
 # (docs/design/codex-harness/spike/scripts/codex-approval-matrix-qa.py).
 OWNER_TTL_MARGIN_SECONDS = 20.0
 
+# How long the `park` tier idles so the session pool expires the session on its own. The runner
+# parks a Daytona session at `AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` (120s by default), and an
+# idle expiry STOPS the sandbox rather than deleting it — which is what makes the next turn a
+# reconnect. Override with --park-wait when a deployment runs a different TTL.
+PARK_IDLE_TTL_SECONDS = 120.0
+PARK_MARGIN_SECONDS = 45.0
+
 # The runner's refusal when a replacement replica tries to adopt a local-sandbox session
 # (`LocalSandboxNotOwnerError`, session-continuity.ts). Asserted by the cold2 journey and quoted
 # in coverage.md — one spelling, one source, so the doc and the assertion cannot drift apart.
@@ -977,6 +984,23 @@ def _continuity(cell: dict, tier: str) -> dict:
             f" (qa-continuity {uuid.uuid4().hex[:8]})"
         )
         transition = "config-fingerprint change -> the runner evicts the pooled session and rebuilds cold"
+    elif tier == "park":
+        # Change NOTHING and simply wait. That is the whole point: a config change makes the
+        # runner delete the sandbox and build a fresh one (that is `cold1`), whereas an idle
+        # expiry PARKS it — the sandbox is stopped, not deleted, and the next turn reconnects to
+        # the same one. Parking is by far the most common resume in real usage, because the pool
+        # TTL is two minutes, and until this tier existed the gate never once exercised it.
+        #
+        # On Daytona it is the only journey that proves a credential Secret still resolves after
+        # a stop/start. Every other tier either keeps the sandbox alive or builds a new one with
+        # freshly created Secrets, so a Secret that silently stopped substituting on restart
+        # would leave the whole matrix green.
+        wait = PARK_IDLE_TTL_SECONDS + PARK_MARGIN_SECONDS
+        time.sleep(wait)
+        transition = (
+            f"{int(wait)}s idle, so the session pool expires the session and PARKS the sandbox "
+            "(stop, not delete); the next turn must reconnect to it"
+        )
     elif tier == "cold2":
         if not COLD2_REPLACE_CMD:
             return {
@@ -1056,6 +1080,7 @@ def _continuity(cell: dict, tier: str) -> dict:
             "warm": "[keepalive] hit-continue",
             "cold1": "[keepalive] mismatch (config) ...; evict + cold",
             "cold2": "[keepalive] miss ...; cold  (from a replica id you have not seen before)",
+            "park": "[keepalive] evict ... reason=expire, then `reconnected sandbox=<id>`",
         }[tier],
     }
 
@@ -1101,6 +1126,21 @@ def _continuity(cell: dict, tier: str) -> dict:
     store_back = store_token in reply if tier != "warm" else None
     ok = cwd_back and not t_last.errors and (store_back is not False)
 
+    if tier == "park":
+        # A reconnect and a recreate BOTH answer, both return the token, and both look identical
+        # in the reply. The ledger is what tells them apart: reconnecting keeps the sandbox and
+        # rebuilds only the harness session, so exactly one sandbox id across the turns and more
+        # than one harness session. If a second sandbox id appears, the runner threw the parked
+        # sandbox away and cold-created — which may still serve the user, but it did not test
+        # what this tier exists to test, so it cannot be reported as a pass.
+        #
+        # An empty ledger is missing evidence, not evidence of success, exactly as in `warm`.
+        ledger_available = bool(agents or sandboxes)
+        reconnected = len(sandboxes) == 1 and len(agents) > 1
+        evidence["ledger_available"] = ledger_available
+        evidence["reconnected_same_sandbox"] = reconnected
+        ok = ok and ledger_available and reconnected
+
     if tier == "warm":
         # A warm continuation cannot have rebuilt the harness session or the sandbox. More than
         # one distinct id across the ledger means the turn was NOT served warm, so the cell did
@@ -1131,6 +1171,18 @@ def _continuity(cell: dict, tier: str) -> dict:
             f"cold 1: the pooled session was evicted and rebuilt on the same runner; the cwd token "
             f"came back from the store (in reply={cwd_back}) and the agent read a file that only "
             f"ever existed as an object (store-only file readable={store_back})"
+        ),
+        "park": (
+            f"park: the session idled out and the sandbox was PARKED, then the next turn "
+            f"reconnected to it (same sandbox across turns="
+            f"{evidence.get('reconnected_same_sandbox')}); the cwd token came back "
+            f"(in reply={cwd_back}) and the store-only file was readable ({store_back})"
+            + (
+                ". On Daytona this is the one tier that proves a credential Secret still "
+                "resolves after the sandbox was stopped and started again"
+                if cell["sandbox"] == "daytona"
+                else ""
+            )
         ),
         "cold2": (
             f"cold 2: the replica was replaced; the cwd token came back (in reply={cwd_back}) and "
@@ -1164,6 +1216,230 @@ def j6_cold1(cell: dict) -> dict:
     """Cold 1: session evicted, runner alive. The durable cwd is unmounted and remounted from the
     object store between turns — the round trip that #5692 needed to surface."""
     return _continuity(cell, "cold1")
+
+
+# A syntactically plausible key that no provider will ever accept. It must LOOK like a key so the
+# request reaches the provider and comes back as an auth failure, rather than being rejected by
+# local validation before the credential is ever used.
+ROTATION_DECOY_KEY = "sk-agenta-qa-rotation-decoy-000000000000000000000000000000"
+
+
+def _vault_provider_secret(provider: str) -> dict | None:
+    """The vault `provider_key` record for this provider, or None."""
+    r = api_call("GET", "/vault/v1/secrets/")
+    if r.status_code != 200:
+        return None
+    for secret in r.json():
+        data = secret.get("data") or {}
+        if secret.get("kind") == "provider_key" and data.get("kind") == provider:
+            return secret
+    return None
+
+
+def _set_vault_provider_key(secret: dict, value: str) -> bool:
+    """Replace a provider_key record's key value, keeping everything else as it was."""
+    data = json.loads(json.dumps(secret.get("data") or {}))
+    data.setdefault("provider", {})["key"] = value
+    r = api_call(
+        "PUT",
+        f"/vault/v1/secrets/{secret['id']}",
+        json={
+            "header": secret.get("header") or {},
+            "secret": {"kind": secret.get("kind"), "data": data},
+        },
+    )
+    return r.status_code < 400
+
+
+def j_rotate(cell: dict) -> dict:
+    """Rotate the provider key MID-CONVERSATION, then keep talking.
+
+    The question this answers is one no other journey asks: when someone changes a key in the
+    vault while a session is live, does the next turn use the NEW value, and does the conversation
+    survive the rebuild that requires?
+
+    It matters most on Daytona. Credential values are deliberately excluded from the session's
+    configuration fingerprint and live only in a separate credential epoch, so the epoch check is
+    the ONLY thing that notices a rotation. If it ever stopped noticing, a warm sandbox would go
+    on serving the old key, a revoked credential would keep working, and every other journey in
+    this gate would still be green.
+
+    The proof is a round trip through a decoy, which needs no second real key:
+
+      1. turn 1 writes an unguessable token into the durable working directory;
+      2. the vault key is replaced with a decoy that no provider accepts;
+      3. turn 2 MUST fail. A success here is the bug: it means the runner kept serving the old
+         credential from a live sandbox instead of noticing the rotation;
+      4. the real key goes back;
+      5. turn 3 must succeed AND return the token from step 1, so the conversation came through
+         two credential changes intact.
+
+    The vault is restored in a `finally`, including when the run is interrupted, because leaving
+    a shared deployment holding a decoy key would break every later cell.
+    """
+    # Runs on BOTH sandboxes on purpose. The credential epoch is what notices a rotation, and it
+    # is sandbox-independent, so a local warm session can serve a stale key just as a remote one
+    # can. Daytona additionally has to rebuild the sandbox and its Secret, which is the more
+    # expensive path, but the guard being tested is the same one.
+    connection = cell.get("connection") or {}
+    if connection.get("mode") == "self_managed":
+        return {
+            "skip": True,
+            "why": (
+                "this cell authenticates from a mounted subscription login, so there is no vault "
+                "key to rotate."
+            ),
+        }
+    provider = cell.get("provider")
+    secret = _vault_provider_secret(provider) if provider else None
+    if not secret:
+        return {
+            "skip": True,
+            "why": (
+                f"no vault provider_key record for provider {provider!r} on this deployment, so "
+                "there is nothing to rotate. Stock the vault and run it again."
+            ),
+        }
+    original = ((secret.get("data") or {}).get("provider") or {}).get("key")
+    if not original:
+        return {
+            "skip": True,
+            "why": f"the vault record for {provider!r} returned no key value to restore afterwards.",
+        }
+
+    s = str(uuid.uuid4())
+    params = template(
+        cell,
+        instructions="Use the bash tool when asked to run a command. Report only its stdout.",
+        permission_default="allow",
+    )
+    msgs = [user_msg(CWD_WRITE_PROMPT)]
+    t1 = invoke(s, msgs, params)
+    if t1.errors:
+        return {
+            "pass": False,
+            "why": f"turn 1 (before any rotation) errored: {t1.errors[:1]}",
+            "turn_write": t1.summary(),
+        }
+    msgs = msgs + [t1.assistant_message()]
+
+    mount_id, mount_why = _cwd_mount_id(s)
+    if not mount_id:
+        verdict = {"pass": False} if REQUIRE_STORE else {"skip": True}
+        return {
+            **verdict,
+            "why": f"rotate: {mount_why}. Run the gate against a store-backed deployment.",
+            "turn_write": t1.summary(),
+        }
+    token, read_why = _store_read(mount_id, CWD_PROBE_FILE, settle=STORE_SETTLE_SECONDS)
+    token = (token or "").strip()
+    if not CWD_TOKEN_RE.fullmatch(token):
+        return {
+            "pass": False,
+            "why": f"rotate: the durable cwd holds no usable {CWD_PROBE_FILE} object ({read_why})",
+            "mount_id": mount_id,
+            "turn_write": t1.summary(),
+        }
+
+    restored = False
+    try:
+        if not _set_vault_provider_key(secret, ROTATION_DECOY_KEY):
+            return {
+                "pass": False,
+                "why": "rotate: could not write the decoy key to the vault, so nothing was tested.",
+                "turn_write": t1.summary(),
+            }
+        t_decoy = invoke(s, msgs + [user_msg("Reply with exactly: TWO")], params)
+        served_stale = not t_decoy.errors
+    finally:
+        # Always put the real key back, even on an exception or a keyboard interrupt. A shared
+        # deployment left holding the decoy would fail every cell that runs after this one.
+        restored = _set_vault_provider_key(secret, original)
+
+    if not restored:
+        return {
+            "pass": False,
+            "why": (
+                f"rotate: THE VAULT IS STILL HOLDING THE DECOY KEY for provider {provider!r}. "
+                "Restore it by hand before running anything else against this deployment."
+            ),
+            "turn_write": t1.summary(),
+        }
+    if served_stale:
+        return {
+            "pass": False,
+            "why": (
+                "rotate: the turn after the rotation SUCCEEDED while the vault held a key no "
+                "provider accepts. The runner kept serving the previous credential, so a revoked "
+                "key would keep working. The credential-epoch check is the only guard here "
+                "(credential values are excluded from the config fingerprint by design)."
+            ),
+            "turn_after_rotation": t_decoy.summary(),
+        }
+
+    t_back = invoke(
+        s,
+        msgs
+        + [
+            user_msg(
+                f"Use the bash tool to run exactly: cat {CWD_PROBE_FILE} "
+                "and reply with only its stdout."
+            )
+        ],
+        params,
+    )
+    recovered = token in (t_back.reply or "")
+    agents, sandboxes = _ledger_ids(s)
+    ok = recovered and not t_back.errors
+    return {
+        "pass": bool(ok),
+        "why": (
+            "rotate: the turn after the rotation failed as it must (the new value was really "
+            f"used), the real key went back, and the conversation returned (token recovered="
+            f"{recovered}) with its durable working directory intact across the rebuild"
+            if ok
+            else (
+                "rotate: the conversation did NOT come back after the key was restored "
+                f"(token recovered={recovered}, errors={t_back.errors[:1]}). Rotating a key must "
+                "not end the conversation."
+            )
+        ),
+        "session_id": s,
+        "provider": provider,
+        "cwd_token": token,
+        "evidence": {
+            "agent_session_ids": agents,
+            "sandbox_ids": sandboxes,
+            "runner_log_grep": "[keepalive] mismatch (credentials-rotated)",
+        },
+        "turn_write": t1.summary(),
+        "turn_after_rotation": t_decoy.summary(),
+        "turn_recovered": t_back.summary(),
+    }
+
+
+def j6_park(cell: dict) -> dict:
+    """Park and reconnect: the session idles out, the sandbox is STOPPED, the next turn resumes it.
+
+    This is the resume that actually happens to users. The pool TTL is two minutes, so any pause
+    in a conversation longer than that parks the sandbox rather than deleting it. `cold1` forces a
+    config change instead, which DELETES the sandbox and builds a fresh one, so it never touches
+    the reconnect path.
+
+    Daytona only. The tier's whole value is proving that a credential delivered as a Daytona
+    Secret still resolves after the sandbox has been stopped and started again — a local sandbox
+    has no such stop/start, and no Secret to survive it.
+    """
+    if cell["sandbox"] != "daytona":
+        return {
+            "skip": True,
+            "why": (
+                "parking stops a REMOTE sandbox and reconnects to it; a local sandbox lives "
+                f"inside the runner process and has no such cycle (cell sandbox={cell['sandbox']}). "
+                "Run --cell C2, C4 or X2."
+            ),
+        }
+    return _continuity(cell, "park")
 
 
 def j6_cold2(cell: dict) -> dict:
@@ -1796,6 +2072,7 @@ JOURNEYS = {
     "commit": j5_commit,
     "warm": j6_warm,
     "cold1": j6_cold1,
+    "park": j6_park,
     "cold2": j6_cold2,
     "mcp": j7_mcp,
     "rule_deny": j_rule_deny,
@@ -1803,6 +2080,7 @@ JOURNEYS = {
     "rule_case": j_rule_case,
     "builtin_grep": j_builtin_grep,
     "secret_opaque": j_secret_opaque,
+    "rotate": j_rotate,
 }
 
 
@@ -1848,6 +2126,17 @@ def main() -> int:
         help="seconds to wait for a just-written file to appear as an object (default 45)",
     )
     p.add_argument(
+        "--park-wait",
+        type=float,
+        default=None,
+        help=(
+            "Seconds the `park` journey idles before resuming, overriding the default "
+            "(the runner's Daytona session idle TTL plus a margin). Raise it when a deployment "
+            "runs a longer AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS, or the resume lands while "
+            "the session is still pooled and the journey measures `warm` instead."
+        ),
+    )
+    p.add_argument(
         "--cold2-replace-cmd",
         default=os.environ.get("AGENTA_QA_RUNNER_REPLACE_CMD"),
         help=(
@@ -1874,10 +2163,15 @@ def main() -> int:
     resolve_credentials(args.env_file)
 
     global REQUIRE_STORE, STORE_SETTLE_SECONDS, COLD2_REPLACE_CMD, OWNER_TTL_SECONDS
+    global PARK_IDLE_TTL_SECONDS, PARK_MARGIN_SECONDS
     REQUIRE_STORE = args.require_store
     STORE_SETTLE_SECONDS = args.store_settle
     COLD2_REPLACE_CMD = args.cold2_replace_cmd
     OWNER_TTL_SECONDS = args.owner_ttl
+    if args.park_wait is not None:
+        # One flag, one knob: the caller states the total idle, so the margin is already in it.
+        PARK_IDLE_TTL_SECONDS = args.park_wait
+        PARK_MARGIN_SECONDS = 0.0
 
     cells = list(CELLS) if args.all else (args.cell or ["C3"])
     journeys = args.only or list(JOURNEYS)
