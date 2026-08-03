@@ -147,6 +147,7 @@ def request_to_wire(
         **config.wire_sandbox_permission(),
         **config.wire_model_ref(),
         **config.wire_resolved_connection(),
+        **config.wire_harness_mode(),
         **config.wire_harness_files(),
     }
     if run_context is not None:

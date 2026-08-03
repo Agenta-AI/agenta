@@ -37,6 +37,7 @@ const KNOWN_REQUEST_KEYS = [
   "sessionId",
   "agentsMd",
   "model",
+  "harnessMode",
   "modelCapabilities",
   "provider",
   "connection",
@@ -72,6 +73,7 @@ describe("wire contract: requests (vs Python golden)", () => {
   for (const name of [
     "run_request.pi_core.json",
     "run_request.claude.json",
+    "run_request.codex.json",
     "run_request.attachment.json",
   ]) {
     it(`${name}: every top-level key is known to AgentRunRequest`, () => {
@@ -249,6 +251,32 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(skill.files![0].path, "scripts/draft.py");
     assert.equal(skill.files![0].executable, true);
     // sessionId is null on the wire, so the runner falls back to its ephemeral id.
+    assert.equal(
+      resolveRunSessionId(req, "runner-ephemeral"),
+      "runner-ephemeral",
+    );
+  });
+
+  it("codex request: no Pi built-ins, file-free managed auth provider block, managed key", () => {
+    const req = loadGolden("run_request.codex.json") as AgentRunRequest;
+    assert.equal(req.harness, "codex");
+    assert.deepEqual(req.tools, []);
+    assert.equal(req.model, "gpt-5.6-luna");
+    assert.equal(req.harnessMode, undefined);
+    assert.deepEqual(req.permissions, { default: "allow_reads" });
+    assert.equal(req.systemPrompt, undefined);
+    assert.equal(req.appendSystemPrompt, undefined);
+    // A managed codex run carries the file-free auth provider block in `.codex/config.toml` (D-002
+    // final ruling): the runner writes it blind; codex reads OPENAI_API_KEY from the daemon env at
+    // request time. The secret is NOT in the file (it rides `secrets`).
+    const files = req.harnessFiles!;
+    assert.equal(files.length, 1);
+    assert.equal(files[0].path, ".codex/config.toml");
+    assert.match(files[0].content, /model_provider = "agenta-openai"/);
+    assert.match(files[0].content, /env_key = "OPENAI_API_KEY"/);
+    assert.equal(files[0].content.includes("sk-openai"), false);
+    assert.equal(req.sandboxPermission, undefined);
+    assert.deepEqual(req.secrets, { OPENAI_API_KEY: "sk-openai" });
     assert.equal(
       resolveRunSessionId(req, "runner-ephemeral"),
       "runner-ephemeral",

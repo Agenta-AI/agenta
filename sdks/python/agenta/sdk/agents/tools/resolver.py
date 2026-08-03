@@ -87,16 +87,52 @@ def _build_client_tool_spec(*, tool_config: ClientToolConfig) -> ClientToolSpec:
     )
 
 
+def _check_tool_name(name: str, seen: set[str]) -> None:
+    # The harness registers custom tools by name beside its built-ins, so a same-named custom
+    # tool would silently replace the built-in the platform activates on every run.
+    if name.strip().lower() in PI_BUILTIN_TOOL_NAMES:
+        raise ReservedToolNameError(name)
+    if name in seen:
+        raise DuplicateToolNameError(name)
+    seen.add(name)
+
+
+def _declared_config_name(tool_config: ToolConfig) -> Optional[str]:
+    """The tool name a config declares, if any, before adapters turn it into specs.
+
+    Returns ``None`` for legacy ``builtin`` entries (ignored, never produce specs), for
+    gateway configs that omit ``name`` (the adapter then derives ``integration__action``),
+    and for anything that is not a recognized tool config (left to downstream validation).
+    """
+    if isinstance(tool_config, ReferenceToolConfig):
+        return tool_config.tool_name
+    if isinstance(tool_config, PlatformToolConfig):
+        return tool_config.op
+    if isinstance(tool_config, (CodeToolConfig, ClientToolConfig, GatewayToolConfig)):
+        return tool_config.name
+    return None
+
+
+def _validate_declared_config_names(tool_configs: Sequence[ToolConfig]) -> None:
+    """Reject reserved or duplicate declared tool names up front.
+
+    Runs before any secret lookup or adapter call so a payload that will always be refused
+    never makes the resolver do work, and a reserved-named ``code`` tool with a missing
+    secret surfaces ``ReservedToolNameError`` instead of ``MissingToolSecretError``.
+    Adapter-produced spec names (e.g. a gateway ``integration__action`` fallback) are not
+    visible here and stay covered by the final :func:`_validate_unique_names` pass.
+    """
+    seen: set[str] = set()
+    for tool_config in tool_configs:
+        name = _declared_config_name(tool_config)
+        if name is not None:
+            _check_tool_name(name, seen)
+
+
 def _validate_unique_names(tool_specs: Sequence[ToolSpec]) -> None:
     seen: set[str] = set()
     for tool_spec in tool_specs:
-        # The harness registers custom tools by name beside its built-ins, so a same-named custom
-        # tool would silently replace the built-in the platform activates on every run.
-        if tool_spec.name.strip().lower() in PI_BUILTIN_TOOL_NAMES:
-            raise ReservedToolNameError(tool_spec.name)
-        if tool_spec.name in seen:
-            raise DuplicateToolNameError(tool_spec.name)
-        seen.add(tool_spec.name)
+        _check_tool_name(tool_spec.name, seen)
 
 
 class ToolResolver:
@@ -118,6 +154,7 @@ class ToolResolver:
         self._missing_secret_policy = missing_secret_policy
 
     async def resolve(self, tool_configs: Sequence[ToolConfig]) -> ResolvedToolSet:
+        _validate_declared_config_names(tool_configs)
         for tool_config in tool_configs:
             if isinstance(tool_config, BuiltinToolConfig):
                 log.warning(

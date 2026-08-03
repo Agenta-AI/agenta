@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Type
 from ..dtos import (
     AgentaAgentTemplate,
     ClaudeAgentTemplate,
+    CodexAgentTemplate,
     HarnessKind,
     PiAgentTemplate,
     SessionConfig,
@@ -106,6 +107,32 @@ class ClaudeHarness(Harness):
         )
 
 
+class CodexHarness(Harness):
+    harness_type = HarnessKind.CODEX
+
+    def _to_harness_config(self, config: SessionConfig) -> CodexAgentTemplate:
+        # Codex has no Pi built-in tools. Tools go over MCP, and the shared permission plan
+        # is carried through.
+        # Skills stay on the harness config (carried for parity with Claude); wiring them into
+        # Codex is a later milestone, so a Milestone 1 text-only run carries none.
+        # The harness's first-class `permissions` slice (plus sandbox_permission + mcp_servers) is
+        # threaded onto the CodexAgentTemplate; the config's `wire_harness_files` (the Python codex
+        # adapter) renders `.codex/config.toml` as a generic `harnessFiles` entry. No
+        # codex-specific parsing happens here; the runner just writes the files into the cwd.
+        return CodexAgentTemplate(
+            agents_md=config.agent.instructions,
+            model=config.agent.model,
+            resolved_connection=config.resolved_connection,
+            tool_specs=list(config.tool_specs),
+            tool_callback=config.tool_callback,
+            mcp_servers=list(config.mcp_servers),
+            skills=list(config.agent.skills),
+            sandbox_permission=config.agent.sandbox_permission,
+            permission_default=config.permission_default,
+            harness_permissions=config.agent.harness_permissions,
+        )
+
+
 class AgentaHarness(Harness):
     """Pi with an Agenta opinion. Same engine as :class:`PiHarness`, but every run carries the
     forced Agenta extras (see :mod:`.agenta_builtins`): a base AGENTS.md preamble the author's
@@ -145,6 +172,7 @@ class AgentaHarness(Harness):
 _HARNESSES: Dict[HarnessKind, Type[Harness]] = {
     HarnessKind.PI: PiHarness,
     HarnessKind.CLAUDE: ClaudeHarness,
+    HarnessKind.CODEX: CodexHarness,
     HarnessKind.AGENTA: AgentaHarness,
 }
 

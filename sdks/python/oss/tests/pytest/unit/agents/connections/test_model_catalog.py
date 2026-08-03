@@ -20,26 +20,38 @@ from agenta.sdk.agents.model_catalog import (
     ModelCatalogEntry,
     ModelRatings,
     claude_model_catalog,
+    codex_model_catalog,
     load_claude_model_catalog,
+    load_codex_model_catalog,
     load_pi_model_catalog,
     model_catalog_entries,
     model_input_modalities,
     pi_model_catalog,
 )
 
-_ALL_HARNESSES = ("pi_core", "pi_agenta", "claude")
+_ALL_HARNESSES = ("pi_core", "pi_agenta", "claude", "codex")
 
 
 def test_data_files_load_and_validate():
     pi = load_pi_model_catalog()
     claude = load_claude_model_catalog()
+    codex = load_codex_model_catalog()
     assert pi.schema_version == "1"
     assert claude.schema_version == "1"
+    assert codex.schema_version == "1"
     assert pi.models, "pi catalog is empty"
     assert claude.models, "claude catalog is empty"
+    assert codex.models, "codex catalog is empty"
     # Every entry is a validated ModelCatalogEntry (pydantic enforced on load).
     assert all(isinstance(e, ModelCatalogEntry) for e in pi.models)
     assert all(isinstance(e, ModelCatalogEntry) for e in claude.models)
+    assert all(isinstance(e, ModelCatalogEntry) for e in codex.models)
+
+
+def test_every_codex_model_declares_image_input():
+    entries = codex_model_catalog().models
+    assert entries, "codex catalog is empty"
+    assert all(entry.modalities and "image" in entry.modalities for entry in entries)
 
 
 def test_ratings_are_enforced_1_to_5():
@@ -184,6 +196,17 @@ def test_claude_input_modalities_lookup_uses_bare_alias():
         "text",
         "image",
     ]
+
+
+def test_codex_input_modalities_lookup_uses_bare_model_id():
+    assert model_input_modalities("codex", "gpt-5.6-sol", provider="openai") == [
+        "text",
+        "image",
+    ]
+
+
+def test_unknown_codex_model_input_modalities_returns_none():
+    assert model_input_modalities("codex", "codex-not-real", provider="openai") is None
 
 
 @pytest.mark.parametrize("model_id", ["claude-sonnet-4-6", "claude-opus-4-8"])

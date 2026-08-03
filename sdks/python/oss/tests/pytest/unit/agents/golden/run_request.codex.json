@@ -1,0 +1,35 @@
+{
+  "harness": "codex",
+  "sandbox": "local",
+  "sessionId": null,
+  "agentsMd": "You are a helpful assistant.",
+  "model": "gpt-5.6-luna",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hi"
+    }
+  ],
+  "secrets": {
+    "OPENAI_API_KEY": "sk-openai"
+  },
+  "context": null,
+  "telemetry": null,
+  "tools": [],
+  "customTools": [],
+  "toolCallback": null,
+  "permissions": {
+    "default": "allow_reads"
+  },
+  "harnessFiles": [
+    {
+      "path": ".codex/config.toml",
+      "content": "model_provider = \"agenta-openai\"\n\n[model_providers.agenta-openai]\nname = \"Agenta OpenAI\"\nenv_key = \"OPENAI_API_KEY\"\n"
+    }
+  ],
+  "runContext": {
+    "run": {
+      "kind": "test"
+    }
+  }
+}

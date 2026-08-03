@@ -260,6 +260,29 @@ describe("configFingerprint", () => {
     );
   });
 
+  it("distinguishes different Codex harness modes", () => {
+    const codex = { ...base, harness: "codex" };
+    assert.notEqual(
+      configFingerprint({ ...codex, harnessMode: "agent" }),
+      configFingerprint({ ...codex, harnessMode: "read-only" }),
+    );
+  });
+
+  it("treats omitted Codex mode as the explicit default", () => {
+    const codex = { ...base, harness: "codex" };
+    assert.equal(
+      configFingerprint(codex),
+      configFingerprint({ ...codex, harnessMode: "agent-full-access" }),
+    );
+  });
+
+  it("ignores harness mode for non-Codex harnesses", () => {
+    assert.equal(
+      configFingerprint(base),
+      configFingerprint({ ...base, harnessMode: "read-only" }),
+    );
+  });
+
   // Custom OpenAI-compatible warm-session safety (design Decision 7): a change to the connection,
   // model, or endpoint must cold-start rather than reuse a mismatched live session. No new
   // fingerprint field is needed — these already ride configFingerprint.

@@ -20,9 +20,9 @@ import {
 import { redactContextBoundArgs } from "../../tools/relay.ts";
 import { bareToolName } from "./client-tools.ts";
 
-/** The parkable gate types a paused turn can record (the Claude ACP and Pi ACP gates). */
+/** The parkable ACP gate types a paused turn can record. */
 export type ParkedApprovalGateType =
-  "claude-acp-permission" | "pi-acp-permission";
+  "claude-acp-permission" | "codex-acp-permission" | "pi-acp-permission";
 
 /** The permission metadata the runner recovers per tool for a Pi gate (the identity-only
  *  envelope carries no policy). Keyed by resolved tool name. */
@@ -43,6 +43,8 @@ export interface AttachPermissionResponderInput {
     markToolCallDenied?: (toolCallId: string | undefined) => void;
   };
   responder: Responder;
+  /** The ACP adapter in this run, used only where permission frame contracts differ. */
+  acpAgent?: string;
   serverPermissions?: ReadonlyMap<string, ToolPermission>;
   /**
    * Called when a gate pauses the turn. The orchestration loop uses this to end the turn
@@ -82,11 +84,11 @@ export interface AttachPermissionResponderInput {
     verdict?: { approved: boolean; toolCallId: string },
   ) => void;
   /**
-   * Fires for EVERY parkable permission gate (a Claude ACP gate or a Pi ACP gate) that
-   * resolves to pendingApproval. Keep-alive uses it to record every parked permission id /
-   * tool-call id (for a live resume via `respondPermission`, keyed by tool-call id) and to count
-   * how many gates are pending this turn. It never fires for a client-tool gate
-   * (`pauseClientTool`), which fires `onNonParkablePause` instead and stays on the cold path.
+   * Fires for EVERY parkable ACP permission gate that resolves to pendingApproval. Keep-alive
+   * uses it to record every parked permission id / tool-call id (for a live resume via
+   * `respondPermission`, keyed by tool-call id) and to count how many gates are pending this
+   * turn. It never fires for a client-tool gate (`pauseClientTool`), which fires
+   * `onNonParkablePause` instead and stays on the cold path.
    */
   onUserApprovalGate?: (info: {
     permissionId: string;
@@ -101,6 +103,18 @@ export interface AttachPermissionResponderInput {
    *  runner records an execution grant so the relay guard accepts exactly this approved call;
    *  builtins never reach the relay, so they do not fire it. */
   onPiGateAllowed?: (info: { toolName: string; args: unknown }) => void;
+  /**
+   * Fires when a Claude/Codex gate for a RUNNER-EXECUTED tool (`executor: "relay"`) resolves to
+   * allow. Those tools reach the runner a second time, at the loopback `agenta-tools` MCP
+   * `tools/call` seam, which runs its own gate. Without this grant an `ask` tool would prompt
+   * twice for one call: once natively, then again at the seam. The grant lets the seam pass the
+   * exact approved call through while every unapproved one still parks (fail closed). Harness
+   * builtins (`executor: "harness"`) never reach the seam, so they do not fire it.
+   */
+  onExecutableGateAllowed?: (info: {
+    toolName: string | undefined;
+    args: unknown;
+  }) => void;
   /**
    * Resolved tool specs by name for the Pi gates. PRESENCE marks a Pi run and turns Pi gate
    * envelope detection on; it must stay absent for Claude. The pre-filter is the dialog TITLE,
@@ -127,6 +141,7 @@ export function attachPermissionResponder({
   session,
   run,
   responder,
+  acpAgent,
   serverPermissions = new Map(),
   onPause,
   log,
@@ -138,6 +153,7 @@ export function attachPermissionResponder({
   onResolveInteraction,
   onUserApprovalGate,
   onPiGateAllowed,
+  onExecutableGateAllowed,
   piToolSpecsByName,
   toolSpecsByName,
 }: AttachPermissionResponderInput): void {
@@ -148,17 +164,25 @@ export function attachPermissionResponder({
     });
   });
 
+  const isCodex = acpAgent === "codex";
+
   // The emitted payload carries a COPY of the ACP toolCall stamped with `resolvedName` (the
-  // gate's stable anchor). The Vercel egress prefers it over the drift-prone title/kind
-  // display fields, so the approval part names the tool exactly as the responder keys it.
-  // This stamping never mutates the inbound ACP object. (The one deliberate inbound mutation
-  // is the Pi gate's id/args normalization in `handlePiGate`, which must happen in place so
-  // every downstream read sees the envelope's real identity — with `rawInput` set to the
-  // gate's REDACTED args, never the model's values for context-bound paths.)
+  // gate's stable anchor) and any args recovered from an earlier event. The Vercel egress
+  // prefers these stable fields over the drift-prone title/kind display fields. This stamping
+  // never mutates the inbound ACP object. (The one deliberate inbound mutation is the Pi gate's
+  // id/args normalization in `handlePiGate`, which must happen in place so every downstream read
+  // sees the envelope's real identity, with `rawInput` set to the gate's REDACTED args.)
   const stampResolvedName = (toolCall: any, gate: GateDescriptor): any => {
-    if (!toolCall || typeof toolCall !== "object" || !gate.toolName)
-      return toolCall;
-    return { ...toolCall, resolvedName: gate.toolName };
+    if (!toolCall || typeof toolCall !== "object") return toolCall;
+    return {
+      ...toolCall,
+      ...(gate.toolName ? { resolvedName: gate.toolName } : {}),
+      ...(toolCall.rawInput === undefined &&
+      toolCall.input === undefined &&
+      gate.args !== undefined
+        ? { rawInput: gate.args }
+        : {}),
+    };
   };
 
   // Only a paused gate creates a durable row; resolving an auto-allowed gate's id would 404.
@@ -264,6 +288,8 @@ export function attachPermissionResponder({
     toolCallId?: string,
     interactionToken?: string,
   ): Promise<void> => {
+    // The daemon normalizes Codex's gate-specific option ids to once/always/reject, so this
+    // shared mapping selects only allow_once or the one-call reject/decline option.
     // A deny replies `reject`, which makes the harness close the call as a FAILED tool call. Flag
     // the id first so the closing result carries `denied` and the egress renders a decline, not a
     // breakage. (A malformed-envelope / unknown-builtin fail-closed reject goes through
@@ -438,10 +464,12 @@ export function attachPermissionResponder({
 
     const toolCall = req?.toolCall;
     const { gate, spec } = buildGateDescriptor(
+      req,
       toolCall,
       run,
       serverPermissions,
       toolSpecsByName,
+      isCodex,
     );
     // Ground truth for HITL debugging: exactly what the harness handed us for this gate.
     // The stable anchor (gate.toolName) vs the drift-prone display fields is what a live
@@ -487,8 +515,19 @@ export function attachPermissionResponder({
       raw: req,
     });
     if (verdict.kind === "pendingApproval" || !id) {
-      pauseUserApproval(req, id, gate, "claude-acp-permission");
+      pauseUserApproval(
+        req,
+        id,
+        gate,
+        isCodex ? "codex-acp-permission" : "claude-acp-permission",
+      );
       return;
+    }
+    // The grant must exist BEFORE the harness reply: the harness issues the gated `tools/call`
+    // the moment it is allowed, and the loopback MCP seam consumes the grant to let it through
+    // instead of prompting a second time for the same call.
+    if (verdict.kind === "allow" && gate.executor === "relay") {
+      onExecutableGateAllowed?.({ toolName: gate.toolName, args: gate.args });
     }
     await replyPermission(
       id,
@@ -544,23 +583,23 @@ export function buildPiGateDescriptor(
 }
 
 /**
- * The name the runner already recorded for this tool-call id via the `session/update`
- * `tool_call` event. Used to key a harness gate so it matches the stored decision across a
- * cold-replay resume when the ACP permission frame's own title drifts.
+ * The identity the runner already recorded for this tool-call id via the `session/update`
+ * `tool_call` event. Used when the ACP permission frame omits or drifts its own identity.
  */
-function recordedToolName(
+function recordedToolCall(
   run: { events?: () => AgentEvent[] },
   toolCallId: unknown,
-): string | undefined {
+): { name?: string; args?: unknown } | undefined {
   if (typeof toolCallId !== "string" || !toolCallId || !run.events)
     return undefined;
-  let name: string | undefined;
+  let recorded: { name?: string; args?: unknown } | undefined;
   for (const event of run.events()) {
-    if (event.type === "tool_call" && event.id === toolCallId && event.name) {
-      name = event.name;
-    }
+    if (event.type !== "tool_call" || event.id !== toolCallId) continue;
+    recorded ??= {};
+    if (event.name) recorded.name = event.name;
+    if (event.input !== undefined) recorded.args = event.input;
   }
-  return name;
+  return recorded;
 }
 
 /**
@@ -572,13 +611,30 @@ function recordedToolName(
  * `permission`/`readOnly`, so both the approval card and this descriptor come from one lookup.
  */
 export function buildGateDescriptor(
+  request: any,
   toolCall: any,
   run: { events?: () => AgentEvent[] },
   serverPermissions: ReadonlyMap<string, ToolPermission>,
   toolSpecsByName: ReadonlyMap<string, ResolvedToolSpec> | undefined,
+  isCodex: boolean,
 ): { gate: GateDescriptor; spec: ResolvedToolSpec | undefined } {
+  const recorded = recordedToolCall(run, toolCall?.toolCallId);
+  const codexMcpApproval =
+    isCodex &&
+    (request?._meta?.is_mcp_tool_approval === true ||
+      request?.rawRequest?._meta?.is_mcp_tool_approval === true);
+  const codexCommand =
+    isCodex &&
+    !codexMcpApproval &&
+    toolCall?.kind === "execute" &&
+    typeof toolCall?.rawInput?.command === "string" &&
+    toolCall.rawInput.command
+      ? toolCall.rawInput.command
+      : undefined;
   const displayName = firstString([
-    recordedToolName(run, toolCall?.toolCallId),
+    codexMcpApproval ? recorded?.name : undefined,
+    codexCommand,
+    recorded?.name,
     toolCall?.name,
     toolCall?.title,
     toolCall?.kind,
@@ -588,7 +644,12 @@ export function buildGateDescriptor(
     : undefined;
   const toolName = spec?.name ?? displayName;
   const specPermission = toolPermission(spec?.permission);
-  const args = toolCall?.rawInput ?? toolCall?.input;
+  // Codex MCP approval frames omit rawInput, so the matching tool_call event is the only source
+  // for both the approval card and the stored-decision key.
+  const args =
+    toolCall?.rawInput ??
+    toolCall?.input ??
+    (codexMcpApproval ? recorded?.args : undefined);
   const gate: GateDescriptor = {
     executor: spec?.kind === "client" ? "client" : spec ? "relay" : "harness",
     toolName,
@@ -607,6 +668,13 @@ function serverPermissionFor(
   toolName: string | undefined,
   serverPermissions: ReadonlyMap<string, ToolPermission>,
 ): ToolPermission | undefined {
+  // Codex uses mcp.<server>.<tool>; Claude uses mcp__<server>__<tool>.
+  if (toolName?.startsWith("mcp.")) {
+    const rest = toolName.slice("mcp.".length);
+    const separator = rest.indexOf(".");
+    if (separator <= 0) return undefined;
+    return serverPermissions.get(rest.slice(0, separator));
+  }
   if (!toolName?.startsWith("mcp__")) return undefined;
   const rest = toolName.slice("mcp__".length);
   const separator = rest.indexOf("__");

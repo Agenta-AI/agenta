@@ -1,5 +1,5 @@
 /**
- * Slice 2 tests: keep-alive across approval pauses (Claude ACP permission gates only).
+ * Keep-alive tests across parkable ACP approval pauses.
  *
  * Two seams:
  *  - Dispatch (`runWithKeepalive`) with a fake `KeepaliveEngine` that models a paused turn setting
@@ -199,8 +199,7 @@ function makeApprovalEngine(
       await new Promise<void>((resolve) => holds.set(idx, resolve));
     }
     if (script.approvalPause) {
-      const gateType =
-        script.approvalPause.gateType ?? "claude-acp-permission";
+      const gateType = script.approvalPause.gateType ?? "claude-acp-permission";
       const parkableGates = [
         {
           permissionId: script.approvalPause.permissionId,
@@ -211,7 +210,8 @@ function makeApprovalEngine(
       ];
       // approvalGateCount defaults to the recorded-gate count; a larger override models a gate
       // that lacked a resumable id (count > map size -> the dispatch treats the set as unresumable).
-      env.approvalGateCount = script.approvalPause.gates ?? parkableGates.length;
+      env.approvalGateCount =
+        script.approvalPause.gates ?? parkableGates.length;
       env.nonParkablePauseCount = script.approvalPause.nonParkable ? 1 : 0;
       // The held original prompt: pending until the test settles it (mirrors the real Claude
       // prompt that never resolves on an unanswered gate). One prompt per turn, shared by every
@@ -336,7 +336,9 @@ function approveResume(
 /** A resume carrying every parked call plus the answer envelopes supplied in this request. */
 function approveResumeMulti(
   answers: Array<{ toolCallId: string; toolName?: string; approved: boolean }>,
-  parkedCalls: Array<{ toolCallId: string; toolName?: string }> = answers.map(({ toolCallId, toolName }) => ({ toolCallId, toolName })),
+  parkedCalls: Array<{ toolCallId: string; toolName?: string }> = answers.map(
+    ({ toolCallId, toolName }) => ({ toolCallId, toolName }),
+  ),
   priorAnswers: Array<{ toolCallId: string; approved: boolean }> = [],
 ): AgentRunRequest {
   return {
@@ -459,6 +461,41 @@ describe("runWithKeepalive: approval park + resume", () => {
     assert.equal(calls.acquire, 1, "the resume did NOT re-acquire cold");
     assert.equal(calls.resumes.length, 1, "the Pi gate is answered live once");
     assert.equal(calls.resumes[0].reply, "once");
+  });
+
+  it("parks and resumes a Codex ACP gate exactly like the Claude gate", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-codex",
+          toolCallId: "tc-gate",
+          toolName: "pnpm test",
+          gateType: "codex-acp-permission",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+
+    const r1 = await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    assert.equal(r1.stopReason, "paused");
+    assert.equal(ctx.pool.get(POOL_KEY)!.state, "awaiting_approval");
+
+    const r2 = await runWithKeepalive(
+      approveResume(true),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(r2.ok, true);
+    assert.equal(calls.acquire, 1, "the resume did NOT re-acquire cold");
+    assert.deepEqual(calls.resumes, [
+      {
+        permissionId: "perm-codex",
+        reply: "once",
+        toolCallId: "tc-gate",
+      },
+    ]);
   });
 
   it("answers a denied gate live with reject on the resume", async () => {
@@ -636,7 +673,11 @@ describe("runWithKeepalive: approval park + resume", () => {
       ctx,
     );
     assert.equal(r2.stopReason, "paused");
-    assert.equal(calls.acquire, 1, "the partial answer stayed on the live environment");
+    assert.equal(
+      calls.acquire,
+      1,
+      "the partial answer stayed on the live environment",
+    );
     assert.deepEqual(calls.resumes, [
       { permissionId: "perm-1", reply: "once", toolCallId: "tc-1" },
     ]);
@@ -647,8 +688,8 @@ describe("runWithKeepalive: approval park + resume", () => {
       "the untouched gate re-parked with a fresh approval lease",
     );
     assert.deepEqual(
-      calls.turns[1].opts.resume.carriedForward.map((gate: ParkedApproval) =>
-        gate.permissionId,
+      calls.turns[1].opts.resume.carriedForward.map(
+        (gate: ParkedApproval) => gate.permissionId,
       ),
       ["perm-2"],
     );
@@ -664,7 +705,11 @@ describe("runWithKeepalive: approval park + resume", () => {
       ctx,
     );
     assert.equal(r3.stopReason, "complete");
-    assert.equal(calls.acquire, 1, "both partial requests matched the live history fingerprint");
+    assert.equal(
+      calls.acquire,
+      1,
+      "both partial requests matched the live history fingerprint",
+    );
     assert.deepEqual(calls.resumes, [
       { permissionId: "perm-1", reply: "once", toolCallId: "tc-1" },
       { permissionId: "perm-2", reply: "reject", toolCallId: "tc-2" },
@@ -699,15 +744,14 @@ describe("runWithKeepalive: approval park + resume", () => {
       "zero answers leave stale cancellation enabled",
     );
 
-    await runWithKeepalive(
-      zeroAnswerRequest,
-      undefined,
-      undefined,
-      ctx,
-    );
+    await runWithKeepalive(zeroAnswerRequest, undefined, undefined, ctx);
 
     assert.equal(calls.resumes.length, 0);
-    assert.equal(calls.acquire, 2, "zero answers kept the existing cold fallback");
+    assert.equal(
+      calls.acquire,
+      2,
+      "zero answers kept the existing cold fallback",
+    );
   });
 });
 
@@ -1666,6 +1710,12 @@ const engineReq: AgentRunRequest = {
   messages: [{ role: "user", content: "do X" }],
 };
 
+const codexEngineReq: AgentRunRequest = {
+  harness: "codex",
+  harnessMode: "agent",
+  messages: [{ role: "user", content: "do X" }],
+};
+
 function updateEvent(update: Record<string, unknown>) {
   return { payload: { update } };
 }
@@ -1859,13 +1909,9 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       if (!acquired.ok) return;
       const env = acquired.env;
 
-      const firstTurn = runTurn(
-        env,
-        noWorkflowRequest,
-        undefined,
-        undefined,
-        { approvalParkMode: true },
-      );
+      const firstTurn = runTurn(env, noWorkflowRequest, undefined, undefined, {
+        approvalParkMode: true,
+      });
       await flush();
       captured.onEvent!(
         updateEvent({
@@ -1994,7 +2040,10 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       approvalParkMode: true,
     });
     await flush();
-    for (const [toolCallId, title] of [["tc-denied", "commit"], ["tc-carried", "deploy"]]) {
+    for (const [toolCallId, title] of [
+      ["tc-denied", "commit"],
+      ["tc-carried", "deploy"],
+    ]) {
       captured.onEvent!(
         updateEvent({ sessionUpdate: "tool_call", toolCallId, title }),
       );
@@ -2014,23 +2063,29 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     const answered = env.parkedApprovals.get("tc-denied")!;
     const carried = env.parkedApprovals.get("tc-carried")!;
     env.clearTurn();
-    const resumeTurn = runTurn(env, approveResume(false), undefined, undefined, {
-      approvalParkMode: true,
-      resume: {
-        decisions: [
-          {
-            permissionId: answered.permissionId,
-            reply: "reject",
-            toolCallId: answered.toolCallId,
-            toolName: answered.toolName,
-            args: answered.args,
-            interactionToken: answered.interactionToken,
-            promptPromise: answered.promptPromise,
-          },
-        ],
-        carriedForward: [carried],
+    const resumeTurn = runTurn(
+      env,
+      approveResume(false),
+      undefined,
+      undefined,
+      {
+        approvalParkMode: true,
+        resume: {
+          decisions: [
+            {
+              permissionId: answered.permissionId,
+              reply: "reject",
+              toolCallId: answered.toolCallId,
+              toolName: answered.toolName,
+              args: answered.args,
+              interactionToken: answered.interactionToken,
+              promptPromise: answered.promptPromise,
+            },
+          ],
+          carriedForward: [carried],
+        },
       },
-    });
+    );
     for (let i = 0; i < 5 && !env.currentTurn?.pause.active; i += 1) {
       await Promise.resolve();
     }
@@ -2076,7 +2131,10 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       approvalParkMode: true,
     });
     await flush();
-    for (const [toolCallId, title] of [["tc-g1", "commit"], ["tc-g2", "deploy"]]) {
+    for (const [toolCallId, title] of [
+      ["tc-g1", "commit"],
+      ["tc-g2", "deploy"],
+    ]) {
       captured.onEvent!(
         updateEvent({ sessionUpdate: "tool_call", toolCallId, title }),
       );
@@ -2136,7 +2194,9 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     const result = await resumeTurn;
 
     assert.equal(result.stopReason, "paused");
-    assert.deepEqual(calls.permissionReplies, [{ id: "perm-1", reply: "once" }]);
+    assert.deepEqual(calls.permissionReplies, [
+      { id: "perm-1", reply: "once" },
+    ]);
     assert.deepEqual([...env.parkedApprovals.keys()], ["tc-g2"]);
     assert.equal(env.approvalGateCount, 1);
     const run = calls.runs[1];
@@ -2364,13 +2424,9 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     if (!acquired.ok) return;
     const env = acquired.env;
 
-    const firstTurn = runTurn(
-      env,
-      incidentRequest,
-      undefined,
-      undefined,
-      { approvalParkMode: true },
-    );
+    const firstTurn = runTurn(env, incidentRequest, undefined, undefined, {
+      approvalParkMode: true,
+    });
     await flush();
     captured.onEvent!(
       updateEvent({
@@ -2447,29 +2503,23 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     );
 
     env.clearTurn();
-    const secondTurn = runTurn(
-      env,
-      incidentRequest,
-      undefined,
-      undefined,
-      {
-        approvalParkMode: true,
-        resume: {
-          decisions: [
-            {
-              permissionId: gateA.permissionId,
-              reply: "once",
-              toolCallId: gateA.toolCallId,
-              toolName: gateA.toolName,
-              args: gateA.args,
-              interactionToken: gateA.interactionToken,
-              promptPromise: gateA.promptPromise,
-            },
-          ],
-          carriedForward: [],
-        },
+    const secondTurn = runTurn(env, incidentRequest, undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: gateA.permissionId,
+            reply: "once",
+            toolCallId: gateA.toolCallId,
+            toolName: gateA.toolName,
+            args: gateA.args,
+            interactionToken: gateA.interactionToken,
+            promptPromise: gateA.promptPromise,
+          },
+        ],
+        carriedForward: [],
       },
-    );
+    });
     for (
       let i = 0;
       i < 5 &&
@@ -2557,29 +2607,23 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     );
 
     env.clearTurn();
-    const thirdTurn = runTurn(
-      env,
-      incidentRequest,
-      undefined,
-      undefined,
-      {
-        approvalParkMode: true,
-        resume: {
-          decisions: [
-            {
-              permissionId: gateB.permissionId,
-              reply: "once",
-              toolCallId: gateB.toolCallId,
-              toolName: gateB.toolName,
-              args: gateB.args,
-              interactionToken: gateB.interactionToken,
-              promptPromise: gateB.promptPromise,
-            },
-          ],
-          carriedForward: [],
-        },
+    const thirdTurn = runTurn(env, incidentRequest, undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: gateB.permissionId,
+            reply: "once",
+            toolCallId: gateB.toolCallId,
+            toolName: gateB.toolName,
+            args: gateB.args,
+            interactionToken: gateB.interactionToken,
+            promptPromise: gateB.promptPromise,
+          },
+        ],
+        carriedForward: [],
       },
-    );
+    });
     for (
       let i = 0;
       i < 5 &&
@@ -2641,9 +2685,7 @@ describe("runTurn: real approval park + respondPermission resume", () => {
 
     const allEvents = [...firstEvents, ...secondEvents, ...thirdEvents];
     const realResults = allEvents.filter(
-      (
-        event,
-      ): event is Extract<AgentEvent, { type: "tool_result" }> =>
+      (event): event is Extract<AgentEvent, { type: "tool_result" }> =>
         event.type === "tool_result" && event.isError === false,
     );
     assert.deepEqual(
@@ -2725,19 +2767,17 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     });
     const realSetTimeout = globalThis.setTimeout;
     let closureWaitCount = 0;
-    const timeoutSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(
-      ((
-        handler: (...args: any[]) => void,
-        timeout?: number,
-        ...args: any[]
-      ) => {
-        if (timeout === closureWaitMs) {
-          closureWaitCount += 1;
-          return realSetTimeout(handler, 0, ...args);
-        }
-        return realSetTimeout(handler, timeout, ...args);
-      }) as typeof setTimeout,
-    );
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(((
+      handler: (...args: any[]) => void,
+      timeout?: number,
+      ...args: any[]
+    ) => {
+      if (timeout === closureWaitMs) {
+        closureWaitCount += 1;
+        return realSetTimeout(handler, 0, ...args);
+      }
+      return realSetTimeout(handler, timeout, ...args);
+    }) as typeof setTimeout);
     let env: SessionEnvironment | undefined;
 
     try {
@@ -2756,40 +2796,30 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       if (!acquired.ok) return;
       env = acquired.env;
 
-      const firstResult = await runTurn(
-        env,
-        piRequest,
-        undefined,
-        undefined,
-        { approvalParkMode: true },
-      );
+      const firstResult = await runTurn(env, piRequest, undefined, undefined, {
+        approvalParkMode: true,
+      });
       assert.equal(firstResult.stopReason, "paused");
       const gateA = env.parkedApprovals.get("tool-a")!;
 
       env.clearTurn();
-      const secondResult = await runTurn(
-        env,
-        piRequest,
-        undefined,
-        undefined,
-        {
-          approvalParkMode: true,
-          resume: {
-            decisions: [
-              {
-                permissionId: gateA.permissionId,
-                reply: "once",
-                toolCallId: gateA.toolCallId,
-                toolName: gateA.toolName,
-                args: gateA.args,
-                interactionToken: gateA.interactionToken,
-                promptPromise: gateA.promptPromise,
-              },
-            ],
-            carriedForward: [],
-          },
+      const secondResult = await runTurn(env, piRequest, undefined, undefined, {
+        approvalParkMode: true,
+        resume: {
+          decisions: [
+            {
+              permissionId: gateA.permissionId,
+              reply: "once",
+              toolCallId: gateA.toolCallId,
+              toolName: gateA.toolName,
+              args: gateA.args,
+              interactionToken: gateA.interactionToken,
+              promptPromise: gateA.promptPromise,
+            },
+          ],
+          carriedForward: [],
         },
-      );
+      });
       assert.equal(secondResult.stopReason, "paused");
       assert.equal(
         closureWaitCount,
@@ -2816,29 +2846,23 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       const gateB = env.parkedApprovals.get("tool-b")!;
 
       env.clearTurn();
-      const thirdResult = await runTurn(
-        env,
-        piRequest,
-        undefined,
-        undefined,
-        {
-          approvalParkMode: true,
-          resume: {
-            decisions: [
-              {
-                permissionId: gateB.permissionId,
-                reply: "once",
-                toolCallId: gateB.toolCallId,
-                toolName: gateB.toolName,
-                args: gateB.args,
-                interactionToken: gateB.interactionToken,
-                promptPromise: gateB.promptPromise,
-              },
-            ],
-            carriedForward: [],
-          },
+      const thirdResult = await runTurn(env, piRequest, undefined, undefined, {
+        approvalParkMode: true,
+        resume: {
+          decisions: [
+            {
+              permissionId: gateB.permissionId,
+              reply: "once",
+              toolCallId: gateB.toolCallId,
+              toolName: gateB.toolName,
+              args: gateB.args,
+              interactionToken: gateB.interactionToken,
+              promptPromise: gateB.promptPromise,
+            },
+          ],
+          carriedForward: [],
         },
-      );
+      });
       assert.equal(thirdResult.stopReason, "complete");
 
       const eventLog = [
@@ -2847,9 +2871,7 @@ describe("runTurn: real approval park + respondPermission resume", () => {
         ...(thirdResult.events ?? []),
       ];
       const realResults = eventLog.filter(
-        (
-          event,
-        ): event is Extract<AgentEvent, { type: "tool_result" }> =>
+        (event): event is Extract<AgentEvent, { type: "tool_result" }> =>
           event.type === "tool_result" &&
           (event.output === "tool-a real output" ||
             event.output === "tool-b real output"),
@@ -2868,9 +2890,15 @@ describe("runTurn: real approval park + respondPermission resume", () => {
           lastResultByCall.set(event.id, event);
         }
       }
-      assert.equal(lastResultByCall.get("tool-a")?.output, "tool-a real output");
+      assert.equal(
+        lastResultByCall.get("tool-a")?.output,
+        "tool-a real output",
+      );
       assert.equal(lastResultByCall.get("tool-a")?.isError, false);
-      assert.equal(lastResultByCall.get("tool-b")?.output, "tool-b real output");
+      assert.equal(
+        lastResultByCall.get("tool-b")?.output,
+        "tool-b real output",
+      );
       assert.equal(lastResultByCall.get("tool-b")?.isError, false);
       assert.equal(env.parkedApprovedExecutions?.size, 0);
     } finally {
@@ -2960,6 +2988,98 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       ),
       false,
     );
+
+    await env.destroy();
+  });
+
+  it("parks and resumes a Codex ACP exec gate through respondPermission", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const acquired = await acquireEnvironment(codexEngineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const p1 = runTurn(env, codexEngineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "exec-codex",
+        title: "pnpm test",
+        kind: "execute",
+        rawInput: { command: "pnpm test", cwd: "/workspace" },
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-codex",
+      availableReplies: ["once", "always", "reject"],
+      toolCall: {
+        kind: "execute",
+        rawInput: { command: "pnpm test", cwd: "/workspace" },
+        status: "pending",
+        toolCallId: "exec-codex",
+      },
+    });
+    await flush();
+    const r1 = await p1;
+
+    assert.equal(r1.stopReason, "paused");
+    assert.equal(env.parkedApproval?.gateType, "codex-acp-permission");
+    assert.equal(env.parkedApproval?.toolName, "pnpm test");
+    assert.deepEqual(env.parkedApproval?.args, {
+      command: "pnpm test",
+      cwd: "/workspace",
+    });
+
+    env.clearTurn();
+    const held = env.parkedApproval!.promptPromise!;
+    const p2 = runTurn(
+      env,
+      approveResume(true, { harness: "codex", harnessMode: "agent" }),
+      undefined,
+      undefined,
+      {
+        approvalParkMode: true,
+        resume: {
+          decisions: [
+            {
+              permissionId: "perm-codex",
+              reply: "once",
+              toolCallId: "exec-codex",
+              toolName: "pnpm test",
+              args: { command: "pnpm test", cwd: "/workspace" },
+              interactionToken: "perm-codex",
+              promptPromise: held,
+            },
+          ],
+          carriedForward: [],
+        },
+      },
+    );
+    await flush();
+    assert.deepEqual(calls.permissionReplies, [
+      { id: "perm-codex", reply: "once" },
+    ]);
+
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "exec-codex",
+        status: "completed",
+        content: "passed",
+      }),
+    );
+    calls.resolvePrompt!({
+      stopReason: "complete",
+      usage: { inputTokens: 1, outputTokens: 1 },
+    });
+    const r2 = await p2;
+
+    assert.equal(r2.ok, true);
+    assert.equal(r2.stopReason, "complete");
+    assert.equal(calls.promptCount, 1);
 
     await env.destroy();
   });

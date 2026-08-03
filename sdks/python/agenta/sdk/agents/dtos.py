@@ -53,6 +53,7 @@ class HarnessKind(str, Enum):
     PI = "pi_core"
     CLAUDE = "claude"
     AGENTA = "pi_agenta"
+    CODEX = "codex"
 
     @classmethod
     def coerce(cls, value: "HarnessKind | str") -> "HarnessKind":
@@ -105,6 +106,11 @@ HARNESS_IDENTITIES: List[HarnessIdentity] = [
         value=HarnessKind.CLAUDE.value,
         slug=f"agenta:harness:{HarnessKind.CLAUDE.value}:v0",
         name="Claude Code",
+    ),
+    HarnessIdentity(
+        value=HarnessKind.CODEX.value,
+        slug=f"agenta:harness:{HarnessKind.CODEX.value}:v0",
+        name="Codex",
     ),
 ]
 
@@ -809,6 +815,10 @@ class HarnessAgentTemplate(BaseModel):
         no harness knowledge."""
         return {}
 
+    def wire_harness_mode(self) -> Dict[str, Any]:
+        """The harness-specific ACP session mode override for the ``/run`` payload."""
+        return {}
+
     def wire_model_ref(self) -> Dict[str, Any]:
         """The non-secret provider/connection fields for the ``/run`` payload.
 
@@ -956,6 +966,98 @@ class ClaudeAgentTemplate(HarnessAgentTemplate):
             self.mcp_servers,
             self.tool_specs,
             self.permission_default,
+        )
+        if not files:
+            return {}
+        return {"harnessFiles": files}
+
+
+class CodexAgentTemplate(HarnessAgentTemplate):
+    """Codex's config. No Pi built-ins; tools are delivered over MCP."""
+
+    harness: ClassVar[HarnessKind] = HarnessKind.CODEX
+
+    tool_specs: List[ToolSpec] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("tool_specs", "custom_tools"),
+    )
+
+    @field_validator("tool_specs", mode="before")
+    @classmethod
+    def _coerce_tool_specs(cls, value: Any) -> List[ToolSpec]:
+        return [coerce_tool_spec(item) for item in value or []]
+
+    @property
+    def custom_tools(self) -> List[Dict[str, Any]]:
+        return [tool_spec.to_wire() for tool_spec in self.tool_specs]
+
+    def wire_tools(self) -> Dict[str, Any]:
+        return {
+            "tools": [],  # Codex has no Pi built-in tools
+            "customTools": [tool_spec.to_wire() for tool_spec in self.tool_specs],
+            "toolCallback": self.tool_callback.to_wire()
+            if self.tool_callback
+            else None,
+            **self.wire_permissions(),
+        }
+
+    def wire_harness_mode(self) -> Dict[str, Any]:
+        """The author's Codex ACP session-mode override, from the ``permissions.mode`` option.
+
+        One of ``agent`` / ``read-only`` / ``agent-full-access``; absent means the platform default
+        ``agent-full-access`` (D-008). Every mode now raises Codex's own permission gate for a tool
+        call: the runner image patches codex-acp's full-access preset from ``approvalPolicy:
+        "never"`` to ``on-request`` (D-008 amendment, 2026-07-31), so tool approvals park warm on
+        the runner's keep-alive path instead of resuming cold on a follow-up turn. Texture caveat
+        for ``agent`` mode, unchanged: Codex's own bubblewrap sandbox fails to initialize in our
+        containers, so SHELL-command approvals under ``agent`` are noisy and nondeterministic (a
+        gate phrased "the sandbox failed, may I rerun?", sometimes the bwrap error returned instead
+        of a prompt). Full access keeps shell gate-free, because Codex only asks for exec approval
+        when the filesystem sandbox is restricted. Tool-level approvals are unaffected either way.
+        An invalid value emits nothing (byte-identical wire; the golden contract)."""
+        mode = self.harness_permissions.get("mode")
+        if mode not in {"agent", "read-only", "agent-full-access"}:
+            return {}
+        return {"harnessMode": mode}
+
+    def wire_harness_files(self) -> Dict[str, Any]:
+        """Render the Codex harness's configuration into a ``.codex/config.toml`` file the runner
+        drops in the cwd (``CODEX_HOME`` points at ``<cwd>/.codex``). This is the Codex adapter
+        (Layer 1 translation), done in Python: parse the author's first-class ``harness_permissions``
+        slice, carrying Codex's native ``approval_policy`` and ``sandbox_mode`` options verbatim.
+        Omitted when Codex has nothing authored to write, so a text-only Codex run is byte-identical
+        to before (the golden wire contract) and Codex runs under the ACP adapter's default mode.
+        Layer 2 and Layer 3 rule derivation, and the platform default posture (decision D-008),
+        land in the permissions milestone; no defaults are baked here (the ``codex-acp`` bridge
+        overrides a config-file ``sandbox_mode`` with its per-turn ACP mode preset anyway, per
+        ``spike/derisk-findings.md`` P2)."""
+        # Lazy import: ``adapters.codex_settings`` is light, but importing it at module top would
+        # run ``adapters/__init__`` (which imports the harness adapters, which import this module),
+        # so it is imported here to keep ``dtos`` free of that cycle.
+        from .adapters.codex_settings import build_codex_settings_files
+
+        # Managed vs subscription decides the file-free auth provider block (D-002 final ruling).
+        # The resolved connection is the authority (``credential_mode`` "env"/"none" = managed,
+        # "runtime_provided" = subscription). When it is not threaded, fall back to the author's
+        # connection intent so an explicit ``self_managed`` (subscription) is still excluded;
+        # everything else defaults to managed, matching the runner's ``isManagedCodexRun``.
+        credential_mode: Optional[str] = None
+        if self.resolved_connection is not None:
+            credential_mode = self.resolved_connection.credential_mode
+        elif (
+            self.model_ref is not None
+            and self.model_ref.connection is not None
+            and self.model_ref.connection.mode == "self_managed"
+        ):
+            credential_mode = "runtime_provided"
+
+        files = build_codex_settings_files(
+            self.harness_permissions,
+            self.sandbox_permission,
+            self.mcp_servers,
+            self.tool_specs,
+            self.permission_default,
+            credential_mode=credential_mode,
         )
         if not files:
             return {}
