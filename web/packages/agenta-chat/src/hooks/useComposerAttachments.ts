@@ -5,7 +5,7 @@
 // this hook mirrors the same LOGIC over the package's neutral `PendingAttachment`.
 // Deliberately omitted (desktop-only): the drag/drop DOM handlers and the tray open/close
 // flag — the skin calls `add()` from its own drop/paste surfaces and derives visibility.
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import type {FileUIPart} from "ai"
 
@@ -71,16 +71,24 @@ export const useComposerAttachments = ({
 
     const atMax = files.length >= limits.maxCount
 
+    // The staged count as of the last accepted batch, not the render closure. Two `add` calls
+    // in one tick (a paste and a drop, or a duplicated drop handler) both read the same
+    // `files.length`, so both compute the same remaining capacity and the staged set can pass
+    // `limits.maxCount`. Re-synced on every render so state remains the source of truth.
+    const countRef = useRef(files.length)
+    countRef.current = files.length
+
     /** Add files from picker / paste / programmatic sources through the guardrails. */
     const add = useCallback(
         (incoming: File[]) => {
-            const {accepted, rejections: rej} = validateIncoming(incoming, files.length, limits)
+            const {accepted, rejections: rej} = validateIncoming(incoming, countRef.current, limits)
             if (accepted.length) {
+                countRef.current += accepted.length
                 setFiles((prev) => [...prev, ...accepted.map(toPendingAttachment)])
             }
             setRejections(rej)
         },
-        [files, limits],
+        [limits],
     )
 
     const remove = useCallback((uid: string) => {

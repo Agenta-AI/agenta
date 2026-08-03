@@ -159,6 +159,42 @@ describe("useAgentConversation", () => {
         await waitFor(() => expect(result.current.messages).toHaveLength(0), {timeout: 5000})
     })
 
+    // The skin holds the plan open across its warning dialog, so the transcript can move
+    // underneath it. Truncating against the scan-time snapshot would wipe whatever replaced it.
+    it("a stale rewind plan leaves a transcript its target no longer belongs to alone", async () => {
+        // Two turns here, so each send needs its own unread body.
+        fetchMock.mockImplementation(async () => streamResponse("answer"))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "first"})
+        })
+        await waitFor(() => expect(result.current.messages).toHaveLength(2), {timeout: 5000})
+
+        const plan = result.current.rewind(result.current.messages[0])
+        await act(async () => {
+            plan?.confirm()
+        })
+        await waitFor(() => expect(result.current.messages).toHaveLength(0), {timeout: 5000})
+
+        await act(async () => {
+            await result.current.send({text: "second"})
+        })
+        await waitFor(() => expect(result.current.messages).toHaveLength(2), {timeout: 5000})
+
+        // Confirming the now-stale plan must not truncate the conversation that replaced it.
+        // A truncation commits one throttle window later (50ms), so wait past it before
+        // asserting nothing happened.
+        await act(async () => {
+            plan?.confirm()
+            await new Promise((resolve) => setTimeout(resolve, 400))
+        })
+        expect(result.current.messages).toHaveLength(2)
+    })
+
     it("seeds from the persisted store and skips hydration for cached sessions", async () => {
         const store = createStore()
         const sessionId = nextSessionId()

@@ -67,6 +67,21 @@ describe("useComposerAttachments", () => {
         expect(result.current.rejections.map((r) => r.name)).toEqual(["extra.txt"])
     })
 
+    // A paste and a drop can both fire before React re-renders. Reading the count from the
+    // render closure makes both batches see zero staged files, so the cap is passed.
+    it("holds the count limit across two adds in the same tick", () => {
+        const {result} = setup()
+        const half = Math.ceil(DEFAULT_ATTACHMENT_LIMITS.maxCount / 2) + 1
+        const batch = (tag: string) =>
+            Array.from({length: half}, (_, i) => makeFile(`${tag}${i}.txt`))
+        act(() => {
+            result.current.add(batch("a"))
+            result.current.add(batch("b"))
+        })
+        expect(result.current.files.length).toBeLessThanOrEqual(DEFAULT_ATTACHMENT_LIMITS.maxCount)
+        expect(result.current.atMax).toBe(true)
+    })
+
     it("remove unstages one file; dismissRejections keeps files; clear drops both", () => {
         const {result} = setup()
         act(() => {

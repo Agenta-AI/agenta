@@ -39,11 +39,18 @@ export const loadSessionMessages = async (
     try {
         const {records, refreshed} = await getDefaultStore().set(fetchSessionRecordsAtom, sessionId)
         if (refreshed && onRefreshed) {
-            void refreshed.then((fresh) => {
-                if (!fresh || fresh.length === 0) return
-                const freshMsgs = transcriptToMessages(fresh)
-                if (freshMsgs && freshMsgs.length > 0) onRefreshed(freshMsgs)
-            })
+            void refreshed
+                .then((fresh) => {
+                    if (!fresh || fresh.length === 0) return
+                    const freshMsgs = transcriptToMessages(fresh)
+                    if (freshMsgs && freshMsgs.length > 0) onRefreshed(freshMsgs)
+                })
+                // This chain outlives the function, so the try/catch below cannot see it. A
+                // failed revalidation keeps whatever the cache already restored; without this
+                // it surfaces as an unhandled rejection.
+                .catch((err) => {
+                    console.warn("[loadSessionMessages] revalidation failed:", err)
+                })
         }
         if (!records || records.length === 0) return null
         return transcriptToMessages(records)

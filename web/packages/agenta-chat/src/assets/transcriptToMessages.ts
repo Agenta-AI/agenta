@@ -97,7 +97,11 @@ const isRunnerSentinelError = (part: Part): boolean => {
     const errorText = typeof part.errorText === "string" ? part.errorText : ""
     return (
         errorText.startsWith(DEFERRED_NOT_EXECUTED_PREFIX) ||
-        errorText === APPROVED_EXECUTION_RESULT_UNKNOWN
+        // Prefix, not equality: the code is the contract and the explanation after the colon
+        // is prose. `toolSummary` and the desktop's ToolActivity already match this way, so an
+        // exact compare here is the odd one out and would silently stop reopening the approval
+        // gate if the runner ever appended context.
+        errorText.startsWith(APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX)
     )
 }
 

@@ -168,12 +168,19 @@ function batchJsonToUiMessageStream(
                         // A UIMessage tool part → re-emit as the tool input/output chunks.
                         const toolCallId = part.toolCallId ?? `tool-${seq}`
                         const toolName = t.slice("tool-".length)
-                        emit({
-                            type: "tool-input-available",
-                            toolCallId,
-                            toolName,
-                            input: part.input,
-                        })
+                        // A neutral `tool_result` block normalizes to a nameless `tool-` part
+                        // carrying only the output, under the SAME toolCallId as its sibling
+                        // `tool_use`. The AI SDK keys tool parts by that id, so emitting an
+                        // input chunk here would overwrite the real name and input with "" and
+                        // undefined, and the turn would render an unnamed call.
+                        if (toolName) {
+                            emit({
+                                type: "tool-input-available",
+                                toolCallId,
+                                toolName,
+                                input: part.input,
+                            })
+                        }
                         if (part.output !== undefined) {
                             emit({type: "tool-output-available", toolCallId, output: part.output})
                         }

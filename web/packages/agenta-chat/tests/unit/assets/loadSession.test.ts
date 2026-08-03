@@ -63,6 +63,35 @@ describe("loadSessionMessages", () => {
         expect(delivered[0]).toMatchObject({parts: [{type: "text", text: "fresh"}]})
     })
 
+    // The chain outlives the call, so the function's own try/catch never sees a rejection here.
+    it("survives a rejected background revalidation without an unhandled rejection", async () => {
+        const unhandled = vi.fn()
+        process.on("unhandledRejection", unhandled)
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+        try {
+            fetchResult = {
+                records: [
+                    record("r1", {type: "message", text: "stale"}),
+                    record("r2", {type: "done"}),
+                ],
+                refreshed: Promise.reject(new Error("boom")),
+            }
+            const onRefreshed = vi.fn()
+            const messages = await loadSessionMessages("session-1", onRefreshed)
+            await Promise.resolve()
+            await Promise.resolve()
+            // The restored transcript still stands; only the revalidation was lost.
+            expect(messages?.[0]).toMatchObject({parts: [{type: "text", text: "stale"}]})
+            expect(onRefreshed).not.toHaveBeenCalled()
+            expect(warn).toHaveBeenCalled()
+            await new Promise((resolve) => setTimeout(resolve, 0))
+            expect(unhandled).not.toHaveBeenCalled()
+        } finally {
+            process.off("unhandledRejection", unhandled)
+            warn.mockRestore()
+        }
+    })
+
     it("does not call onRefreshed when the background revalidation yields nothing new", async () => {
         fetchResult = {
             records: [record("r1", {type: "message", text: "stale"}), record("r2", {type: "done"})],

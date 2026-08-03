@@ -517,7 +517,14 @@ export const useAgentConversation = ({
             const sideEffects = sideEffectingToolsInRange(msgs.slice(idx))
             const confirm = () => {
                 if (isUser) {
-                    setMessages(msgs.slice(0, idx))
+                    // The skin calls this after its warning dialog, so `msgs`/`idx` are a
+                    // snapshot from scan time. A revalidation adopted in that window would be
+                    // thrown away by writing the stale array, so re-resolve against the live
+                    // transcript and bail if the message is no longer in it.
+                    const current = messagesRef.current
+                    const at = current.findIndex((m) => m.id === message.id)
+                    if (at < 0) return
+                    setMessages(current.slice(0, at))
                 } else {
                     regenerate({messageId: message.id}).catch(ignoreStreamRejection)
                 }

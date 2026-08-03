@@ -71,4 +71,60 @@ describe("AgentChatTransport", () => {
         // Two requests: the stream attempt (406) then the batch fallback.
         expect(baseFetch).toHaveBeenCalledTimes(2)
     })
+
+    // A batch turn carries the call and its result as two blocks sharing one tool_use_id. The
+    // AI SDK keys tool parts by that id, so a second input chunk would overwrite the named call.
+    it("does not replay an input chunk for the nameless tool_result half of a batch tool turn", async () => {
+        const batchBody = JSON.stringify({
+            session_id: "session-1",
+            data: {
+                outputs: {
+                    messages: [
+                        {
+                            role: "assistant",
+                            content: [
+                                {
+                                    type: "tool_use",
+                                    id: "call-1",
+                                    name: "bash",
+                                    input: {command: "echo hi"},
+                                },
+                                {type: "tool_result", tool_use_id: "call-1", content: "hi"},
+                            ],
+                        },
+                    ],
+                },
+            },
+        })
+        const baseFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+            const accept = new Headers(init?.headers).get("accept") ?? ""
+            if (accept.includes("text/event-stream")) return new Response(null, {status: 406})
+            return new Response(batchBody, {
+                status: 200,
+                headers: {"content-type": "application/json"},
+            })
+        })
+
+        const transport = new AgentChatTransport({
+            api: "/api/agent/invoke",
+            headers: {Accept: "text/event-stream"},
+            fetch: baseFetch as unknown as typeof fetch,
+        })
+        const chunks = await readAll(
+            await transport.sendMessages({
+                trigger: "submit-message",
+                chatId: "chat-1",
+                messageId: undefined,
+                messages: [userMessage("run it")],
+            }),
+        )
+
+        const inputs = chunks.filter((c) => c.type === "tool-input-available")
+        expect(inputs).toHaveLength(1)
+        expect(inputs[0]).toMatchObject({toolCallId: "call-1", toolName: "bash"})
+        // The result still arrives, under the same id, so the call renders as completed.
+        expect(chunks.filter((c) => c.type === "tool-output-available")).toMatchObject([
+            {toolCallId: "call-1", output: "hi"},
+        ])
+    })
 })
