@@ -77,5 +77,9 @@ async def watch_event_stream(
         try:
             await pubsub.unsubscribe(channel)
             await pubsub.aclose()
-        except Exception:  # pragma: no cover — teardown is best-effort
-            log.warning("[WATCH] pubsub teardown failed", channel=channel)
+        except Exception as exc:  # pragma: no cover — teardown is best-effort
+            log.warning(
+                "[WATCH] pubsub teardown failed",
+                channel=channel,
+                error=repr(exc),
+            )
