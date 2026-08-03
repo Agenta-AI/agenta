@@ -66,6 +66,7 @@ from oss.src.core.sessions.streams.types import (
     SessionStreamAlreadyExists,
     SessionTurnInUse,
 )
+from oss.src.core.sessions.dtos import SESSION_ORIGIN_TAG
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.streams.runner_client import kill_runner_sandbox
 from oss.src.core.shared.dtos import Windowing
@@ -673,6 +674,45 @@ class SessionStreamsService:
                 user_id=user_id,
                 session_id=session_id,
                 header=header,
+            )
+
+    async def set_origin(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+        origin: str,
+    ) -> Optional[SessionStream]:
+        """Record WHO started a session, as a reserved tag.
+
+        Written before the run, so the row usually does not exist yet — hence the same
+        create-or-update shape as `set_header`. Tags are replaced wholesale, which is safe only
+        because this is the first writer; a second tag writer would need a merge.
+        """
+        _validate_session_id(session_id)
+        tags = {SESSION_ORIGIN_TAG: origin}
+        updated = await self._dao.update(
+            project_id=project_id,
+            user_id=user_id,
+            session_id=session_id,
+            stream=SessionStreamEdit(tags=tags),
+        )
+        if updated is not None:
+            return updated
+        try:
+            return await self._dao.create(
+                project_id=project_id,
+                user_id=user_id,
+                stream=SessionStreamCreate(session_id=session_id, tags=tags),
+            )
+        except SessionStreamAlreadyExists:
+            # A concurrent first heartbeat won the race; the row exists now.
+            return await self._dao.update(
+                project_id=project_id,
+                user_id=user_id,
+                session_id=session_id,
+                stream=SessionStreamEdit(tags=tags),
             )
 
     async def query_streams(

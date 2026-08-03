@@ -23,6 +23,10 @@ export interface SessionListFilters {
     sessionIds?: string[]
     /** Its complement, so a separately-rendered group (pins) is not listed twice. */
     excludeSessionIds?: string[]
+    /** Who started the session. The sessions list hides automation runs unless asked. */
+    origin?: string
+    /** Hide one origin. Sessions with no stamp still show — absence is not a match. */
+    excludeOrigin?: string
     limit?: number
 }
 
@@ -46,6 +50,8 @@ export const sessionListQueryOptions = (filters: SessionListFilters) => {
         flags,
         sessionIds,
         excludeSessionIds,
+        origin,
+        excludeOrigin,
         limit = SESSIONS_PAGE_SIZE,
     } = filters
 
@@ -60,6 +66,8 @@ export const sessionListQueryOptions = (filters: SessionListFilters) => {
             flags ?? null,
             sessionIds ?? null,
             excludeSessionIds ?? null,
+            origin ?? null,
+            excludeOrigin ?? null,
             limit,
         ] as const,
         queryFn: ({
@@ -78,6 +86,8 @@ export const sessionListQueryOptions = (filters: SessionListFilters) => {
                 flags,
                 sessionIds,
                 excludeSessionIds: excludeSessionIds?.length ? excludeSessionIds : undefined,
+                origin,
+                excludeOrigin,
                 limit,
                 next: pageParam?.next,
                 newest: pageParam?.newest,

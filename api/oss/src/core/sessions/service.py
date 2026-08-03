@@ -15,7 +15,7 @@ from typing import List, Optional, Set
 from uuid import UUID
 
 from oss.src.core.shared.dtos import Windowing
-from oss.src.core.sessions.dtos import SessionListItem, SessionQuery
+from oss.src.core.sessions.dtos import SESSION_ORIGIN_TAG, SessionListItem, SessionQuery
 from oss.src.core.sessions.streams.dtos import SessionStream, SessionStreamQuery
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.turns.dtos import SessionTurnQuery
@@ -31,6 +31,12 @@ def _stream_filter(query: Optional[SessionQuery]) -> SessionStreamQuery:
         include_archived=bool(query and query.include_archived),
         search=query.search if query else None,
         flags=query.flags if query else None,
+        tags={SESSION_ORIGIN_TAG: query.origin} if query and query.origin else None,
+        exclude_tags=(
+            {SESSION_ORIGIN_TAG: query.exclude_origin}
+            if query and query.exclude_origin
+            else None
+        ),
     )
 
 

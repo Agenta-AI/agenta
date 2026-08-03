@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import delete as sa_delete, func, select
+from sqlalchemy import delete as sa_delete, func, not_, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.sessions.streams.dtos import (
@@ -144,6 +144,17 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
             )
             if flags_filter:
                 stmt = stmt.where(SessionStreamDBE.flags.contains(flags_filter))
+        if filter.tags:
+            stmt = stmt.where(SessionStreamDBE.tags.contains(filter.tags))
+        if filter.exclude_tags:
+            # `NOT (tags @> …)` is NULL — not true — for a row with no tags, which would drop
+            # every session written before origins were stamped. Admit those explicitly.
+            stmt = stmt.where(
+                or_(
+                    SessionStreamDBE.tags.is_(None),
+                    not_(SessionStreamDBE.tags.contains(filter.exclude_tags)),
+                )
+            )
         term = filter.search.strip() if filter.search else ""
         if term:
             # Escape LIKE metacharacters so a literal `%`/`_` in the search term

@@ -7,6 +7,7 @@ import {
     sessionAgentFilterAtom,
     sessionSearchAtom,
     sessionShowArchivedAtom,
+    sessionShowTriggeredAtom,
     sessionStatusFilterAtom,
     type SessionStatusFilter,
 } from "../state/filters"
@@ -17,6 +18,7 @@ const SessionFiltersBar = ({waitingCount}: {waitingCount: number | undefined}) =
     const [agentId, setAgentId] = useAtom(sessionAgentFilterAtom)
     const [status, setStatus] = useAtom(sessionStatusFilterAtom)
     const [showArchived, setShowArchived] = useAtom(sessionShowArchivedAtom)
+    const [showTriggered, setShowTriggered] = useAtom(sessionShowTriggeredAtom)
     const agents = useAtomValue(agentsWorkflowsAtom)
 
     return (
@@ -54,6 +56,13 @@ const SessionFiltersBar = ({waitingCount}: {waitingCount: number | undefined}) =
                     },
                 ]}
             />
+
+            <Tooltip title="Sessions started by an automation, not by you">
+                <label className="flex items-center gap-2 text-xs text-colorTextSecondary">
+                    <Switch checked={showTriggered} onChange={setShowTriggered} />
+                    Show automations
+                </label>
+            </Tooltip>
 
             <Tooltip title="Archived sessions are hidden but recoverable">
                 <label className="flex items-center gap-2 text-xs text-colorTextSecondary">

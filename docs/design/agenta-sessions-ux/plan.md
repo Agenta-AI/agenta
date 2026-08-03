@@ -96,9 +96,14 @@ updates for free.** A project-scoped watch channel is the proper fix and belongs
 2. **No session deep-link.** The `?session=` param (`web/oss/src/state/url/session.ts`) is
    observability's trace drawer — unrelated to agent chat sessions. Opening a session from
    elsewhere does not exist.
-3. **No origin marker.** Nothing anywhere distinguishes a triggered run from a manual one. The
-   trigger dispatcher (`api/oss/src/tasks/asyncio/triggers/dispatcher.py`) never touches a session
-   id, so a delivery cannot be linked to the session it produced either.
+3. **No origin marker — and this is a correctness problem, not a nicety.** An automation run IS
+   a session: every run resolves a session id (`resolveRunSessionId`, `services/runner/src/protocol.ts`)
+   and the runner heartbeats it. So automation runs already sit in the session list,
+   indistinguishable from a human's own work — the opposite of what both Mahmoud and Arda asked
+   for. Separately, the delivery row does not record which session it produced: on the *detached*
+   dispatch path, which is the one wired at every composition site, it stores only a `run_id`
+   (an API-minted uuid unrelated to the session). The attached path stores `trace_id`, which
+   `session_turns.trace_id` could join — but that path isn't live.
 4. **No server-side status or tag filter**, and no tag write path (only `setSessionStreamHeader`
    for name/description).
 5. **Sessions logic is forked three ways** — `web/oss` `AgentChatSlice/state`, `web/mobile`
@@ -272,11 +277,14 @@ a rewrite.
 
 Immediately after iteration 1 ships, in rough dependency order:
 
-1. **Origin stamp.** Runner writes origin (`manual` / `trigger` / `api` / `eval`) into
-   `session_streams.tags` at run start; `SessionQuery` grows an origin filter. Unlocks Mahmoud's
-   "triggered sessions hidden by default" and moves Home's automations section onto sessions.
-2. **Delivery → session link.** `TriggerDeliveryData` carries the session id it produced, so an
-   automation row on Home opens the actual session.
+1. ~~**Origin stamp**~~ — pulled forward and built, because the list was otherwise shipping with
+   automation runs mixed into your own work. The dispatcher mints the session id, stamps
+   `tags["ag.origin"]`, and records it on the delivery; the query grows `origin` /
+   `exclude_origin`, and the list hides automations by default. **Remaining hole:** the queue
+   worker (`api/entrypoints/worker_queues.py`) constructs no `SessionStreamsService`, so triggers
+   dispatched through it are unstamped. Wire one there to close it.
+2. ~~**Delivery → session link**~~ — built with the stamp above. Home's automation rows can now
+   resolve their session; wiring the click is the remaining FE step.
 3. **Pin persistence.** `tags` under an `ag.` namespace (Mahmoud's suggestion) plus a query filter.
    The hard part is reconciliation, not storage — the local store from WP1 becomes the optimistic
    layer over it. Agree the tags/meta conventions *first*: Mahmoud's condition was "before we need

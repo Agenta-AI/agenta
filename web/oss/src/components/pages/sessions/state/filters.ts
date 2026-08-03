@@ -11,13 +11,17 @@ export const sessionSearchAtom = atom("")
 export const sessionAgentFilterAtom = atom<string | null>(null)
 export const sessionStatusFilterAtom = atom<SessionStatusFilter>("all")
 export const sessionShowArchivedAtom = atom(false)
+/** Automation runs are sessions too, so without this they sit in the list indistinguishable from
+ * your own work. Hidden by default; the chip opts back in. */
+export const sessionShowTriggeredAtom = atom(false)
 
 export const sessionFiltersActiveAtom = atom(
     (get) =>
         Boolean(get(sessionSearchAtom).trim()) ||
         Boolean(get(sessionAgentFilterAtom)) ||
         get(sessionStatusFilterAtom) !== "all" ||
-        get(sessionShowArchivedAtom),
+        get(sessionShowArchivedAtom) ||
+        get(sessionShowTriggeredAtom),
 )
 
 export const resetSessionFiltersAtom = atom(null, (_get, set) => {
@@ -25,4 +29,5 @@ export const resetSessionFiltersAtom = atom(null, (_get, set) => {
     set(sessionAgentFilterAtom, null)
     set(sessionStatusFilterAtom, "all")
     set(sessionShowArchivedAtom, false)
+    set(sessionShowTriggeredAtom, false)
 })

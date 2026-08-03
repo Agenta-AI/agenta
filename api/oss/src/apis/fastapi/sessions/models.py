@@ -46,6 +46,10 @@ class SessionQueryRequest(BaseModel):
     exclude_session_ids: Optional[List[str]] = None
     # Also return `total`. Off by default — a filter chip wants it, a scroll page does not.
     include_total: bool = False
+    # Who started the session: "manual", "trigger", … Absent means every origin.
+    origin: Optional[str] = None
+    # Its negation — hides one origin while still showing sessions with no stamp at all.
+    exclude_origin: Optional[str] = None
 
 
 class SessionsResponse(BaseModel):

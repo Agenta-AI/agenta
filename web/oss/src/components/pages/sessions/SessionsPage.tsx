@@ -21,6 +21,7 @@ import {
     sessionFiltersActiveAtom,
     sessionSearchAtom,
     sessionShowArchivedAtom,
+    sessionShowTriggeredAtom,
     sessionStatusFilterAtom,
 } from "./state/filters"
 import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "./state/pins"
@@ -43,6 +44,7 @@ const SessionsPage = () => {
     const agentId = useAtomValue(sessionAgentFilterAtom)
     const status = useAtomValue(sessionStatusFilterAtom)
     const includeArchived = useAtomValue(sessionShowArchivedAtom)
+    const showTriggered = useAtomValue(sessionShowTriggeredAtom)
     const filtersActive = useAtomValue(sessionFiltersActiveAtom)
     const resetFilters = useSetAtom(resetSessionFiltersAtom)
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
@@ -60,7 +62,14 @@ const SessionsPage = () => {
         [pendingBySession],
     )
 
-    const shared = {search, agentId, status, includeArchived, waitingSessionIds: waitingIds}
+    const shared = {
+        search,
+        agentId,
+        status,
+        includeArchived,
+        showTriggered,
+        waitingSessionIds: waitingIds,
+    }
     const pinnedQuery = useSessionList({
         ...shared,
         sessionIds: pinnedIds,

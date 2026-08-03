@@ -1657,6 +1657,8 @@ class SessionsRootRouter:
             session_ids=body.session_ids,
             exclude_session_ids=body.exclude_session_ids,
             include_total=body.include_total,
+            origin=body.origin,
+            exclude_origin=body.exclude_origin,
         )
         sessions = await self.sessions_service.query_sessions(
             project_id=UUID(str(project_id)),

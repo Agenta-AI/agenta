@@ -269,6 +269,10 @@ export interface QuerySessionsParams {
     sessionIds?: string[]
     /** Its complement — drop ids already rendered as their own group (pins) from the main list. */
     excludeSessionIds?: string[]
+    /** Who started the session: "manual", "trigger". Absent means every origin. */
+    origin?: string
+    /** Hide one origin while still showing sessions written before origins were stamped. */
+    excludeOrigin?: string
     appId?: string
     abortSignal?: AbortSignal
     lowPriority?: boolean
@@ -297,6 +301,8 @@ export async function querySessions({
     flags,
     sessionIds,
     excludeSessionIds,
+    origin,
+    excludeOrigin,
     appId,
     abortSignal,
     lowPriority,
@@ -328,11 +334,15 @@ export async function querySessions({
                 flags,
                 session_ids: sessionIds,
                 exclude_session_ids: excludeSessionIds,
+                origin,
+                exclude_origin: excludeOrigin,
             } as AgentaApi.SessionQueryRequest & {
                 search?: string
                 flags?: QuerySessionsParams["flags"]
                 session_ids?: string[]
                 exclude_session_ids?: string[]
+                origin?: string
+                exclude_origin?: string
             },
             projectScopedRequest(projectId, appId, abortSignal),
         ),

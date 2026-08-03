@@ -16,6 +16,15 @@ class SessionListItem(SessionStream):
     references: Optional[List[Reference]] = None
 
 
+# Reserved tag naming WHO started a session. Lives in `tags` rather than a column: the sessions
+# list must be able to hide automation runs by default, and a jsonb tag with a GIN index filters
+# as well as a column would without a migration.
+SESSION_ORIGIN_TAG = "ag.origin"
+
+SESSION_ORIGIN_MANUAL = "manual"
+SESSION_ORIGIN_TRIGGER = "trigger"
+
+
 class SessionQuery(BaseModel):
     """Root `/sessions/query` filter: reference-scoped, joined through the turns'
     references (WP1's GIN `.contains()`), not denormalized onto the stream row.
@@ -43,3 +52,9 @@ class SessionQuery(BaseModel):
     # Also return the total matching rows, ignoring windowing. Off by default: a filter chip
     # wants it, a scroll page does not, and it costs a second query.
     include_total: bool = False
+    # Who started the session (`SESSION_ORIGIN_*`). A triggered run is a session like any other,
+    # so without this filter an automation's work is indistinguishable from your own in the list.
+    origin: Optional[str] = None
+    # The negation, which containment cannot express: hide automation runs while still showing
+    # every session written before origins were stamped (their tags are NULL, not "manual").
+    exclude_origin: Optional[str] = None
