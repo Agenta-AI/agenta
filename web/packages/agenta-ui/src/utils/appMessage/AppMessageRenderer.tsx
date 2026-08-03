@@ -135,16 +135,18 @@ function NotificationOutlet() {
 function ConfirmModal({record}: {record: ConfirmRecord}) {
     const {config} = record
     const [okLoading, setOkLoading] = React.useState(false)
+    const [thirdLoading, setThirdLoading] = React.useState(false)
 
     const close = React.useCallback(() => closeConfirmById(record.id), [record.id])
 
     const handleCancel = React.useCallback(() => {
-        // While an async `onOk` is in flight antd keeps the modal locked; ignore dismissals.
-        if (okLoading) return
+        // While an async `onOk`/`onThirdButton` is in flight antd keeps the modal locked;
+        // ignore dismissals.
+        if (okLoading || thirdLoading) return
         // `close` is passed as the first argument, matching antd.
         config.onCancel?.(close)
         close()
-    }, [close, config, okLoading])
+    }, [close, config, okLoading, thirdLoading])
 
     const handleOk = React.useCallback(() => {
         // antd hands `close` to `onOk` as the first argument.
@@ -159,6 +161,26 @@ function ConfirmModal({record}: {record: ConfirmRecord}) {
                 () => {
                     // A rejection keeps the modal open, exactly as antd does.
                     setOkLoading(false)
+                },
+            )
+            return
+        }
+        close()
+    }, [close, config])
+
+    const handleThirdButton = React.useCallback(() => {
+        // Same async/loading contract as `handleOk`: a returned Promise keeps the modal
+        // open (third button in its loading state) until it settles.
+        const result = config.onThirdButton?.(close)
+        if (result && typeof (result as PromiseLike<unknown>).then === "function") {
+            setThirdLoading(true)
+            Promise.resolve(result).then(
+                () => {
+                    setThirdLoading(false)
+                    close()
+                },
+                () => {
+                    setThirdLoading(false)
                 },
             )
             return
@@ -191,7 +213,8 @@ function ConfirmModal({record}: {record: ConfirmRecord}) {
                     config.width != null ? {...config.style, maxWidth: config.width} : config.style
                 }
                 onEscapeKeyDown={(event) => {
-                    if (config.keyboard === false || okLoading) event.preventDefault()
+                    if (config.keyboard === false || okLoading || thirdLoading)
+                        event.preventDefault()
                 }}
                 // Radix always points `aria-describedby` at its Description; with no content
                 // there is none, so clear it (an explicit `undefined` in the spread) to avoid
@@ -213,7 +236,9 @@ function ConfirmModal({record}: {record: ConfirmRecord}) {
                 <AlertDialogFooter>
                     {okCancel ? (
                         <AlertDialogCancel
-                            disabled={okLoading || config.cancelButtonProps?.disabled}
+                            disabled={
+                                okLoading || thirdLoading || config.cancelButtonProps?.disabled
+                            }
                             className={config.cancelButtonProps?.className}
                             style={config.cancelButtonProps?.style}
                         >
@@ -221,12 +246,23 @@ function ConfirmModal({record}: {record: ConfirmRecord}) {
                             {config.cancelText ?? "Cancel"}
                         </AlertDialogCancel>
                     ) : null}
+                    {/* Agenta extension (not antd): an extra button between Cancel and OK. */}
+                    {config.thirdButtonText ? (
+                        <Button
+                            variant="outline"
+                            onClick={handleThirdButton}
+                            disabled={okLoading || thirdLoading}
+                            data-loading={thirdLoading || undefined}
+                        >
+                            {config.thirdButtonText}
+                        </Button>
+                    ) : null}
                     {/* A plain Button, NOT AlertDialogAction: Radix's action always closes the
                         dialog on click, which would break the async/rejecting `onOk` contract. */}
                     <Button
                         variant={danger ? "destructive" : "default"}
                         onClick={handleOk}
-                        disabled={okLoading || config.okButtonProps?.disabled}
+                        disabled={okLoading || thirdLoading || config.okButtonProps?.disabled}
                         className={config.okButtonProps?.className}
                         style={config.okButtonProps?.style}
                         data-loading={okLoading || undefined}
