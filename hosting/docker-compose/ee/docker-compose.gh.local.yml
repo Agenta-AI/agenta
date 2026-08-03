@@ -45,10 +45,10 @@ services:
         networks:
             - agenta-ee-gh-network
         # === LABELS =============================================== #
-        # PathPrefix(`/m`) auto-wins over the web catch-all PathPrefix(`/`)
+        # (Path(`/m`) || PathPrefix(`/m/`)) auto-wins over the web catch-all PathPrefix(`/`)
         # by rule length; no stripprefix — the app is built with basePath /m.
         labels:
-            - "traefik.http.routers.web-mobile.rule=PathPrefix(`/m`)"
+            - "traefik.http.routers.web-mobile.rule=(Path(`/m`) || PathPrefix(`/m/`))"
             - "traefik.http.routers.web-mobile.entrypoints=web"
             - "traefik.http.services.web-mobile.loadbalancer.server.port=3000"
         # === LIFECYCLE ============================================ #

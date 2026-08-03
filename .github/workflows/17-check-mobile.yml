@@ -101,6 +101,20 @@ jobs:
 
           CACHE_SCOPE="${CACHE_SCOPE:0:80}"
 
+          # `image_tag` is interpolated into later `run:` blocks, so it must be a Docker tag and
+          # nothing else. `case` matches the WHOLE value, including any newline — a line-based
+          # check (grep) would pass "good\nimage_tag=evil", which forges a second step output.
+          case "$TAG" in
+            "" | [!A-Za-z0-9_]* | *[!A-Za-z0-9_.-]*)
+              echo "::error::image_tag is not a valid Docker tag"
+              exit 1
+              ;;
+          esac
+          if [ "${#TAG}" -gt 128 ]; then
+            echo "::error::image_tag is longer than 128 characters"
+            exit 1
+          fi
+
           echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "cache_scope=${CACHE_SCOPE}" >> "$GITHUB_OUTPUT"
           echo "push=${PUSH}" >> "$GITHUB_OUTPUT"
@@ -170,15 +184,21 @@ jobs:
             if curl -sf http://127.0.0.1:3000/m >/dev/null; then break; fi
             sleep 1
           done
-          curl -sf http://127.0.0.1:3000/m >/dev/null || { docker logs mobile-smoke; exit 1; }
-          curl -sf http://127.0.0.1:3000/m/__env.js >/dev/null || { docker logs mobile-smoke; exit 1; }
-          # basePath /m owns the prefix: the bare root must 404. Assert the status itself —
-          # `curl -sf` fails on any 4xx or 5xx alike, so a root that 500s would pass this check.
-          ROOT_STATUS="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/)"
-          if [ "$ROOT_STATUS" != "404" ]; then
-            echo "::error::expected / to 404 (basePath /m), got ${ROOT_STATUS}"
-            docker logs mobile-smoke; exit 1
-          fi
+          # Assert the status itself rather than curl's exit code: `-sf` succeeds on a 3xx
+          # (the page never rendered) and fails identically on 404 and 500.
+          expect_status() {
+            local path="$1" want="$2" got
+            got="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:3000${path}")"
+            if [ "$got" != "$want" ]; then
+              echo "::error::expected ${path} to return ${want}, got ${got}"
+              docker logs mobile-smoke
+              exit 1
+            fi
+          }
+          expect_status /m 200
+          expect_status /m/__env.js 200
+          # basePath /m owns the prefix, so the bare root belongs to nothing.
+          expect_status / 404
           docker rm -f mobile-smoke
 
       - name: Verify image runs as non-root

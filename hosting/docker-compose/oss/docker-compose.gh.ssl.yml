@@ -45,10 +45,10 @@ services:
         networks:
             - agenta-gh-ssl-network
         # === LABELS =============================================== #
-        # PathPrefix(`/m`) auto-wins over the web catch-all PathPrefix(`/`)
+        # (Path(`/m`) || PathPrefix(`/m/`)) auto-wins over the web catch-all PathPrefix(`/`)
         # by rule length; no stripprefix — the app is built with basePath /m.
         labels:
-            - "traefik.http.routers.web-mobile.rule=Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/m`)"
+            - "traefik.http.routers.web-mobile.rule=Host(`${TRAEFIK_DOMAIN}`) && (Path(`/m`) || PathPrefix(`/m/`))"
             - "traefik.http.routers.web-mobile.entrypoints=web,web-secure"
             - "traefik.http.services.web-mobile.loadbalancer.server.port=3000"
             - "traefik.http.routers.web-mobile.tls=true"
