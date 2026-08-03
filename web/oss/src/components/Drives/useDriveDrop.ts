@@ -35,27 +35,33 @@ export async function getFilesFromDataTransfer(
 
     if (entry.isFile) {
       await new Promise<void>((resolve) => {
-        entry.file((file: File) => {
-          const relativePath = path ? `${path}/${file.name}` : file.name;
-          try {
-            Object.defineProperty(file, "relativePath", {
-              value: relativePath,
-              writable: true,
-              configurable: true,
-            });
-          } catch {
-            // Ignore if property cannot be redefined
-          }
-          results.push({ file, relativePath });
-          resolve();
-        });
+        entry.file(
+          (file: File) => {
+            const relativePath = path ? `${path}/${file.name}` : file.name;
+            try {
+              Object.defineProperty(file, "relativePath", {
+                value: relativePath,
+                writable: true,
+                configurable: true,
+              });
+            } catch {
+              // Ignore if property cannot be redefined
+            }
+            results.push({ file, relativePath });
+            resolve();
+          },
+          () => resolve() // Error callback: resolves gracefully if file read fails
+        );
       });
     } else if (entry.isDirectory) {
       const dirReader = entry.createReader();
       let batch: any[] = [];
       do {
         batch = await new Promise<any[]>((resolve) => {
-          dirReader.readEntries((entries: any[]) => resolve(entries || []));
+          dirReader.readEntries(
+            (entries: any[]) => resolve(entries || []),
+            () => resolve([]) // Error callback: resolves with [] if dir read fails
+          );
         });
 
         const folderPath = path ? `${path}/${entry.name}` : entry.name;
@@ -80,20 +86,22 @@ export async function getFilesFromDataTransfer(
 }
 
 /**
- * Helper to safely extract files from DataTransfer, falling back to e.dataTransfer.files
+ * Helper to safely extract files from DataTransfer, returning DroppedFileItem[] with relativePath preserved
  */
-async function extractFilesFromDataTransfer(dataTransfer: DataTransfer): Promise<File[]> {
+async function extractFilesFromDataTransfer(
+  dataTransfer: DataTransfer
+): Promise<DroppedFileItem[]> {
   if (dataTransfer.items && dataTransfer.items.length > 0) {
     const droppedItems = await getFilesFromDataTransfer(dataTransfer.items);
     if (droppedItems.length > 0) {
-      return droppedItems.map((item) => item.file);
+      return droppedItems;
     }
   }
-  return Array.from(dataTransfer.files ?? []);
+  return Array.from(dataTransfer.files ?? []).map((file) => ({
+    file,
+    relativePath: (file as any).webkitRelativePath || file.name,
+  }));
 }
-
-export const isFileDrag = (e: DragEvent): boolean =>
-    Array.from(e.dataTransfer?.types ?? []).includes("Files")
 
 export interface DriveDrop {
     /** A file drag is in progress anywhere over the drive (for a subtle drop-affordance). */
