@@ -425,7 +425,13 @@ class WireHarnessCapabilities(_WireModel):
 
 
 class WireAgentUsage(_WireModel):
-    """Token / cost usage rolled onto a workflow span."""
+    """Token / cost usage rolled onto a workflow span.
+
+    ``cost`` is OPTIONAL on the wire, and the distinction is load-bearing: absent means the cost
+    is UNKNOWN (the harness reported none), while a present ``0`` is a measured zero — a free
+    model or a fully cached turn. ``record_usage`` reads presence as evidence of a measurement,
+    so an absent cost must never be normalized to a zero anywhere on this path.
+    """
 
     input: Optional[int] = None
     output: Optional[int] = None
