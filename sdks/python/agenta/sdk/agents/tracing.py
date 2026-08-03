@@ -210,18 +210,28 @@ def run_context() -> Optional[RunContext]:
     return RunContext(workflow=workflow, trace=trace)
 
 
-def record_usage(usage: Optional[Dict[str, Any]]) -> None:
-    """Stamp the agent's token/cost totals onto the active ``/invoke`` workflow span.
+def record_usage(
+    usage: Optional[Dict[str, Any]],
+    *,
+    span: Optional[Any] = None,
+) -> None:
+    """Stamp the agent's token/cost totals onto the ``/invoke`` workflow span.
 
     The harness emits its own span tree (turns, LLM, tools) in a separate OTLP batch, so
     Agenta's per-batch cumulative roll-up cannot bridge the totals onto the workflow span.
     Setting ``gen_ai.usage.*`` here records them directly on that span (the root of its
     batch), so the trace shows the run's tokens and cost. Best-effort.
+
+    ``span`` pins the workflow span captured where the run began. Prefer it: the write happens
+    from the run's teardown, arbitrarily far from the frame that made the span current, and any
+    task driving the stream in between carries only a COPY of that context — so the ambient span
+    at write time is not reliably the workflow span, and a write to a non-recording one is
+    silently discarded. Omitting it falls back to the ambient span for standalone callers.
     """
     if not usage or not usage.get("total"):
         return
     try:
-        span = otel_trace.get_current_span()
+        span = span if span is not None else otel_trace.get_current_span()
         input_tokens = int(usage.get("input") or 0)
         output_tokens = int(usage.get("output") or 0)
         span.set_attribute("gen_ai.usage.input_tokens", input_tokens)
