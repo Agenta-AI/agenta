@@ -10,6 +10,7 @@ from .dtos import HarnessKind
 from .tools.errors import ToolResolutionError
 
 __all__ = [
+    "AgentRunFailed",
     "AgentRunnerConfigurationError",
     "SandboxNotAllowedError",
     "LocalSandboxNotAllowedError",
@@ -36,6 +37,16 @@ class UnsupportedHarnessError(RuntimeError):
 
 class AgentRunnerConfigurationError(RuntimeError):
     """Raised when a runner-backed adapter lacks a usable transport configuration."""
+
+
+class AgentRunFailed(RuntimeError):
+    """A runner-reported terminal failure with a stable machine-readable code."""
+
+    failure_code: str = "agent_run_failed"
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(f"Agent run failed: {message}")
 
 
 class SandboxNotAllowedError(ErrorStatus):

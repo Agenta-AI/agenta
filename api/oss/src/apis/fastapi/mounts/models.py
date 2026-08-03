@@ -1,17 +1,17 @@
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from oss.src.core.mounts.dtos import (
     Mount,
-    MountCreate,
     MountCredentials,
     MountEdit,
     MountFile,
+    MountFlags,
     MountQuery,
 )
-from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.dtos import Header, Slug, Windowing
 
 
 # ---------------------------------------------------------------------------
@@ -19,8 +19,18 @@ from oss.src.core.shared.dtos import Windowing
 # ---------------------------------------------------------------------------
 
 
+class PublicMountCreate(Slug, Header):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: Optional[str] = None
+    agent_id: Optional[str] = None
+    flags: MountFlags = Field(default_factory=MountFlags)
+    tags: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
+
+
 class MountCreateRequest(BaseModel):
-    mount: MountCreate
+    mount: PublicMountCreate
 
 
 class MountEditRequest(BaseModel):

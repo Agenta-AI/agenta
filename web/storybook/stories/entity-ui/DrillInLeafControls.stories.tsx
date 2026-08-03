@@ -1,6 +1,5 @@
 import {useState} from "react"
 
-import {RailField, railInfoLabel} from "@agenta/entity-ui/drawers/shared"
 import {
     AgentOperationsSkeleton,
     BooleanToggleControl,
@@ -12,8 +11,6 @@ import {
     HookConfigControl,
     JsonObjectEditor,
     NumberSliderControl,
-    PiAutoApproveControl,
-    PiSettingsControl,
     SectionDrawer,
     SectionQuickAction,
     SubSectionHeader,
@@ -430,30 +427,6 @@ const AntdConfirmFooter = () => (
     </div>
 )
 
-/** PiAutoApproveControl, pre-migration (RailField is shared). */
-const AntdPiAutoApprove = ({allow}: {allow: string[]}) => (
-    <RailField
-        label={railInfoLabel(
-            "Auto-approve",
-            "Tools that run without asking. Added from an approval card's “Always allow”.",
-        )}
-    >
-        {allow.length ? (
-            <div className="flex flex-wrap gap-1">
-                {allow.map((pattern) => (
-                    <AntTag key={pattern} closable className="!m-0 !font-mono !text-[11px]">
-                        {pattern}
-                    </AntTag>
-                ))}
-            </div>
-        ) : (
-            <Text type="secondary" className="!text-[11px]">
-                Nothing auto-approved — every gated tool asks each time.
-            </Text>
-        )}
-    </RailField>
-)
-
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -509,10 +482,6 @@ function LeafControlsComparison() {
         headers: {"X-Token": "abc123"},
     })
     const [language, setLanguage] = useState<string | undefined>("javascript")
-    const [piTools, setPiTools] = useState<unknown[] | undefined>([
-        {type: "builtin", name: "read"},
-        {type: "builtin", name: "bash"},
-    ])
 
     return (
         <div className="flex max-w-[1100px] flex-col">
@@ -964,56 +933,6 @@ function LeafControlsComparison() {
                 }
             />
 
-            {/* PiSettingsControl */}
-            <Row
-                label="pi built-ins · selected"
-                expected="antd `Select mode='multiple'` → the shared MultiSelect composite (chips in a DropdownMenu trigger); chip geometry was matched to antd in wave 1"
-                a={
-                    <RailField label="Built-in tools" align="center">
-                        <AntSelect
-                            mode="multiple"
-                            className="w-full"
-                            value={["read", "bash"]}
-                            options={[
-                                {value: "read", label: "Read"},
-                                {value: "bash", label: "Bash"},
-                            ]}
-                            placeholder="Pi defaults"
-                            aria-label="Built-in tools"
-                        />
-                    </RailField>
-                }
-                s={<PiSettingsControl tools={piTools} onChange={setPiTools} />}
-            />
-            <Row
-                label="pi built-ins · empty"
-                a={
-                    <RailField label="Built-in tools" align="center">
-                        <AntSelect
-                            mode="multiple"
-                            className="w-full"
-                            value={[]}
-                            options={[]}
-                            placeholder="Pi defaults"
-                            aria-label="Built-in tools"
-                        />
-                    </RailField>
-                }
-                s={<PiSettingsControl tools={[]} onChange={noop} />}
-            />
-
-            {/* PiAutoApproveControl */}
-            <Row
-                label="auto-approve · filled"
-                a={<AntdPiAutoApprove allow={["bash", "Terminal"]} />}
-                s={<PiAutoApproveControl value={{allow: ["bash", "Terminal"]}} onChange={noop} />}
-            />
-            <Row
-                label="auto-approve · empty"
-                a={<AntdPiAutoApprove allow={[]} />}
-                s={<PiAutoApproveControl value={{allow: []}} onChange={noop} />}
-            />
-
             {/* JsonObjectEditor */}
             <Row
                 label="json editor · error line"
@@ -1202,22 +1121,6 @@ export const ProviderGroups: Story = {
     },
 }
 
-/** Auto-approve patterns + the Pi built-ins picker, in their drawer rail rows. */
-export const PiHarnessFields: Story = {
-    render: function PiHarnessFieldsStory() {
-        const [tools, setTools] = useState<unknown[] | undefined>([{type: "builtin", name: "read"}])
-        const [permissions, setPermissions] = useState<Record<string, unknown>>({
-            allow: ["bash", "Terminal"],
-        })
-        return (
-            <div className="flex max-w-[560px] flex-col gap-3">
-                <PiSettingsControl tools={tools} onChange={setTools} />
-                <PiAutoApproveControl value={permissions} onChange={setPermissions} />
-            </div>
-        )
-    },
-}
-
 /** Every leaf that takes a `disabled` prop, in its disabled state. */
 export const DisabledStates: Story = {
     render: () => (
@@ -1239,8 +1142,6 @@ export const DisabledStates: Story = {
                 onChange={noop}
             />
             <HookConfigControl value={{url: "https://x"}} disabled onChange={noop} />
-            <PiSettingsControl tools={[]} disabled onChange={noop} />
-            <PiAutoApproveControl value={{allow: ["bash"]}} disabled onChange={noop} />
             <SectionQuickAction onOpenDetails={noop} disabled>
                 <Input placeholder="sk-…" aria-label="API key" disabled />
             </SectionQuickAction>

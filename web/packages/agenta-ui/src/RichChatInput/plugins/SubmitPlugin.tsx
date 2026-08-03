@@ -7,6 +7,7 @@ import {submitEditorAsMarkdown} from "../assets/submit"
 
 interface SubmitPluginProps {
     onSubmit: (markdown: string) => void
+    disabled?: boolean
 }
 
 /**
@@ -16,7 +17,7 @@ interface SubmitPluginProps {
  * an exit-to-paragraph from an empty list item, a new line in code, a new paragraph in
  * text — and the caret lands at a block start so markdown shortcuts fire on it.
  */
-export function SubmitPlugin({onSubmit}: SubmitPluginProps) {
+export function SubmitPlugin({onSubmit, disabled}: SubmitPluginProps) {
     const [editor] = useLexicalComposerContext()
 
     useEffect(() => {
@@ -35,6 +36,11 @@ export function SubmitPlugin({onSubmit}: SubmitPluginProps) {
                     return true
                 }
 
+                if (disabled) {
+                    event.preventDefault()
+                    return true
+                }
+
                 // Plain Enter → always send.
                 event.preventDefault()
                 submitEditorAsMarkdown(editor, onSubmit)
@@ -42,7 +48,7 @@ export function SubmitPlugin({onSubmit}: SubmitPluginProps) {
             },
             COMMAND_PRIORITY_HIGH,
         )
-    }, [editor, onSubmit])
+    }, [disabled, editor, onSubmit])
 
     return null
 }

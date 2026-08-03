@@ -119,15 +119,17 @@ const AntdFunctionHeader = () => (
     </div>
 )
 
+// Hoisted: resolving it inside the body makes a fresh component identity every render.
+const OpenAIIcon = getProviderIcon("openai")
+
 const AntdBuiltinHeader = () => {
-    const Icon = getProviderIcon("openai")
     return (
         <div className="w-full flex items-start justify-between py-1">
             <div className="grow min-w-0">
                 <div className="flex items-center gap-1">
                     <div className="flex items-center">
                         <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-[var(--ag-c-F8FAFC)]">
-                            {Icon ? <Icon className="w-4 h-4" /> : null}
+                            {OpenAIIcon ? <OpenAIIcon className="w-4 h-4" /> : null}
                         </span>
                         <AntTypography.Text>OpenAI</AntTypography.Text>
                     </div>

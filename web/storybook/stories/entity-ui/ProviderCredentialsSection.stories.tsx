@@ -7,8 +7,8 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 import {Segmented as AntSegmented, Typography} from "antd"
 
 // Imported from source: agentTemplate internals are not re-exported from the DrillInView barrel.
-import type {ConnectionMode} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/connectionUtils"
 import {ProviderCredentialsSectionView} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/ProviderCredentialsSectionView"
+import type {ConnectionMode} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/connectionUtils"
 
 // ProviderCredentialsSectionView — the presentational half of the "Provider credentials" pane.
 // The container (`ProviderCredentialsSection`) reads `standardSecretsAtom`/`customSecretsAtom`;

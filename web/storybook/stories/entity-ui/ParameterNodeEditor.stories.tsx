@@ -23,7 +23,6 @@ import {
 } from "antd"
 
 // Imported from source: the DrillInView barrel does not re-export the parameter editor.
-import {ChipsInput} from "../../../packages/agenta-entity-ui/src/gatewayTool/components/schemaFormControls"
 import {ParameterNodeEditor} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/ParameterNodeEditor"
 import {
     ITEM_TYPE_OPTIONS,
@@ -31,6 +30,7 @@ import {
     type Schema,
     type Seg,
 } from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/schemaPaths"
+import {ChipsInput} from "../../../packages/agenta-entity-ui/src/gatewayTool/components/schemaFormControls"
 
 // ParameterNodeEditor — the right-hand detail of the tool-parameter master/detail editor: a
 // stack of `RailField` rows for the ONE node selected in `ParameterTree`. The rows shown depend

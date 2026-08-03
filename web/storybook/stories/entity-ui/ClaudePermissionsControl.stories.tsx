@@ -48,7 +48,7 @@ const DENY_HINT = "Per-tool rules that are always blocked, one per line."
 
 // A type alias (not an interface): TS gives object type ALIASES an implicit index signature, so
 // this stays assignable to the control's `Record<string, unknown>` value prop.
-type PermValue = {
+interface PermValue {
     default_mode?: string
     allow: string[]
     ask: string[]

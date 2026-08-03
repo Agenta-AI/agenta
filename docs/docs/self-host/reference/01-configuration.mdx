@@ -158,7 +158,7 @@ never by guessing at shape or entropy.
 | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` | `agenta.services.middleware.caching_enabled` | `agenta.services.middleware.cachingEnabled` |
 
 :::warning Custom-code evaluator runner
-`AGENTA_SERVICES_CODE_SANDBOX_RUNNER` selects how [custom-code evaluators](/evaluation/configure-evaluators/custom-evaluator) execute:
+`AGENTA_SERVICES_CODE_SANDBOX_RUNNER` selects how [custom-code evaluators](/1.0/evaluation/configure-evaluators/custom-evaluator) execute:
 
 - `local` (default): raw execution in the services process with **no sandbox**. Any author who can create a custom-code evaluator can run arbitrary code on the host. This is what makes self-hosting work with zero configuration; the deployment logs a warning while it's active.
 - `restricted`: in-process Python sandbox with limited builtins and an allowlist of pure-standard-library imports. No filesystem, network, or host access. Set this to harden a shared/multi-tenant deployment.
@@ -601,6 +601,48 @@ reachable. Enable the `ngrok` tunnel (the compose `with-tunnel` profile) or poin
 `AGENTA_STORE_ENDPOINT_URL` at a public S3 URL. Only the scoped, short-lived credentials ever
 cross into a remote sandbox.
 :::
+
+## Agenta attachments
+
+Bounds the files a user can attach to an agent chat turn. The API enforces the per-file sizes
+and the per-session quotas when a file is uploaded, and deletes expired attachments in a
+background sweep. The runner enforces how many attachments one turn carries. Attachment bytes
+live in the [store](#store-durable-object-store), so uploads fail while the store is
+unconfigured.
+
+The chart has no dedicated values keys for these. Set them through the per-deployment env map:
+`api.env.<NAME>` for the API variables, `agentRunner.env.<NAME>` for the runner ones.
+
+Read by the `api` service:
+
+| Env var | env.py path | What it bounds | Default |
+|---|---|---|---|
+| `AGENTA_ATTACHMENTS_MAX_IMAGE_BYTES` | `agenta.sessions.attachments.max_image_bytes` | Size of one image | `10485760` (10 MB) |
+| `AGENTA_ATTACHMENTS_MAX_AUDIO_BYTES` | `agenta.sessions.attachments.max_audio_bytes` | Size of one audio file | `15728640` (15 MB) |
+| `AGENTA_ATTACHMENTS_MAX_DOCUMENT_BYTES` | `agenta.sessions.attachments.max_document_bytes` | Size of one document | `10485760` (10 MB) |
+| `AGENTA_ATTACHMENTS_MAX_OTHER_BYTES` | `agenta.sessions.attachments.max_other_bytes` | Size of one file of any other kind | `10485760` (10 MB) |
+| `AGENTA_ATTACHMENTS_MAX_PER_SESSION_COUNT` | `agenta.sessions.attachments.max_per_session_count` | Stored attachments one session may hold | `1000` |
+| `AGENTA_ATTACHMENTS_MAX_PER_SESSION_BYTES` | `agenta.sessions.attachments.max_per_session_bytes` | Total stored bytes across one session | `268435456` (256 MB) |
+| `AGENTA_ATTACHMENTS_MAX_PENDING_PER_SESSION` | `agenta.sessions.attachments.max_pending_per_session` | Uploads in flight for one session at once | `20` |
+| `AGENTA_ATTACHMENTS_PENDING_TTL_SECONDS` | `agenta.sessions.attachments.pending_ttl_seconds` | How long an unfinished upload is held before the sweep reclaims it | `900` (15 minutes) |
+| `AGENTA_ATTACHMENTS_UNREFERENCED_TTL_SECONDS` | `agenta.sessions.attachments.unreferenced_ttl_seconds` | How long an uploaded attachment that no message references is kept | `86400` (24 hours) |
+| `AGENTA_ATTACHMENTS_SWEEP_INTERVAL_SECONDS` | `agenta.sessions.attachments.sweep_interval_seconds` | Gap between two attachment sweeps | `3600` (1 hour) |
+
+The kind of a file (image, audio, document, other) comes from its media type, and an upload
+over its kind's cap is rejected before anything is stored. The count and byte quotas apply to
+stored attachments and are checked as each upload is claimed. The sweep runs inside the API
+process, and a lock lets one replica sweep at a time.
+
+Read by the `runner` service:
+
+| Env var | env.py path | What it bounds | Default |
+|---|---|---|---|
+| `AGENTA_ATTACHMENTS_MAX_PER_TURN` | n/a (read by the runner) | Attachments one user turn may carry | `100` |
+| `AGENTA_ATTACHMENTS_FETCH_TIMEOUT_MS` | n/a (read by the runner) | Wait for one attachment's bytes to download | `15000` (15 seconds) |
+
+A turn that carries more than `AGENTA_ATTACHMENTS_MAX_PER_TURN` attachments fails before the
+run starts. The runner also refuses any single attachment body over 16 MB. That ceiling is
+fixed in code, so raising a per-file cap above it stores files the runner cannot fetch.
 
 ## Agenta egress
 

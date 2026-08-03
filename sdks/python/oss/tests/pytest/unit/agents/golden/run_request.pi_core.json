@@ -42,7 +42,7 @@
       "span_id": "b7ad6b7169203331"
     }
   },
-  "tools": ["read", "write"],
+  "tools": ["read", "bash", "edit", "write", "grep", "find", "ls"],
   "customTools": [
     {
       "name": "get_user",

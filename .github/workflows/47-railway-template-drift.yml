@@ -1,0 +1,65 @@
+# Railway preview template drift check (issue #5650).
+#
+# The preview TEMPLATE environment (per-PR previews are clones of it) is
+# defined in git: hosting/railway/oss/template/template.json. This workflow
+# runs the converge tool in --dry-run mode on a schedule and fails loudly when
+# the live environment no longer matches the committed definition — i.e. when
+# someone hand-edited the template in the Railway dashboard, or a template
+# change merged without being applied.
+#
+# It never mutates anything: --dry-run only reads. Reads cost ~18 API calls
+# against the shared token's hourly budget (Hobby tier: 1000/hour), so the
+# schedule is offset from workflow 45's 06:00 UTC cleanup cron.
+#
+# Auth traps (same as workflow 46):
+#   1. The secret must be exported as RAILWAY_API_TOKEN, never RAILWAY_TOKEN:
+#      the Railway CLI treats a variable literally named RAILWAY_TOKEN as
+#      PROJECT-scoped and account-level calls fail Unauthorized (#4392).
+#   2. The token must be an ACCOUNT token (workspace tokens cannot resolve
+#      `me`, which the project lookup iterates).
+
+name: "47 - railway template drift"
+
+on:
+  schedule:
+    # Daily at 06:30 UTC — offset from workflow 45's 06:00 cleanup cron so the
+    # two never contend for the same hourly API budget window.
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+    inputs:
+      env_name:
+        description: "Environment to check (default: the template, pr-template)"
+        required: false
+        type: string
+        default: "pr-template"
+
+permissions:
+  contents: read
+
+env:
+  # Trap 1: account token exported as RAILWAY_API_TOKEN, never RAILWAY_TOKEN.
+  RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+jobs:
+  drift-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check template environment against committed definition
+        run: |
+          set -uo pipefail
+          env_name='${{ inputs.env_name || 'pr-template' }}'
+          rc=0
+          hosting/railway/oss/template/apply.sh --dry-run --env-name "$env_name" || rc=$?
+          if [ "$rc" -eq 0 ]; then
+            echo "Template environment '$env_name' matches hosting/railway/oss/template/template.json."
+            exit 0
+          fi
+          if [ "$rc" -eq 2 ]; then
+            echo "::error::Railway template environment '$env_name' has DRIFTED from hosting/railway/oss/template/template.json (drift report above). Hand-edits must be reverted (run apply.sh) or folded into a PR that updates the definition."
+          else
+            echo "::error::Drift check could not complete (exit $rc). See the log above."
+          fi
+          exit "$rc"

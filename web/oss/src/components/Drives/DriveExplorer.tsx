@@ -34,6 +34,7 @@ import {DriveTreeList} from "./DriveTreeList"
 import {DriveTreePane} from "./DriveTreePane"
 import {looksLikeFilePath} from "./driveTreeView"
 import {type DriveId, type DriveScope} from "./driveTypes"
+import {type DroppedFile} from "./dropEntries"
 import {FolderView} from "./FolderView"
 import {useDriveDownloadAll} from "./useDriveDownloadAll"
 import {useDriveFilters} from "./useDriveFilters"
@@ -83,8 +84,8 @@ export function DriveExplorer({
     onToggleExpand?: () => void
     /** Files dropped on a recents peek, staged (unwritten) until the user picks a destination folder
      * and clicks "Upload here" — shown as ghost tiles in the grid. The host owns the list. */
-    stagedFiles?: File[]
-    onStagedChange?: (files: File[]) => void
+    stagedFiles?: DroppedFile[]
+    onStagedChange?: (files: DroppedFile[]) => void
 }) {
     const rootLabel = driveRootLabel(drive.mount)
     const {
@@ -375,7 +376,14 @@ export function DriveExplorer({
                         className="hidden"
                         onChange={(e) => {
                             const picked = e.target.files
-                            if (picked?.length) uploadIntoFolder(Array.from(picked), currentFolder)
+                            if (picked?.length)
+                                uploadIntoFolder(
+                                    Array.from(picked).map((file) => ({
+                                        file,
+                                        relativePath: file.name,
+                                    })),
+                                    currentFolder,
+                                )
                             e.target.value = ""
                         }}
                     />

@@ -24,6 +24,7 @@ from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.redaction.context import get_active_redactor
 
 from ..permission_rules import PermissionRule
+from ..errors import AgentRunFailed
 from ..dtos import (
     Event,
     AgentResult,
@@ -146,6 +147,7 @@ def request_to_wire(
         **config.wire_sandbox_permission(),
         **config.wire_model_ref(),
         **config.wire_resolved_connection(),
+        **config.wire_harness_mode(),
         **config.wire_harness_files(),
     }
     if run_context is not None:
@@ -162,14 +164,12 @@ def request_to_wire(
 def result_from_wire(data: Dict[str, Any]) -> AgentResult:
     """Parse a ``/run`` result JSON into an :class:`AgentResult`.
 
-    Raises ``RuntimeError`` when the runner reported a failure, so the caller surfaces a
-    clear message rather than handing the model an empty reply. The runner ``error`` is
+    Raises :class:`AgentRunFailed` when the runner reported a failure, so the caller gets a
+    stable code and a clear message rather than an empty reply. The runner ``error`` is
     sanitized at this boundary (one clean line, no stack/path leak); the full detail is logged.
     """
     if not data.get("ok"):
-        raise RuntimeError(
-            f"Agent run failed: {sanitize_runner_error(data.get('error'))}"
-        )
+        raise AgentRunFailed(sanitize_runner_error(data.get("error")))
 
     messages: List[Message] = []
     for raw in data.get("messages") or []:

@@ -6,6 +6,10 @@ import {Tag as AntTag, Tooltip as AntTooltip, Typography as AntTypography} from 
 
 // Imported from source: the DrillInView barrel does not re-export these rows.
 import {
+    describeInstruction,
+    type ItemDescriptor,
+} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/itemDescriptors"
+import {
     InstructionsFileRow,
     ItemAvatar,
     ItemChildRow,
@@ -14,10 +18,6 @@ import {
     type ItemRowStatus,
     type ItemRowStatusTone,
 } from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/ItemRow"
-import {
-    describeInstruction,
-    type ItemDescriptor,
-} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/itemDescriptors"
 
 // ItemRow — the presentational rows of the agent-template config sections (tool / MCP / skill
 // rows, their nested provider-group children, and the instructions-file row). The antd cell

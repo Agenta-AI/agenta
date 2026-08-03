@@ -1,7 +1,7 @@
 import {useState, type ReactNode} from "react"
 
-import {McpServerFormView} from "@agenta/entity-ui/drill-in"
 import {RailField, railInfoLabel} from "@agenta/entity-ui/drawers/shared"
+import {McpServerFormView} from "@agenta/entity-ui/drill-in"
 import {userAtom} from "@agenta/shared/state"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 import {Input as AntInput, Select as AntSelect, Tag as AntTag} from "antd"

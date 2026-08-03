@@ -1,7 +1,7 @@
 import type {ReactNode} from "react"
 
-import {ReferenceToolFormView, SchemaTree} from "@agenta/entity-ui/drill-in"
 import {RailField} from "@agenta/entity-ui/drawers/shared"
+import {ReferenceToolFormView, SchemaTree} from "@agenta/entity-ui/drill-in"
 import {ConfigAccordionSection, CopyButton} from "@agenta/ui/components/presentational"
 import {GitBranch, Info, TreeStructure} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
