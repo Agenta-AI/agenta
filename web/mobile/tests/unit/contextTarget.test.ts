@@ -4,7 +4,7 @@ import {
     selectContextTarget,
     type ContextTargetInput,
 } from "../../src/features/context/contextTarget"
-import type {WorkspaceGroup} from "../../src/features/context/WorkspaceProjectList"
+import type {WorkspaceGroup} from "../../src/features/context/workspaceGroups"
 
 const project = (projectId: string, workspaceId: string) =>
     ({

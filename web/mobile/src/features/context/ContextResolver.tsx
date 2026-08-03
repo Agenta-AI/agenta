@@ -7,8 +7,10 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {fetchProjects, readDesktopLastUsed, readLastContext, type LastContext} from "@/lib/context"
 
 import {selectContextTarget} from "./contextTarget"
+import {ProjectList} from "./ProjectList"
 import {SignedOutNotice} from "./states/SignedOutNotice"
-import {WorkspaceProjectList, type WorkspaceGroup} from "./WorkspaceProjectList"
+import {groupByWorkspace, type WorkspaceGroup} from "./workspaceGroups"
+import {WorkspaceSelector} from "./WorkspaceSelector"
 
 const sessionsUrl = ({workspaceId, projectId}: LastContext) =>
     `/w/${workspaceId}/p/${projectId}/sessions`
@@ -36,21 +38,15 @@ export const ContextResolver = () => {
     })
     const result = query.data
 
-    const groups = useMemo<WorkspaceGroup[]>(() => {
-        if (result?.kind !== "ok") return []
-        const byWorkspace = new Map<string, WorkspaceGroup>()
-        for (const project of result.projects) {
-            if (!project.workspace_id) continue
-            const group = byWorkspace.get(project.workspace_id) ?? {
-                workspaceId: project.workspace_id,
-                workspaceName: project.workspace_name ?? "Workspace",
-                projects: [],
-            }
-            group.projects.push(project)
-            byWorkspace.set(project.workspace_id, group)
-        }
-        return [...byWorkspace.values()]
-    }, [result])
+    const groups = useMemo<WorkspaceGroup[]>(
+        () => (result?.kind === "ok" ? groupByWorkspace(result.projects) : []),
+        [result],
+    )
+    // Which workspace the header is scoped to. Falls back rather than syncing on every fetch:
+    // a refetch can drop the selected workspace entirely.
+    const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("")
+    const selectedGroup =
+        groups.find((group) => group.workspaceId === selectedWorkspaceId) ?? groups[0]
 
     const target = useMemo<LastContext | null>(
         () =>
@@ -76,13 +72,18 @@ export const ContextResolver = () => {
         body = <p className="text-muted-foreground grow p-6 text-center text-xs">Loading…</p>
     } else if (result?.kind === "unauthenticated") {
         body = <SignedOutNotice />
-    } else if (result?.kind === "ok" && groups.length > 0) {
+    } else if (result?.kind === "ok" && selectedGroup) {
         header = (
-            <h1 className="border-border shrink-0 border-b p-4 text-xs font-semibold">
-                Choose a project
-            </h1>
+            <div className="border-border flex shrink-0 flex-col gap-2 border-b px-4 pt-3 pb-2">
+                <h1 className="text-xs font-semibold">Choose a project</h1>
+                <WorkspaceSelector
+                    groups={groups}
+                    selectedId={selectedGroup.workspaceId}
+                    onSelect={setSelectedWorkspaceId}
+                />
+            </div>
         )
-        body = <WorkspaceProjectList groups={groups} />
+        body = <ProjectList group={selectedGroup} />
     } else {
         body = (
             <div className="flex grow flex-col items-center justify-center gap-3 p-6 text-center">

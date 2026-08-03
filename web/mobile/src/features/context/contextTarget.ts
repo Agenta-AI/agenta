@@ -1,6 +1,6 @@
 import type {LastContext} from "@/lib/context"
 
-import type {WorkspaceGroup} from "./WorkspaceProjectList"
+import type {WorkspaceGroup} from "./workspaceGroups"
 
 export interface ContextTargetInput {
     /** False until the router has parsed the query string. */
