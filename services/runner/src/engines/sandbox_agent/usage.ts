@@ -25,7 +25,20 @@ export async function readRunUsage(
   }
 }
 
-/** Combine prompt token counts with stream cost when no Pi usage writeback exists. */
+/**
+ * Combine prompt token counts with stream cost when no Pi usage writeback exists.
+ *
+ * The token total is ONLY ever the harness-reported split. There is no fallback token
+ * source: the ACP stream's `usage_update.used` is the agent's context-window occupancy,
+ * not a count of the tokens this run spent, so it must never become a token total. When
+ * the harness reports no split, this returns no tokens at all (cost alone still counts as
+ * usage) — absent data has to read as absent, because a plausible-looking wrong total
+ * silently poisons every aggregate built on it.
+ *
+ * Cost follows the same rule via omission: an unreported cost leaves the key OFF, because a
+ * substituted `0` would claim the run was measured and free. A reported cost is passed through
+ * as-is, including a genuine `0`.
+ */
 export function mergePromptAndStreamUsage(
   promptResult: any,
   streamUsage: AgentUsage | undefined,
@@ -33,10 +46,16 @@ export function mergePromptAndStreamUsage(
   const promptUsage = promptResult?.usage;
   const inputTokens = promptUsage?.inputTokens ?? streamUsage?.input ?? 0;
   const outputTokens = promptUsage?.outputTokens ?? streamUsage?.output ?? 0;
-  const total = inputTokens + outputTokens || streamUsage?.total || 0;
-  const cost = streamUsage?.cost ?? 0;
-  return total > 0 || cost > 0
-    ? { input: inputTokens, output: outputTokens, total, cost }
+  const total = inputTokens + outputTokens;
+  const cost = streamUsage?.cost;
+  const hasCost = cost != null;
+  return total > 0 || hasCost
+    ? {
+        input: inputTokens,
+        output: outputTokens,
+        total,
+        ...(hasCost ? { cost } : {}),
+      }
     : undefined;
 }
 
