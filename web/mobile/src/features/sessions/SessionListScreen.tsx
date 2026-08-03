@@ -1,5 +1,8 @@
 import {useEffect, useState} from "react"
 
+import {clearLastContext} from "@/lib/context"
+
+import {classifyPageFailure} from "./pageFailure"
 import {SessionRow} from "./SessionRow"
 import {SessionSearchBar} from "./SessionSearchBar"
 import {SessionListEmpty, SessionListError, SessionListLoading} from "./states/SessionListStates"
@@ -22,8 +25,15 @@ export const SessionListScreen = ({
 
     const query = useSessionsInfinite(projectId, search)
     const pages = query.data?.pages ?? []
-    // querySessions resolves null on failure — treat a null page like a query error.
-    const failed = query.isError || pages.some((page) => page === null)
+    const {failed, laterPageFailed} = classifyPageFailure(pages, query.isError)
+
+    // A stored pair pointing at a deleted project would forward `/m/` straight back here
+    // on every launch. Drop it as soon as its project will not load; `ContextSync`
+    // restores the fast path from the next project that does, so a transient failure
+    // costs one visit to the picker.
+    useEffect(() => {
+        if (failed) clearLastContext()
+    }, [failed])
     const rows = pages.flatMap((page) => page ?? []).filter((session) => !session.archived_at)
 
     let body
@@ -43,14 +53,18 @@ export const SessionListScreen = ({
                         href={`/w/${workspaceId}/p/${projectId}/sessions/${session.session_id}`}
                     />
                 ))}
-                {query.hasNextPage ? (
+                {laterPageFailed || query.hasNextPage ? (
                     <button
                         type="button"
                         className="text-muted-foreground p-4 text-center text-xs"
                         disabled={query.isFetchingNextPage}
                         onClick={() => void query.fetchNextPage()}
                     >
-                        {query.isFetchingNextPage ? "Loading…" : "Load more"}
+                        {query.isFetchingNextPage
+                            ? "Loading…"
+                            : laterPageFailed
+                              ? "Could not load more sessions. Tap to retry."
+                              : "Load more"}
                     </button>
                 ) : null}
             </div>

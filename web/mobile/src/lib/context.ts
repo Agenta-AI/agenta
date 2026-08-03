@@ -1,3 +1,4 @@
+import {safeParseWithLogging} from "@agenta/entities/shared"
 import {getProjectsClient} from "@agenta/sdk/resources"
 import {z} from "zod"
 
@@ -15,6 +16,19 @@ export interface LastContext {
 export function writeLastContext(context: LastContext): void {
     try {
         localStorage.setItem(LAST_CONTEXT_KEY, JSON.stringify(context))
+    } catch {
+        // storage unavailable (private mode / quota) — continuity is best-effort
+    }
+}
+
+/**
+ * Forget the fast-path pair. Called when the stored project will not load, so `/m/` stops
+ * forwarding into a route that cannot render. Safe to over-call: `ContextSync` rewrites the
+ * pair on the next project that does load.
+ */
+export function clearLastContext(): void {
+    try {
+        localStorage.removeItem(LAST_CONTEXT_KEY)
     } catch {
         // storage unavailable (private mode / quota) — continuity is best-effort
     }
@@ -72,12 +86,9 @@ export type ProjectsResult =
 export async function fetchProjects(): Promise<ProjectsResult> {
     try {
         const data = await getProjectsClient().getProjects()
-        const parsed = z.array(projectRowSchema).safeParse(data)
-        if (!parsed.success) {
-            console.error("[fetchProjects] response shape drift", parsed.error)
-            return {kind: "error"}
-        }
-        return {kind: "ok", projects: parsed.data}
+        const projects = safeParseWithLogging(z.array(projectRowSchema), data, "[fetchProjects]")
+        if (!projects) return {kind: "error"}
+        return {kind: "ok", projects}
     } catch (error) {
         const status = (error as {statusCode?: number} | null)?.statusCode
         if (status === 401 || status === 403) return {kind: "unauthenticated"}
