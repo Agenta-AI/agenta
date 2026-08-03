@@ -1,12 +1,16 @@
 import {useCallback, useMemo} from "react"
 
-import {setSessionHeader, type SessionStream} from "@agenta/entities/session"
+import {type SessionStream} from "@agenta/entities/session"
 import {PageLayout} from "@agenta/ui"
-import {Button, Modal} from "antd"
+import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionOpenTarget"
 import {useOpenAgentSession} from "@/oss/components/AgentChatSlice/hooks/useOpenAgentSession"
+import {
+    useSessionActions,
+    type SessionActionTarget,
+} from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
 import {projectIdAtom} from "@/oss/state/project"
 
 import SessionFiltersBar from "./components/SessionFiltersBar"
@@ -44,6 +48,7 @@ const SessionsPage = () => {
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
     const togglePin = useSetAtom(toggleSessionPinAtom)
     const openSession = useOpenAgentSession()
+    const sessionActions = useSessionActions()
 
     const interactions = useActionableInteractions(projectId)
     const pendingBySession = useMemo(
@@ -74,46 +79,22 @@ const SessionsPage = () => {
         [openSession],
     )
 
-    const handleRename = useCallback(
-        (row: SessionStream) => {
-            let next = row.name ?? ""
-            Modal.confirm({
-                title: "Rename session",
-                content: (
-                    <input
-                        autoFocus
-                        defaultValue={next}
-                        aria-label="Session name"
-                        className="w-full mt-2 px-2 py-1 text-xs box-border border-solid border border-colorBorder rounded bg-colorBgContainer text-colorText"
-                        onChange={(event) => {
-                            next = event.target.value
-                        }}
-                    />
-                ),
-                okText: "Rename",
-                onOk: async () => {
-                    await setSessionHeader({
-                        sessionId: row.session_id,
-                        projectId,
-                        name: next.trim(),
-                    })
-                    await Promise.all([pinnedQuery.refetch(), listQuery.refetch()])
-                },
-            })
-        },
-        [listQuery, pinnedQuery, projectId],
+    const targetOf = useCallback(
+        (row: SessionStream): SessionActionTarget => ({
+            sessionId: row.session_id,
+            appId: sessionOpenTarget(row)?.appId ?? null,
+            name: row.name,
+            archived: Boolean(row.archived_at),
+        }),
+        [],
     )
-
-    // Archive and delete are deliberately not wired yet — they need the same optimistic-update
-    // treatment the chat slice's session actions have, which lands with the shared list layer.
-    const notYet = useCallback(() => undefined, [])
 
     const actions = {
         onOpen: handleOpen,
         onTogglePin: togglePin,
-        onRename: handleRename,
-        onArchive: notYet,
-        onDelete: notYet,
+        onRename: (row: SessionStream) => sessionActions.rename(targetOf(row)),
+        onArchive: (row: SessionStream) => void sessionActions.setArchived(targetOf(row)),
+        onDelete: (row: SessionStream) => sessionActions.remove(targetOf(row)),
     }
 
     const renderRow = (row: SessionStream, pinned: boolean) => (
@@ -122,6 +103,7 @@ const SessionsPage = () => {
             row={row}
             pinned={pinned}
             pendingCount={pendingBySession?.get(row.session_id)}
+            menuItems={sessionActions.menuItems}
             {...actions}
         />
     )

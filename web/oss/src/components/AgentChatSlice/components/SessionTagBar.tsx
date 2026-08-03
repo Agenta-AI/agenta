@@ -1,13 +1,16 @@
 import {memo, useCallback, useEffect, useRef, useState} from "react"
 
 import {PencilSimple, Plus, X} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {Button, Dropdown, Tooltip} from "antd"
+import type {MenuProps} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {SESSION_SPRING, TAG_VARIANTS} from "../assets/sessionMotion"
+import {useSessionActions} from "../hooks/useSessionActions"
 import {type SessionDotStatus, sessionDotStatusAtomFamily} from "../state/liveness"
+import {useChatScopeKey} from "../state/scope"
 import {type AgentChatSession, sessionFirstUserTextAtomFamily} from "../state/sessions"
 
 import SessionTabLabel, {type SessionTabLabelHandle} from "./SessionTabLabel"
@@ -95,6 +98,8 @@ interface SessionTagProps {
     onSelect: (id: string) => void
     onClose: (id: string) => void
     onRename: (id: string, title: string) => void
+    /** Right-click actions, from the shared `useSessionActions` set. */
+    menu: MenuProps
 }
 
 /** One session chip: status dot + truncated label (double-click or pencil to rename) + hover
@@ -109,6 +114,7 @@ const SessionTag = memo(function SessionTag({
     onSelect,
     onClose,
     onRename,
+    menu,
 }: SessionTagProps) {
     const text = useAtomValue(sessionFirstUserTextAtomFamily(session.id))
     const label = session.title || text || `Chat ${index + 1}`
@@ -196,68 +202,70 @@ const SessionTag = memo(function SessionTag({
             }}
             className="shrink-0 overflow-hidden"
         >
-            <div
-                role="tab"
-                aria-selected={active}
-                tabIndex={0}
-                onClick={handleSelect}
-                onKeyDown={onKeyDown}
-                onMouseEnter={onEnter}
-                onMouseLeave={onLeave}
-                onFocus={onEnter}
-                onBlur={onBlurChip}
-                className={clsx(
-                    // Floor the width so short labels ("hi") still leave a clickable label zone to the
-                    // left of the hover actions (rename/close overlay the right ~58px) — otherwise a
-                    // tiny chip is fully covered on hover and the click lands on a button, not select.
-                    "group relative flex h-7 min-w-[112px] max-w-[180px] cursor-pointer items-center gap-1.5 rounded-md border border-solid px-2 text-xs transition-colors",
-                    // White pill on the recessed chat canvas (raised); the active tab keeps the
-                    // primary text + a 2px accent underline so it's unmistakable against neighbours.
-                    active
-                        ? "border-colorBorder border-b-2 border-b-[var(--ag-surface-accent)] bg-colorBgContainer text-colorText"
-                        : "border-colorBorderSecondary bg-colorBgContainer text-colorTextSecondary hover:border-colorBorder",
-                )}
-            >
-                <SessionStatusDot sessionId={session.id} active={active} />
-                <SessionTabLabel
-                    ref={labelRef}
-                    label={label}
-                    onRename={handleRename}
-                    onEditingChange={setRenaming}
-                    className="block min-w-0 flex-1 truncate"
-                />
-                {/* Hover actions overlay the label's tail — absolutely positioned so no width is
+            <Dropdown menu={menu} trigger={["contextMenu"]}>
+                <div
+                    role="tab"
+                    aria-selected={active}
+                    tabIndex={0}
+                    onClick={handleSelect}
+                    onKeyDown={onKeyDown}
+                    onMouseEnter={onEnter}
+                    onMouseLeave={onLeave}
+                    onFocus={onEnter}
+                    onBlur={onBlurChip}
+                    className={clsx(
+                        // Floor the width so short labels ("hi") still leave a clickable label zone to the
+                        // left of the hover actions (rename/close overlay the right ~58px) — otherwise a
+                        // tiny chip is fully covered on hover and the click lands on a button, not select.
+                        "group relative flex h-7 min-w-[112px] max-w-[180px] cursor-pointer items-center gap-1.5 rounded-md border border-solid px-2 text-xs transition-colors",
+                        // White pill on the recessed chat canvas (raised); the active tab keeps the
+                        // primary text + a 2px accent underline so it's unmistakable against neighbours.
+                        active
+                            ? "border-colorBorder border-b-2 border-b-[var(--ag-surface-accent)] bg-colorBgContainer text-colorText"
+                            : "border-colorBorderSecondary bg-colorBgContainer text-colorTextSecondary hover:border-colorBorder",
+                    )}
+                >
+                    <SessionStatusDot sessionId={session.id} active={active} />
+                    <SessionTabLabel
+                        ref={labelRef}
+                        label={label}
+                        onRename={handleRename}
+                        onEditingChange={setRenaming}
+                        className="block min-w-0 flex-1 truncate"
+                    />
+                    {/* Hover actions overlay the label's tail — absolutely positioned so no width is
                     reserved at rest (no pixel shift). The gradient fades the covered text out under
                     the buttons instead of hard-clipping it. */}
-                {hot && !renaming && (
-                    <div className="absolute inset-y-0 right-0 flex items-center">
-                        <span
-                            aria-hidden
-                            className="h-full w-3 bg-gradient-to-l from-colorBgContainer to-transparent"
-                        />
-                        <span className="flex h-full items-center gap-0.5 rounded-r-md bg-colorBgContainer pr-1">
-                            <Tooltip title="Rename session" mouseEnterDelay={0.5}>
-                                <Button
-                                    type="text"
-                                    aria-label="Rename session"
-                                    icon={PENCIL_ICON}
-                                    onClick={startRename}
-                                    className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
-                                />
-                            </Tooltip>
-                            {closable && (
-                                <Button
-                                    type="text"
-                                    aria-label="Close session"
-                                    icon={X_ICON}
-                                    onClick={handleClose}
-                                    className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
-                                />
-                            )}
-                        </span>
-                    </div>
-                )}
-            </div>
+                    {hot && !renaming && (
+                        <div className="absolute inset-y-0 right-0 flex items-center">
+                            <span
+                                aria-hidden
+                                className="h-full w-3 bg-gradient-to-l from-colorBgContainer to-transparent"
+                            />
+                            <span className="flex h-full items-center gap-0.5 rounded-r-md bg-colorBgContainer pr-1">
+                                <Tooltip title="Rename session" mouseEnterDelay={0.5}>
+                                    <Button
+                                        type="text"
+                                        aria-label="Rename session"
+                                        icon={PENCIL_ICON}
+                                        onClick={startRename}
+                                        className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
+                                    />
+                                </Tooltip>
+                                {closable && (
+                                    <Button
+                                        type="text"
+                                        aria-label="Close session"
+                                        icon={X_ICON}
+                                        onClick={handleClose}
+                                        className="!h-5 !w-5 !min-w-0 shrink-0 !p-0"
+                                    />
+                                )}
+                            </span>
+                        </div>
+                    )}
+                </div>
+            </Dropdown>
         </motion.div>
     )
 })
@@ -296,6 +304,22 @@ const SessionTagBar = ({
     showSessions = true,
 }: SessionTagBarProps) => {
     const closable = sessions.length > 1
+    // Right-click a chip for the same verbs the sessions list offers. Scope IS the owning agent,
+    // so the local tab cache and the server stay in step.
+    const scope = useChatScopeKey()
+    const {menuItems, onMenuClick} = useSessionActions()
+    const menuFor = useCallback(
+        (session: AgentChatSession): MenuProps => {
+            const target = {
+                sessionId: session.id,
+                appId: scope,
+                name: session.title,
+                archived: Boolean(session.archived),
+            }
+            return {items: menuItems(target), onClick: onMenuClick(target)}
+        },
+        [menuItems, onMenuClick, scope],
+    )
     // Session ids present when the bar first mounted. Seeded once; NOT topped up, so an id that
     // appears later reads as "added after mount" and scrolls smoothly (see SessionTag).
     const presentAtMountRef = useRef<Set<string>>(new Set())
@@ -382,6 +406,7 @@ const SessionTagBar = ({
                                     onSelect={onSelect}
                                     onClose={onClose}
                                     onRename={onRename}
+                                    menu={menuFor(session)}
                                 />
                             ))}
                         </AnimatePresence>

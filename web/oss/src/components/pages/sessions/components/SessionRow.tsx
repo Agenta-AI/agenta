@@ -6,6 +6,7 @@ import {Button, Dropdown, Tooltip} from "antd"
 import clsx from "clsx"
 
 import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionOpenTarget"
+import type {useSessionActions} from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
 import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
 
 import {sessionRowStatus} from "../assets/sessionRowStatus"
@@ -21,6 +22,8 @@ export interface SessionRowActions {
 }
 
 interface Props extends SessionRowActions {
+    /** Shared menu builder — see `useSessionActions`. */
+    menuItems: ReturnType<typeof useSessionActions>["menuItems"]
     row: SessionStream
     pendingCount: number | undefined
     pinned: boolean
@@ -28,6 +31,7 @@ interface Props extends SessionRowActions {
 
 const SessionRow = ({
     row,
+    menuItems,
     pendingCount,
     pinned,
     onOpen,
@@ -45,16 +49,19 @@ const SessionRow = ({
         if (target) onOpen(row)
     }, [onOpen, row, target])
 
+    // Items come from the shared action set so this menu and the playground session bar's
+    // context menu can't offer different verbs.
     const menu = useMemo(
         () => ({
-            items: [
-                {key: "open", label: "Open in playground", disabled: !openable},
-                {key: "rename", label: "Rename"},
-                {key: "pin", label: pinned ? "Unpin" : "Pin"},
-                {type: "divider" as const},
-                {key: "archive", label: row.archived_at ? "Unarchive" : "Archive"},
-                {key: "delete", label: "Delete", danger: true},
-            ],
+            items: menuItems(
+                {
+                    sessionId: row.session_id,
+                    appId: target?.appId ?? null,
+                    name: row.name,
+                    archived: Boolean(row.archived_at),
+                },
+                {onOpen: handleOpen},
+            ),
             onClick: ({key, domEvent}: {key: string; domEvent: {stopPropagation: () => void}}) => {
                 domEvent.stopPropagation()
                 if (key === "open") handleOpen()
@@ -64,7 +71,7 @@ const SessionRow = ({
                 if (key === "delete") onDelete(row)
             },
         }),
-        [handleOpen, onArchive, onDelete, onRename, onTogglePin, openable, pinned, row],
+        [handleOpen, menuItems, onArchive, onDelete, onRename, onTogglePin, row, target],
     )
 
     return (
