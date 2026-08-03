@@ -14,6 +14,8 @@ on:
     secrets:
       RAILWAY_TOKEN:
         required: true
+      AGENTA_TEST_OSS_AUTH_KEY:
+        required: false
     outputs:
       project_name:
         description: "Railway project name"

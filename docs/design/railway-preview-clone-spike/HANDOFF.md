@@ -34,8 +34,17 @@ Linear GitButler stack, PR base = lane below:
 - `wp3-clone-preview-flow` — to be created on top of wp2 when WP1+WP2 land.
 
 Commit discipline: agents write FILES ONLY; the orchestrator does all
-staging/commits (but stage <file> <lane> → but commit <lane> --only → verify
-git show --name-only → push → verify SHAs local==remote).
+staging and commits:
+
+1. `but stage <file> <lane>` for exactly that lane's files.
+2. `but commit <lane> --only`.
+3. Verify the commit holds only those files: `git show --stat --name-only <lane>`.
+4. Verify the lane's scope against the branch below it:
+   `git diff --name-only <lane-below>..<lane>` must list that lane's files and
+   nothing else.
+5. Push, then verify the push actually landed (`but push` prints nothing on
+   success and can silently no-op): `git rev-parse <lane>` must equal
+   `git ls-remote --heads origin <lane>`.
 
 ## Facts the implementers need (proven in the spike; see findings.md)
 
@@ -216,8 +225,8 @@ autonomous re-runs; they cannot go green while the suite is red repo-wide.
 
 Mahmoud directed the merge into release/v0.108.0 (verified orthogonal: the
 release adds only the codex-harness work, zero file overlap with this stack).
-Merged bottom-up with per-PR diff verification: #5658 → #5664 → #5665 →
-#5668. Remaining: WP4 cutover after the release ships and Mahmoud's go;
+Merged bottom-up with per-PR diff verification: #5658 → #5664 → #5665
+→ #5668. Remaining: WP4 cutover after the release ships and Mahmoud's go;
 GitButler workspace cleanup of the four merged lanes; template still on
 :spike wrapper tags until cutover. This file is now a historical record.
 
