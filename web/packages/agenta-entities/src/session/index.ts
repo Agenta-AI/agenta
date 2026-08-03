@@ -68,6 +68,15 @@ export {
     type SessionStreamNest,
     type SandboxLiveness,
 } from "./core/liveness"
+export {deriveSessionRowStatus, type SessionRowStatus} from "./core/rowStatus"
+export {
+    sessionListQueryOptions,
+    nextSessionCursor,
+    sessionRowsFromPages,
+    SESSIONS_PAGE_SIZE,
+    type SessionListCursor,
+    type SessionListFilters,
+} from "./state/listOptions"
 export {shouldAdoptServerTranscript, type TranscriptAdoptionInput} from "./core/transcriptAdoption"
 export {deriveMountRows, mountBreadcrumbs, type MountRow} from "./core/mountBrowser"
 export {pickCwdMount} from "./core/mountSelection"

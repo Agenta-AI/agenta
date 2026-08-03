@@ -1,8 +1,11 @@
 import {
-    querySessions,
+    nextSessionCursor,
     queryInteractions,
+    sessionListQueryOptions,
+    sessionRowsFromPages,
+    SESSIONS_PAGE_SIZE,
     type SessionInteraction,
-    type SessionStream,
+    type SessionListCursor,
 } from "@agenta/entities/session"
 import {useInfiniteQuery, useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
@@ -11,9 +14,7 @@ import {projectIdAtom} from "@/oss/state/project"
 
 import {type SessionStatusFilter} from "./filters"
 
-export const SESSIONS_PAGE_SIZE = 30
-
-type SessionsCursor = {next: string; newest: string} | null
+export {SESSIONS_PAGE_SIZE}
 
 /**
  * Every session in the project with a pending human gate, in one unpaginated call. Two jobs: the
@@ -67,8 +68,9 @@ interface SessionListOptions {
  * (waiting-on-you, pins). Narrowing a fetched page in the browser would filter the window rather
  * than the set — wrong counts, and an empty first page while later pages hold matches.
  *
- * Lives in the app layer for now; it belongs in `@agenta/entities/session` and moves there once the
- * mobile session PRs stop touching that package.
+ * The key and the request come from `@agenta/entities/session`; the query-client policy (stale
+ * time, refetch cadence) stays here, because desktop and mobile don't agree on it. Mobile adopts
+ * the same factory once its session PRs stop moving.
  */
 export const useSessionList = ({
     excludeSessionIds,
@@ -89,47 +91,30 @@ export const useSessionList = ({
     // "no restriction" and show every session under a "Waiting" chip.
     const waitingUnresolved = status === "waiting" && waitingSessionIds === undefined
 
+    const options = sessionListQueryOptions({
+        projectId,
+        search,
+        agentId,
+        includeArchived,
+        flags: status === "live" ? {is_alive: true} : undefined,
+        sessionIds: restrictIds,
+        excludeSessionIds,
+    })
+
     return useInfiniteQuery({
-        queryKey: [
-            "sessions-page",
-            "list",
-            projectId,
-            search,
-            agentId,
-            status,
-            includeArchived,
-            restrictIds,
-            excludeSessionIds,
-        ],
+        queryKey: options.queryKey,
+        // A waiting filter whose poll hasn't resolved must not query: an absent id set reads as
+        // "no restriction", which would show every session under a "Waiting" chip.
         enabled: Boolean(projectId) && enabled && !waitingUnresolved,
-        initialPageParam: null as SessionsCursor,
-        queryFn: ({pageParam, signal}) =>
-            querySessions({
-                projectId,
-                search: search.trim() || undefined,
-                references: agentId ? [{id: agentId}] : undefined,
-                includeArchived,
-                flags: status === "live" ? {is_alive: true} : undefined,
-                sessionIds: restrictIds,
-                excludeSessionIds: excludeSessionIds?.length ? excludeSessionIds : undefined,
-                limit: SESSIONS_PAGE_SIZE,
-                next: pageParam?.next,
-                newest: pageParam?.newest,
-                abortSignal: signal,
-            }),
-        getNextPageParam: (lastPage): SessionsCursor | undefined => {
-            if (!lastPage || lastPage.length < SESSIONS_PAGE_SIZE) return undefined
-            const last = lastPage[lastPage.length - 1]
-            const newest = last.updated_at ?? last.created_at
-            return last.id && newest ? {next: last.id, newest} : undefined
-        },
+        initialPageParam: null as SessionListCursor | null,
+        queryFn: ({pageParam, signal}) => options.queryFn({pageParam, signal}),
+        getNextPageParam: (lastPage) => nextSessionCursor(lastPage, SESSIONS_PAGE_SIZE),
         staleTime: 30_000,
     })
 }
 
 /** Flatten loaded pages, dropping failed ones (`querySessions` resolves null on failure). */
-export const rowsFromPages = (pages: (SessionStream[] | null)[] | undefined): SessionStream[] =>
-    (pages ?? []).filter(Boolean).flat() as SessionStream[]
+export const rowsFromPages = sessionRowsFromPages
 
 const intersectIds = (a: string[] | undefined, b: string[]): string[] => {
     if (!a) return b
