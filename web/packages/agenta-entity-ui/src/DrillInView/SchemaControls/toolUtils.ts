@@ -66,6 +66,16 @@ export function parseGatewayTool(tool: unknown): ParsedGatewayTool | null {
     return null
 }
 
+/**
+ * A legacy harness built-in entry (`{type: "builtin", name}`). Harness built-ins are always
+ * active and are no longer configured, so a saved config that still carries one renders nowhere.
+ * Provider built-ins (`{type: "web_search_preview"}`) are a different concept and are excluded.
+ */
+export function isHarnessBuiltinTool(tool: unknown): boolean {
+    if (!tool || typeof tool !== "object" || Array.isArray(tool)) return false
+    return (tool as Record<string, unknown>).type === "builtin"
+}
+
 // NUL join — a connection slug can contain a dot, so a dotted key is not collision-safe.
 const GATEWAY_IDENTITY_SEP = "\u0000"
 

@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"properties":{"answer":{"anyOf":[{"additionalProperties":true,"type":"object"},{"type":"null"}],"title":"Answer"}},"type":"object","title":"SessionInteractionRespondRequest"}}}}}

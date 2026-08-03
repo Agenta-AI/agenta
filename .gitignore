@@ -85,6 +85,7 @@ services/runner/tests/results/
 !.agents/skills/
 .agents/skills/*
 !.agents/skills/add-announcement/
+!.agents/skills/add-harness/
 !.agents/skills/agent-release-gate/
 !.agents/skills/agenta-package-practices/
 !.agents/skills/create-changelog-announcement/

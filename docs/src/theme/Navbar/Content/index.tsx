@@ -41,10 +41,12 @@ ${JSON.stringify(item, null, 2)}`,
 function NavbarContentLayout({
   left,
   right,
+  versionSelector,
   mobileSidebarToggle,
 }: {
   left: React.ReactNode;
   right: React.ReactNode;
+  versionSelector: React.ReactNode;
   mobileSidebarToggle: React.ReactNode;
 }) {
   return (
@@ -54,6 +56,9 @@ function NavbarContentLayout({
         <div className={styles.navbarLeft}>
           {mobileSidebarToggle}
           <NavbarLogo />
+          {versionSelector && (
+            <div className={styles.versionSelector}>{versionSelector}</div>
+          )}
         </div>
         <div className={styles.navbarCenter}>
           <NavbarSearch>
@@ -75,7 +80,13 @@ export default function NavbarContent(): JSX.Element {
   const mobileSidebar = useNavbarMobileSidebar();
 
   const items = useNavbarItems();
-  const [leftItems, rightItems] = splitNavbarItems(items);
+  // The docs version selector sits next to the logo, not in the link rows.
+  const versionItems = items.filter(
+    (item) => item.type === 'docsVersionDropdown',
+  );
+  const [leftItems, rightItems] = splitNavbarItems(
+    items.filter((item) => item.type !== 'docsVersionDropdown'),
+  );
 
   // Filter out search from right items as we're placing it in center
   const filteredRightItems = rightItems.filter(
@@ -89,6 +100,9 @@ export default function NavbarContent(): JSX.Element {
     <NavbarContentLayout
       mobileSidebarToggle={
         !mobileSidebar.disabled ? <NavbarMobileSidebarToggle /> : null
+      }
+      versionSelector={
+        versionItems.length ? <NavbarItems items={versionItems} /> : null
       }
       left={
         <>

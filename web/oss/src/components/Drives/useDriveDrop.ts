@@ -1,10 +1,15 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
+import {type DroppedFile, readDroppedFiles} from "./dropEntries"
+
 /**
  * Drag-and-drop upload behaviour shared by the drive's tree and grid: highlight the folder under
  * the cursor, spring-load into it after a short hover (drill to a nested destination without
  * dropping), and upload on drop — into the hovered folder, or the current folder for a background
  * drop. The views wire the returned handler props onto folder targets and their container.
+ *
+ * Every drop reads its files through {@link readDroppedFiles}, which walks dropped directories into
+ * their contents; each file carries the path it should keep under the destination folder.
  */
 
 const SPRING_MS = 700
@@ -38,7 +43,7 @@ export function useDriveDrop({
 }: {
     /** False leaves the hook mounted but inert — no window listeners, nothing to hover. */
     enabled?: boolean
-    onUpload: (files: File[], folder: string) => void
+    onUpload: (files: DroppedFile[], folder: string) => void
     onNavigate: (folder: string) => void
 }): DriveDrop {
     const [dragging, setDragging] = useState(false)
@@ -120,8 +125,9 @@ export function useDriveDrop({
                 if (!isFileDrag(e)) return
                 e.preventDefault()
                 e.stopPropagation()
-                const files = Array.from(e.dataTransfer.files)
-                if (files.length) onUpload(files, path)
+                void readDroppedFiles(e.dataTransfer).then((files) => {
+                    if (files.length) onUpload(files, path)
+                })
                 setHoverPath(null)
                 clearSpring()
             },
@@ -142,8 +148,9 @@ export function useDriveDrop({
             onDrop: (e: React.DragEvent) => {
                 if (!isFileDrag(e)) return
                 e.preventDefault()
-                const files = Array.from(e.dataTransfer.files)
-                if (files.length) onUpload(files, currentFolder)
+                void readDroppedFiles(e.dataTransfer).then((files) => {
+                    if (files.length) onUpload(files, currentFolder)
+                })
                 setHoverPath(null)
                 clearSpring()
             },
@@ -167,7 +174,9 @@ export type FileDropProps = Pick<
  * destination is chosen). Pass a falsy `onFiles` to disable (e.g. no writable mount) — then `dropProps`
  * is empty and nothing highlights.
  */
-export function useStageDrop(onFiles: ((files: File[]) => void) | false | null | undefined): {
+export function useStageDrop(
+    onFiles: ((files: DroppedFile[]) => void) | false | null | undefined,
+): {
     dropActive: boolean
     dropProps: FileDropProps
 } {
@@ -186,8 +195,9 @@ export function useStageDrop(onFiles: ((files: File[]) => void) | false | null |
                 if (!isFileDrag(e)) return
                 e.preventDefault()
                 setDropActive(false)
-                const files = Array.from(e.dataTransfer.files)
-                if (files.length) onFiles(files)
+                void readDroppedFiles(e.dataTransfer).then((files) => {
+                    if (files.length) onFiles(files)
+                })
             },
         },
     }

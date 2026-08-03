@@ -216,7 +216,7 @@ Legend: (a) catalog/schema, (b) SDK neutral config, (c) runtime.
 | Field | (a) schema | (b) SDK config | (c) runtime | Status |
 | --- | --- | --- | --- | --- |
 | model / provider | yes, `model: str` | yes, `Optional[str]` | wired to the runner | Loose string. No `ModelRef`, no provider enum. There is no separate provider field. |
-| tools | yes, strict list | yes, lenient coercion | wired, resolved to builtin names + tool specs | Entries strict, list lenient. |
+| tools | yes, strict list | yes, lenient coercion | wired, resolved to builtin names + tool specs | Entries strict, list lenient. The shipped default template fills it with Pi's four default built-ins (`read`, `bash`, `edit`, `write`); see [Tools](tools.md). |
 | mcp_servers | yes, strict list | yes | wired, resolved to runner MCP servers | Strict per entry. Claude supports external HTTP servers; Pi refuses them until its bridge exists. |
 | skills | yes, embed/inline list | yes | wired | Author-settable (`SkillConfig` inline or `@ag.embed` references). The playground build-kit overlay embeds one skill, the `build-an-agent` playbook; the `pi_agenta` harness additionally force-unions `getting-started`. See below. |
 | persona | no | no | wired but forced only | Not a config field. The Agenta harness hardcodes an append-system preamble. See below. |
@@ -238,7 +238,8 @@ Pi (`pi_core`) and Claude harnesses get no forced skills or persona.
 
 Per-harness divergence is real in other ways, but not in permission enforcement anymore: the
 permission policy is now enforced on both Claude and Pi. Builtin tool names are dropped for
-Claude with a warning, because builtins are Pi-only. Forced skills and persona are
+Claude, because builtins are Pi-only; that drop warns only when the set differs from Pi's four
+defaults, which is the set the shipped template carries. Forced skills and persona are
 Agenta-only. Pi's
 `system` and `append_system` overrides come through the `harness_kwargs` escape hatch on the
 neutral config, which is itself absent from the schema.

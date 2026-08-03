@@ -77,7 +77,12 @@ import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
 import {SectionQuickAction} from "./SectionQuickAction"
-import {parseGatewayTool, type ParsedGatewayTool, type ToolObj} from "./toolUtils"
+import {
+    isHarnessBuiltinTool,
+    parseGatewayTool,
+    type ParsedGatewayTool,
+    type ToolObj,
+} from "./toolUtils"
 import {useAgentTriggers} from "./TriggerManagementSection"
 import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
 
@@ -384,6 +389,13 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         referenceableWorkflows,
     } = useAgentTools({config, onChange, configRef, openCreate, workflowReference})
 
+    // Legacy harness built-in entries render nowhere (ToolManagementList drops them), so the
+    // header count and the section's open state must ignore them too.
+    const visibleToolCount = useMemo(
+        () => tools.filter((tool) => !isHarnessBuiltinTool(tool)).length,
+        [tools],
+    )
+
     // External HTTP MCP servers from the saved agent template.
     const mcpServers = useMemo(
         () => (Array.isArray(config.mcps) ? (config.mcps as unknown[]) : []),
@@ -407,7 +419,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // Controlled open-state for the four list sections so the accordion can react to the agent
     // populating a section. Seeded once from the initial counts; the edge hook below flips it.
     const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>(() => ({
-        tools: tools.length > 0,
+        tools: visibleToolCount > 0,
         mcp: mcpServers.length > 0,
         skills: skills.length > 0,
         triggers: triggerCount > 0,
@@ -419,12 +431,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     )
     const sectionCounts = useMemo(
         () => ({
-            tools: tools.length,
+            tools: visibleToolCount,
             mcp: mcpServers.length,
             skills: skills.length,
             triggers: triggerCount,
         }),
-        [tools.length, mcpServers.length, skills.length, triggerCount],
+        [visibleToolCount, mcpServers.length, skills.length, triggerCount],
     )
     useAutoExpandOnPopulate(sectionCounts, setSectionOpenByKey)
 
@@ -881,7 +893,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             key: "tools",
             icon: <Wrench size={16} />,
             title: fieldTitle("tools", "Tools"),
-            summary: countSummary(tools.length, "tool"),
+            summary: countSummary(visibleToolCount, "tool"),
             indicator: headerIndicator("tools"),
             extra: !disabled ? (
                 <AgentToolSelectorPopover
@@ -898,7 +910,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     }
                 />
             ) : undefined,
-            defaultOpen: tools.length > 0,
+            defaultOpen: visibleToolCount > 0,
             content: (
                 <ToolManagementList
                     tools={tools}

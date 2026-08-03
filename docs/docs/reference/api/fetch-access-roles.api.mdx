@@ -1,11 +1,11 @@
 ---
 id: fetch-access-roles
 title: "Fetch Roles"
-description: "Return the effective role catalog per scope."
+description: "Return the effective role catalog per scope (organization,"
 sidebar_label: "Fetch Roles"
 hide_title: true
 hide_table_of_contents: true
-api: eJztVMFuIzcM/RWBp7ZQx2mPPq0Pu22wlyDpnjJGhtHQHu1qJJXiOOs1DOxH9Av7JQU1juME6L2H+jKmSJF8j3w6gOC2wPIeVs5RKbC20FNx7LP4FGEJtyQTRyMDGdpsyInfkeEUyDgUDGlrMrEpLmVq2tjGO/1XDDKZLvEWo/+GmqqzpntK/KVkdKRG5vSZnHSNeY9uMBSF92bA0sZO02vIRSedNRh702Xi0ZfiUyxdY25erFqRa7PUt3FH/IjiR7PhNBqs4H52KQqnUKzx0YWp93FbgXUt/NRCZ5586B1ybzaJ29ilp0jcmb+//2UchkBcjAwoJhL1RpJhij1xzbCZQjAvvZngi7SxDGkKvaGvWXvXuHMFGWgsFHZUzA+FqI0dUVPYNYV45x2VxiUFIcSleZgzPFyC/7EBCykTV3ave1jChsQNDzPWB+WwgAWmklMsVGB5gF+vrvTzesJ3U72xmYK5PQWDBeWKomg45hy8q3UWn4veOUBxA41YvX3v1YXhhrUf8XMtLzSWfw8QnsiC7DPBEtKjrgIczwfIjPsL+xRgQbwEqms5d2o+KGgzb6+5raCP+rMwkgxJedmS3swoAyxhMfOzeOZH+SZWCRxg4lAjsoejfTYHkVyWiwVNjQtp6hvcUhRs0M+Ba83hJvayr0lWN9cfaf87YU8My/v1ZcCdsjbT8zrscAae/Ufag4WIo9qrSYbEJw2BBa8TG+ZbCtLHTarXT7ysanNmdXMNb5X8yqXjRVfH+1ypusG+gf2CFizQiF6dQji+O3t0TsrhXOaq+aW50qOciowYL0rMs7o9Mf+qu8PLwv3/5PyXn5zTngp9lUUO6KOOuq7M4SSxe5ix6+NTR722MKQi6jkcHrHQJw7Hox7/ORGratYWdsgeH3WH79dH+7ziKqgvtNf1dI6y6niHYZqV8uZVUqGdNf/b+z/gePwHSLd0EQ==
+api: eJzdU0tv2zAM/isCTxsgJNmO3mXZsEfQw4pkPXVBy8h0rNaWNInOlhn+7wNlJ20K7A/MF0N8iPwe6oFxn6C4haUxlBJsNZSUTLSBrXdQwJq4i05xTYqqigzbA6noG1IGGRu/V4GiSsYHUq983KOzf1B69Q/3y8fHFNCQViH6BzL8eqbWH5YflU0Knfq22aiKkLtIWiWvuLZJUonigUplndp5rn84Kq3cmN7lNaroHZMrVSQsUw7dnyfdT6tUPuZMS+2OYlI3qxlo8IFiXm5VQgEVsanvMAO/E0gJNERKwbtECYoe3i4W8rtkZNPljqpr1HoqBg0mL8VSjiE01uQ584ckPT0kU1OLOVuOaLC5jrIP23GWZWrTvws4dqSBj4GgAL8TMmE4BzBGPD47TwUa2HJDWcZxU/VZQKtRbbXOoAf5NLTEtRde9iSdAbmGAuYjP/MTP1mbKJbpoYtNrggWBn061swhFfM5dTPT+K6c4Z4c4wztWLiVO0wXLR/zJcvr1RUdvxKWFKG43T4v2AhrIz2XZf0ZeLBXdAQNDls5LzuufZwsCBqsKFaPXQLSusrn9omXZV5OLa9X8NL5FymRF02W9zQpp0G/gP2EFjRQi1aSTNi+P2dEJ+FwHLOYvZktJBR84hbdsxGjVuuJ+Yvt+ifD/V9PdNKV6TfPQ4PWCTWZ4n6y5C2MlpTHmqnZaqh9Ysn0/Q4T3cRmGCT8s6MoLttqOGC0uBPNb7eDPllCDPhIR5HTGAri+wM23eisF69YjHl+I18+fYdh+AvyydDi
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -37,14 +37,9 @@ import Translate from "@docusaurus/Translate";
 
 
 
-Return the effective role catalog per scope.
-
-Scopes are `organization`, `workspace`, `project`. Each entry has
-`role`, `description`, and `permissions`. Permissions are returned
-verbatim from access-controls, including the `"*"` wildcard for
-`owner` — callers that need to render the full permission list
-should expand the wildcard themselves (see
-`ee.src.services.converters._expand_permissions`).
+Return the effective role catalog per scope (organization,
+workspace, project). RBAC is an OSS feature, so this is served in both
+editions; the frontend reads the `workspace` scope for the members UI.
 
 <ParamsDetails>
   

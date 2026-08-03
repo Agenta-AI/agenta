@@ -6,16 +6,16 @@ sidebar_position: 3
 
 Run the checks that match the code you changed.
 
-## API And SDK
+## API and SDK
 
-When you change code in `api/`, `sdk/`, or `services/` run:
+When you change Python code in `api/`, `sdk/`, `sdks/`, or `services/`, run:
 
 ```bash
 ruff format
 ruff check --fix
 ```
 
-Run those commands from the relevant folder.
+Run both commands from the folder you changed. Ruff is the formatter and linter for all Python code in the repository. It reads a shared configuration from `ruff.toml` at the repository root, so you get the same result wherever you run it. Skip `clients/`; it holds generated code and the configuration excludes it.
 
 ## Frontend
 
@@ -26,7 +26,13 @@ pnpm format-fix
 pnpm lint-fix
 ```
 
-Run this from the `web/` directory. If you need dependencies first, run `pnpm install`.
+Run both from the `web/` directory. `format-fix` runs Prettier, which rewrites files to the project's formatting rules. `lint-fix` runs ESLint across the workspace packages and fixes what it can; fix any remaining errors by hand. If you need dependencies first, run `pnpm install`.
+
+## Pre-commit hooks
+
+The repository defines git hooks in `.pre-commit-config.yaml` at the root. They run the same tools on every commit (Ruff, Prettier, and ESLint), plus gitleaks, a scanner that blocks commits containing secrets such as API keys. The hooks need the `pre-commit` and `gitleaks` binaries installed; enable them with `pre-commit install`.
+
+If a hook reformats a file, the commit aborts. Stage the changes and commit again.
 
 ## Before You Open The PR
 

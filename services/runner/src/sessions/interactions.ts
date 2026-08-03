@@ -16,8 +16,23 @@ export type InteractionResolution = {
 /** A platform entity reference (the API `Reference` shape). */
 type Reference = { id?: string; slug?: string; version?: string };
 
+/**
+ * The gated call a durable interaction row describes.
+ *
+ * `tool_call_id` is the HARNESS's id for the call, which the interaction `token` is not — the
+ * token is the permission gate's id. The live `interaction_request` event carries both, which is
+ * why the playground can answer correctly; a caller working from the stored row alone needs the
+ * tool-call id here or it names the wrong call. Optional: rows written before this field exist
+ * carry only the token, and every reader must tolerate that.
+ */
+export type InteractionRequest = {
+  tool: string;
+  args: unknown;
+  tool_call_id?: string;
+};
+
 export type InteractionData = {
-  request?: { tool: string; args: unknown };
+  request?: InteractionRequest;
   // Optional attribution for out-of-band re-invocation; inbox/audit rows exist without it.
   references?: Record<string, Reference>;
 };

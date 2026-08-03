@@ -7,9 +7,11 @@ import {
   type AgentRunRequest,
   type ResolvedToolSpec,
   type SandboxPermission,
+  currentUserTurn,
   resolvePromptText,
 } from "../../protocol.ts";
 import { executableToolSpecs } from "../../tools/public-spec.ts";
+import { attachmentCountError } from "../../sessions/attachments.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "../../tools/code.ts";
 import { PI_USER_MCP_UNSUPPORTED_MESSAGE } from "../../tools/mcp-bridge.ts";
 import {
@@ -17,7 +19,6 @@ import {
   RESERVED_MCP_SERVER_NAME_MESSAGE,
 } from "./mcp.ts";
 import {
-  PI_BUILTIN_TOOL_IDENTITY,
   permissionsFromRequest,
   piBuiltinIdentity,
   type PermissionPlan,
@@ -28,6 +29,7 @@ import {
 } from "../skills.ts";
 import { assert } from "./capabilities.ts";
 import type { ClientToolPauseDisposition } from "./client-tools.ts";
+import { carriesApprovalReplyOnly } from "./session-identity.ts";
 import { buildTurnText } from "./transcript.ts";
 import {
   KNOWN_SANDBOX_PROVIDER_IDS,
@@ -89,7 +91,7 @@ export const DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE =
  */
 export const LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE =
   "runtime_provided local run requires a mounted subscription: set PI_CODING_AGENT_DIR " +
-  "(Pi) or CLAUDE_CONFIG_DIR (Claude) to a read-write mount of your harness login.";
+  "(Pi), CLAUDE_CONFIG_DIR (Claude), or CODEX_HOME (Codex) to a read-write mount of your harness login.";
 
 export interface RunPlan {
   harness: string;
@@ -130,9 +132,7 @@ export interface RunPlan {
   usageOutPath?: string;
   toolSpecs: ResolvedToolSpec[];
   executableToolSpecs: ResolvedToolSpec[];
-  /** Normalized Pi builtin grants for the extension active-tool edit. */
-  builtinGrants: string[];
-  /** True when Pi builtin grants or permissions need extension enforcement. */
+  /** True when the permission policy needs the extension to intercept Pi builtin calls. */
   builtinGatingActive: boolean;
   useToolRelay: boolean;
   /**
@@ -166,7 +166,8 @@ export interface RunPlan {
 }
 
 export type BuildRunPlanResult =
-  { ok: true; plan: RunPlan } | { ok: false; error: string };
+  | { ok: true; plan: RunPlan }
+  | { ok: false; error: string };
 
 export interface BuildRunPlanDeps {
   sandboxProvider?: string;
@@ -189,41 +190,6 @@ function hasCodeTool(specs: ResolvedToolSpec[]): boolean {
   return specs.some((spec) => spec.kind === "code");
 }
 
-const PI_DEFAULT_ACTIVE_BUILTINS = ["read", "bash", "edit", "write"];
-const PI_BUILTIN_TOOL_NAMES = Object.keys(PI_BUILTIN_TOOL_IDENTITY);
-const PI_BUILTIN_TOOL_NAME_SET = new Set<string>(PI_BUILTIN_TOOL_NAMES);
-
-function normalizePiBuiltinGrants(tools: string[] | undefined): string[] {
-  if (tools === undefined) return [...PI_DEFAULT_ACTIVE_BUILTINS];
-  if (!Array.isArray(tools)) return [];
-  const grants: string[] = [];
-  const seen = new Set<string>();
-  for (const tool of tools) {
-    if (typeof tool !== "string") continue;
-    const name = tool.trim().toLowerCase();
-    if (!PI_BUILTIN_TOOL_NAME_SET.has(name) || seen.has(name)) continue;
-    seen.add(name);
-    grants.push(name);
-  }
-  return grants;
-}
-
-function sameStringSet(
-  left: readonly string[],
-  right: readonly string[],
-): boolean {
-  if (left.length !== right.length) return false;
-  const rightSet = new Set(right);
-  return left.every((value) => rightSet.has(value));
-}
-
-function permissionPlanCouldGatePiBuiltin(plan: PermissionPlan): boolean {
-  if (plan.default !== "allow") return true;
-  return plan.rules.some((rule) =>
-    permissionRuleTargetsPiBuiltin(rule.pattern),
-  );
-}
-
 function permissionRuleTargetsPiBuiltin(pattern: string): boolean {
   const open = pattern.indexOf("(");
   const toolName = open === -1 ? pattern : pattern.slice(0, open);
@@ -233,15 +199,15 @@ function permissionRuleTargetsPiBuiltin(pattern: string): boolean {
 function computeBuiltinGatingActive(
   isPi: boolean,
   permissionPlan: PermissionPlan,
-  builtinGrants: readonly string[],
 ): boolean {
   if (!isPi) return false;
   try {
-    return (
-      permissionPlanCouldGatePiBuiltin(permissionPlan) ||
-      !sameStringSet(builtinGrants, PI_DEFAULT_ACTIVE_BUILTINS)
+    if (permissionPlan.default !== "allow") return true;
+    return permissionPlan.rules.some((rule) =>
+      permissionRuleTargetsPiBuiltin(rule.pattern),
     );
   } catch {
+    // A plan we cannot read gates rather than runs built-ins unattended.
     return true;
   }
 }
@@ -310,8 +276,23 @@ export function buildRunPlan(
     `harness '${harness}' resolved to ACP agent '${acpAgent}', but pi identity mapping disagrees`,
   );
 
-  const prompt = resolvePromptText(request);
-  if (!prompt) {
+  const turn = currentUserTurn(request);
+  const attachmentError = attachmentCountError(turn.attachments.length);
+  if (attachmentError) return { ok: false, error: attachmentError };
+  const prompt = turn.text;
+  // An out-of-band approval reply legitimately carries no user text: the human answered a parked
+  // gate from the durable interaction row, not from the conversation. Its prior turns are rebuilt
+  // from the record log inside `runTurn` (`reconstructHistoryIfNeeded`), which runs AFTER this
+  // plan is built — so rejecting here would kill the run before the conversation could be
+  // supplied. A historical user prompt also keeps structured continuation tails valid; only a
+  // request with no current attachment, no approval reply, and no user text anywhere is rejected.
+  if (
+    !turn.text &&
+    turn.attachments.length === 0 &&
+    !turn.hasInlineMedia &&
+    !resolvePromptText(request) &&
+    !carriesApprovalReplyOnly(request)
+  ) {
     return {
       ok: false,
       error: "No user message to send (prompt/messages empty).",
@@ -334,13 +315,17 @@ export function buildRunPlan(
     return { ok: false, error: DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE };
   }
 
-  // A local runtime_provided run authenticates from an explicitly mounted subscription. If the
-  // harness config var is unset there is no mount to read, so fail up front with an actionable
-  // message rather than letting the harness fall back to discovering the runner's own home dir
-  // (interface.md section 6). Managed ("env") / "none" runs are unaffected.
+  // A local runtime_provided run authenticates from an explicitly mounted subscription; Codex
+  // reads its login from the CODEX_HOME mount too. If the harness config var is unset there is no
+  // mount to read, so fail up front rather than discovering the runner's own home (interface.md
+  // section 6). Managed ("env") / "none" runs are unaffected.
   if (!isDaytona && request.credentialMode === "runtime_provided") {
     const subscriptionEnvVar =
-      acpAgent === "claude" ? "CLAUDE_CONFIG_DIR" : "PI_CODING_AGENT_DIR";
+      acpAgent === "claude"
+        ? "CLAUDE_CONFIG_DIR"
+        : acpAgent === "codex"
+          ? "CODEX_HOME"
+          : "PI_CODING_AGENT_DIR";
     if (!process.env[subscriptionEnvVar]) {
       return { ok: false, error: LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE };
     }
@@ -352,12 +337,7 @@ export function buildRunPlan(
   const toolSpecs = (request.customTools as ResolvedToolSpec[]) ?? [];
   const executableToolSpecsForRun = executableToolSpecs(toolSpecs);
   const permissionPlan = permissionsFromRequest(request);
-  const builtinGrants = normalizePiBuiltinGrants(request.tools);
-  const builtinGatingActive = computeBuiltinGatingActive(
-    isPi,
-    permissionPlan,
-    builtinGrants,
-  );
+  const builtinGatingActive = computeBuiltinGatingActive(isPi, permissionPlan);
 
   // Not-implemented boundary gates (sidecar-trust Part 2): a declared capability the runner
   // cannot actually enforce fails loudly, the way code tools do (`tools/code.ts`), rather than
@@ -520,7 +500,6 @@ export function buildRunPlan(
       usageOutPath: isPi ? join(relayDir, ".agenta-usage.json") : undefined,
       toolSpecs,
       executableToolSpecs: executableToolSpecsForRun,
-      builtinGrants,
       builtinGatingActive,
       // The relay carries tool EXECUTION only (permission gates ride the extension's
       // `ctx.ui.confirm` dialog onto the ACP plane), so a builtin-gating-only run needs no relay.
