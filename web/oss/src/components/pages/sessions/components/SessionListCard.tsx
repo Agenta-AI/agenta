@@ -4,8 +4,10 @@ import {type SessionStream} from "@agenta/entities/session"
 import {PushPinIcon} from "@phosphor-icons/react"
 import {Dropdown, Skeleton, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+import {AnimatePresence, MotionConfig, motion} from "motion/react"
 import Link from "next/link"
 
+import {ROW_VARIANTS, SESSION_SPRING} from "@/oss/components/AgentChatSlice/assets/sessionMotion"
 import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionOpenTarget"
 import {useOpenAgentSession} from "@/oss/components/AgentChatSlice/hooks/useOpenAgentSession"
 import {useSessionActions} from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
@@ -71,8 +73,25 @@ const SessionListCard = ({
         showTriggered: Boolean(origin),
     })
 
-    const pinnedRows = usePins ? rowsFromPages(pinnedQuery.data?.pages) : []
-    const rows = rowsFromPages(listQuery.data?.pages).slice(0, limit)
+    // Membership stays the server's, but which GROUP a loaded row renders in is decided here —
+    // otherwise pinning waits for two queries to come back before anything moves. Rows are taken
+    // from whichever query already has them, so the move costs no fetch.
+    const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
+    const listRows = rowsFromPages(listQuery.data?.pages)
+    const knownById = useMemo(() => {
+        const byId = new Map<string, SessionStream>()
+        for (const row of [...(usePins ? rowsFromPages(pinnedQuery.data?.pages) : []), ...listRows])
+            byId.set(row.session_id, row)
+        return byId
+    }, [pinnedQuery.data?.pages, listRows, usePins])
+
+    const pinnedRows = usePins
+        ? pinnedIds.flatMap((id) => {
+              const row = knownById.get(id)
+              return row ? [row] : []
+          })
+        : []
+    const rows = listRows.filter((row) => !pinnedSet.has(row.session_id)).slice(0, limit)
 
     const handleOpen = useCallback(
         (row: SessionStream) => {
@@ -94,49 +113,60 @@ const SessionListCard = ({
         }
 
         return (
-            <Dropdown
+            <motion.div
                 key={row.session_id}
-                trigger={["contextMenu"]}
-                menu={{
-                    items: actions.menuItems(actionTarget, {onOpen: () => handleOpen(row)}),
-                    onClick: actions.onMenuClick(actionTarget, {onOpen: () => handleOpen(row)}),
-                }}
+                layout
+                variants={ROW_VARIANTS}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                className="overflow-hidden"
             >
-                <button
-                    type="button"
-                    onClick={() => handleOpen(row)}
-                    className="group flex w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-2 text-left hover:bg-colorFillQuaternary"
+                <Dropdown
+                    trigger={["contextMenu"]}
+                    menu={{
+                        items: actions.menuItems(actionTarget, {onOpen: () => handleOpen(row)}),
+                        onClick: actions.onMenuClick(actionTarget, {onOpen: () => handleOpen(row)}),
+                    }}
                 >
-                    <Tooltip title={status.label}>
-                        <span className={`h-2 w-2 shrink-0 rounded-full ${status.dotClassName}`} />
-                    </Tooltip>
-                    <span className="min-w-0 flex-1 truncate text-xs text-colorText">
-                        {row.name?.trim() || "Untitled session"}
-                    </span>
-                    <span className="w-32 shrink-0 truncate text-right">
-                        <SessionAgentLabel appId={target?.appId ?? null} />
-                    </span>
-                    <span className="w-16 shrink-0 text-right text-xs text-colorTextTertiary">
-                        {activity ? timeAgo(Date.parse(activity)) : "—"}
-                    </span>
-                    <Tooltip title={pinned ? "Unpin" : "Pin"}>
-                        <span
-                            role="button"
-                            tabIndex={-1}
-                            aria-label={pinned ? "Unpin session" : "Pin session"}
-                            onClick={(event) => {
-                                event.stopPropagation()
-                                togglePin(row.session_id)
-                            }}
-                            className={`shrink-0 text-colorTextTertiary ${
-                                pinned ? "" : "opacity-0 group-hover:opacity-100"
-                            }`}
-                        >
-                            <PushPinIcon size={14} weight={pinned ? "fill" : "regular"} />
+                    <button
+                        type="button"
+                        onClick={() => handleOpen(row)}
+                        className="group flex w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-2 text-left hover:bg-colorFillQuaternary"
+                    >
+                        <Tooltip title={status.label}>
+                            <span
+                                className={`h-2 w-2 shrink-0 rounded-full ${status.dotClassName}`}
+                            />
+                        </Tooltip>
+                        <span className="min-w-0 flex-1 truncate text-xs text-colorText">
+                            {row.name?.trim() || "Untitled session"}
                         </span>
-                    </Tooltip>
-                </button>
-            </Dropdown>
+                        <span className="w-32 shrink-0 truncate text-right">
+                            <SessionAgentLabel appId={target?.appId ?? null} />
+                        </span>
+                        <span className="w-16 shrink-0 text-right text-xs text-colorTextTertiary">
+                            {activity ? timeAgo(Date.parse(activity)) : "—"}
+                        </span>
+                        <Tooltip title={pinned ? "Unpin" : "Pin"}>
+                            <span
+                                role="button"
+                                tabIndex={-1}
+                                aria-label={pinned ? "Unpin session" : "Pin session"}
+                                onClick={(event) => {
+                                    event.stopPropagation()
+                                    togglePin(row.session_id)
+                                }}
+                                className={`shrink-0 text-colorTextTertiary ${
+                                    pinned ? "" : "opacity-0 group-hover:opacity-100"
+                                }`}
+                            >
+                                <PushPinIcon size={14} weight={pinned ? "fill" : "regular"} />
+                            </span>
+                        </Tooltip>
+                    </button>
+                </Dropdown>
+            </motion.div>
         )
     }
 
@@ -152,24 +182,31 @@ const SessionListCard = ({
             {listQuery.isPending ? (
                 <Skeleton active paragraph={{rows: 4}} title={false} />
             ) : (
-                <>
-                    {pinnedRows.length > 0 ? (
-                        <>
-                            <p className="m-0 px-2 pt-1 text-xs text-colorTextTertiary">
+                <MotionConfig transition={SESSION_SPRING} reducedMotion="user">
+                    <AnimatePresence initial={false}>
+                        {pinnedRows.length > 0 ? (
+                            <motion.p
+                                key="pinned-heading"
+                                layout
+                                variants={ROW_VARIANTS}
+                                initial="initial"
+                                animate="animate"
+                                exit="exit"
+                                className="m-0 overflow-hidden px-2 pt-1 text-xs text-colorTextTertiary"
+                            >
                                 Pinned {pinnedRows.length}
-                            </p>
-                            {pinnedRows.map((row) => renderRow(row, true))}
-                        </>
-                    ) : null}
-
-                    {rows.map((row) => renderRow(row, false))}
+                            </motion.p>
+                        ) : null}
+                        {pinnedRows.map((row) => renderRow(row, true))}
+                        {rows.map((row) => renderRow(row, false))}
+                    </AnimatePresence>
 
                     {rows.length === 0 && pinnedRows.length === 0 ? (
                         <p className="m-0 px-2 py-6 text-center text-xs text-colorTextTertiary">
                             {emptyText}
                         </p>
                     ) : null}
-                </>
+                </MotionConfig>
             )}
         </section>
     )

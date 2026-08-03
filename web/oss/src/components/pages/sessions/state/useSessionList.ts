@@ -7,7 +7,7 @@ import {
     type SessionInteraction,
     type SessionListCursor,
 } from "@agenta/entities/session"
-import {useInfiniteQuery, useQuery} from "@tanstack/react-query"
+import {keepPreviousData, useInfiniteQuery, useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -120,6 +120,10 @@ export const useSessionList = ({
         initialPageParam: null as SessionListCursor | null,
         queryFn: ({pageParam, signal}) => options.queryFn({pageParam, signal}),
         getNextPageParam: (lastPage) => nextSessionCursor(lastPage, SESSIONS_PAGE_SIZE),
+        // Pins and filters are part of the key, so every toggle mints a new query. Without this
+        // the list would fall back to `pending` and flash its skeleton — the rows are still valid,
+        // only their membership is being rechecked.
+        placeholderData: keepPreviousData,
         staleTime: 30_000,
     })
 }

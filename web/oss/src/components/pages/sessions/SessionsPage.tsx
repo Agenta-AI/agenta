@@ -4,7 +4,9 @@ import {type SessionStream} from "@agenta/entities/session"
 import {PageLayout} from "@agenta/ui"
 import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
+import {ROW_VARIANTS, SESSION_SPRING} from "@/oss/components/AgentChatSlice/assets/sessionMotion"
 import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionOpenTarget"
 import {useOpenAgentSession} from "@/oss/components/AgentChatSlice/hooks/useOpenAgentSession"
 import {
@@ -77,8 +79,21 @@ const SessionsPage = () => {
     })
     const listQuery = useSessionList({...shared, excludeSessionIds: pinnedIds})
 
-    const pinnedRows = rowsFromPages(pinnedQuery.data?.pages)
-    const rows = rowsFromPages(listQuery.data?.pages)
+    // Which group a loaded row shows in is decided here, so pinning moves it on the same frame
+    // rather than after both queries refetch under their new keys.
+    const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
+    const listRows = rowsFromPages(listQuery.data?.pages)
+    const knownById = useMemo(() => {
+        const byId = new Map<string, SessionStream>()
+        for (const row of [...rowsFromPages(pinnedQuery.data?.pages), ...listRows])
+            byId.set(row.session_id, row)
+        return byId
+    }, [pinnedQuery.data?.pages, listRows])
+    const pinnedRows = pinnedIds.flatMap((id) => {
+        const row = knownById.get(id)
+        return row ? [row] : []
+    })
+    const rows = listRows.filter((row) => !pinnedSet.has(row.session_id))
 
     const handleOpen = useCallback(
         (row: SessionStream) => {
@@ -107,14 +122,24 @@ const SessionsPage = () => {
     }
 
     const renderRow = (row: SessionStream, pinned: boolean) => (
-        <SessionRow
+        <motion.div
             key={row.session_id}
-            row={row}
-            pinned={pinned}
-            pendingCount={pendingBySession?.get(row.session_id)}
-            menuItems={sessionActions.menuItems}
-            {...actions}
-        />
+            layout
+            variants={ROW_VARIANTS}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="overflow-hidden"
+        >
+            <SessionRow
+                key={row.session_id}
+                row={row}
+                pinned={pinned}
+                pendingCount={pendingBySession?.get(row.session_id)}
+                menuItems={sessionActions.menuItems}
+                {...actions}
+            />
+        </motion.div>
     )
 
     const isLoading = listQuery.isPending || (pinnedIds.length > 0 && pinnedQuery.isPending)
@@ -136,17 +161,24 @@ const SessionsPage = () => {
                     ) : isLoading ? (
                         <SessionListSkeleton />
                     ) : (
-                        <>
-                            {pinnedRows.length > 0 ? (
-                                <>
-                                    <p className="m-0 px-3 py-1 text-xs text-colorTextTertiary bg-colorFillQuaternary">
+                        <MotionConfig transition={SESSION_SPRING} reducedMotion="user">
+                            <AnimatePresence initial={false}>
+                                {pinnedRows.length > 0 ? (
+                                    <motion.p
+                                        key="pinned-heading"
+                                        layout
+                                        variants={ROW_VARIANTS}
+                                        initial="initial"
+                                        animate="animate"
+                                        exit="exit"
+                                        className="m-0 overflow-hidden bg-colorFillQuaternary px-3 py-1 text-xs text-colorTextTertiary"
+                                    >
                                         Pinned {pinnedRows.length}
-                                    </p>
-                                    {pinnedRows.map((row) => renderRow(row, true))}
-                                </>
-                            ) : null}
-
-                            {rows.map((row) => renderRow(row, false))}
+                                    </motion.p>
+                                ) : null}
+                                {pinnedRows.map((row) => renderRow(row, true))}
+                                {rows.map((row) => renderRow(row, false))}
+                            </AnimatePresence>
 
                             {rows.length === 0 && pinnedRows.length === 0 ? (
                                 <SessionListEmpty
@@ -165,7 +197,7 @@ const SessionsPage = () => {
                                     </Button>
                                 </div>
                             ) : null}
-                        </>
+                        </MotionConfig>
                     )}
                 </div>
             </div>
