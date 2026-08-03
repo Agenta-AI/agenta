@@ -1601,11 +1601,20 @@ def j_secret_opaque(cell: dict) -> dict:
     never leave the deployment and there is nothing to hide them from; the journey SKIPs there
     rather than asserting a property that does not apply.
 
-    PASSES when the sandbox's provider variable begins `dtn_secret_`. That is the positive
-    assertion and it carries the whole journey: an absence check alone would pass on a refused
-    bash call, an empty variable, or a model that declined to answer, none of which prove
-    anything. The bash call must also have genuinely executed, so a model inventing a
-    plausible-looking answer cannot pass it either.
+    The sandbox CLASSIFIES its own variable and reports a verdict word carrying a nonce this
+    run invented. It never prints the variable itself. Two properties fall out of that, and
+    both matter:
+
+    The transcript can never contain key material. An earlier version asked for the first
+    eleven characters, which is safe only while hiding works — on the very failure this
+    journey exists to catch, it would have written a slice of a real provider key into the
+    results file.
+
+    It cannot pass on an absence. The nonce is unguessable, so a reply carrying `HIDDEN-<nonce>`
+    proves a real shell produced it. A refused call, an unset variable, or a model that declined
+    all read as FAIL rather than as a quiet pass. That also frees the journey from having to
+    recognise a bash tool call on the wire, which is why it works on the codex harness, where
+    shell runs through native exec frames the tool-call probe cannot see.
     """
     if cell["sandbox"] != "daytona":
         return {
@@ -1618,13 +1627,25 @@ def j_secret_opaque(cell: dict) -> dict:
         }
 
     var = _provider_key_var(cell)
+    nonce = uuid.uuid4().hex[:10].upper()
+    hidden_word, plain_word, empty_word = (
+        f"HIDDEN-{nonce}",
+        f"PLAIN-{nonce}",
+        f"EMPTY-{nonce}",
+    )
+    # POSIX `case`, so it behaves the same under every harness's shell. The classification
+    # happens INSIDE the sandbox; only the verdict word crosses back.
+    probe = (
+        f'case "${var}" in {DAYTONA_PLACEHOLDER_PREFIX}*) echo {hidden_word} ;; '
+        f'"") echo {empty_word} ;; *) echo {plain_word} ;; esac'
+    )
+
     s = str(uuid.uuid4())
     t = invoke(
         s,
         [
             user_msg(
-                f"Use the bash tool to run exactly: printenv {var} | cut -c1-11 "
-                "and reply with only its stdout."
+                f"Use the bash tool to run exactly: {probe}\nReply with only its stdout."
             )
         ],
         template(
@@ -1637,24 +1658,38 @@ def j_secret_opaque(cell: dict) -> dict:
         ),
     )
 
-    call, outcome = _bash_call_outcome(t)
-    executed = call is not None and outcome == "available"
     reply = t.reply or ""
-    hidden = DAYTONA_PLACEHOLDER_PREFIX in reply
+    saw_hidden = hidden_word in reply
+    saw_plain = plain_word in reply
+    saw_empty = empty_word in reply
+    # Belt and braces: the probe cannot emit key material, but a model that ignored it and ran
+    # something else might. Treat any real-key prefix in the reply as a loud failure.
     leaked = next((p for p in REAL_KEY_PREFIXES if p in reply), None)
+    _, outcome = _bash_call_outcome(t)
 
-    ok = executed and hidden and leaked is None and not t.errors
-    if executed and not hidden and leaked:
+    ok = saw_hidden and not saw_plain and leaked is None and not t.errors
+    if leaked:
         why = (
-            f"{var} reached the sandbox in the CLEAR: the reply starts '{leaked}', not "
+            f"the reply carries what looks like a real key (prefix '{leaked}'). Whatever ran, "
+            "key material reached the transcript, so treat this as a leak until proven otherwise."
+        )
+    elif saw_plain:
+        why = (
+            f"{var} reached the sandbox in the CLEAR: the sandbox classified it as not starting "
             f"'{DAYTONA_PLACEHOLDER_PREFIX}'. Credential hiding is not in effect on this "
             "deployment. Check that the runner's Daytona API key may manage Secrets and that "
             "AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS is not set to an off value."
         )
-    elif not executed:
+    elif saw_empty:
         why = (
-            f"could not read {var}: bash outcome={outcome}. The journey proves nothing unless "
-            "the command actually ran, so this is a FAIL rather than a pass on absence."
+            f"{var} is not set inside the sandbox at all. The agent cannot be reaching the "
+            "provider with it, so this is a delivery failure rather than proof of hiding."
+        )
+    elif not saw_hidden:
+        why = (
+            f"the sandbox never reported a verdict for {var} (bash outcome={outcome}). The "
+            "journey proves nothing unless the command actually ran, so this is a FAIL rather "
+            "than a pass on absence."
         )
     else:
         why = (
@@ -1667,7 +1702,15 @@ def j_secret_opaque(cell: dict) -> dict:
         "why": why,
         "variable": var,
         "bash_outcome": outcome,
-        "placeholder_seen": hidden,
+        "verdict": (
+            "hidden"
+            if saw_hidden
+            else "plaintext"
+            if saw_plain
+            else "unset"
+            if saw_empty
+            else "no-verdict"
+        ),
         "turn": t.summary(),
     }
 
