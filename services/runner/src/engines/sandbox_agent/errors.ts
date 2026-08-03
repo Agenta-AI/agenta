@@ -29,6 +29,17 @@ function keyHintFor(provider: string | undefined, harness: string): string {
   return "the project's OpenAI key";
 }
 
+export interface ConciseErrorOptions {
+  /**
+   * Called only when the error maps to the model-authentication branch. A run that authenticates
+   * from a mounted subscription login rather than a vault key can diagnose the real fault there
+   * (see `describeCodexSubscriptionAuthFault`); returning a string replaces the generic
+   * add-a-key line, which would otherwise send the operator after a key the run never uses.
+   * Lazy so the check (a stat) only runs on the error path it explains.
+   */
+  authFault?: () => string | undefined;
+}
+
 /**
  * Turn a harness/SDK error into one clear line for the caller instead of dumping a full
  * ACP/JS stack. Recognizes common harness auth failures.
@@ -40,6 +51,7 @@ export function conciseError(
   err: unknown,
   harness: string,
   provider?: string,
+  options: ConciseErrorOptions = {},
 ): string {
   const raw = err instanceof Error ? err.message : String(err);
   const msg = raw.split("\n")[0].trim();
@@ -54,7 +66,10 @@ export function conciseError(
     /authentication required|invalid api key|unauthorized/i.test(raw) ||
     /(?<!\d)401(?!\d)/.test(raw)
   ) {
-    return `${harness}: model authentication failed — add ${keyHint} to the project vault, or log in (OAuth).`;
+    return (
+      options.authFault?.() ??
+      `${harness}: model authentication failed — add ${keyHint} to the project vault, or log in (OAuth).`
+    );
   }
   return msg || "agent run failed";
 }

@@ -6,7 +6,15 @@
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readlinkSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 
 import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
@@ -1177,6 +1185,144 @@ describe("runSandboxAgent orchestration", () => {
       1,
       "cleanup waits for runtime remount before unmount",
     );
+  });
+
+  it("re-materializes the codex subscription auth link on a mid-session durable cwd remount (#5692)", async () => {
+    // The durable cwd is object storage: it has no symlinks, so every remount can hand the link
+    // back as a 0-byte file. The link must therefore belong to the mount lifecycle, not only to
+    // first acquire — otherwise the rest of the session authenticates from an empty token file.
+    const cwd = "/tmp/agenta/mounts/proj-1/mount-1";
+    const codexMount = mkdtempSync(join(tmpdir(), "codex-operator-home-"));
+    const savedCodexHome = process.env.CODEX_HOME;
+    writeFileSync(join(codexMount, "auth.json"), '{"tokens":{"id_token":"t"}}');
+    process.env.CODEX_HOME = codexMount;
+    const authLink = join(cwd, ".codex", "auth.json");
+
+    try {
+      const { deps } = fakeHarness({
+        promptEvents: [
+          {
+            payload: {
+              update: {
+                kind: "tool_result",
+                content: `realpath '${cwd}/README.md': Transport endpoint is not connected`,
+              },
+            },
+          },
+        ],
+      });
+      let signCalls = 0;
+      let mountCalls = 0;
+      deps.signSessionMountCredentials = (async () => {
+        signCalls += 1;
+        return {
+          endpoint: "http://seaweedfs:8333",
+          region: "us-east-1",
+          bucket: "agenta-store",
+          prefix: "mounts/proj-1/mount-1",
+          accessKey: `AK-${signCalls}`,
+          secretKey: `SK-${signCalls}`,
+          sessionToken: `TOK-${signCalls}`,
+        };
+      }) as any;
+      deps.mountStorage = (async () => {
+        mountCalls += 1;
+        if (mountCalls > 1) {
+          // What geesefs actually serves after a remount: the symlink degraded to an empty object.
+          rmSync(authLink, { force: true });
+          mkdirSync(join(cwd, ".codex"), { recursive: true });
+          writeFileSync(authLink, "");
+        }
+        return true;
+      }) as any;
+      deps.unmountStorage = (async () => true) as any;
+
+      const result = await runSandboxAgent(
+        {
+          harness: "codex",
+          modelConnection: {
+            provider: "openai",
+            deployment: "direct",
+            credentialMode: "runtime_provided",
+            credentials: [],
+          },
+          sessionId: "sess-1",
+          telemetry: {
+            exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+          },
+          messages: [{ role: "user", content: "hello" }],
+        } as AgentRunRequest,
+        undefined,
+        undefined,
+        deps,
+      );
+
+      assert.equal(result.ok, true);
+      assert.equal(
+        mountCalls,
+        2,
+        "initial mount + runtime remount after ENOTCONN",
+      );
+      assert.equal(
+        lstatSync(authLink).isSymbolicLink(),
+        true,
+        "the remount must restore the symlink, not leave the degraded file",
+      );
+      assert.equal(readlinkSync(authLink), join(codexMount, "auth.json"));
+    } finally {
+      if (savedCodexHome === undefined) delete process.env.CODEX_HOME;
+      else process.env.CODEX_HOME = savedCodexHome;
+      rmSync(codexMount, { recursive: true, force: true });
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("blames the empty mounted login, not a missing vault key, when a subscription codex run fails auth (#5692)", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "codex-sub-cwd-"));
+    const codexMount = mkdtempSync(join(tmpdir(), "codex-operator-home-"));
+    const savedCodexHome = process.env.CODEX_HOME;
+    // The login the operator mounted is present but empty — the state a geesefs round trip or a
+    // half-written login leaves behind. The old message sent them looking for an OpenAI key.
+    writeFileSync(join(codexMount, "auth.json"), "");
+    process.env.CODEX_HOME = codexMount;
+
+    try {
+      const { deps } = fakeHarness({
+        cwd,
+        promptError: new Error("401 unauthorized"),
+      });
+
+      const result = await runSandboxAgent(
+        {
+          harness: "codex",
+          modelConnection: {
+            provider: "openai",
+            deployment: "direct",
+            credentialMode: "runtime_provided",
+            credentials: [],
+          },
+          telemetry: {
+            exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+          },
+          messages: [{ role: "user", content: "hello" }],
+        } as AgentRunRequest,
+        undefined,
+        undefined,
+        deps,
+      );
+
+      assert.equal(result.ok, false);
+      assert.match(
+        result.error ?? "",
+        /mounted ChatGPT login is empty or unreadable/,
+      );
+      assert.equal(/vault/.test(result.error ?? ""), false);
+    } finally {
+      if (savedCodexHome === undefined) delete process.env.CODEX_HOME;
+      else process.env.CODEX_HOME = savedCodexHome;
+      rmSync(codexMount, { recursive: true, force: true });
+      rmSync(cwd, { recursive: true, force: true });
+    }
   });
 
   it("re-signs and remounts the agent mount when an ACP event reports ENOTCONN", async () => {
