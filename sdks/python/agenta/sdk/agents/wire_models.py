@@ -76,6 +76,23 @@ class WireEndpoint(_WireModel):
     headers: Optional[Dict[str, str]] = None
 
 
+class WireConnection(_WireModel):
+    """The author's connection CHOICE: which connection they picked, not what it resolved to.
+
+    Deliberately separate from :class:`WireModelConnection`. This is non-secret routing config
+    that the runner reads directly: a named Agenta connection's ``slug`` is the provider name a
+    custom OpenAI-compatible Pi run is registered under in Pi's own ``models.json``
+    (``services/runner/src/engines/sandbox_agent/pi-model-config.ts``). The resolved route and
+    credentials ride ``modelConnection`` instead.
+
+    Emitted only when the choice carries information: ``self_managed``, or an Agenta connection
+    naming a slug. The project default (``agenta`` with no slug) is omitted.
+    """
+
+    mode: Literal["agenta", "self_managed"] = "agenta"
+    slug: Optional[str] = None
+
+
 class WireCredentialBinding(_WireModel):
     """Protocol location where the model client consumes one credential."""
 
@@ -463,8 +480,11 @@ class WireRunRequest(_WireModel):
     turn_id: Optional[str] = Field(default=None, alias="turnId")
     project_id: Optional[str] = Field(default=None, alias="projectId")
     agents_md: Optional[str] = Field(default=None, alias="agentsMd")
-    # Model id stays scalar; resolved routing and credentials are one consumer-owned object.
+    # Model id stays scalar. The author's connection CHOICE and what that choice RESOLVED to are
+    # two separate fields: `connection` is non-secret routing config the runner reads directly,
+    # `modelConnection` is the resolved route and its credentials.
     model: Optional[str] = None
+    connection: Optional[WireConnection] = None
     model_connection: Optional[WireModelConnection] = Field(
         default=None, alias="modelConnection"
     )

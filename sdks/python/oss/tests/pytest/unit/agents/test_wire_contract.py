@@ -51,18 +51,27 @@ from agenta.sdk.agents.utils.wire import (
     result_from_wire,
     sanitize_runner_error,
 )
+from agenta.sdk.agents.wire_models import WireRunRequest
 from agenta.sdk.agents.pi_builtins import PI_BUILTIN_TOOL_NAMES
 from agenta.sdk.utils.types import build_agent_v0_default
 
-# The full set of top-level keys ``request_to_wire`` may emit. The TS ``AgentRunRequest``
-# interface must declare a superset of these. Adding a key here without adding it to
-# protocol.ts is exactly the drift this set exists to catch.
+# The full set of top-level keys ``request_to_wire`` may emit. THREE things must agree on it:
+# this set, the ``WireRunRequest`` schema, and the TS ``AgentRunRequest`` interface. Adding a key
+# to the producer without adding it here, or here without adding it to protocol.ts, is exactly
+# the drift this set exists to catch.
+#
+# The schema half is checked structurally by ``test_known_request_keys_match_the_wire_schema``
+# below, because a payload-validation test cannot catch it: ``_WireModel`` sets
+# ``extra="allow"``, so a payload carrying a field the schema forgot still validates cleanly and
+# the field silently becomes an extra. A generated client built from that schema would then drop
+# it. That is how ``connection`` went missing once already.
 KNOWN_REQUEST_KEYS = {
     "harness",
     "sandbox",
     "sessionId",
     "agentsMd",
     "model",
+    "connection",
     "harnessMode",
     "modelCapabilities",
     "modelConnection",
@@ -763,6 +772,57 @@ def test_request_to_wire_emits_only_known_keys():
     # The Pi case must actually exercise the prompt-override keys, otherwise this guard would
     # silently stop covering them.
     assert {"systemPrompt", "appendSystemPrompt"} <= set(pi)
+
+
+def test_known_request_keys_match_the_wire_schema():
+    """``WireRunRequest`` must declare exactly the keys the producer may emit.
+
+    The subset guard above cannot catch a field the SCHEMA forgot, for two reasons. It only sees
+    the keys the three sample payloads happen to carry, and ``_WireModel`` sets ``extra="allow"``,
+    so even a payload that does carry the field validates cleanly with the field demoted to an
+    extra. The schema is what generated clients are built from, so a field missing here is a
+    field those clients drop.
+
+    Equality, not a subset, in both directions: a key the schema declares and the producer never
+    emits is dead contract surface that readers will assume is real.
+    """
+    declared = {
+        field.alias or name for name, field in WireRunRequest.model_fields.items()
+    }
+    assert declared == KNOWN_REQUEST_KEYS
+
+
+def test_named_connection_choice_is_a_declared_schema_field():
+    """A named Agenta connection reaches the runner as a first-class field, not as an extra.
+
+    The runner registers a custom OpenAI-compatible Pi run in Pi's ``models.json`` under a
+    provider named after this slug (``pi-model-config.ts``), so a client that dropped the field
+    would silently misroute those runs to the generic provider path.
+    """
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(
+            model={
+                "provider": "openai",
+                "model": "gpt-5.5",
+                "connection": {"mode": "agenta", "slug": "openrouter-prod"},
+            }
+        ),
+        messages=[Message(role="user", content="hi")],
+    )
+    assert payload["connection"] == {"mode": "agenta", "slug": "openrouter-prod"}
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+
+    parsed = WireRunRequest.model_validate(payload)
+    assert parsed.connection is not None
+    assert parsed.connection.slug == "openrouter-prod"
+    # The point of the assertion: `connection` is a MODELLED field, so it survives a schema
+    # round-trip. An extra would be dropped by `model_dump` without `serialize_as_any`.
+    assert parsed.model_dump(by_alias=True, exclude_none=True)["connection"] == {
+        "mode": "agenta",
+        "slug": "openrouter-prod",
+    }
 
 
 def test_request_to_wire_carries_consumer_owned_model_connection():

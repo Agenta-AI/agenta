@@ -596,12 +596,22 @@ export interface AgentRunRequest {
    */
   harnessMode?: string;
   /**
-   * Where the credential comes from, named portably (a slug, never a db id). Non-secret.
-   * The RESOLVED routing and credential values live in `modelConnection`; this field carries
-   * only the author's intent (`mode`) and the connection identity (`slug`, which names the Pi
-   * custom provider in `pi-model-config.ts`). The current SDK resolver does NOT send it —
-   * custom-endpoint Pi routing rides the extension provider override instead — so the
-   * models.json path only activates for a direct caller that still supplies it.
+   * Which connection the author CHOSE, named portably (a slug, never a database id). Non-secret.
+   *
+   * Distinct from `modelConnection`, which is what that choice resolved to: the route and the
+   * credential values. This field carries only the intent (`mode`) and the identity (`slug`).
+   *
+   * It is load-bearing, not informational. A named Agenta connection on a custom
+   * OpenAI-compatible Pi run is registered in Pi's own models.json under a provider named after
+   * this slug (`pi-model-config.ts` gates on `mode === "agenta"` and reads `slug`). Without it
+   * those runs fall back to the generic provider-override path and route differently, which is
+   * a silent behavior change rather than a failure. The SDK emits it from
+   * `HarnessAgentTemplate.wire_connection_ref()` and the schema declares it on
+   * `WireRunRequest`; both are pinned by tests, so do not read this field as optional in
+   * practice for a named connection.
+   *
+   * Omitted for the project default (`agenta` with no slug), which carries no information
+   * beyond the model itself.
    */
   connection?: { mode: string; slug?: string };
   /** Resolved model routing and credential bindings, grouped under their consumer. */
