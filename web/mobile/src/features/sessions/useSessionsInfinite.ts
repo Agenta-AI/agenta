@@ -1,7 +1,8 @@
 import {querySessions} from "@agenta/entities/session"
 import {useInfiniteQuery} from "@tanstack/react-query"
 
-const PAGE_SIZE = 30
+export const SESSIONS_PAGE_SIZE = 30
+const PAGE_SIZE = SESSIONS_PAGE_SIZE
 
 type SessionsCursor = {next: string; newest: string} | null
 

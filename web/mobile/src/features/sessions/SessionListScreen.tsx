@@ -5,12 +5,14 @@ import {clearLastContext} from "@/lib/context"
 
 import {ProjectSwitcher} from "../context/ProjectSwitcher"
 
+import {mergeSessionRows} from "./mergeSessionRows"
 import {classifyPageFailure} from "./pageFailure"
 import {SessionRow} from "./SessionRow"
 import {SessionSearchBar} from "./SessionSearchBar"
 import {SessionListEmpty, SessionListError, SessionListLoading} from "./states/SessionListStates"
 import {pendingCountBySession, useActionableInteractions} from "./useActionableInteractions"
 import {livenessBySession, useLivenessPoll} from "./useLivenessPoll"
+import {useSessionListHead} from "./useSessionListHead"
 import {useSessionListScrollRestore} from "./useSessionListScrollRestore"
 import {useSessionsInfinite} from "./useSessionsInfinite"
 
@@ -30,6 +32,9 @@ export const SessionListScreen = ({
     }, [input])
 
     const query = useSessionsInfinite(projectId, search)
+    // Bounded liveness for the list itself: newest page only, so a session created elsewhere
+    // shows up without a manual refresh (see useSessionListHead).
+    const head = useSessionListHead(projectId, search)
     const scroll = useSessionListScrollRestore(projectId, !query.isPending)
     const liveness = useLivenessPoll(projectId)
     const liveBadges = useMemo(() => livenessBySession(liveness.data), [liveness.data])
@@ -49,7 +54,14 @@ export const SessionListScreen = ({
     useEffect(() => {
         if (failed) clearLastContext()
     }, [failed])
-    const rows = pages.flatMap((page) => page ?? []).filter((session) => !session.archived_at)
+    const rows = useMemo(
+        () =>
+            mergeSessionRows(
+                head.data ?? [],
+                (query.data?.pages ?? []).flatMap((page) => page ?? []),
+            ),
+        [head.data, query.data],
+    )
 
     let body
     if (query.isPending) {
