@@ -74,12 +74,21 @@ async def watch_event_stream(
             if frame is not None:
                 yield frame
     finally:
+        # Two independent attempts: a failing unsubscribe must not skip the close, or the
+        # connection outlives the disconnected client.
         try:
             await pubsub.unsubscribe(channel)
+        except Exception as exc:  # pragma: no cover — teardown is best-effort
+            log.warning(
+                "[WATCH] pubsub unsubscribe failed",
+                channel=channel,
+                error=repr(exc),
+            )
+        try:
             await pubsub.aclose()
         except Exception as exc:  # pragma: no cover — teardown is best-effort
             log.warning(
-                "[WATCH] pubsub teardown failed",
+                "[WATCH] pubsub close failed",
                 channel=channel,
                 error=repr(exc),
             )
