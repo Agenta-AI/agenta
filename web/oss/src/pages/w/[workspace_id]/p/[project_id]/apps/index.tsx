@@ -3,6 +3,7 @@ import dynamic from "next/dynamic"
 import {PLAYGROUND_NATIVE_ONBOARDING} from "@/oss/components/pages/agent-home/assets/constants"
 import {useConsumePendingTemplate} from "@/oss/components/pages/agent-home/hooks/useConsumePendingTemplate"
 import OnboardingLoader from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingLoader"
+import PageTitle from "@/oss/components/PageTitle"
 
 const AgentHome = dynamic(() => import("@/oss/components/pages/agent-home"))
 
@@ -19,7 +20,17 @@ export default function Apps() {
     // happens wherever the user lands. While a valid template is being consumed, hold the loader
     // instead of rendering a surface that would fire its own redirect and race the create.
     const consumingTemplate = useConsumePendingTemplate()
-    if (consumingTemplate) return <OnboardingLoader />
 
-    return PLAYGROUND_NATIVE_ONBOARDING ? <OnboardingEntry /> : <AgentHome />
+    return (
+        <>
+            <PageTitle title="Home" />
+            {consumingTemplate ? (
+                <OnboardingLoader />
+            ) : PLAYGROUND_NATIVE_ONBOARDING ? (
+                <OnboardingEntry />
+            ) : (
+                <AgentHome />
+            )}
+        </>
+    )
 }
