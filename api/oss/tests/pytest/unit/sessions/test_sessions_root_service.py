@@ -65,7 +65,13 @@ class _FakeStreamsService:
         self.query_calls: list[dict] = []
 
     async def query_streams(
-        self, *, project_id, filter, windowing=None, session_ids=None
+        self,
+        *,
+        project_id,
+        filter,
+        windowing=None,
+        session_ids=None,
+        exclude_session_ids=None,
     ):
         self.query_calls.append(
             {

@@ -682,6 +682,7 @@ class SessionStreamsService:
         filter: SessionStreamQuery,
         windowing: Optional[Windowing] = None,
         session_ids: Optional[List[str]] = None,
+        exclude_session_ids: Optional[List[str]] = None,
     ) -> List[SessionStream]:
         if filter.session_id:
             _validate_session_id(filter.session_id)
@@ -690,6 +691,24 @@ class SessionStreamsService:
             filter=filter,
             windowing=windowing,
             session_ids=session_ids,
+            exclude_session_ids=exclude_session_ids,
+        )
+
+    async def count_streams(
+        self,
+        *,
+        project_id: UUID,
+        filter: SessionStreamQuery,
+        session_ids: Optional[List[str]] = None,
+        exclude_session_ids: Optional[List[str]] = None,
+    ) -> int:
+        if filter.session_id:
+            _validate_session_id(filter.session_id)
+        return await self._dao.count(
+            project_id=project_id,
+            filter=filter,
+            session_ids=session_ids,
+            exclude_session_ids=exclude_session_ids,
         )
 
     async def hard_delete(

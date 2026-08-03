@@ -1648,17 +1648,30 @@ class SessionsRootRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
+        query = SessionQuery(
+            references=body.references,
+            include_ended=body.include_ended,
+            include_archived=body.include_archived,
+            search=body.search,
+            flags=body.flags,
+            session_ids=body.session_ids,
+            exclude_session_ids=body.exclude_session_ids,
+            include_total=body.include_total,
+        )
         sessions = await self.sessions_service.query_sessions(
             project_id=UUID(str(project_id)),
-            query=SessionQuery(
-                references=body.references,
-                include_ended=body.include_ended,
-                include_archived=body.include_archived,
-                search=body.search,
-            ),
+            query=query,
             windowing=body.windowing,
         )
-        return SessionsResponse(count=len(sessions), sessions=sessions)
+        total = (
+            await self.sessions_service.count_sessions(
+                project_id=UUID(str(project_id)),
+                query=query,
+            )
+            if body.include_total
+            else None
+        )
+        return SessionsResponse(count=len(sessions), total=total, sessions=sessions)
 
     @intercept_exceptions()
     async def delete_session(

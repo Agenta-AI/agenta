@@ -260,6 +260,15 @@ export interface QuerySessionsParams {
     includeArchived?: boolean
     /** Case-insensitive substring match over the session title (`session_streams.name`). */
     search?: string
+    /** Liveness filter (alive ⊇ running ⊇ attached) against the row's mirrored flags. */
+    flags?: {is_alive?: boolean; is_running?: boolean; is_attached?: boolean}
+    /** Restrict to an explicit id set — the pushdown for any predicate that lives outside the
+     * stream row (client-held pins, sessions named by a pending-interaction lookup). The server
+     * still owns the intersection, the ordering and the windowing, so counts and empty states
+     * stay correct; filtering a fetched page client-side would filter the window, not the set. */
+    sessionIds?: string[]
+    /** Its complement — drop ids already rendered as their own group (pins) from the main list. */
+    excludeSessionIds?: string[]
     appId?: string
     abortSignal?: AbortSignal
     lowPriority?: boolean
@@ -285,6 +294,9 @@ export async function querySessions({
     includeEnded = true,
     includeArchived = true,
     search,
+    flags,
+    sessionIds,
+    excludeSessionIds,
     appId,
     abortSignal,
     lowPriority,
@@ -309,10 +321,19 @@ export async function querySessions({
                 include_ended: includeEnded,
                 include_archived: includeArchived,
                 windowing,
-                // TODO(fern-regen): `search` isn't in the generated SessionQueryRequest yet
-                // (regen out of scope) — widen the type until the client picks it up.
+                // TODO(fern-regen): `search`/`flags`/`session_ids`/`exclude_session_ids` aren't in
+                // the generated SessionQueryRequest yet (regen out of scope) — widen the type
+                // until the client picks them up.
                 search,
-            } as AgentaApi.SessionQueryRequest & {search?: string},
+                flags,
+                session_ids: sessionIds,
+                exclude_session_ids: excludeSessionIds,
+            } as AgentaApi.SessionQueryRequest & {
+                search?: string
+                flags?: QuerySessionsParams["flags"]
+                session_ids?: string[]
+                exclude_session_ids?: string[]
+            },
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
