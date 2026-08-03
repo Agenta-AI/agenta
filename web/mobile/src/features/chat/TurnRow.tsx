@@ -1,9 +1,10 @@
 import {partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 
 import {AssistantMarkdown} from "./AssistantMarkdown"
+import {AttachmentPart} from "./AttachmentPart"
 import {isLiveTextItem} from "./markdownStream"
 
-/** One transcript turn: markdown assistant text, one-line tool summaries, raw error line. */
+/** One transcript turn: markdown text, attachments, one-line tool summaries, raw error line. */
 export const TurnRow = ({turn}: {turn: TurnViewModel}) => (
     <div className={`flex ${turn.isUser ? "justify-end" : "justify-start"}`}>
         <div
@@ -31,6 +32,9 @@ export const TurnRow = ({turn}: {turn: TurnViewModel}) => (
                                 text={item.part.text}
                             />
                         )
+                    }
+                    if (item.part.type === "file") {
+                        return <AttachmentPart key={item.index} part={item.part} />
                     }
                     if (item.part.type === "reasoning") {
                         return (
