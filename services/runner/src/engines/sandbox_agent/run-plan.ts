@@ -106,11 +106,11 @@ export interface RunPlanCredentials {
   /** Final plaintext model environment, after validating modelConnection. */
   modelEnvironment: Record<string, string>;
   /**
-   * Process-local opaque credential plan. Present for every Daytona run when
-   * AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=process_local is enabled — even with zero candidates, so the
-   * Secret provider wrapper (and its create-fingerprint rotation check) governs every flag-on
-   * reconnect. Absent when the flag is off, so that path is the plain plaintext-env provider
-   * with no wrapper, unchanged from the pre-feature runner.
+   * Process-local opaque credential plan. Present for every Daytona run unless credential
+   * hiding was switched off with AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS, and present even with
+   * zero candidates, so the Secret provider wrapper (and its create-fingerprint rotation
+   * check) governs every reconnect. Absent only when hiding is off, and that path is the plain
+   * plaintext-env provider with no wrapper, unchanged from the pre-feature runner.
    */
   daytonaSecretPlan?: DaytonaSecretPlan;
   /**
@@ -519,13 +519,14 @@ export function buildRunPlan(
 
   const materializedModel = materializeModelEnvironment(request);
   if (!materializedModel.ok) return materializedModel;
-  // Daytona opaque-credential delivery is FLAG-GATED (AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=
-  // process_local). Flag OFF: no secret plan is built at all, so behavior is identical to the
-  // pre-feature runner — the full materialized environment reaches sandbox create as plaintext
-  // env, no provider wrapper is applied, and the plan's strict endpoint/binding validation
-  // cannot introduce a new failure mode. Flag ON: the plan splits every opaque_http value out
-  // of the plaintext env and is ALWAYS kept, even with zero candidates, so the provider wrapper
-  // (and its create fingerprint) governs every flag-on Daytona reconnect. A zero-candidate plan
+  // Daytona opaque-credential delivery is ON by default and switched off only by
+  // AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS. Switched OFF: no secret plan is built at all, so
+  // behavior is identical to the pre-feature runner — the full materialized environment reaches
+  // sandbox create as plaintext env, no provider wrapper is applied, and the plan's strict
+  // endpoint/binding validation cannot introduce a new failure mode. ON (the default): the plan
+  // splits every opaque_http value out of the plaintext env and is ALWAYS kept, even with zero
+  // candidates, so the provider wrapper (and its create fingerprint) governs every Daytona
+  // reconnect that hides credentials. A zero-candidate plan
   // allocates no Secrets, but a parked sandbox created with plaintext local_use credentials must
   // be rebuilt — never reconnected — after those credentials rotate, and only the wrapper's
   // fingerprint check enforces that (the plain reconnect path converges network policy only).
@@ -543,7 +544,7 @@ export function buildRunPlan(
       };
     }
   }
-  // Local keeps its existing direct environment. A flag-on Daytona run with opaque credentials
+  // Local keeps its existing direct environment. A Daytona run that hides opaque credentials
   // removes every opaque_http value and passes only non-secret config plus explicitly local_use
   // credentials to sandbox create. With zero candidates the plan's environment equals the
   // materialized one, so keeping the empty plan changes nothing here.

@@ -416,11 +416,11 @@ describe("process-local Daytona Secret provider", () => {
   });
 
   // Zero-candidate plans ARE a production state: buildRunPlan keeps the (empty) plan on every
-  // flag-on Daytona run and provider.ts wraps unconditionally on plan presence, so a run whose
+  // Daytona run that hides credentials, and provider.ts wraps on plan presence, so a run whose
   // credentials are all local_use/direct still flows through this wrapper — creating no Secrets
   // but subjecting every reconnect to the create-fingerprint check. These tests pin exactly the
   // fingerprints production computes (`daytonaCreateFingerprint` over `buildDaytonaCreate`).
-  describe("zero-candidate plan (flag-on run with no opaque credentials)", () => {
+  describe("zero-candidate plan (hiding on, but no opaque credentials)", () => {
     const emptyPlan: DaytonaSecretPlan = { environment: {}, candidates: [] };
     const daytonaConfig = parseRunnerConfig({
       AGENTA_RUNNER_DAYTONA_API_KEY: "test-key",

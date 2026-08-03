@@ -67,11 +67,11 @@ export function isDaytonaPermissionDenied(error: unknown): boolean {
 /** The message an operator can act on, instead of a bare provider status code. */
 export const DAYTONA_SECRETS_PERMISSION_MESSAGE =
   "Daytona refused to manage Secrets with this API key. " +
-  "AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=process_local stores each model and MCP key as a " +
-  "Daytona Secret, which needs an API key that is allowed to manage Secrets, not only to " +
-  "create sandboxes. Grant that permission to the key in AGENTA_RUNNER_DAYTONA_API_KEY, or " +
-  "unset AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS to pass credentials as plain environment " +
-  "variables again.";
+  "This runner hides each model and MCP key by storing it as a Daytona Secret, which is the " +
+  "default, and that needs an API key allowed to manage Secrets, not only to create " +
+  "sandboxes. Grant that permission to the key in AGENTA_RUNNER_DAYTONA_API_KEY. If you " +
+  "would rather send credentials to the sandbox as plain environment variables, which lets " +
+  "the agent read them, set AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=off.";
 
 async function deleteIdempotently(
   api: DaytonaSecretApi,

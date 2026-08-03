@@ -1191,9 +1191,9 @@ describe("buildRunPlan", () => {
     assert.deepEqual(result.plan.workspace.skillDirs, []);
   });
 
-  it("keeps a zero-candidate secret plan when the flag is on, and none when it is off", () => {
+  it("keeps a zero-candidate secret plan by default, and none when switched off", () => {
     // A run with only local_use credentials produces ZERO opaque candidates. The plan must
-    // still ride the run plan when the flag is on: provider.ts applies the Secret wrapper off
+    // still ride the run plan while hiding is on: provider.ts applies the Secret wrapper off
     // plan PRESENCE, and only the wrapper's create-fingerprint check forces a rebuild (instead
     // of a stale plaintext reconnect) after the local_use credentials rotate.
     const localUseRequest = {
@@ -1236,8 +1236,8 @@ describe("buildRunPlan", () => {
       "aws-secret-local-use",
     );
 
-    // Flag OFF stays exactly the pre-feature behavior: no plan, so no wrapper is applied.
-    delete process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS;
+    // Switched OFF stays exactly the pre-feature behavior: no plan, so no wrapper is applied.
+    process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS = "off";
     const flagOff = buildRunPlan(localUseRequest, deps);
     assert.equal(flagOff.ok, true);
     if (!flagOff.ok) return;

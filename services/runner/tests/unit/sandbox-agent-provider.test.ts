@@ -323,36 +323,36 @@ describe("buildSandboxProvider (enabled-provider gate + unknown-id refusal)", ()
         runnerConfig("local,daytona"),
       ) as { materializeMcpServers?: unknown };
 
-    // Flag OFF (hermetic default): a flag-off run never carries a plan (buildRunPlan builds one
-    // only when the flag is on), and the plain provider is unchanged from main.
+    // A run with hiding switched off never carries a plan (buildRunPlan builds one only while
+    // hiding is on), and the plain provider is unchanged from the pre-feature runner.
     assert.equal(
       typeof build(undefined).materializeMcpServers,
       "undefined",
-      "flag off (no plan) stays on the plain provider",
+      "no plan stays on the plain provider",
     );
-    // Defense-in-depth: a direct caller handing a candidate-bearing plan while the flag is off
-    // is refused — that plan's environment already dropped the opaque values, so proceeding
-    // unwrapped would silently run without credentials.
-    assert.throws(
-      () => build(plan),
-      /AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=process_local/,
+
+    // Hiding is ON by default, so a plan-bearing run wraps without any variable being set.
+    assert.equal(
+      typeof build(plan).materializeMcpServers,
+      "function",
+      "the default attaches the Secret wrapper",
+    );
+    // Zero candidates must ALSO wrap: buildRunPlan keeps the empty plan on every Daytona run
+    // that hides credentials, precisely so the wrapper's create-fingerprint check governs
+    // reconnects (a rotated local_use credential forces a rebuild, never a stale plaintext
+    // reconnect).
+    assert.equal(
+      typeof build(buildDaytonaSecretPlan({})).materializeMcpServers,
+      "function",
+      "zero candidates still attaches the Secret wrapper",
     );
 
     try {
-      process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS = "process_local";
-      assert.equal(
-        typeof build(plan).materializeMcpServers,
-        "function",
-        "flag on + candidates attaches the Secret wrapper",
-      );
-      // Zero candidates must ALSO wrap: buildRunPlan keeps the empty plan on every flag-on
-      // Daytona run precisely so the wrapper's create-fingerprint check governs reconnects
-      // (a rotated local_use credential forces a rebuild, never a stale plaintext reconnect).
-      assert.equal(
-        typeof build(buildDaytonaSecretPlan({})).materializeMcpServers,
-        "function",
-        "flag on + zero candidates still attaches the Secret wrapper",
-      );
+      // Defense-in-depth: a direct caller handing a candidate-bearing plan while hiding is
+      // switched off is refused. That plan's environment already dropped the opaque values, so
+      // proceeding unwrapped would silently run without credentials.
+      process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS = "off";
+      assert.throws(() => build(plan), /no plaintext fallback/);
     } finally {
       delete process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS;
     }
