@@ -34,7 +34,8 @@ export const ProjectSwitcher = ({
     return (
         <Link
             href="/?switch=1"
-            className="text-muted-foreground -m-1 flex min-h-11 items-center gap-1.5 p-1 text-xs"
+            // Compact row, full-size touch target: `after` supplies the 44px without the height.
+            className="text-muted-foreground relative flex items-center gap-1.5 self-start py-0.5 text-xs after:absolute after:-inset-x-2 after:-inset-y-2.5 after:content-['']"
         >
             <span className="truncate">
                 {current ? `${current.workspace_name ?? "Workspace"} / ` : ""}
