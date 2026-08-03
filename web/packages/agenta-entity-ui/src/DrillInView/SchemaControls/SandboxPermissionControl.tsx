@@ -16,7 +16,15 @@
  */
 import {useCallback, useMemo} from "react"
 
-import {Input, Select} from "antd"
+import {
+    AutosizeTextarea,
+    Combobox,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/ui/ui"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 
@@ -117,13 +125,22 @@ export function SandboxPermissionControl({
                 align="center"
                 path="sandbox.permissions.network.mode"
             >
-                <Select<NetworkMode>
+                <Select
                     value={current.networkMode}
-                    onChange={(v) => write({networkMode: v})}
-                    options={NETWORK_MODE_OPTIONS}
+                    onValueChange={(v) => write({networkMode: v as NetworkMode})}
                     disabled={disabled}
-                    className="w-full"
-                />
+                >
+                    <SelectTrigger className="w-full" aria-label="Network egress">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {NETWORK_MODE_OPTIONS.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                                {o.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </RailField>
 
             {current.networkMode === "allowlist" ? (
@@ -131,7 +148,7 @@ export function SandboxPermissionControl({
                     label={railInfoLabel("Allowlist", ALLOWLIST_HINT)}
                     path="sandbox.permissions.network.allowlist"
                 >
-                    <Input.TextArea
+                    <AutosizeTextarea
                         value={current.allowlist.join("\n")}
                         onChange={(e) =>
                             write({
@@ -144,6 +161,7 @@ export function SandboxPermissionControl({
                         disabled={disabled}
                         placeholder={"10.0.0.0/8\n192.168.0.0/16"}
                         autoSize={{minRows: 2, maxRows: 6}}
+                        aria-label="Allowlist"
                         className="font-mono"
                     />
                 </RailField>
@@ -154,13 +172,16 @@ export function SandboxPermissionControl({
                 align="center"
                 path="sandbox.permissions.filesystem"
             >
-                <Select<FilesystemMode>
+                {/* Combobox, not Select: this knob is clearable (antd `allowClear`) and Radix
+                    Select has no clear affordance. */}
+                <Combobox
                     value={current.filesystem ?? undefined}
                     onChange={(v) => write({filesystem: (v as FilesystemMode | undefined) ?? null})}
                     options={FILESYSTEM_OPTIONS}
                     disabled={disabled}
                     placeholder="Not declared"
                     allowClear
+                    aria-label="Filesystem"
                     className="w-full"
                 />
             </RailField>
@@ -170,13 +191,22 @@ export function SandboxPermissionControl({
                 align="center"
                 path="sandbox.permissions.enforcement"
             >
-                <Select<Enforcement>
+                <Select
                     value={current.enforcement}
-                    onChange={(v) => write({enforcement: v})}
-                    options={ENFORCEMENT_OPTIONS}
+                    onValueChange={(v) => write({enforcement: v as Enforcement})}
                     disabled={disabled}
-                    className="w-full"
-                />
+                >
+                    <SelectTrigger className="w-full" aria-label="Enforcement">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {ENFORCEMENT_OPTIONS.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                                {o.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </RailField>
         </>
     )

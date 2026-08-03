@@ -14,8 +14,15 @@
 import type {ReactNode} from "react"
 
 import {HeightCollapse} from "@agenta/ui"
+import {
+    Badge,
+    Button,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, Plugs, Plus} from "@phosphor-icons/react"
-import {Button, Tag, Tooltip} from "antd"
 import Image from "next/image"
 
 /** A connected-app logo square; a plug glyph when no logo is known (catalog not loaded yet). */
@@ -38,9 +45,9 @@ export function SubSectionHeader({label, count}: {label: string; count: number})
     return (
         <div className="flex items-center gap-1.5 px-0.5 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
             <span>{label}</span>
-            <Tag bordered className="m-0 !px-1.5 !text-[10px] font-normal leading-[16px]">
-                {count}
-            </Tag>
+            {/* antd v6 `bordered` (truthy) is a no-op, so the colourless default Tag is Badge's
+                `default` variant verbatim. */}
+            <Badge className="m-0 px-1.5 text-[10px] font-normal leading-4">{count}</Badge>
         </div>
     )
 }
@@ -107,17 +114,24 @@ export function CollapsibleProviderGroup({
                     {countText}
                 </span>
                 {onAdd ? (
-                    <Tooltip title={addLabel}>
-                        <Button
-                            type="text"
-                            icon={<Plus size={16} />}
-                            aria-label={addLabel}
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                onAdd()
-                            }}
-                        />
-                    </Tooltip>
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={addLabel}
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        onAdd()
+                                    }}
+                                >
+                                    <Plus size={16} />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{addLabel}</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 ) : null}
             </div>
             <HeightCollapse open={open}>

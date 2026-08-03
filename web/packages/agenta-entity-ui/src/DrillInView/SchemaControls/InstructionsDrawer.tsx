@@ -17,8 +17,15 @@
 import {useCallback, useState} from "react"
 
 import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {
+    Button,
+    Segmented,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {ArrowsIn, ArrowsOut, FileText, Lightbulb} from "@phosphor-icons/react"
-import {Button, Segmented, Tooltip} from "antd"
 
 import {MarkdownEditor} from "./MarkdownEditor"
 
@@ -100,13 +107,14 @@ export function InstructionsDrawer({
                 </div>
             }
             extra={
-                <Segmented<DrawerMode>
+                <Segmented
                     value={mode}
-                    onChange={(v) => changeMode(v)}
+                    onChange={(v) => changeMode(v as DrawerMode)}
                     options={[
                         {label: "Edit", value: "edit"},
                         {label: "Preview", value: "preview"},
                     ]}
+                    aria-label="Editor mode"
                 />
             }
             footer={
@@ -115,8 +123,10 @@ export function InstructionsDrawer({
                         Draft — applies on save
                     </span>
                     <div className="flex shrink-0 items-center gap-2">
-                        <Button onClick={onCancel}>Cancel</Button>
-                        <Button type="primary" onClick={onSave} disabled={disabled}>
+                        <Button variant="outline" onClick={onCancel}>
+                            Cancel
+                        </Button>
+                        <Button variant="default" onClick={onSave} disabled={disabled}>
                             Save
                         </Button>
                     </div>
@@ -141,16 +151,29 @@ export function InstructionsDrawer({
                         />
                     ) : (
                         <div className="relative flex-1">
-                            <Tooltip title={expanded ? "Collapse" : "Expand"}>
-                                <button
-                                    type="button"
-                                    aria-label={expanded ? "Collapse preview" : "Expand preview"}
-                                    onClick={() => setExpanded((e) => !e)}
-                                    className="absolute right-2 top-2 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] bg-[var(--ag-c-FFFFFF,#fff)] text-[var(--ag-c-586673,#586673)] hover:border-[var(--ag-c-97A4B0,#97a4b0)]"
-                                >
-                                    {expanded ? <ArrowsIn size={14} /> : <ArrowsOut size={14} />}
-                                </button>
-                            </Tooltip>
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            type="button"
+                                            aria-label={
+                                                expanded ? "Collapse preview" : "Expand preview"
+                                            }
+                                            onClick={() => setExpanded((e) => !e)}
+                                            className="absolute right-2 top-2 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] bg-[var(--ag-c-FFFFFF,#fff)] text-[var(--ag-c-586673,#586673)] hover:border-[var(--ag-c-97A4B0,#97a4b0)]"
+                                        >
+                                            {expanded ? (
+                                                <ArrowsIn size={14} />
+                                            ) : (
+                                                <ArrowsOut size={14} />
+                                            )}
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        {expanded ? "Collapse" : "Expand"}
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                             <MarkdownEditor
                                 value={value}
                                 onChange={onChange}

@@ -15,8 +15,18 @@ import {useMemo, useState} from "react"
 
 import {useToolActionDetail, type ToolCatalogActionDetails} from "@agenta/entities/gatewayTool"
 import {buildGatewayToolSlug, safeStringify} from "@agenta/shared/utils"
+import {
+    AutosizeTextarea,
+    Input,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+    Spinner,
+    Switch,
+} from "@agenta/ui/ui"
 import {Code, WarningCircle} from "@phosphor-icons/react"
-import {Input, Select, Spin, Switch} from "antd"
 
 import {RailField} from "../../drawers/shared/RailField"
 
@@ -108,35 +118,47 @@ function ToolBasics({
                         value={(fn.name as string | undefined) ?? ""}
                         onChange={(e) => setFn("name", e.target.value)}
                         placeholder="get_weather"
+                        aria-label="Name"
                         disabled={disabled}
                     />
                 </RailField>
 
                 <RailField label="Description">
-                    <Input.TextArea
+                    <AutosizeTextarea
                         value={(fn.description as string | undefined) ?? ""}
                         onChange={(e) => setFn("description", e.target.value)}
                         autoSize={{minRows: 2, maxRows: 6}}
                         placeholder="What the tool does and when to use it"
+                        aria-label="Description"
                         disabled={disabled}
                     />
                 </RailField>
 
                 <RailField label="Permission" align="center">
-                    <Select<ToolPermissionSelection>
+                    <Select
                         value={permission ?? "inherit"}
-                        onChange={setPermission}
-                        options={PERMISSION_OPTIONS}
-                        className="w-full"
+                        onValueChange={(next) => setPermission(next as ToolPermissionSelection)}
                         disabled={disabled}
-                    />
+                    >
+                        <SelectTrigger className="w-full" aria-label="Permission">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {PERMISSION_OPTIONS.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </RailField>
 
                 <RailField label="Allow extra properties" align="center">
                     <div className="flex items-center gap-2">
                         <Switch
                             checked={additionalProperties}
-                            onChange={setAdditionalProperties}
+                            onCheckedChange={setAdditionalProperties}
+                            aria-label="Allow extra properties"
                             disabled={disabled}
                         />
                         <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
@@ -241,7 +263,7 @@ function CanonicalGatewayToolForm({
     if (isLoading) {
         return (
             <div className="flex min-h-0 flex-1 items-center justify-center py-8">
-                <Spin />
+                <Spinner />
             </div>
         )
     }

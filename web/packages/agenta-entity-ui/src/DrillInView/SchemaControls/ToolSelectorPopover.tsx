@@ -23,6 +23,15 @@ import type {GatewayToolsBridge} from "@agenta/ui/drill-in"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {
+    Button,
+    EmptyState,
+    InputAffix,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    Spinner,
+} from "@agenta/ui/ui"
+import {
     CaretRight,
     Check,
     Code,
@@ -31,7 +40,6 @@ import {
     Plus,
     Sparkle,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, Empty, Input, Spin, Typography} from "antd"
 import clsx from "clsx"
 
 import {TOOL_PROVIDERS_META, TOOL_SPECS, type ToolObj} from "./toolUtils"
@@ -100,6 +108,11 @@ export interface ToolSelectorPopoverProps {
     /** When provided, the "Reference a workflow" section shows and its `+` calls this (the host opens
      * a workflow-selector drawer). Without it the section is hidden. */
     onReferenceWorkflow?: () => void
+    /** Start open (forced-open parity stories / initial-open UX). */
+    defaultOpen?: boolean
+    /** Portal target for the panel; defaults to document.body. Pass an element to render inline
+     * (inside a modal/scroll container, or a forced-open parity story). */
+    container?: HTMLElement | null
 }
 
 // ============================================================================
@@ -233,9 +246,9 @@ function SectionHeader({icon, title, right}: {icon: ReactNode; title: string; ri
         <div className="flex items-center justify-between px-2 py-1">
             <div className="flex items-center gap-1.5 min-w-0">
                 <span className="text-zinc-500 flex items-center">{icon}</span>
-                <Typography.Text className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+                <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
                     {title}
-                </Typography.Text>
+                </span>
             </div>
             {right}
         </div>
@@ -452,12 +465,13 @@ function BuiltinToolsPane({
     return (
         <div className="flex flex-col h-full">
             <div className="px-2 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
-                <Input
-                    variant="borderless"
+                <InputAffix
+                    variant="ghost"
                     prefix={<MagnifyingGlass size={14} className="text-zinc-400" />}
                     placeholder={`Search ${provider.providerLabel} tools`}
+                    aria-label={`Search ${provider.providerLabel} tools`}
                     value={rightSearch}
-                    onChange={(e) => onRightSearchChange(e.target.value)}
+                    onValueChange={onRightSearchChange}
                     allowClear
                 />
             </div>
@@ -488,8 +502,8 @@ function BuiltinToolsPane({
 
                 {filteredTools.length === 0 && (
                     <div className="py-6">
-                        <Empty
-                            image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        <EmptyState
+                            image="simple"
                             description={<span className="text-xs">No tools found</span>}
                         />
                     </div>
@@ -642,12 +656,13 @@ function GatewayActionsPane({
             )}
 
             <div className="px-2 py-1 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
-                <Input
-                    variant="borderless"
+                <InputAffix
+                    variant="ghost"
                     prefix={<MagnifyingGlass size={14} className="text-zinc-400" />}
                     placeholder="Search actions"
+                    aria-label="Search actions"
                     value={rightSearch}
-                    onChange={(e) => onRightSearchChange(e.target.value)}
+                    onValueChange={onRightSearchChange}
                     allowClear
                 />
                 <div className="mt-1 text-[10px] text-zinc-400">{total} actions</div>
@@ -656,12 +671,12 @@ function GatewayActionsPane({
             <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-1">
                 {isLoading && actions.length === 0 ? (
                     <div className="flex items-center justify-center py-6">
-                        <Spin size="small" />
+                        <Spinner size="small" />
                     </div>
                 ) : actions.length === 0 ? (
                     <div className="py-6">
-                        <Empty
-                            image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        <EmptyState
+                            image="simple"
                             description={<span className="text-xs">No actions found</span>}
                         />
                     </div>
@@ -706,7 +721,7 @@ function GatewayActionsPane({
                                             </span>
                                         </span>
                                         {isPending ? (
-                                            <Spin size="small" />
+                                            <Spinner size="small" />
                                         ) : selected ? (
                                             <Check size={12} className="text-blue-600 shrink-0" />
                                         ) : null}
@@ -723,7 +738,7 @@ function GatewayActionsPane({
 
                         {isFetchingNextPage && (
                             <div className="flex items-center justify-center py-2">
-                                <Spin size="small" />
+                                <Spinner size="small" />
                             </div>
                         )}
                     </div>
@@ -749,6 +764,8 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     gatewayTools: gatewayToolsProp,
     trigger,
     onReferenceWorkflow,
+    defaultOpen,
+    container,
 }: ToolSelectorPopoverProps) {
     const {showMessage, gatewayTools: gatewayToolsFromContext, workflowReference} = useDrillInUI()
 
@@ -757,7 +774,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     const effectiveSelectedToolNames = selectedToolNames ?? EMPTY_SET
     const effectiveSelectedTools = selectedTools ?? []
 
-    const [open, setOpen] = useState(false)
+    const [open, setOpen] = useState(defaultOpen ?? false)
     const [leftSearch, setLeftSearch] = useState("")
     const [rightSearch, setRightSearch] = useState("")
     const [activePane, setActivePane] = useState<ActivePane>(null)
@@ -839,12 +856,13 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
         <div className="flex h-[360px] min-w-[460px] bg-[var(--ag-c-FFFFFF)] rounded-lg overflow-hidden border border-solid border-[var(--ag-rgba-051729-06)] shadow-sm">
             <div className="flex w-[232px] flex-col min-h-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)]">
                 <div className="shrink-0 px-2 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
-                    <Input
-                        variant="borderless"
+                    <InputAffix
+                        variant="ghost"
                         value={leftSearch}
-                        onChange={(e) => setLeftSearch(e.target.value)}
+                        onValueChange={setLeftSearch}
                         prefix={<MagnifyingGlass size={14} className="text-zinc-400" />}
                         placeholder="Search integrations"
+                        aria-label="Search integrations"
                         allowClear
                     />
                 </div>
@@ -897,19 +915,21 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                                 title="Third-party tools"
                                 right={
                                     <Button
-                                        type="text"
-                                        size="small"
-                                        icon={<Plus size={12} />}
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label="Browse third-party tools"
                                         onClick={handleOpenCatalog}
-                                        className="!h-5 !px-1"
-                                    />
+                                        className="h-5"
+                                    >
+                                        <Plus size={12} />
+                                    </Button>
                                 }
                             />
                             <div className="flex flex-col gap-0.5">
                                 {gatewayTools.connectionsLoading &&
                                 gatewayConnections.length === 0 ? (
                                     <div className="flex items-center justify-center py-3">
-                                        <Spin size="small" />
+                                        <Spinner size="small" />
                                     </div>
                                 ) : gatewayConnections.length === 0 ? (
                                     <div className="px-2 py-2 text-xs text-zinc-400">
@@ -968,12 +988,14 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                             title="Custom tools"
                             right={
                                 <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<Plus size={12} />}
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="Create in-line function tool"
                                     onClick={handleCreateInline}
-                                    className="!h-5 !px-1"
-                                />
+                                    className="h-5"
+                                >
+                                    <Plus size={12} />
+                                </Button>
                             }
                         />
                         <div className="px-2 pb-1 text-[11px] text-zinc-400">
@@ -988,12 +1010,14 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                                 title="Reference a workflow"
                                 right={
                                     <Button
-                                        type="text"
-                                        size="small"
-                                        icon={<Plus size={12} />}
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label="Reference a workflow"
                                         onClick={handleOpenReferenceSelector}
-                                        className="!h-5 !px-1"
-                                    />
+                                        className="h-5"
+                                    >
+                                        <Plus size={12} />
+                                    </Button>
                                 }
                             />
                             <div className="px-2 pb-1 text-[11px] text-zinc-400">
@@ -1027,9 +1051,9 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                     />
                 ) : (
                     <div className="h-full flex items-center justify-center px-4 text-center">
-                        <Typography.Text type="secondary" className="text-xs">
+                        <span className="text-xs text-colorTextDescription">
                             Hover a provider or connected integration to browse tools.
-                        </Typography.Text>
+                        </span>
                     </div>
                 )}
             </div>
@@ -1037,7 +1061,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     )
 
     return (
-        <Dropdown
+        <Popover
             open={!disabled && open}
             onOpenChange={(nextOpen) => {
                 if (disabled) return
@@ -1047,24 +1071,28 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                 }
                 setOpen(true)
             }}
-            trigger={["click"]}
-            placement="bottomLeft"
-            arrow={false}
-            menu={{items: []}}
-            popupRender={() => content}
-            classNames={{root: "[&_.ant-dropdown-menu]:hidden [&_.ant-dropdown]:p-0"}}
         >
-            {trigger ?? (
-                <Button
-                    variant="outlined"
-                    color="default"
-                    size="small"
-                    icon={<Plus size={14} />}
-                    disabled={disabled}
-                >
-                    Tool
-                </Button>
-            )}
-        </Dropdown>
+            {/* `disabled` is not forwarded here: `trigger` can be any node, and Radix would
+                merge the attribute onto a non-form element. Opening is gated by `open`. */}
+            <PopoverTrigger asChild>
+                {trigger ?? (
+                    <Button variant="outline" size="sm" disabled={disabled}>
+                        <Plus size={14} />
+                        Tool
+                    </Button>
+                )}
+            </PopoverTrigger>
+            {/* antd's `.ant-dropdown` root carries no chrome (the panel below owns its border,
+                radius and shadow), so the Radix content is stripped back to a bare positioner. */}
+            <PopoverContent
+                container={container}
+                side="bottom"
+                align="start"
+                aria-label="Add a tool"
+                className="w-auto rounded-none border-0 bg-transparent p-0 shadow-none"
+            >
+                {content}
+            </PopoverContent>
+        </Popover>
     )
 })

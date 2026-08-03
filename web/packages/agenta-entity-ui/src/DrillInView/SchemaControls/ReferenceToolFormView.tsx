@@ -19,8 +19,8 @@ import {
     type WorkflowReferenceBridge,
     type WorkflowReferenceUI,
 } from "@agenta/ui/drill-in"
+import {AutosizeTextarea, Spinner} from "@agenta/ui/ui"
 import {GitBranch, Info, TreeStructure} from "@phosphor-icons/react"
-import {Input, Spin} from "antd"
 import {atom, useSetAtom} from "jotai"
 
 import {RailField} from "../../drawers/shared/RailField"
@@ -140,7 +140,7 @@ function ReferenceBindingEditor({
             }}
             envNotFound={
                 isLoading ? (
-                    <Spin size="small" />
+                    <Spinner size="small" />
                 ) : (
                     <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                         No environments deployed
@@ -205,11 +205,12 @@ export function ReferenceToolFormView({value, onChange, disabled}: ReferenceTool
                     </RailField>
 
                     <RailField label="Description">
-                        <Input.TextArea
+                        <AutosizeTextarea
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             autoSize={{minRows: 2, maxRows: 6}}
                             placeholder="What this tool does and when the agent should call it"
+                            aria-label="Description"
                             disabled={disabled}
                         />
                     </RailField>

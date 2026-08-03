@@ -8,8 +8,8 @@
 import {useCallback, useRef, useState} from "react"
 
 import {cn} from "@agenta/ui/styles"
+import {Button, Spinner} from "@agenta/ui/ui"
 import {UploadSimple} from "@phosphor-icons/react"
-import {Button, Spin} from "antd"
 
 import {parseSkillFromDataTransfer, parseSkillFromFileList, type ParsedSkill} from "./skillUpload"
 
@@ -63,7 +63,7 @@ export function SkillUploadZone({onParsed, disabled}: SkillUploadZoneProps) {
             )}
         >
             {busy ? (
-                <Spin size="small" />
+                <Spinner size="small" />
             ) : (
                 <UploadSimple size={20} className="text-[var(--ag-c-586673,#586673)]" />
             )}
@@ -71,7 +71,11 @@ export function SkillUploadZone({onParsed, disabled}: SkillUploadZoneProps) {
                 Drag a skill folder, <span className="font-mono">.zip</span>, or{" "}
                 <span className="font-mono">.skill</span> here
             </div>
-            <Button onClick={() => inputRef.current?.click()} disabled={disabled || busy}>
+            <Button
+                variant="outline"
+                onClick={() => inputRef.current?.click()}
+                disabled={disabled || busy}
+            >
                 Browse files
             </Button>
             {error ? (

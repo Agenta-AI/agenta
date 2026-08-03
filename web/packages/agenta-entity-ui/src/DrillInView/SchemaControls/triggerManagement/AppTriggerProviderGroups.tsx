@@ -1,5 +1,5 @@
 /** App subscriptions grouped by provider, plus the provider/event label helpers they need. */
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, type ReactNode} from "react"
 
 import {
     isEntityActive,
@@ -8,7 +8,6 @@ import {
     useTriggerConnectionsQuery,
     type TriggerSubscription,
 } from "@agenta/entities/gatewayTrigger"
-import type {MenuProps} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -61,7 +60,8 @@ export function AppTriggerProviderGroups({
     disabled?: boolean
     defaultReferences: Record<string, {id?: string; slug?: string}>
     defaultBoundLabel: string
-    subscriptionMenu: (record: TriggerSubscription) => MenuProps["items"]
+    /** Builds a row's composed "⋯" menu body (`DropdownMenuItem` JSX). */
+    subscriptionMenu: (record: TriggerSubscription) => ReactNode
 }) {
     const {connections} = useTriggerConnectionsQuery()
     const {integrations} = useTriggerCatalogIntegrations()
@@ -181,7 +181,7 @@ export function AppTriggerProviderGroups({
                                             playgroundEntityId: entityId ?? undefined,
                                         })
                                     }
-                                    menuItems={subscriptionMenu(record)}
+                                    menu={subscriptionMenu(record)}
                                 />
                             )
                         })}

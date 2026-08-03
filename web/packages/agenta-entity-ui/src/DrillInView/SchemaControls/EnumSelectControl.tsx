@@ -11,8 +11,7 @@ import type {SchemaProperty} from "@agenta/entities/shared"
 import {formatEnumLabel} from "@agenta/shared/utils"
 import {SimpleDropdownSelect} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
-import {Field} from "@agenta/ui/ui"
-import {Select} from "antd"
+import {Combobox, Field} from "@agenta/ui/ui"
 
 export interface EnumSelectControlProps {
     /** The schema property defining enum options */
@@ -136,26 +135,29 @@ export const EnumSelectControl = memo(function EnumSelectControl({
         )
     }
 
-    // Select variant (full select)
+    // Select variant (full select). antd `showSearch` → Combobox (Radix Select can't search);
+    // antd's `filterOption` on the label becomes each option's `searchValue`.
+    const comboboxOptions = useMemo(
+        () => options.map((option) => ({...option, searchValue: option.label})),
+        [options],
+    )
+
     return (
         <Field
             label={label}
             tooltip={withTooltip && !!label ? tooltipText : undefined}
             className={cn(className)}
         >
-            <Select
+            <Combobox
                 value={value ?? undefined}
                 onChange={(val) => onChange(val ?? null)}
-                options={options}
+                options={comboboxOptions}
                 disabled={disabled}
                 placeholder={placeholder}
                 allowClear={allowClear}
+                aria-label={label ? undefined : placeholder}
                 className="w-full"
-                size="small"
-                showSearch
-                filterOption={(input, option) =>
-                    (option?.label?.toString() ?? "").toLowerCase().includes(input.toLowerCase())
-                }
+                size="sm"
             />
         </Field>
     )

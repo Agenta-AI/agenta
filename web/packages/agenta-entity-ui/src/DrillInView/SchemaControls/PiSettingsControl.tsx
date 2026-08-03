@@ -7,9 +7,8 @@
  */
 import {memo, useCallback, useMemo} from "react"
 
-import {Select} from "antd"
-
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
+import {MultiSelect} from "../../gatewayTool/components/schemaFormControls"
 
 type PiBuiltinName = "read" | "bash" | "edit" | "write" | "grep" | "find" | "ls"
 
@@ -112,11 +111,11 @@ export const PiSettingsControl = memo(function PiSettingsControl({
             )}
             align="center"
         >
-            <Select<PiBuiltinName[]>
-                mode="multiple"
-                className="w-full"
+            {/* antd `Select mode="multiple"` → the shared MultiSelect composite (chips in the
+                trigger over a checkbox DropdownMenu). */}
+            <MultiSelect
                 value={selected}
-                onChange={(value) => writeSelected(value)}
+                onChange={(value) => writeSelected(value as PiBuiltinName[])}
                 options={PI_BUILTIN_OPTIONS}
                 placeholder="Pi defaults"
                 disabled={disabled}

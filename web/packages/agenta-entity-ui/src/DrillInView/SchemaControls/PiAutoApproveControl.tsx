@@ -14,7 +14,8 @@
  */
 import {memo, useCallback, useMemo} from "react"
 
-import {Tag, Typography} from "antd"
+import {Badge} from "@agenta/ui/ui"
+import {X} from "@phosphor-icons/react"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 
@@ -60,20 +61,35 @@ export const PiAutoApproveControl = memo(function PiAutoApproveControl({
             {allow.length ? (
                 <div className="flex flex-wrap gap-1">
                     {allow.map((pattern) => (
-                        <Tag
-                            key={pattern}
-                            closable={!disabled}
-                            onClose={() => remove(pattern)}
-                            className="!m-0 !font-mono !text-[11px]"
-                        >
+                        <Badge key={pattern} className="m-0 font-mono text-[11px]">
                             {pattern}
-                        </Tag>
+                            {!disabled && (
+                                // antd's `.ant-tag-close-icon`: 10px glyph, 3px inset (Badge's
+                                // own gap-1 is 4px), colorIcon grey. `@agenta/ui` Tag exposes
+                                // `dismissible` only for the sync preset, so it is composed here.
+                                <span
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-label={`Remove ${pattern}`}
+                                    onClick={() => remove(pattern)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" || e.key === " ") {
+                                            e.preventDefault()
+                                            remove(pattern)
+                                        }
+                                    }}
+                                    className="-ml-px inline-flex cursor-pointer text-colorIcon hover:text-colorText"
+                                >
+                                    <X size={10} />
+                                </span>
+                            )}
+                        </Badge>
                     ))}
                 </div>
             ) : (
-                <Typography.Text type="secondary" className="!text-[11px]">
+                <span className="text-[11px] text-colorTextSecondary">
                     Nothing auto-approved — every gated tool asks each time.
-                </Typography.Text>
+                </span>
             )}
         </RailField>
     )

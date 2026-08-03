@@ -17,8 +17,21 @@ import type {
     FieldHeaderSlotProps,
 } from "@agenta/ui/drill-in"
 import {formatLabel} from "@agenta/ui/drill-in"
+import {
+    Button,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, MagicWand} from "@phosphor-icons/react"
-import {Button, Dropdown, Popover, Tooltip} from "antd"
 import clsx from "clsx"
 
 import {HookConfigControl, CodeConfigControl, SchemasConfigControl} from "../../SchemaControls"
@@ -185,30 +198,37 @@ export function useFieldSlots({
                              *  `PromptSchemaControl` continues to handle
                              *  the format choice for the playground. */}
                             {!disabled && onRefinePrompt && hasMessages && (
-                                <Tooltip title="Refine prompt with AI">
-                                    <Button
-                                        type="text"
-                                        size="small"
-                                        icon={<MagicWand size={16} aria-hidden="true" />}
-                                        onClick={() => onRefinePrompt(fieldKey)}
-                                        aria-label="Refine prompt with AI"
-                                        className="flex items-center justify-center opacity-60 hover:opacity-100"
-                                    />
-                                </Tooltip>
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon-sm"
+                                                onClick={() => onRefinePrompt(fieldKey)}
+                                                aria-label="Refine prompt with AI"
+                                                className="opacity-60 hover:opacity-100"
+                                            >
+                                                <MagicWand size={16} aria-hidden="true" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Refine prompt with AI</TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
                             )}
                             <Popover
-                                trigger="click"
                                 open={isModelConfigOpen}
                                 onOpenChange={handleConfigureOpenChange}
-                                placement="bottomRight"
-                                arrow={false}
-                                content={configurePopoverContent}
-                                overlayInnerStyle={{padding: 0}}
                             >
-                                <Button size="small" type="default">
-                                    {promptModelInfo.currentModel || "Select model"}
-                                    <CaretDown size={12} />
-                                </Button>
+                                <PopoverTrigger asChild>
+                                    <Button size="sm" variant="outline">
+                                        {promptModelInfo.currentModel || "Select model"}
+                                        <CaretDown size={12} />
+                                    </Button>
+                                </PopoverTrigger>
+                                {/* antd `placement="bottomRight"` + `overlayInnerStyle={{padding: 0}}`. */}
+                                <PopoverContent side="bottom" align="end" className="p-0">
+                                    {configurePopoverContent}
+                                </PopoverContent>
                             </Popover>
                         </div>
                     )}
@@ -219,24 +239,30 @@ export function useFieldSlots({
                             onClick={(e) => e.stopPropagation()}
                             className="flex items-center gap-2 flex-shrink-0"
                         >
-                            <Dropdown
-                                trigger={["click"]}
-                                disabled={disabled}
-                                menu={{
-                                    items: RUNTIME_SELECT_OPTIONS.map((o) => ({
-                                        key: o.value,
-                                        label: o.label,
-                                    })),
-                                    selectedKeys: codeRuntime ? [codeRuntime] : [],
-                                    onClick: ({key}) => handleRuntimeChange(key),
-                                }}
-                            >
-                                <Button size="small" type="default">
-                                    {RUNTIME_SELECT_OPTIONS.find((o) => o.value === codeRuntime)
-                                        ?.label ?? "Select runtime"}
-                                    <CaretDown size={12} />
-                                </Button>
-                            </Dropdown>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild disabled={disabled}>
+                                    <Button size="sm" variant="outline">
+                                        {RUNTIME_SELECT_OPTIONS.find((o) => o.value === codeRuntime)
+                                            ?.label ?? "Select runtime"}
+                                        <CaretDown size={12} />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                    {RUNTIME_SELECT_OPTIONS.map((o) => (
+                                        <DropdownMenuItem
+                                            key={o.value}
+                                            onSelect={() => handleRuntimeChange(o.value)}
+                                            // antd `menu.selectedKeys` skin: colorPrimary on controlItemBgActive.
+                                            className={clsx(
+                                                o.value === codeRuntime &&
+                                                    "bg-controlItemBgActive text-primary",
+                                            )}
+                                        >
+                                            {o.label}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </div>
                     )}
 
@@ -247,8 +273,8 @@ export function useFieldSlots({
                             className="flex items-center flex-shrink-0"
                         >
                             <Button
-                                size="small"
-                                type="text"
+                                size="sm"
+                                variant="ghost"
                                 onClick={() =>
                                     setFeedbackMode(feedbackMode === "basic" ? "advanced" : "basic")
                                 }

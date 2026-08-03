@@ -35,6 +35,9 @@ export type {CodeConfigControlProps} from "./CodeConfigControl"
 export {SchemasConfigControl} from "./SchemasConfigControl"
 export type {SchemasConfigControlProps} from "./SchemasConfigControl"
 
+export {SchemaTree} from "./SchemaTree"
+export type {SchemaTreeProps} from "./SchemaTree"
+
 // ============================================================================
 // CONTROLS WITH CONTEXT INJECTION
 // ============================================================================
@@ -47,6 +50,9 @@ export type {MessagesSchemaControlProps} from "./MessagesSchemaControl"
 
 export {ResponseFormatControl, responseFormatModalOpenAtom} from "./ResponseFormatControl"
 export type {ResponseFormatValue, ResponseFormatControlProps} from "./ResponseFormatControl"
+
+export {ResponseFormatControlView} from "./ResponseFormatControlView"
+export type {ResponseFormatControlViewProps} from "./ResponseFormatControlView"
 
 export {FeedbackConfigurationControl} from "./FeedbackConfigurationControl"
 export type {

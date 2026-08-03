@@ -7,9 +7,9 @@
  * one never mutates. Containment (max-height + scroll) is the caller's job so it can size the
  * section body.
  *
- * Styling uses antd semantic tokens (`--ag-color*`) + antd `Tag` only — dark-safe.
+ * Styling uses antd semantic tokens (`--ag-color*`) + the `@agenta/ui` `Tag` only — dark-safe.
  */
-import {Tag} from "antd"
+import {Tag} from "@agenta/ui/components/presentational"
 
 export interface SchemaTreeProps {
     /** A JSON-schema object node (`{type:"object", properties, required}`). */
@@ -77,8 +77,7 @@ function SchemaRows({node, depth}: {node: Record<string, unknown>; depth: number
                             </span>
                             {required.includes(name) ? (
                                 <Tag
-                                    color="red"
-                                    bordered={false}
+                                    tone="red"
                                     className="m-0 px-1.5 py-0 text-[10px] leading-[18px]"
                                 >
                                     required

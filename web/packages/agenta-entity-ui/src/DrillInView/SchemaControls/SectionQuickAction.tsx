@@ -9,8 +9,8 @@
  */
 import type {ReactNode} from "react"
 
+import {Button} from "@agenta/ui/ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
-import {Button} from "antd"
 
 export interface SectionQuickActionProps {
     /** The minimal control that resolves the missing info (e.g. the provider API-key field). */
@@ -32,12 +32,12 @@ export function SectionQuickAction({
         <div className="flex flex-col gap-3">
             {children}
             <Button
-                type="text"
+                variant="ghost"
                 onClick={onOpenDetails}
                 disabled={disabled}
-                className="!h-auto w-fit !px-0 !text-xs !text-[var(--ag-colorPrimary)]"
-                icon={<ArrowSquareOut size={13} />}
+                className="h-auto w-fit px-0 text-xs text-primary"
             >
+                <ArrowSquareOut size={13} />
                 {detailsLabel}
             </Button>
         </div>

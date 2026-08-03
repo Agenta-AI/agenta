@@ -5,8 +5,8 @@ import {
     triggerScheduleDrawerAtom,
     triggerSubscriptionDrawerAtom,
 } from "@agenta/entities/gatewayTrigger"
+import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {Clock, Lightning, Plus, Sparkle} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
 import {useSetAtom} from "jotai"
 
 import {AddItemMenu, type AddItemGroup} from "../../../drawers/shared/AddItemMenu"
@@ -86,22 +86,33 @@ export function AddTriggerDropdown({
         ],
     )
 
+    // A caller-supplied trigger (the empty-state text link) brings its own affordance.
+    if (trigger) return <AddItemMenu groups={groups} ariaLabel="Add trigger" trigger={trigger} />
+
+    // Tooltip + popover trigger compose by NESTING both `asChild` triggers on the same
+    // button — a Radix Tooltip wrapped AROUND the popover trigger would swallow it
+    // (PopoverTrigger's Slot would clone the Tooltip, not the button).
     return (
-        <AddItemMenu
-            groups={groups}
-            ariaLabel="Add trigger"
-            trigger={
-                trigger ?? (
-                    <Tooltip title="Add trigger">
-                        <Button
-                            type="text"
-                            icon={<Plus size={16} />}
-                            aria-label="Add trigger"
-                            onClick={(e) => e.stopPropagation()}
-                        />
-                    </Tooltip>
-                )
-            }
-        />
+        <TooltipProvider>
+            <Tooltip>
+                <AddItemMenu
+                    groups={groups}
+                    ariaLabel="Add trigger"
+                    trigger={
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label="Add trigger"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <Plus size={16} />
+                            </Button>
+                        </TooltipTrigger>
+                    }
+                />
+                <TooltipContent>Add trigger</TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     )
 }

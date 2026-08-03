@@ -4,7 +4,15 @@
 import {useState} from "react"
 
 import {customNamedSecretsAtom} from "@agenta/entities/secret"
-import {Input, Select, Tag} from "antd"
+import {
+    Badge,
+    Input,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
@@ -58,6 +66,9 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
     const name = server.name ?? ""
     const invalidName = Boolean(name) && !MCP_SERVER_NAME_PATTERN.test(name)
     const selectedSecretExists = namedSecrets.some((secret) => secret.slug === secretHeader.slug)
+    const secretOptions = namedSecrets
+        .filter((secret) => Boolean(secret.slug))
+        .map((secret) => ({label: secret.name || "Unnamed secret", value: secret.slug as string}))
 
     const setServer = (patch: Partial<McpServer>) => {
         onChange({...value, ...patch})
@@ -106,7 +117,8 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                     value={name}
                     onChange={(event) => setServer({name: event.target.value})}
                     placeholder="exa"
-                    status={invalidName ? "error" : undefined}
+                    aria-label="Server name"
+                    aria-invalid={invalidName || undefined}
                     disabled={disabled}
                 />
                 {invalidName ? (
@@ -121,31 +133,31 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                     value={connection.url ?? ""}
                     onChange={(event) => setConnection({url: event.target.value})}
                     placeholder="https://example.com/mcp"
+                    aria-label="MCP URL"
                     disabled={disabled}
                 />
             </RailField>
 
             <RailField label="Authentication" align="center">
-                <Select<AuthenticationType>
-                    className="w-full"
+                <Select
                     value={credentialType}
-                    onChange={setAuthenticationType}
+                    onValueChange={(next) => setAuthenticationType(next as AuthenticationType)}
                     disabled={disabled}
-                    options={[
-                        {label: "None", value: "none"},
-                        {label: "Secret header", value: "header_secret_refs"},
-                        {
-                            label: (
-                                <span className="flex items-center justify-between gap-2">
-                                    OAuth
-                                    <Tag className="m-0 text-[10px]">Soon</Tag>
-                                </span>
-                            ),
-                            value: "oauth",
-                            disabled: true,
-                        },
-                    ]}
-                />
+                >
+                    <SelectTrigger className="w-full" aria-label="Authentication">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        <SelectItem value="header_secret_refs">Secret header</SelectItem>
+                        <SelectItem value="oauth" disabled>
+                            <span className="flex flex-1 items-center justify-between gap-2">
+                                OAuth
+                                <Badge className="text-[10px]">Soon</Badge>
+                            </span>
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
             </RailField>
 
             {credentialType === "header_secret_refs" ? (
@@ -166,6 +178,7 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                                 })
                             }
                             placeholder="x-api-key"
+                            aria-label="Header name"
                             disabled={disabled}
                         />
                     </RailField>
@@ -178,23 +191,33 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                         align="center"
                     >
                         <Select
-                            className="w-full"
                             value={selectedSecretExists ? secretHeader.slug : undefined}
-                            onChange={(slug) => writeSecretHeader({...secretHeader, slug})}
-                            placeholder={
-                                secretHeader.slug && !selectedSecretExists
-                                    ? "Selected secret is unavailable"
-                                    : "Select a project secret"
-                            }
+                            onValueChange={(slug) => writeSecretHeader({...secretHeader, slug})}
                             disabled={disabled}
-                            notFoundContent="No project secrets found"
-                            options={namedSecrets
-                                .filter((secret) => Boolean(secret.slug))
-                                .map((secret) => ({
-                                    label: secret.name || "Unnamed secret",
-                                    value: secret.slug as string,
-                                }))}
-                        />
+                        >
+                            <SelectTrigger className="w-full" aria-label="Project secret">
+                                <SelectValue
+                                    placeholder={
+                                        secretHeader.slug && !selectedSecretExists
+                                            ? "Selected secret is unavailable"
+                                            : "Select a project secret"
+                                    }
+                                />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {secretOptions.length === 0 ? (
+                                    <div className="px-3 py-input-y-ghost text-field-md text-colorTextSecondary">
+                                        No project secrets found
+                                    </div>
+                                ) : (
+                                    secretOptions.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                        </SelectItem>
+                                    ))
+                                )}
+                            </SelectContent>
+                        </Select>
                     </RailField>
                 </>
             ) : null}

@@ -37,8 +37,8 @@ import {
 } from "@agenta/ui"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {cn} from "@agenta/ui/styles"
+import {Badge} from "@agenta/ui/ui"
 import {registerCodeHighlighting} from "@lexical/code"
-import {Tag} from "antd"
 
 import {CodeBlockLanguageMenu} from "./CodeBlockLanguageMenu"
 
@@ -231,12 +231,11 @@ export function MarkdownEditor({
     const plainHeader = hideHeader ? undefined : (
         <div className="flex w-full items-center justify-between gap-2">
             {filename ? (
-                <Tag
-                    bordered
-                    className="m-0 font-mono text-[11px] font-normal text-[var(--ag-c-586673,#586673)]"
-                >
+                // antd v6's default Tag variant is `filled` (borderless), so the `bordered` this
+                // carried was a no-op — the neutral Badge is the exact equivalent.
+                <Badge className="font-mono text-[11px] font-normal text-[var(--ag-c-586673,#586673)]">
                     {filename}
-                </Tag>
+                </Badge>
             ) : (
                 <span />
             )}

@@ -5,7 +5,6 @@ import {HeightCollapse} from "@agenta/ui"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
-import {Typography} from "antd"
 
 import {validateConfigAgainstSchema} from "../../SchemaControls/schemaValidator"
 
@@ -14,6 +13,8 @@ export interface AdvancedConfigFieldsProps {
     value: Record<string, unknown>
     onChange: (key: string, next: unknown) => void
     disabled?: boolean
+    /** Uncontrolled initial disclosure state. */
+    defaultOpen?: boolean
 }
 
 export const AdvancedConfigFields = memo(function AdvancedConfigFields({
@@ -21,8 +22,9 @@ export const AdvancedConfigFields = memo(function AdvancedConfigFields({
     value,
     onChange,
     disabled,
+    defaultOpen = false,
 }: AdvancedConfigFieldsProps) {
-    const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
+    const [isAdvancedOpen, setIsAdvancedOpen] = useState(defaultOpen)
     const rootRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
@@ -146,8 +148,8 @@ const AdvancedJsonField = memo(function AdvancedJsonField({
     return (
         <div className="flex flex-col gap-1">
             <div className="flex flex-col gap-0.5">
-                <Typography.Text className="font-medium">{label}</Typography.Text>
-                <Typography.Text type="secondary" className="text-xs leading-snug">
+                <span className="font-medium">{label}</span>
+                <span className="text-xs leading-snug text-colorTextDescription">
                     Provider-specific chat template options sent with the model request in JSON
                     format.{" "}
                     <a
@@ -158,7 +160,7 @@ const AdvancedJsonField = memo(function AdvancedJsonField({
                     >
                         Learn more
                     </a>
-                </Typography.Text>
+                </span>
             </div>
             <SharedEditor
                 key={`llm-config-${fieldKey}`}

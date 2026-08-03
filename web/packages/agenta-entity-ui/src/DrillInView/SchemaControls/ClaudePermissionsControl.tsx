@@ -14,7 +14,7 @@
  */
 import {memo, useCallback, useMemo} from "react"
 
-import {Input, Select} from "antd"
+import {Combobox, Textarea} from "@agenta/ui/ui"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 
@@ -144,13 +144,16 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
                 align="center"
                 path="harness.permissions.default_mode"
             >
-                <Select<ClaudePermissionMode>
+                {/* Combobox, not Select: the mode is clearable (antd `allowClear`) and Radix
+                    Select has no clear affordance. */}
+                <Combobox
                     value={current.defaultMode ?? undefined}
-                    onChange={(v) => write({defaultMode: v ?? null})}
+                    onChange={(v) => write({defaultMode: (v as ClaudePermissionMode) ?? null})}
                     options={modeOptions}
                     disabled={disabled}
                     placeholder="Claude default"
                     allowClear
+                    aria-label={modeLabel}
                     className="w-full"
                 />
             </RailField>
@@ -162,12 +165,13 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
                     'Per-tool allow rules, one per line (e.g. "Read", "Bash(npm run:*)").',
                 )}
             >
-                <Input.TextArea
+                <Textarea
                     value={current.allow.join("\n")}
                     onChange={(e) => write({allow: parseRules(e.target.value)})}
                     disabled={disabled}
                     placeholder={"Read\nBash(npm run:*)"}
                     rows={2}
+                    aria-label="Allow rules"
                     className="resize-y font-mono"
                 />
             </RailField>
@@ -179,12 +183,13 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
                     "Per-tool rules that prompt before use, one per line.",
                 )}
             >
-                <Input.TextArea
+                <Textarea
                     value={current.ask.join("\n")}
                     onChange={(e) => write({ask: parseRules(e.target.value)})}
                     disabled={disabled}
                     placeholder="Bash(rm:*)"
                     rows={2}
+                    aria-label="Ask rules"
                     className="resize-y font-mono"
                 />
             </RailField>
@@ -196,12 +201,13 @@ export const ClaudePermissionsControl = memo(function ClaudePermissionsControl({
                     "Per-tool rules that are always blocked, one per line.",
                 )}
             >
-                <Input.TextArea
+                <Textarea
                     value={current.deny.join("\n")}
                     onChange={(e) => write({deny: parseRules(e.target.value)})}
                     disabled={disabled}
                     placeholder={"Write\nmcp__server__tool"}
                     rows={2}
+                    aria-label="Deny rules"
                     className="resize-y font-mono"
                 />
             </RailField>
