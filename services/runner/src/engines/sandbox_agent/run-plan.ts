@@ -111,7 +111,7 @@ export interface RunPlan {
   modelEnvironment: Record<string, string>;
   /**
    * Process-local opaque credential plan. Present for every Daytona run when
-   * AGENTA_DAYTONA_OPAQUE_SECRETS=process_local is enabled — even with zero candidates, so the
+   * AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=process_local is enabled — even with zero candidates, so the
    * Secret provider wrapper (and its create-fingerprint rotation check) governs every flag-on
    * reconnect. Absent when the flag is off, so that path is the plain plaintext-env provider
    * with no wrapper, unchanged from the pre-feature runner.
@@ -180,11 +180,25 @@ export interface RunPlan {
 }
 
 export type BuildRunPlanResult =
-  { ok: true; plan: RunPlan } | { ok: false; error: string };
+  | { ok: true; plan: RunPlan }
+  | { ok: false; error: string };
 
-// Retired flat model-credential fields. `connection` ({mode, slug}) is NOT here: it is the
-// author's non-secret connection intent, still on the wire (pi-model-config keys the Pi custom
-// provider off its slug).
+// The five wire fields this change RETIRED. They are listed here so the runner can reject a
+// request that still sends them, rather than ignore them.
+//
+// Why reject instead of ignore: an old caller sending `secrets: {OPENAI_API_KEY: "..."}` would
+// otherwise get a run that starts fine and has no key, and the failure would surface much later
+// as a confusing provider auth error. Rejecting turns a silent wrong-credential run into an
+// immediate, obvious contract error. Nothing in the tree sends these; the SDK and the runner
+// ship together, so this is a guard against a stale caller, not a compatibility shim, and it is
+// not tied to the Daytona feature flag.
+//
+// `connection` is deliberately NOT in this list. It looks like it belongs (it was next to these
+// fields on the old wire) but it is not a credential: it is the author's choice of which Agenta
+// connection to use, as `{mode, slug}`. The runner still needs it, because a named
+// OpenAI-compatible run on the Pi harness is registered in Pi's own `models.json` under a
+// provider named after that slug (`pi-model-config.ts`). Dropping it makes those runs silently
+// fall back to the generic provider-override path.
 const LEGACY_MODEL_CREDENTIAL_FIELDS = [
   "secrets",
   "provider",
@@ -473,7 +487,7 @@ export function buildRunPlan(
 
   const materializedModel = materializeModelEnvironment(request);
   if (!materializedModel.ok) return materializedModel;
-  // Daytona opaque-credential delivery is FLAG-GATED (AGENTA_DAYTONA_OPAQUE_SECRETS=
+  // Daytona opaque-credential delivery is FLAG-GATED (AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=
   // process_local). Flag OFF: no secret plan is built at all, so behavior is identical to the
   // pre-feature runner — the full materialized environment reaches sandbox create as plaintext
   // env, no provider wrapper is applied, and the plan's strict endpoint/binding validation

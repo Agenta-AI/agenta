@@ -172,7 +172,7 @@ export function buildSandboxProvider(
         { client: buildDaytonaClient(config.daytona) },
       );
     // The process-local Secret wrapper applies to EVERY plan-bearing Daytona run
-    // (`buildRunPlan` builds a plan only when AGENTA_DAYTONA_OPAQUE_SECRETS=process_local is
+    // (`buildRunPlan` builds a plan only when AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=process_local is
     // enabled), INCLUDING a zero-candidate plan: the wrapper then allocates no Secrets and
     // attaches nothing, but its create-fingerprint check still governs reconnects, so a parked
     // sandbox holding plaintext local_use credentials (AWS/GCP) is rebuilt — never reconnected

@@ -19,7 +19,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  delete process.env.AGENTA_DAYTONA_OPAQUE_SECRETS;
+  delete process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS;
 });
 
 const modelConnection = {
@@ -272,7 +272,7 @@ describe("Daytona Secret planning", () => {
     const plan = buildDaytonaSecretPlan({ modelConnection });
     assert.throws(
       () => assertDaytonaOpaqueSecretsEnabled(plan),
-      /AGENTA_DAYTONA_OPAQUE_SECRETS=process_local/,
+      /AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=process_local/,
     );
     assert.doesNotThrow(() =>
       assertDaytonaOpaqueSecretsEnabled(plan, "process_local"),
@@ -303,7 +303,7 @@ describe("Daytona Secret planning", () => {
     assert.equal(disabled.plan.hasApiKey, true);
 
     // Flag ON: the opaque value leaves the plaintext environment for the secret plan.
-    process.env.AGENTA_DAYTONA_OPAQUE_SECRETS = "process_local";
+    process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS = "process_local";
     const enabled = buildRunPlan(request, {
       createDaytonaCwd: () => "/sandbox/cwd",
     });

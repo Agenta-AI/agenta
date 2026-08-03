@@ -744,7 +744,7 @@ describe("runSandboxAgent orchestration", () => {
     const { calls, deps } = fakeHarness();
     deps.prepareDaytonaPiAssets = (async () => true) as any;
     // The opaque vault key on a Daytona run requires the process-local Secret gate.
-    process.env.AGENTA_DAYTONA_OPAQUE_SECRETS = "process_local";
+    process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS = "process_local";
 
     const result = await runSandboxAgent(
       {

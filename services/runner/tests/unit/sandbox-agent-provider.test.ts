@@ -335,11 +335,11 @@ describe("buildSandboxProvider (enabled-provider gate + unknown-id refusal)", ()
     // unwrapped would silently run without credentials.
     assert.throws(
       () => build(plan),
-      /AGENTA_DAYTONA_OPAQUE_SECRETS=process_local/,
+      /AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=process_local/,
     );
 
     try {
-      process.env.AGENTA_DAYTONA_OPAQUE_SECRETS = "process_local";
+      process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS = "process_local";
       assert.equal(
         typeof build(plan).materializeMcpServers,
         "function",
@@ -354,7 +354,7 @@ describe("buildSandboxProvider (enabled-provider gate + unknown-id refusal)", ()
         "flag on + zero candidates still attaches the Secret wrapper",
       );
     } finally {
-      delete process.env.AGENTA_DAYTONA_OPAQUE_SECRETS;
+      delete process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS;
     }
   });
 });

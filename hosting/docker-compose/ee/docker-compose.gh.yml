@@ -302,6 +302,7 @@ services:
             AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS: ${AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS:-}
             AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM: ${AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM:-}
             AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES: ${AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES:-}
+            AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS: ${AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS:-}
             # This service has no env_file (see above), so the session flags must be listed
             # here or they can never be set. Both default ON: absent or empty means on, and
             # only the literal "false" disables. Disable AGENTA_SESSIONS_RECONSTRUCT together

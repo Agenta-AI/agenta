@@ -17,7 +17,7 @@ import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
 
 const previousPiDir = process.env.PI_CODING_AGENT_DIR;
 const previousDenyPermissions = process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
-const previousOpaqueSecrets = process.env.AGENTA_DAYTONA_OPAQUE_SECRETS;
+const previousOpaqueSecrets = process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS;
 
 // These cases exercise Daytona runs, so enable it (with a provisioning credential) on top of the
 // hermetic scrub, then drop the memoized config so buildRunPlan reads the enabled set.
@@ -34,8 +34,8 @@ afterEach(() => {
     delete process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
   else process.env.SANDBOX_AGENT_DENY_PERMISSIONS = previousDenyPermissions;
   if (previousOpaqueSecrets === undefined)
-    delete process.env.AGENTA_DAYTONA_OPAQUE_SECRETS;
-  else process.env.AGENTA_DAYTONA_OPAQUE_SECRETS = previousOpaqueSecrets;
+    delete process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS;
+  else process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS = previousOpaqueSecrets;
 });
 
 describe("buildRunPlan", () => {
@@ -1145,7 +1145,7 @@ describe("buildRunPlan", () => {
   });
 
   it("normalizes a Daytona Claude run without Pi-only state", () => {
-    process.env.AGENTA_DAYTONA_OPAQUE_SECRETS = "process_local";
+    process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS = "process_local";
     const result = buildRunPlan(
       {
         harness: "claude",
@@ -1220,7 +1220,7 @@ describe("buildRunPlan", () => {
     } as AgentRunRequest;
     const deps = { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" };
 
-    process.env.AGENTA_DAYTONA_OPAQUE_SECRETS = "process_local";
+    process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS = "process_local";
     const flagOn = buildRunPlan(localUseRequest, deps);
     assert.equal(flagOn.ok, true);
     if (!flagOn.ok) return;
@@ -1237,7 +1237,7 @@ describe("buildRunPlan", () => {
     );
 
     // Flag OFF stays exactly the pre-feature behavior: no plan, so no wrapper is applied.
-    delete process.env.AGENTA_DAYTONA_OPAQUE_SECRETS;
+    delete process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS;
     const flagOff = buildRunPlan(localUseRequest, deps);
     assert.equal(flagOff.ok, true);
     if (!flagOff.ok) return;

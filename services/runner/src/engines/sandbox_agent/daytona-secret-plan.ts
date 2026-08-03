@@ -2,10 +2,55 @@ import { isIP } from "node:net";
 
 import type { McpServerConfig, ModelConnection } from "../../protocol.ts";
 
+/**
+ * One credential that QUALIFIES to be hidden behind a Daytona Secret, before any Secret record
+ * exists.
+ *
+ * "Candidate" rather than "secret" because this object is the output of a pure decision and the
+ * input to a side effect. Building it decides, from the request alone, that a value can be
+ * hidden: nothing is created, nothing is called, and the same request always produces the same
+ * list. The provider then takes each candidate and actually creates the Daytona Secret record,
+ * which can fail, needs cleanup, and turns the candidate into a real `dtn_secret_<id>`
+ * placeholder. Keeping the two apart is what makes the decision unit-testable without a Daytona
+ * account, and what lets the flag-off path build the same plan and simply not act on it.
+ */
 export interface DaytonaSecretCandidate {
+  /**
+   * Position in the plan, assigned in build order. It is the stable name each MCP candidate gets
+   * in the sandbox (`AGENTA_MCP_SECRET_<n>`), so the same request always produces the same
+   * variable names and a warm sandbox can be compared against a new request field by field.
+   */
   ordinal: number;
+  /**
+   * WHO reads this credential. Two consumers exist today because two things in a run hold
+   * credentials: the model, and each HTTP MCP server (named, because a run can attach several
+   * and each has its own key). This is the field that was missing from the old flat `secrets`
+   * map, and without it the runner could not tell which host a given key was allowed to reach,
+   * which is what a Daytona Secret restriction requires.
+   */
   consumer: { kind: "model" } | { kind: "http_mcp"; server: string };
+  /**
+   * WHERE the value lands in the sandbox. `environment` for a model key (harnesses read provider
+   * keys from environment variables); `header` for an MCP credential (an HTTP MCP server reads
+   * its key from a request header). These are the only two delivery points that exist in the
+   * run today, and they follow from the two consumers above rather than being an open set.
+   */
   binding: { kind: "environment" | "header"; name: string };
+  /**
+   * The single DNS hostname this credential may be substituted into, e.g. `api.openai.com`.
+   *
+   * It cannot be a wildcard and cannot be omitted, and that is the point of the whole feature.
+   * Daytona substitutes the real value into an outbound request only when the request goes to
+   * this exact host; anywhere else the agent sends the placeholder instead. A wildcard, or an
+   * unknown host, would mean the agent could exfiltrate the real key by making one request to a
+   * server it controls, which is the attack this exists to prevent.
+   *
+   * It is always knowable in practice because a credential only qualifies as `opaque_http` when
+   * we already know the endpoint it authenticates against: the model connection carries
+   * `endpoint.baseUrl`, and an MCP server carries its own `url`. A credential whose destination
+   * we do not know is not hideable at all, and `buildDaytonaSecretPlan` rejects the run rather
+   * than guessing (see the `opaque model credentials require endpoint.baseUrl` failure).
+   */
   allowedHost: string;
   value: string;
 }
@@ -259,7 +304,7 @@ export function buildDaytonaSecretPlan(input: {
 }
 
 export function daytonaOpaqueSecretsEnabled(
-  value: string | undefined = process.env.AGENTA_DAYTONA_OPAQUE_SECRETS,
+  value: string | undefined = process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS,
 ): boolean {
   return value === "process_local";
 }
@@ -271,7 +316,7 @@ export function assertDaytonaOpaqueSecretsEnabled(
   if (plan.candidates.length > 0 && !daytonaOpaqueSecretsEnabled(value)) {
     throw new Error(
       "Daytona opaque credentials are disabled. Set " +
-        "AGENTA_DAYTONA_OPAQUE_SECRETS=process_local to enable process-local Secret cleanup; " +
+        "AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=process_local to enable process-local Secret cleanup; " +
         "plaintext fallback is not allowed.",
     );
   }
