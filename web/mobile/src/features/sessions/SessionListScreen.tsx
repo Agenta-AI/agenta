@@ -1,7 +1,7 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {FilterChip} from "@/components/FilterChip"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {StatusTag} from "@/components/StatusTag"
 import {clearLastContext} from "@/lib/context"
 
 import {ProjectSwitcher} from "../context/ProjectSwitcher"
@@ -105,8 +105,7 @@ export const SessionListScreen = ({
             <div className="flex flex-col">
                 {onlyPending && pending.unloaded > 0 ? (
                     <p className="text-muted-foreground border-border border-b px-4 py-2 text-xs">
-                        {pending.unloaded} more waiting further down the list — load more to reach{" "}
-                        {pending.unloaded === 1 ? "it" : "them"}.
+                        {pending.unloaded} more further down the list, not loaded yet.
                     </p>
                 ) : null}
                 {rows.map((session) => (
@@ -147,17 +146,17 @@ export const SessionListScreen = ({
                     <ProjectSwitcher workspaceId={workspaceId} projectId={projectId} />
                     <SessionSearchBar value={input} onChange={setInput} />
                     {waitingSessions > 0 ? (
-                        <button
-                            type="button"
-                            aria-pressed={onlyPending}
-                            onClick={() => setOnlyPending((on) => !on)}
-                            className="-m-1 flex min-h-11 items-center gap-2 p-1 text-left"
+                        <FilterChip
+                            active={onlyPending}
+                            onToggle={() => setOnlyPending((on) => !on)}
+                            label={
+                                onlyPending
+                                    ? "Show all sessions"
+                                    : `Show only the ${waitingSessions} session${waitingSessions === 1 ? "" : "s"} waiting on you`
+                            }
                         >
-                            <StatusTag tone="attention">{waitingSessions} waiting</StatusTag>
-                            <span className="text-muted-foreground text-xs underline underline-offset-4">
-                                {onlyPending ? "show all sessions" : "show only these"}
-                            </span>
-                        </button>
+                            {waitingSessions} waiting
+                        </FilterChip>
                     ) : null}
                 </div>
             }

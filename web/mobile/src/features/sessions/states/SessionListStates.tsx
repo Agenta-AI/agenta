@@ -27,7 +27,7 @@ export const SessionListPendingEmpty = ({
     <div className="flex grow flex-col items-center justify-center gap-3 p-6 text-center">
         <p className="text-muted-foreground text-xs">
             {unloaded > 0
-                ? `${unloaded} session${unloaded === 1 ? "" : "s"} waiting further down the list.`
+                ? `${unloaded} waiting session${unloaded === 1 ? "" : "s"} further down the list, not loaded yet.`
                 : "Nothing waiting on you."}
         </p>
         {unloaded > 0 && canLoadMore ? (
