@@ -7,7 +7,7 @@
  * Every control takes plain `value`/`onChange`/`disabled` so it works both under antd
  * `Form.Item` cloning and as an explicitly controlled leaf.
  */
-import {useRef, useState} from "react"
+import {useId, useRef, useState} from "react"
 
 import {dayjs} from "@agenta/shared/utils"
 import {
@@ -232,14 +232,18 @@ export function ChipsInput({
     placeholder,
     disabled,
     id,
+    options,
 }: {
     value?: string[]
     onChange?: (v: string[] | undefined) => void
     placeholder?: string
     disabled?: boolean
     id?: string
+    /** Suggested values, offered as native datalist completions (antd tags-mode `options`). */
+    options?: string[]
 }) {
     const [draft, setDraft] = useState("")
+    const listId = useId()
     const inputRef = useRef<HTMLInputElement>(null)
     const selected = value ?? []
 
@@ -293,8 +297,20 @@ export function ChipsInput({
                     }
                 }}
                 onBlur={commit}
-                className="h-6 min-w-[80px] flex-1 px-1"
+                list={options?.length ? listId : undefined}
+                // antd's tags-mode search input is width-auto; an 80px floor pushed the caret
+                // onto a second line as soon as the chips filled the row.
+                className="h-6 min-w-[4px] flex-1 px-1"
             />
+            {options?.length ? (
+                <datalist id={listId}>
+                    {options
+                        .filter((o) => !selected.includes(o))
+                        .map((o) => (
+                            <option key={o} value={o} />
+                        ))}
+                </datalist>
+            ) : null}
         </div>
     )
 }
