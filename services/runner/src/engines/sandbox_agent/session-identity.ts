@@ -138,14 +138,13 @@ const CREDENTIAL_EPOCH_KEY = randomBytes(32);
  * the ONLY place secret values are digested, and it must stay keyed.
  */
 function credentialTag(material: string): string {
-  // codeql[js/insufficient-password-hash] This is not a stored password hash. It is an
+  // This is not a stored password hash, which is what the scanner reads it as. It is an
   // in-memory, keyed change-detection tag for the warm-session pool: it is compared only
   // against other tags from the same process, never persisted, transmitted, or logged, and
-  // it authenticates nothing. A deliberately slow KDF here would add per-turn latency to
-  // every request and protect nothing that the random per-process key does not already.
-  return createHmac("sha256", CREDENTIAL_EPOCH_KEY)
-    .update(material)
-    .digest("hex");
+  // it authenticates nothing. A deliberately slow KDF here would add latency to every turn
+  // and protect nothing that the random per-process key does not already protect.
+  const hmac = createHmac("sha256", CREDENTIAL_EPOCH_KEY); // codeql[js/insufficient-password-hash]
+  return hmac.update(material).digest("hex");
 }
 
 /** Deterministic JSON: object keys sorted recursively so equal values hash equal. */
