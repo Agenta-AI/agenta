@@ -100,6 +100,8 @@ export const useTriggerSubscription = (subscriptionId?: string) => {
     return {
         subscription: subscriptionId ? (query.data?.subscription ?? null) : null,
         isLoading: subscriptionId ? query.isPending : false,
+        // Unlike isLoading, stays true while a refetch serves stale cache — edit forms need it.
+        isFetching: subscriptionId ? query.isFetching : false,
         error: query.error,
         isMutating,
         create,

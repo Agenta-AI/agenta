@@ -15,8 +15,17 @@ WORKDIR /app
 # spawns `python3` (src/tools/code.ts), so without it those tools fail `spawn python3 ENOENT`.
 # fuse + geesefs: the durable session cwd (mount.ts) is a geesefs FUSE mount of the store
 # prefix; `fuse` provides fusermount + /etc/fuse.conf (user_allow_other for -o allow_other).
+# unzip/zip + python-is-python3 (which symlinks /usr/bin/python -> python3): the local sandbox
+# IS this container, and an agent handed an archive reaches for `unzip` and plain `python`.
+# Without them every such task burns failed bash calls and extra approval round-trips.
+# ripgrep/fd-find/jq/procps/file/tree are the same bet on habit: `rg` and `fd` are the first
+# commands every harness reaches for when searching a tree, and Debian ships fd as `fdfind`,
+# so the symlink below is what makes the command agents actually type resolve.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates git python3 fuse curl \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates git python3 python-is-python3 unzip zip fuse curl \
+        ripgrep fd-find jq procps file tree \
+    && ln -s "$(which fdfind)" /usr/local/bin/fd \
     && rm -rf /var/lib/apt/lists/* \
     && echo "user_allow_other" >> /etc/fuse.conf
 
@@ -58,6 +67,22 @@ ENV NODE_ENV=development \
     AGENTA_RUNNER_PORT=8765
 
 EXPOSE 8765
+
+# Pin the Codex ACP adapter (decision D-005), same rationale as Dockerfile.gh: pre-install
+# @agentclientprotocol/codex-acp at a fixed version so the daemon never fetches a floating `^1.1.7`
+# from the registry at first Codex use. The generated lockfile pins codex-acp 1.1.7 exactly (with
+# bundled @openai/codex 0.145.0); the daemon finds it present at runtime and skips the fetch. Runs
+# as root here (dev runtime is root, HOME=/root), so build- and run-time install dirs match.
+# PIN: @agentclientprotocol/codex-acp 1.1.7 (bundles @openai/codex 0.145.0).
+# The sandbox-agent package ships no bin entry (its CLI is a transitive optional dep), so the
+# pin script resolves the daemon binary via the runner's own daemon.ts resolution.
+RUN node_modules/.bin/tsx scripts/pin-codex-adapter.ts install-agent codex --agent-process-version 1.1.7 -n
+
+# Decouple approvals from the full-access sandbox in the adapter we just pinned, same rationale as
+# Dockerfile.gh: codex-acp's `agent-full-access` preset hardcodes `approvalPolicy: "never"`, which
+# kills codex's native permission gates and forces COLD approvals. The patch flips that one preset
+# to `on-request` so Agenta-tool gates park WARM. Fails the build if the preset drifts.
+RUN node_modules/.bin/tsx scripts/patch-codex-acp-approvals.ts
 
 # No USER node here (unlike Dockerfile.gh): dev rebuilds dist/ under /app and mkdir's /pi-agent
 # at container start, both root-owned paths — not a FUSE constraint (fusermount works non-root).

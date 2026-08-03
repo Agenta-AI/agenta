@@ -16,7 +16,7 @@ Your pull request should say:
 
 ## Loading Environment Variables
 
-The test commands below require environment variables. Use the same env file you used to start the stack locally — the one you passed to `docker compose` when deploying.
+The API, SDK, and services tests run against a live stack, so start Agenta locally first (see [Development Mode](/contributing/guides/development-mode)). The test commands need the same environment variables the stack was started with, in particular `AGENTA_API_URL` and `AGENTA_AUTH_KEY`.
 
 Add this helper to your `~/.bashrc` or `~/.zshrc`:
 
@@ -31,53 +31,60 @@ load-env() {
 }
 ```
 
-Then source it before running tests:
+Then source the env file you deployed with before running tests:
 
 ```bash
-load-env hosting/docker-compose/ee/.env.ee.dev
+load-env hosting/docker-compose/oss/.env.oss.dev
 ```
 
 If you use a different shell, the equivalent one-liner is:
 
 ```bash
-export $(grep -v '^#' hosting/docker-compose/ee/.env.ee.dev | xargs)
+export $(grep -v '^#' hosting/docker-compose/oss/.env.oss.dev | xargs)
 ```
+
+Each Python test runner also accepts `--env-file <path>` directly if you prefer not to export the variables.
 
 ## API Tests
 
 Install dependencies first (from `api/`):
 
 ```bash
-uv sync
-uv pip install --editable ../sdk
+uv sync --locked
 ```
 
-Then run the acceptance suite or a smaller target:
+This also installs the local Python SDK from `sdks/python` in editable mode. You do not need to install it separately.
 
-```bash
-python -m pytest oss/tests/pytest/ -v
-```
+Then run the suite through the test runner:
 
 ```bash
-python -m pytest oss/tests/pytest/acceptance/workflows/ -v
+uv run --no-sync python run-tests.py
 ```
+
+Or point the runner at a smaller target:
+
+```bash
+uv run --no-sync python run-tests.py oss/tests/pytest/acceptance/workflows/
+```
+
+The runner wraps pytest. It picks the OSS or EE test tree based on `AGENTA_LICENSE` and passes any extra flags straight to pytest.
 
 ## SDK Tests
 
-Install dependencies first (from `sdk/`):
+Install dependencies first (from `sdks/python/`):
 
 ```bash
-uv sync
+uv sync --locked
 ```
 
-Then run the relevant pytest targets:
+Then run the suite, or only the unit tests:
 
 ```bash
-uv run pytest oss/tests/pytest/ -v
+uv run --no-sync python run-tests.py
 ```
 
 ```bash
-uv run pytest oss/tests/pytest/unit/ -v
+uv run --no-sync python run-tests.py oss/tests/pytest/unit/
 ```
 
 ## Services Tests
@@ -85,8 +92,13 @@ uv run pytest oss/tests/pytest/unit/ -v
 Install dependencies first (from `services/`):
 
 ```bash
-uv sync
-uv pip install --editable ../sdk
+uv sync --locked
+```
+
+Then run the suite:
+
+```bash
+uv run --no-sync python run-tests.py
 ```
 
 ## Web Tests

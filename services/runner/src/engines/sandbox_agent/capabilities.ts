@@ -60,6 +60,22 @@ export function toolDeliveryUnsupportedMessage(
   );
 }
 
+export function attachmentDeliveryUnsupportedMessage(
+  harness: string,
+  kind: string,
+  missing: string,
+): string {
+  return (
+    "harness \x27" +
+    harness +
+    "\x27 cannot receive a native " +
+    kind +
+    " attachment (" +
+    missing +
+    "); refusing the turn instead of dropping it."
+  );
+}
+
 /**
  * Map a sandbox-agent `AgentInfo` to our capability flags. Falls back to a per-harness static
  * guess when the probe is unavailable. Returns the flags AND where they came from, so a caller

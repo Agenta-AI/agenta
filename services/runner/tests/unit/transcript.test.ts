@@ -331,6 +331,47 @@ describe("buildTurnText approval-resume closing frame", () => {
     assert.ok(text.includes(`user: ${staleCommand}`), "stale command stays in history");
   });
 
+  it("keeps the normal closing frame when an attachment-only turn follows a settled call", () => {
+    const request: AgentRunRequest = {
+      messages: [
+        { role: "user", content: "help me schedule a report" },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_call",
+              toolCallId: "call-1",
+              toolName: "__ag__request_input",
+              input: { message: "What color?", requestedSchema: {} },
+            },
+            {
+              type: "tool_result",
+              toolCallId: "call-1",
+              toolName: "__ag__request_input",
+              output: { action: "accept", content: { color: "green" } },
+            },
+          ] as ContentBlock[],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "attachment",
+              attachmentId: "019a52c2-14c0-7c14-b874-2f5798f9cd21",
+              filename: "brief.pdf",
+            },
+          ] as ContentBlock[],
+        },
+      ],
+    };
+    const text = buildTurnText(request);
+
+    // The attachment is the new turn, so the settled call must not be replayed as a resume.
+    assert.match(text, /Continue the conversation\. The user now says:/);
+    assert.doesNotMatch(text, /responded to the request/);
+    assert.doesNotMatch(text, /responded to the pending approval/);
+  });
+
   it("keeps the normal closing frame when a client-tool result precedes a new user turn", () => {
     const text = turnTextFor([
       { role: "user", content: "help me schedule a report" },
@@ -453,6 +494,36 @@ describe("buildTurnText approval transcript hints", () => {
     assert.doesNotMatch(
       transcript,
       /DENIED mcp__agenta-tools__commit_revision; executed below/,
+    );
+  });
+
+  it("keeps preflight tolerant of unverified attachment display fields", () => {
+    assert.equal(
+      messageTranscript([
+        {
+          type: "attachment",
+          attachmentId: "11111111-1111-4111-8111-111111111111",
+          filename: "../wire-name.png",
+        },
+      ]),
+      "[attachment pending verification]",
+    );
+  });
+
+  it("renders a historical attachment as its verified working-copy mention", () => {
+    const transcript = messageTranscript([
+      {
+        type: "attachment",
+        attachmentId: "11111111-1111-4111-8111-111111111111",
+        filename: "report.pdf",
+        mimeType: "application/pdf",
+        size: 42,
+      },
+    ]);
+
+    assert.equal(
+      transcript,
+      "[attached file: report.pdf at attachments/11111111-1111-4111-8111-111111111111/report.pdf]",
     );
   });
 });

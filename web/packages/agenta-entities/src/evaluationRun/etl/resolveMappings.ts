@@ -39,6 +39,7 @@
  */
 
 import type {EvaluationResult} from "../core"
+import type {EvaluationRunStepReference} from "../core/schema"
 
 import type {HydratedScenarioRow, HydratableScenario} from "./hydrateScenariosTransform"
 
@@ -54,7 +55,8 @@ export interface RunStep {
      */
     type: string
     origin?: string | null
-    references?: Record<string, {id: string; slug?: string; version?: string} | null> | null
+    /** Shape comes from the validated core schema; do not redeclare it here. */
+    references?: Record<string, EvaluationRunStepReference | null> | null
     inputs?: {key: string}[] | null
 }
 
@@ -108,7 +110,7 @@ export interface ColumnGroup {
     /** Stable cache key for this group — useful for grouping in renderers. */
     key: string
     /** The step.references that drove the grouping (preserved for downstream code). */
-    refs: Record<string, {id?: string; slug?: string} | null | undefined> | null
+    refs: Record<string, EvaluationRunStepReference | null | undefined> | null
 }
 
 export interface ResolvedColumn {

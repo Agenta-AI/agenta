@@ -26,6 +26,7 @@ class Mount(Identifier, Slug, Header, Lifecycle):
     project_id: UUID
     session_id: Optional[str] = None
     agent_id: Optional[str] = None
+    purpose: Optional[str] = None
     #
     data: MountData = Field(default_factory=MountData)
     #
@@ -37,6 +38,7 @@ class Mount(Identifier, Slug, Header, Lifecycle):
 class MountCreate(Slug, Header):
     session_id: Optional[str] = None
     agent_id: Optional[str] = None
+    purpose: Optional[str] = None
     #
     flags: MountFlags = Field(default_factory=MountFlags)
     tags: Optional[Dict[str, Any]] = None

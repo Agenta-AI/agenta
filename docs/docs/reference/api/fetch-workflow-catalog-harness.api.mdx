@@ -1,0 +1,73 @@
+---
+id: fetch-workflow-catalog-harness
+title: "Fetch Workflow Catalog Harness"
+description: "Return a single harness record (with its `capabilities`)."
+sidebar_label: "Fetch Workflow Catalog Harness"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVVktv4zYQ/ivEXJoAiu0NctKpRnbbBNtHkKTtwWvEY2kkcZcmuSSVxBX034vRy7K9cYu99SSJ8+DH+b4ZqoKAuYd4AX8Z9yVT5sXDMoKUfOKkDdJoiOGeQum0QOGlzhWJAp0m74WjxLhUnL3IUAgZvFglaHEtlQyS/Op88kl/0m2wF1ezK/FSkBahILHC/KnLshLSC22CsOiCMFlj94W0llKRYEBl8ibRA1EsFgPM5dnUUUaOdEJTtPIiL2VK05fefj6BCIwlh3yK2xRiyCgkxVPv8dQl74FABBYdbiiQ44pUoHFDEAOOXSQXxGIoIAJHX0vpKIU4uJIi8ElBG4S4grC1HOmDkzqHCIIMihfmubjpUtX1kjN4a7Qnz0GXsxk/9mv/UCYJeZ+VStx3zhBBYnQgHdgdrVUyaQ45/ew5phoBsY5LwHTwV2LKNqjDJ3WgnNwI4HXjcSiA1btVyx0eci/5jQmmNBKrWefGdGam1OmkSZVhqQLEszqCvpAMXG9/z5o674Nsqz6271ezjoYVXSoFXMce/m8cWx/A/75U70cp6gi+0PYUsR9py15j/e9vjGkqORequ9FpW910Sc36MyXhJKjrcf66PgwdS3LRQB7F9p1z3cp+0OE3tttnf35I+tB3qVhvBYpAG6sw0A9+8MwkqVQ8SxSr1wvML7r1C0fZavJN5KdhDtqvaw6+urw8bpU/Ucm0aQTxwTnjvr9PUgooFb/JQBt/7KBMsmf9DwLre61e7g6PzuF2dPZfTAuQpbTx+SnB/UreY96IvXV527Uphnhka80DzJbtDOjMt80Cize8jtIcEXPNtXwN/yo7rk0Lv/MbaXBHUcvQ26V431JwSik3j493RwlbfWwoFIZHfk6hmeuhgBh2l8O0m/3TTpfkp9VuzNcQgSf33N8DpVMcjVY2hLafRQjWx9MplZNEmTKdYE464ARl67jkHEnpZNg2SeZ3tx9pe0OYkoN4sRw7PLAOW2Xtuw1soJU8YqL+TpqXoTBO/t3KpbuWijaqbljOzJjkeQNOzO9uj4b7nokbBpOwm8OdGaKDY+9OCxHQpmkXCISbHwcLs8s1bLeZTd5NZrxkjQ8b1KMtfuJ7WfSNL7rOH27Ko3E+dPX/+M+k45U7amoVyqbnmxJXnVwXMEQwMe1+MFyhxKvx6N9kGUFhfODAqlqjpz+cqmte/lqSYxEuI3hGJ3HNklhUkErP7ynEGSpPJ+p8dt81+Ll4C3svVM0qfUZV8hd0F+f4H6oZgEXfB1XnME8SsmEUejSvuWGGvv75wyPU9T/hK7dA
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Workflow Catalog Harness"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/workflows/catalog/harnesses/{ag_harness}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Return a single harness record (with its `capabilities`).
+
+Returns 404 when the `ag_harness` is not part of the shipped catalog.
+
+See: [Workflows](/reference/api-guide/workflows).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./fetch-workflow-catalog-harness.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-workflow-catalog-harness.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-workflow-catalog-harness.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

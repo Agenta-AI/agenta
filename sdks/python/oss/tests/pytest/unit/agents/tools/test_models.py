@@ -250,12 +250,12 @@ def test_legacy_permission_fields_are_ignored_on_specs():
     assert "needsApproval" not in spec.to_wire()
 
 
-def test_builtin_tool_permission_is_dropped_not_enforced():
-    # Builtins are granted by selection; a per-builtin permission has no enforcement
-    # point on Pi, so the config drops it (with a warning) instead of lying.
+def test_legacy_builtin_entry_still_parses_with_its_permission_field():
+    # Dual-read: a revision written before the rework must still validate. The resolver
+    # ignores the whole entry, so the permission field is inert rather than dropped here.
     from agenta.sdk.agents.tools.models import BuiltinToolConfig
 
     config = BuiltinToolConfig.model_validate(
         {"type": "builtin", "name": "bash", "permission": "deny"}
     )
-    assert config.permission is None
+    assert config.name == "bash"

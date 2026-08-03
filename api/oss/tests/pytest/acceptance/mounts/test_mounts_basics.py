@@ -4,7 +4,11 @@ Covers: create, fetch, query (by session_id), edit, archive/unarchive, and
 path-injection rejection. Requires a running API (OSS or EE).
 """
 
+import io
+import zipfile
 from uuid import uuid4
+
+from oss.tests.pytest.utils.mounts import skip_if_mount_storage_unavailable
 
 
 def _mount_payload(*, name=None, session_id=None):
@@ -231,8 +235,8 @@ class TestSessionsMountsQuery:
 # File ops (durable store contents)
 #
 # Require a configured object store (AGENTA_STORE_* → SeaweedFS in the dev
-# stack). A 503 means the backend isn't configured in this env — skip rather
-# than fail so the suite stays green where no store is wired.
+# stack). Environments that require mount storage fail on a 503; other
+# environments skip these checks.
 # ---------------------------------------------------------------------------
 
 
@@ -243,11 +247,13 @@ def _create_mount(authed_api):
     return resp.json()["mount"]["id"]
 
 
-def _skip_if_no_store(resp):
-    import pytest
-
-    if resp.status_code == 503:
-        pytest.skip("Mount storage backend not configured in this environment")
+def _write_file(authed_api, mount_id, path, content=b"x"):
+    resp = authed_api(
+        "PUT", f"/mounts/{mount_id}/files", params={"path": path}, data=content
+    )
+    skip_if_mount_storage_unavailable(resp)
+    assert resp.status_code == 200, resp.text
+    return resp
 
 
 class TestMountFileOps:
@@ -260,7 +266,7 @@ class TestMountFileOps:
             params={"path": "notes.txt"},
             data=b"hello world",
         )
-        _skip_if_no_store(write)
+        skip_if_mount_storage_unavailable(write)
         assert write.status_code == 200, write.text
         assert write.json()["path"] == "notes.txt"
 
@@ -291,7 +297,7 @@ class TestMountFileOps:
         folder = authed_api(
             "POST", f"/mounts/{mount_id}/files/folder", params={"path": "workspace"}
         )
-        _skip_if_no_store(folder)
+        skip_if_mount_storage_unavailable(folder)
         assert folder.status_code == 200, folder.text
         assert folder.json()["path"] == "workspace"
 
@@ -342,7 +348,7 @@ class TestMountFileOps:
             f"/mounts/{mount_id}/files/upload",
             files={"file": ("report.txt", b"content", "text/plain")},
         )
-        _skip_if_no_store(upload)
+        skip_if_mount_storage_unavailable(upload)
         assert upload.status_code == 200, upload.text
         assert upload.json()["path"] == "report.txt"
 
@@ -384,3 +390,185 @@ class TestMountFileOps:
         fake_id = str(uuid4())
         resp = authed_api("GET", f"/mounts/{fake_id}/files")
         assert resp.status_code == 404, resp.text
+
+
+# ---------------------------------------------------------------------------
+# Shallow (depth=1) listing
+#
+# GET /mounts/{id}/files?depth=1[&with_counts&git_aware&include_gitignored] is the
+# lazy per-directory summary the drive drawer loads on open (#5400) — one delimiter
+# level, not the whole tree. Previously covered only by unit tests against the fake
+# store; no acceptance test exercised it against the real API + object store.
+# ---------------------------------------------------------------------------
+
+
+class TestMountShallowListing:
+    def test_shallow_listing_returns_top_level_only(self, authed_api):
+        mount_id = _create_mount(authed_api)
+        _write_file(authed_api, mount_id, "a.txt")
+        _write_file(authed_api, mount_id, "sub/b.txt")
+
+        resp = authed_api("GET", f"/mounts/{mount_id}/files", params={"depth": 1})
+        assert resp.status_code == 200, resp.text
+        by_path = {f["path"]: f for f in resp.json()["files"]}
+
+        assert by_path["a.txt"]["is_folder"] is False
+        assert by_path["sub"]["is_folder"] is True
+        assert "sub/b.txt" not in by_path
+
+    def test_shallow_listing_with_counts_reports_item_count(self, authed_api):
+        mount_id = _create_mount(authed_api)
+        _write_file(authed_api, mount_id, "dir/one.txt")
+        _write_file(authed_api, mount_id, "dir/two.txt")
+
+        resp = authed_api(
+            "GET",
+            f"/mounts/{mount_id}/files",
+            params={"depth": 1, "with_counts": "true"},
+        )
+        assert resp.status_code == 200, resp.text
+        by_path = {f["path"]: f for f in resp.json()["files"]}
+        assert by_path["dir"]["item_count"] == 2
+
+    def test_shallow_listing_git_aware_prunes_ignored_and_git(self, authed_api):
+        mount_id = _create_mount(authed_api)
+        _write_file(authed_api, mount_id, ".gitignore", b"node_modules/\n")
+        _write_file(authed_api, mount_id, "src/app.py")
+        _write_file(authed_api, mount_id, "node_modules/react/index.js")
+        _write_file(authed_api, mount_id, ".git/HEAD")
+
+        resp = authed_api(
+            "GET",
+            f"/mounts/{mount_id}/files",
+            params={"depth": 1, "git_aware": "true"},
+        )
+        assert resp.status_code == 200, resp.text
+        paths = {f["path"] for f in resp.json()["files"]}
+        assert paths == {".gitignore", "src"}
+
+    def test_shallow_listing_include_gitignored_reveals_ignored_but_hides_git(
+        self, authed_api
+    ):
+        mount_id = _create_mount(authed_api)
+        _write_file(authed_api, mount_id, ".gitignore", b"node_modules/\n")
+        _write_file(authed_api, mount_id, "src/app.py")
+        _write_file(authed_api, mount_id, "node_modules/react/index.js")
+        _write_file(authed_api, mount_id, ".git/HEAD")
+
+        resp = authed_api(
+            "GET",
+            f"/mounts/{mount_id}/files",
+            params={"depth": 1, "git_aware": "true", "include_gitignored": "true"},
+        )
+        assert resp.status_code == 200, resp.text
+        paths = {f["path"] for f in resp.json()["files"]}
+        assert paths == {".gitignore", "src", "node_modules"}
+
+    def test_shallow_listing_depth_two_rejected(self, authed_api):
+        # depth=1 is the only implemented shallow view; anything else must 422 loudly
+        # rather than silently falling through to the most expensive full-tree branch.
+        # No mount needs to exist: Query validation runs before the handler body.
+        fake_id = str(uuid4())
+        resp = authed_api("GET", f"/mounts/{fake_id}/files", params={"depth": 2})
+        assert resp.status_code == 422, resp.text
+
+
+# ---------------------------------------------------------------------------
+# Download-all archive (POST /mounts/files/export)
+#
+# Streams a zip across one or more mounts (#5400), renamed from /files/archive in
+# #5412 to stop colliding with this router's own archive/unarchive lifecycle verb.
+# Previously untested at any layer beyond the work-list-building unit tests.
+# ---------------------------------------------------------------------------
+
+
+class TestMountArchiveExport:
+    def test_export_single_mount_returns_valid_zip(self, authed_api):
+        mount_id = _create_mount(authed_api)
+        _write_file(authed_api, mount_id, "a.txt", b"alpha")
+        _write_file(authed_api, mount_id, "b.txt", b"beta")
+
+        resp = authed_api(
+            "POST",
+            "/mounts/files/export",
+            json={"mounts": [{"mount_id": mount_id, "prefix": "", "path": ""}]},
+        )
+        assert resp.status_code == 200, resp.text
+        assert "zip" in resp.headers.get("content-type", "")
+
+        with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+            assert set(zf.namelist()) == {"a.txt", "b.txt"}
+            assert zf.read("a.txt") == b"alpha"
+            assert zf.read("b.txt") == b"beta"
+
+    def test_export_applies_prefix_folding(self, authed_api):
+        # The folded drive layout: cwd + agent-files land under their own prefix in
+        # the zip so "download all" reproduces the drive's tree, not a flat dump.
+        mount_id = _create_mount(authed_api)
+        _write_file(authed_api, mount_id, "a.txt", b"alpha")
+
+        resp = authed_api(
+            "POST",
+            "/mounts/files/export",
+            json={"mounts": [{"mount_id": mount_id, "prefix": "cwd", "path": ""}]},
+        )
+        assert resp.status_code == 200, resp.text
+
+        with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+            assert zf.namelist() == ["cwd/a.txt"]
+
+    def test_export_scopes_to_source_path(self, authed_api):
+        mount_id = _create_mount(authed_api)
+        _write_file(authed_api, mount_id, "workspace/a.txt", b"in")
+        _write_file(authed_api, mount_id, "outside.txt", b"out")
+
+        resp = authed_api(
+            "POST",
+            "/mounts/files/export",
+            json={
+                "mounts": [{"mount_id": mount_id, "prefix": "", "path": "workspace"}]
+            },
+        )
+        assert resp.status_code == 200, resp.text
+
+        with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+            assert zf.namelist() == ["workspace/a.txt"]
+
+    def test_export_missing_mount_returns_404(self, authed_api):
+        # Pins #5411: mounts are resolved EAGERLY, before the response starts
+        # streaming, so a missing mount is a real 404 — never a 200 with a broken zip.
+        fake_id = str(uuid4())
+
+        resp = authed_api(
+            "POST",
+            "/mounts/files/export",
+            json={"mounts": [{"mount_id": fake_id, "prefix": "", "path": ""}]},
+        )
+        assert resp.status_code == 404, resp.text
+
+    def test_export_path_traversal_in_request_returns_422(self, authed_api):
+        # source_path is validated before the mount is even resolved, so a fake
+        # mount_id is enough to isolate the check.
+        fake_id = str(uuid4())
+
+        resp = authed_api(
+            "POST",
+            "/mounts/files/export",
+            json={"mounts": [{"mount_id": fake_id, "prefix": "", "path": "../evil"}]},
+        )
+        assert resp.status_code == 422, resp.text
+
+    def test_export_filename_reflected_in_content_disposition(self, authed_api):
+        mount_id = _create_mount(authed_api)
+        _write_file(authed_api, mount_id, "a.txt", b"alpha")
+
+        resp = authed_api(
+            "POST",
+            "/mounts/files/export",
+            json={
+                "mounts": [{"mount_id": mount_id, "prefix": "", "path": ""}],
+                "filename": "custom.zip",
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        assert "custom.zip" in resp.headers.get("content-disposition", "")

@@ -12,17 +12,23 @@ SeaweedFS coverage lands in the acceptance suite against the docker-compose
 stack.
 """
 
+import io
+import zipfile
 from typing import List, Tuple
 from uuid import UUID, uuid4
 
 import pytest
 
-from oss.src.apis.fastapi.mounts.utils import _content_disposition_attachment
+from oss.src.apis.fastapi.mounts.utils import (
+    _content_disposition_attachment,
+    stream_mounts_archive,
+)
 from oss.src.core.mounts import service as mounts_service_module
 from oss.src.core.mounts.dtos import Mount, MountArchiveSource, MountFile
 from oss.src.core.mounts.service import (
     MountsService,
     _rollup_recent_entries,
+    mint_session_slug,
     validate_file_path,
 )
 from oss.src.core.store.dtos import StoreObject
@@ -195,11 +201,17 @@ class FakeMountStorage:
     def __init__(self):
         # {bucket: {key: bytes}}
         self._store: dict[str, dict[str, bytes]] = {}
+        # {bucket: {key: epoch-ms}}; opt-in, only set where a test needs a realistic mtime.
+        self._mtimes: dict[str, dict[str, int]] = {}
+
+    def set_mtime(self, bucket: str, key: str, mtime: int) -> None:
+        self._mtimes.setdefault(bucket, {})[key] = mtime
 
     async def list_objects_v2(self, *, bucket: str, prefix: str) -> List[StoreObject]:
         b = self._store.get(bucket, {})
+        m = self._mtimes.get(bucket, {})
         return [
-            StoreObject(key=k, size=len(v))
+            StoreObject(key=k, size=len(v), mtime=m.get(k))
             for k, v in b.items()
             if k.startswith(prefix)
         ]
@@ -257,6 +269,7 @@ class FakeMountStorage:
         for k in keys:
             if k in b:
                 del b[k]
+                self._mtimes.get(bucket, {}).pop(k, None)
                 n += 1
         return n
 
@@ -276,16 +289,41 @@ class _StubDAO:
         return self._mount
 
 
+class _MultiMountDAO:
+    """Resolves several mounts by id — an archive folds the cwd and agent mounts into one zip."""
+
+    def __init__(self, *mounts: Mount):
+        self._by_id = {mount.id: mount for mount in mounts}
+
+    async def fetch_mount(self, *, project_id, mount_id):
+        return self._by_id.get(mount_id)
+
+
 class _MissingMountDAO:
     async def fetch_mount(self, *, project_id, mount_id):
         return None
 
 
-def _make_mount() -> Mount:
+_PROJECT_ID = UUID("00000000-0000-0000-0000-0000000000a9")
+
+
+def _make_mount(project_id: UUID = _PROJECT_ID) -> Mount:
     return Mount(
         id=uuid4(),
-        project_id=uuid4(),
+        project_id=project_id,
         slug="m",
+    )
+
+
+def _make_cwd_mount(project_id: UUID = _PROJECT_ID) -> Mount:
+    """The session's durable working directory — where the runner links `agent-files` in."""
+    session_id = str(uuid4())
+    return Mount(
+        id=uuid4(),
+        project_id=project_id,
+        session_id=session_id,
+        slug=mint_session_slug(session_id=session_id, name="cwd"),
+        name="cwd",
     )
 
 
@@ -375,6 +413,169 @@ class TestArchiveZipSlip:
 
         zip_paths = [zip_path for zip_path, *_rest in work]
         assert zip_paths == ["a/report.txt"]
+
+
+@pytest.mark.asyncio
+class TestArchiveZipNamespace:
+    """One zip namespace across sources: a FILE member may not shadow a DIRECTORY, and a path may
+    not appear twice. The store allows both; extraction does not."""
+
+    async def _work(self, sources, contents):
+        # `contents`: [(mount, {rel_path: bytes})]; `sources`: the archive request, in order.
+        storage = FakeMountStorage()
+        service = MountsService(
+            mounts_dao=_MultiMountDAO(*(mount for mount, _files in contents)),
+            mounts_store=storage,
+            bucket=_BUCKET,
+        )
+        bucket_store = storage._store.setdefault(_BUCKET, {})
+        for mount, files in contents:
+            base = service._storage_key(project_id=_PROJECT_ID, mount=mount)
+            for rel, body in files.items():
+                bucket_store[f"{base}{rel}"] = body
+
+        return await service.build_archive_work_list(
+            project_id=_PROJECT_ID,
+            mounts=sources,
+        )
+
+    async def test_degraded_agent_files_link_does_not_block_the_folded_mount(self):
+        # The real "download all" shape (#5482): the cwd source carries the runner's `agent-files`
+        # link — which geesefs degraded into a plain 0-byte object — while the agent source folds its
+        # content in under the same name. The link must not ship; the agent's files must.
+        cwd, agent = _make_cwd_mount(), _make_mount()
+
+        work = await self._work(
+            sources=[
+                MountArchiveSource(mount_id=cwd.id),
+                MountArchiveSource(mount_id=agent.id, archive_prefix="agent-files"),
+            ],
+            contents=[
+                (cwd, {"notes.md": b"notes", "agent-files": b""}),
+                (agent, {"plan.md": b"plan", "sub/deep.md": b"deep"}),
+            ],
+        )
+
+        assert {zip_path for zip_path, *_rest in work} == {
+            "notes.md",
+            "agent-files/plan.md",
+            "agent-files/sub/deep.md",
+        }
+
+    async def test_degraded_link_is_dropped_even_with_an_empty_agent_mount(self):
+        # Nothing collides here, so only the reserved-at-the-cwd-root rule can drop the link. It
+        # still must: it is a runner artifact the drive hides, not a file the user put there.
+        cwd, agent = _make_cwd_mount(), _make_mount()
+
+        work = await self._work(
+            sources=[
+                MountArchiveSource(mount_id=cwd.id),
+                MountArchiveSource(mount_id=agent.id, archive_prefix="agent-files"),
+            ],
+            contents=[(cwd, {"notes.md": b"notes", "agent-files": b""}), (agent, {})],
+        )
+
+        assert {zip_path for zip_path, *_rest in work} == {"notes.md"}
+
+    async def test_agent_files_is_not_a_reserved_name_outside_the_cwd_root(self):
+        # The runner only clobbers `agent-files` at the CWD ROOT. A real file of that name anywhere
+        # else is user content and must survive — including at the root of the agent mount itself,
+        # which the drive presents as `agent-files/agent-files`.
+        cwd, agent = _make_cwd_mount(), _make_mount()
+
+        work = await self._work(
+            sources=[
+                MountArchiveSource(mount_id=cwd.id),
+                MountArchiveSource(mount_id=agent.id, archive_prefix="agent-files"),
+            ],
+            contents=[
+                (cwd, {"docs/agent-files": b"about the agent files"}),
+                (agent, {"agent-files": b"a real file"}),
+            ],
+        )
+
+        assert {zip_path for zip_path, *_rest in work} == {
+            "docs/agent-files",
+            "agent-files/agent-files",
+        }
+
+    async def test_file_shadowing_a_directory_is_dropped_whatever_its_name(self):
+        # Nothing here is agent-files-specific: the store holds `report` and `report/q1.csv` side by
+        # side, but a zip cannot — the file would block the directory on extraction.
+        mount = _make_mount()
+
+        work = await self._work(
+            sources=[MountArchiveSource(mount_id=mount.id)],
+            contents=[(mount, {"report": b"stale", "report/q1.csv": b"rows"})],
+        )
+
+        assert {zip_path for zip_path, *_rest in work} == {"report/q1.csv"}
+
+    async def test_duplicate_zip_path_keeps_the_first_source(self):
+        # Two sources landing on one path would write the member twice; extractors silently keep the
+        # last. Ship the first and drop the rest so the zip stays deterministic.
+        first, second = _make_mount(), _make_mount()
+
+        work = await self._work(
+            sources=[
+                MountArchiveSource(mount_id=first.id),
+                MountArchiveSource(mount_id=second.id),
+            ],
+            contents=[
+                (first, {"notes.md": b"first"}),
+                (second, {"notes.md": b"second"}),
+            ],
+        )
+
+        assert len(work) == 1
+        assert work[0][1].startswith(f"mounts/{_PROJECT_ID}/{first.id}/"), (
+            "the first source's key must win"
+        )
+
+
+@pytest.mark.asyncio
+class TestArchiveMtimeRegression:
+    async def test_export_survives_epoch_millisecond_mtime(self):
+        # Pins the bug fixed in #5400/#5411: StoreObject.mtime is epoch MILLISECONDS, but
+        # stream_mounts_archive builds a zip member's `datetime` from it. Without dividing by
+        # 1000 first, a realistic ms-scale value overflows datetime.fromtimestamp mid-stream —
+        # AFTER the 200 response headers are already on the wire — truncating the download to a
+        # broken/empty zip while the client still sees a success status.
+        mount = _make_mount()
+        storage = FakeMountStorage()
+        service = MountsService(
+            mounts_dao=_StubDAO(mount),
+            mounts_store=storage,
+            bucket=_BUCKET,
+        )
+        pid, mid = mount.project_id, mount.id
+
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="report.txt", content=b"hello world"
+        )
+        key = f"mounts/{pid}/{mid}/report.txt"
+        storage.set_mtime(
+            _BUCKET, key, 1_700_000_000_000
+        )  # realistic epoch-ms LastModified
+
+        response = await stream_mounts_archive(
+            mounts_service=service,
+            project_id=pid,
+            mounts=[MountArchiveSource(mount_id=mid)],
+        )
+
+        zip_bytes = b"".join(
+            [chunk async for chunk in response.body_iterator]  # type: ignore[union-attr]
+        )
+
+        assert len(zip_bytes) > 0
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+            assert zf.namelist() == ["report.txt"]
+            # Not just "didn't crash" — the member's timestamp must be the CONVERTED value
+            # (1_700_000_000_000 ms -> 2023-11-14 22:13:20 UTC), so a regression that silently
+            # falls back to datetime.now() instead of the real mtime still fails this test.
+            assert zf.getinfo("report.txt").date_time == (2023, 11, 14, 22, 13, 20)
+            assert zf.read("report.txt") == b"hello world"
 
 
 # ---------------------------------------------------------------------------

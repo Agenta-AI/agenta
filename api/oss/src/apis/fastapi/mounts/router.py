@@ -2,7 +2,16 @@ from functools import wraps
 from typing import Literal, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
+from fastapi.responses import StreamingResponse
 
 from oss.src.utils.exceptions import intercept_exceptions
 
@@ -10,7 +19,7 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
-from oss.src.core.mounts.dtos import MountArchiveSource
+from oss.src.core.mounts.dtos import MountArchiveSource, MountCreate
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.mounts.types import (
     MountArtifactIdInvalid,
@@ -20,6 +29,7 @@ from oss.src.core.mounts.types import (
     MountImmutableField,
     MountNameInvalid,
     MountNotFound,
+    MountProtected,
     MountPathInvalid,
     MountSlugConflict,
     MountSlugReserved,
@@ -42,6 +52,8 @@ from oss.src.apis.fastapi.mounts.models import (
     MountsResponse,
 )
 from oss.src.apis.fastapi.mounts.utils import (
+    BINARY_RESPONSE,
+    ZIP_RESPONSE,
     download_mount_file,
     merge_mount_query,
     sign_mount_credentials,
@@ -100,6 +112,11 @@ def handle_mount_exceptions():
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=e.message,
+                ) from e
+            except MountProtected as e:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=MountNotFound().message,
                 ) from e
             except MountNotFound as e:
                 raise HTTPException(
@@ -200,6 +217,8 @@ class MountsRouter:
             methods=["POST"],
             operation_id="export_mount_files",
             response_model=None,
+            response_class=StreamingResponse,
+            responses=ZIP_RESPONSE,
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
@@ -247,6 +266,8 @@ class MountsRouter:
             methods=["GET"],
             operation_id="download_mount_file",
             response_model=None,
+            response_class=Response,
+            responses=BINARY_RESPONSE,
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
@@ -299,7 +320,7 @@ class MountsRouter:
             project_id=UUID(request.state.project_id),
             user_id=UUID(str(request.state.user_id)),
             #
-            mount_create=body.mount,
+            mount_create=MountCreate(**body.mount.model_dump()),
         )
 
         return MountResponse(count=1, mount=mount)
@@ -420,6 +441,7 @@ class MountsRouter:
         return MountResponse(count=1, mount=mount)
 
     @intercept_exceptions()
+    @handle_mount_exceptions()
     async def archive_mount(
         self,
         request: Request,
@@ -442,6 +464,7 @@ class MountsRouter:
         return MountResponse(count=1, mount=mount)
 
     @intercept_exceptions()
+    @handle_mount_exceptions()
     async def unarchive_mount(
         self,
         request: Request,

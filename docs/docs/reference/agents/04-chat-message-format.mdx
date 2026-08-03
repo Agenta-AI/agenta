@@ -1,0 +1,212 @@
+---
+title: "Chat message format"
+sidebar_label: "Chat message format"
+description: "Message roles, content blocks, tool calls, and the streamed frame types an Agenta agent produces."
+---
+
+Messages travel in and out of an agent at `data.inputs.messages` and `data.outputs.messages`. Two wire representations exist, selected by a request header.
+
+| `x-ag-messages-format` | Representation |
+|---|---|
+| absent, or `agenta` | Agenta messages and Agenta event frames |
+| `vercel` | Vercel AI SDK `UIMessage` objects and UI Message Stream parts |
+
+The header is independent of `Accept`, which selects the transport. See [Invoke an agent](/reference/agents/invoke-an-agent).
+
+## Agenta message
+
+The agent runtime reads two fields from every inbound message.
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `role` | string | Yes | | The message author. A message with no `role` is dropped. |
+| `content` | string or array of content blocks | No | `""` | The message body. A bare string is treated as a single `text` block. |
+
+```json
+{"role": "user", "content": "Summarize the release notes for 0.106."}
+```
+
+The agent workflow's inputs schema declares `messages` as the `messages` catalog type, whose roles are `developer`, `system`, `user`, `assistant`, `tool`, and `function`. Fetch it with `GET /api/workflows/catalog/types/messages`.
+
+### Content blocks
+
+A content block is an object with a `type` and the fields that type uses. Keys are camelCase on the wire; the parser also accepts the snake_case spellings.
+
+| Field | Type | Used by | Description |
+|---|---|---|---|
+| `type` | string | all | `text`, `image`, `resource`, `tool_call`, or `tool_result`. |
+| `text` | string | `text` | The text. |
+| `data` | string | `image`, `resource` | Base64 payload. |
+| `mimeType` | string | `image`, `resource` | Media type. |
+| `uri` | string | `image`, `resource` | Location of the payload. |
+| `toolCallId` | string | `tool_call`, `tool_result` | Ties a call to its result. |
+| `toolName` | string | `tool_call`, `tool_result` | The tool's name. |
+| `input` | any | `tool_call` | The arguments the model produced. |
+| `output` | any | `tool_result` | What the tool returned. |
+| `isError` | boolean | `tool_result` | `true` when the call failed. |
+
+Unset fields are omitted rather than sent as `null`.
+
+```json
+{
+  "role": "assistant",
+  "content": [
+    {"type": "tool_call", "toolCallId": "call_019d952f", "toolName": "bash", "input": {"command": "ls docs"}},
+    {"type": "tool_result", "toolCallId": "call_019d952f", "toolName": "bash", "output": "index.md\n", "isError": false}
+  ]
+}
+```
+
+A `tool_call` block followed by its `tool_result` block is how a completed tool turn is replayed on a later turn, so the model resumes from the result instead of calling the tool again.
+
+## Vercel UIMessage
+
+With `x-ag-messages-format: vercel`, inbound messages are Vercel AI SDK `UIMessage` objects.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | No | Message id. When the last message is an `assistant` message, its `id` is reused as the reply's `messageId`. |
+| `role` | string | Yes | The message author. |
+| `parts` | array | Yes | The message body. A message with no `parts` falls back to the Agenta message shape. |
+
+Agenta converts each part to content blocks before the run:
+
+| Inbound part `type` | Becomes |
+|---|---|
+| `text` | a `text` block |
+| `file` | an `image` block when `mediaType` starts with `image/`, otherwise a `resource` block |
+| `tool-<name>`, `dynamic-tool` | a `tool_call` block, plus a `tool_result` block when the part carries `output`, `errorText`, or an approval decision |
+| `tool-output-available`, `tool-output-error`, `tool-output-denied` | a `tool_result` block |
+| `tool-approval-response` | a `tool_result` block keyed by `toolCallId` |
+| `tool-approval-request` | dropped |
+| anything else, including `reasoning` | dropped |
+
+A tool part's `state` decides the result block:
+
+| `state` | Result |
+|---|---|
+| `output-available` | `tool_result` with `output`, `isError: false` |
+| `output-error` | `tool_result` with `output` set to `errorText`, `isError: true` |
+| `output-denied` | `tool_result` carrying `{"approved": false}` |
+| `approval-responded` | `tool_result` carrying `{"approved": <bool>}` and, when present, `interactionToken` |
+| `input-available` | `tool_call` only, no result |
+
+## Answering an approval
+
+When a tool call needs approval the turn ends and the stream carries a `tool-approval-request` frame. To resume, send the paused assistant message back with the decision recorded inline on the gated tool part.
+
+```json
+{
+  "id": "019d952f-0000-0000-0000-000000000000",
+  "role": "assistant",
+  "parts": [
+    {
+      "type": "tool-bash",
+      "toolCallId": "call_019d952f",
+      "input": {"command": "rm -rf build"},
+      "state": "approval-responded",
+      "approval": {"id": "019d952f-0000-0000-0000-000000000001", "approved": true}
+    }
+  ]
+}
+```
+
+Replay every part of the paused message, not only the gated one. The runner fingerprints the ordered tool-call ids in the history; a missing id evicts the warm session and the next turn starts cold.
+
+## Batch response messages
+
+With `Accept: application/json`, `data.outputs.messages` is the folded turn. Every message carries a `role` and a `content`.
+
+| Produced by | Shape |
+|---|---|
+| assistant text | `{"role": "assistant", "content": "<text>"}` |
+| a tool call | `{"role": "tool", "content": "", "tool_call_id": "...", "tool_name": "...", "input": {...}}` |
+| a tool result | `{"role": "tool", "content": "<output>", "tool_call_id": "...", "is_error": false}` |
+
+Reasoning, usage, file, and data events produce no message.
+
+`data.outputs` also carries `stop_reason` when the turn produced one, and `pending_interaction` when `stop_reason` is `paused`.
+
+With `x-ag-messages-format: vercel`, the same message list is projected into `UIMessage` objects before the response is returned.
+
+## Streamed frames: Agenta format
+
+With `Accept: text/event-stream` and no `x-ag-messages-format`, each frame is one SSE `data:` line holding `{"type": ..., "data": {...}}`. There is no terminating sentinel.
+
+```
+data: {"type": "message_delta", "data": {"id": "m1", "delta": "Here are "}}
+
+data: {"type": "done", "data": {"stopReason": "end_turn"}}
+
+```
+
+With `Accept: application/x-ndjson` or `application/jsonl` the same objects are newline-delimited JSON instead.
+
+| `type` | `data` fields |
+|---|---|
+| `message` | `text` |
+| `message_start` | `id` |
+| `message_delta` | `id`, `delta` |
+| `message_end` | `id` |
+| `thought` | `text` |
+| `thought_start` | `id` |
+| `thought_delta` | `id`, `delta` |
+| `thought_end` | `id` |
+| `tool_call` | `id`, `name`, `input`, `rawInput`, `render` |
+| `tool_result` | `id`, `output`, `data`, `isError`, `denied`, `render` |
+| `interaction_request` | `id`, `kind` (`user_approval`, `user_input`, or `client_tool`), `payload` |
+| `interaction_response` | `id`, `kind`, `payload` |
+| `data` | `name`, `data`, `transient` |
+| `file` | `url`, `mediaType` |
+| `usage` | `input`, `output`, `total`, `cost` |
+| `error` | `message` |
+| `done` | `stopReason`, `traceId` |
+
+A `tool_call` may be emitted more than once for the same `id`. The first carries the announcement; a later one refreshes the arguments. Prefer `rawInput` over `input` when it is present.
+
+## Streamed frames: Vercel format
+
+With `Accept: text/event-stream` and `x-ag-messages-format: vercel`, each frame is one SSE `data:` line holding a UI Message Stream part, and the stream ends with `data: [DONE]`. Lines starting with `:` are keepalive comments and carry no data.
+
+Response headers on this path include `x-vercel-ai-ui-message-stream: v1`, `x-ag-messages-format: vercel`, and `x-ag-messages-version: v1`.
+
+| Part `type` | Fields |
+|---|---|
+| `start` | `messageId`, `messageMetadata.sessionId` |
+| `start-step` | |
+| `text-start` / `text-delta` / `text-end` | `id`; `delta` on the delta part |
+| `reasoning-start` / `reasoning-delta` / `reasoning-end` | `id`; `delta` on the delta part |
+| `tool-input-start` | `toolCallId`, `toolName` |
+| `tool-input-available` | `toolCallId`, `toolName`, `input` |
+| `tool-output-available` | `toolCallId`, `output` |
+| `tool-output-error` | `toolCallId`, `errorText` |
+| `tool-output-denied` | `toolCallId` |
+| `tool-approval-request` | `approvalId`, `toolCallId` |
+| `data-input-request` | `id`, `data` |
+| `data-interaction` | `id`, `data.kind`, `data.payload` |
+| `data-render` | `data.toolCallId`, `data.render` |
+| `data-committed-revision` | `data.variantId`, `data.revisionId`, `data.version` |
+| `data-<name>` | `data`, `transient` |
+| `file` | `url`, `mediaType` |
+| `error` | `errorText` |
+| `finish-step` | |
+| `finish` | `finishReason`, `messageMetadata.usage`, `messageMetadata.traceId` |
+
+A turn always opens with `start` and `start-step` and always closes with `finish-step` and `finish`, including when it fails. A turn that produced no content parts emits an `error` part reading `The agent produced no output.`
+
+`tool-input-available` is emitted more than once for one tool call while its arguments stream in, and `toolName` can change case between frames. Only the last frame for a given `toolCallId` holds the final arguments.
+
+### finishReason
+
+The model's raw stop reason is mapped onto the AI SDK set before it is sent.
+
+| Raw stop reason | `finishReason` |
+|---|---|
+| `end_turn`, `stop_sequence` | `stop` |
+| `max_tokens` | `length` |
+| `tool_use`, `tool_calls`, `function_call` | `tool-calls` |
+| `refusal`, `content_filter` | `content-filter` |
+| `paused`, `cancelled` | `other` |
+| anything else | `unknown` |
+
+Values already in the set (`stop`, `length`, `content-filter`, `tool-calls`, `error`, `other`, `unknown`) pass through unchanged. A turn paused for an approval finishes with `other`.
