@@ -188,19 +188,24 @@ function AntdNoProperties({label}: {label: string}) {
 /** Pre-migration collapsible toggle, verbatim (antd Tooltip + `Button type="text"`). */
 function AntdCollapsibleToggle({label}: {label: string}) {
     const [isCollapsed, setIsCollapsed] = useState(true)
+    // Same outer wrapper CollapsibleObjectControl renders, so the two crops are the
+    // same box (without it the antd cell is the bare 89px button and the agenta cell the
+    // full-width wrapper — a meaningless pair).
     return (
-        <AntTooltip title="Model settings applied to every run." placement="right">
-            <AntButton
-                type="text"
-                className="flex items-center gap-1.5 px-0 h-auto"
-                onClick={() => setIsCollapsed((v) => !v)}
-            >
-                <span className="text-[var(--ag-rgba-051729-45)] flex items-center">
-                    {isCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
-                </span>
-                <Typography.Text className="text-sm font-medium">{label}</Typography.Text>
-            </AntButton>
-        </AntTooltip>
+        <div className={clsx("flex flex-col gap-2")}>
+            <AntTooltip title="Model settings applied to every run." placement="right">
+                <AntButton
+                    type="text"
+                    className="flex items-center gap-1.5 px-0 h-auto"
+                    onClick={() => setIsCollapsed((v) => !v)}
+                >
+                    <span className="text-[var(--ag-rgba-051729-45)] flex items-center">
+                        {isCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
+                    </span>
+                    <Typography.Text className="text-sm font-medium">{label}</Typography.Text>
+                </AntButton>
+            </AntTooltip>
+        </div>
     )
 }
 

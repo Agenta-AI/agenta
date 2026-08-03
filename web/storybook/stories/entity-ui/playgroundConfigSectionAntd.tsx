@@ -46,8 +46,14 @@ export const AntdAdvancedConfigFields = memo(function AntdAdvancedConfigFields({
 }) {
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(defaultOpen)
     const rootRef = useRef<HTMLDivElement>(null)
+    const didMountRef = useRef(false)
 
     useEffect(() => {
+        // Mirrors the migrated component: no scroll for an open-at-mount instance.
+        if (!didMountRef.current) {
+            didMountRef.current = true
+            return
+        }
         if (!isAdvancedOpen) return
         const timeout = window.setTimeout(() => {
             rootRef.current?.scrollIntoView({block: "nearest", behavior: "smooth"})

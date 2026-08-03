@@ -141,6 +141,7 @@ export const AntdVsAgenta: Story = {
         <div className="flex max-w-[1100px] flex-col">
             <Row
                 label="add-message button"
+                expected="accepted deviation (GOTCHAS §Native-element parity): antd wraps a button icon in `span.ant-btn-icon` whose 15.5px inline text box lands the glyph 0.75px ABOVE true centre; we centre the bare svg. Measured identical otherwise — button 89.61x24, gap 8px, svg 14x14, icon dx 8 on both; only dy differs (4.25 antd vs 5.00)."
                 a={
                     <AntButton
                         variant="outlined"
@@ -205,7 +206,7 @@ export const AntdVsAgenta: Story = {
                     <Alert
                         type="info"
                         showIcon
-                        icon={<Info size={14} />}
+                        icon={<Info size={14} className="!size-3.5" />}
                         className="!py-1 !px-2 !rounded-md"
                         message={bannerMessage("font-mono text-[11px] bg-chip px-1 rounded")}
                     />

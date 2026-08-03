@@ -503,7 +503,7 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
             return (
                 <div className={clsx("flex flex-col gap-1", className)}>
                     <span className="text-sm font-medium text-colorText">{displayLabel}</span>
-                    <span className="text-xs text-colorTextSecondary">
+                    <span className="text-xs text-colorTextDescription">
                         Object with{" "}
                         {resolvedSchema?.properties
                             ? Object.keys(resolvedSchema.properties).length
@@ -532,7 +532,7 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
             return (
                 <div className={clsx("flex flex-col gap-1", className)}>
                     <span className="text-sm font-medium text-colorText">{displayLabel}</span>
-                    <span className="text-xs text-colorTextSecondary">
+                    <span className="text-xs text-colorTextDescription">
                         Array with {Array.isArray(value) ? value.length : 0} items (click to expand)
                     </span>
                 </div>

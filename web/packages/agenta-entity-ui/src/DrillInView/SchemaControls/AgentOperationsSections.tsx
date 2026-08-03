@@ -103,7 +103,7 @@ export function AgentOperationsSections({
                 <div className="flex flex-col px-4 pb-3 pt-1">
                     {storage ?? (
                         // Static fallback for surfaces that don't slot the live Files body.
-                        <span className="text-xs text-colorTextSecondary">
+                        <span className="text-xs text-colorTextDescription">
                             The agent&rsquo;s working files — everything it reads and writes during
                             a run. Open a conversation to browse them here; the agent&rsquo;s
                             durable folder appears as a subfolder once agent-level storage lands.

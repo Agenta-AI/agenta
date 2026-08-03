@@ -201,7 +201,7 @@ const AgentaHeader = () => (
         <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
                 <span className="truncate text-sm font-medium">search_docs</span>
-                <Badge variant="cyan" className="shrink-0 text-[11px] font-normal">
+                <Badge variant="cyan" className="shrink-0 text-[11px] font-normal leading-[22.4px]">
                     definition
                 </Badge>
             </div>

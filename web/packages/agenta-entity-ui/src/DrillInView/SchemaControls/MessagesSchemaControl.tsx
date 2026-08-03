@@ -175,7 +175,7 @@ export const MessagesSchemaControl = memo(function MessagesSchemaControl({
         return (
             <div className={clsx("flex flex-col gap-1", className)}>
                 {label && <span className="text-sm font-medium text-colorText">{label}</span>}
-                <span className="text-xs text-colorTextSecondary">No messages</span>
+                <span className="text-xs text-colorTextDescription">No messages</span>
             </div>
         )
     }
@@ -183,7 +183,9 @@ export const MessagesSchemaControl = memo(function MessagesSchemaControl({
     return (
         <div className={clsx("flex flex-col gap-2", className)}>
             {label && <span className="text-sm font-medium text-colorText">{label}</span>}
-            {description && <span className="text-xs text-colorTextSecondary">{description}</span>}
+            {description && (
+                <span className="text-xs text-colorTextDescription">{description}</span>
+            )}
             <ChatMessageList
                 messages={normalizedMessages}
                 onChange={handleChange}

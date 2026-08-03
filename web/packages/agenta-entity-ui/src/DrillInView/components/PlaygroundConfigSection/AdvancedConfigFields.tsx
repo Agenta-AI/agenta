@@ -26,8 +26,14 @@ export const AdvancedConfigFields = memo(function AdvancedConfigFields({
 }: AdvancedConfigFieldsProps) {
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(defaultOpen)
     const rootRef = useRef<HTMLDivElement>(null)
+    const didMountRef = useRef(false)
 
     useEffect(() => {
+        // Scroll only on a user toggle — an open-at-mount instance must not move the page.
+        if (!didMountRef.current) {
+            didMountRef.current = true
+            return
+        }
         if (!isAdvancedOpen) return
 
         const timeout = window.setTimeout(() => {

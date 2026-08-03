@@ -124,8 +124,7 @@ export const GroupedChoiceControl = memo(function GroupedChoiceControl({
         return null
     }
 
-    // Other grouped choices — antd `showSearch` has no Radix Select equivalent, so this is the
-    // Combobox (grouped options; `optionFilterProp="label"` becomes each option's `searchValue`).
+    // Other grouped choices — antd `showSearch` has no Radix Select equivalent, so: Combobox.
     return (
         <Field
             label={label}

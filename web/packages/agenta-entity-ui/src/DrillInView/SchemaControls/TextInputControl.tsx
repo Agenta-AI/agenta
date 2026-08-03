@@ -102,8 +102,7 @@ export const TextInputControl = memo(function TextInputControl({
         [onChange],
     )
 
-    // Field only injects an id when it wraps a SINGLE child; this one also renders the
-    // min/max line, so the label association is wired explicitly.
+    // Field injects an id only into a SINGLE child; this one also renders the min/max line.
     const controlId = useId()
 
     const inputContent = isMultiline ? (
@@ -141,7 +140,7 @@ export const TextInputControl = memo(function TextInputControl({
         >
             {inputContent}
             {(maxLength || minLength) && (
-                <span className="text-xs text-colorTextSecondary">
+                <span className="text-xs text-colorTextDescription">
                     {minLength && `Min: ${minLength}`}
                     {minLength && maxLength && " / "}
                     {maxLength && `Max: ${maxLength}`}

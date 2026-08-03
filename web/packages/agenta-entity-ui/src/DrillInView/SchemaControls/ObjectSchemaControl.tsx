@@ -147,7 +147,7 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
         return (
             <div className={clsx("flex flex-col gap-1", className)}>
                 {showHeader && <span className="text-sm font-medium text-colorText">{label}</span>}
-                <span className="text-xs text-colorTextSecondary">No properties defined</span>
+                <span className="text-xs text-colorTextDescription">No properties defined</span>
             </div>
         )
     }
@@ -158,7 +158,7 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
             <div className={clsx("flex flex-col gap-2", className)}>
                 {showHeader && <span className="text-sm font-medium text-colorText">{label}</span>}
                 <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
-                    <span className="text-xs text-colorTextSecondary">
+                    <span className="text-xs text-colorTextDescription">
                         Tool Configuration (JSON Editor)
                     </span>
                     <pre className="text-xs mt-2 overflow-auto max-h-[200px]">

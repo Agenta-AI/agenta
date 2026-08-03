@@ -45,8 +45,7 @@ export function SubSectionHeader({label, count}: {label: string; count: number})
     return (
         <div className="flex items-center gap-1.5 px-0.5 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
             <span>{label}</span>
-            {/* antd v6 `bordered` (truthy) is a no-op, so the colourless default Tag is Badge's
-                `default` variant verbatim. */}
+            {/* antd v6 `bordered` (truthy) is a no-op; colourless Tag == Badge `default`. */}
             <Badge className="m-0 px-1.5 text-[10px] font-normal leading-4">{count}</Badge>
         </div>
     )

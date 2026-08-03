@@ -27,6 +27,7 @@ import {
     Combobox,
     Field,
     Input,
+    SkeletonBlock,
     Tooltip,
     TooltipContent,
     TooltipProvider,
@@ -824,6 +825,7 @@ function LeafControlsComparison() {
             {/* FieldsTagsEditorControl */}
             <Row
                 label="fields tags editor · filled"
+                expected="deliberate: the control's own `font-mono` never reached antd's inner <input>/suffix (antd bakes its font into cssinjs), so the field typed in Inter; InputAffix's inner input is `font-[inherit]`, so the author's mono now applies. Kept — a field for dot-notation paths is meant to be monospace."
                 a={<AntdFieldsTagsEditor fields={["user.name", "order.total"]} />}
                 s={
                     <FieldsTagsEditorControl
@@ -836,6 +838,7 @@ function LeafControlsComparison() {
             />
             <Row
                 label="fields tags editor · empty"
+                expected="deliberate: the control's own `font-mono` never reached antd's inner <input>/suffix (antd bakes its font into cssinjs), so the field typed in Inter; InputAffix's inner input is `font-[inherit]`, so the author's mono now applies. Kept — a field for dot-notation paths is meant to be monospace."
                 a={<AntdFieldsTagsEditor fields={[]} />}
                 s={
                     <FieldsTagsEditorControl
@@ -848,6 +851,7 @@ function LeafControlsComparison() {
             />
             <Row
                 label="fields tags editor · disabled"
+                expected="deliberate: the control's own `font-mono` never reached antd's inner <input>/suffix (antd bakes its font into cssinjs), so the field typed in Inter; InputAffix's inner input is `font-[inherit]`, so the author's mono now applies. Kept — a field for dot-notation paths is meant to be monospace."
                 a={<AntdFieldsTagsEditor fields={["user.name"]} disabled />}
                 s={
                     <FieldsTagsEditorControl
@@ -1069,11 +1073,11 @@ function LeafControlsComparison() {
             {/* AgentOperationsSections' skeleton */}
             <Row
                 label="operations header count skeleton"
-                expected="antd `Skeleton.Button` is deferred in @agenta/ui (Skeleton.md); the same 44×14 active block is composed from SkeletonBlock"
+                expected="antd `Skeleton.Button` is deferred in @agenta/ui (Skeleton.md); the same 44×14 active block is composed from SkeletonBlock. Both halves run an INFINITE shimmer, so the screenshot samples two unrelated gradient phases — the residual ratio is animation phase, not geometry (geometry verified equal: 44×14, radius 6)"
                 a={<AntSkeleton.Button active size="small" style={{width: 44, height: 14}} />}
                 s={
                     <div className="flex">
-                        <span className="h-3.5 w-11 shrink-0 animate-skeleton rounded-control-sm bg-[length:400%_100%] bg-[linear-gradient(90deg,var(--ag-colorFillSecondary)_25%,var(--ag-colorFill)_37%,var(--ag-colorFillSecondary)_63%)]" />
+                        <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
                     </div>
                 }
             />

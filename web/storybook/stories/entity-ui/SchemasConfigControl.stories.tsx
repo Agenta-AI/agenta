@@ -144,6 +144,7 @@ export const AntdVsAgenta: Story = {
             />
             <Row
                 label="copy button (icon-only)"
+                expected="accepted deviation (GOTCHAS §Native-element parity): antd's `span.ant-btn-icon` sits the glyph 0.75px above true centre; we centre the bare svg. Icon-only crops read highest because the glyph is the only ink in a 24x24 box. Geometry otherwise identical (24x24, p-0, radius 6px)."
                 a={
                     <AntButton
                         icon={<CopySimple size={14} />}

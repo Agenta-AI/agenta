@@ -40,8 +40,21 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-const Row = ({label, a, s}: {label: string; a: ReactNode; s: ReactNode}) => (
-    <div className="grid grid-cols-[14rem_1fr_1fr] items-center gap-4 border-b border-colorBorderSecondary py-2">
+const Row = ({
+    label,
+    a,
+    s,
+    expected,
+}: {
+    label: string
+    a: ReactNode
+    s: ReactNode
+    expected?: string
+}) => (
+    <div
+        className="grid grid-cols-[14rem_1fr_1fr] items-center gap-4 border-b border-colorBorderSecondary py-2"
+        data-vrt-expected={expected}
+    >
         <div className="text-xs text-colorTextSecondary">{label}</div>
         <div className="flex items-center gap-2">
             <span className="w-8 text-[10px] text-colorTextSecondary">antd</span>
@@ -70,6 +83,15 @@ export const AntdVsAgenta: Story = {
         <div className="flex max-w-[900px] flex-col">
             <Row
                 label='header "+" (default trigger)'
+                // 2.68% light AND dark, identical — the documented icon-centring deviation
+                // (GOTCHAS §Native-element parity): antd wraps a button icon in
+                // `<span class="ant-btn-icon">`, whose 15.5px inline text box flex-centres the
+                // 14px glyph ~0.75px ABOVE true centre; we centre the bare svg, i.e. correctly.
+                // Crop is 28×28 CSS px with the glyph as the only ink, so ~84 px of stroke-edge
+                // AA reads as 2.68%. Same button inside TriggerRow/SubscriptionChildRow measures
+                // <1% because the row crop dilutes it. Not a bug to chase — matching it would
+                // mean deliberately mis-centring our icons.
+                expected="antd .ant-btn-icon centres the glyph 0.75px high; we centre the bare svg (accepted permanent deviation, icon-only crop)"
                 a={
                     <AntTooltip title="Add trigger">
                         <AntButton type="text" icon={<Plus size={16} />} aria-label="Add trigger" />

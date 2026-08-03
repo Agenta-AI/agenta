@@ -61,12 +61,11 @@ export const PiAutoApproveControl = memo(function PiAutoApproveControl({
             {allow.length ? (
                 <div className="flex flex-wrap gap-1">
                     {allow.map((pattern) => (
-                        <Badge key={pattern} className="m-0 font-mono text-[11px]">
+                        // `text-[11px]` carries no line-height, so restate the badge ramp's 22.4px (antd Tag's).
+                        <Badge key={pattern} className="m-0 font-mono text-[11px] leading-[22.4px]">
                             {pattern}
                             {!disabled && (
-                                // antd's `.ant-tag-close-icon`: 10px glyph, 3px inset (Badge's
-                                // own gap-1 is 4px), colorIcon grey. `@agenta/ui` Tag exposes
-                                // `dismissible` only for the sync preset, so it is composed here.
+                                // antd's `.ant-tag-close-icon` (10px, 3px inset) — Tag's `dismissible` is sync-only.
                                 <span
                                     role="button"
                                     tabIndex={0}
@@ -87,7 +86,7 @@ export const PiAutoApproveControl = memo(function PiAutoApproveControl({
                     ))}
                 </div>
             ) : (
-                <span className="text-[11px] text-colorTextSecondary">
+                <span className="text-[11px] text-colorTextDescription">
                     Nothing auto-approved — every gated tool asks each time.
                 </span>
             )}

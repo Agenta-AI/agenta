@@ -187,6 +187,7 @@ export const AntdVsAgenta: Story = {
         <div className="flex max-w-[1000px] flex-col">
             <Row
                 label="type badge"
+                expected="light only: cyan/gold/green TEXT is one-to-two steps down antd's own ramp — the documented WCAG-AA deviation in palette.ts `presetTag` (cyan 3.39→5.82, gold 2.76→6.53, green 3.37→5.44 on the paired bg). Backgrounds and geometry match exactly; dark passes."
                 a={
                     <div className="flex items-center gap-1.5">
                         <AntTag

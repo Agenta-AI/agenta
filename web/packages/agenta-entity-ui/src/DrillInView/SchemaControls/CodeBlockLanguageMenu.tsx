@@ -27,8 +27,7 @@ interface BlockMenu {
 
 export function CodeBlockLanguageMenu({editable = true}: {editable?: boolean}) {
     const [editor] = useLexicalComposerContext()
-    // Friendly name ("JavaScript") both in the list and in the trigger, so antd's `labelRender`
-    // has nothing left to do.
+    // Friendly name in list AND trigger, so antd's `labelRender` has nothing left to do.
     const options = useMemo(
         () =>
             getCodeLanguageOptions().map(([value, label]) => ({

@@ -659,10 +659,12 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                 (originalTemplateFormatRef.current === "curly" ||
                     originalTemplateFormatRef.current === "fstring") &&
                 localTemplateFormat !== originalTemplateFormatRef.current && (
+                    // `!size-3.5` beats the Alert icon slot's `[&_svg]:size-3`, which would else
+                    // shrink this custom icon to 12px and widen the message box by 2px.
                     <Alert
                         type="info"
                         showIcon
-                        icon={<Info size={14} />}
+                        icon={<Info size={14} className="!size-3.5" />}
                         className="!py-1 !px-2 !rounded-md"
                         message={
                             <span className="text-[12px]">

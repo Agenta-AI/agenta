@@ -135,8 +135,7 @@ export const EnumSelectControl = memo(function EnumSelectControl({
         )
     }
 
-    // Select variant (full select). antd `showSearch` → Combobox (Radix Select can't search);
-    // antd's `filterOption` on the label becomes each option's `searchValue`.
+    // Select variant. antd `showSearch` → Combobox; `filterOption` → per-option `searchValue`.
     const comboboxOptions = useMemo(
         () => options.map((option) => ({...option, searchValue: option.label})),
         [options],

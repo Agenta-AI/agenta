@@ -139,7 +139,7 @@ export const AntdVsAgenta: Story = {
                     </Typography.Text>
                 }
                 s={
-                    <span className="text-xs text-colorTextSecondary">
+                    <span className="text-xs text-colorTextDescription">
                         The conversation seed sent with every run.
                     </span>
                 }

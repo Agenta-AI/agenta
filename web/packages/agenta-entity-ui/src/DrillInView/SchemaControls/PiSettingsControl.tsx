@@ -111,8 +111,7 @@ export const PiSettingsControl = memo(function PiSettingsControl({
             )}
             align="center"
         >
-            {/* antd `Select mode="multiple"` → the shared MultiSelect composite (chips in the
-                trigger over a checkbox DropdownMenu). */}
+            {/* antd `Select mode="multiple"` → the shared MultiSelect composite. */}
             <MultiSelect
                 value={selected}
                 onChange={(value) => writeSelected(value as PiBuiltinName[])}

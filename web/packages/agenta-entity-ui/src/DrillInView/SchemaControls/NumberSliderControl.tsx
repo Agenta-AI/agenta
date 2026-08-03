@@ -108,8 +108,7 @@ export const NumberSliderControl = memo(function NumberSliderControl({
     const min = overrideMin ?? constraints.min
     const max = overrideMax ?? constraints.max
     const step = overrideStep ?? constraints.step
-    // antd's `precision={0}` for integer schemas has no `@agenta/ui` InputNumber counterpart
-    // (deferred there); `step: 1` is what actually constrains the value.
+    // antd's `precision` is deferred on the @agenta/ui InputNumber; `step` does the constraining.
     const labelId = useId()
 
     // Get description from schema or prop

@@ -118,7 +118,7 @@ const Row = ({
 
 /** The migrated markup — copied verbatim out of MarkdownEditor's `plainHeader`. */
 const AgentaFilenameChip = ({filename}: {filename: string}) => (
-    <Badge className="font-mono text-[11px] font-normal text-[var(--ag-c-586673,#586673)]">
+    <Badge className="font-mono text-[11px] font-normal leading-[22.4px] text-[var(--ag-c-586673,#586673)]">
         {filename}
     </Badge>
 )

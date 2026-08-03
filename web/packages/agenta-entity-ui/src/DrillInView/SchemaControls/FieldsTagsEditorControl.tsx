@@ -129,9 +129,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                         >
                             {field}
                             {!disabled && (
-                                // antd's `.ant-tag-close-icon`: 10px glyph, 3px inset (Badge's
-                                // own gap-1 is 4px), colorIcon grey. `@agenta/ui` Tag exposes
-                                // `dismissible` only for the sync preset, so it is composed here.
+                                // antd's `.ant-tag-close-icon` (10px, 3px inset) — Tag's `dismissible` is sync-only.
                                 <span
                                     role="button"
                                     tabIndex={0}
@@ -173,7 +171,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
-                                            <span className="text-[11px] text-colorTextSecondary">
+                                            <span className="font-sans text-[11px] text-colorTextDescription">
                                                 ?
                                             </span>
                                         </TooltipTrigger>
@@ -198,7 +196,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
 
                 {/* Helper text + Detect from testcase button */}
                 <div className="flex items-start justify-between gap-3">
-                    <span className="text-[11px] pt-0.5 text-colorTextSecondary">
+                    <span className="text-[11px] pt-0.5 text-colorTextDescription">
                         Each field creates a column with value 0 (no match) or 1 (match)
                     </span>
                     {!disabled && detectFieldsFromTestcase && (
