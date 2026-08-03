@@ -1,7 +1,18 @@
 # Status
 
-Last updated: 2026-08-02 (PR OPEN on `main`; rebased onto v0.107.0 with codex multimodality
-enabled and live-QA'ed 8/8; awaiting Mahmoud review)
+Last updated: 2026-08-03 (shipped in v0.108.0; one post-release lesson recorded below)
+
+## 2026-08-03 — Post-release lesson: durable-cwd entries the object store cannot represent
+
+Issue #5692 (AGE-4063): the Codex subscription path symlinks `auth.json` into the durable working
+directory, which is a geesefs mount over S3 — the symlink persisted as a 0-byte object and the
+"create only when absent" guard never rebuilt it, so a subscription session worked for one turn
+and failed on every turn after. Same class as the two durable-cwd limitations already designed
+around (SQLite WAL → `CODEX_SQLITE_HOME` on container-local disk; hard links).
+
+Why QA missed it and what changed in the release gate (continuity is now a warm / cold 1 / cold 2
+dimension over a store-backed cwd, and there is a genuine Codex-subscription cell):
+`reports/durable-cwd-entries-lesson.md`. The product fix ships separately.
 
 ## 2026-08-02 — Rebased onto v0.107.0; codex multimodality enabled
 
