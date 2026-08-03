@@ -90,6 +90,24 @@ Example to copy:
 - `api/oss/src/core/workflows/`
 - `api/oss/src/dbs/postgres/workflows/`
 
+### Database schema migrations (which alembic chain)
+
+New tables/columns are alembic revisions. The legacy `core/` and `tracing/` chains are
+**parked** (frozen at `park00000000`) — never add revisions there. Author against the
+active chains:
+
+- **Shared schema** (the default — runs in both OSS and EE): add the revision **once** in
+  `oss/databases/postgres/migrations/core_oss/` (or `tracing_oss/`). EE ships and runs the
+  `oss/` tree, so do **not** copy it into the EE tree.
+- **EE-only schema** (genuinely edition-divergent): `ee/databases/postgres/migrations/core_ee/`
+  (or `tracing_ee/`).
+
+Full model (version tables, fresh-install/upgrade/OSS→EE-switch flows, FK and replay-skew
+rules): `docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md`. For
+alembic mechanics and docker commands, see the parked `core/README.md` — but always run
+those commands from the appropriate active chain working directory (`core_oss`/`tracing_oss`
+or `core_ee`/`tracing_ee`), not the parked `core/`/`tracing/` dirs.
+
 ### Layering and dependency direction
 
 Required direction:
