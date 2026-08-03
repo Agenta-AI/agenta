@@ -316,14 +316,22 @@ tracks the Secret records it created in its own memory and deletes them when the
 Restart the runner while sandboxes are live and those records are orphaned in your Daytona account
 until you remove them; a future value will add durable tracking.
 
-Two things to know before you enable it:
+:::warning Check the API key's permissions first
+A Daytona API key is minted with a set of permissions, and a key that can create sandboxes does
+not automatically have the separate permission to manage Secrets. Grant that permission to the key
+in `AGENTA_RUNNER_DAYTONA_API_KEY` before you set this variable.
 
-- Your Daytona API key needs permission to manage Secrets. Without it, every run fails at
-  sandbox creation rather than falling back to plaintext keys.
-- Keys that a provider SDK signs with locally instead of sending, which today means the AWS access
-  keys used for Bedrock, cannot be hidden this way and still reach the sandbox in full. Nothing
-  Daytona substitutes on the way out can help there, because the secret never leaves the sandbox
-  in the first place.
+If you skip it, **every Daytona run that carries a model or MCP key fails at sandbox creation.**
+The runner does not fall back to sending the key as plaintext, because silently doing the
+unprotected thing is worse than stopping. The error names this variable and the permission, so the
+failure is recognizable, but the runs still fail until the key is fixed. Unsetting the variable
+restores the previous behavior immediately.
+:::
+
+One more thing to know: keys that a provider SDK signs with locally instead of sending, which
+today means the AWS access keys used for Bedrock, cannot be hidden this way and still reach the
+sandbox in full. Nothing Daytona substitutes on the way out can help there, because the secret
+never leaves the sandbox in the first place.
 
 Leaving the variable unset keeps the previous behavior exactly.
 

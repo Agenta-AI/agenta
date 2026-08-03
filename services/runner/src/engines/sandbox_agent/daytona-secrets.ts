@@ -45,6 +45,34 @@ export function isDaytonaNotFound(error: unknown): boolean {
   );
 }
 
+/**
+ * True when a Daytona failure means "this API key is not allowed to do that".
+ *
+ * Worth recognizing on its own because it has exactly one cause in practice and a completely
+ * different fix from every other failure here. A Daytona API key is minted with a set of
+ * permissions, and a key that can create sandboxes does not necessarily have the separate
+ * permission to manage Secrets. When it does not, every run with a hideable credential fails at
+ * sandbox creation, and the raw provider message says nothing about the flag that caused it.
+ */
+export function isDaytonaPermissionDenied(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const status = "statusCode" in error ? error.statusCode : undefined;
+  if (status === 401 || status === 403) return true;
+  const message = "message" in error ? String(error.message) : "";
+  return /\b(403|401)\b|forbidden|not authorized|unauthorized|permission/i.test(
+    message,
+  );
+}
+
+/** The message an operator can act on, instead of a bare provider status code. */
+export const DAYTONA_SECRETS_PERMISSION_MESSAGE =
+  "Daytona refused to manage Secrets with this API key. " +
+  "AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=process_local stores each model and MCP key as a " +
+  "Daytona Secret, which needs an API key that is allowed to manage Secrets, not only to " +
+  "create sandboxes. Grant that permission to the key in AGENTA_RUNNER_DAYTONA_API_KEY, or " +
+  "unset AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS to pass credentials as plain environment " +
+  "variables again.";
+
 async function deleteIdempotently(
   api: DaytonaSecretApi,
   id: string,
@@ -100,12 +128,22 @@ export async function allocateDaytonaSecrets(
   try {
     for (const candidate of plan.candidates) {
       const name = nameFor(candidate);
-      const rawSecret = await api.create({
-        name,
-        value: candidate.value,
-        description: "Agenta process-local sandbox credential",
-        hosts: [candidate.allowedHost],
-      });
+      let rawSecret: DaytonaSecretRecord;
+      try {
+        rawSecret = await api.create({
+          name,
+          value: candidate.value,
+          description: "Agenta process-local sandbox credential",
+          hosts: [candidate.allowedHost],
+        });
+      } catch (error) {
+        // Re-raise a permission refusal as an actionable message. Everything else keeps its
+        // original error, and either way the catch below compensates for what was created.
+        if (isDaytonaPermissionDenied(error)) {
+          throw new Error(DAYTONA_SECRETS_PERMISSION_MESSAGE, { cause: error });
+        }
+        throw error;
+      }
       // Track the provider record before validating returned metadata. If the provider returns a
       // malformed placeholder or host list, compensation must still delete the record it made.
       if (rawSecret.id) created.push(rawSecret);

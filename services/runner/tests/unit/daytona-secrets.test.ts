@@ -5,8 +5,10 @@ import { describe, it } from "vitest";
 import type { DaytonaSecretPlan } from "../../src/engines/sandbox_agent/daytona-secret-plan.ts";
 import {
   allocateDaytonaSecrets,
+  DAYTONA_SECRETS_PERMISSION_MESSAGE,
   deleteDaytonaSecrets,
   isDaytonaNotFound,
+  isDaytonaPermissionDenied,
   type DaytonaSecretApi,
 } from "../../src/engines/sandbox_agent/daytona-secrets.ts";
 
@@ -139,5 +141,55 @@ describe("Daytona Secret allocation", () => {
     assert.equal(isDaytonaNotFound({ statusCode: 404 }), true);
     assert.equal(isDaytonaNotFound({ statusCode: 500 }), false);
     assert.equal(isDaytonaNotFound(new Error("gone")), false);
+  });
+
+  it("recognizes a permission refusal by status code or by message", () => {
+    assert.equal(isDaytonaPermissionDenied({ statusCode: 403 }), true);
+    assert.equal(isDaytonaPermissionDenied({ statusCode: 401 }), true);
+    assert.equal(
+      isDaytonaPermissionDenied(new Error("Forbidden: missing permission")),
+      true,
+    );
+    // Not a permission problem: a missing record, a server fault, a plain failure.
+    assert.equal(isDaytonaPermissionDenied({ statusCode: 404 }), false);
+    assert.equal(isDaytonaPermissionDenied({ statusCode: 500 }), false);
+    assert.equal(isDaytonaPermissionDenied(new Error("network reset")), false);
+    assert.equal(isDaytonaPermissionDenied(undefined), false);
+  });
+
+  it("explains an under-permissioned API key instead of surfacing a bare 403", async () => {
+    // The whole point: a key that can create sandboxes but not manage Secrets fails EVERY run
+    // with a hideable credential, and the raw provider message never mentions the flag that
+    // caused it. This is the one failure an operator hits on first enabling the feature.
+    const api: DaytonaSecretApi = {
+      async create() {
+        throw { statusCode: 403, message: "Forbidden" };
+      },
+      async delete() {},
+    };
+
+    await assert.rejects(
+      allocateDaytonaSecrets(plan, api),
+      (error: Error) => {
+        assert.equal(error.message, DAYTONA_SECRETS_PERMISSION_MESSAGE);
+        assert.match(error.message, /AGENTA_RUNNER_DAYTONA_API_KEY/);
+        assert.match(error.message, /AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS/);
+        // The provider's own error is kept as the cause so the logs still have the detail.
+        assert.equal((error.cause as { statusCode: number }).statusCode, 403);
+        return true;
+      },
+    );
+  });
+
+  it("leaves a non-permission create failure with its original error", async () => {
+    const api: DaytonaSecretApi = {
+      async create() {
+        throw new Error("daytona is having a bad day");
+      },
+      async delete() {},
+    };
+    await assert.rejects(allocateDaytonaSecrets(plan, api), {
+      message: "daytona is having a bad day",
+    });
   });
 });

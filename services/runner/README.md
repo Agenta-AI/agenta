@@ -131,8 +131,10 @@ exfiltration fail.
 
 Three things to know:
 
-- The runner's Daytona API key needs permission to manage Secrets. Without it, runs fail at
-  sandbox creation rather than quietly falling back to plaintext keys.
+- The runner's Daytona API key needs permission to manage Secrets. A key that can create
+  sandboxes does not automatically have it. Without it, every run carrying a model or MCP key
+  fails at sandbox creation; the runner never quietly falls back to plaintext. The error names
+  the variable and the permission (`DAYTONA_SECRETS_PERMISSION_MESSAGE` in `daytona-secrets.ts`).
 - `process_local` names the guarantee: the runner tracks the Secret records it created in its own
   memory and deletes them when the sandbox goes away. Restart the runner while sandboxes are live
   and those records are orphaned until someone removes them.
