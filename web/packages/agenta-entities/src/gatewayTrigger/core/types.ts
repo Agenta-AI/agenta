@@ -305,6 +305,9 @@ export type TriggerStatus = z.infer<typeof triggerStatusSchema>
 export const triggerDeliveryDataSchema = z
     .object({
         event_key: z.string().nullish(),
+        // The session this delivery produced — minted by the dispatcher, so it is present
+        // regardless of which dispatch path ran. Absent on deliveries written before it existed.
+        session_id: z.string().nullish(),
         references: z.record(z.string(), triggerReferenceSchema).nullish(),
         inputs: z.record(z.string(), z.unknown()).nullish(),
         result: z.record(z.string(), z.unknown()).nullish(),
