@@ -28,6 +28,7 @@ The provider lists are the REAL harness facts, derived from
 - **Claude** reaches anthropic only, direct, via a custom gateway, or through Anthropic on
   Bedrock/Vertex. The runner passes the selected model id through to Claude Code and lets the
   configured backend fail loudly if it rejects it.
+- **Codex** reaches openai only, direct, through managed keys or subscription OAuth.
 - **pi_agenta** is Pi under the hood (Pi with Agenta's forced opinion), so it shares
   ``pi_core``'s reach.
 
@@ -102,6 +103,18 @@ CLAUDE_MODEL_ALIASES: List[str] = [
     "haiku",
     "opus[1m]",
     "claude-fable-5",
+]
+
+# The curated Codex model set the harness advertises under the ``openai`` family. The
+# ``gpt-5.1-codex`` family is API-listed but backend-deprecated, so it is excluded. Keep this in
+# sync with ``data/codex_models.curated.json`` and the ``sync-model-catalog`` skill. See decision
+# D-006.
+CODEX_MODELS: List[str] = [
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
+    "gpt-5.5",
+    "gpt-5.2",
 ]
 
 # Both modes every harness supports today. (No ``default`` mode: the project default is just
@@ -239,6 +252,19 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
         model_selection="alias",
         models={"anthropic": list(CLAUDE_MODEL_ALIASES)},
         model_catalog=_model_catalog("claude"),
+        mcp=HarnessMCPCapabilities(
+            user_servers=UserMCPServerCapabilities(),
+        ),
+    ),
+    # Codex reaches OpenAI through managed direct connections and self_managed subscription OAuth
+    # via the mounted CODEX_HOME login. It accepts user HTTP MCP servers like Claude.
+    "codex": HarnessConnectionCapabilities(
+        providers=["openai"],
+        deployments=["direct"],
+        connection_modes=list(_ALL_MODES),
+        model_selection="provider/id",
+        models={"openai": list(CODEX_MODELS)},
+        model_catalog=_model_catalog("codex"),
         mcp=HarnessMCPCapabilities(
             user_servers=UserMCPServerCapabilities(),
         ),

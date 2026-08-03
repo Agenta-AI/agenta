@@ -1270,12 +1270,13 @@ class AgentTemplateSchema(AgSchemaMixin):
 
 
 class _HarnessPermissionsSchema(BaseModel):
-    """A permission-gating harness's allow/ask/deny posture (was
-    ``harness_kwargs.claude.permissions``). Lifted first-class because it is a security posture.
+    """The harness's allow/ask/deny rule lists (was ``harness_kwargs.claude.permissions``).
+    Lifted first-class because it is a security posture.
 
-    For Claude this renders into ``.claude/settings.json``. ``default_mode`` is Claude's
-    permission mode; ``allow`` / ``ask`` / ``deny`` are per-tool rule strings. A non-gating
-    harness (Pi) leaves this empty."""
+    Each rule is a tool name (``Bash``) or a prefix pattern (``Bash(npm run:*)``). The lists are
+    how a Pi agent's built-in tools are controlled, since built-ins are always active and are
+    never listed in ``tools``. For Claude they also render into ``.claude/settings.json``.
+    ``default_mode`` is Claude's own permission mode and does not apply to Pi."""
 
     model_config = ConfigDict(extra="forbid", title="Permissions")
 
@@ -1284,22 +1285,22 @@ class _HarnessPermissionsSchema(BaseModel):
     ] = Field(
         default=None,
         title="Default mode",
-        description="The harness's default permission mode (Claude: default / acceptEdits / plan / bypassPermissions).",
+        description="Claude's default permission mode (default / acceptEdits / plan / bypassPermissions). Not used by Pi.",
     )
     allow: List[str] = Field(
         default_factory=list,
         title="Allow",
-        description="Per-tool rules auto-approved without prompting.",
+        description="Tools that run without asking.",
     )
     ask: List[str] = Field(
         default_factory=list,
         title="Ask",
-        description="Per-tool rules that raise a prompt.",
+        description="Tools that ask before running.",
     )
     deny: List[str] = Field(
         default_factory=list,
         title="Deny",
-        description="Per-tool rules always rejected.",
+        description="Tools that are never allowed to run.",
     )
 
 
@@ -1308,7 +1309,7 @@ class _HarnessSchema(BaseModel):
     its ``harness_kwargs`` slice).
 
     ``kind`` is the harness selector (the bare ``pi_core`` / ``pi_agenta`` / ``claude`` value).
-    ``permissions`` is the gating posture for harnesses that gate tool use (Claude). ``extras``
+    ``permissions`` is the allow/ask/deny rule lists that decide which tools may run. ``extras``
     is the per-harness escape hatch (Pi's ``system`` / ``append_system`` prompt overrides)."""
 
     model_config = ConfigDict(extra="forbid", title="Harness")
@@ -1325,7 +1326,7 @@ class _HarnessSchema(BaseModel):
     permissions: _HarnessPermissionsSchema = Field(
         default_factory=_HarnessPermissionsSchema,
         title="Permissions",
-        description="The harness's tool-use gating posture (gating harnesses only, e.g. Claude).",
+        description="The allow / ask / deny rules that decide which tools may run.",
     )
     extras: Dict[str, Any] = Field(
         default_factory=dict,
@@ -1417,7 +1418,7 @@ def build_agent_v0_default(
     """The default agent-template value, shared by the builtin interface and the service.
 
     The agent-template value that sits at ``parameters.agent`` (Step 1 of the agent-template
-    migration): the portable definition flat (instructions / llm / empty tools / mcps) plus the
+    migration): the portable definition flat (instructions / llm / tools / mcps) plus the
     nested execution parts (``harness`` / ``runner`` / ``sandbox``). ``include_sandbox_permission``
     adds the declared Layer-2 boundary the playground pre-fills (network egress on, strict).
     ``skill_slug`` adds one ``@ag.embed`` reference under ``skills`` to a stored skill the backend
@@ -1426,6 +1427,7 @@ def build_agent_v0_default(
     template: Dict[str, Any] = {
         "instructions": {"agents_md": _DEFAULT_AGENTS_MD},
         "llm": {"provider": _DEFAULT_AGENT_PROVIDER, "model": _DEFAULT_AGENT_MODEL},
+        # Built-in tools are always active and are not configured here.
         "tools": [],
         "mcps": [],
     }

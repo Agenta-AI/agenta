@@ -1,0 +1,1 @@
+{"responses":{"202":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"status":{"type":"string","title":"Status","default":"accepted"},"detail":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Detail"}},"type":"object","title":"TriggerEventAck"}}}}}}

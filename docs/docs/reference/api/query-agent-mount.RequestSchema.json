@@ -1,0 +1,1 @@
+{"title":"Body","body":{"content":{"application/json":{"schema":{"properties":{"artifact_id":{"type":"string","title":"Artifact Id"},"name":{"type":"string","title":"Name","default":"default"}},"type":"object","required":["artifact_id"],"title":"AgentMountQueryRequest"}}},"required":true}}

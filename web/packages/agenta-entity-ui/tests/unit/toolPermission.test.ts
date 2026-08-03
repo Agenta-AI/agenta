@@ -133,13 +133,20 @@ const wrapHarness = (permissions?: Record<string, unknown>) => ({
 
 describe("gateRulePattern", () => {
     // The runner matches `pattern === gate.toolName`, and the card shows that exact string
-    // (stamped as `resolvedName`). Canonicalizing would silently never match — an ACP gate
-    // reports `bash`/`Terminal` verbatim, so a rule for `Bash` would be a no-op.
-    it("returns the gate name VERBATIM — never canonicalized", () => {
-        expect(gateRulePattern("bash")).toBe("bash")
+    // (stamped as `resolvedName`). Canonicalizing an arbitrary gate would silently never match.
+    it("returns a non-builtin gate name VERBATIM", () => {
         expect(gateRulePattern("Terminal")).toBe("Terminal")
+        expect(gateRulePattern("terminal")).toBe("terminal")
+        expect(gateRulePattern("get_weather")).toBe("get_weather")
+    })
+
+    // A built-in gate reaches the card lower-cased (the frame's part is `tool-bash`), and the
+    // runner folds case for exactly these seven, so the rule is written the way the editor shows it.
+    it("writes a Pi built-in under its canonical name", () => {
+        expect(gateRulePattern("bash")).toBe("Bash")
         expect(gateRulePattern("Bash")).toBe("Bash")
-        expect(gateRulePattern("Write")).toBe("Write")
+        expect(gateRulePattern("write")).toBe("Write")
+        expect(gateRulePattern("LS")).toBe("Ls")
     })
 
     it("refuses platform ops so commit/destructive ops always gate", () => {
@@ -163,8 +170,8 @@ describe("findGrantableHarnessTool", () => {
             pattern: "Terminal",
             allowed: false,
         })
-        expect(findGrantableHarnessTool(wrapHarness(), "bash")).toEqual({
-            pattern: "bash",
+        expect(findGrantableHarnessTool(wrapHarness(), "terminal")).toEqual({
+            pattern: "terminal",
             allowed: false,
         })
     })
@@ -180,6 +187,40 @@ describe("findGrantableHarnessTool", () => {
 
     it("returns null for a platform op", () => {
         expect(findGrantableHarnessTool(wrapHarness(), "commit_revision")).toBeNull()
+    })
+
+    it("routes a Pi built-in gate into the allow list under its canonical name", () => {
+        // The card's "Always allow" writes `Bash` whichever spelling the gate arrived in — the
+        // same rule the permissions editor offers.
+        expect(findGrantableHarnessTool(wrapHarness(), "bash")).toEqual({
+            pattern: "Bash",
+            allowed: false,
+        })
+        expect(findGrantableHarnessTool(wrapHarness({allow: ["Bash"]}), "Bash")).toEqual({
+            pattern: "Bash",
+            allowed: true,
+        })
+    })
+
+    it("reads a hand-typed built-in rule case-insensitively, as the runner matches it", () => {
+        expect(findGrantableHarnessTool(wrapHarness({allow: ["bash"]}), "Bash")).toEqual({
+            pattern: "Bash",
+            allowed: true,
+        })
+        // Only the seven built-in names fold; every other rule stays case-significant.
+        expect(findGrantableHarnessTool(wrapHarness({allow: ["terminal"]}), "Terminal")).toEqual({
+            pattern: "Terminal",
+            allowed: false,
+        })
+    })
+
+    it("does not report allowed while a higher-ranked ask or deny rule matches", () => {
+        expect(
+            findGrantableHarnessTool(wrapHarness({allow: ["Bash"], ask: ["Bash"]}), "Bash"),
+        ).toEqual({pattern: "Bash", allowed: false})
+        expect(
+            findGrantableHarnessTool(wrapHarness({allow: ["Bash"], deny: ["bash"]}), "Bash"),
+        ).toEqual({pattern: "Bash", allowed: false})
     })
 })
 
@@ -213,6 +254,25 @@ describe("withHarnessToolAllow", () => {
         }
         expect(next.agent.harness.permissions.default_mode).toBe("default")
         expect(next.agent.harness.permissions.allow).toEqual(["Bash"])
+    })
+
+    it("clears the pattern from ask and deny, which outrank allow at the runner", () => {
+        const next = withHarnessToolAllow(
+            wrapHarness({allow: [], ask: ["Bash", "Write"], deny: ["bash"]}),
+            "Bash",
+            true,
+        ) as {agent: {harness: {permissions: {allow: string[]; ask: string[]; deny: string[]}}}}
+        const permissions = next.agent.harness.permissions
+        expect(permissions.allow).toEqual(["Bash"])
+        expect(permissions.ask).toEqual(["Write"])
+        expect(permissions.deny).toEqual([])
+    })
+
+    it("adds no case-variant duplicate beside a hand-typed rule", () => {
+        const next = withHarnessToolAllow(wrapHarness({allow: ["bash"]}), "Bash", true) as {
+            agent: {harness: {permissions: {allow: string[]}}}
+        }
+        expect(next.agent.harness.permissions.allow).toEqual(["bash"])
     })
 
     it("does not mutate the input parameters", () => {

@@ -15,6 +15,12 @@ import {expect} from "@agenta/web-tests/utils"
 import type {Page} from "@playwright/test"
 import {strToU8, zipSync} from "fflate"
 
+import {
+    AGENT_APPS_UNAVAILABLE_REASON,
+    archiveWorkflow,
+    queryWorkflowAgentState,
+    resolveApiBase,
+} from "../utils/agentApps"
 import {expectAuthenticatedSession} from "../utils/auth"
 import {createScenarios} from "../utils/scenarios"
 import {buildAcceptanceTags} from "../utils/tags"
@@ -139,6 +145,20 @@ test(
             const createResponse = await createResponsePromise
             expect(createResponse.ok()).toBe(true)
             const created = (await createResponse.json()) as {workflow: {id: string}}
+
+            // Environments without the agent platform (e.g. OSS previews with the feature
+            // flags off) silently create a prompt-type app here, so the Skills UI under test
+            // can never render. Skip only on that definitive signal — and archive the app
+            // first so the misclassified leftover cannot pollute other specs' app lists.
+            const projectId = basePath.match(/\/p\/([^/]+)/)?.[1] ?? ""
+            const apiBase = resolveApiBase(page)
+            const agentState = projectId
+                ? await queryWorkflowAgentState(page, apiBase, projectId, created.workflow.id)
+                : "unknown"
+            if (agentState === "not-agent") {
+                await archiveWorkflow(page, apiBase, projectId, created.workflow.id)
+            }
+            test.skip(agentState === "not-agent", AGENT_APPS_UNAVAILABLE_REASON)
 
             await page.goto(
                 `${getProjectScopedBasePath(page)}/apps/${created.workflow.id}/playground`,

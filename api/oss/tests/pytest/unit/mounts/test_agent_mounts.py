@@ -29,6 +29,16 @@ class InMemoryMountsDAO:
             )
         return self.mounts[key]
 
+    async def fetch_mount(self, *, project_id, mount_id):
+        return next(
+            (
+                mount
+                for (mount_project_id, _), mount in self.mounts.items()
+                if mount_project_id == project_id and mount.id == mount_id
+            ),
+            None,
+        )
+
     async def fetch_mount_by_slug(self, *, project_id, slug):
         self.fetch_by_slug_calls += 1
         mount = self.mounts.get((project_id, slug))

@@ -87,6 +87,17 @@ class DuplicateToolNameError(ToolResolutionError):
         self.name = name
 
 
+class ReservedToolNameError(ToolResolutionError):
+    """Raised when a configured tool takes the name of an always-active built-in tool."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(
+            f"Tool name '{name}' is reserved: built-in tools are always available under "
+            f"these names. Rename the tool."
+        )
+        self.name = name
+
+
 class UnknownPlatformOpError(ToolResolutionError):
     """Raised when a ``type:"platform"`` tool names an op absent from the platform-op catalog."""
 

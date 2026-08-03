@@ -3,6 +3,7 @@ import {
   permissionsFromRequest,
 } from "../../permission-plan.ts";
 import {
+  currentUserTurn,
   resolvePromptText,
   type AgentRunRequest,
   type AgentRunResult,
@@ -43,18 +44,22 @@ import {
   buildClientToolRelay,
   relayWritesPausedAnswer,
 } from "./client-tools.ts";
+import { buildExecutableToolGate } from "./executable-tools.ts";
 import { invalidateContinuity } from "./environment.ts";
-import { conciseError } from "./errors.ts";
 import {
-  PAUSED,
-  PendingApprovalPauseController,
-} from "./pause.ts";
+  attachmentCapabilityGate,
+  buildPromptBlocks,
+  collectAttachmentRefs,
+  collectLegacyInlineImages,
+  resolveCurrentTurnAttachments,
+  restoreReferencedWorkingCopies,
+  type AcpPromptBlock,
+} from "./attachments.ts";
+import { conciseError } from "./errors.ts";
+import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
 import { findSwallowedPiError } from "./pi-error.ts";
 import { buildRelayExecutionGuard } from "./relay-guard.ts";
-import {
-  createRunLimits,
-  resolveRunLimits,
-} from "./run-limits.ts";
+import { createRunLimits, resolveRunLimits } from "./run-limits.ts";
 import {
   RUN_LIMIT_TRIPPED,
   sendLastMessageOnly,
@@ -69,14 +74,10 @@ import {
   serverPermissionsFromRequest,
   shouldSuppressPausedToolCallUpdate,
 } from "./runtime-policy.ts";
-import {
-  appendSessionTurn,
-} from "./session-continuity-durable.ts";
-import {
-  nextTurnIndex,
-  sessionContinuityStore,
-} from "./session-continuity.ts";
+import { appendSessionTurn } from "./session-continuity-durable.ts";
+import { nextTurnIndex, sessionContinuityStore } from "./session-continuity.ts";
 import { reconstructHistoryIfNeeded } from "./reconstruct-history.ts";
+import { carriesApprovalReplyOnly } from "./session-identity.ts";
 import { buildTurnText, priorMessages } from "./transcript.ts";
 import { resolveRunUsage } from "./usage.ts";
 
@@ -95,6 +96,7 @@ export async function runTurn(
   opts: RunTurnOptions = {},
 ): Promise<AgentRunResult> {
   const { plan, logger, deps } = env;
+  const credential = opts.credential ?? (() => runCredential(request));
   const sessionId = env.sessionId;
   // Race marker for a user Stop (the control-plane `cancel`/`steer` command drops the alive lock, the
   // heartbeat aborts `signal`). Distinct from PAUSED/RUN_LIMIT_TRIPPED so the turn ends CLEANLY
@@ -111,8 +113,8 @@ export async function runTurn(
   // expected next-history fingerprint).
   env.lastTurnToolCallIds = [];
   // Reset the per-turn approval-park bookkeeping. A fresh turn starts with no parked gates; this
-  // turn re-records them only if it pauses on ACP permission gates. (The dispatch has already
-  // captured any prior park into `opts.resume` before calling us.)
+  // turn re-records them only if it pauses on parkable ACP permission gates. (The dispatch has
+  // already captured any prior park into `opts.resume` before calling us.)
   const carriedApprovedExecutions = opts.resume
     ? [...(env.parkedApprovedExecutions?.values() ?? [])]
     : [];
@@ -150,26 +152,89 @@ export async function runTurn(
   });
 
   try {
-    // Server-side history reconstruction (on by default; AGENTA_SESSIONS_RECONSTRUCT=false
-    // disables): when the client sent a minimal history, rebuild prior turns from the durable
-    // record log so a cold turn still has full context. Runs before the current user turn is
-    // persisted, so records hold only prior turns. Reassigns `request` so every downstream
-    // reader (turnText, priorMessages, responder, otel) sees the same reconstructed history.
-    const reconstructed = await reconstructHistoryIfNeeded(
-      request,
-      sessionId,
-      () => runCredential(request),
-      logger,
-    );
+    // AGENTA_SESSIONS_RECONSTRUCT defaults on so minimal-history clients keep their conversation;
+    // only the literal "false" opts out. The compose default supplies an empty string, not "true".
+    // Server-side history reconstruction rebuilds prior turns from the durable record log.
+    // The server already persisted this turn, so reconstruction filters its turn id.
+    // Reassign `request` so every downstream reader sees the same reconstructed history.
+    // An out-of-band approval reply carries no user text of its own, so this must be decided from
+    // the INBOUND request: reconstruction prepends the original user turn, after which
+    // `resolvePromptText` would hand back that stale command and the model would restart the task.
+    const approvalReplyOnly = carriesApprovalReplyOnly(request);
+    const inboundRequest = request;
+    // On a LIVE approval resume the rebuilt history is never sent to the harness: the resume
+    // continues the ORIGINAL prompt promise (`opts.resume` below), so `turnText` is discarded and
+    // the harness already holds the conversation. Reconstruction there only enriches the trace and
+    // the responder's view, so a failed records fetch must NOT fail the turn: `{ok:false}` makes
+    // the dispatch evict the live session and retry cold, where reconstruction throws again — one
+    // 500 from the records endpoint would lose the human's approval AND the parked session. Keep
+    // the inbound request and continue. A cold turn still fails loudly, where it matters.
+    let reconstructed: AgentRunRequest | null = null;
+    let historicalWorkingCopiesRestored = false;
+    let historicalAttachmentsPresent = false;
+    const restoreHistoricalWorkingCopies = async (
+      messages: NonNullable<AgentRunRequest["messages"]>,
+    ) => {
+      historicalWorkingCopiesRestored = true;
+      historicalAttachmentsPresent ||= messages.some(
+        (message) => collectAttachmentRefs(message).length > 0,
+      );
+      return restoreReferencedWorkingCopies(
+        env.sandbox,
+        plan,
+        messages,
+        sessionId,
+        credential,
+        { log: logger },
+      );
+    };
+    try {
+      reconstructed = await reconstructHistoryIfNeeded(
+        request,
+        sessionId,
+        credential,
+        logger,
+        !opts.continuation && !opts.resume
+          ? { restore: restoreHistoricalWorkingCopies }
+          : undefined,
+      );
+    } catch (err) {
+      if (!opts.resume) throw err;
+      const detail = err instanceof Error ? err.message : String(err);
+      logger(
+        `[reconstruct] live resume: keeping the inbound history (${detail})`,
+      );
+    }
     if (reconstructed) request = reconstructed;
 
-    const promptText = resolvePromptText(request);
+    if (
+      !opts.continuation &&
+      !opts.resume &&
+      !historicalWorkingCopiesRestored
+    ) {
+      const messages = request.messages ?? [];
+      const current = currentUserTurn(request);
+      const historical = current.message ? messages.slice(0, -1) : messages;
+      const restored = await restoreHistoricalWorkingCopies(historical);
+      request = {
+        ...request,
+        messages: current.message ? [...restored, current.message] : restored,
+      };
+    }
+
+    const promptText = approvalReplyOnly
+      ? resolvePromptText(request)
+      : currentUserTurn(request).text;
     // Cold: replay the full transcript. Continuation or loaded: send only new text. When history
     // was rebuilt from records, recompute the transcript from it — the prebuilt plan.turnText
-    // predates the reconstruction.
+    // predates the reconstruction. An approval reply has no new text either way, so it sends the
+    // approval-resume frame `buildTurnText` renders (the harness already holds the prior turns
+    // when the session was loaded natively; otherwise the rebuilt transcript comes with it).
     const turnText = sendLastMessageOnly(opts)
-      ? promptText
-      : reconstructed
+      ? approvalReplyOnly
+        ? buildTurnText(inboundRequest, logger)
+        : promptText
+      : reconstructed || historicalAttachmentsPresent
         ? buildTurnText(request, logger)
         : plan.turnText;
 
@@ -209,6 +274,65 @@ export async function runTurn(
       ],
     });
 
+    let promptBlocks: AcpPromptBlock[] = [{ type: "text", text: turnText }];
+    if (!opts.resume) {
+      const current = currentUserTurn(request);
+      const refs = collectAttachmentRefs(current.message);
+      const resolved =
+        refs.length > 0
+          ? await resolveCurrentTurnAttachments({
+              message: current.message,
+              sessionId,
+              auth: credential,
+              sandbox: env.sandbox,
+              plan,
+              capabilities: env.capabilities,
+              modelCapabilities: request.modelCapabilities,
+              provider: request.provider,
+              emit: (event) => run.emitEvent(event),
+            })
+          : [];
+      const legacyImages = collectLegacyInlineImages(current.message);
+      const nativeLegacyImages = [];
+      for (const image of legacyImages) {
+        const gate = attachmentCapabilityGate({
+          acpAgent: plan.acpAgent,
+          provider: request.provider,
+          capabilities: env.capabilities,
+          // Legacy inline images predate the catalog, so a caller that declares nothing keeps
+          // the historical image-capable assumption; a caller that declares modalities is
+          // authoritative and its answer decides. Codex is excluded because its bridge rejects
+          // the whole prompt rather than degrading.
+          modelCapabilities:
+            plan.acpAgent === "codex"
+              ? request.modelCapabilities
+              : (request.modelCapabilities ?? { inputModalities: ["image"] }),
+          mediaType: image.mimeType,
+          byteLength: Buffer.from(image.data, "base64").byteLength,
+        });
+        if (gate.outcome === "native") nativeLegacyImages.push(image);
+        logger(
+          `[attachments] legacy inline image delivery=${
+            gate.outcome === "native" ? "native" : "degraded"
+          } reason=${gate.reasonCode}`,
+        );
+      }
+      promptBlocks = buildPromptBlocks(
+        turnText,
+        resolved,
+        nativeLegacyImages,
+        current.text,
+      );
+      if (promptBlocks.length === 0) {
+        promptBlocks = [
+          {
+            type: "text",
+            text: "[inline image could not be delivered to this harness]",
+          },
+        ];
+      }
+    }
+
     const sessionTurnClient = deps.appendSessionTurn ?? appendSessionTurn;
     const syncCred = runCredential(request);
     const turnLedgerContext =
@@ -239,8 +363,7 @@ export async function runTurn(
           agentSessionId: env.session?.agentSessionId,
           sandboxId: env.sandbox?.sandboxId,
           references: workflowRefs ? Object.values(workflowRefs) : undefined,
-          traceId:
-            run.traceId() ?? request.runContext?.trace?.trace_id,
+          traceId: run.traceId() ?? request.runContext?.trace?.trace_id,
           spanId: request.runContext?.trace?.span_id,
           startTime: turnStartedAt,
         },
@@ -375,8 +498,8 @@ export async function runTurn(
               input?: unknown;
             };
             const existing = approvedExecutionSeeds.get(frame.toolCallId);
-            const toolName = [announced.name, announced.title, announced.kind]
-              .find(
+            const toolName =
+              [announced.name, announced.title, announced.kind].find(
                 (value): value is string =>
                   typeof value === "string" && value.length > 0,
               ) ?? existing?.toolName;
@@ -458,6 +581,7 @@ export async function runTurn(
       toolName: string | undefined,
       toolArgs: unknown,
       kind: "user_approval" | "client_tool" = "user_approval",
+      toolCallId?: string,
     ): void => {
       const cred = runCredential(request);
       if (!cred) return;
@@ -468,7 +592,16 @@ export async function runTurn(
         request.turnId ?? "",
         token,
         kind,
-        { request: { tool: toolName ?? token, args: toolArgs }, references },
+        {
+          request: {
+            tool: toolName ?? token,
+            args: toolArgs,
+            // The gate id (`token`) and the harness's tool-call id differ; an out-of-band answer
+            // needs the latter to name the call it is answering.
+            ...(toolCallId ? { tool_call_id: toolCallId } : {}),
+          },
+          references,
+        },
         () => cred,
       );
     };
@@ -529,6 +662,9 @@ export async function runTurn(
           input?: unknown;
         };
         const { gate } = buildGateDescriptor(
+          // No ACP permission request frame exists for a buffered completion re-check; the
+          // tool-call frame alone carries the identity.
+          undefined,
           {
             toolCallId,
             name: frame.name,
@@ -540,6 +676,7 @@ export async function runTurn(
           run,
           serverPermissions,
           specsByName,
+          plan.acpAgent === "codex",
         );
         const permission = effectivePermission(gate, permissionPlan);
         if (permission === "allow") {
@@ -579,6 +716,7 @@ export async function runTurn(
       },
       run,
       responder,
+      acpAgent: plan.acpAgent,
       serverPermissions,
       log: logger,
       onPause: () => pause.pause(),
@@ -614,12 +752,17 @@ export async function runTurn(
       // only a dialog-approved (or policy-allowed) call ever executes from the relay dir.
       onPiGateAllowed: (info) =>
         executionGrants.grant(info.toolName, info.args),
+      // A Claude/Codex allow for a runner-executed tool becomes an execution grant too, but for
+      // the loopback MCP seam rather than the relay: the harness gate has already decided this
+      // call, so the seam consumes the grant instead of asking the human a second time.
+      onExecutableGateAllowed: (info) =>
+        executionGrants.grant(info.toolName, info.args),
       // Record EVERY parkable permission gate (only in keep-alive park mode) so the dispatch can
       // resume each one live. Fires per pending gate, so parallel gated tool calls in one turn
-      // all park, each keyed by its own tool-call id. `info.gateType` names the plane (Claude ACP
-      // vs Pi ACP) so the resume answers on the right one. `approvalGateCount` counts every gate;
-      // a gate that lacked a resumable id is counted but not recorded, so the dispatch can tell
-      // "every gate is resumable" (count === map size) from "a gate cannot be resumed live".
+      // all park, each keyed by its own tool-call id. `info.gateType` names the ACP gate type so
+      // the resume answers on the right plane. `approvalGateCount` counts every gate; a gate that
+      // lacked a resumable id is counted but not recorded, so the dispatch can tell "every gate
+      // is resumable" (count === map size) from "a gate cannot be resumed live".
       onUserApprovalGate: opts.approvalParkMode
         ? (info) => {
             env.approvalGateCount += 1;
@@ -640,8 +783,7 @@ export async function runTurn(
         : undefined,
     });
 
-    // Resolve the ONE client-tool seam both delivery paths share. The correlation index is wired
-    // for Claude only — Pi's relay toolCallId is already exact.
+    // Non-Pi loopback tools use the correlation index; Pi's relay toolCallId is already exact.
     env.clientToolRelayRef.current = buildClientToolRelay({
       responder,
       run,
@@ -653,16 +795,22 @@ export async function runTurn(
       },
       log: logger,
     });
+    env.executableToolGateRef.current =
+      !plan.isPi && !plan.isDaytona
+        ? buildExecutableToolGate({
+            responder,
+            run,
+            pause,
+            recordPendingInteraction,
+            toolCallIndex: env.toolCallIndex,
+            executionGrants,
+            log: logger,
+          })
+        : undefined;
 
-    // EVERY harness gets the guard: the relay dir is sandbox-writable, so a forged
-    // `<id>.req.json` proves nothing about any dialog having run, and this runner-side
-    // re-check is the only enforcement of the hard deny boundary against forged files.
-    // `allow` passes and `deny` refuses identically everywhere; `ask` splits by harness —
-    // Pi consumes a dialog-recorded execution grant (fail-closed parity with the in-sandbox
-    // confirm), while a non-Pi MCP harness (Claude) passes `ask` because its own harness
-    // enforces the ask dialog (the rendered `mcp__agenta-tools__<tool>` ask rules + the ACP
-    // permission flow) before a call reaches the shim. See buildRelayExecutionGuard for the
-    // stated residual (a forged file can still trigger an ask-tool without a dialog there).
+    // The relay dir is sandbox-writable, so every harness rechecks the hard deny boundary
+    // against forged files. `ask` consumes a Pi grant but passes for non-Pi after the local
+    // loopback gate or Claude's Daytona ACP gate; Codex Daytona remains outside this slice.
     const relayGuard: RelayExecutionGuard = buildRelayExecutionGuard({
       isPi: plan.isPi,
       permissionPlan,
@@ -747,7 +895,10 @@ export async function runTurn(
         // Answer this gate on the live session. Each parked gate holds its OWN pending
         // `respondPermission` on the harness, so answering them one by one settles each
         // independently — an approve and a deny in the same turn each land on the right call.
-        await env.session.respondPermission(decision.permissionId, decision.reply);
+        await env.session.respondPermission(
+          decision.permissionId,
+          decision.reply,
+        );
         // The gate is answered: resolve its durable interaction row (the parked pending row the
         // cold path would otherwise resolve via its decision map). Only carried-forward ids were
         // re-marked paused, so answered calls stream their terminal frames normally.
@@ -764,7 +915,7 @@ export async function runTurn(
       if (opts.resume.carriedForward.length > 0) pause.pause();
     } else {
       promptPromise = Promise.resolve(
-        env.session.prompt([{ type: "text", text: turnText }]),
+        env.session.prompt(promptBlocks),
       );
       promptPromise.catch(() => {});
     }
@@ -774,7 +925,10 @@ export async function runTurn(
     // regardless of ordering. A real (non-abort) prompt rejection is re-thrown into the shared catch.
     const cancelled = new Promise<typeof CANCELLED>((resolve) => {
       if (signal?.aborted) resolve(CANCELLED);
-      else signal?.addEventListener("abort", () => resolve(CANCELLED), { once: true });
+      else
+        signal?.addEventListener("abort", () => resolve(CANCELLED), {
+          once: true,
+        });
     });
     const raced = await Promise.race([
       promptPromise.then(
@@ -801,13 +955,14 @@ export async function runTurn(
     if (stopReason === "paused") {
       await pause.waitForEventDrain();
       settleBufferedPausedCompletions();
-      const openAllowedExecutions = openToolCallIds()
-        .filter((id) => pause.isAllowedExecution(id));
+      const openAllowedExecutions = openToolCallIds().filter((id) =>
+        pause.isAllowedExecution(id),
+      );
       const piBatchBlockedByApproval = Boolean(
         opts.resume &&
-          plan.isPi &&
-          opts.approvalParkMode &&
-          env.parkedApprovals.size > 0,
+        plan.isPi &&
+        opts.approvalParkMode &&
+        env.parkedApprovals.size > 0,
       );
       if (piBatchBlockedByApproval) {
         // Pi prepares every call in a parallel batch before it executes any of them. While a
@@ -841,12 +996,12 @@ export async function runTurn(
       }
       settleBufferedPausedCompletions();
       run.settleOpenToolCalls(
-        (id) =>
-          pause.isPausedToolCall(id) || pause.isAllowedExecution(id),
+        (id) => pause.isPausedToolCall(id) || pause.isAllowedExecution(id),
         TOOL_NOT_EXECUTED_PAUSED,
       );
-      const unexpectedOpenToolCallIds = openToolCallIds()
-        .filter((id) => !pause.isPausedToolCall(id));
+      const unexpectedOpenToolCallIds = openToolCallIds().filter(
+        (id) => !pause.isPausedToolCall(id),
+      );
       if (unexpectedOpenToolCallIds.length > 0) {
         logger(
           "[HITL] paused-turn transcript invariant left non-gated calls open: " +

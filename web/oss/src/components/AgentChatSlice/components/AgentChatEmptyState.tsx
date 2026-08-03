@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {isHarnessBuiltinTool} from "@agenta/entity-ui/tool-utils"
 import {ArrowRight, Play, Robot} from "@phosphor-icons/react"
 import {Button, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
@@ -58,9 +59,12 @@ const agentSummary = (config: unknown): string | null => {
     return line.length > 140 ? `${line.slice(0, 140)}…` : line
 }
 
-const capabilityLabel = (config: unknown): string | null => {
+export const capabilityLabel = (config: unknown): string | null => {
     const a = (config as {agent?: {tools?: unknown[]; skills?: unknown[]}} | null)?.agent
-    const tools = Array.isArray(a?.tools) ? a!.tools!.length : 0
+    // Legacy harness built-in entries are ignored and render nowhere, so they must not be counted.
+    const tools = Array.isArray(a?.tools)
+        ? a!.tools!.filter((tool) => !isHarnessBuiltinTool(tool)).length
+        : 0
     const skills = Array.isArray(a?.skills) ? a!.skills!.length : 0
     const parts: string[] = []
     if (tools) parts.push(`${tools} tool${tools === 1 ? "" : "s"}`)
