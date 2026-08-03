@@ -1,6 +1,8 @@
 import type {SessionStream} from "@agenta/entities/session"
 import Link from "next/link"
 
+import {StatusTag} from "@/components/StatusTag"
+
 import type {SessionLivenessBadge} from "./useLivenessPoll"
 
 /** Raw relative time ("3h ago") — enough for the LITE phase, no dayjs. */
@@ -37,20 +39,26 @@ export const SessionRow = ({
     // is_running=true for days after a crashed run) — only the live poll may badge.
     const badge = liveness ?? null
     return (
-        <Link href={href} className="border-border flex flex-col gap-0.5 border-b px-4 py-3">
-            <span className="text-xs font-medium">
-                {session.name ?? "Untitled session"}
+        <Link href={href} className="border-border flex flex-col gap-1 border-b px-4 py-3">
+            <span className="flex min-w-0 items-center gap-2">
+                <span className="truncate text-xs font-medium">
+                    {session.name ?? "Untitled session"}
+                </span>
                 {badge === "running" ? (
-                    <span className="text-primary ml-2 font-normal">running</span>
+                    <StatusTag tone="running" dot>
+                        running
+                    </StatusTag>
                 ) : badge === "alive" ? (
-                    <span className="text-muted-foreground ml-2 font-normal">live</span>
+                    <StatusTag tone="live" dot>
+                        live
+                    </StatusTag>
                 ) : null}
                 {pendingApprovals > 0 ? (
-                    <span className="text-primary ml-2 font-normal">needs approval</span>
+                    <StatusTag tone="attention">
+                        {pendingApprovals > 1 ? `${pendingApprovals} approvals` : "approval"}
+                    </StatusTag>
                 ) : null}
-                {session.deleted_at ? (
-                    <span className="text-muted-foreground ml-2 font-normal">ended</span>
-                ) : null}
+                {session.deleted_at ? <StatusTag tone="muted">ended</StatusTag> : null}
             </span>
             <span className="text-muted-foreground text-xs">
                 {agentLabel}

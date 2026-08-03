@@ -7,6 +7,7 @@ import {
 } from "@agenta/chat/model"
 
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {StatusTag} from "@/components/StatusTag"
 
 import {useLivenessPoll} from "../sessions/useLivenessPoll"
 
@@ -90,7 +91,9 @@ export const ChatScreen = ({
                     />
                     {running ? (
                         <div className="border-border flex shrink-0 items-center justify-between border-b px-4 py-2">
-                            <span className="text-primary text-xs">A turn is running</span>
+                            <StatusTag tone="running" dot>
+                                running
+                            </StatusTag>
                             <StopButton sessionId={sessionId} projectId={projectId} />
                         </div>
                     ) : null}

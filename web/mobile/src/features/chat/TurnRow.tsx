@@ -1,5 +1,7 @@
 import {partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 
+import {StatusTag} from "@/components/StatusTag"
+
 import {AssistantMarkdown} from "./AssistantMarkdown"
 import {AttachmentPart} from "./AttachmentPart"
 import {isLiveTextItem} from "./markdownStream"
@@ -59,8 +61,11 @@ export const TurnRow = ({turn}: {turn: TurnViewModel}) => (
                                     // The decision lives in the bottom ApprovalDock; the row is
                                     // just the marker (desktop parity).
                                     return (
-                                        <p key={key} className="text-muted-foreground text-xs">
-                                            Awaiting approval — {partToolName(part)}
+                                        <p key={key} className="flex items-center gap-2 text-xs">
+                                            <StatusTag tone="attention">approval</StatusTag>
+                                            <span className="text-muted-foreground truncate">
+                                                {partToolName(part)}
+                                            </span>
                                         </p>
                                     )
                                 }
