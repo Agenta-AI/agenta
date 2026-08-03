@@ -434,7 +434,7 @@ def test_calculate_and_propagate_metrics_runs_full_pipeline(monkeypatch):
 
     monkeypatch.setattr(
         "oss.src.core.tracing.utils.trees.cost_calculator.cost_per_token",
-        lambda model, prompt_tokens, completion_tokens: (
+        lambda model, prompt_tokens, completion_tokens, **_kwargs: (
             prompt_tokens * 0.01,
             completion_tokens * 0.02,
         ),
