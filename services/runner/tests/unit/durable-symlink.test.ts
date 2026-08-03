@@ -180,4 +180,52 @@ describe("ensureDurableSymlink (injected failures)", () => {
     assert.equal(logs.length, 1);
     assert.match(logs[0], /thing unlink failed/);
   });
+
+  it("does not read EEXIST as success when the unlink failed", async () => {
+    // The degraded entry could not be removed, so EEXIST here is that same entry still blocking
+    // the path — NOT a concurrent creator. Reporting "linked" would tell the caller a 0-byte
+    // auth.json had been repaired while it is still sitting there (issue #5692).
+    const logs: string[] = [];
+    const outcome = await ensureDurableSymlink(
+      "/tmp/run/link",
+      "/tmp/tgt",
+      "thing",
+      {
+        lstat: (async () => ({ isSymbolicLink: () => false })) as never,
+        unlink: (async () => {
+          throw Object.assign(new Error("busy"), { code: "EBUSY" });
+        }) as never,
+        symlink: (async () => {
+          throw Object.assign(new Error("exists"), { code: "EEXIST" });
+        }) as never,
+        log: (msg) => logs.push(msg),
+      },
+    );
+
+    assert.equal(outcome, "failed");
+    assert.equal(logs.length, 2);
+    assert.match(logs[0], /thing unlink failed/);
+    assert.match(logs[1], /thing link failed/);
+  });
+
+  it("still reads EEXIST as success when the unlink itself succeeded", async () => {
+    // A real race: the entry was removed, then a concurrent creator won. The link is there.
+    const logs: string[] = [];
+    const outcome = await ensureDurableSymlink(
+      "/tmp/run/link",
+      "/tmp/tgt",
+      "thing",
+      {
+        lstat: (async () => ({ isSymbolicLink: () => false })) as never,
+        unlink: (async () => {}) as never,
+        symlink: (async () => {
+          throw Object.assign(new Error("exists"), { code: "EEXIST" });
+        }) as never,
+        log: (msg) => logs.push(msg),
+      },
+    );
+
+    assert.equal(outcome, "linked");
+    assert.deepEqual(logs, []);
+  });
 });

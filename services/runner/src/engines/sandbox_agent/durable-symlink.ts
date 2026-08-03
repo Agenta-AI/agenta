@@ -52,6 +52,7 @@ export async function ensureDurableSymlink(
   const createLink = deps.symlink ?? symlink;
   const removeLink = deps.unlink ?? unlink;
   let replaceExisting = false;
+  let unlinkFailed = false;
   try {
     const stats = await inspect(linkPath);
     if (stats.isSymbolicLink() && (await readLink(linkPath)) === target) {
@@ -70,14 +71,21 @@ export async function ensureDurableSymlink(
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
         log(`${label} unlink failed ${linkPath}: ${detail(err)}`);
+        unlinkFailed = true;
       }
     }
   }
   try {
     await createLink(target, linkPath);
   } catch (err) {
-    // A concurrent creator won the race: the link is there, which is all this promised.
-    if ((err as NodeJS.ErrnoException).code === "EEXIST") return "linked";
+    // EEXIST after a clean (or unnecessary) unlink means a concurrent creator won the race: the
+    // link is there, which is all this promised. EEXIST after a FAILED unlink means something
+    // else entirely — the degraded entry this call exists to replace is still sitting on the
+    // path (a transient EBUSY/EACCES/EIO on the FUSE mount), so reporting success would leave
+    // the caller believing a 0-byte auth.json had been repaired when it had not.
+    if ((err as NodeJS.ErrnoException).code === "EEXIST" && !unlinkFailed) {
+      return "linked";
+    }
     log(`${label} link failed ${linkPath}: ${detail(err)}`);
     return "failed";
   }
