@@ -192,9 +192,15 @@ jobs:
 
       - name: Determine build metadata
         id: meta
+        env:
+          # Through `env` these are only ever data. Interpolated directly into `run:` they
+          # are substituted before bash parses the line, so a value could close the quote
+          # and run commands.
+          PR: ${{ github.event.pull_request.number }}
+          INPUT_TAG: ${{ inputs.image_tag }}
         run: |
-          PR="${{ github.event.pull_request.number }}"
-          INPUT_TAG="${{ inputs.image_tag }}"
+          PR="$PR"
+          INPUT_TAG="$INPUT_TAG"
           SHA="$(git rev-parse --short HEAD)"
 
           if [ -n "$PR" ]; then
@@ -278,12 +284,21 @@ jobs:
             if curl -sf http://127.0.0.1:3000/m >/dev/null; then break; fi
             sleep 1
           done
-          curl -sf http://127.0.0.1:3000/m >/dev/null || { docker logs mobile-smoke; exit 1; }
-          curl -sf http://127.0.0.1:3000/m/__env.js >/dev/null || { docker logs mobile-smoke; exit 1; }
-          # basePath /m owns the prefix: the bare root must 404.
-          if curl -sf http://127.0.0.1:3000/ >/dev/null; then
-            echo "::error::expected / to 404 (basePath /m)"; exit 1
-          fi
+          # Assert the status itself rather than curl's exit code: `-sf` succeeds on a
+          # 3xx (the page never rendered) and fails identically on 404 and 500.
+          expect_status() {
+            local path="$1" want="$2" got
+            got="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:3000${path}")"
+            if [ "$got" != "$want" ]; then
+              echo "::error::expected ${path} to return ${want}, got ${got}"
+              docker logs mobile-smoke
+              exit 1
+            fi
+          }
+          expect_status /m 200
+          expect_status /m/__env.js 200
+          # basePath /m owns the prefix, so the bare root belongs to nothing.
+          expect_status / 404
           docker rm -f mobile-smoke
 
       - name: Verify image runs as non-root
@@ -369,10 +384,12 @@ Insert each block **immediately after the `web` service** in its file. All block
         networks:
             - agenta-oss-gh-network
         # === LABELS =============================================== #
-        # PathPrefix(`/m`) auto-wins over the web catch-all PathPrefix(`/`)
-        # by rule length; no stripprefix — the app is built with basePath /m.
+        # Match the `/m` SEGMENT, not every path whose first two characters are `/m`:
+        # a bare PathPrefix(`/m`) would also capture /mobile, /metrics and friends and
+        # steal them from the web catch-all. The rule still auto-wins over PathPrefix(`/`)
+        # by length; no stripprefix — the app is built with basePath /m.
         labels:
-            - "traefik.http.routers.web-mobile.rule=PathPrefix(`/m`)"
+            - "traefik.http.routers.web-mobile.rule=(Path(`/m`) || PathPrefix(`/m/`))"
             - "traefik.http.routers.web-mobile.entrypoints=web"
             - "traefik.http.services.web-mobile.loadbalancer.server.port=3000"
         # === LIFECYCLE ============================================ #
@@ -510,7 +527,9 @@ SHUTDOWN_CMD="$COMPOSE_CMD --profile with-web-mobile --profile with-web --profil
 
 ## Task 5 — Verify (don't change) the already-wired CI coverage
 
-Pin the G3/G5 claims so nobody re-adds duplicate jobs later:
+Pin the G3/G5 claims so nobody re-adds duplicate jobs later. Run `set -o pipefail` first —
+the two piped checks below would otherwise report the exit status of `python3`/`grep` and
+swallow a failing producer:
 
 - [ ] `cd web && pnpm turbo run lint --filter=@agenta/mobile --dry=json | python3 -c "import json,sys; d=json.load(sys.stdin); print([t['taskId'] for t in d['tasks']])"` → includes `@agenta/mobile#lint` (proves `pnpm run lint` in `11-check-code-styling.yml:96` reaches mobile, tokens:check chained).
 - [ ] `cd web && pnpm -r --filter=!agenta-web-tests --if-present run test:unit --reporter=dot 2>&1 | grep -i chat` → `@agenta/chat` suite executes (the exact Phase-1 command from `run-tests.ts:200`); confirm `web/packages/agenta-chat/test-results/junit.xml` exists afterwards (matches the publish glob `12:133-135`).
@@ -534,7 +553,13 @@ docker image ls agenta-web-mobile:smoke --format 'SIZE {{.Size}}'
 
 ```bash
 docker run -d --name mobile-smoke -p 3000:3000 agenta-web-mobile:smoke
-sleep 3
+trap 'docker rm -f mobile-smoke >/dev/null 2>&1' EXIT   # container goes away on failure too
+# Bounded readiness poll, same as the workflow: a fixed sleep races a slow host, where
+# the entrypoint plus the Next server can need well over three seconds.
+for _ in $(seq 1 30); do
+  curl -sf http://127.0.0.1:3000/m >/dev/null && break
+  sleep 1
+done
 curl -sf -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3000/m          # expect: 200
 curl -sf -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3000/m/__env.js # expect: 200
 curl -s  -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3000/           # expect: 404

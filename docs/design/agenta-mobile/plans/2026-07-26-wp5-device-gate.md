@@ -458,7 +458,9 @@ export function decideMobileGate(input: GateInput): GateDecision {
 }
 ```
 
-- [ ] Run: `cd web && pnpm --filter @agenta/shared test:unit -- mobileGate` — expect **25 passed**.
+- [ ] Run: `cd web && pnpm --filter @agenta/shared test:unit -- mobileGate` — expect **38 passed**
+  (25 at the time this step was written; the file grew with the OAuth-callback handback and the
+  token-bearing `/auth` pass-through). Assert the suite is green, not a fixed number.
 - [ ] Run: `cd web && pnpm --filter @agenta/shared check` — expect types + lint clean.
 - [ ] Commit:
 

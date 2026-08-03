@@ -1,6 +1,12 @@
 # Mobile approvals + steering — design & plan
 
-**Status:** PLANNED · **Date:** 2026-07-27 · **Branch:** `feat/agenta-mobile-wave-1`
+**Status:** HISTORICAL PRE-EXECUTION SNAPSHOT (M0-M3 executed; see [../README.md](../README.md))
+· **Date:** 2026-07-27 · **Branch:** `feat/agenta-mobile-wave-1`
+
+> Read this as the plan as written, not as a description of what shipped. The one contract
+> difference worth knowing before reading further: the client answers a gate with
+> `{approved}` through the detached respond dispatcher, not the payload sketched below, and
+> the "no producer" / unverified notes in §3 were resolved during execution.
 **Goal:** from a phone, on a session whose agent runs in the cloud: (1) see that a turn is
 running and an approval is pending with enough context to decide, (2) approve/deny and have the
 agent proceed, (3) stop, and steer where feasible — all WITHOUT being the SSE stream holder.

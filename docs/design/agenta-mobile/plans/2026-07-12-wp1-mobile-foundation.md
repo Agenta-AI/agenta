@@ -27,7 +27,7 @@ Stand up the foundation for the Agenta mobile web app per `docs/design/agenta-mo
 **Tech Stack**
 Next.js `15.5.18` (workspace pin, enforced by the `next@<15.5.18 → >=15.5.18` pnpm override in `web/package.json`), React `^19`, TypeScript `^5.9`, Tailwind CSS v4 (`@tailwindcss/postcss`, CSS-first config — the latest toolchain shadcn supports), shadcn/ui (registry workflow, `new-york` style, CSS variables), `motion` `^12` (same major as OSS), ESLint 9 flat config + Prettier (repo `web/.prettierrc` applies by upward resolution — no new prettier config), pnpm `11.1.2` + turbo `2.8.20`, Docker Compose + Traefik v2.
 
-**Conventions for all commit steps:** run `git branch --show-current` first — if it prints `gitbutler/workspace`, this repo is in GitButler workspace mode and you must use `but branch new <lane>` / `but commit <lane> -m "..."` per root `AGENTS.md`; the commands below assume plain git on a feature branch (e.g. `mobile/wp1-foundation`). Never include Claude/Anthropic/Co-Authored-By lines in commit messages. All commands run from the repo root unless a `cd` is shown.
+**Conventions for all commit steps:** run `git branch --show-current` first — if it prints `gitbutler/workspace`, this repo is in GitButler workspace mode and you must use `but branch new <lane>` / `but commit <lane> -m "..."` per root `AGENTS.md`; the commands below assume plain git on a feature branch (e.g. `mobile/wp1-foundation`). Never include Claude/Anthropic/Co-Authored-By lines in commit messages. All commands run from the repo root unless a `cd` is shown. Before every commit step that touches frontend files, run `cd web && pnpm lint-fix` (the repo-wide convention in `web/AGENTS.md`) — a package-local ESLint run is not a substitute, because the format check in CI runs over the whole `web` tree.
 
 ---
 
@@ -355,8 +355,9 @@ const {sharedAxisPush, sheetSlideUp, crossfade, reduced} = useMotionPresets()
           "public/**",
           "next.config.ts",
           "postcss.config.mjs",
-          "tsconfig.json",
-          "components.json"
+          "$TURBO_DEFAULT$",
+          "!tests/**",
+          "!**/*.md"
       ],
       "outputs": [".next/**", "!.next/cache/**"],
       "env": ["NODE_ENV", "NEXT_PUBLIC_*"]
@@ -786,11 +787,15 @@ const {sharedAxisPush, sheetSlideUp, crossfade, reduced} = useMotionPresets()
       "muted-foreground": [color(p.text.secondary.light), color(p.text.secondary.dark)],
       accent: [
           color(p.surface.controlItemBgActive.light),
-          color(p.surface.controlItemBgActive.dark),
+          // Review delta: the palette's dark controlItemBgActive reads olive against the
+          // mobile surface; zinc[2] is the neutral the dark theme actually wants.
+          color(p.scales.zinc[2].dark),
       ],
       "accent-foreground": [color(p.text.primary.light), color(p.text.primary.dark)],
       destructive: [color(p.semantic.error.light), color(p.semantic.error.dark)],
-      "destructive-foreground": [color(p.surface.white.light), color(p.surface.white.dark)],
+      // Review delta: pure white on the dark destructive fill was too hot; the antd dark
+      // button primary colour is the value the rest of the dark theme uses.
+      "destructive-foreground": [color(p.surface.white.light), p.componentsDark.Button.primaryColor],
       border: [color(p.border.secondary.light), color(p.border.secondary.dark)],
       input: [color(p.border.default.light), color(p.border.default.dark)],
       ring: [color(p.accent.primary.light), color(p.accent.primary.dark)],
@@ -932,7 +937,7 @@ const {sharedAxisPush, sheetSlideUp, crossfade, reduced} = useMotionPresets()
   cd web/mobile && pnpm dlx shadcn@latest add button skeleton
   ```
   Expected: CLI reports it found `components.json`, and creates `src/components/ui/button.tsx` and `src/components/ui/skeleton.tsx`.
-- [ ] Verify: `ls web/mobile/src/components/ui/` → `button.tsx  skeleton.tsx`; `git diff web/mobile/package.json` shows the added radix dep; `web/pnpm-lock.yaml` updated.
+- [ ] Verify (still inside `web/mobile` from the previous step): `ls src/components/ui/` → `button.tsx  skeleton.tsx`; `git diff package.json` shows the added radix dep; `git diff ../pnpm-lock.yaml` shows the lockfile updated.
 
 ### Task 3.9 — Commit the design-system foundation
 

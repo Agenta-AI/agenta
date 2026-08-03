@@ -111,7 +111,11 @@ provider stack before deciding).
 - Escape hatch both ways: a `agenta-mobile-optout` / `agenta-mobile-optin` cookie set by
   "View desktop site" / "Open mobile version" links; middleware honors it. This also fixes the
   current banner's dismissal-not-persisted annoyance.
-- `NoMobilePageWrapper` is retired once the gate ships.
+- `NoMobilePageWrapper` is retired when the gate is actually turned **on**, not when its code
+  ships. WP5 landed the gate default-off (`AGENTA_MOBILE_GATE`), so retiring the wrapper any
+  earlier would leave a mobile visitor with neither the gate nor the blocker. Retirement (T8)
+  belongs to the deployment window that flips the flag, once WP2 and WP4 can serve what the
+  redirect points at.
 
 **URL scheme (mobile app, under basePath `/m`):**
 
@@ -169,7 +173,14 @@ Mobile consumes this as-is: project-wide list = `querySessions` without a `refer
 per-agent filter = the existing `references` filter; continue-session = resolve the session's
 latest turn (turns endpoints exist) → references → hydrate that revision.
 
-### Residual gaps (the revised WP0 scope)
+### Residual gaps (the revised WP0 scope) — CLOSED, kept as the record of what was scoped
+
+> **Status (2026-07-25): all five items below are implemented.** They are left here as the gap
+> analysis that produced WP0, not as open work. Ordering rides `coalesce(updated_at, created_at)`
+> with a direction-matched id tiebreak, search is an escaped `ilike` on the stream name,
+> references are batch-hydrated by `latest_turn_per_session` (one `DISTINCT ON` query, not
+> per-session), and the zod wire test exists. Only the optional Fern regen for `include_ended`
+> is still outstanding. See the README's "WP0 residual" section for the commit-by-commit record.
 
 1. **`updated_at` ordering/cursor** — the query DAO windows on `id` (uuid7 ≈ creation order);
    the FE sorts client-side per page, which breaks "last-activity" ordering across pages for
@@ -364,7 +375,7 @@ same standard, per the repo's instruction-organization model:
 
 | WP | Scope | Depends on |
 |----|-------|------------|
-| WP0 | BE residual (revised 2026-07-18 — list/title/linkage landed via sessions-extensions): `updated_at` windowing, title search, references echo on list rows, `querySessions` zod test | — |
+| WP0 | **EXECUTED.** BE residual (revised 2026-07-18 — list/title/linkage landed via sessions-extensions): `updated_at` windowing, title search, references echo on list rows, `querySessions` zod test | — |
 | WP1 | Foundation: skill/instruction infrastructure, `web/mobile` scaffold, shadcn + token bridge + motion presets, lint import-bans, compose/Traefik/`__env.js` | — |
 | WP2 | Auth: mobile sign-in (headless SuperTokens + shadcn), callback, context resolution, project drawer | WP1 |
 | WP3a | `@agenta/chat` headless core: lift the behavior blocks (host hook, turn render model, hydration, approvals, attachments neutralization), generalize the registries, fixture tests; OSS re-imports the lifted pure blocks (behavior-neutral) | — |
