@@ -29,11 +29,11 @@ permissions:
 
 env:
   RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-  # This workflow triggers directly (PR close / cron / dispatch), so it cannot
-  # receive the mode resolved by workflow 14; it reads the repo variable at
-  # its own run time. 'legacy' = project per PR; 'clone' = environment per PR
-  # in the template project (issue #5650).
-  RAILWAY_PREVIEW_MODE: ${{ vars.RAILWAY_PREVIEW_MODE || 'legacy' }}
+  # Template location (issue #5650). The repo variables let a future template
+  # project move happen without a code change; the scripts carry the same
+  # defaults, so local runs and CI agree.
+  RAILWAY_TEMPLATE_PROJECT: ${{ vars.RAILWAY_TEMPLATE_PROJECT || 'agenta-oss-clone-spike' }}
+  RAILWAY_TEMPLATE_ENV: ${{ vars.RAILWAY_TEMPLATE_ENV || 'pr-template' }}
 
 jobs:
   destroy-pr-preview:
@@ -42,30 +42,15 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Railway CLI
-        run: |
-          npm install -g @railway/cli@latest
-          railway --version
-
       - name: Install jq
         run: |
           if ! command -v jq >/dev/null 2>&1; then
             sudo apt-get update && sudo apt-get install -y jq
           fi
 
+      # The preview is an environment in the template project (issue #5650) —
+      # delete just that environment (idempotent: absent = success).
       - name: Destroy preview environment
-        if: env.RAILWAY_PREVIEW_MODE != 'clone'
-        env:
-          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
-        run: |
-          chmod +x hosting/railway/oss/scripts/preview-destroy.sh
-          hosting/railway/oss/scripts/preview-destroy.sh
-
-      # Clone mode (issue #5650): the preview is an environment in the
-      # template project, not a project — delete just that environment
-      # (idempotent: absent = success).
-      - name: Destroy clone preview environment
-        if: env.RAILWAY_PREVIEW_MODE == 'clone'
         env:
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
         run: |
@@ -126,31 +111,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Railway CLI
-        run: |
-          npm install -g @railway/cli@latest
-          railway --version
-
       - name: Install jq
         run: |
           if ! command -v jq >/dev/null 2>&1; then
             sudo apt-get update && sudo apt-get install -y jq
           fi
 
-      - name: Clean up stale previews
-        env:
-          RAILWAY_PREVIEW_MAX_AGE_HOURS: ${{ inputs.max_age_hours || '24' }}
-          RAILWAY_PREVIEW_DRY_RUN: ${{ inputs.dry_run || 'false' }}
-        run: |
-          chmod +x hosting/railway/oss/scripts/preview-cleanup-stale.sh
-          hosting/railway/oss/scripts/preview-cleanup-stale.sh
-
-      # Clone-mode equivalent of the stale sweep (issue #5650): delete pr-*
-      # preview environments older than the max age in the template project.
-      # Runs in BOTH modes on purpose — after a rollback to legacy, clone
-      # environments created before the flip would otherwise linger forever.
-      # A sweep with nothing to delete costs ~3 API calls.
-      - name: Clean up stale clone preview environments
+      # Safety net for previews that outlived their PR (a cancelled run that
+      # died mid-cycle, a workflow bug): delete pr-* preview environments in
+      # the template project older than the max age. A sweep with nothing to
+      # delete costs ~3 API calls.
+      - name: Clean up stale preview environments
         env:
           RAILWAY_PREVIEW_DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
