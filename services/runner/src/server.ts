@@ -476,12 +476,13 @@ export async function runWithKeepalive(
   };
 
   // Whether a paused turn is fully parkable: every pending gate is a parkable ACP permission gate
-  // (Claude ACP or Pi ACP) that carries a `respondPermission`-answerable id, so the warm resume
-  // can answer them all. A turn parks when it has at least one parked gate AND every pending gate
-  // is parkable: no client-tool MCP pause (unanswerable across a turn boundary), and no approval
-  // gate that lacked a resumable id. A mixed or partly-unresumable set stays on the cold path,
-  // which is the only path that can multiplex it. Any count of parkable gates parks — a turn with
-  // several parallel gates is answered by several `respondPermission` calls on the resume.
+  // (Claude, Codex, or Pi ACP) that carries a `respondPermission`-answerable id, so the warm
+  // resume can answer them all. A turn parks when it has at least one parked gate AND every
+  // pending gate is parkable: no client-tool MCP pause (unanswerable across a turn boundary), and
+  // no approval gate that lacked a resumable id. A mixed or partly-unresumable set stays on the
+  // cold path, which is the only path that can multiplex it. Any count of parkable gates parks —
+  // a turn with several parallel gates is answered by several `respondPermission` calls on the
+  // resume.
   const approvalToPark = (
     env: SessionEnvironment,
     result: AgentRunResult,
@@ -652,8 +653,8 @@ export async function runWithKeepalive(
     }
     let result: AgentRunResult;
     try {
-      // Park mode on: a Claude ACP permission gate this turn keeps the session alive instead of
-      // tearing down. A non-parkable pause (Pi relay/builtin, client tool) still destroys as today.
+      // Park mode keeps a parkable ACP permission gate alive. A non-parkable relay or client-tool
+      // pause still destroys the session.
       result = await engine.runTurn(env, request, trackedEmit, signal, {
         approvalParkMode: true,
         loaded: env.loadedFromContinuity,
@@ -764,7 +765,7 @@ export async function runWithKeepalive(
     // checkout lost a race; fall through to cold.
   } else if (existing && existing.state === "awaiting_approval") {
     // An approval-parked session. A validated approval decision that matches the parked
-    // Claude ACP gate resumes it live; anything else evicts and degrades to cold.
+    // ACP gate resumes it live; anything else evicts and degrades to cold.
     //
     // Approval replies may carry re-minted per-turn callback authorization, which does not invalidate
     // the parked process. Credentials baked into the model/MCP environment are different: rotation
@@ -788,10 +789,11 @@ export async function runWithKeepalive(
       for (const gate of parkedList) {
         if (
           gate.gateType !== "claude-acp-permission" &&
+          gate.gateType !== "codex-acp-permission" &&
           gate.gateType !== "pi-acp-permission"
         ) {
-          // Defensive: only a parkable gate type (Claude ACP or Pi ACP) ever parks here. Both
-          // resume via `respondPermission` on the live session; the daemon maps the reply by kind.
+          // Defensive: only a parkable ACP gate type ever parks here. All resume through
+          // `respondPermission` on the live session; the daemon maps the reply by kind.
           mismatch = "unrecognized-gate-type";
           break;
         }

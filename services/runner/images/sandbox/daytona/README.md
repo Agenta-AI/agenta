@@ -38,6 +38,16 @@ The snapshot recipe therefore:
   would not resolve;
 - fails the build unless the private launcher exists and its installed package reports
   version `0.0.29`;
+- reinstalls the Codex ACP adapter (`@agentclientprotocol/codex-acp`) pinned to the SAME
+  version the runner image pins (D-005; the base image's copy floats and served an older
+  model set — the #5537 gap), and fails the build unless the installed version matches;
+- applies the codex-acp approval patch (D-008 amendment): the `agent-full-access` preset is
+  rewritten from `approvalPolicy: "never"` to `on-request` so Agenta-tool calls raise
+  codex-native gates that park warm. Without this, a Daytona `ask` tool executes with NO
+  approval (the runner-side seam gate is off remotely). The anchor is single-sourced from
+  `services/runner/src/engines/sandbox_agent/codex-acp-patch.json` (shared with the runner
+  image build), the step verifies its own write, and the build fails loudly if the preset
+  drifts;
 - verifies that the Claude, Codex, and OpenCode binaries are still present;
 - installs the FUSE and geesefs dependencies used for durable remote working directories;
 - installs `python3` and `typescript`/`ts-node` for the shared custom-code evaluator runtimes; and

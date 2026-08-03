@@ -98,12 +98,15 @@ const NATIVE_IMAGE_TYPES = new Set([
   "image/webp",
 ]);
 export const CLAUDE_INLINE_BASE64_MAX_BYTES = 10 * 1024 * 1024;
+export const CODEX_INLINE_BASE64_MAX_BYTES = 10 * 1024 * 1024;
 const DEFAULT_RESTORE_CONCURRENCY = 4;
 const DEFAULT_RESTORE_TIMEOUT_MS = 15_000;
 
-// Adapter fidelity at the pinned versions: claude-agent-acp 0.58.1 and pi-acp 0.0.29.
+// Adapter fidelity at the pinned versions: claude-agent-acp 0.58.1, codex-acp 1.1.7, and
+// pi-acp 0.0.29.
 const ADAPTER_NATIVE_SUPPORT = {
   claude: { image: true, audio: false, document: false },
+  codex: { image: true, audio: false, document: false },
   pi: { image: true, audio: false, document: false },
 } as const;
 
@@ -527,10 +530,17 @@ export function attachmentCapabilityGate(input: {
   const usesAnthropicInlineLimit = provider
     ? provider === "anthropic"
     : input.acpAgent === "claude";
+  // codex-acp expands every ACP image into an inline data URL, regardless of model provider.
+  // Bound that request growth without changing the existing Pi/OpenAI delivery policy.
+  const inlineBase64Limit = usesAnthropicInlineLimit
+    ? CLAUDE_INLINE_BASE64_MAX_BYTES
+    : input.acpAgent === "codex"
+      ? CODEX_INLINE_BASE64_MAX_BYTES
+      : null;
   if (
     kind === "image" &&
-    usesAnthropicInlineLimit &&
-    base64Length(input.byteLength) > CLAUDE_INLINE_BASE64_MAX_BYTES
+    inlineBase64Limit !== null &&
+    base64Length(input.byteLength) > inlineBase64Limit
   ) {
     return {
       outcome: "workspace_only",

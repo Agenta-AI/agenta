@@ -34,9 +34,12 @@ Licensing (see services/runner/docker/README.md):
     pin that only after confirming the daemon-only tag also ships the ACP adapters.
 """
 
+import base64
+import json
 import os
 import sys
 import time
+from pathlib import Path
 
 from daytona import (
     CreateSnapshotParams,
@@ -52,8 +55,87 @@ SANDBOX_AGENT_IMAGE = "rivetdev/sandbox-agent:0.5.0-rc.2-full"
 PI_VERSION = "0.80.6"
 PI_PACKAGE = f"@earendil-works/pi-coding-agent@{PI_VERSION}"
 PI_ACP_VERSION = "0.0.29"
-PI_ACP_INSTALL_DIR = "/home/sandbox/.local/share/sandbox-agent/bin/agent_processes"
+SANDBOX_AGENT_HOME = "/home/sandbox/.local/share/sandbox-agent"
+PI_ACP_INSTALL_DIR = f"{SANDBOX_AGENT_HOME}/bin/agent_processes"
 PI_ACP_PACKAGE_JSON = f"{PI_ACP_INSTALL_DIR}/pi/node_modules/pi-acp/package.json"
+
+# Codex ACP adapter. The `-full` base image bakes SOME codex-acp, but an unpinned one: it served
+# an older model set than the runner's pin, so the same agent saw different models depending on
+# the sandbox it landed in. Pin it here to the SAME version the runner image pins (decision
+# D-005, `services/runner/package.json` runtimeAgentPins), then apply the SAME approval patch the
+# runner image applies (D-008 amendment). Both matter: without the pin, model sets diverge;
+# without the patch, a Daytona Codex run silently keeps COLD tool approvals while a local run
+# parks warm. Keep this version in agreement with the runner image.
+CODEX_ACP_VERSION = "1.1.7"
+CODEX_ACP_PACKAGE_JSON = f"{PI_ACP_INSTALL_DIR}/codex/node_modules/@agentclientprotocol/codex-acp/package.json"
+
+# The approval-patch anchor is single-sourced with the runner image so the two can never drift.
+PATCH_SPEC = json.loads(
+    (
+        Path(__file__).resolve().parents[3]
+        / "src"
+        / "engines"
+        / "sandbox_agent"
+        / "codex-acp-patch.json"
+    ).read_text()
+)
+CODEX_ACP_BUNDLE = f"{SANDBOX_AGENT_HOME}/{PATCH_SPEC['bundlePath']}"
+
+
+def codex_approval_patch_command() -> str:
+    """A self-contained RUN that decouples approvals from the full-access sandbox preset.
+
+    The Daytona image build has no build context from this repo, so the patch script is
+    base64-embedded rather than copied. base64 is quoting-safe, which a regex full of quotes and
+    backslashes is not: an earlier revision passed the same regex to an inline `node -e` and the
+    build died on `/bin/sh: Syntax error: "(" unexpected`. Everything, including the post-write
+    verification, therefore lives INSIDE this one script rather than in a second RUN line.
+
+    The script fails loudly (exit 1) when the anchor is missing, so a base image whose codex-acp
+    preset drifted breaks the snapshot build instead of silently shipping cold approvals. It
+    re-reads the file after writing and fails if the patch did not take. It is idempotent, so a
+    rebuild is a no-op.
+    """
+    script = f"""
+import {{ readFileSync, writeFileSync }} from "node:fs";
+const file = {json.dumps(CODEX_ACP_BUNDLE)};
+const re = new RegExp({json.dumps(PATCH_SPEC["pattern"])});
+const patched = {json.dumps(PATCH_SPEC["patched"])};
+const source = readFileSync(file, "utf8");
+const match = re.exec(source);
+if (!match) {{
+  console.error(
+    "codex-acp approval patch: anchor missing in " + file +
+    ". The base image's codex-acp preset changed: re-verify the approval/sandbox coupling and " +
+    "update services/runner/src/engines/sandbox_agent/codex-acp-patch.json."
+  );
+  process.exit(1);
+}}
+if (match[2] === patched) {{
+  console.log("codex-acp approval patch: already on-request");
+}} else {{
+  writeFileSync(
+    file,
+    source.slice(0, match.index) + match[1] + '"' + patched + '"' + match[3] +
+      source.slice(match.index + match[0].length)
+  );
+  console.log("codex-acp approval patch: agent-full-access now sends on-request approvals");
+}}
+// Re-read and assert, so the snapshot can never ship cold approvals on a silent write failure.
+const after = new RegExp({json.dumps(PATCH_SPEC["pattern"])}).exec(readFileSync(file, "utf8"));
+if (!after || after[2] !== patched) {{
+  console.error("codex-acp approval patch did not take in " + file);
+  process.exit(1);
+}}
+console.log("codex-acp-approvals=" + patched);
+"""
+    blob = base64.b64encode(script.encode()).decode()
+    return (
+        f"RUN echo {blob} | base64 -d > /tmp/patch-codex-acp.mjs "
+        "&& node /tmp/patch-codex-acp.mjs && rm /tmp/patch-codex-acp.mjs"
+    )
+
+
 # Durable session cwd: geesefs (FUSE-over-S3) mounts the store prefix INSIDE the sandbox for
 # remote runs. fuse provides fusermount + /etc/fuse.conf; geesefs is the static mount binary.
 # amd64 is correct here regardless of the builder's local arch: the snapshot is built and run
@@ -138,6 +220,14 @@ def main() -> None:
             f'&& test "$(node -p "require(\'{PI_ACP_PACKAGE_JSON}\').version")" '
             f'= "{PI_ACP_VERSION}" '
             f"&& echo pi-acp-version={PI_ACP_VERSION}",
+            # Same treatment for Codex: pin the adapter to the runner's version, then assert it.
+            f"RUN sandbox-agent install-agent codex --reinstall "
+            f"--agent-process-version {CODEX_ACP_VERSION}",
+            f'RUN test "$(node -p "require(\'{CODEX_ACP_PACKAGE_JSON}\').version")" '
+            f'= "{CODEX_ACP_VERSION}" '
+            f"&& echo codex-acp-version={CODEX_ACP_VERSION}",
+            # Patches AND verifies in one step; see the docstring for why it is not two.
+            codex_approval_patch_command(),
         ]
     )
 

@@ -4,12 +4,15 @@ import { describe, it } from "vitest";
 import {
   attachmentCapabilityGate,
   CLAUDE_INLINE_BASE64_MAX_BYTES,
+  CODEX_INLINE_BASE64_MAX_BYTES,
 } from "../../src/engines/sandbox_agent/attachments.ts";
 
 // The gate compares the base64 expansion (4 bytes out per 3 in) against the cap, so derive the
 // raw byte lengths that land either side of it.
 const AT_CAP_BYTES = Math.floor((CLAUDE_INLINE_BASE64_MAX_BYTES / 4) * 3);
 const OVER_CAP_BYTES = AT_CAP_BYTES + 3;
+const CODEX_AT_CAP_BYTES = Math.floor((CODEX_INLINE_BASE64_MAX_BYTES / 4) * 3);
+const CODEX_OVER_CAP_BYTES = CODEX_AT_CAP_BYTES + 3;
 
 const IMAGE_INPUT = {
   acpAgent: "claude",
@@ -21,7 +24,7 @@ const IMAGE_INPUT = {
 };
 
 describe("attachment capability gate", () => {
-  it("delivers images natively through both pinned adapters", () => {
+  it("delivers images natively through all pinned adapters", () => {
     assert.equal(
       attachmentCapabilityGate(IMAGE_INPUT).outcome,
       "native",
@@ -30,6 +33,14 @@ describe("attachment capability gate", () => {
       attachmentCapabilityGate({
         ...IMAGE_INPUT,
         acpAgent: "pi",
+        provider: "openai",
+      }).outcome,
+      "native",
+    );
+    assert.equal(
+      attachmentCapabilityGate({
+        ...IMAGE_INPUT,
+        acpAgent: "codex",
         provider: "openai",
       }).outcome,
       "native",
@@ -136,6 +147,33 @@ describe("attachment capability gate", () => {
       attachmentCapabilityGate({
         ...IMAGE_INPUT,
         byteLength: AT_CAP_BYTES,
+      }).outcome,
+      "native",
+    );
+  });
+
+  it.each(["openai", "my-gateway", undefined])(
+    "caps oversized Codex images independently of provider=%s",
+    (provider) => {
+      assert.equal(
+        attachmentCapabilityGate({
+          ...IMAGE_INPUT,
+          acpAgent: "codex",
+          provider,
+          byteLength: CODEX_OVER_CAP_BYTES,
+        }).reasonCode,
+        "provider_inline_cap",
+      );
+    },
+  );
+
+  it("keeps an exact-boundary Codex image native", () => {
+    assert.equal(
+      attachmentCapabilityGate({
+        ...IMAGE_INPUT,
+        acpAgent: "codex",
+        provider: "openai",
+        byteLength: CODEX_AT_CAP_BYTES,
       }).outcome,
       "native",
     );

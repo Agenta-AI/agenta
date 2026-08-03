@@ -468,6 +468,7 @@ class WireRunRequest(_WireModel):
     model_connection: Optional[WireModelConnection] = Field(
         default=None, alias="modelConnection"
     )
+    harness_mode: Optional[str] = Field(default=None, alias="harnessMode")
     # Resolved model input modalities. Omitted when the resolver cannot determine them.
     model_capabilities: Optional[WireModelCapabilities] = Field(
         default=None, alias="modelCapabilities"

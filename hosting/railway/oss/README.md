@@ -29,6 +29,7 @@ baseline.
 - `worker-queues/` - list-parameterized worker image for taskiq queue consumers (webhooks, triggers, interactions, evaluations)
 - `cron/` - cron service image
 - `alembic/` - migration runner image
+- `images/` - prebuilt wrapper image sources (`gateway`, `redis`, `seaweedfs`) pushed to GHCR for clone-based previews
 - `scripts/bootstrap.sh` - create project, environment, and services
 - `scripts/configure.sh` - set variables and start commands
 - `scripts/deploy-gateway.sh` - deploy gateway image from local Dockerfile
@@ -38,6 +39,9 @@ baseline.
 - `scripts/deploy-from-images.sh` - deploy Railway services from explicit image tags
 - `scripts/preview-create-or-update.sh` - create or update a PR-scoped preview project
 - `scripts/preview-destroy.sh` - delete a PR-scoped preview project
+- `scripts/preview-clone-create.sh` - create or update a clone-mode preview environment (issue #5650)
+- `scripts/preview-clone-destroy.sh` - delete a clone-mode preview environment (plus `--stale-hours` sweep)
+- `template/` - the preview template environment as code (definition, converge tool, GraphQL client)
 
 ## Prerequisites
 
@@ -148,6 +152,122 @@ Defaults:
 
 - Project naming uses `RAILWAY_PREVIEW_PROJECT_PREFIX` (default `agenta-oss-pr`) and a normalized preview key.
 - Preview key resolution order is `RAILWAY_PREVIEW_KEY`, `PR_NUMBER`, `GITHUB_PR_NUMBER`, then GitHub branch refs.
+
+## Clone-Based Previews (Experimental)
+
+Issue #5650 adds a second, faster preview path: instead of bootstrapping one
+Railway **project** per PR (~58 API calls, minutes of setup), a PR preview is
+one **environment** cloned from a pre-built template environment inside a
+single shared project (~15 API calls, under a minute). The template itself is
+code: `template/template.json`, converged by `template/apply.sh` and guarded
+by the drift workflow (47).
+
+### The mode switch
+
+The GitHub repo variable `RAILWAY_PREVIEW_MODE` selects the path:
+
+- unset or `legacy` (default) — the original project-per-PR flow. The legacy
+  steps run exactly as before.
+- `clone` — the clone flow described below.
+
+Workflow 14 resolves the variable ONCE per run and passes it down to setup
+(41) and deploy (43), so a mid-run flip cannot split a run across modes.
+Cleanup (45) triggers on its own events and reads the variable at its own run
+time.
+
+**Rollback = flip the variable back to `legacy`** (or delete it). Nothing
+else to undo: the next push on any PR bootstraps a legacy project again.
+Clone environments created before the flip are removed by the daily stale
+sweep in workflow 45 (which sweeps `pr-*` environments in the template
+project in both modes for exactly this reason), or immediately via
+`scripts/preview-clone-destroy.sh`.
+
+### How clone mode works
+
+1. **Setup (41)** runs `scripts/preview-clone-create.sh`: ensure environment
+   `pr-<PR_NUMBER>` exists (`environmentCreate` from the template with
+   `skipInitialDeploys`; an ambiguous create failure is reconciled by polling
+   the name, never by re-creating), then ONE `environmentPatchCommit` that
+   points the eight app services at the run's image tag (Railway auto-deploys
+   every service whose config changed), then deploy the rest in the proven
+   order (infra, then alembic, then everything else; supertokens must wait
+   for alembic), then smoke `/w`, `/api/health`, `/services/health` through
+   the clone's own gateway domain. On a later push to the same PR the
+   environment is patched in place, not re-created.
+2. **Deploy (43)** is redundant in clone mode (setup already deployed and
+   smoked); it runs `preview-clone-create.sh --verify-only`, a mutation-free
+   re-check that emits the preview URL for the tests job and the PR comment.
+3. **Cleanup (45)** runs `scripts/preview-clone-destroy.sh`: one
+   `environmentDelete` (idempotent — an absent environment is a success),
+   plus the daily stale sweep (`--stale-hours 24`).
+
+Two traps the scripts are built around (proven live in
+`docs/design/railway-preview-clone-spike/findings.md`): the template's app
+tags must stay disjoint from PR tags because `environmentPatchCommit`
+silently no-ops on an unchanged config (services whose image already matches
+are deployed explicitly instead, and `latest` is refused outright), and a
+single Postgres first-deploy timeout in a fresh clone is transient (the
+script retries that deploy exactly once).
+
+### Configuration
+
+- `RAILWAY_TEMPLATE_PROJECT` — template project name.
+  TODO(cutover): the script default is the proven test bed
+  `agenta-oss-clone-spike` until rollout re-points it (and
+  `template/template.json`'s `project`) at the production preview project.
+- `RAILWAY_TEMPLATE_ENV` — template environment name (default `pr-template`).
+- `RAILWAY_PREVIEW_ENV_NAME` — override the per-PR environment name (test
+  cycles use `pr-clone-*` names).
+- Auth is the same account token as the legacy path, exported as
+  `RAILWAY_API_TOKEN` (never `RAILWAY_TOKEN`).
+
+### Evidence
+
+Workflow 48 (`48-railway-clone-preview-test.yml`) is the acceptance harness:
+it runs N consecutive full cycles (create + patch + deploy + smoke, then
+destroy) with the production scripts against the template project and prints
+per-cycle timing and API call counts to the step summary. Issue #5650's bar
+is 3 consecutive green cycles from a real Actions run.
+
+## Prebuilt Wrapper Images (Clone-Based Previews)
+
+Clone-based preview environments (issue #5650) consume `gateway`, `redis`, and
+`seaweedfs` as plain registry images instead of `railway up` uploads, because
+upload-built sources do not survive Railway environment cloning.
+
+- Sources live in `images/{gateway,redis,seaweedfs}/` (Dockerfile plus config
+  or entrypoint files). They must stay byte-faithful to what the legacy deploy
+  path ships per PR today: the `render_redis_wrapper()` and
+  `render_seaweedfs_wrapper()` heredocs in `scripts/deploy-from-images.sh`,
+  and the `gateway/` directory that `scripts/deploy-gateway.sh` uploads.
+- `images/verify-wrappers.sh` enforces that byte-faithfulness (it regenerates
+  the deploy-time content from `deploy-from-images.sh` itself) and runs as the
+  first step of the CI job, so drift between the two paths fails the build.
+  If the compose baseline moves the Redis image, or the `SEAWEEDFS_IMAGE`
+  default changes, bump the matching `FROM` pin in `images/*/Dockerfile`.
+- CI (the `wrapper-images` job in `.github/workflows/42-railway-build.yml`)
+  builds `ghcr.io/agenta-ai/agenta-preview-{gateway,redis,seaweedfs}` for
+  `linux/amd64`.
+- Tags are content-addressed, never `latest`: `images/compute-tag.sh <dir>`
+  prints `content-<12 hex>` from a deterministic hash of the directory
+  content. Unchanged content maps to a tag that already exists in GHCR, so CI
+  skips the rebuild. Each run also aliases the content manifest with the run's
+  image tag (`pr-<number>-<sha>` or `manual-<sha>`). Railway's
+  `environmentPatchCommit` no-ops when a patched tag equals the template's,
+  which is why unique, disjoint tags matter.
+
+Build locally:
+
+```bash
+./hosting/railway/oss/images/verify-wrappers.sh
+
+TAG="$(./hosting/railway/oss/images/compute-tag.sh hosting/railway/oss/images/gateway)"
+docker build -t "ghcr.io/agenta-ai/agenta-preview-gateway:${TAG}" hosting/railway/oss/images/gateway
+```
+
+The first CI push creates each `agenta-preview-*` GHCR package as private;
+make it public once (like the other preview packages) if clone environments
+should pull without registry credentials.
 
 ## Template Export Readiness
 

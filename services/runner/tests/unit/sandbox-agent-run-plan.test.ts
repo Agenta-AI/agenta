@@ -1247,6 +1247,41 @@ describe("buildRunPlan", () => {
       "AKIA-local-use",
     );
   });
+
+  it("normalizes a local managed Codex run", () => {
+    const result = buildRunPlan(
+      {
+        harness: "codex",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://api.openai.com/v1" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "OPENAI_API_KEY" },
+              value: "sk-openai",
+              usage: "opaque_http",
+            },
+          ],
+        },
+      },
+      {
+        createLocalCwd: () => "/tmp/local-cwd",
+      },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.plan.acpAgent, "codex");
+    assert.equal(result.plan.isPi, false);
+    assert.equal(result.plan.isDaytona, false);
+    assert.equal(result.plan.harnessApiKeyVar, "OPENAI_API_KEY");
+    assert.equal(result.plan.hasApiKey, true);
+    assert.equal(result.plan.credentialMode, "env");
+  });
 });
 
 describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
@@ -1401,6 +1436,75 @@ describe("buildRunPlan runtime_provided (subscription) gates", () => {
         },
       },
     );
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE);
+    assert.equal(created, false);
+  });
+
+  it("rejects a local Codex runtime_provided run when CODEX_HOME is unset", () => {
+    withEnv({ CODEX_HOME: undefined }, () => {
+      const result = buildRunPlan({
+        harness: "codex",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          credentialMode: "runtime_provided",
+          credentials: [],
+        },
+      });
+
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.equal(result.error, LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE);
+    });
+  });
+
+  it("accepts a local Codex runtime_provided run when CODEX_HOME names a mount", () => {
+    withEnv({ CODEX_HOME: "/agenta/harness/codex" }, () => {
+      const result = buildRunPlan({
+        harness: "codex",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          credentialMode: "runtime_provided",
+          credentials: [],
+        },
+      });
+
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.equal(result.plan.credentialMode, "runtime_provided");
+      assert.equal(result.plan.acpAgent, "codex");
+    });
+  });
+
+  it("rejects a Daytona Codex runtime_provided run", () => {
+    let created = false;
+    const result = buildRunPlan(
+      {
+        harness: "codex",
+        sandbox: "daytona",
+        messages: [{ role: "user", content: "hello" }],
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          credentialMode: "runtime_provided",
+          credentials: [],
+        },
+      },
+      {
+        createDaytonaCwd: () => {
+          created = true;
+          return "/home/sandbox/should-not-happen";
+        },
+      },
+    );
+
     assert.equal(result.ok, false);
     if (result.ok) return;
     assert.equal(result.error, DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE);

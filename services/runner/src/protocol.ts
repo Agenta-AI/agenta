@@ -501,6 +501,11 @@ export interface AgentRunRequest {
   /** Resolved model input modalities. Omitted when the resolver cannot determine them. */
   modelCapabilities?: { inputModalities?: string[] };
   /**
+   * Codex only: ACP session mode override ("agent" | "read-only" | "agent-full-access"). Absent
+   * means the Codex default (agent-full-access). Ignored by non-Codex harnesses.
+   */
+  harnessMode?: string;
+  /**
    * Where the credential comes from, named portably (a slug, never a db id). Non-secret.
    * The RESOLVED routing and credential values live in `modelConnection`; this field carries
    * only the author's intent (`mode`) and the connection identity (`slug`, which names the Pi

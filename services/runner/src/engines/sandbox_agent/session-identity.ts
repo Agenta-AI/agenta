@@ -11,6 +11,7 @@ import {
   userTurnCarriesContent,
 } from "../../protocol.ts";
 import { approvalDecisionOf } from "../../responder.ts";
+import { resolveCodexMode } from "./codex-mode.ts";
 import type { TeardownReason } from "./teardown.ts";
 import { loadRunnerConfig } from "../../config/runner-config.ts";
 
@@ -65,8 +66,10 @@ function nonNegativeIntEnv(name: string, fallback: number): number {
 function boolEnv(name: string, fallback: boolean): boolean {
   const raw = (process.env[name] ?? "").trim().toLowerCase();
   if (!raw) return fallback;
-  if (raw === "1" || raw === "true" || raw === "yes" || raw === "on") return true;
-  if (raw === "0" || raw === "false" || raw === "no" || raw === "off") return false;
+  if (raw === "1" || raw === "true" || raw === "yes" || raw === "on")
+    return true;
+  if (raw === "0" || raw === "false" || raw === "no" || raw === "off")
+    return false;
   return fallback;
 }
 
@@ -87,10 +90,7 @@ export function readKeepaliveConfig(
       approvalTtlMs: ttlMs,
       // This budgets billed compute (idle warm sandboxes), deliberately separate from the local
       // pool's host-memory budget; Slice 4 adds the strict warm-slot accounting semantics.
-      poolMax: positiveIntEnv(
-        DAYTONA_POOL_MAX_ENV,
-        DEFAULT_DAYTONA_POOL_MAX,
-      ),
+      poolMax: positiveIntEnv(DAYTONA_POOL_MAX_ENV, DEFAULT_DAYTONA_POOL_MAX),
     };
   }
   return {
@@ -152,6 +152,12 @@ export function configFingerprint(request: AgentRunRequest): string {
     harness: request.harness ?? null,
     sandbox: request.sandbox ?? null,
     model: request.model ?? null,
+    // Harness mode is applied once, at session acquire (codex-mode.ts). Normalize Codex defaults
+    // and ignore the field for other harnesses so only effective mode changes evict warm sessions.
+    harnessMode:
+      request.harness === "codex"
+        ? resolveCodexMode(request.harnessMode)
+        : null,
     connection: request.connection ?? null,
     modelConnection: request.modelConnection
       ? {
@@ -237,8 +243,7 @@ function inlineMediaDigests(
       typeof block.uri === "string" && block.uri.startsWith("data:")
         ? block.uri
         : String(block.data ?? "");
-    const mediaType =
-      typeof block.mimeType === "string" ? block.mimeType : "";
+    const mediaType = typeof block.mimeType === "string" ? block.mimeType : "";
     digests.push(sha256(`${mediaType}\n${payload}`));
   }
   return digests;
@@ -648,7 +653,8 @@ export function projectScopeFor(
   mountProjectId: string | undefined,
 ): { id: string; source: PoolScopeSource } | undefined {
   const runContextProject = request.runContext?.project?.id?.trim();
-  if (runContextProject) return { id: runContextProject, source: "run-context" };
+  if (runContextProject)
+    return { id: runContextProject, source: "run-context" };
   const mount = mountProjectId?.trim();
   if (mount) return { id: mount, source: "mount" };
   return undefined;
