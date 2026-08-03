@@ -71,6 +71,7 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
     const isAgentTemplates = pathname.includes("/agent-templates")
     // Covers /agents and /agents/archived, both full-height InfiniteVirtualTable pages.
     const isAgents = pathname.includes("/agents")
+    const isSessions = pathname.includes("/sessions")
 
     return {
         isAuthRoute:
@@ -90,7 +91,8 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
             isObservability ||
             isAuditLog ||
             isAgentTemplates ||
-            isAgents,
+            isAgents ||
+            isSessions,
     }
 })
 
