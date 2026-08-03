@@ -75,67 +75,69 @@ const SessionRow = ({
     )
 
     return (
-        <div
-            role="button"
-            tabIndex={openable ? 0 : -1}
-            onClick={handleOpen}
-            onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") handleOpen()
-            }}
-            className={clsx(
-                "group flex items-center gap-3 px-3 py-2 border-solid border-0 border-b border-colorBorderSecondary",
-                openable ? "cursor-pointer hover:bg-colorFillQuaternary" : "cursor-default",
-            )}
-        >
-            <Tooltip title={status.label}>
-                <span
-                    aria-label={status.label}
-                    className={clsx(
-                        "shrink-0 w-2 h-2 rounded-full",
-                        status.dotClassName,
-                        status.pulse && "motion-safe:animate-pulse",
-                    )}
-                />
-            </Tooltip>
+        <Dropdown menu={menu} trigger={["contextMenu"]}>
+            <div
+                role="button"
+                tabIndex={openable ? 0 : -1}
+                onClick={handleOpen}
+                onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") handleOpen()
+                }}
+                className={clsx(
+                    "group flex items-center gap-3 px-3 py-2 border-solid border-0 border-b border-colorBorderSecondary",
+                    openable ? "cursor-pointer hover:bg-colorFillQuaternary" : "cursor-default",
+                )}
+            >
+                <Tooltip title={status.label}>
+                    <span
+                        aria-label={status.label}
+                        className={clsx(
+                            "shrink-0 w-2 h-2 rounded-full",
+                            status.dotClassName,
+                            status.pulse && "motion-safe:animate-pulse",
+                        )}
+                    />
+                </Tooltip>
 
-            <span className="flex-1 min-w-0 text-xs text-colorText truncate">
-                {row.name?.trim() || "Untitled session"}
-            </span>
+                <span className="flex-1 min-w-0 text-xs text-colorText truncate">
+                    {row.name?.trim() || "Untitled session"}
+                </span>
 
-            <span className="w-40 shrink-0 truncate">
-                <SessionAgentLabel appId={target?.appId ?? null} />
-            </span>
+                <span className="w-40 shrink-0 truncate">
+                    <SessionAgentLabel appId={target?.appId ?? null} />
+                </span>
 
-            <span className="w-24 shrink-0 text-xs text-colorTextTertiary text-right">
-                {activity ? timeAgo(Date.parse(activity)) : "—"}
-            </span>
+                <span className="w-24 shrink-0 text-xs text-colorTextTertiary text-right">
+                    {activity ? timeAgo(Date.parse(activity)) : "—"}
+                </span>
 
-            <Tooltip title={pinned ? "Unpin" : "Pin"}>
-                <Button
-                    type="text"
-                    aria-label={pinned ? "Unpin session" : "Pin session"}
-                    className={clsx(
-                        "shrink-0",
-                        !pinned && "opacity-0 group-hover:opacity-100 focus:opacity-100",
-                    )}
-                    icon={pinned ? <PushPinSlashIcon size={14} /> : <PushPinIcon size={14} />}
-                    onClick={(event) => {
-                        event.stopPropagation()
-                        onTogglePin(row.session_id)
-                    }}
-                />
-            </Tooltip>
+                <Tooltip title={pinned ? "Unpin" : "Pin"}>
+                    <Button
+                        type="text"
+                        aria-label={pinned ? "Unpin session" : "Pin session"}
+                        className={clsx(
+                            "shrink-0",
+                            !pinned && "opacity-0 group-hover:opacity-100 focus:opacity-100",
+                        )}
+                        icon={pinned ? <PushPinSlashIcon size={14} /> : <PushPinIcon size={14} />}
+                        onClick={(event) => {
+                            event.stopPropagation()
+                            onTogglePin(row.session_id)
+                        }}
+                    />
+                </Tooltip>
 
-            <Dropdown menu={menu} trigger={["click"]}>
-                <Button
-                    type="text"
-                    aria-label="Session actions"
-                    className="shrink-0"
-                    icon={<DotsThreeIcon size={14} />}
-                    onClick={(event) => event.stopPropagation()}
-                />
-            </Dropdown>
-        </div>
+                <Dropdown menu={menu} trigger={["click"]}>
+                    <Button
+                        type="text"
+                        aria-label="Session actions"
+                        className="shrink-0"
+                        icon={<DotsThreeIcon size={14} />}
+                        onClick={(event) => event.stopPropagation()}
+                    />
+                </Dropdown>
+            </div>
+        </Dropdown>
     )
 }
 

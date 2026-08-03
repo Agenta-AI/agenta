@@ -2,17 +2,20 @@ import {useCallback, useMemo, useRef, useState} from "react"
 
 import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {PlusIcon, RobotIcon} from "@phosphor-icons/react"
-import {Button, Divider, Select} from "antd"
+import {Divider, Select} from "antd"
 import {useAtomValue} from "jotai"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
 import {agentsWorkflowsAtom} from "@/oss/components/pages/agents/store"
 
 /**
- * Home's primary action: describe a task, pick the agent to do it, start.
+ * Home's primary action: describe a task, pick the agent to run it, send.
  *
- * This is the thing done every day — creating an agent happens once, so it lives inside the
- * picker's footer rather than competing as a second top-level button.
+ * The picker rides the composer's `prefix` (left), leaving the composer's own send button where
+ * it always is — the send affordance is the one the rest of the app teaches, and a bespoke "Start"
+ * button beside it would be a second way to do the same thing.
+ *
+ * Creating an agent lives in the picker's footer: it happens once, unlike starting a task.
  */
 const HomeTaskComposer = ({onCreateAgent}: {onCreateAgent: () => void}) => {
     const composerRef = useRef<RichChatInputHandle>(null)
@@ -28,11 +31,10 @@ const HomeTaskComposer = ({onCreateAgent}: {onCreateAgent: () => void}) => {
         [agents],
     )
 
-    const handleStart = useCallback(
-        (markdown?: string) => {
-            const message = markdown ?? composerRef.current?.getMarkdown() ?? ""
+    const handleSubmit = useCallback(
+        (markdown: string) => {
             if (!effectiveAgentId) return
-            startSession({appId: effectiveAgentId, message})
+            startSession({appId: effectiveAgentId, message: markdown})
         },
         [effectiveAgentId, startSession],
     )
@@ -40,44 +42,37 @@ const HomeTaskComposer = ({onCreateAgent}: {onCreateAgent: () => void}) => {
     return (
         <RichChatInput
             ref={composerRef}
-            onSubmit={(markdown) => handleStart(markdown)}
+            onSubmit={handleSubmit}
             placeholder="Describe the task, or start the conversation…"
-            hideSendButton
             size="comfortable"
             minHeightClassName="min-h-24"
             textSizeClassName="text-sm"
-            trailing={
-                <div className="flex w-full items-center justify-between gap-2">
-                    <Select
-                        value={effectiveAgentId}
-                        onChange={setAgentId}
-                        options={options}
-                        placeholder="Select an agent"
-                        className="w-56"
-                        suffixIcon={<RobotIcon size={14} />}
-                        popupRender={(menu) => (
-                            <>
-                                {menu}
-                                <Divider className="my-1" />
-                                <button
-                                    type="button"
-                                    onClick={onCreateAgent}
-                                    className="flex w-full cursor-pointer items-center gap-2 border-0 bg-colorFillQuaternary px-3 py-2 text-xs text-colorPrimary"
-                                >
-                                    <PlusIcon size={14} />
-                                    New agent
-                                </button>
-                            </>
-                        )}
-                    />
-                    <Button
-                        type="primary"
-                        disabled={!effectiveAgentId}
-                        onClick={() => handleStart()}
-                    >
-                        Start
-                    </Button>
-                </div>
+            sendDisabled={!effectiveAgentId}
+            sendDisabledReason="Pick an agent first"
+            prefix={
+                <Select
+                    value={effectiveAgentId}
+                    onChange={setAgentId}
+                    options={options}
+                    placeholder="Select an agent"
+                    variant="borderless"
+                    className="min-w-40"
+                    suffixIcon={<RobotIcon size={14} />}
+                    popupRender={(menu) => (
+                        <>
+                            {menu}
+                            <Divider className="my-1" />
+                            <button
+                                type="button"
+                                onClick={onCreateAgent}
+                                className="flex w-full cursor-pointer items-center gap-2 border-0 bg-colorFillQuaternary px-3 py-2 text-xs text-colorPrimary"
+                            >
+                                <PlusIcon size={14} />
+                                New agent
+                            </button>
+                        </>
+                    )}
+                />
             }
         />
     )

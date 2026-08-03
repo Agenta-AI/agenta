@@ -55,8 +55,11 @@ interface SessionListOptions {
     search?: string
     agentId?: string | null
     includeArchived?: boolean
-    /** Include automation-started sessions. Off by default. */
+    /** Include automation-started sessions in the default list. Off by default. */
     showTriggered?: boolean
+    /** Restrict to ONE origin — the automations list. Distinct from `showTriggered`, which only
+     * widens the default list rather than narrowing it. */
+    origin?: string
     /** Ids of sessions with a pending gate — the pushdown behind the "Waiting" filter. */
     waitingSessionIds?: string[]
     enabled?: boolean
@@ -82,6 +85,7 @@ export const useSessionList = ({
     agentId = null,
     includeArchived = false,
     showTriggered = false,
+    origin,
     waitingSessionIds,
     enabled = true,
 }: SessionListOptions = {}) => {
@@ -99,9 +103,10 @@ export const useSessionList = ({
         search,
         agentId,
         includeArchived,
+        origin,
         // Exclude rather than match: a session written before origins were stamped has no tag,
-        // and must still appear in the default list.
-        excludeOrigin: showTriggered ? undefined : "trigger",
+        // and must still appear in the default list. Skipped when asking for one origin outright.
+        excludeOrigin: origin || showTriggered ? undefined : "trigger",
         flags: status === "live" ? {is_alive: true} : undefined,
         sessionIds: restrictIds,
         excludeSessionIds,
