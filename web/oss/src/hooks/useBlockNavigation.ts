@@ -66,7 +66,7 @@ const useBlockNavigation = (
                 ...props.current,
                 onOk: async () => {
                     if (props.current.onOk) {
-                        const res = await props.current.onOk()
+                        const res = await props.current.onOk(() => {})
                         if (res) {
                             Router.push(newRoute)
                         } else {
@@ -84,7 +84,7 @@ const useBlockNavigation = (
                 onThirdButton: async () => {
                     // Third button (e.g., "Discard changes") navigates without saving
                     if (props.current.onThirdButton) {
-                        await props.current.onThirdButton()
+                        await props.current.onThirdButton(() => {})
                     }
                     Router.push(newRoute)
                     opened.current = false
