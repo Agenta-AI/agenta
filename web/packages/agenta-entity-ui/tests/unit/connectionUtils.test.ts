@@ -20,6 +20,7 @@ import {
     harnessAllowsProvider,
     harnessSupportsUserMcp,
     isDeploymentProviderKind,
+    isPiHarnessValue,
     modelIdFromConfig,
     modelSelectionMode,
     providerForModel,
@@ -193,6 +194,14 @@ describe("connectionUtils: capability gating (inspect-fed)", () => {
     it("exposes the per-harness model selection mode", () => {
         expect(modelSelectionMode(CAPABILITIES, "pi_core")).toBe("provider/id")
         expect(modelSelectionMode(CAPABILITIES, "claude")).toBe("alias")
+    })
+
+    it("treats an absent harness.kind as pi_core, matching the runner default (#5661)", () => {
+        expect(isPiHarnessValue(undefined)).toBe(true)
+        expect(isPiHarnessValue(null)).toBe(true)
+        expect(isPiHarnessValue("pi_core")).toBe(true)
+        expect(isPiHarnessValue("pi_agenta")).toBe(true)
+        expect(isPiHarnessValue("claude")).toBe(false)
     })
 
     it("is permissive when the map or harness is missing", () => {

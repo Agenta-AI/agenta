@@ -45,6 +45,7 @@ import {
     connectionFromConfig,
     harnessAllowsModel,
     harnessSupportsUserMcp,
+    isPiHarnessValue,
     modelIdFromConfig,
     modelLabel,
     providerForModel,
@@ -172,7 +173,7 @@ export function useModelHarness({
     // is harness-filtered: selecting a model sets BOTH the model id and its provider, fed by the
     // `/inspect` capability map below.
     const harnessValue = typeof harness.kind === "string" ? (harness.kind as string) : null
-    const isPiHarness = harnessValue === "pi_core" || harnessValue === "pi_agenta"
+    const isPiHarness = isPiHarnessValue(harnessValue)
     const llm = config.llm
     const modelId = useMemo(() => modelIdFromConfig(llm), [llm])
     const connection = useMemo(() => connectionFromConfig(llm), [llm])

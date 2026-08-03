@@ -163,6 +163,16 @@ function capsFor(
     return capabilities[harness] ?? null
 }
 
+/**
+ * Whether a harness value is one of the Pi harnesses. An absent `harness.kind` (`null`/`undefined`)
+ * runs as `pi_core` at runtime (see `agents/dtos.py`'s `harness: str = "pi_core"` default), so it
+ * counts as Pi here too — otherwise the Pi permissions controls stay hidden for a run that is
+ * actually enforcing them (#5661).
+ */
+export function isPiHarnessValue(harness: string | null | undefined): boolean {
+    return harness == null || harness === "pi_core" || harness === "pi_agenta"
+}
+
 /** External MCP authoring is available only when the selected harness publishes it. */
 export function harnessSupportsUserMcp(
     capabilities: HarnessCapabilitiesMap | null | undefined,
