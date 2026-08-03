@@ -71,7 +71,7 @@ describe("attachment delivery events", () => {
       auth: () => "ApiKey test",
       sandbox: {},
       plan: {
-        cwd,
+        workspace: { cwd },
         isDaytona: false,
         acpAgent: "pi",
         harness: "pi_core",
@@ -151,7 +151,7 @@ describe("attachment delivery events", () => {
       auth: () => "ApiKey test",
       sandbox: {},
       plan: {
-        cwd,
+        workspace: { cwd },
         isDaytona: false,
         acpAgent: "pi",
         harness: "pi_core",
@@ -207,7 +207,7 @@ describe("attachment delivery events", () => {
       auth: () => "ApiKey test",
       sandbox: {},
       plan: {
-        cwd,
+        workspace: { cwd },
         isDaytona: false,
         acpAgent: "pi",
         harness: "pi_core",

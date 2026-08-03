@@ -29,7 +29,12 @@ import {
   serializePiModelsJson,
   type PiModelConfigPlan,
 } from "./pi-model-config.ts";
-import type { RunPlan } from "./run-plan.ts";
+import type {
+  RunPlan,
+  RunPlanCredentials,
+  RunPlanPrompt,
+  RunPlanWorkspace,
+} from "./run-plan.ts";
 
 type Log = (message: string) => void;
 
@@ -45,11 +50,13 @@ export function piSessionWorkspaceDir(cwd: string): string {
 
 /** Point Pi at the durable conversation-scoped transcript directory. */
 export function configurePiSessionWorkspace(
-  plan: Pick<RunPlan, "isPi" | "cwd">,
+  plan: Pick<RunPlan, "isPi"> & {
+    workspace: Pick<RunPlanWorkspace, "cwd">;
+  },
   env: Record<string, string>,
 ): string | undefined {
   if (!plan.isPi) return undefined;
-  const sessionDir = piSessionWorkspaceDir(plan.cwd);
+  const sessionDir = piSessionWorkspaceDir(plan.workspace.cwd);
   env.PI_CODING_AGENT_SESSION_DIR = sessionDir;
   return sessionDir;
 }
@@ -105,11 +112,13 @@ function hashPart(
 
 /** Resolve the immutable project-local snapshot selected for this Pi run. */
 export function resolvePiSkillSnapshot(
-  plan: Pick<RunPlan, "isPi" | "cwd" | "skillDirs">,
+  plan: Pick<RunPlan, "isPi"> & {
+    workspace: Pick<RunPlanWorkspace, "cwd" | "skillDirs">;
+  },
 ): PiSkillSnapshot | undefined {
-  if (!plan.isPi || plan.skillDirs.length === 0) return undefined;
+  if (!plan.isPi || plan.workspace.skillDirs.length === 0) return undefined;
 
-  const skills = [...plan.skillDirs].sort((a, b) =>
+  const skills = [...plan.workspace.skillDirs].sort((a, b) =>
     a.name.localeCompare(b.name),
   );
   const hash = createHash("sha256");
@@ -130,7 +139,7 @@ export function resolvePiSkillSnapshot(
   })}\n`;
   return {
     digest,
-    dir: join(plan.cwd, "agents", "skills", digest),
+    dir: join(plan.workspace.cwd, "agents", "skills", digest),
     marker,
     skills,
   };
@@ -571,17 +580,14 @@ export function prepareLocalAgentDir(
 }
 
 export interface PrepareLocalPiAssetsInput {
-  plan: Pick<
-    RunPlan,
-    | "isPi"
-    | "isDaytona"
-    | "credentialMode"
-    | "skillDirs"
-    | "hasSystemPrompt"
-    | "systemPrompt"
-    | "appendSystemPrompt"
-    | "sourcePiAgentDir"
-  >;
+  plan: Pick<RunPlan, "isPi" | "isDaytona"> & {
+    credentials: Pick<RunPlanCredentials, "credentialMode">;
+    workspace: Pick<RunPlanWorkspace, "skillDirs" | "sourcePiAgentDir">;
+    prompt: Pick<
+      RunPlanPrompt,
+      "hasSystemPrompt" | "systemPrompt" | "appendSystemPrompt"
+    >;
+  };
   env: Record<string, string>;
   /**
    * A managed OpenAI-compatible custom run's Pi provider config. When set, the isolated per-run
@@ -650,14 +656,14 @@ export function prepareLocalPiAssets({
   // buildRunPlan already rejected a local runtime_provided run with no configured
   // PI_CODING_AGENT_DIR, so `sourcePiAgentDir` here IS the operator's mount. A model-config plan
   // never reaches here (it requires credentialMode "env"), so there is no models.json to write.
-  if (plan.credentialMode === "runtime_provided") {
-    const agentDir = plan.sourcePiAgentDir;
+  if (plan.credentials.credentialMode === "runtime_provided") {
+    const agentDir = plan.workspace.sourcePiAgentDir;
     const extensionInstalled = installPiExtensionLocal(agentDir, log);
-    if (plan.hasSystemPrompt) {
+    if (plan.prompt.hasSystemPrompt) {
       writeSystemPromptLocal(
         agentDir,
-        plan.systemPrompt,
-        plan.appendSystemPrompt,
+        plan.prompt.systemPrompt,
+        plan.prompt.appendSystemPrompt,
         log,
       );
     }
@@ -671,15 +677,15 @@ export function prepareLocalPiAssets({
   // managed OpenAI-compatible custom run (a model-config plan is present) additionally gets a
   // models.json and does NOT receive the operator's personal auth.json.
   const { dir: runAgentDir, extensionInstalled } = prepareLocalAgentDir(
-    plan.sourcePiAgentDir,
+    plan.workspace.sourcePiAgentDir,
     log,
     { seedCredentials: !piModelConfig },
   );
-  if (plan.hasSystemPrompt) {
+  if (plan.prompt.hasSystemPrompt) {
     writeSystemPromptLocal(
       runAgentDir,
-      plan.systemPrompt,
-      plan.appendSystemPrompt,
+      plan.prompt.systemPrompt,
+      plan.prompt.appendSystemPrompt,
       log,
     );
   }

@@ -836,7 +836,7 @@ describe("runSandboxAgent orchestration", () => {
     });
     let agentDirSkillCount = -1;
     deps.prepareDaytonaPiAssets = (async ({ plan }: any) => {
-      agentDirSkillCount = plan.skillDirs.length;
+      agentDirSkillCount = plan.workspace.skillDirs.length;
       return true;
     }) as any;
 
@@ -940,7 +940,7 @@ describe("runSandboxAgent orchestration", () => {
       (calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR,
       undefined,
     );
-    assert.equal(calls.workspacePlan.appendSystemPrompt, undefined);
+    assert.equal(calls.workspacePlan.prompt.appendSystemPrompt, undefined);
     assert.equal(existsSync(`${cwd}-agent`), false);
     rmSync(cwd, { recursive: true, force: true });
   });

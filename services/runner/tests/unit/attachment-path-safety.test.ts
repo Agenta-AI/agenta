@@ -77,7 +77,7 @@ describe("attachment path safety", () => {
       () =>
         materializeWorkingCopy(
           {},
-          { cwd, isDaytona: false },
+          { workspace: { cwd }, isDaytona: false },
           { attachmentId: ATTACHMENT_ID, filename: "safe.txt" },
           new Uint8Array([1]),
         ),

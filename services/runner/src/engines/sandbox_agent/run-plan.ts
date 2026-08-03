@@ -98,15 +98,11 @@ export const LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE =
   "runtime_provided local run requires a mounted subscription: set PI_CODING_AGENT_DIR " +
   "(Pi), CLAUDE_CONFIG_DIR (Claude), or CODEX_HOME (Codex) to a read-write mount of your harness login.";
 
-export interface RunPlan {
-  harness: string;
-  acpAgent: string;
-  sandboxId: string;
-  isPi: boolean;
-  isDaytona: boolean;
-  prompt: string;
-  turnText: string;
-  agentsMd?: string;
+/**
+ * How the run authenticates with the model provider. Everything here describes the credential
+ * itself and how it is delivered, not where the run executes or what it asks the model to do.
+ */
+export interface RunPlanCredentials {
   /** Final plaintext model environment, after validating modelConnection. */
   modelEnvironment: Record<string, string>;
   /**
@@ -132,6 +128,13 @@ export interface RunPlan {
    * that request may still use the harness login. Drives clear-then-apply env (Security rule 5).
    */
   credentialMode?: string;
+}
+
+/**
+ * Where the run's files live and what gets materialized into them. These are the directories the
+ * engine creates, mounts, writes into, and cleans up.
+ */
+export interface RunPlanWorkspace {
   cwd: string;
   relayDir: string;
   /**
@@ -144,6 +147,24 @@ export interface RunPlan {
    */
   toolMcpDir: string;
   usageOutPath?: string;
+  skillDirs: MaterializedSkill[];
+  /** Removes the per-run skills temp root. The engine runs it in its `finally` so it never leaks. */
+  skillsCleanup: () => void;
+  sourcePiAgentDir: string;
+  /**
+   * Generic harness-rendered files to materialize in the cwd before the session starts. Each
+   * `{ path (relative to cwd), content }` was produced by the Python harness adapter (e.g. the
+   * claude adapter renders `.claude/settings.json` from its permissions slice). `prepareWorkspace`
+   * writes each entry blind — no harness knowledge on the runner.
+   */
+  harnessFiles?: Array<{ path: string; content: string }>;
+}
+
+/**
+ * The tools this run offers the model and how they are delivered. It covers both the resolved
+ * specs and the delivery switches the engine reads when it wires the relay and the gates.
+ */
+export interface RunPlanTools {
   toolSpecs: ResolvedToolSpec[];
   executableToolSpecs: ResolvedToolSpec[];
   /** True when the permission policy needs the extension to intercept Pi builtin calls. */
@@ -156,13 +177,31 @@ export interface RunPlan {
    * "pi-native", the non-Pi shim (Claude on Daytona) → "cold-acknowledge".
    */
   clientToolPauseDisposition: ClientToolPauseDisposition;
+}
+
+/**
+ * Everything the model is told for this turn. It holds the user text alongside the rendered
+ * transcript and the system instructions layered on top of it.
+ */
+export interface RunPlanPrompt {
+  text: string;
+  turnText: string;
+  agentsMd?: string;
   systemPrompt?: string;
   appendSystemPrompt?: string;
   hasSystemPrompt: boolean;
-  skillDirs: MaterializedSkill[];
-  /** Removes the per-run skills temp root. The engine runs it in its `finally` so it never leaks. */
-  skillsCleanup: () => void;
-  sourcePiAgentDir: string;
+}
+
+export interface RunPlan {
+  harness: string;
+  acpAgent: string;
+  sandboxId: string;
+  isPi: boolean;
+  isDaytona: boolean;
+  credentials: RunPlanCredentials;
+  workspace: RunPlanWorkspace;
+  tools: RunPlanTools;
+  prompt: RunPlanPrompt;
   /**
    * The declared sandbox security boundary (Layer 2). `buildSandboxProvider` enforces the
    * network policy on Daytona (S1b); `buildRunPlan` rejects restricted-network runs the
@@ -170,13 +209,6 @@ export interface RunPlan {
    * MCP) when `enforcement === "strict"`.
    */
   sandboxPermission?: SandboxPermission;
-  /**
-   * Generic harness-rendered files to materialize in the cwd before the session starts. Each
-   * `{ path (relative to cwd), content }` was produced by the Python harness adapter (e.g. the
-   * claude adapter renders `.claude/settings.json` from its permissions slice). `prepareWorkspace`
-   * writes each entry blind — no harness knowledge on the runner.
-   */
-  harnessFiles?: Array<{ path: string; content: string }>;
 }
 
 export type BuildRunPlanResult =
@@ -670,42 +702,51 @@ export function buildRunPlan(
       sandboxId,
       isPi,
       isDaytona,
-      prompt,
-      turnText: buildTurnText(request, log),
-      agentsMd: request.agentsMd?.trim() || undefined,
-      modelEnvironment,
-      daytonaSecretPlan,
-      harnessApiKeyVar,
-      // Consult the FULL materialized environment: on a Daytona Secrets run the opaque key is
-      // delivered as a Secret attachment rather than plaintext env, but the harness still has it.
-      hasApiKey: !!materializedModel.environment[harnessApiKeyVar],
-      credentialMode: materializedModel.credentialMode,
-      cwd,
-      relayDir,
-      toolMcpDir,
-      // Usage capture is ephemeral runner output, not durable session data — keep it off the
-      // geesefs mount alongside the relay dir (a mount write would risk ENOTCONN).
-      usageOutPath: isPi ? join(relayDir, ".agenta-usage.json") : undefined,
-      toolSpecs,
-      executableToolSpecs: executableToolSpecsForRun,
-      builtinGatingActive,
-      // The relay carries tool EXECUTION only (permission gates ride the extension's
-      // `ctx.ui.confirm` dialog onto the ACP plane), so a builtin-gating-only run needs no relay.
-      useToolRelay: toolSpecs.length > 0,
-      // Pi parks through its own extension (no answer file); the non-Pi shim blocks on an answer
-      // file, so a parked client tool is acknowledged with a benign paused answer.
-      clientToolPauseDisposition: isPi ? "pi-native" : "cold-acknowledge",
-      systemPrompt,
-      appendSystemPrompt,
-      hasSystemPrompt: !!(systemPrompt || appendSystemPrompt),
-      skillDirs,
-      skillsCleanup,
-      sourcePiAgentDir:
-        process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent"),
+      credentials: {
+        modelEnvironment,
+        daytonaSecretPlan,
+        harnessApiKeyVar,
+        // Consult the FULL materialized environment: on a Daytona Secrets run the opaque key is
+        // delivered as a Secret attachment rather than plaintext env, but the harness still has it.
+        hasApiKey: !!materializedModel.environment[harnessApiKeyVar],
+        credentialMode: materializedModel.credentialMode,
+      },
+      workspace: {
+        cwd,
+        relayDir,
+        toolMcpDir,
+        // Usage capture is ephemeral runner output, not durable session data — keep it off the
+        // geesefs mount alongside the relay dir (a mount write would risk ENOTCONN).
+        usageOutPath: isPi ? join(relayDir, ".agenta-usage.json") : undefined,
+        skillDirs,
+        skillsCleanup,
+        sourcePiAgentDir:
+          process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent"),
+        // Generic: the Python harness adapter already rendered any harness config files; the
+        // runner just carries them onto the plan and writes them into the cwd in
+        // `prepareWorkspace`.
+        harnessFiles: request.harnessFiles,
+      },
+      tools: {
+        toolSpecs,
+        executableToolSpecs: executableToolSpecsForRun,
+        builtinGatingActive,
+        // The relay carries tool EXECUTION only (permission gates ride the extension's
+        // `ctx.ui.confirm` dialog onto the ACP plane), so a builtin-gating-only run needs no relay.
+        useToolRelay: toolSpecs.length > 0,
+        // Pi parks through its own extension (no answer file); the non-Pi shim blocks on an answer
+        // file, so a parked client tool is acknowledged with a benign paused answer.
+        clientToolPauseDisposition: isPi ? "pi-native" : "cold-acknowledge",
+      },
+      prompt: {
+        text: prompt,
+        turnText: buildTurnText(request, log),
+        agentsMd: request.agentsMd?.trim() || undefined,
+        systemPrompt,
+        appendSystemPrompt,
+        hasSystemPrompt: !!(systemPrompt || appendSystemPrompt),
+      },
       sandboxPermission: request.sandboxPermission,
-      // Generic: the Python harness adapter already rendered any harness config files; the runner
-      // just carries them onto the plan and writes them into the cwd in `prepareWorkspace`.
-      harnessFiles: request.harnessFiles,
     },
   };
 }
