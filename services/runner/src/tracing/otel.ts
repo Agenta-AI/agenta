@@ -560,6 +560,19 @@ function lastAssistantText(messages: any): string {
   return "";
 }
 
+/**
+ * Stamp a run's cost, and only its cost, on a PARENT span (`invoke_agent`).
+ *
+ * A parent must not repeat its children's `gen_ai.usage.*_tokens`: ingest maps those to the
+ * incremental bucket, which exactly one span may own, and the parent's own token total is
+ * the roll-up of the leaves below it. `gen_ai.usage.cost` is different — ingest maps it to
+ * the cumulative bucket, so it states the subtree total it actually is.
+ */
+function stampRunCost(span: Span, cost: number | undefined): void {
+  if (cost == null || cost <= 0) return;
+  span.setAttribute("gen_ai.usage.cost", cost);
+}
+
 /** Fill an LLM span from a finished assistant message (model, tokens, finish, output). */
 /** Returns the error message when the assistant turn failed (stopReason/errorMessage), else
  * undefined — so the caller can emit a matching `error` event, not just stamp the span. */
@@ -624,7 +637,7 @@ export interface AgentaOtel {
   /** Flush this run's trace to Agenta. Await before the process/response ends. */
   flush: () => Promise<void>;
   /** Run totals (tokens + cost) summed across turns, for roll-up onto the parent. */
-  usage: () => { input: number; output: number; total: number; cost: number };
+  usage: () => AgentUsage;
 }
 
 /**
@@ -665,6 +678,9 @@ export function createAgentaOtel(
   // (the agent and workflow spans are exported in separate OTLP batches, so Agenta's
   // per-batch cumulative roll-up cannot bridge them on its own).
   const runUsage = { input: 0, output: 0, total: 0, cost: 0 };
+  // Whether ANY turn reported a cost. Without it a run the harness never priced is
+  // indistinguishable from one it priced at zero, and the sum below would report the second.
+  let costReported = false;
 
   function accumulateUsage(msg: any): void {
     const u = msg?.usage;
@@ -674,7 +690,10 @@ export function createAgentaOtel(
     runUsage.input += input;
     runUsage.output += output;
     runUsage.total += u.totalTokens ?? input + output;
-    if (u.cost?.total != null) runUsage.cost += u.cost.total;
+    if (u.cost?.total != null) {
+      runUsage.cost += u.cost.total;
+      costReported = true;
+    }
   }
 
   const register = (pi: ExtensionAPI): void => {
@@ -828,20 +847,15 @@ export function createAgentaOtel(
         lastAssistantText(event?.messages),
         config.captureContent,
       );
-      // Stamp the run total on the agent span so it shows the agent's tokens/cost even
-      // though Agenta cannot roll the per-turn LLM spans up across batches.
-      if (runUsage.total > 0) {
-        agentSpan.setAttribute("gen_ai.usage.input_tokens", runUsage.input);
-        agentSpan.setAttribute("gen_ai.usage.output_tokens", runUsage.output);
-        agentSpan.setAttribute("gen_ai.usage.prompt_tokens", runUsage.input);
-        agentSpan.setAttribute(
-          "gen_ai.usage.completion_tokens",
-          runUsage.output,
-        );
-        agentSpan.setAttribute("gen_ai.usage.total_tokens", runUsage.total);
-        if (runUsage.cost > 0)
-          agentSpan.setAttribute("gen_ai.usage.cost", runUsage.cost);
-      }
+      // OWNERSHIP: exactly one span owns each incremental observation. The per-turn `chat`
+      // spans already carry this run's tokens, and Agenta ingests `gen_ai.usage.*_tokens`
+      // as INCREMENTAL — repeating the run total here would make the parent's roll-up add
+      // it on top of the very tokens it summed, reporting twice the real count. The agent
+      // span's token total is the roll-up of its turns (same batch, so it is complete).
+      // Cost is the exception by contract, not by accident: `gen_ai.usage.cost` ingests as
+      // an explicitly CUMULATIVE subtree total, which is what a run total is, and it is the
+      // harness's billed figure rather than a recompute — so the parent keeps carrying it.
+      stampRunCost(agentSpan, costReported ? runUsage.cost : undefined);
       agentSpan.end();
       agentSpan = undefined;
       agentCtx = undefined;
@@ -853,8 +867,19 @@ export function createAgentaOtel(
     register,
     config,
     flush: () => flushTrace(config.traceId, config.redactor, runId),
-    usage: () => ({ ...runUsage }),
+    // The usage writeback (`extensions/agenta.ts`) serializes this straight onto the wire, so
+    // an unreported cost has to leave the key off rather than ship the running sum's 0.
+    usage: () => (costReported ? { ...runUsage } : stripCost(runUsage)),
   };
+}
+
+/** Drop the cost key, so an unpriced run reads as unknown rather than measured-free. */
+function stripCost(usage: {
+  input: number;
+  output: number;
+  total: number;
+}): AgentUsage {
+  return { input: usage.input, output: usage.output, total: usage.total };
 }
 
 // ---------------------------------------------------------------------------
@@ -1203,16 +1228,19 @@ export function createSandboxAgentOtel(
     }
   }
 
+  /** Stamp the full usage split on the LEAF model span, the one span that owns it. */
   function stampUsage(span: Span, u: AgentUsage | undefined): void {
     // No tokens and no cost is not a measured zero, it is the absence of a measurement:
-    // stamping zeros would assert a run cost nothing and spent nothing.
-    if (!u || (u.total <= 0 && u.cost <= 0)) return;
+    // stamping zeros would assert a run cost nothing and spent nothing. An ABSENT cost counts
+    // as no cost here, exactly like a reported 0, so it cannot carry a token-less record.
+    if (!u || (u.total <= 0 && !(u.cost != null && u.cost > 0))) return;
     span.setAttribute("gen_ai.usage.input_tokens", u.input);
     span.setAttribute("gen_ai.usage.output_tokens", u.output);
     span.setAttribute("gen_ai.usage.prompt_tokens", u.input);
     span.setAttribute("gen_ai.usage.completion_tokens", u.output);
     span.setAttribute("gen_ai.usage.total_tokens", u.total);
-    if (u.cost > 0) span.setAttribute("gen_ai.usage.cost", u.cost);
+    if (u.cost != null && u.cost > 0)
+      span.setAttribute("gen_ai.usage.cost", u.cost);
   }
 
   function setUsage(finalUsage: AgentUsage | undefined): void {
@@ -1666,7 +1694,11 @@ export function createSandboxAgentOtel(
     }
     if (agentSpan) {
       setOutput(agentSpan, text, capture);
-      stampUsage(agentSpan, usage);
+      // Tokens belong to the `chat` leaf stamped just above — this tracer's `usage` IS the
+      // run total and there is exactly one model span to own it. Stamping it here as well
+      // would double the agent span's rolled-up total; only the cumulative cost is a
+      // parent's to report. See stampRunCost.
+      stampRunCost(agentSpan, usage?.cost);
       agentSpan.end();
       agentSpan = undefined;
     }
