@@ -296,11 +296,11 @@ describe("Daytona Secret planning", () => {
     assert.equal(disabled.ok, true);
     if (!disabled.ok) return;
     assert.equal(
-      disabled.plan.modelEnvironment.ANTHROPIC_API_KEY,
+      disabled.plan.credentials.modelEnvironment.ANTHROPIC_API_KEY,
       "opaque-model-value",
     );
-    assert.equal(disabled.plan.daytonaSecretPlan, undefined);
-    assert.equal(disabled.plan.hasApiKey, true);
+    assert.equal(disabled.plan.credentials.daytonaSecretPlan, undefined);
+    assert.equal(disabled.plan.credentials.hasApiKey, true);
 
     // Flag ON: the opaque value leaves the plaintext environment for the secret plan.
     process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS = "process_local";
@@ -309,12 +309,12 @@ describe("Daytona Secret planning", () => {
     });
     assert.equal(enabled.ok, true);
     if (!enabled.ok) return;
-    assert.deepEqual(enabled.plan.modelEnvironment, {
+    assert.deepEqual(enabled.plan.credentials.modelEnvironment, {
       AWS_REGION: "us-east-1",
     });
     // hasApiKey consults the FULL materialized environment: the opaque key left the plaintext
     // env for the secret plan, but the harness still receives it as a Secret attachment.
-    assert.equal(enabled.plan.hasApiKey, true);
-    assert.equal(enabled.plan.daytonaSecretPlan?.candidates.length, 1);
+    assert.equal(enabled.plan.credentials.hasApiKey, true);
+    assert.equal(enabled.plan.credentials.daytonaSecretPlan?.candidates.length, 1);
   });
 });

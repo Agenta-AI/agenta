@@ -78,7 +78,7 @@ describe("buildRunPlan", () => {
     );
 
     assert.equal(result.ok, true);
-    assert.equal(result.ok && result.plan.prompt, "");
+    assert.equal(result.ok && result.plan.prompt.text, "");
   });
 
   it("accepts both legacy image-only current user turn shapes", () => {
@@ -94,7 +94,7 @@ describe("buildRunPlan", () => {
       );
 
       assert.equal(result.ok, true);
-      assert.equal(result.ok && result.plan.prompt, "");
+      assert.equal(result.ok && result.plan.prompt.text, "");
     }
   });
 
@@ -215,9 +215,9 @@ describe("buildRunPlan", () => {
     );
 
     assert.equal(result.ok, true);
-    assert.equal(result.ok && result.plan.prompt, "");
+    assert.equal(result.ok && result.plan.prompt.text, "");
     assert.ok(
-      result.ok && result.plan.turnText.includes("user APPROVED Write"),
+      result.ok && result.plan.prompt.turnText.includes("user APPROVED Write"),
       "the plan's turn text carries the approval-resume frame",
     );
   });
@@ -355,33 +355,33 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.harness, "pi_agenta");
     assert.equal(result.plan.acpAgent, "pi");
     assert.equal(result.plan.sandboxId, "local");
-    assert.equal(result.plan.cwd, "/tmp/local-cwd");
+    assert.equal(result.plan.workspace.cwd, "/tmp/local-cwd");
     // The relay dir + usage capture are ephemeral runner files kept OFF the (possibly geesefs)
     // cwd: an ephemeral sibling whose leaf is the cwd basename.
-    assert.ok(!result.plan.relayDir.startsWith(result.plan.cwd));
-    assert.ok(result.plan.relayDir.endsWith("/agenta/relay/local-cwd"));
+    assert.ok(!result.plan.workspace.relayDir.startsWith(result.plan.workspace.cwd));
+    assert.ok(result.plan.workspace.relayDir.endsWith("/agenta/relay/local-cwd"));
     assert.equal(
-      result.plan.usageOutPath,
-      `${result.plan.relayDir}/.agenta-usage.json`,
+      result.plan.workspace.usageOutPath,
+      `${result.plan.workspace.relayDir}/.agenta-usage.json`,
     );
-    assert.equal(result.plan.prompt, " ship it ");
-    assert.equal(result.plan.agentsMd, "instructions");
-    assert.equal(result.plan.systemPrompt, "system");
-    assert.equal(result.plan.appendSystemPrompt, "append");
-    assert.equal(result.plan.hasSystemPrompt, true);
-    assert.equal(result.plan.hasApiKey, true);
-    assert.deepEqual(result.plan.modelEnvironment, { OPENAI_API_KEY: "key" });
-    assert.equal(result.plan.sourcePiAgentDir, "/tmp/pi-agent");
+    assert.equal(result.plan.prompt.text, " ship it ");
+    assert.equal(result.plan.prompt.agentsMd, "instructions");
+    assert.equal(result.plan.prompt.systemPrompt, "system");
+    assert.equal(result.plan.prompt.appendSystemPrompt, "append");
+    assert.equal(result.plan.prompt.hasSystemPrompt, true);
+    assert.equal(result.plan.credentials.hasApiKey, true);
+    assert.deepEqual(result.plan.credentials.modelEnvironment, { OPENAI_API_KEY: "key" });
+    assert.equal(result.plan.workspace.sourcePiAgentDir, "/tmp/pi-agent");
     assert.deepEqual(
-      result.plan.executableToolSpecs.map((tool) => tool.name),
+      result.plan.tools.executableToolSpecs.map((tool) => tool.name),
       ["server_tool"],
     );
     assert.deepEqual(
-      result.plan.toolSpecs.map((tool) => tool.name),
+      result.plan.tools.toolSpecs.map((tool) => tool.name),
       ["server_tool", "client_tool"],
     );
-    assert.equal(result.plan.useToolRelay, true);
-    assert.deepEqual(result.plan.skillDirs, [
+    assert.equal(result.plan.tools.useToolRelay, true);
+    assert.deepEqual(result.plan.workspace.skillDirs, [
       { name: "alpha", dir: "/skills/alpha" },
     ]);
     assert.deepEqual(logs, ["resolved alpha", "skills: alpha"]);
@@ -396,8 +396,8 @@ describe("buildRunPlan", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.deepEqual(result.plan.executableToolSpecs, []);
-    assert.equal(result.plan.useToolRelay, true);
+    assert.deepEqual(result.plan.tools.executableToolSpecs, []);
+    assert.equal(result.plan.tools.useToolRelay, true);
   });
 
   it("leaves builtin gating off under a blanket allow with no builtin rules", () => {
@@ -412,9 +412,9 @@ describe("buildRunPlan", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.plan.builtinGatingActive, false);
+    assert.equal(result.plan.tools.builtinGatingActive, false);
     // Builtin gating rides the ACP dialog plane, not the relay: no custom tools, no relay.
-    assert.equal(result.plan.useToolRelay, false);
+    assert.equal(result.plan.tools.useToolRelay, false);
   });
 
   it("turns builtin gating on under the default allow_reads mode", () => {
@@ -431,7 +431,7 @@ describe("buildRunPlan", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.plan.builtinGatingActive, true);
+    assert.equal(result.plan.tools.builtinGatingActive, true);
   });
 
   it("turns builtin gating on when the permission kill switch is set", () => {
@@ -448,8 +448,8 @@ describe("buildRunPlan", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.plan.builtinGatingActive, true);
-    assert.equal(result.plan.useToolRelay, false);
+    assert.equal(result.plan.tools.builtinGatingActive, true);
+    assert.equal(result.plan.tools.useToolRelay, false);
   });
 
   it("turns builtin gating on when an all-allow policy has a builtin rule", () => {
@@ -467,7 +467,7 @@ describe("buildRunPlan", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.plan.builtinGatingActive, true);
+    assert.equal(result.plan.tools.builtinGatingActive, true);
   });
 
   it("carries the sandbox permission onto the plan and leaves an unrestricted run alone", () => {
@@ -757,16 +757,16 @@ describe("buildRunPlan", () => {
       assert.equal(result.ok, true);
       if (!result.ok) return;
       assert.equal(
-        result.plan.toolMcpDir,
+        result.plan.workspace.toolMcpDir,
         "/home/sandbox/agenta/tool-mcp/agenta-fixed",
       );
-      assert.notEqual(result.plan.toolMcpDir, result.plan.relayDir);
+      assert.notEqual(result.plan.workspace.toolMcpDir, result.plan.workspace.relayDir);
       assert.ok(
-        !result.plan.toolMcpDir.startsWith(`${result.plan.relayDir}/`),
+        !result.plan.workspace.toolMcpDir.startsWith(`${result.plan.workspace.relayDir}/`),
         "the shim dir is never nested inside the relay dir (the relay loop sweeps it)",
       );
       assert.equal(
-        result.plan.useToolRelay,
+        result.plan.tools.useToolRelay,
         true,
         "the relay loop still starts (it executes the shim's requests)",
       );
@@ -887,14 +887,14 @@ describe("buildRunPlan", () => {
       assert.equal(result.ok, true);
       if (!result.ok) return;
       assert.deepEqual(
-        result.plan.toolSpecs.map((tool) => tool.name),
+        result.plan.tools.toolSpecs.map((tool) => tool.name),
         ["server_tool", "request_connection"],
       );
       assert.deepEqual(
-        result.plan.executableToolSpecs.map((tool) => tool.name),
+        result.plan.tools.executableToolSpecs.map((tool) => tool.name),
         ["server_tool"],
       );
-      assert.equal(result.plan.clientToolPauseDisposition, "cold-acknowledge");
+      assert.equal(result.plan.tools.clientToolPauseDisposition, "cold-acknowledge");
     });
 
     it("allows claude x daytona x client-ONLY tools (the shim advertises them and the relay parks)", () => {
@@ -917,17 +917,17 @@ describe("buildRunPlan", () => {
       assert.equal(result.ok, true);
       if (!result.ok) return;
       assert.deepEqual(
-        result.plan.toolSpecs.map((tool) => tool.name),
+        result.plan.tools.toolSpecs.map((tool) => tool.name),
         ["request_connection"],
       );
       // No executable tool remains, but the run is no longer refused.
-      assert.deepEqual(result.plan.executableToolSpecs, []);
+      assert.deepEqual(result.plan.tools.executableToolSpecs, []);
       assert.equal(
-        result.plan.clientToolPauseDisposition,
+        result.plan.tools.clientToolPauseDisposition,
         "cold-acknowledge",
         "non-Pi shim path acknowledges a parked client tool with a paused answer",
       );
-      assert.equal(result.plan.useToolRelay, true);
+      assert.equal(result.plan.tools.useToolRelay, true);
     });
 
     it("allows pi x daytona x client-only tools (Pi's extension + file relay deliver them)", () => {
@@ -944,7 +944,7 @@ describe("buildRunPlan", () => {
       assert.equal(result.ok, true);
       if (!result.ok) return;
       // Pi parks through its own extension, so its disposition is "pi-native" (no paused answer).
-      assert.equal(result.plan.clientToolPauseDisposition, "pi-native");
+      assert.equal(result.plan.tools.clientToolPauseDisposition, "pi-native");
     });
 
     it("still refuses claude x daytona x executable tools under strict restricted network", () => {
@@ -1115,7 +1115,7 @@ describe("buildRunPlan", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.deepEqual(result.plan.skillDirs, [
+    assert.deepEqual(result.plan.workspace.skillDirs, [
       { name: "alpha", dir: "/skills/alpha" },
       { name: "beta", dir: "/skills/beta" },
     ]);
@@ -1176,19 +1176,19 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.acpAgent, "claude");
     assert.equal(result.plan.isPi, false);
     assert.equal(result.plan.isDaytona, true);
-    assert.equal(result.plan.cwd, "/home/sandbox/agenta-fixed");
-    assert.equal(result.plan.usageOutPath, undefined);
-    assert.equal(result.plan.harnessApiKeyVar, "ANTHROPIC_API_KEY");
+    assert.equal(result.plan.workspace.cwd, "/home/sandbox/agenta-fixed");
+    assert.equal(result.plan.workspace.usageOutPath, undefined);
+    assert.equal(result.plan.credentials.harnessApiKeyVar, "ANTHROPIC_API_KEY");
     // The FULL materialized environment sets hasApiKey: on a Daytona Secrets run the opaque key
     // leaves the plaintext env for the secret plan, but the harness still receives its binding.
-    assert.equal(result.plan.hasApiKey, true);
-    assert.equal(result.plan.modelEnvironment.ANTHROPIC_API_KEY, undefined);
-    assert.equal(result.plan.daytonaSecretPlan?.candidates.length, 1);
+    assert.equal(result.plan.credentials.hasApiKey, true);
+    assert.equal(result.plan.credentials.modelEnvironment.ANTHROPIC_API_KEY, undefined);
+    assert.equal(result.plan.credentials.daytonaSecretPlan?.candidates.length, 1);
     // The resolved credentialMode is carried onto the plan (drives clear-then-apply).
-    assert.equal(result.plan.credentialMode, "env");
-    assert.equal(result.plan.systemPrompt, undefined);
-    assert.equal(result.plan.hasSystemPrompt, false);
-    assert.deepEqual(result.plan.skillDirs, []);
+    assert.equal(result.plan.credentials.credentialMode, "env");
+    assert.equal(result.plan.prompt.systemPrompt, undefined);
+    assert.equal(result.plan.prompt.hasSystemPrompt, false);
+    assert.deepEqual(result.plan.workspace.skillDirs, []);
   });
 
   it("keeps a zero-candidate secret plan when the flag is on, and none when it is off", () => {
@@ -1224,15 +1224,15 @@ describe("buildRunPlan", () => {
     const flagOn = buildRunPlan(localUseRequest, deps);
     assert.equal(flagOn.ok, true);
     if (!flagOn.ok) return;
-    assert.ok(flagOn.plan.daytonaSecretPlan, "flag on keeps the empty plan");
-    assert.equal(flagOn.plan.daytonaSecretPlan.candidates.length, 0);
+    assert.ok(flagOn.plan.credentials.daytonaSecretPlan, "flag on keeps the empty plan");
+    assert.equal(flagOn.plan.credentials.daytonaSecretPlan.candidates.length, 0);
     // local_use values still reach sandbox create as plaintext env (by design).
     assert.equal(
-      flagOn.plan.modelEnvironment.AWS_ACCESS_KEY_ID,
+      flagOn.plan.credentials.modelEnvironment.AWS_ACCESS_KEY_ID,
       "AKIA-local-use",
     );
     assert.equal(
-      flagOn.plan.modelEnvironment.AWS_SECRET_ACCESS_KEY,
+      flagOn.plan.credentials.modelEnvironment.AWS_SECRET_ACCESS_KEY,
       "aws-secret-local-use",
     );
 
@@ -1241,9 +1241,9 @@ describe("buildRunPlan", () => {
     const flagOff = buildRunPlan(localUseRequest, deps);
     assert.equal(flagOff.ok, true);
     if (!flagOff.ok) return;
-    assert.equal(flagOff.plan.daytonaSecretPlan, undefined);
+    assert.equal(flagOff.plan.credentials.daytonaSecretPlan, undefined);
     assert.equal(
-      flagOff.plan.modelEnvironment.AWS_ACCESS_KEY_ID,
+      flagOff.plan.credentials.modelEnvironment.AWS_ACCESS_KEY_ID,
       "AKIA-local-use",
     );
   });
@@ -1278,9 +1278,9 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.acpAgent, "codex");
     assert.equal(result.plan.isPi, false);
     assert.equal(result.plan.isDaytona, false);
-    assert.equal(result.plan.harnessApiKeyVar, "OPENAI_API_KEY");
-    assert.equal(result.plan.hasApiKey, true);
-    assert.equal(result.plan.credentialMode, "env");
+    assert.equal(result.plan.credentials.harnessApiKeyVar, "OPENAI_API_KEY");
+    assert.equal(result.plan.credentials.hasApiKey, true);
+    assert.equal(result.plan.credentials.credentialMode, "env");
   });
 });
 
@@ -1305,10 +1305,10 @@ describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.plan.cwd, "/tmp/agenta/mounts/proj-1/mount-abc");
+    assert.equal(result.plan.workspace.cwd, "/tmp/agenta/mounts/proj-1/mount-abc");
     // Relay dir is an ephemeral sibling (leaf = cwd basename), NOT inside the durable mount.
-    assert.ok(!result.plan.relayDir.startsWith(result.plan.cwd));
-    assert.ok(result.plan.relayDir.endsWith("/agenta/relay/mount-abc"));
+    assert.ok(!result.plan.workspace.relayDir.startsWith(result.plan.workspace.cwd));
+    assert.ok(result.plan.workspace.relayDir.endsWith("/agenta/relay/mount-abc"));
     // createLocalCwd received the durableCwd value.
     assert.deepEqual(localCwdCalls, ["/tmp/agenta/mounts/proj-1/mount-abc"]);
   });
@@ -1333,7 +1333,7 @@ describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
     assert.equal(result.ok, true);
     if (!result.ok) return;
     assert.equal(
-      result.plan.cwd,
+      result.plan.workspace.cwd,
       "/home/sandbox/agenta/mounts/proj-1/mount-abc",
     );
     assert.deepEqual(daytonaCwdCalls, [
@@ -1360,7 +1360,7 @@ describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.plan.cwd, "/tmp/agenta-sandbox-agent-ephemeral");
+    assert.equal(result.plan.workspace.cwd, "/tmp/agenta-sandbox-agent-ephemeral");
     assert.deepEqual(localCwdCalls, [undefined]);
   });
 
@@ -1389,8 +1389,8 @@ describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
     assert.equal(r2.ok, true);
     if (!r1.ok || !r2.ok) return;
     // Same prefix -> same cwd across turns.
-    assert.equal(r1.plan.cwd, r2.plan.cwd);
-    assert.equal(r1.plan.cwd, localPath);
+    assert.equal(r1.plan.workspace.cwd, r2.plan.workspace.cwd);
+    assert.equal(r1.plan.workspace.cwd, localPath);
   });
 });
 
@@ -1478,7 +1478,7 @@ describe("buildRunPlan runtime_provided (subscription) gates", () => {
 
       assert.equal(result.ok, true);
       if (!result.ok) return;
-      assert.equal(result.plan.credentialMode, "runtime_provided");
+      assert.equal(result.plan.credentials.credentialMode, "runtime_provided");
       assert.equal(result.plan.acpAgent, "codex");
     });
   });
@@ -1564,8 +1564,8 @@ describe("buildRunPlan runtime_provided (subscription) gates", () => {
       });
       assert.equal(result.ok, true);
       if (!result.ok) return;
-      assert.equal(result.plan.credentialMode, "runtime_provided");
-      assert.equal(result.plan.sourcePiAgentDir, "/agenta/harness/pi");
+      assert.equal(result.plan.credentials.credentialMode, "runtime_provided");
+      assert.equal(result.plan.workspace.sourcePiAgentDir, "/agenta/harness/pi");
     });
   });
 
@@ -1704,7 +1704,7 @@ describe("modelConnection validation", () => {
     } as AgentRunRequest);
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.deepEqual(result.plan.modelEnvironment, {
+    assert.deepEqual(result.plan.credentials.modelEnvironment, {
       AWS_REGION: "us-east-1",
       AWS_ACCESS_KEY_ID: "AKIA",
     });
@@ -1732,7 +1732,7 @@ describe("modelConnection validation", () => {
     assert.equal(result.ok, true);
     if (!result.ok) return;
     assert.equal(
-      result.plan.modelEnvironment.GOOGLE_APPLICATION_CREDENTIALS,
+      result.plan.credentials.modelEnvironment.GOOGLE_APPLICATION_CREDENTIALS,
       "/tmp/adc.json",
     );
   });

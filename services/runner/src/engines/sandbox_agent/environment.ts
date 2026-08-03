@@ -350,7 +350,7 @@ export async function acquireEnvironment(
     }
     if (!environment.durableCwdSafeToDelete) {
       logger(
-        `durable cwd unmount not confirmed, skipping workspace cleanup cwd=${plan.cwd}`,
+        `durable cwd unmount not confirmed, skipping workspace cleanup cwd=${plan.workspace.cwd}`,
       );
     } else {
       await environment.workspace?.cleanup().catch(() => {});
@@ -375,7 +375,7 @@ export async function acquireEnvironment(
     if (environment.codexSqliteHome)
       rmSync(environment.codexSqliteHome, { recursive: true, force: true });
     // Remove the per-run skills temp root the materializer created (success or error).
-    plan.skillsCleanup();
+    plan.workspace.skillsCleanup();
   };
 
   let agentMountGuidanceActive = false;
@@ -394,17 +394,17 @@ export async function acquireEnvironment(
     }
     if (!plan.isPi) return;
 
-    plan.appendSystemPrompt = combineAppendSystemPrompt(
-      plan.appendSystemPrompt,
+    plan.prompt.appendSystemPrompt = combineAppendSystemPrompt(
+      plan.prompt.appendSystemPrompt,
       AGENT_MOUNT_SYSTEM_PROMPT_SEGMENT,
     );
-    plan.hasSystemPrompt = true;
+    plan.prompt.hasSystemPrompt = true;
     if (plan.isDaytona) {
       await uploadSystemPromptToSandbox(
         environment.sandbox,
         DAYTONA_PI_DIR,
-        plan.systemPrompt,
-        plan.appendSystemPrompt,
+        plan.prompt.systemPrompt,
+        plan.prompt.appendSystemPrompt,
         logger,
       );
       return;
@@ -412,8 +412,8 @@ export async function acquireEnvironment(
     if (environment.runAgentDir) {
       writeSystemPromptLocal(
         environment.runAgentDir,
-        plan.systemPrompt,
-        plan.appendSystemPrompt,
+        plan.prompt.systemPrompt,
+        plan.prompt.appendSystemPrompt,
         logger,
       );
       return;
@@ -436,18 +436,18 @@ export async function acquireEnvironment(
   const mountLocalDurableCwd = async (reason: string): Promise<boolean> => {
     if (!environment.mountCreds || plan.isDaytona) return false;
     logger(
-      `local durable cwd mount (${reason}) session=${sessionForMount} cwd=${plan.cwd}`,
+      `local durable cwd mount (${reason}) session=${sessionForMount} cwd=${plan.workspace.cwd}`,
     );
     environment.durableCwdSafeToDelete = false;
     const mounted = await (deps.mountStorage ?? mountStorage)(
-      plan.cwd,
+      plan.workspace.cwd,
       environment.mountCreds,
       {
         log: logger,
       },
     );
     if (mounted) {
-      environment.mountedCwd = plan.cwd;
+      environment.mountedCwd = plan.workspace.cwd;
       environment.installedMountExpiries.cwd = mountExpiryMs(
         environment.mountCreds.expiresAt,
       );
@@ -459,7 +459,7 @@ export async function acquireEnvironment(
   };
   const mountLocalAgentCwd = async (): Promise<boolean> => {
     if (!environment.agentMountCreds || plan.isDaytona) return false;
-    const mountPath = agentMountPath(plan.cwd);
+    const mountPath = agentMountPath(plan.workspace.cwd);
     if (environment.agentMountedPath === mountPath) return true;
     try {
       mkdirSync(mountPath, { recursive: true });
@@ -480,7 +480,7 @@ export async function acquireEnvironment(
         environment.agentMountCreds.expiresAt,
       );
       await seedAgentReadme(mountPath, { log: logger });
-      await linkAgentFiles(plan.cwd, mountPath, { log: logger });
+      await linkAgentFiles(plan.workspace.cwd, mountPath, { log: logger });
       await activateAgentMountGuidance();
       return true;
     } catch (err) {
@@ -498,7 +498,7 @@ export async function acquireEnvironment(
       LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT
     ) {
       logger(
-        `local agent mount ENOTCONN remount limit reached artifact=${artifactId} path=${agentMountPath(plan.cwd)}`,
+        `local agent mount ENOTCONN remount limit reached artifact=${artifactId} path=${agentMountPath(plan.workspace.cwd)}`,
       );
       return false;
     }
@@ -530,13 +530,13 @@ export async function acquireEnvironment(
       LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT
     ) {
       logger(
-        `local durable cwd ENOTCONN remount limit reached session=${sessionForMount} cwd=${plan.cwd}`,
+        `local durable cwd ENOTCONN remount limit reached session=${sessionForMount} cwd=${plan.workspace.cwd}`,
       );
       return false;
     }
     localDurableCwdEnotconnRemounts += 1;
     logger(
-      `local durable cwd ENOTCONN session=${sessionForMount} cwd=${plan.cwd}; re-signing and remounting`,
+      `local durable cwd ENOTCONN session=${sessionForMount} cwd=${plan.workspace.cwd}; re-signing and remounting`,
     );
     const fresh = await signMount(sessionForMount, {
       apiBase: apiBase(),
@@ -565,7 +565,7 @@ export async function acquireEnvironment(
     )
       return;
     logger(
-      `local durable mount ENOTCONN observed in ACP event session=${sessionForMount} cwd=${plan.cwd}; re-signing and remounting`,
+      `local durable mount ENOTCONN observed in ACP event session=${sessionForMount} cwd=${plan.workspace.cwd}; re-signing and remounting`,
     );
     environment.runtimeRemount = (async () => {
       const cwdOk = cwdEligible ? await reSignAndRemountLocalCwd() : true;
@@ -627,9 +627,9 @@ export async function acquireEnvironment(
       env,
       binaryPath,
       piExtEnv,
-      plan.modelEnvironment,
+      plan.credentials.modelEnvironment,
       plan.sandboxPermission,
-      plan.daytonaSecretPlan,
+      plan.credentials.daytonaSecretPlan,
     );
     const startOptions = {
       sandbox: sandboxProvider,
@@ -708,13 +708,17 @@ export async function acquireEnvironment(
         deps.prepareDaytonaPiAssets ?? prepareDaytonaPiAssets
       )({
         sandbox: environment.sandbox,
-        plan: { ...plan, skillDirs: [] },
+        plan: { ...plan, workspace: { ...plan.workspace, skillDirs: [] } },
         piModelConfig,
         log: logger,
       });
       // Fail closed (Decision 2): same guarantee as the local path. A genuine upload failure on the
       // Daytona sandbox stops the run rather than running Pi's built-in tools unprotected.
-      if (plan.isPi && plan.builtinGatingActive && !daytonaExtensionInstalled) {
+      if (
+        plan.isPi &&
+        plan.tools.builtinGatingActive &&
+        !daytonaExtensionInstalled
+      ) {
         throw new Error(PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE);
       }
       // Fail closed: the Pi model endpoint override rides the extension; without it the model
@@ -726,15 +730,15 @@ export async function acquireEnvironment(
       ) {
         throw new Error(PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE);
       }
-      if (!plan.isPi && plan.toolSpecs.length > 0) {
+      if (!plan.isPi && plan.tools.toolSpecs.length > 0) {
         // Advertise the FULL tool set to the shim, client tools included: a parked client tool
         // resolves through the relay's paused answer (see startToolRelay / tool-mcp-stdio.ts).
         internalToolMcp = await (
           deps.uploadToolMcpAssets ?? uploadToolMcpAssets
         )(
           environment.sandbox,
-          plan.toolMcpDir,
-          advertisedToolSpecs(plan.toolSpecs),
+          plan.workspace.toolMcpDir,
+          advertisedToolSpecs(plan.tools.toolSpecs),
           logger,
         );
       }
@@ -762,7 +766,7 @@ export async function acquireEnvironment(
           canMount &&
           (await (deps.mountStorageRemote ?? mountStorageRemote)(
             environment.sandbox,
-            plan.cwd,
+            plan.workspace.cwd,
             environment.mountCreds,
             {
               endpoint,
@@ -833,9 +837,12 @@ export async function acquireEnvironment(
           await seedAgentReadmeRemote(environment.sandbox, mountPath, {
             log: logger,
           });
-          await linkAgentFilesRemote(environment.sandbox, plan.cwd, mountPath, {
-            log: logger,
-          });
+          await linkAgentFilesRemote(
+            environment.sandbox,
+            plan.workspace.cwd,
+            mountPath,
+            { log: logger },
+          );
           await activateAgentMountGuidance();
           logger(`remote agent mount active for artifact=${artifactId}`);
         }
@@ -929,7 +936,7 @@ export async function acquireEnvironment(
       harness: plan.harness,
       isPi: plan.isPi,
       probed,
-      toolSpecs: plan.toolSpecs,
+      toolSpecs: plan.tools.toolSpecs,
       log: logger,
     });
 
@@ -938,14 +945,14 @@ export async function acquireEnvironment(
       capabilities,
       harness: plan.harness,
       isDaytona: plan.isDaytona,
-      toolSpecs: plan.toolSpecs,
+      toolSpecs: plan.tools.toolSpecs,
       // On a Daytona Secrets run the provider swaps each MCP credential value for its Daytona
       // Secret placeholder, so no plaintext secret rides the sandbox-bound session config.
       userMcpServers: materializeDaytonaMcpServers(
         sandboxProvider,
         request.mcpServers,
       ),
-      relayDir: plan.relayDir,
+      relayDir: plan.workspace.relayDir,
       clientToolRelay: deferredClientToolRelay,
       executableToolGate:
         !plan.isPi && !plan.isDaytona ? deferredExecutableToolGate : undefined,
@@ -982,7 +989,7 @@ export async function acquireEnvironment(
         ? { ...(claudeSystemPromptMeta ?? {}), ...(claudeThinking ?? {}) }
         : undefined;
     const sessionInit = {
-      cwd: plan.cwd,
+      cwd: plan.workspace.cwd,
       mcpServers: sessionMcp.servers,
       ...(claudeMeta ? { _meta: claudeMeta } : {}),
     };
@@ -1058,7 +1065,7 @@ export async function acquireEnvironment(
         environment.session = await environment.sandbox.createSession({
           ...(localSessionId ? { id: localSessionId } : {}),
           agent: plan.acpAgent,
-          cwd: plan.cwd,
+          cwd: plan.workspace.cwd,
           sessionInit,
         });
       } finally {
