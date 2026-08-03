@@ -11,21 +11,25 @@
 <div align="center">
   <strong> <h1> The open-source workspace for building and running agents </h1></strong>
 
-
-<img width="1800" height="680" alt="agenta-github-banner" src="https://github.com/user-attachments/assets/afc83f8f-d644-4dc6-bae7-b26ed2512986" />
-
+  Build agents that **automate your work** by chatting with them. Share them with **your team**, connect them to the apps you use, and run them in the **background**.
+  
+  ---
+  
+<a href="https://youtu.be/Y5l2BPRkKC8?si=HoIflTHFhXKEgyo3">
+  <img
+    width="900"
+    alt="Watch the Agenta platform demo"
+    src="https://github.com/user-attachments/assets/93e894fb-2b7a-4190-a1e5-b2c84a907c29"
+  />
+</a>
   ---
 
 
-  Build agents that **automate your work** by chatting with them. Share them with **your team**, connect them to the apps you use, and run them in the **background**.
 
 </div>
 
 </div>
-<div align="center">
 
-<a href="https://trendshift.io/repositories/46?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-46" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/46" alt="Agenta-AI%2Fagenta | Trendshift" width="250" height="55"/></a>
-</div>
 
 <h3 align="center">
   <a href="https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>Documentation</b></a> &bull;
@@ -39,6 +43,10 @@
   <a href="./README.ja.md"><img alt="日本語のREADME" src="https://img.shields.io/badge/日本語-d9d9d9"></a>
   <a href="./README.kr.md"><img alt="README in Korean" src="https://img.shields.io/badge/한국어-d9d9d9"></a>
 </p>
+<div align="center">
+
+<a href="https://trendshift.io/repositories/46?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-46" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/46" alt="Agenta-AI%2Fagenta | Trendshift" width="250" height="55"/></a>
+</div>
 
 ---
 
