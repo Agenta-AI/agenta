@@ -159,7 +159,7 @@ function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegratio
                     onValueChange={(value) => search.onChange(value)}
                     allowClear
                 />
-                <span className="text-xs text-colorTextSecondary">
+                <span className="text-xs text-colorTextDescription">
                     {total} integration{total !== 1 ? "s" : ""}
                 </span>
             </div>
@@ -215,7 +215,7 @@ function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegratio
                                                 )}
                                             </div>
                                             {integration.description && (
-                                                <span className="text-xs text-colorTextSecondary line-clamp-2">
+                                                <span className="text-xs text-colorTextDescription line-clamp-2">
                                                     {integration.description}
                                                 </span>
                                             )}
@@ -374,7 +374,7 @@ function ActionsView({
                     allowClear
                 />
 
-                <span className="text-xs text-colorTextSecondary">
+                <span className="text-xs text-colorTextDescription">
                     {total} action{total !== 1 ? "s" : ""}
                 </span>
             </div>
@@ -416,7 +416,7 @@ function ActionsView({
                                             ))}
                                         </div>
                                         {action.description && (
-                                            <span className="text-xs text-colorTextSecondary">
+                                            <span className="text-xs text-colorTextDescription">
                                                 {action.description}
                                             </span>
                                         )}

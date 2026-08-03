@@ -1,4 +1,4 @@
-import {Skeleton} from "antd"
+import {SkeletonBlock} from "@agenta/ui/ui"
 
 /**
  * Loading placeholder for the agent config panel's Configuration section, mirroring its
@@ -31,12 +31,15 @@ export const SkeletonSectionRow = ({
             (divider ? " border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]" : "")
         }
     >
-        <Skeleton.Avatar active size={16} shape="square" />
-        <Skeleton.Button active size="small" style={{width: title, height: 16}} />
+        {/* antd `Skeleton.Avatar size={n}` = an n×n block (square = no radius, circle = 50%);
+            `Skeleton.Button size="small"` = a 6px-radius block with antd's controlHeightSM*2
+            = 48px MIN-WIDTH, which is why the 44px value bars render 48px wide. */}
+        <SkeletonBlock active shape="square" className="h-4 w-4" />
+        <SkeletonBlock active className="min-w-12" style={{width: title, height: 16}} />
         <div className="ml-auto flex items-center gap-2">
-            <Skeleton.Button active size="small" style={{width: value, height: 14}} />
-            {withAdd ? <Skeleton.Avatar active size={16} shape="circle" /> : null}
-            <Skeleton.Avatar active size={14} shape="circle" />
+            <SkeletonBlock active className="min-w-12" style={{width: value, height: 14}} />
+            {withAdd ? <SkeletonBlock active shape="circle" className="h-4 w-4" /> : null}
+            <SkeletonBlock active shape="circle" className="h-3.5 w-3.5" />
         </div>
     </div>
 )
@@ -53,7 +56,9 @@ const ROWS: {title: number; value: number; withAdd?: boolean}[] = [
 
 const AgentConfigSkeleton = () => (
     // No padding of its own: the surrounding field/fallback wrapper provides the 16px inset.
-    <div className="flex flex-col" aria-busy aria-label="Loading agent configuration">
+    // `role="status"`: a bare div is role=generic, which may not carry `aria-label`
+    // (axe aria-prohibited-attr) — the live region is also what makes the label useful.
+    <div className="flex flex-col" role="status" aria-busy aria-label="Loading agent configuration">
         {ROWS.map((row, i) => (
             <SkeletonSectionRow
                 key={i}

@@ -175,7 +175,7 @@ function ActionPickerStep({
                         <span className="truncate font-medium">
                             {integrationName || integrationKey}
                         </span>
-                        <span className="text-xs truncate text-colorTextSecondary">
+                        <span className="text-xs truncate text-colorTextDescription">
                             Connection: {connectionSlug}
                         </span>
                     </div>
@@ -189,7 +189,7 @@ function ActionPickerStep({
                     allowClear
                 />
 
-                <span className="text-xs text-colorTextSecondary">
+                <span className="text-xs text-colorTextDescription">
                     {total} action{total !== 1 ? "s" : ""}
                 </span>
             </div>
@@ -234,7 +234,7 @@ function ActionPickerStep({
                                             ))}
                                         </div>
                                         {action.description && (
-                                            <span className="text-xs line-clamp-2 text-colorTextSecondary">
+                                            <span className="text-xs line-clamp-2 text-colorTextDescription">
                                                 {action.description}
                                             </span>
                                         )}
@@ -361,9 +361,13 @@ function ActionDetailStep({
                         />
                     )}
                     {integrationName && (
-                        <span className="shrink-0 text-colorTextSecondary">{integrationName}</span>
+                        <span className="shrink-0 text-colorTextDescription">
+                            {integrationName}
+                        </span>
                     )}
-                    {integrationName && <span className="shrink-0 text-colorTextSecondary">/</span>}
+                    {integrationName && (
+                        <span className="shrink-0 text-colorTextDescription">/</span>
+                    )}
                     <span className="truncate flex-1 font-medium">
                         {detailLoading ? "Loading…" : displayName}
                     </span>
@@ -386,9 +390,9 @@ function ActionDetailStep({
                     />
                 </div>
                 {action?.description && (
-                    <span className="text-xs text-colorTextSecondary">{action.description}</span>
+                    <span className="text-xs text-colorTextDescription">{action.description}</span>
                 )}
-                <span className="text-xs text-colorTextSecondary">
+                <span className="text-xs text-colorTextDescription">
                     Connection: {connectionSlug}
                 </span>
             </div>
@@ -453,7 +457,7 @@ function ActionDetailStep({
                                 />
                             ) : (
                                 <div className="rounded-lg border border-dashed border-gray-300 p-4 text-center">
-                                    <span className="text-xs text-colorTextSecondary">
+                                    <span className="text-xs text-colorTextDescription">
                                         Run the action to see results
                                     </span>
                                 </div>

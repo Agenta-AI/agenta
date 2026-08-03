@@ -29,8 +29,8 @@ import {
 } from "@agenta/entities/gatewayTool"
 import {message} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {Button} from "@agenta/ui/ui"
 import {Plugs} from "@phosphor-icons/react"
-import {Button} from "antd"
 import {useSetAtom} from "jotai"
 
 import {CatalogChooser} from "../../../drawers/shared/CatalogChooser"
@@ -322,7 +322,7 @@ export function AgentIntegrationDrawer({
                             ? `${addedCount} app ${addedCount === 1 ? "tool" : "tools"} added`
                             : "Pick actions from a connected app — added instantly."}
                     </span>
-                    <Button type="primary" onClick={onClose}>
+                    <Button variant="default" onClick={onClose}>
                         Done
                     </Button>
                 </div>

@@ -245,6 +245,41 @@ const EXPECTED = [
             "palette-level decision, not a component defect (see the note above EXPECTED).",
     },
     {
+        story: "agenta-entity-ui-drillin-parametertree--antd-vs-agenta",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-drillin-parameternodeeditor--antd-vs-agenta",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-drillin-agenttemplatecontrol--antd-vs-agenta",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-drillin-itemrow--antd-vs-agenta",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
+        story: "agenta-entity-ui-drillin-agentintegrationdrawer--antd-vs-agenta",
+        rule: "color-contrast",
+        reason:
+            "inherited antd tokens (colorTextTertiary/colorTextDescription #758391, preset tag pairs, warning/success tokens) reproduced exactly; " +
+            "palette-level decision, not a component defect (see the note above EXPECTED).",
+    },
+    {
         story: "agenta-entity-ui-secretprovider-customproviderform--new-provider",
         rule: "color-contrast",
         reason:

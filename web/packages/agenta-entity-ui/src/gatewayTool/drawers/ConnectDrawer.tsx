@@ -204,7 +204,7 @@ export default function ConnectDrawer({
                     <div className="flex flex-col min-w-0">
                         <span className="font-medium leading-snug">{integrationName}</span>
                         {integrationDescription && (
-                            <span className="text-xs text-colorTextSecondary line-clamp-2">
+                            <span className="text-xs text-colorTextDescription line-clamp-2">
                                 {integrationDescription}
                             </span>
                         )}

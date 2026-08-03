@@ -36,7 +36,7 @@ function DetailsTable({items}: {items: {key: string; label: string; children: Re
                         i > 0 ? "border-0 border-t border-solid border-colorBorderSecondary" : ""
                     }`}
                 >
-                    <div className="border-0 border-r border-solid border-colorBorderSecondary bg-colorFillQuaternary px-3 py-2 text-colorTextSecondary">
+                    <div className="border-0 border-r border-solid border-colorBorderSecondary bg-colorFillQuaternary px-3 py-2 text-colorTextDescription">
                         {item.label}
                     </div>
                     <div className="px-3 py-2 break-all">{item.children}</div>
@@ -202,7 +202,7 @@ export default function ConnectionManagerDrawer() {
                         <Spinner />
                     </div>
                 ) : !connection ? (
-                    <span className="text-colorTextSecondary">Connection not found.</span>
+                    <span className="text-colorTextDescription">Connection not found.</span>
                 ) : (
                     <>
                         {/* Header */}
@@ -211,7 +211,7 @@ export default function ConnectionManagerDrawer() {
                                 <div className="text-base font-semibold text-colorTextHeading">
                                     {connection.name || connection.slug}
                                 </div>
-                                <span className="text-xs text-colorTextSecondary">
+                                <span className="text-xs text-colorTextDescription">
                                     {connection.integration_key}
                                 </span>
                             </div>

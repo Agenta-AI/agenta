@@ -232,7 +232,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
 
         if (fields.length === 0 && !jsonMode) {
             return (
-                <span className="text-xs text-colorTextSecondary">
+                <span className="text-xs text-colorTextDescription">
                     No input parameters required.
                 </span>
             )
@@ -329,7 +329,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                         )}
                                     </span>
                                     {fields[step].description && (
-                                        <span className="text-xs leading-snug text-colorTextSecondary">
+                                        <span className="text-xs leading-snug text-colorTextDescription">
                                             {fields[step].description}
                                         </span>
                                     )}
@@ -366,7 +366,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                 >
                                     <CaretLeft size={12} />
                                 </Button>
-                                <span className="text-[11px] tabular-nums text-colorTextSecondary">
+                                <span className="text-[11px] tabular-nums text-colorTextDescription">
                                     {`${Math.min(step + 1, fields.length)}/${fields.length}`}
                                 </span>
                                 <Button
@@ -414,7 +414,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                             }}
                                             className="flex cursor-pointer items-center justify-between gap-3 rounded-md bg-colorFillQuaternary px-3 py-2 hover:bg-colorFillTertiary"
                                         >
-                                            <span className="text-xs text-colorTextSecondary">
+                                            <span className="text-xs text-colorTextDescription">
                                                 {field.label}
                                             </span>
                                             {empty && field.required ? (
@@ -452,7 +452,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                   <Accordion type="multiple" variant="ghost" className="-mx-4 mt-1">
                                       <AccordionItem value="optional">
                                           <AccordionTrigger className="py-2 text-xs">
-                                              <span className="text-xs text-colorTextSecondary">
+                                              <span className="text-xs text-colorTextDescription">
                                                   Optional ({optionalFields.length})
                                               </span>
                                           </AccordionTrigger>
@@ -534,7 +534,7 @@ function FieldLabel({field}: {field: FormFieldDescriptor}) {
                 {field.required && <span className="text-red-500 ml-1">*</span>}
             </span>
             {field.description && (
-                <span className="text-[11px] font-normal leading-snug text-colorTextSecondary">
+                <span className="text-[11px] font-normal leading-snug text-colorTextDescription">
                     {field.description}
                 </span>
             )}
@@ -847,7 +847,7 @@ function ChoiceCards({
                     <div className="flex min-w-0 flex-col">
                         <span className="text-xs font-medium">{o.label ?? o.value}</span>
                         {o.description && (
-                            <span className="text-[11px] leading-snug text-colorTextSecondary">
+                            <span className="text-[11px] leading-snug text-colorTextDescription">
                                 {o.description}
                             </span>
                         )}
@@ -988,7 +988,7 @@ function SchemaFormField({
                                 {field.required && <span className="text-red-500 ml-1">*</span>}
                             </span>
                             {field.description && (
-                                <span className="text-xs leading-snug text-colorTextSecondary">
+                                <span className="text-xs leading-snug text-colorTextDescription">
                                     {field.description}
                                 </span>
                             )}
@@ -1218,7 +1218,7 @@ function ArrayField({
                             {field.required && <span className="text-red-500 ml-1">*</span>}
                         </span>
                         {field.description && (
-                            <span className="text-[11px] font-normal leading-snug text-colorTextSecondary">
+                            <span className="text-[11px] font-normal leading-snug text-colorTextDescription">
                                 {field.description}
                             </span>
                         )}
@@ -1245,7 +1245,9 @@ function ArrayField({
                 {(fields, {add, remove}) => (
                     <div className="flex flex-col gap-2">
                         {fields.length === 0 && (
-                            <span className="text-xs text-colorTextSecondary">No items added</span>
+                            <span className="text-xs text-colorTextDescription">
+                                No items added
+                            </span>
                         )}
 
                         {fields.map(({key, name, ...restField}) =>

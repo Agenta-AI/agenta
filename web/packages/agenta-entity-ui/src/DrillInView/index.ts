@@ -382,3 +382,19 @@ export {SkillFormView} from "./SchemaControls/SkillFormView"
 export type {SkillFormViewProps} from "./SchemaControls/SkillFormView"
 export {SkillUploadZone} from "./SchemaControls/SkillUploadZone"
 export type {SkillUploadZoneProps} from "./SchemaControls/SkillUploadZone"
+
+// Agent config panel — presentational siblings of the AgentTemplateControl container (the
+// control itself stays code-split behind SchemaPropertyRenderer's lazy import). Prop-driven,
+// zero atom reads, so the Storybook component inventory can render each surface directly.
+export {AgentTemplateSectionList} from "./SchemaControls/agentTemplate/AgentTemplateSectionList"
+export type {
+    AgentTemplateSectionListProps,
+    AgentTemplateSectionDescriptor,
+} from "./SchemaControls/agentTemplate/AgentTemplateSectionList"
+export {SectionAddButton} from "./SchemaControls/agentTemplate/SectionAddButton"
+export type {SectionAddButtonProps} from "./SchemaControls/agentTemplate/SectionAddButton"
+export {SectionTitleBadge} from "./SchemaControls/agentTemplate/SectionTitleBadge"
+export type {
+    SectionTitleBadgeProps,
+    SectionTitleBadgeTone,
+} from "./SchemaControls/agentTemplate/SectionTitleBadge"
