@@ -1060,22 +1060,41 @@ def _continuity(cell: dict, tier: str) -> dict:
     }
 
     if tier == "cold2" and cell["sandbox"] == "local":
-        # A local sandbox lives INSIDE the runner process, so a replacement replica genuinely
-        # cannot adopt it. The correct outcome is the ownership guard refusing, loudly — not a
-        # completed resume (`assertLocalRunnerOwnership` -> LocalSandboxNotOwnerError). This
-        # per-sandbox expectation is the one warm-approvals-qa.md already worked out.
+        # This journey used to demand the ownership guard REFUSE here, citing warm-approvals-qa.md.
+        # That expectation cannot hold alongside the transition this journey performs, and the two
+        # halves contradict each other:
+        #
+        #   `isLocalRunnerEligible` (session-continuity.ts) allows the run when the owner is
+        #   unknown OR is this replica. The transition above deliberately waits out the owner key
+        #   so the resume does not fail on a stale owner. Once it lapses, `claim_owner` hands
+        #   ownership to whoever asks next — the replacement replica — so the guard sees itself as
+        #   the owner and correctly does not refuse.
+        #
+        # Refusing is right when the ORIGINAL owner is still ALIVE, which is a different scenario
+        # this journey never creates: it needs two replicas running at once, and the gate drives
+        # one deployment over HTTP. The pure function is covered by the runner's own
+        # session-ownership tests; an end-to-end two-replica journey is a follow-up.
+        #
+        # What IS correct after a genuine replica loss is what the remote tiers assert: the dead
+        # replica took its local sandbox with it, and the replacement rebuilds the conversation
+        # from the durable working directory in the object store. So local cold 2 now asserts the
+        # same resume as remote, plus one extra guard below — a refusal here means the owner key
+        # outlived the wait, which measures the wait rather than the product.
         refused = any(LOCAL_NOT_OWNER_MARKER in str(e) for e in t_last.errors)
-        return {
-            "pass": refused,
-            "why": (
-                "cold 2 on a local sandbox must REFUSE with "
-                f'"{LOCAL_NOT_OWNER_MARKER}" (observed refusal={refused}). A completed resume '
-                "here would mean a wrong-host cold start, which is the failure the guard exists "
-                "to prevent."
-            ),
-            "evidence": evidence,
-            "turn_resumed": t_last.summary(),
-        }
+        if refused:
+            return {
+                "pass": False,
+                "why": (
+                    "cold 2 refused with "
+                    f'"{LOCAL_NOT_OWNER_MARKER}" even though the journey waited out the owner key '
+                    f"({OWNER_TTL_SECONDS:.0f}s + {OWNER_TTL_MARGIN_SECONDS:.0f}s margin). The "
+                    "dead replica's ownership outlived the wait, so this run measured the wait, "
+                    "not the product. Raise --owner-ttl to the deployment's real session-owner "
+                    "TTL and run it again."
+                ),
+                "evidence": evidence,
+                "turn_resumed": t_last.summary(),
+            }
 
     reply = t_last.reply
     cwd_back = token in reply
@@ -1117,6 +1136,12 @@ def _continuity(cell: dict, tier: str) -> dict:
             f"cold 2: the replica was replaced; the cwd token came back (in reply={cwd_back}) and "
             f"the store-only file was readable ({store_back}) — the resume remounted the cwd from "
             "the object store on a different process"
+            + (
+                ". On a local sandbox this is the whole point: the dead replica took its sandbox "
+                "with it, so the conversation had to come back from the object store alone"
+                if cell["sandbox"] == "local"
+                else ""
+            )
         ),
     }[tier]
     return {
