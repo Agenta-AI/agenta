@@ -590,7 +590,7 @@ const AccordionTreePanel = ({
                                     icon={true}
                                     buttonText={null}
                                     stopPropagation
-                                    size="small"
+                                    size="icon-sm"
                                 />
                             </Space>
                         ),

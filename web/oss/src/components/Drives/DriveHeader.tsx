@@ -212,7 +212,7 @@ export const DriveHeader = ({
                             text={selectedPath}
                             buttonText={null}
                             icon
-                            size="small"
+                            size="icon-sm"
                             aria-label="Copy path"
                             successMessage=""
                             className="!h-7 !w-7 !p-0 !text-colorTextTertiary hover:!text-colorText"

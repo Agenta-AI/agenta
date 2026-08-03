@@ -173,6 +173,10 @@ export interface ModalFuncProps {
      */
     onOk?: (close: () => void) => unknown
     onCancel?: (close: () => void) => unknown
+    /** Agenta extension (not antd): renders an extra button between Cancel and OK. */
+    thirdButtonText?: React.ReactNode
+    /** Handler for `thirdButtonText`; receives `close` like `onOk`/`onCancel`. */
+    onThirdButton?: (close: () => void) => unknown
     afterClose?: () => void
     okButtonProps?: ModalButtonProps
     cancelButtonProps?: ModalButtonProps
