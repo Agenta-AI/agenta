@@ -1265,14 +1265,18 @@ describe("runWithKeepalive: approval credential lifecycle", () => {
 
     const parked = ctx.pool.get(POOL_KEY)!;
     assert.equal(
-      parked.credentialEpoch.secretsHash,
-      computeCredentialEpoch(paused).secretsHash,
-      "the repark keeps the hash of the secrets the environment actually baked",
+      parked.credentialEpoch.secrets.equals(
+        computeCredentialEpoch(paused).secrets,
+      ),
+      true,
+      "the repark keeps the secrets the environment actually baked",
     );
     assert.equal(
-      computeCredentialEpoch(resume).secretsHash,
-      parked.credentialEpoch.secretsHash,
-      "the re-minted per-turn bearer never enters the baked-credential hash",
+      computeCredentialEpoch(resume).secrets.equals(
+        parked.credentialEpoch.secrets,
+      ),
+      true,
+      "the re-minted per-turn bearer never enters the baked-credential material",
     );
     assert.equal(
       parked.credentialEpoch.mountExpiresAtMs,

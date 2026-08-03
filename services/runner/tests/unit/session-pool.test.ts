@@ -5,6 +5,7 @@
  */
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
+import { inspect } from "node:util";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import {
@@ -23,6 +24,7 @@ import {
   resolvesToLocalProvider,
   tailIsFreshUserMessage,
   type CredentialEpoch,
+  CredentialMaterial,
 } from "../../src/engines/sandbox_agent/session-identity.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 
@@ -62,7 +64,7 @@ function fakeEnv() {
   };
 }
 
-const epoch: CredentialEpoch = { secretsHash: "h" };
+const epoch: CredentialEpoch = { secrets: new CredentialMaterial("h") };
 
 function parkInput(key: string, env = fakeEnv()) {
   return {
@@ -608,6 +610,43 @@ describe("tailIsFreshUserMessage", () => {
 });
 
 describe("credential epoch", () => {
+  it("never surfaces the credential values, however it is turned into text", () => {
+    // The epoch holds the real values so it can compare them, so the one thing that must be
+    // impossible is a value reaching a log line. Every route from an object to a string is
+    // pinned here, because a future refactor that drops one of these overrides would leak
+    // silently: the code would still work and the key would appear in stderr.
+    const epoch = computeCredentialEpoch({
+      modelConnection: {
+        provider: "openai",
+        deployment: "direct",
+        endpoint: { baseUrl: "https://api.openai.com/v1" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "OPENAI_API_KEY" },
+            value: "sk-should-never-be-printed",
+            usage: "opaque_http",
+          },
+        ],
+      },
+    });
+
+    const renderings = [
+      String(epoch.secrets),
+      `${epoch.secrets}`,
+      JSON.stringify(epoch),
+      inspect(epoch, { depth: null }),
+      inspect(epoch.secrets),
+    ];
+    for (const rendering of renderings) {
+      assert.equal(
+        rendering.includes("sk-should-never-be-printed"),
+        false,
+        `leaked the credential value through: ${rendering}`,
+      );
+    }
+  });
+
   // A typed model connection whose one credential carries `value` under env var `name`.
   const modelConnection = (
     value: string,
@@ -639,11 +678,11 @@ describe("credential epoch", () => {
       modelConnection: modelConnection("2"),
       toolCallback: { endpoint: "e", authorization: "z" },
     });
-    assert.equal(a.secretsHash, b.secretsHash);
-    assert.notEqual(
-      a.secretsHash,
-      c.secretsHash,
-      "a rotated same-slug secret changes the hash",
+    assert.equal(a.secrets.equals(b.secrets), true);
+    assert.equal(
+      a.secrets.equals(c.secrets),
+      false,
+      "a rotated same-slug secret changes the material",
     );
   });
 
@@ -657,12 +696,12 @@ describe("credential epoch", () => {
     const rotated = computeCredentialEpoch({
       modelConnection: modelConnection("sk-new", "OPENAI_API_KEY"),
     });
-    assert.notEqual(parked.secretsHash, rotated.secretsHash);
+    assert.equal(parked.secrets.equals(rotated.secrets), false);
     assert.equal(sandboxCredentialsRotated(parked, rotated), true);
     assert.equal(credentialEpochValid(parked, rotated, Date.now()), false);
   });
 
-  it("a re-minted tool-callback bearer does NOT change the hash (per-turn material)", () => {
+  it("a re-minted tool-callback bearer does NOT change the material (per-turn)", () => {
     // The backend re-mints the callback bearer on its auth-cache cadence (~60s); the turn's
     // relay always uses the incoming bearer, so a warm continue must not evict over it.
     const parked = computeCredentialEpoch({
@@ -673,7 +712,7 @@ describe("credential epoch", () => {
       modelConnection: modelConnection("1"),
       toolCallback: { endpoint: "e", authorization: "bearer-new" },
     });
-    assert.equal(parked.secretsHash, incoming.secretsHash);
+    assert.equal(parked.secrets.equals(incoming.secrets), true);
     assert.equal(sandboxCredentialsRotated(parked, incoming), false);
     assert.equal(credentialEpochMismatch(parked, incoming), undefined);
   });
@@ -698,9 +737,11 @@ describe("credential epoch", () => {
         },
       ],
     });
-    assert.notEqual(
-      computeCredentialEpoch(withMcp("secret-a")).secretsHash,
-      computeCredentialEpoch(withMcp("secret-b")).secretsHash,
+    assert.equal(
+      computeCredentialEpoch(withMcp("secret-a")).secrets.equals(
+        computeCredentialEpoch(withMcp("secret-b")).secrets,
+      ),
+      false,
     );
   });
 

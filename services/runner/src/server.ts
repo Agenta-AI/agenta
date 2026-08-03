@@ -63,6 +63,7 @@ import {
   MOUNT_LEASE_SKEW_MS,
   sandboxCredentialsRotated,
   type CredentialEpoch,
+  type CredentialMaterial,
   expectedNextHistoryFingerprint,
   historyFingerprint,
   historyTailFromLastUserTurn,
@@ -544,9 +545,9 @@ export async function runWithKeepalive(
   // from whatever this dispatch signed to compute the pool key.
   const parkedEpoch = (
     env: SessionEnvironment,
-    secretsHash: string,
+    secrets: CredentialMaterial,
   ): CredentialEpoch => ({
-    secretsHash,
+    secrets,
     mountExpiresAtMs: installedMountLease(env.installedMountExpiries),
   });
 
@@ -562,7 +563,7 @@ export async function runWithKeepalive(
       configFingerprint: cfgFp,
       historyFingerprint: nextHistoryFp(env),
       historyAsserted,
-      credentialEpoch: parkedEpoch(env, incomingEpoch.secretsHash),
+      credentialEpoch: parkedEpoch(env, incomingEpoch.secrets),
       teardown: (reason: TeardownReason) => env.destroy({ reason }),
     };
     if (approvalToPark(env, result)) {
@@ -602,7 +603,7 @@ export async function runWithKeepalive(
       configFingerprint: cfgFp,
       historyFingerprint: nextHistoryFp(env),
       historyAsserted,
-      credentialEpoch: parkedEpoch(env, live.credentialEpoch.secretsHash),
+      credentialEpoch: parkedEpoch(env, live.credentialEpoch.secrets),
     };
     if (approvalToPark(env, result)) {
       klog(

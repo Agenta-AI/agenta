@@ -1,4 +1,5 @@
-import { createHash, createHmac, randomBytes } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
+import { inspect } from "node:util";
 
 import {
   currentUserTurn,
@@ -122,29 +123,52 @@ function sha256(value: string): string {
 }
 
 /**
- * A random key minted once per runner process, used to key the credential-epoch digest below.
+ * The credential material a session was built with, kept only so a later turn can answer one
+ * question: did any of it change?
  *
- * The epoch is only ever compared against other epochs computed in the SAME process (the warm
- * session pool is process-local and dies with the process), so a per-process key costs nothing
- * and is never persisted or shared. What it buys: the digest becomes a keyed tag rather than a
- * plain hash of secret material, so anyone who somehow obtains one cannot test candidate API
- * keys against it offline. A fresh key per process also means two runners never produce the
- * same tag for the same credential.
+ * It holds the values rather than a digest of them, and that is deliberate. A digest of an API
+ * key is not much protection (keys have little enough entropy that a leaked digest can be
+ * attacked offline), and it invites exactly the misreading that a security scanner makes: that
+ * this is a password hash, which it is not. Nothing here authenticates anything.
+ *
+ * The real risk with holding the values is that one leaks into a log line, so this class makes
+ * that structurally impossible instead of relying on a convention. The material lives in a
+ * private field with no getter, and every way of turning an object into text (`String()`, a
+ * template literal, `JSON.stringify`, `console.log` / `util.inspect`) is overridden to print a
+ * placeholder. This mirrors what the Python side already does for the same reason
+ * (`ResolvedCredential` masks its value on dump and hides it from `repr`).
+ *
+ * Comparison is constant time so the check cannot be turned into a way to learn a key one byte
+ * at a time.
  */
-const CREDENTIAL_EPOCH_KEY = randomBytes(32);
+export class CredentialMaterial {
+  readonly #canonical: string;
 
-/**
- * The keyed digest of a run's credential material. Separate from `sha256` on purpose: this is
- * the ONLY place secret values are digested, and it must stay keyed.
- */
-function credentialTag(material: string): string {
-  // This is not a stored password hash, which is what the scanner reads it as. It is an
-  // in-memory, keyed change-detection tag for the warm-session pool: it is compared only
-  // against other tags from the same process, never persisted, transmitted, or logged, and
-  // it authenticates nothing. A deliberately slow KDF here would add latency to every turn
-  // and protect nothing that the random per-process key does not already protect.
-  const hmac = createHmac("sha256", CREDENTIAL_EPOCH_KEY); // codeql[js/insufficient-password-hash]
-  return hmac.update(material).digest("hex");
+  constructor(canonical: string) {
+    this.#canonical = canonical;
+  }
+
+  /** True when both were built from identical credential material. */
+  equals(other: CredentialMaterial): boolean {
+    const mine = Buffer.from(this.#canonical, "utf8");
+    const theirs = Buffer.from(other.#canonical, "utf8");
+    // `timingSafeEqual` throws on a length mismatch, and lengths differ freely here, so the
+    // length check comes first. Length is not secret: it follows from the request's shape,
+    // which the config fingerprint already covers in the clear.
+    return mine.length === theirs.length && timingSafeEqual(mine, theirs);
+  }
+
+  toString(): string {
+    return "[credential-material]";
+  }
+
+  toJSON(): string {
+    return "[credential-material]";
+  }
+
+  [inspect.custom](): string {
+    return "[credential-material]";
+  }
 }
 
 /** Deterministic JSON: object keys sorted recursively so equal values hash equal. */
@@ -486,22 +510,22 @@ export function tailIsFreshUserMessage(request: AgentRunRequest): boolean {
 }
 
 /**
- * The credential epoch bounds how long a parked session may reuse its baked credentials. It is
- * a PROCESS-LOCAL keyed digest over the actual resolved secret VALUES (see `credentialTag`;
- * held only in runner memory, never logged, persisted, or emitted), combined with the mount
- * credential expiry. A rotated same-slug secret changes the digest; an elapsed expiry
- * invalidates the epoch. Either way the dispatch evicts and cold-starts with fresh credentials.
+ * The credential epoch bounds how long a parked session may reuse its baked credentials. It pairs
+ * the resolved secret material (see `CredentialMaterial`: process-local, never logged, persisted,
+ * or emitted) with the mount credential expiry. A rotated same-slug secret changes the material;
+ * an elapsed expiry invalidates the epoch. Either way the dispatch evicts and cold-starts with
+ * fresh credentials.
  *
  * The tool-callback bearer is deliberately EXCLUDED: it is per-turn material the backend
  * re-mints on its auth-cache cadence (~60s), and every turn — continuation included — starts
  * its tool relay from the INCOMING request's `toolCallback`, so the parked copy is never used
- * to execute anything. Hashing it made warm sessions evict as "credentials-rotated" on every
+ * to execute anything. Including it made warm sessions evict as "credentials-rotated" on every
  * cache rollover for no protective value. Only material actually BAKED into the parked
- * environment (the sandbox env secrets) belongs in the hash; the mount expiry bounds the rest.
+ * environment (the sandbox env secrets) belongs here; the mount expiry bounds the rest.
  */
 export interface CredentialEpoch {
-  /** Keyed digest over canonical(secrets); see `credentialTag`. In-memory only, never surfaced. */
-  secretsHash: string;
+  /** The credentials this session was built with. Compared, never read. */
+  secrets: CredentialMaterial;
   /**
    * Parked epochs only: the environment's installed-mount lease as epoch millis, or undefined when
    * it has no mounts. Incoming epochs never carry one.
@@ -550,7 +574,7 @@ export function computeCredentialEpoch(
       })),
     ),
   });
-  return { secretsHash: credentialTag(material) };
+  return { secrets: new CredentialMaterial(material) };
 }
 
 /** True when credentials baked into a parked sandbox/session changed (rotation ⇒ evict). */
@@ -558,7 +582,7 @@ export function sandboxCredentialsRotated(
   parked: CredentialEpoch,
   incoming: CredentialEpoch,
 ): boolean {
-  return parked.secretsHash !== incoming.secretsHash;
+  return !parked.secrets.equals(incoming.secrets);
 }
 
 /**
@@ -618,7 +642,7 @@ export function credentialEpochMismatch(
   now = Date.now(),
 ): "credentials-expired" | "credentials-rotated" | undefined {
   if (mountCredentialsExpired(parked, now)) return "credentials-expired";
-  if (parked.secretsHash !== incoming.secretsHash) return "credentials-rotated";
+  if (!parked.secrets.equals(incoming.secrets)) return "credentials-rotated";
   return undefined;
 }
 
