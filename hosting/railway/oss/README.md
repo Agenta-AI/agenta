@@ -29,6 +29,7 @@ baseline.
 - `worker-queues/` - list-parameterized worker image for taskiq queue consumers (webhooks, triggers, interactions, evaluations)
 - `cron/` - cron service image
 - `alembic/` - migration runner image
+- `images/` - prebuilt wrapper image sources (`gateway`, `redis`, `seaweedfs`) pushed to GHCR for clone-based previews
 - `scripts/bootstrap.sh` - create project, environment, and services
 - `scripts/configure.sh` - set variables and start commands
 - `scripts/deploy-gateway.sh` - deploy gateway image from local Dockerfile
@@ -148,6 +149,46 @@ Defaults:
 
 - Project naming uses `RAILWAY_PREVIEW_PROJECT_PREFIX` (default `agenta-oss-pr`) and a normalized preview key.
 - Preview key resolution order is `RAILWAY_PREVIEW_KEY`, `PR_NUMBER`, `GITHUB_PR_NUMBER`, then GitHub branch refs.
+
+## Prebuilt Wrapper Images (Clone-Based Previews)
+
+Clone-based preview environments (issue #5650) consume `gateway`, `redis`, and
+`seaweedfs` as plain registry images instead of `railway up` uploads, because
+upload-built sources do not survive Railway environment cloning.
+
+- Sources live in `images/{gateway,redis,seaweedfs}/` (Dockerfile plus config
+  or entrypoint files). They must stay byte-faithful to what the legacy deploy
+  path ships per PR today: the `render_redis_wrapper()` and
+  `render_seaweedfs_wrapper()` heredocs in `scripts/deploy-from-images.sh`,
+  and the `gateway/` directory that `scripts/deploy-gateway.sh` uploads.
+- `images/verify-wrappers.sh` enforces that byte-faithfulness (it regenerates
+  the deploy-time content from `deploy-from-images.sh` itself) and runs as the
+  first step of the CI job, so drift between the two paths fails the build.
+  If the compose baseline moves the Redis image, or the `SEAWEEDFS_IMAGE`
+  default changes, bump the matching `FROM` pin in `images/*/Dockerfile`.
+- CI (the `wrapper-images` job in `.github/workflows/42-railway-build.yml`)
+  builds `ghcr.io/agenta-ai/agenta-preview-{gateway,redis,seaweedfs}` for
+  `linux/amd64`.
+- Tags are content-addressed, never `latest`: `images/compute-tag.sh <dir>`
+  prints `content-<12 hex>` from a deterministic hash of the directory
+  content. Unchanged content maps to a tag that already exists in GHCR, so CI
+  skips the rebuild. Each run also aliases the content manifest with the run's
+  image tag (`pr-<number>-<sha>` or `manual-<sha>`). Railway's
+  `environmentPatchCommit` no-ops when a patched tag equals the template's,
+  which is why unique, disjoint tags matter.
+
+Build locally:
+
+```bash
+./hosting/railway/oss/images/verify-wrappers.sh
+
+TAG="$(./hosting/railway/oss/images/compute-tag.sh hosting/railway/oss/images/gateway)"
+docker build -t "ghcr.io/agenta-ai/agenta-preview-gateway:${TAG}" hosting/railway/oss/images/gateway
+```
+
+The first CI push creates each `agenta-preview-*` GHCR package as private;
+make it public once (like the other preview packages) if clone environments
+should pull without registry credentials.
 
 ## Template Export Readiness
 
