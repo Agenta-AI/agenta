@@ -76,7 +76,10 @@ describe("createAgentServer", () => {
         Array.isArray(body.engines) &&
           (body.engines as unknown[]).includes("sandbox-agent"),
       );
-      assert.ok(Array.isArray(body.harnesses));
+      assert.ok(
+        Array.isArray(body.harnesses) &&
+          (body.harnesses as unknown[]).includes("codex"),
+      );
     } finally {
       await s.close();
     }
