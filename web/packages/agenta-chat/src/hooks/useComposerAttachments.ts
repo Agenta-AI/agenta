@@ -61,6 +61,15 @@ export const useComposerAttachments = ({
     const [files, setFiles] = useState<PendingAttachment[]>(() =>
         sessionId ? (attachmentsBySession.get(sessionId) ?? []) : [],
     )
+    // `sessionId` is a prop. Today's only caller mounts one instance per session, but a caller
+    // that swapped it in place would carry the old session's staged files into the new one, and
+    // the mirror effect below would then write them under the new key. Re-seed during render so
+    // that effect never sees a mismatched pair.
+    const [seededFor, setSeededFor] = useState(sessionId)
+    if (sessionId !== seededFor) {
+        setSeededFor(sessionId)
+        setFiles(sessionId ? (attachmentsBySession.get(sessionId) ?? []) : [])
+    }
     useEffect(() => {
         if (!sessionId) return
         if (files.length > 0) attachmentsBySession.set(sessionId, files)

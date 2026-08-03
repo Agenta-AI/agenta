@@ -82,6 +82,25 @@ describe("useComposerAttachments", () => {
         expect(result.current.atMax).toBe(true)
     })
 
+    it("re-seeds from the new session when sessionId changes on a mounted instance", () => {
+        const a = `attach-swap-a-${Date.now()}`
+        const b = `attach-swap-b-${Date.now()}`
+        attachmentsBySession.set(b, [
+            {uid: "seeded", name: "from-b.txt", size: 4, type: "text/plain", file: makeFile("x")},
+        ] as never)
+        const {result, rerender} = setup({sessionId: a})
+        act(() => {
+            result.current.add([makeFile("from-a.txt")])
+        })
+        expect(result.current.files.map((f) => f.name)).toEqual(["from-a.txt"])
+
+        rerender({sessionId: b})
+        // Session b's own staged file, not session a's leaking across.
+        expect(result.current.files.map((f) => f.name)).toEqual(["from-b.txt"])
+        // …and session a keeps what it had rather than being overwritten under the new key.
+        expect(attachmentsBySession.get(a)?.map((f) => f.name)).toEqual(["from-a.txt"])
+    })
+
     it("remove unstages one file; dismissRejections keeps files; clear drops both", () => {
         const {result} = setup()
         act(() => {
