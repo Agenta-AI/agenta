@@ -5,7 +5,9 @@ export const normalizeTitlePart = (value?: string | null): string =>
     value?.replace(/\s+/g, " ").trim() ?? ""
 
 export const truncateTitlePart = (value: string, maxLength: number): string => {
-    const normalized = normalizeTitlePart(value)
+    // Server-persisted titles may arrive cut on a UTF-16 boundary; a trailing high surrogate
+    // has no pair left and renders as a replacement character.
+    const normalized = normalizeTitlePart(value).replace(/[\uD800-\uDBFF]$/, "")
     const characters = Array.from(normalized)
     if (characters.length <= maxLength) return normalized
     return `${characters

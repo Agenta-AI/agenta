@@ -36,8 +36,13 @@ describe("truncateTitlePart", () => {
         expect(title).toHaveLength(SESSION_TITLE_MAX_LENGTH)
     })
 
-    it("does not split an emoji at the truncation boundary", () => {
+    it("does not split a surrogate pair at the truncation boundary", () => {
         const title = truncateTitlePart(`${"a".repeat(59)}🙂b`, SESSION_TITLE_MAX_LENGTH)
         expect(title).toBe(`${"a".repeat(59)}…`)
+    })
+
+    it("drops a trailing lone surrogate left by an upstream UTF-16 cut", () => {
+        const halvedUpstream = `${"a".repeat(59)}🙂 hello`.slice(0, SESSION_TITLE_MAX_LENGTH)
+        expect(truncateTitlePart(halvedUpstream, SESSION_TITLE_MAX_LENGTH)).toBe("a".repeat(59))
     })
 })

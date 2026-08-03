@@ -613,7 +613,8 @@ export const autoTitleSessionAtomFamily = atomFamily((key: string) =>
         const all = get(sessionsByAppAtom)
         const session = (all[key] ?? []).find((s) => s.id === id)
         if (!session || session.title?.trim()) return
-        const title = trimmed.slice(0, AUTO_TITLE_MAX_CHARS)
+        // Cut on code points, not UTF-16 units, so an emoji straddling the cap isn't halved.
+        const title = Array.from(trimmed).slice(0, AUTO_TITLE_MAX_CHARS).join("")
         set(sessionsByAppAtom, {
             ...all,
             [key]: (all[key] ?? []).map((s) => (s.id === id ? {...s, title} : s)),
