@@ -85,6 +85,12 @@ function isPermissionPolicy(value: unknown): value is PermissionPolicy {
     return typeof value === "string" && PERMISSION_POLICY_VALUES.has(value)
 }
 
+export function resolveHarnessKindValue(harness: {kind?: string} | null | undefined): string {
+    // default to the pi_core harness when none is set
+    const kind = harness?.kind
+    return typeof kind === "string" ? kind : "pi_core"
+}
+
 export function useModelHarness({
     schema,
     config,
@@ -171,7 +177,7 @@ export function useModelHarness({
     // carries through extra keys (e.g. `extras`) so a form edit never silently drops them. The picker
     // is harness-filtered: selecting a model sets BOTH the model id and its provider, fed by the
     // `/inspect` capability map below.
-    const harnessValue = typeof harness.kind === "string" ? (harness.kind as string) : null
+    const harnessValue = resolveHarnessKindValue(harness)
     const isPiHarness = harnessValue === "pi_core" || harnessValue === "pi_agenta"
     const llm = config.llm
     const modelId = useMemo(() => modelIdFromConfig(llm), [llm])
@@ -368,7 +374,7 @@ export function useModelHarness({
     // names the model the way the picker did.
     const modelSummary =
         [
-            enumLabel(harnessProps.kind, harness.kind),
+            enumLabel(harnessProps.kind, resolveHarnessKindValue(harness)),
             modelLabel(capabilities, harnessValue, modelId) ?? enumLabel(props.llm, modelId),
         ]
             .filter(Boolean)
@@ -822,7 +828,7 @@ export function useModelHarness({
                     <HarnessSelectControl
                         schema={harnessProps.kind}
                         visibleValues={harnessList}
-                        value={(harness.kind as string | null) ?? null}
+                        value={harnessValue}
                         onChange={(v) => setSection("harness", {...harness, kind: v})}
                         withTooltip={withTooltip}
                         disabled={disabled}
