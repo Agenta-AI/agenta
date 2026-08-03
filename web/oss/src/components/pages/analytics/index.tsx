@@ -5,11 +5,9 @@ import {useAnalyticsDashboard} from "@/oss/state/analytics/dashboard"
 
 import AnalyticsHeaderControls from "./components/AnalyticsHeaderControls"
 import ChartsGrid from "./components/ChartsGrid"
-import SummaryEmpty from "./components/SummaryEmpty"
-import SummaryPanel from "./components/SummaryPanel"
 
 const AnalyticsPage = () => {
-    const {data, loading} = useAnalyticsDashboard()
+    const {data, loading, isError} = useAnalyticsDashboard()
 
     return (
         <PageLayout
@@ -23,16 +21,7 @@ const AnalyticsPage = () => {
 
             <Spin spinning={loading}>
                 <div className="flex flex-col gap-4 min-h-[400px]">
-                    {data ? (
-                        <>
-                            {data.current.totals.totalRuns === 0 ? (
-                                <SummaryEmpty />
-                            ) : (
-                                <SummaryPanel current={data.current} previous={data.previous} />
-                            )}
-                            <ChartsGrid current={data.current} />
-                        </>
-                    ) : null}
+                    <ChartsGrid current={data?.current ?? null} failed={isError} />
                 </div>
             </Spin>
         </PageLayout>

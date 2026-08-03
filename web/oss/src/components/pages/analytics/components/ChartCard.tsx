@@ -10,18 +10,46 @@ export interface ChartSeries {
     color: string
 }
 
+// A card distinguishes real data from three empty reasons so a zero is never
+// mistaken for "no data" or "the query died". See data-contract.md.
+export type ChartState = "data" | "no-data" | "unavailable" | "failed"
+
 interface ChartCardProps {
     title: string
     description: string
     series: ChartSeries[]
-    hasData: boolean
+    state: ChartState
+    /** Overrides the default overlay copy for the `unavailable` (coverage) state. */
+    unavailableMessage?: string
     /** Rendered with the currently-visible series keys (legend toggles them). */
     children: (activeKeys: string[]) => ReactNode
 }
 
-// Reusable chart-card shell: title, one-line description, a toggleable legend,
-// and an empty state. Phase 5's Tools/Models cards drop in through this shell.
-const ChartCard = ({title, description, series, hasData, children}: ChartCardProps) => {
+const OVERLAY_COPY: Record<Exclude<ChartState, "data">, {title: string; subtitle: string}> = {
+    "no-data": {
+        title: "No data to show",
+        subtitle: "No runs match the current time range and filters.",
+    },
+    unavailable: {
+        title: "Not available",
+        subtitle: "This metric isn't available for the selected window.",
+    },
+    failed: {
+        title: "Couldn't load this chart",
+        subtitle: "The request failed. Change the range or try again.",
+    },
+}
+
+// Reusable chart-card shell: title, one-line description, a toggleable legend, and
+// the four page states. Breakdown cards drop in through this same shell.
+const ChartCard = ({
+    title,
+    description,
+    series,
+    state,
+    unavailableMessage,
+    children,
+}: ChartCardProps) => {
     const [hidden, setHidden] = useState<Set<string>>(new Set())
 
     const activeKeys = useMemo(
@@ -38,6 +66,11 @@ const ChartCard = ({title, description, series, hasData, children}: ChartCardPro
             return next
         })
 
+    const hasData = state === "data"
+    const overlay = hasData ? null : OVERLAY_COPY[state]
+    const subtitle =
+        state === "unavailable" && unavailableMessage ? unavailableMessage : overlay?.subtitle
+
     return (
         <Card
             className="[&_.ant-card-body]:p-5 [&_.ant-card-body]:flex [&_.ant-card-body]:flex-col [&_.ant-card-body]:gap-4"
@@ -48,7 +81,11 @@ const ChartCard = ({title, description, series, hasData, children}: ChartCardPro
                 <Typography.Text className="text-colorTextSecondary">{description}</Typography.Text>
             </div>
             <div className="h-[220px] w-full">
-                {hasData ? children(activeKeys) : <GhostChart />}
+                {hasData ? (
+                    children(activeKeys)
+                ) : (
+                    <GhostChart title={overlay?.title} subtitle={subtitle} />
+                )}
             </div>
             {series.length > 1 && hasData ? (
                 <div className="flex items-center gap-5 pt-5 border-0 border-t border-solid border-colorBorderSecondary">

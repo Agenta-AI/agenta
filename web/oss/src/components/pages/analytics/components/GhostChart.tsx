@@ -7,8 +7,14 @@ import EmptyOverlay from "./EmptyOverlay"
 // Static silhouette so the empty chart still reads as a chart, not a blank box.
 const GHOST_DATA = [40, 62, 74, 52, 48, 88, 66].map((v, i) => ({i, v}))
 
-// Faint placeholder bars + dotted grid behind the "no data" message — the design's ghosted chart.
-const GhostChart = () => {
+interface GhostChartProps {
+    title?: string
+    subtitle?: string
+}
+
+// Faint placeholder bars + dotted grid behind a "no data" / "unavailable" / "failed"
+// message — the design's ghosted chart.
+const GhostChart = ({title, subtitle}: GhostChartProps) => {
     const colors = useChartColors()
 
     return (
@@ -27,7 +33,7 @@ const GhostChart = () => {
                     />
                 </ReBarChart>
             </ResponsiveContainer>
-            <EmptyOverlay />
+            <EmptyOverlay title={title} subtitle={subtitle} />
         </div>
     )
 }

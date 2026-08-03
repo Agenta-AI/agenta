@@ -5,25 +5,38 @@ import utc from "dayjs/plugin/utc"
 import {SortResult} from "@/oss/components/Filters/Sort"
 
 import {
+    AGENT_ANALYTICS_BREAKDOWN_SPECS,
     AGENT_ANALYTICS_FAILED_SPECS,
+    AGENT_ANALYTICS_FILTER_OPTION_SPECS,
     AGENT_ANALYTICS_SPECS,
     analyticsToAgentWindow,
+    analyticsToBreakdowns,
 } from "../lib/agentAnalytics"
 import {calculateIntervalFromDuration} from "../lib/helpers"
-import type {AgentAnalyticsDashboard, AgentAnalyticsWindow} from "../types/agentAnalytics"
+import type {AgentAnalyticsBreakdownItem, AgentAnalyticsDashboard} from "../types/agentAnalytics"
 
 dayjs.extend(utc)
+
+// Attribute keys under `attributes.` for the harness and configured-model filters.
+const HARNESS_KEY = "ag.data.parameters.agent.harness.kind"
+const MODEL_KEY = "ag.data.parameters.agent.llm.model"
 
 interface FetchAgentAnalyticsOptions {
     projectId: string
     range: SortResult
     /** Workflow (agent) ids to narrow by; empty means the whole project. */
     agentIds?: string[]
+    /** Harness kinds to narrow by; empty means every harness. */
+    harnessKinds?: string[]
+    /** Configured-model aliases to narrow by; empty means every model. */
+    models?: string[]
     signal?: AbortSignal
 }
 
 interface FilterCondition {
     field: string
+    /** Required for `attributes` filters: the dotted path under `attributes.`. */
+    key?: string
     operator: string
     value: unknown
 }
@@ -36,27 +49,14 @@ const rangeStringFor = (durationMinutes: number): string => {
     return "30_days"
 }
 
-// Current window + the equal-length window before it (change badges); each window
-// runs an unfiltered and a status-filtered query, so four calls total.
-// See docs/design/agent-analytics/data-contract.md.
-export const fetchAgentAnalyticsDashboard = async ({
-    projectId,
-    range,
-    agentIds = [],
-    signal,
-}: FetchAgentAnalyticsOptions): Promise<AgentAnalyticsDashboard> => {
-    if (signal?.aborted) throw new DOMException("Aborted", "AbortError")
+interface ResolvedWindow {
+    oldest: string
+    newest: string
+    interval: number
+    rangeString: string
+}
 
-    // At project scope with no agent selected, omit the reference conditions so
-    // the query spans every agent; otherwise narrow by the selected workflow ids.
-    const conditions: FilterCondition[] = agentIds.length
-        ? [{field: "references", operator: "in", value: agentIds.map((id) => ({id}))}]
-        : []
-    const failedConditions: FilterCondition[] = [
-        ...conditions,
-        {field: "status_code", operator: "eq", value: "ERROR"},
-    ]
-
+const resolveWindow = (range: SortResult): ResolvedWindow => {
     let startTime: string
     let endTime: string | undefined
     if (range.type === "custom" && range.customRange) {
@@ -69,53 +69,153 @@ export const fetchAgentAnalyticsDashboard = async ({
     }
 
     const now = dayjs().utc()
-    const curOldest = dayjs(startTime)
-    const curNewest = endTime ? dayjs(endTime) : now
-    if (!curOldest.isValid()) throw new Error("Invalid startTime for analytics query")
-    if (curNewest.isBefore(curOldest)) throw new Error("endTime must be >= startTime")
+    const oldest = dayjs(startTime)
+    const newest = endTime ? dayjs(endTime) : now
+    if (!oldest.isValid()) throw new Error("Invalid startTime for analytics query")
+    if (newest.isBefore(oldest)) throw new Error("endTime must be >= startTime")
 
-    const durationMin = Math.max(1, curNewest.diff(curOldest, "minute"))
-    const interval = calculateIntervalFromDuration(durationMin)
-    const rangeString = rangeStringFor(durationMin)
-
-    // Previous window: the equal-length span immediately before the current one.
-    const prevNewest = curOldest
-    const prevOldest = curOldest.subtract(durationMin, "minute")
-
-    const queryWindow = async (oldest: string, newest: string): Promise<AgentAnalyticsWindow> => {
-        const [unfiltered, failed] = await Promise.all([
-            fetchSpansAnalytics({
-                projectId,
-                focus: "trace",
-                interval,
-                oldest,
-                newest,
-                filter: conditions.length ? {conditions} : undefined,
-                specs: AGENT_ANALYTICS_SPECS,
-                abortSignal: signal,
-            }),
-            fetchSpansAnalytics({
-                projectId,
-                focus: "trace",
-                interval,
-                oldest,
-                newest,
-                filter: {conditions: failedConditions},
-                specs: AGENT_ANALYTICS_FAILED_SPECS,
-                abortSignal: signal,
-            }),
-        ])
-        return analyticsToAgentWindow(
-            unfiltered ?? {buckets: []},
-            failed ?? {buckets: []},
-            rangeString,
-        )
+    const durationMin = Math.max(1, newest.diff(oldest, "minute"))
+    return {
+        oldest: oldest.toISOString(),
+        newest: newest.toISOString(),
+        interval: calculateIntervalFromDuration(durationMin),
+        rangeString: rangeStringFor(durationMin),
     }
+}
 
-    const [current, previous] = await Promise.all([
-        queryWindow(curOldest.toISOString(), curNewest.toISOString()),
-        queryWindow(prevOldest.toISOString(), prevNewest.toISOString()),
+// Every query counts only invocation root spans; annotation/evaluation traces would
+// otherwise inflate the figures. `trace_type` is an unprefixed first-class field.
+// Harness/model narrow by root-span attributes, which the backend only matches when
+// the condition is shaped `{field: "attributes", key, ...}` — a bare dotted `field`
+// is silently dropped (filtering.py), so it must not be used here.
+const buildConditions = ({
+    agentIds = [],
+    harnessKinds = [],
+    models = [],
+}: Pick<FetchAgentAnalyticsOptions, "agentIds" | "harnessKinds" | "models">): FilterCondition[] => {
+    const conditions: FilterCondition[] = [
+        {field: "trace_type", operator: "is", value: "invocation"},
+    ]
+    if (agentIds.length) {
+        conditions.push({field: "references", operator: "in", value: agentIds.map((id) => ({id}))})
+    }
+    if (harnessKinds.length) {
+        conditions.push({
+            field: "attributes",
+            key: HARNESS_KEY,
+            operator: "in",
+            value: harnessKinds,
+        })
+    }
+    if (models.length) {
+        conditions.push({field: "attributes", key: MODEL_KEY, operator: "in", value: models})
+    }
+    return conditions
+}
+
+// A single window issues three calls: unfiltered metrics, the status-filtered
+// (failed-run) count, and the category breakdowns. See data-contract.md.
+export const fetchAgentAnalyticsDashboard = async ({
+    projectId,
+    range,
+    agentIds = [],
+    harnessKinds = [],
+    models = [],
+    signal,
+}: FetchAgentAnalyticsOptions): Promise<AgentAnalyticsDashboard> => {
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError")
+
+    const conditions = buildConditions({agentIds, harnessKinds, models})
+    // A failed run is one whose root span `status_code` is `STATUS_CODE_ERROR`.
+    // The operator must be `is` and the value the full enum literal — `eq`/`ERROR`
+    // return an empty 200 and would report zero failures forever.
+    const failedConditions: FilterCondition[] = [
+        ...conditions,
+        {field: "status_code", operator: "is", value: "STATUS_CODE_ERROR"},
+    ]
+
+    const {oldest, newest, interval, rangeString} = resolveWindow(range)
+
+    const [unfiltered, failed, breakdown] = await Promise.all([
+        fetchSpansAnalytics({
+            projectId,
+            focus: "trace",
+            interval,
+            oldest,
+            newest,
+            filter: {conditions},
+            specs: AGENT_ANALYTICS_SPECS,
+            abortSignal: signal,
+        }),
+        fetchSpansAnalytics({
+            projectId,
+            focus: "trace",
+            interval,
+            oldest,
+            newest,
+            filter: {conditions: failedConditions},
+            specs: AGENT_ANALYTICS_FAILED_SPECS,
+            abortSignal: signal,
+        }),
+        fetchSpansAnalytics({
+            projectId,
+            focus: "trace",
+            interval,
+            oldest,
+            newest,
+            filter: {conditions},
+            specs: AGENT_ANALYTICS_BREAKDOWN_SPECS,
+            abortSignal: signal,
+        }),
     ])
 
-    return {current, previous: previous.totals}
+    const current = analyticsToAgentWindow(
+        unfiltered ?? {buckets: []},
+        failed ?? {buckets: []},
+        rangeString,
+    )
+    current.breakdowns = analyticsToBreakdowns(breakdown)
+
+    return {current}
+}
+
+export interface AgentAnalyticsFilterOptions {
+    harness: AgentAnalyticsBreakdownItem[]
+    model: AgentAnalyticsBreakdownItem[]
+}
+
+interface FetchFilterOptionsOptions {
+    projectId: string
+    range: SortResult
+    agentIds?: string[]
+    signal?: AbortSignal
+}
+
+// The harness/model filter options, sourced from a breakdown that is NOT narrowed
+// by the harness/model filters themselves — so selecting one value never removes
+// the others from the dropdown. Still scoped by project, window, and agent.
+export const fetchAgentAnalyticsFilterOptions = async ({
+    projectId,
+    range,
+    agentIds = [],
+    signal,
+}: FetchFilterOptionsOptions): Promise<AgentAnalyticsFilterOptions> => {
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError")
+
+    const conditions = buildConditions({agentIds})
+    const {oldest, newest, interval} = resolveWindow(range)
+
+    const response = await fetchSpansAnalytics({
+        projectId,
+        focus: "trace",
+        interval,
+        oldest,
+        newest,
+        filter: {conditions},
+        specs: AGENT_ANALYTICS_FILTER_OPTION_SPECS,
+        abortSignal: signal,
+    })
+
+    const {harness, model} = analyticsToBreakdowns(response)
+    return {harness, model}
 }

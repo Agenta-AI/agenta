@@ -35,7 +35,12 @@ const StackedBarChart = ({data, series, activeKeys, valueFormatter}: StackedBarC
     return (
         <ResponsiveContainer width="100%" height="100%">
             <ReBarChart data={data} margin={{top: 5, right: 5, left: -12, bottom: 0}}>
-                <CartesianGrid strokeDasharray="2 4" horizontal vertical stroke={colors.grid} />
+                <CartesianGrid
+                    strokeDasharray="2 4"
+                    horizontal
+                    vertical={false}
+                    stroke={colors.grid}
+                />
                 <XAxis
                     dataKey="timestamp"
                     tickLine={false}

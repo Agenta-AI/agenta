@@ -6,7 +6,13 @@ import {useAtom, useAtomValue} from "jotai"
 
 import Sort from "@/oss/components/Filters/Sort"
 import {agentsWorkflowsAtom} from "@/oss/components/pages/agents/store"
-import {analyticsAgentsFilterAtom, analyticsTimeRangeAtom} from "@/oss/state/analytics/dashboard"
+import {
+    analyticsAgentsFilterAtom,
+    analyticsHarnessFilterAtom,
+    analyticsModelsFilterAtom,
+    analyticsTimeRangeAtom,
+    useAnalyticsFilterOptions,
+} from "@/oss/state/analytics/dashboard"
 
 interface AnalyticsHeaderControlsProps {
     disabled?: boolean
@@ -15,35 +21,82 @@ interface AnalyticsHeaderControlsProps {
 const AnalyticsHeaderControls = ({disabled}: AnalyticsHeaderControlsProps) => {
     const [timeRange, setTimeRange] = useAtom(analyticsTimeRangeAtom)
     const [agentIds, setAgentIds] = useAtom(analyticsAgentsFilterAtom)
+    const [harnessKinds, setHarnessKinds] = useAtom(analyticsHarnessFilterAtom)
+    const [models, setModels] = useAtom(analyticsModelsFilterAtom)
     const agents = useAtomValue(agentsWorkflowsAtom)
+    const filterOptions = useAnalyticsFilterOptions()
 
-    const options = useMemo(
+    const agentOptions = useMemo(
         () => agents.map((a) => ({label: a.name, value: a.workflowId})),
         [agents],
     )
+    // Options come from a breakdown not narrowed by the harness/model filters, so
+    // selecting one value never removes the others.
+    const harnessOptions = useMemo(
+        () => (filterOptions?.harness ?? []).map((h) => ({label: h.label, value: h.key})),
+        [filterOptions],
+    )
+    const modelOptions = useMemo(
+        () => (filterOptions?.model ?? []).map((m) => ({label: m.label, value: m.key})),
+        [filterOptions],
+    )
+
+    const activeCount = agentIds.length + harnessKinds.length + models.length
 
     const filterContent = (
-        <div className="flex flex-col gap-2 w-[280px]">
-            <Typography.Text className="text-[12px] text-colorTextSecondary">
-                Agents
-            </Typography.Text>
-            <Select
-                mode="multiple"
-                allowClear
-                placeholder="All agents"
-                value={agentIds}
-                onChange={setAgentIds}
-                options={options}
-                maxTagCount="responsive"
-                className="w-full"
-            />
+        <div className="flex flex-col gap-3 w-[280px]">
+            <div className="flex flex-col gap-1">
+                <Typography.Text className="text-[12px] text-colorTextSecondary">
+                    Agents
+                </Typography.Text>
+                <Select
+                    mode="multiple"
+                    allowClear
+                    placeholder="All agents"
+                    value={agentIds}
+                    onChange={setAgentIds}
+                    options={agentOptions}
+                    maxTagCount="responsive"
+                    className="w-full"
+                />
+            </div>
+            <div className="flex flex-col gap-1">
+                <Typography.Text className="text-[12px] text-colorTextSecondary">
+                    Harness
+                </Typography.Text>
+                <Select
+                    mode="multiple"
+                    allowClear
+                    placeholder="All harnesses"
+                    value={harnessKinds}
+                    onChange={setHarnessKinds}
+                    options={harnessOptions}
+                    maxTagCount="responsive"
+                    className="w-full"
+                />
+            </div>
+            <div className="flex flex-col gap-1">
+                <Typography.Text className="text-[12px] text-colorTextSecondary">
+                    Configured model
+                </Typography.Text>
+                <Select
+                    mode="multiple"
+                    allowClear
+                    placeholder="All models"
+                    value={models}
+                    onChange={setModels}
+                    options={modelOptions}
+                    maxTagCount="responsive"
+                    className="w-full"
+                />
+            </div>
         </div>
     )
 
     return (
         <div className="flex items-center gap-2">
             <Popover trigger="click" placement="bottomRight" content={filterContent}>
-                <Badge count={agentIds.length} size="small">
+                <Badge count={activeCount} size="small">
                     <Button icon={<FunnelIcon size={14} />} disabled={disabled}>
                         Filters
                     </Button>

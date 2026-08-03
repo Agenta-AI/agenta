@@ -1,24 +1,60 @@
 import {useMemo} from "react"
 
-import type {AgentAnalyticsWindow} from "@/oss/services/tracing/types/agentAnalytics"
+import {useAtomValue} from "jotai"
+
+import {agentsWorkflowsAtom} from "@/oss/components/pages/agents/store"
+import {hasCoverage} from "@/oss/services/tracing/lib/agentAnalytics"
+import type {
+    AgentAnalyticsBreakdownItem,
+    AgentAnalyticsWindow,
+} from "@/oss/services/tracing/types/agentAnalytics"
 
 import {formatCost, formatLatency, formatRuns, formatTokens} from "../assets/format"
 import {useChartColors} from "../hooks/useChartColors"
 
-import ChartCard from "./ChartCard"
+import BreakdownBarChart from "./BreakdownBarChart"
+import ChartCard, {type ChartState} from "./ChartCard"
+import CostAreaChart from "./CostAreaChart"
 import LatencyChart from "./LatencyChart"
 import StackedBarChart from "./StackedBarChart"
 
 interface ChartsGridProps {
-    current: AgentAnalyticsWindow
+    current: AgentAnalyticsWindow | null
+    /** The dashboard request failed; every card reads the failed state. */
+    failed: boolean
 }
 
-// The four locked-scope charts in a two-column grid. Each card reuses the
-// ChartCard shell so Phase 5's Tools/Models cards slot in without new layout.
-const ChartsGrid = ({current}: ChartsGridProps) => {
+const EMPTY_BUCKETS: AgentAnalyticsWindow["buckets"] = []
+const EMPTY_BREAKDOWN: AgentAnalyticsBreakdownItem[] = []
+
+// The locked-scope charts plus the category breakdowns, in a two-column grid.
+// Each card reuses the ChartCard shell so its four states render consistently.
+const ChartsGrid = ({current, failed}: ChartsGridProps) => {
     const colors = useChartColors()
-    const data = current.buckets
-    const totals = current.totals
+    const agents = useAtomValue(agentsWorkflowsAtom)
+
+    const data = current?.buckets ?? EMPTY_BUCKETS
+    const totals = current?.totals
+    const breakdowns = current?.breakdowns
+
+    const totalRuns = totals?.totalRuns ?? 0
+    const hasRuns = totalRuns > 0
+
+    // A friendly label for each agent id in the breakdown, when one is known.
+    const agentNameById = useMemo(() => {
+        const map = new Map<string, string>()
+        for (const a of agents) if (a.workflowId) map.set(a.workflowId, a.name)
+        return map
+    }, [agents])
+
+    const agentBreakdown = useMemo(
+        () =>
+            (breakdowns?.agent ?? EMPTY_BREAKDOWN).map((item) => ({
+                ...item,
+                label: agentNameById.get(item.key) ?? `${item.key.slice(0, 8)}…`,
+            })),
+        [breakdowns, agentNameById],
+    )
 
     const runsSeries = useMemo(
         () => [
@@ -34,20 +70,36 @@ const ChartsGrid = ({current}: ChartsGridProps) => {
         ],
         [colors],
     )
-    const costSeries = useMemo(
-        () => [
-            {key: "costPrompt", label: "Prompt", color: colors.primary},
-            {key: "costCompletion", label: "Completion", color: colors.completion},
-        ],
-        [colors],
-    )
+
+    // Tokens: the prompt/completion split only clears its coverage gate sometimes;
+    // below it, fall back to a single total-tokens bar.
+    const showTokenSplit = hasRuns && hasCoverage(totals?.tokenSplitCount ?? 0, totalRuns)
     const tokensSeries = useMemo(
-        () => [
-            {key: "tokensPrompt", label: "Prompt", color: colors.primary},
-            {key: "tokensCompletion", label: "Completion", color: colors.completion},
-        ],
-        [colors],
+        () =>
+            showTokenSplit
+                ? [
+                      {key: "tokensPrompt", label: "Prompt", color: colors.primary},
+                      {key: "tokensCompletion", label: "Completion", color: colors.accent},
+                  ]
+                : [{key: "tokens", label: "Tokens", color: colors.primary}],
+        [colors, showTokenSplit],
     )
+
+    // Per-card state. A failed request fails every card; otherwise a card is
+    // data / no-data, and cost additionally gates on coverage.
+    const coreState = (has: boolean): ChartState => (failed ? "failed" : has ? "data" : "no-data")
+
+    const costHasCoverage = hasRuns && hasCoverage(totals?.costCount ?? 0, totalRuns)
+    const costState: ChartState = failed
+        ? "failed"
+        : !hasRuns
+          ? "no-data"
+          : costHasCoverage
+            ? "data"
+            : "unavailable"
+
+    const breakdownState = (items: AgentAnalyticsBreakdownItem[]): ChartState =>
+        failed ? "failed" : items.length > 0 ? "data" : "no-data"
 
     return (
         <div className="grid grid-cols-1 gap-4 min-[1024px]:grid-cols-2">
@@ -55,7 +107,7 @@ const ChartsGrid = ({current}: ChartsGridProps) => {
                 title="Runs"
                 description="How many times your agents ran, and how many failed."
                 series={runsSeries}
-                hasData={totals.totalRuns > 0}
+                state={coreState(hasRuns)}
             >
                 {(activeKeys) => (
                     <StackedBarChart
@@ -71,7 +123,7 @@ const ChartsGrid = ({current}: ChartsGridProps) => {
                 title="Latency"
                 description="How long each run took to finish."
                 series={latencySeries}
-                hasData={totals.totalRuns > 0}
+                state={coreState(hasRuns)}
             >
                 {(activeKeys) => (
                     <LatencyChart data={data} activeKeys={activeKeys} formatMs={formatLatency} />
@@ -79,26 +131,20 @@ const ChartsGrid = ({current}: ChartsGridProps) => {
             </ChartCard>
 
             <ChartCard
-                title="Costs"
-                description="How much you spent on prompts and completions."
-                series={costSeries}
-                hasData={totals.totalCost > 0}
+                title="Cost"
+                description="How much your agents spent, per period."
+                series={[{key: "cost", label: "Cost", color: colors.primary}]}
+                state={costState}
+                unavailableMessage="Cost data isn't available for this window."
             >
-                {(activeKeys) => (
-                    <StackedBarChart
-                        data={data}
-                        series={costSeries}
-                        activeKeys={activeKeys}
-                        valueFormatter={formatCost}
-                    />
-                )}
+                {() => <CostAreaChart data={data} valueFormatter={formatCost} />}
             </ChartCard>
 
             <ChartCard
                 title="Tokens"
                 description="How many tokens were sent and received."
                 series={tokensSeries}
-                hasData={totals.totalTokens > 0}
+                state={coreState(hasRuns)}
             >
                 {(activeKeys) => (
                     <StackedBarChart
@@ -108,6 +154,43 @@ const ChartsGrid = ({current}: ChartsGridProps) => {
                         valueFormatter={formatTokens}
                     />
                 )}
+            </ChartCard>
+
+            <ChartCard
+                title="Runs per harness"
+                description="Which harness each run used."
+                series={[{key: "count", label: "Runs", color: colors.primary}]}
+                state={breakdownState(breakdowns?.harness ?? EMPTY_BREAKDOWN)}
+            >
+                {() => (
+                    <BreakdownBarChart
+                        data={breakdowns?.harness ?? EMPTY_BREAKDOWN}
+                        valueFormatter={formatRuns}
+                    />
+                )}
+            </ChartCard>
+
+            <ChartCard
+                title="Runs per configured model"
+                description="Which configured model each run used."
+                series={[{key: "count", label: "Runs", color: colors.primary}]}
+                state={breakdownState(breakdowns?.model ?? EMPTY_BREAKDOWN)}
+            >
+                {() => (
+                    <BreakdownBarChart
+                        data={breakdowns?.model ?? EMPTY_BREAKDOWN}
+                        valueFormatter={formatRuns}
+                    />
+                )}
+            </ChartCard>
+
+            <ChartCard
+                title="Runs per agent"
+                description="Which agent each run belonged to."
+                series={[{key: "count", label: "Runs", color: colors.primary}]}
+                state={breakdownState(agentBreakdown)}
+            >
+                {() => <BreakdownBarChart data={agentBreakdown} valueFormatter={formatRuns} />}
             </ChartCard>
         </div>
     )

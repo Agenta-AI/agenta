@@ -1,13 +1,4 @@
-import {
-    Bar,
-    CartesianGrid,
-    ComposedChart,
-    Line,
-    ResponsiveContainer,
-    Tooltip,
-    XAxis,
-    YAxis,
-} from "recharts"
+import {CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis} from "recharts"
 
 import type {AgentAnalyticsBucket} from "@/oss/services/tracing/types/agentAnalytics"
 
@@ -22,25 +13,9 @@ interface LatencyChartProps {
     formatMs: (value: number) => string
 }
 
-// A short horizontal cap over each bucket instead of a connected line, matching
-// the design's discrete p95 markers.
-const P95Cap = ({cx, cy, color}: {cx?: number; cy?: number; color: string}) => {
-    if (typeof cx !== "number" || typeof cy !== "number") return null
-    return (
-        <line
-            x1={cx - 14}
-            x2={cx + 14}
-            y1={cy}
-            y2={cy}
-            stroke={color}
-            strokeWidth={2.5}
-            strokeLinecap="round"
-        />
-    )
-}
-
-// Average-latency bars with a per-bucket p95 marker; the tooltip surfaces
-// average, p95, min, and max for the hovered bucket.
+// Average latency as a solid line and p95 as a dashed line on one axis. Latency
+// statistics are not additive, so a line reads truer than bars; min/max stay in
+// the tooltip.
 const LatencyChart = ({data, activeKeys, formatMs}: LatencyChartProps) => {
     const colors = useChartColors()
     const showAvg = activeKeys.includes("latencyAvg")
@@ -48,8 +23,13 @@ const LatencyChart = ({data, activeKeys, formatMs}: LatencyChartProps) => {
 
     return (
         <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={data} margin={{top: 5, right: 5, left: -12, bottom: 0}}>
-                <CartesianGrid strokeDasharray="2 4" horizontal vertical stroke={colors.grid} />
+            <LineChart data={data} margin={{top: 5, right: 5, left: -12, bottom: 0}}>
+                <CartesianGrid
+                    strokeDasharray="2 4"
+                    horizontal
+                    vertical={false}
+                    stroke={colors.grid}
+                />
                 <XAxis
                     dataKey="timestamp"
                     tickLine={false}
@@ -67,7 +47,7 @@ const LatencyChart = ({data, activeKeys, formatMs}: LatencyChartProps) => {
                     width={56}
                 />
                 <Tooltip
-                    cursor={{fill: colors.track, opacity: 0.4}}
+                    cursor={{stroke: colors.grid, strokeWidth: 1}}
                     position={{y: 0}}
                     content={(props) => {
                         const items = props.payload as unknown as
@@ -79,7 +59,7 @@ const LatencyChart = ({data, activeKeys, formatMs}: LatencyChartProps) => {
                             {
                                 label: "Average",
                                 value: formatMs(bucket.latencyAvg),
-                                color: colors.latency,
+                                color: colors.primary,
                             },
                             {label: "p95", value: formatMs(bucket.latencyP95), color: colors.p95},
                             {label: "Min", value: formatMs(bucket.latencyMin)},
@@ -89,27 +69,31 @@ const LatencyChart = ({data, activeKeys, formatMs}: LatencyChartProps) => {
                     }}
                 />
                 {showAvg ? (
-                    <Bar
+                    <Line
                         dataKey="latencyAvg"
                         name="Avg"
-                        fill={colors.latency}
-                        radius={[4, 4, 0, 0]}
-                        maxBarSize={48}
+                        type="monotone"
+                        stroke={colors.primary}
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{r: 4}}
+                        isAnimationActive={false}
                     />
                 ) : null}
                 {showP95 ? (
                     <Line
                         dataKey="latencyP95"
                         name="p95"
-                        type="linear"
-                        stroke="none"
+                        type="monotone"
+                        stroke={colors.p95}
+                        strokeWidth={2}
+                        strokeDasharray="5 4"
+                        dot={false}
+                        activeDot={{r: 4}}
                         isAnimationActive={false}
-                        dot={(props) => <P95Cap {...props} color={colors.p95} />}
-                        activeDot={false}
-                        legendType="none"
                     />
                 ) : null}
-            </ComposedChart>
+            </LineChart>
         </ResponsiveContainer>
     )
 }
