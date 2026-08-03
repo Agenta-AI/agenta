@@ -31,18 +31,27 @@ export AGENTA_BASE=https://your-stack.example.com   # deployment origin
 export AGENTA_PROJECT_ID=...                         # target project
 export AGENTA_API_KEY=...                            # project API key
 
-uv run resources/qa_product.py --all --custom-slug <vault-slug>  # every cell, every journey
+uv run resources/qa_product.py --all --custom-slug <vault-slug> --require-store  # everything
 uv run resources/qa_product.py --cell P1                         # one cell
 uv run resources/qa_product.py --cell C1 --only chat              # one journey
+uv run resources/qa_product.py --cell S2 --only warm --only cold1 --require-store  # continuity
 ```
 
 Paths are relative to this skill's directory. The deployment's vault must hold the provider keys
 the cells use (Anthropic / OpenAI / OpenRouter). If the three env vars are unset the driver stops
 immediately and names exactly what is missing; a legacy `--env-file <path>` fallback also exists.
 `--all` includes cell P2 (a custom OpenAI-compatible provider), which needs a vault slug passed
-via `--custom-slug`; the driver fails fast if it's missing. Cell S1 (the Codex subscription path)
-additionally needs the subscription sidecar logged in on the target deployment — see
-`resources/coverage.md` for what each cell requires.
+via `--custom-slug`; the driver fails fast if it's missing. Cells S1, S2 and C1 additionally need
+the subscription sidecar logged in on the target deployment — see `resources/coverage.md` for what
+each cell requires.
+
+**The one flag a release conductor must not skip past.** The continuity journeys
+(`warm`, `cold1`, `cold2`) only mean anything on a **store-backed** deployment: with no object
+store the runner degrades silently to an ephemeral working directory, so those journeys SKIP by
+default and FAIL with `--require-store`. Run the gate against a deployment with `AGENTA_STORE_*`
+configured and pass `--require-store`, or the greenest possible run still says nothing about
+durability. `cold2` additionally needs an operator hook that SIGKILLs the runner replica
+(`--cold2-replace-cmd`) and SKIPs without it.
 
 **Reading the result.** Each journey prints `PASS`, `FAIL`, or `SKIP` with a one-line reason, and
 a per-cell markdown table lands with the full JSON in `./qa-gate-runs/<timestamp>/` (override the
@@ -54,14 +63,17 @@ cell — user MCP is Claude-only). Any `FAIL` blocks the release until triaged.
 
 The runtime **fails open**: a component can break, get logged, and the turn still succeeds with a
 normal-looking answer. A green turn is therefore not proof on its own. Before trusting a pass,
-read `resources/LESSONS.md` — every trap there produced a green test that proved nothing. The two
+read `resources/LESSONS.md` — every trap there produced a green test that proved nothing. The three
 that bite hardest: replay conversation history byte-faithfully (tool parts included) or every turn
-silently goes cold, and re-run any prior blocker-level finding after a redeploy before believing it.
+silently goes cold; re-run any prior blocker-level finding after a redeploy before believing it;
+and a multi-turn check that never leaves the warm daemon, on a deployment with no object store,
+proves nothing about the durable working directory (LESSONS #16).
 
 ## Resources (read on demand)
 
-- `resources/coverage.md` — the cells (harness × sandbox × auth) and journeys (chat, mount, tool,
-  approve, deny, commit, warm, mcp) with a one-line meaning for each.
+- `resources/coverage.md` — the cells (harness × sandbox × auth), the journeys (chat, mount, tool,
+  approve, deny, commit, warm, cold1, cold2, mcp) with a one-line meaning for each, the continuity
+  tiers and their method, and a table of what each cell needs beyond the three env vars.
 - `resources/LESSONS.md` — the traps. Read before writing or trusting any agent QA test.
 - `resources/qa_product.py` — the gate driver (cells × journeys).
 - `resources/qa_probe.py` — a one-turn wire probe: `uv run resources/qa_probe.py` confirms the

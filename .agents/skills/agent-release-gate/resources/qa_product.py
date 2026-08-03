@@ -25,6 +25,7 @@ import json
 import os
 import pathlib
 import re
+import subprocess
 import time
 import uuid
 
@@ -102,14 +103,21 @@ DEFAULT_MCP_URL = "https://mcp.deepwiki.com/mcp"
 MCP_URL = DEFAULT_MCP_URL
 
 
-def api_call(method: str, path: str, timeout: float = 60.0, **kwargs) -> httpx.Response:
+def api_call(
+    method: str,
+    path: str,
+    timeout: float = 60.0,
+    params: dict | None = None,
+    **kwargs,
+) -> httpx.Response:
     """One REST call to the /api surface (the routes the playground UI drives for config/commits),
     NOT the SSE /services/agent/v0/invoke turn endpoint. Auth is the same ApiKey header, and
-    project_id rides the query string (never the body), exactly like the browser."""
+    project_id rides the query string (never the body), exactly like the browser. `params` merges
+    extra query args on top of project_id (the mounts and turns routes take their filters there)."""
     return httpx.request(
         method,
         f"{BASE}/api{path}",
-        params={"project_id": PROJECT},
+        params={"project_id": PROJECT, **(params or {})},
         headers={"Authorization": f"ApiKey {KEY}", "Content-Type": "application/json"},
         timeout=timeout,
         **kwargs,
@@ -160,11 +168,18 @@ CELLS = {
         "model": "openrouter/deepseek/deepseek-v4-flash",
         "provider": "openrouter",
     },
-    # S1: the Codex SUBSCRIPTION path — Pi with provider `openai-codex` (a first-class
-    # subscription provider slug, distinct from the vault-key `openai` provider; see
-    # sdks/python/agenta/sdk/agents/capabilities.py PI_SUBSCRIPTION_PROVIDERS). Auth comes from
-    # the subscription sidecar's ChatGPT/Codex OAuth login (~/.pi/agent/auth.json), never a
-    # vault key, so `self_managed` + slug None is the whole connection.
+    # S1: PI on a ChatGPT/Codex SUBSCRIPTION provider — the `pi_core` harness with provider
+    # `openai-codex` (a first-class subscription provider slug, distinct from the vault-key
+    # `openai` provider; see sdks/python/agenta/sdk/agents/capabilities.py
+    # PI_SUBSCRIPTION_PROVIDERS). Auth comes from the subscription sidecar's ChatGPT/Codex OAuth
+    # login (~/.pi/agent/auth.json), never a vault key, so `self_managed` + slug None is the whole
+    # connection.
+    #
+    # NOT the codex-harness subscription path: this cell never loads codex-acp, never assembles a
+    # <cwd>/.codex home, and never touches `symlinkCodexSubscriptionAuthFile`. "Codex harness +
+    # your own login" is cell S2. The old label on this cell read "the Codex subscription path",
+    # which is how a supported product configuration ended up with zero gate coverage until
+    # #5692 (see docs/design/codex-harness/reports/durable-cwd-entries-lesson.md).
     "S1": {
         "harness": "pi_core",
         "sandbox": "local",
@@ -189,15 +204,55 @@ CELLS = {
         "model": "gpt-5.6-luna",
         "provider": "openai",
     },
+    # X2: the CODEX harness on DAYTONA with a managed vault key. Daytona rejects subscription
+    # auth by design, so managed is the only codex cell a cloud sandbox can have. It exists
+    # because the continuity tiers mean DIFFERENT things per sandbox: a cold-2 resume (runner
+    # replica replaced) can only COMPLETE on a remote sandbox — on local it correctly refuses,
+    # since a local sandbox lives inside the runner process. Without a codex-on-daytona cell the
+    # gate can never observe a completed codex cold 2. Verified out of band during the v0.108.0
+    # release run (a one-off staging probe); promoted into the gate here.
+    "X2": {
+        "harness": "codex",
+        "sandbox": "daytona",
+        "model": "gpt-5.6-luna",
+        "provider": "openai",
+    },
+    # S2: the genuine CODEX SUBSCRIPTION cell — the codex harness with `self_managed`
+    # (-> credentialMode=runtime_provided), authenticating from the operator's mounted
+    # ChatGPT/Codex login. Local-only: Daytona rejects runtime_provided auth
+    # (DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE), and the login is a host mount.
+    #
+    # This is the ONLY cell that exercises the subscription-specific file assembly:
+    # `configureCodexHome` points CODEX_HOME at the runner-owned <cwd>/.codex and
+    # `symlinkCodexSubscriptionAuthFile` links <cwd>/.codex/auth.json -> the mounted login. That
+    # link lives INSIDE the durable working directory, so it is the one credential path an
+    # object-store round trip can destroy — the #5692 failure. Needs the subscription sidecar:
+    # the runner must have the login bind-mounted read-write with CODEX_HOME naming it, or every
+    # journey fails with `runtime_provided local run requires a mounted subscription`.
+    "S2": {
+        "harness": "codex",
+        "sandbox": "local",
+        "model": "gpt-5.6-luna",
+        "provider": "openai",
+        "connection": {"mode": "self_managed", "slug": None},
+    },
     # P2 (OpenRouter as a CUSTOM OpenAI-compatible provider) needs a `custom_provider` secret in
     # the vault; `connection.slug` points at it. Set --custom-slug to run it.
     "P2": {
         "harness": "pi_core",
         "sandbox": "local",
         "model": "deepseek/deepseek-v4-flash",
-        "provider": "custom",
+        # Provider MUST be None for a named custom connection since v0.107.x: an explicit
+        # request provider always wins in the resolver, and only a provider-LESS custom
+        # normalizes to the `openai` family that the harness pair check accepts
+        # (sdks/python/agenta/sdk/agents/platform/connections.py, resolved-provider rule).
+        # The old placeholder "custom" now fails the post-resolve pair check outright.
+        "provider": None,
+        # Mode MUST be `agenta`, not `self_managed`: the slug names a vault connection, and
+        # `self_managed` injects nothing, so the API rejects the pair outright (Connection
+        # validator, sdks/python/agenta/sdk/agents/connections/models.py).
         "connection": {
-            "mode": "self_managed",
+            "mode": "agenta",
             "slug": None,
         },  # slug filled from --custom-slug
     },
@@ -640,33 +695,456 @@ def j4_deny(cell: dict) -> dict:
     return _approval_flow(cell, approved=False)
 
 
-def j6_warm(cell: dict) -> dict:
-    """J6 (latency half): three turns in one session; turns 2/3 should be faster than turn 1.
-    The cold/warm TRUTH lives in the runner log — this only measures. See STATUS.md F-2."""
+# --------------------------------------------------------------------------------------------
+# Continuity: warm / cold 1 / cold 2, over a store-backed durable working directory.
+#
+# The tier vocabulary is NOT invented here — it is the one the codex approvals QA already uses
+# (docs/design/codex-harness/reports/warm-approvals-qa.md):
+#
+#   warm    same daemon, same live mount. The keep-alive pool serves the turn in place
+#           (`[keepalive] hit-continue`).
+#   cold 1  the session was EVICTED, the runner process is alive. The pool entry is torn down —
+#           which unmounts the durable cwd — and the next turn rebuilds and REMOUNTS it.
+#   cold 2  the runner REPLICA was replaced. A different process serves the session.
+#
+# Why the tiers are a release-gate dimension at all: the session working directory is a geesefs
+# mount over S3, and a cwd only makes the round trip through the object store when something
+# unmounts and remounts it. A single-turn check, or a multi-turn check that stays warm, never
+# takes that trip — which is exactly how #5692 shipped (a symlink inside the durable cwd came
+# back from S3 as a 0-byte object; the second turn read it and failed). Same class as the two
+# durable-cwd limitations already designed around: SQLite WAL (CODEX_SQLITE_HOME is split onto
+# container-local disk) and hard links.
+#
+# The store dimension is therefore a PRECONDITION, not a nice-to-have. `mount.ts` degrades
+# silently to an ephemeral directory when the sign call 503s ("running without this mount" ->
+# `mount degraded kind=session_cwd cause=sign_returned_no_mount`), and every turn still looks
+# fine. A continuity journey that ran on an ephemeral cwd would go green while proving nothing,
+# so these journeys resolve the session's durable mount through the API FIRST and refuse to
+# report a pass without it (SKIP by default, FAIL with --require-store).
+# --------------------------------------------------------------------------------------------
+
+# Set from the CLI in main(); see the flags for what each one means.
+REQUIRE_STORE = False
+STORE_SETTLE_SECONDS = 45.0
+COLD2_REPLACE_CMD: str | None = None
+OWNER_TTL_SECONDS = 120.0
+# A hung operator hook must not hang the whole gate run.
+COLD2_REPLACE_TIMEOUT_SECONDS = 180.0
+# The owner key lapses AT the TTL, and the replacement replica may still be coming up, so a
+# resume timed exactly on the boundary races both and fails for an unrelated, misleading reason.
+# The approval-matrix driver waits for container health plus the same margin
+# (docs/design/codex-harness/spike/scripts/codex-approval-matrix-qa.py).
+OWNER_TTL_MARGIN_SECONDS = 20.0
+
+# The runner's refusal when a replacement replica tries to adopt a local-sandbox session
+# (`LocalSandboxNotOwnerError`, session-continuity.ts). Asserted by the cold2 journey and quoted
+# in coverage.md — one spelling, one source, so the doc and the assertion cannot drift apart.
+# Full text: "local sandbox requires a single runner: replica '<a>' is not the owner of session
+# '<b>' (owned by '<c>'). Refusing to cold-start on the wrong host."
+LOCAL_NOT_OWNER_MARKER = "is not the owner of session"
+
+CWD_PROBE_FILE = "qa-cwd.txt"
+STORE_PROBE_FILE = "qa-store.txt"
+
+# Turn 1 plants a token that is unguessable AND absent from the transcript: the value is produced
+# by the shell inside the sandbox (`$(hostname)`/`$(date +%s)`), the command only carries the
+# expression, and the redirect means the tool output is empty. So when a later turn replies with
+# that exact string, the model cannot have recited it from history — it read the durable file.
+# (LESSONS #2: never assert on prose the model could have computed. This one it cannot.)
+CWD_WRITE_PROMPT = (
+    "Use the bash tool to run exactly: "
+    f"echo QA-CWD-$(hostname)-$(date +%s) > {CWD_PROBE_FILE} "
+    "and then reply with only: WROTE"
+)
+CWD_TOKEN_RE = re.compile(r"QA-CWD-\S+")
+
+
+def _cwd_mount_id(session_id: str) -> tuple[str | None, str]:
+    """The session's durable `cwd` mount id, or None with the reason.
+
+    `GET /api/sessions/mounts/?session_id=...` is the read side of the same row the runner signs
+    on every turn (`POST /sessions/mounts/sign?session_id=...&name=cwd`, mount.ts). A mount row
+    means the store handed out credentials for this session; no row means the run degraded to an
+    ephemeral cwd and nothing that follows can be trusted as continuity evidence.
+    """
+    try:
+        r = api_call("GET", "/sessions/mounts/", params={"session_id": session_id})
+    except Exception as e:  # a transport failure is a reason, not a crash
+        return None, f"sessions/mounts query failed: {type(e).__name__}: {e}"
+    if r.status_code == 503:
+        return None, "the deployment has no object store configured (mounts 503)"
+    if r.status_code != 200:
+        return None, f"sessions/mounts HTTP {r.status_code}: {r.text[:160]}"
+    # The stored `name` IS the slugified mount name (mounts/service.py
+    # get_or_create_session_mount), so the cwd mount is exactly `name == "cwd"`; the other
+    # session-scoped mounts are the per-harness transcript dirs (`claude-projects`,
+    # `pi-sessions`) and must not stand in for it.
+    mounts = r.json().get("mounts") or []
+    cwd = next((m for m in mounts if m.get("name") == "cwd"), None)
+    if not cwd:
+        return None, (
+            "no durable cwd mount exists for this session — the runner ran on an EPHEMERAL "
+            "directory (grep the runner log for `mount degraded kind=session_cwd`), so a green "
+            "continuity result here would prove nothing about the object store"
+        )
+    return str(cwd.get("id")), f"durable cwd mount {cwd.get('id')}"
+
+
+def _store_read(
+    mount_id: str, path: str, settle: float = 0.0
+) -> tuple[str | None, str]:
+    """Read a file straight out of the OBJECT STORE, server-side, bypassing the runner entirely.
+
+    `GET /api/mounts/{id}/files?read=<path>` goes to S3, not to the FUSE mount, so a hit proves
+    the bytes really landed in the store. `settle` polls, because geesefs uploads on close and a
+    just-written file can take a moment to appear as an object.
+    """
+    deadline = time.time() + max(settle, 0.0)
+    last = ""
+    while True:
+        r = api_call("GET", f"/mounts/{mount_id}/files", params={"read": path})
+        if r.status_code == 200:
+            return r.json().get("content"), "read from the object store"
+        if r.status_code == 503:
+            return None, "the deployment has no object store configured (mounts 503)"
+        last = f"HTTP {r.status_code}: {r.text[:120]}"
+        if time.time() >= deadline:
+            return None, f"{path} is not in the object store ({last})"
+        time.sleep(3)
+
+
+def _store_write(mount_id: str, path: str, content: str) -> tuple[bool, str]:
+    """Write a file into the object store from the CLIENT side (`PUT .../files?path=`, raw body).
+
+    The agent never saw this content. If a later turn can `cat` it, that turn's cwd is provably
+    resolving to this store prefix.
+    """
+    r = api_call(
+        "PUT", f"/mounts/{mount_id}/files", params={"path": path}, content=content
+    )
+    if r.status_code == 200:
+        return True, "wrote a store-only file"
+    return False, f"store write HTTP {r.status_code}: {r.text[:120]}"
+
+
+def _zero_byte_entries(mount_id: str) -> list:
+    """Paths in the durable cwd whose stored object is 0 bytes.
+
+    Informational, never a verdict: a 0-byte object is the store-side fingerprint of an entry S3
+    cannot represent (a symlink lands exactly this way — #5692), so it is worth surfacing next to
+    every continuity result even when the run is green.
+    """
+    r = api_call("GET", f"/mounts/{mount_id}/files", params={"limit": 200})
+    if r.status_code != 200:
+        return []
+    return [
+        f.get("path")
+        for f in (r.json().get("files") or [])
+        if not f.get("is_folder") and f.get("size") == 0
+    ]
+
+
+def _turn_ledger(session_id: str, limit: int = 20) -> list:
+    """The session's turn rows, newest first — the only continuity signal a pure HTTP client can
+    see. The runner writes `agent_session_id` and `sandbox_id` per turn
+    (`session-continuity-durable.ts` -> `POST /sessions/turns/`); nothing about warm-vs-cold ever
+    reaches the SSE stream. Empty list when the ledger is unavailable."""
+    r = api_call(
+        "POST",
+        "/sessions/turns/query",
+        json={
+            "query": {"session_id": session_id},
+            "windowing": {"limit": limit, "order": "descending"},
+        },
+    )
+    if r.status_code != 200:
+        return []
+    return r.json().get("turns") or []
+
+
+def _ledger_ids(session_id: str) -> tuple[list, list]:
+    """(agent_session_ids, sandbox_ids) seen across the session's ledger rows, order-insensitive
+    and de-duplicated. Two distinct agent session ids means the harness session was rebuilt; two
+    distinct sandbox ids means the sandbox itself was replaced."""
+    rows = _turn_ledger(session_id)
+    agents = list(
+        {r.get("agent_session_id") for r in rows if r.get("agent_session_id")}
+    )
+    sandboxes = list({r.get("sandbox_id") for r in rows if r.get("sandbox_id")})
+    return agents, sandboxes
+
+
+def _continuity(cell: dict, tier: str) -> dict:
+    """The shared body of `warm` / `cold1` / `cold2`: multi-turn, over a store-backed cwd.
+
+    Shape, identical in all three tiers except the transition in the middle:
+
+      1. turn 1 — the agent writes an unguessable, shell-generated token into `qa-cwd.txt` in its
+         working directory.
+      2. the CLIENT reads that file back through the mounts API. This is the store precondition:
+         it proves the cwd is object-store backed, and it teaches the client the true token.
+      3. the CLIENT writes `qa-store.txt` into the same store prefix — content the agent has
+         never seen and that exists ONLY as an object.
+      4. the transition: nothing (warm), a forced eviction (cold 1), or a replica replacement
+         (cold 2).
+      5. the final turn reads both files back.
+
+    What each piece of evidence actually proves — the point being that "turn 2 replied" proves
+    nothing, and on a warm daemon a broken durable cwd still answers:
+
+      - `qa-cwd.txt` visible in the STORE  -> the working directory is durable, not ephemeral.
+      - `qa-cwd.txt` returned by the AGENT after the transition -> the directory survived the
+        transition with its content intact. On the cold tiers this is the exact shape of #5692:
+        the cwd went to S3 and came back, and anything the store cannot represent comes back
+        wrong.
+      - `qa-store.txt` returned by the AGENT -> that turn's cwd resolves to the same store prefix
+        the client wrote to (store-only content cannot reach the agent any other way).
+      - the turn ledger's `agent_session_id` / `sandbox_id` -> tier corroboration (warm asserts
+        they did not change; the cold tiers report them).
+
+    The runner log remains the definitive tier witness, so every result carries the exact grep:
+    `[keepalive] hit-continue` for warm, `[keepalive] mismatch (config) ...; evict + cold` for
+    cold 1, and a fresh `[keepalive] miss ...; cold` from a new replica for cold 2.
+    """
     s = str(uuid.uuid4())
-    params = template(cell)
-    msgs: list = []
-    times = []
-    for i, q in enumerate(
-        [
-            "Reply with exactly: ONE",
-            "Reply with exactly: TWO",
-            "Reply with exactly: THREE",
-        ]
-    ):
-        msgs = msgs + [user_msg(q)]
-        t = invoke(s, msgs, params)
-        times.append(t.ms)
-        msgs = msgs + [t.assistant_message()]
-        if t.errors:
-            return {"pass": False, "why": f"turn {i + 1} errored", "turn": t.summary()}
-    warm_gain = times[0] - min(times[1], times[2])
-    return {
-        "pass": warm_gain > 0,
-        "why": f"turn1={times[0]}ms, turn2={times[1]}ms, turn3={times[2]}ms (warm gain {warm_gain}ms)",
-        "session_id": s,
-        "times_ms": times,
+    params = template(
+        cell,
+        instructions="Use the bash tool when asked to run a command. Report only its stdout.",
+        permission_default="allow",
+    )
+    msgs = [user_msg(CWD_WRITE_PROMPT)]
+    t1 = invoke(s, msgs, params)
+    if t1.errors:
+        return {
+            "pass": False,
+            "why": f"turn 1 (the durable write) errored: {t1.errors[:1]}",
+            "turn_write": t1.summary(),
+        }
+    msgs = msgs + [t1.assistant_message()]
+
+    mount_id, mount_why = _cwd_mount_id(s)
+    if not mount_id:
+        # Never a PASS: without a store-backed cwd this cell cannot say anything about
+        # continuity, and a silent green here is precisely how the class of bug escapes.
+        verdict = {"pass": False} if REQUIRE_STORE else {"skip": True}
+        return {
+            **verdict,
+            "why": f"{tier}: {mount_why}. Run the gate against a store-backed deployment.",
+            "turn_write": t1.summary(),
+        }
+
+    token, read_why = _store_read(mount_id, CWD_PROBE_FILE, settle=STORE_SETTLE_SECONDS)
+    token = (token or "").strip()
+    if not CWD_TOKEN_RE.fullmatch(token):
+        return {
+            "pass": False,
+            "why": (
+                f"{tier}: the durable cwd holds no usable {CWD_PROBE_FILE} object ({read_why}); "
+                "either the agent never wrote it or geesefs never flushed it to the store"
+            ),
+            "mount_id": mount_id,
+            "turn_write": t1.summary(),
+        }
+
+    store_token = f"QA-STORE-{uuid.uuid4().hex[:12]}"
+    wrote, write_why = _store_write(mount_id, STORE_PROBE_FILE, store_token)
+    if not wrote:
+        return {"pass": False, "why": f"{tier}: {write_why}", "mount_id": mount_id}
+
+    transition = ""
+    if tier == "warm":
+        # Stay on the live daemon: one filler turn, so the read-back is genuinely turn 3 of one
+        # session rather than a two-turn special case.
+        msgs = msgs + [user_msg("Reply with exactly: TWO")]
+        t_mid = invoke(s, msgs, params)
+        if t_mid.errors:
+            return {
+                "pass": False,
+                "why": f"warm: turn 2 errored: {t_mid.errors[:1]}",
+                "turn": t_mid.summary(),
+            }
+        msgs = msgs + [t_mid.assistant_message()]
+        transition = "none (same daemon, same live mount)"
+    elif tier == "cold1":
+        # Force the eviction from the CLIENT, with byte-faithful history: `agentsMd` is a
+        # configFingerprint input (session-identity.ts), so changing the instructions makes the
+        # next turn mismatch on `config` -> `evict + cold`. The teardown unmounts the durable cwd
+        # and the cold acquire remounts it — a real store round trip, driven by a real product
+        # action (editing an agent's instructions mid-session). Editing the TRANSCRIPT instead
+        # would trip the history guard, which is a different (and deliberately hostile) path.
+        params = json.loads(json.dumps(params))
+        params["instructions"]["agents_md"] += (
+            f" (qa-continuity {uuid.uuid4().hex[:8]})"
+        )
+        transition = "config-fingerprint change -> the runner evicts the pooled session and rebuilds cold"
+    elif tier == "cold2":
+        if not COLD2_REPLACE_CMD:
+            return {
+                "skip": True,
+                "why": (
+                    "cold 2 needs the runner replica REPLACED, which no HTTP client can do. Pass "
+                    "--cold2-replace-cmd (or set AGENTA_QA_RUNNER_REPLACE_CMD) to a command that "
+                    "SIGKILLs the runner replica — e.g. `docker kill -s KILL <runner>`. It must "
+                    "be SIGKILL: on SIGTERM the runner runs its shutdown handler and destroys "
+                    "every sandbox it owns, including the session this cell wants to resume "
+                    "(warm-approvals-qa.md)."
+                ),
+            }
+        try:
+            # `shell=True` on an operator-supplied hook (a flag or an env var set by whoever
+            # runs the gate), never on anything that came off the wire. Bounded, because a hook
+            # that hangs would otherwise hang the entire gate run with no output.
+            proc = subprocess.run(
+                COLD2_REPLACE_CMD,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=COLD2_REPLACE_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            return {
+                "pass": False,
+                "why": (
+                    "cold 2: the replica-replacement command did not finish within "
+                    f"{COLD2_REPLACE_TIMEOUT_SECONDS:.0f}s. The hook must return once the "
+                    "replacement replica is serving, not block on it."
+                ),
+            }
+        if proc.returncode != 0:
+            return {
+                "pass": False,
+                "why": f"cold 2: the replica-replacement command failed ({proc.returncode}): {proc.stderr[:200]}",
+            }
+        # Wait out the session-owner key. The killed replica never released `owner:session:<id>`
+        # and `claim_owner` never steals from an owner that still looks live, so a resume inside
+        # the window fails for the wrong reason (issue #5611's misleading MCP-shim error). The
+        # margin matters as much as the TTL: the key lapses AT the boundary, so a resume timed
+        # exactly on it races the lapse and the replacement replica's own startup.
+        wait = OWNER_TTL_SECONDS + OWNER_TTL_MARGIN_SECONDS
+        time.sleep(wait)
+        transition = f"replica replaced via the operator hook, then {int(wait)}s of owner-TTL wait"
+    else:  # pragma: no cover - guarded by the JOURNEYS table
+        raise ValueError(f"unknown continuity tier {tier}")
+
+    read_prompt = (
+        f"Use the bash tool to run exactly: cat {CWD_PROBE_FILE} {STORE_PROBE_FILE} "
+        "and reply with only its stdout."
+        if tier != "warm"
+        # A warm turn keeps the SAME live geesefs mount, so a file the client wrote straight into
+        # S3 behind that mount is not guaranteed to be visible; asking for it would make the warm
+        # cell fail for a reason that has nothing to do with continuity.
+        else f"Use the bash tool to run exactly: cat {CWD_PROBE_FILE} and reply with only its stdout."
+    )
+    msgs = msgs + [user_msg(read_prompt)]
+    t_last = invoke(s, msgs, params)
+
+    zero_byte = _zero_byte_entries(mount_id)
+    agents, sandboxes = _ledger_ids(s)
+    evidence = {
+        "tier": tier,
+        "transition": transition,
+        "mount_id": mount_id,
+        "cwd_token_in_store": True,
+        # Kept as corroboration only (the old warm journey's single signal): a cold turn pays for
+        # a rebuilt session and a remount, a warm one does not. Never a verdict on its own — see
+        # STATUS.md F-2.
+        "times_ms": {"first": t1.ms, "last": t_last.ms},
+        "agent_session_ids": agents,
+        "sandbox_ids": sandboxes,
+        "zero_byte_objects_in_cwd": zero_byte,
+        "runner_log_grep": {
+            "warm": "[keepalive] hit-continue",
+            "cold1": "[keepalive] mismatch (config) ...; evict + cold",
+            "cold2": "[keepalive] miss ...; cold  (from a replica id you have not seen before)",
+        }[tier],
     }
+
+    if tier == "cold2" and cell["sandbox"] == "local":
+        # A local sandbox lives INSIDE the runner process, so a replacement replica genuinely
+        # cannot adopt it. The correct outcome is the ownership guard refusing, loudly — not a
+        # completed resume (`assertLocalRunnerOwnership` -> LocalSandboxNotOwnerError). This
+        # per-sandbox expectation is the one warm-approvals-qa.md already worked out.
+        refused = any(LOCAL_NOT_OWNER_MARKER in str(e) for e in t_last.errors)
+        return {
+            "pass": refused,
+            "why": (
+                "cold 2 on a local sandbox must REFUSE with "
+                f'"{LOCAL_NOT_OWNER_MARKER}" (observed refusal={refused}). A completed resume '
+                "here would mean a wrong-host cold start, which is the failure the guard exists "
+                "to prevent."
+            ),
+            "evidence": evidence,
+            "turn_resumed": t_last.summary(),
+        }
+
+    reply = t_last.reply
+    cwd_back = token in reply
+    store_back = store_token in reply if tier != "warm" else None
+    ok = cwd_back and not t_last.errors and (store_back is not False)
+
+    if tier == "warm":
+        # A warm continuation cannot have rebuilt the harness session or the sandbox. More than
+        # one distinct id across the ledger means the turn was NOT served warm, so the cell did
+        # not test the tier it claims (the runner log grep says which mismatch evicted it).
+        #
+        # Exactly one, not "at most one": an EMPTY ledger is missing evidence, not evidence of
+        # stability (`_turn_ledger` returns [] on any non-200), and letting it pass would be the
+        # same false green this whole journey exists to remove.
+        ledger_available = bool(agents or sandboxes)
+        warm_ids_stable = len(agents) == 1 and len(sandboxes) == 1
+        evidence["ledger_available"] = ledger_available
+        evidence["warm_ids_stable"] = warm_ids_stable
+        ok = ok and warm_ids_stable
+
+    why = {
+        "warm": (
+            f"warm: 3 turns on one live daemon; the durable cwd token survived (in reply={cwd_back}), "
+            f"and the turn ledger shows a single harness session + sandbox (stable={evidence.get('warm_ids_stable')}"
+            + (
+                ""
+                if evidence.get("ledger_available", True)
+                else "; the turn ledger returned NO rows, so there is no warm corroboration to "
+                "read — check that the deployment records session turns"
+            )
+            + ")"
+        ),
+        "cold1": (
+            f"cold 1: the pooled session was evicted and rebuilt on the same runner; the cwd token "
+            f"came back from the store (in reply={cwd_back}) and the agent read a file that only "
+            f"ever existed as an object (store-only file readable={store_back})"
+        ),
+        "cold2": (
+            f"cold 2: the replica was replaced; the cwd token came back (in reply={cwd_back}) and "
+            f"the store-only file was readable ({store_back}) — the resume remounted the cwd from "
+            "the object store on a different process"
+        ),
+    }[tier]
+    return {
+        "pass": bool(ok),
+        "why": why,
+        "session_id": s,
+        "cwd_token": token,
+        "evidence": evidence,
+        "turn_write": t1.summary(),
+        "turn_resumed": t_last.summary(),
+    }
+
+
+def j6_warm(cell: dict) -> dict:
+    """Warm resume: same daemon, same live mount, three turns, durable cwd intact."""
+    return _continuity(cell, "warm")
+
+
+def j6_cold1(cell: dict) -> dict:
+    """Cold 1: session evicted, runner alive. The durable cwd is unmounted and remounted from the
+    object store between turns — the round trip that #5692 needed to surface."""
+    return _continuity(cell, "cold1")
+
+
+def j6_cold2(cell: dict) -> dict:
+    """Cold 2: the runner replica is replaced. Needs an operator hook (SIGKILL), and the expected
+    result differs per sandbox: a local sandbox correctly REFUSES, a remote one resumes cold."""
+    return _continuity(cell, "cold2")
 
 
 def j2_mount(cell: dict) -> dict:
@@ -1141,6 +1619,8 @@ JOURNEYS = {
     "deny": j4_deny,
     "commit": j5_commit,
     "warm": j6_warm,
+    "cold1": j6_cold1,
+    "cold2": j6_cold2,
     "mcp": j7_mcp,
     "rule_deny": j_rule_deny,
     "rule_allow": j_rule_allow,
@@ -1176,12 +1656,51 @@ def main() -> int:
         help="override the cell's model (e.g. `haiku` on a Claude cell; aliases only on Claude — F-007)",
     )
     p.add_argument(
+        "--require-store",
+        action="store_true",
+        help=(
+            "treat a missing durable cwd mount as a FAILURE in the continuity journeys instead "
+            "of a SKIP. Pass this on any deployment that is supposed to have an object store — "
+            "it is what stops 'the store was not in play' from reading as green."
+        ),
+    )
+    p.add_argument(
+        "--store-settle",
+        type=float,
+        default=45.0,
+        help="seconds to wait for a just-written file to appear as an object (default 45)",
+    )
+    p.add_argument(
+        "--cold2-replace-cmd",
+        default=os.environ.get("AGENTA_QA_RUNNER_REPLACE_CMD"),
+        help=(
+            "shell command that replaces the runner replica, for the cold2 journey. MUST SIGKILL "
+            "(e.g. `docker kill -s KILL <runner>`): on SIGTERM the runner destroys every sandbox "
+            "it owns, including the session under test. Without it, cold2 SKIPs."
+        ),
+    )
+    p.add_argument(
+        "--owner-ttl",
+        type=float,
+        default=120.0,
+        help=(
+            "seconds to wait after replacing the replica, so the dead replica's session-owner key "
+            "lapses (AGENTA_SESSIONS_REDIS_OWNER_TTL_SECONDS, default 120)"
+        ),
+    )
+    p.add_argument(
         "--env-file",
         help=f"credentials file (fallback when the env vars are unset; default {DEFAULT_ENV_FILE})",
     )
     args = p.parse_args()
 
     resolve_credentials(args.env_file)
+
+    global REQUIRE_STORE, STORE_SETTLE_SECONDS, COLD2_REPLACE_CMD, OWNER_TTL_SECONDS
+    REQUIRE_STORE = args.require_store
+    STORE_SETTLE_SECONDS = args.store_settle
+    COLD2_REPLACE_CMD = args.cold2_replace_cmd
+    OWNER_TTL_SECONDS = args.owner_ttl
 
     cells = list(CELLS) if args.all else (args.cell or ["C3"])
     journeys = args.only or list(JOURNEYS)
@@ -1195,6 +1714,14 @@ def main() -> int:
         )
     if args.custom_slug:
         CELLS["P2"]["connection"]["slug"] = args.custom_slug
+        # Send the FULL custom model key, not the bare model id: a bare id that also exists
+        # in the shared catalog gets its provider inferred (F-017) before the named custom
+        # connection can normalize, and the (inferred-provider, custom) pair check then
+        # rejects the run. The `<slug>/custom/<model>` key is opaque to the catalog, matches
+        # the secret's model_keys, and resolves to the `openai` family as designed.
+        p2_model = CELLS["P2"]["model"]
+        if not p2_model.startswith(f"{args.custom_slug}/"):
+            CELLS["P2"]["model"] = f"{args.custom_slug}/custom/{p2_model}"
     if args.mcp_url:
         global MCP_URL
         MCP_URL = args.mcp_url
