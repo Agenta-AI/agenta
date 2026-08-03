@@ -280,9 +280,9 @@ Immediately after iteration 1 ships, in rough dependency order:
 1. ~~**Origin stamp**~~ — pulled forward and built, because the list was otherwise shipping with
    automation runs mixed into your own work. The dispatcher mints the session id, stamps
    `tags["ag.origin"]`, and records it on the delivery; the query grows `origin` /
-   `exclude_origin`, and the list hides automations by default. **Remaining hole:** the queue
-   worker (`api/entrypoints/worker_queues.py`) constructs no `SessionStreamsService`, so triggers
-   dispatched through it are unstamped. Wire one there to close it.
+   `exclude_origin`, and the list hides automations by default. Both dispatch compositions —
+   the in-process one in `routers.py` and the queue worker in `worker_queues.py` — build a
+   `SessionStreamsService`, so a trigger is stamped whichever path runs it.
 2. ~~**Delivery → session link**~~ — built with the stamp above. Home's automation rows can now
    resolve their session; wiring the click is the remaining FE step.
 3. **Pin persistence.** `tags` under an `ag.` namespace (Mahmoud's suggestion) plus a query filter.
