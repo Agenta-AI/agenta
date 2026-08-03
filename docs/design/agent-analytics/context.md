@@ -22,24 +22,35 @@ It shows:
   control and its `SortResult`), so it supports the standard presets and a custom
   start-and-end range. It is not a fixed list of options. It opens on the last 7 days.
 - A summary panel: a health donut (0 to 100, with a Healthy / Watch / At risk band and a
-  one-line read-out) and four stat tiles (Total runs, Success rate, Avg latency, Total cost).
-  Each tile shows a change badge against the previous window of equal length and a small trend
-  line of the current window.
-- Four charts in a grid, each with hover tooltips and a legend whose entries toggle series on
-  and off:
+  one-line read-out) and stat tiles (Total runs, Avg latency, p95 latency, Total tokens, and a
+  coverage-gated Total cost that shows an explicit "not available for this window" instead of a
+  zero when cost coverage is low). Each tile shows a change badge against the previous window of
+  equal length and a small trend line of the current window.
+- Charts in a grid, each with hover tooltips and a legend whose entries toggle series on and
+  off:
   - Runs: stacked bars of successful and failed runs per bucket.
   - Latency: bars of average latency per bucket, with a p95 marker line; the tooltip shows
     average, p95, min, and max.
-  - Costs: stacked bars of prompt cost and completion cost per bucket.
-  - Tokens: stacked bars of prompt tokens and completion tokens per bucket.
+  - Tokens: total tokens per bucket, with a coverage label; the prompt/completion split renders
+    as stacked bars only when its coverage gate passes.
+  - Runs per harness, runs per configured model, and runs per agent: category breakdowns, one
+    `categorical/single` spec each.
+
+  There is no Costs prompt/completion chart: those cost paths hold no data on agent runs, and
+  the one working cost path (`gen_ai.usage.cost`) is a coverage-gated total shown as the tile
+  above. See data-contract.md and capability-review.md.
 
 ## Locked scope decisions
 
 These decisions are settled and drive the plan. Do not reopen them without the requester.
 
-1. Frontend-first. Build the four charts above, the four stat tiles, the health donut, the
-   Agents filter, and the time-range control against today's endpoint. The endpoint already
-   returns every field these need, so this scope ships without any change under `api/`.
+1. Frontend-first, with two backend prerequisites. Build the charts above, the stat tiles, the
+   health donut, the Agents / Harness / configured-Model filters, and the time-range control
+   against today's endpoint. The endpoint returns most fields these need directly, but two
+   backend items gate a trustworthy release and are tracked as Phase 0 in plan.md: making a
+   killed or rejected query distinguishable from a genuinely empty one, and investigating the
+   mid-July collapse in cost and token-split coverage. The cost tile and the token split stay
+   coverage-gated until the second is understood.
 
 2. Health donut computed in the browser. The health score is the success rate:
    `round(100 x successRate)`, banded Healthy at 85 and above, Watch from 65 to 84, At risk
@@ -52,9 +63,10 @@ These decisions are settled and drive the plan. Do not reopen them without the r
    agent in the project by default. The Agents multi-select narrows the set, so the default
    query carries no single-app reference filter.
 
-4. A failed run means a run whose root span status is `ERROR`, a run-level outcome. Success
-   rate and the health score build on that, not on a count of errored steps. data-contract.md
-   has the definition and the query it needs.
+4. A failed run means a run whose root span status is `STATUS_CODE_ERROR`, a run-level outcome
+   (there is no `STATUS_CODE_OK` on root spans; success is the complement). Success rate and the
+   health score build on that, not on a count of errored steps. data-contract.md has the
+   definition and the query it needs.
 
 ## Showing model usage and tool usage needs backend work
 

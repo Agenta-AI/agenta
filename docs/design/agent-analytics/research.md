@@ -40,13 +40,20 @@ spine and reads a few response fields the current mapper drops.
   Add a small nested accessor (or extend `metricField` with a two-key form) for the p95 read;
   do not assume p95 is a flat sibling of `sum`.
 - What it does not read, and this page needs:
-  - `costs.cumulative.prompt` and `costs.cumulative.completion` for the Costs split.
-  - `tokens.cumulative.prompt` and `tokens.cumulative.completion` for the Tokens split.
+  - `gen_ai.usage.cost` (field `sum`, plus `count` for the coverage gate) for a coverage-gated
+    total-cost tile. The canonical `costs.cumulative.*` paths hold no data on agent root spans,
+    so there is no prompt/completion cost split to read; see data-contract.md.
+  - `tokens.cumulative.prompt` and `tokens.cumulative.completion` for the Tokens split, which
+    is coverage-gated because it shares the cost field's mid-July coverage collapse.
   - `duration.cumulative` flat fields `min`, `max`, and the nested `pcts.p95` percentile for
     the Latency tooltip and marker.
+  - Category `freq` arrays on `ag.data.parameters.agent.harness.kind`,
+    `ag.data.parameters.agent.llm.model`, and the agent `references` paths for the breakdown
+    charts.
 - This page does not reuse the existing mapper's `errors.cumulative`-based failure count. A
-  failed run is a run whose root span status is `ERROR`, which a metric spec cannot
-  read, so the page gets the failed-run count from a separate status-filtered query. See
+  failed run is a run whose root span status is `STATUS_CODE_ERROR` (there is no
+  `STATUS_CODE_OK` on root spans; success is the complement), which a metric spec cannot read,
+  so the page gets the failed-run count from a separate status-filtered query. See
   data-contract.md.
 - `calculateIntervalFromDuration(durationMinutes)` picks a bucket size that keeps the bar
   count reasonable and stays under the backend's ~1024-bucket limit. Reuse it directly for
@@ -58,8 +65,10 @@ spine and reads a few response fields the current mapper drops.
   `references in [{id: appId}]` condition when an app id is present), computes the interval,
   and calls `fetchSpansAnalytics({focus: "trace", ...})`. This is the template for the new
   page's fetch function. For project scope, omit the single-app reference condition and add
-  reference conditions only for the agents the user selects in the filter. The new page also
-  issues a second query per window with a `status_code = ERROR` filter to count failed runs.
+  reference conditions only for the agents the user selects in the filter, plus the base
+  `trace_type is invocation` condition on every query. The new page also issues a second query
+  per window with a `{field: "status_code", operator: "is", value: "STATUS_CODE_ERROR"}` filter
+  to count failed runs.
 
 ## The dashboard state atoms (reuse pattern, new atoms for this page)
 

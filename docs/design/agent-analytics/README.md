@@ -43,8 +43,9 @@ collide with `context.md`.
 - **Span**: one unit of work inside a run (a model call, a tool call, or the agent step
   itself). Model name and tool name live on child spans, not on the root span.
 - **Root span**: the top span of a run. Today's analytics endpoint only reads root spans.
-- **Failed run**: a run whose root span status is `ERROR`, a run-level outcome. Counted from
-  the `status_code` column, not from the errors metric.
+- **Failed run**: a run whose root span status is `STATUS_CODE_ERROR`, a run-level outcome
+  (there is no `STATUS_CODE_OK` on root spans; success is the complement). Counted from the
+  `status_code` column, not from the errors metric.
 - **Error**: any errored step inside a run. A run can contain errors and still succeed, so an
   error count is not a failed-run count.
 - **Success rate**: successful runs over total runs, where a failed run is the one above.
