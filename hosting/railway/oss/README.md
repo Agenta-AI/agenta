@@ -39,6 +39,9 @@ baseline.
 - `scripts/deploy-from-images.sh` - deploy Railway services from explicit image tags
 - `scripts/preview-create-or-update.sh` - create or update a PR-scoped preview project
 - `scripts/preview-destroy.sh` - delete a PR-scoped preview project
+- `scripts/preview-clone-create.sh` - create or update a clone-mode preview environment (issue #5650)
+- `scripts/preview-clone-destroy.sh` - delete a clone-mode preview environment (plus `--stale-hours` sweep)
+- `template/` - the preview template environment as code (definition, converge tool, GraphQL client)
 
 ## Prerequisites
 
@@ -149,6 +152,82 @@ Defaults:
 
 - Project naming uses `RAILWAY_PREVIEW_PROJECT_PREFIX` (default `agenta-oss-pr`) and a normalized preview key.
 - Preview key resolution order is `RAILWAY_PREVIEW_KEY`, `PR_NUMBER`, `GITHUB_PR_NUMBER`, then GitHub branch refs.
+
+## Clone-Based Previews (Experimental)
+
+Issue #5650 adds a second, faster preview path: instead of bootstrapping one
+Railway **project** per PR (~58 API calls, minutes of setup), a PR preview is
+one **environment** cloned from a pre-built template environment inside a
+single shared project (~15 API calls, under a minute). The template itself is
+code: `template/template.json`, converged by `template/apply.sh` and guarded
+by the drift workflow (47).
+
+### The mode switch
+
+The GitHub repo variable `RAILWAY_PREVIEW_MODE` selects the path:
+
+- unset or `legacy` (default) — the original project-per-PR flow. The legacy
+  steps run exactly as before.
+- `clone` — the clone flow described below.
+
+Workflow 14 resolves the variable ONCE per run and passes it down to setup
+(41) and deploy (43), so a mid-run flip cannot split a run across modes.
+Cleanup (45) triggers on its own events and reads the variable at its own run
+time.
+
+**Rollback = flip the variable back to `legacy`** (or delete it). Nothing
+else to undo: the next push on any PR bootstraps a legacy project again.
+Clone environments created before the flip are removed by the daily stale
+sweep in workflow 45 (which sweeps `pr-*` environments in the template
+project in both modes for exactly this reason), or immediately via
+`scripts/preview-clone-destroy.sh`.
+
+### How clone mode works
+
+1. **Setup (41)** runs `scripts/preview-clone-create.sh`: ensure environment
+   `pr-<PR_NUMBER>` exists (`environmentCreate` from the template with
+   `skipInitialDeploys`; an ambiguous create failure is reconciled by polling
+   the name, never by re-creating), then ONE `environmentPatchCommit` that
+   points the eight app services at the run's image tag (Railway auto-deploys
+   every service whose config changed), then deploy the rest in the proven
+   order (infra, then alembic, then everything else; supertokens must wait
+   for alembic), then smoke `/w`, `/api/health`, `/services/health` through
+   the clone's own gateway domain. On a later push to the same PR the
+   environment is patched in place, not re-created.
+2. **Deploy (43)** is redundant in clone mode (setup already deployed and
+   smoked); it runs `preview-clone-create.sh --verify-only`, a mutation-free
+   re-check that emits the preview URL for the tests job and the PR comment.
+3. **Cleanup (45)** runs `scripts/preview-clone-destroy.sh`: one
+   `environmentDelete` (idempotent — an absent environment is a success),
+   plus the daily stale sweep (`--stale-hours 24`).
+
+Two traps the scripts are built around (proven live in
+`docs/design/railway-preview-clone-spike/findings.md`): the template's app
+tags must stay disjoint from PR tags because `environmentPatchCommit`
+silently no-ops on an unchanged config (services whose image already matches
+are deployed explicitly instead, and `latest` is refused outright), and a
+single Postgres first-deploy timeout in a fresh clone is transient (the
+script retries that deploy exactly once).
+
+### Configuration
+
+- `RAILWAY_TEMPLATE_PROJECT` — template project name.
+  TODO(cutover): the script default is the proven test bed
+  `agenta-oss-clone-spike` until rollout re-points it (and
+  `template/template.json`'s `project`) at the production preview project.
+- `RAILWAY_TEMPLATE_ENV` — template environment name (default `pr-template`).
+- `RAILWAY_PREVIEW_ENV_NAME` — override the per-PR environment name (test
+  cycles use `pr-clone-*` names).
+- Auth is the same account token as the legacy path, exported as
+  `RAILWAY_API_TOKEN` (never `RAILWAY_TOKEN`).
+
+### Evidence
+
+Workflow 48 (`48-railway-clone-preview-test.yml`) is the acceptance harness:
+it runs N consecutive full cycles (create + patch + deploy + smoke, then
+destroy) with the production scripts against the template project and prints
+per-cycle timing and API call counts to the step summary. Issue #5650's bar
+is 3 consecutive green cycles from a real Actions run.
 
 ## Prebuilt Wrapper Images (Clone-Based Previews)
 
