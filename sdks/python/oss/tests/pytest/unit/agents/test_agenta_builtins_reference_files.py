@@ -181,7 +181,9 @@ def test_no_json_example_writes_a_builtin_tool_entry():
     # examples verbatim, so an example that still writes one would keep producing configs the
     # resolver has to ignore.
     content = _file("references/config-schema.md").content
-    for block in re.findall(r"```json\n(.*?)```", content, flags=re.DOTALL):
+    blocks = re.findall(r"```json\n(.*?)```", content, flags=re.DOTALL)
+    assert blocks, "config-schema.md must contain at least one JSON example"
+    for block in blocks:
         try:
             parsed = json.loads(block)
         except json.JSONDecodeError as exc:
