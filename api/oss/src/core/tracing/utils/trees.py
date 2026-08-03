@@ -248,6 +248,19 @@ def _connect_tree_dfs(
             parent_span.spans = None
 
 
+def _has_reported_cumulative(span: OTelFlatSpan) -> bool:
+    if not isinstance(span.attributes, dict):
+        return False
+
+    node = span.attributes
+    for key in ("ag", "metrics", "costs", "cumulative"):
+        if not isinstance(node, dict):
+            return False
+        node = node.get(key)
+
+    return isinstance(node, dict) and "total" in node
+
+
 def cumulate_costs(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, OTelFlatSpan],
@@ -340,7 +353,9 @@ def cumulate_costs(
         # aggregate for this subtree. Child costs recomputed from token counts
         # re-estimate the same spend, so overwriting here would swap a billed figure
         # for a lossier one. The roll-up only fills spans that report nothing.
-        if _get_cumulative(span).get("total", 0.0) != 0.0:
+        # Test presence, not truthiness: a reported 0.0 (a fully cached turn, a free
+        # model) is a measurement, not a missing value.
+        if _has_reported_cumulative(span):
             return
 
         if (
@@ -604,6 +619,13 @@ TYPES_WITH_COSTS = [
 ]
 
 
+def _token_count(value) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
     for span in span_idx.values():
         if (
@@ -612,31 +634,49 @@ def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
             and span.attributes
         ):
             attr: dict = span.attributes
-            model = attr.get("ag", {}).get("meta", {}).get("response", {}).get(
-                "model"
-            ) or attr.get("ag", {}).get("data", {}).get("parameters", {}).get("model")
+            ag_attr: dict = attr.get("ag", {})
+            ag_meta: dict = ag_attr.get("meta", {})
+            ag_data: dict = ag_attr.get("data", {})
 
-            prompt_tokens = (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("incremental", {})
-                .get("prompt", 0.0)
+            # The agent runner sets the response model only for codex; every other
+            # harness sets only the request model, so without that fallback those
+            # spans are never priced at all.
+            model = (
+                ag_meta.get("response", {}).get("model")
+                or ag_meta.get("request", {}).get("model")
+                or ag_data.get("parameters", {}).get("model")
             )
 
-            completion_tokens = (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("incremental", {})
-                .get("completion", 0.0)
+            token_metrics: dict = (
+                ag_attr.get("metrics", {}).get("tokens", {}).get("incremental", {})
+            )
+
+            uncached_input_tokens = _token_count(token_metrics.get("prompt"))
+            cache_read_input_tokens = _token_count(token_metrics.get("cache_read"))
+            cache_creation_input_tokens = _token_count(
+                token_metrics.get("cache_creation")
+            )
+            completion_tokens = _token_count(token_metrics.get("completion"))
+
+            # INVARIANT: the `prompt` bucket carries *exclusive* input (gen_ai.usage.
+            # input_tokens is raw uncached input), while litellm's generic calculator
+            # derives ordinary input by subtracting the cache details from the prompt
+            # count it is given, so it expects an *inclusive* count. If the canonical
+            # `prompt` bucket ever becomes inclusive at ingest, this sum double counts
+            # and must be dropped; it is kept in one place so that is a one-line change.
+            inclusive_prompt_tokens = (
+                uncached_input_tokens
+                + cache_read_input_tokens
+                + cache_creation_input_tokens
             )
 
             try:
                 costs = cost_calculator.cost_per_token(
                     model=model,
-                    prompt_tokens=prompt_tokens,
+                    prompt_tokens=inclusive_prompt_tokens,
                     completion_tokens=completion_tokens,
+                    cache_read_input_tokens=cache_read_input_tokens,
+                    cache_creation_input_tokens=cache_creation_input_tokens,
                 )
 
                 if not costs:
@@ -668,12 +708,17 @@ def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
                     "total": total_cost,
                 }
 
+            # Model aliases litellm cannot price (e.g. the bare "sonnet" the model
+            # picker sends) raise here rather than returning nothing; swallowing keeps
+            # an unpriceable span cost-less instead of failing the whole ingest.
             except Exception:  # pylint: disable=bare-except
                 log.warn(
                     "Failed to calculate costs",
                     model=model,
-                    prompt_tokens=prompt_tokens,
+                    prompt_tokens=inclusive_prompt_tokens,
                     completion_tokens=completion_tokens,
+                    cache_read_input_tokens=cache_read_input_tokens,
+                    cache_creation_input_tokens=cache_creation_input_tokens,
                 )
 
 

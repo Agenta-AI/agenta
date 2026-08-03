@@ -95,15 +95,13 @@ def _agent_span(**overrides) -> OTelSpanDTO:
 
 
 def _unpriceable_model_span(**overrides) -> OTelSpanDTO:
-    # The agent runner reports the request model but not the response model, which is
-    # the key the litellm recompute needs. This is what every agent chat span looks
-    # like today, and why the recompute produces nothing.
+    # No model name at all, so the litellm recompute has nothing to price against.
+    # Spans that carry only a request model ARE priceable (see calculate_costs).
     return _otel_span(
         span_id=MODEL_SPAN_ID,
         span_name="chat",
         attributes={
             "gen_ai.operation.name": "chat",
-            "gen_ai.request.model": "gpt-4o-mini",
             "gen_ai.usage.input_tokens": 1000,
             "gen_ai.usage.output_tokens": 100,
         },
