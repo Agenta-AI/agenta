@@ -207,6 +207,27 @@ refresh_clone_services() {
     CLONE_SERVICES_JSON="$(rw_graphql "$Q_ENV_SERVICES" "$(jq -nc --arg id "$CLONE_ENV_ID" '{id: $id}')")"
 }
 
+# Legacy previews wrote the CI test credentials into every environment at
+# configure time; clones inherit the template's own generated key instead, so
+# the acceptance suites' admin calls fail with 401 (#5650 soak finding). When
+# CI provides AGENTA_AUTH_KEY, upsert it onto the services that consume it
+# BEFORE anything deploys, so freshly deployed containers pick it up. Without
+# the variable (local runs), the clone keeps the template's self-contained key.
+apply_ci_auth_key() {
+    [ -n "${AGENTA_AUTH_KEY:-}" ] || return 0
+    local svc svc_id
+    for svc in api services; do
+        svc_id="$(clone_service_id "$svc")"
+        [ -n "$svc_id" ] || { printf "No serviceId for '%s' while applying the CI auth key.\n" "$svc" >&2; return 1; }
+        rw_graphql \
+            'mutation($in: VariableCollectionUpsertInput!) { variableCollectionUpsert(input: $in) }' \
+            "$(jq -nc --arg p "$PROJECT_ID" --arg e "$CLONE_ENV_ID" --arg s "$svc_id" --arg v "$AGENTA_AUTH_KEY" \
+                '{in: {projectId: $p, environmentId: $e, serviceId: $s, skipDeploys: true, replace: false, variables: {AGENTA_AUTH_KEY: $v}}}')" \
+            >/dev/null || return 1
+    done
+    printf "CI auth key applied to api and services.\n"
+}
+
 clone_service_id() {
     jq -r --arg n "$1" \
         '.data.environment.serviceInstances.edges[].node | select(.serviceName == $n) | .serviceId' \
@@ -480,6 +501,7 @@ main() {
             clone_environment || die "could not create environment '$ENV_NAME'"
         fi
         wait_clone_populated || die "environment '$ENV_NAME' never fully materialized"
+        apply_ci_auth_key || die "could not apply the CI auth key to the clone"
         t_created=$(( $(now) - t0 ))
 
         # Domain BEFORE app deploys: web/api render

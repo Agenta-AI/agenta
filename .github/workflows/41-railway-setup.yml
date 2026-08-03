@@ -71,6 +71,10 @@ jobs:
         env:
           PR_NUMBER: ${{ inputs.pr_number }}
           IMAGE_TAG: ${{ inputs.image_tag }}
+          # The acceptance suites authenticate admin calls with this key;
+          # clones inherit the template's own generated key, so the script
+          # upserts the CI key onto the clone before anything deploys.
+          AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
         run: |
           chmod +x hosting/railway/oss/scripts/*.sh
 
