@@ -10,6 +10,9 @@ Agents sometimes need tools that are not in the default runtime: a browser like 
 `gh` CLI, a custom certificate, or an extra system package. They sometimes need a folder from your
 infrastructure, such as a repository checkout, or more CPU, memory, and disk than the default.
 
+Both runtimes already ship Node, `git`, `curl`, `python3` (also available as `python`), `unzip`,
+`zip`, `rg` (ripgrep), `fd`, `jq`, `ps`, `file`, and `tree`, so you do not need to add those.
+
 This page shows how to add each of those. The mechanism depends on where your agents run:
 
 - **Daytona runs** execute in a cloud sandbox. You customize the snapshot the sandbox starts from.

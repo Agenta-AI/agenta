@@ -29,6 +29,11 @@ permissions:
 
 env:
   RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+  # This workflow triggers directly (PR close / cron / dispatch), so it cannot
+  # receive the mode resolved by workflow 14; it reads the repo variable at
+  # its own run time. 'legacy' = project per PR; 'clone' = environment per PR
+  # in the template project (issue #5650).
+  RAILWAY_PREVIEW_MODE: ${{ vars.RAILWAY_PREVIEW_MODE || 'legacy' }}
 
 jobs:
   destroy-pr-preview:
@@ -49,11 +54,23 @@ jobs:
           fi
 
       - name: Destroy preview environment
+        if: env.RAILWAY_PREVIEW_MODE != 'clone'
         env:
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
         run: |
           chmod +x hosting/railway/oss/scripts/preview-destroy.sh
           hosting/railway/oss/scripts/preview-destroy.sh
+
+      # Clone mode (issue #5650): the preview is an environment in the
+      # template project, not a project — delete just that environment
+      # (idempotent: absent = success).
+      - name: Destroy clone preview environment
+        if: env.RAILWAY_PREVIEW_MODE == 'clone'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+        run: |
+          chmod +x hosting/railway/oss/scripts/preview-clone-destroy.sh
+          hosting/railway/oss/scripts/preview-clone-destroy.sh
 
       - name: Update preview comment on PR
         if: github.event_name == 'pull_request'
@@ -127,6 +144,19 @@ jobs:
         run: |
           chmod +x hosting/railway/oss/scripts/preview-cleanup-stale.sh
           hosting/railway/oss/scripts/preview-cleanup-stale.sh
+
+      # Clone-mode equivalent of the stale sweep (issue #5650): delete pr-*
+      # preview environments older than the max age in the template project.
+      # Runs in BOTH modes on purpose — after a rollback to legacy, clone
+      # environments created before the flip would otherwise linger forever.
+      # A sweep with nothing to delete costs ~3 API calls.
+      - name: Clean up stale clone preview environments
+        env:
+          RAILWAY_PREVIEW_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          chmod +x hosting/railway/oss/scripts/preview-clone-destroy.sh
+          hosting/railway/oss/scripts/preview-clone-destroy.sh \
+            --stale-hours "${{ inputs.max_age_hours || '24' }}"
 
       - name: Summary
         if: always()

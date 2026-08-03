@@ -11,6 +11,11 @@ on:
         description: "PR number"
         required: true
         type: string
+      mode:
+        description: "Preview mode: 'legacy' (project per PR) or 'clone' (environment cloned from the template project; issue #5650)"
+        required: false
+        type: string
+        default: "legacy"
     secrets:
       RAILWAY_TOKEN:
         required: true
@@ -48,6 +53,11 @@ on:
         description: "PR number"
         required: true
         type: string
+      mode:
+        description: "Preview mode: 'legacy' (project per PR) or 'clone' (environment cloned from the template project; issue #5650)"
+        required: false
+        type: string
+        default: "legacy"
 
 permissions:
   contents: read
@@ -64,14 +74,16 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     outputs:
-      preview_url: ${{ steps.deploy.outputs.preview_url }}
-      project_name: ${{ steps.deploy.outputs.project_name }}
-      environment_name: ${{ steps.deploy.outputs.environment_name }}
-      railway_logs_url: ${{ steps.deploy.outputs.railway_logs_url }}
+      # Exactly one of the two steps runs, selected by inputs.mode.
+      preview_url: ${{ steps.deploy.outputs.preview_url || steps.verify.outputs.preview_url }}
+      project_name: ${{ steps.deploy.outputs.project_name || steps.verify.outputs.project_name }}
+      environment_name: ${{ steps.deploy.outputs.environment_name || steps.verify.outputs.environment_name }}
+      railway_logs_url: ${{ steps.deploy.outputs.railway_logs_url || steps.verify.outputs.railway_logs_url }}
     steps:
       - uses: actions/checkout@v6
 
       - name: Install Railway CLI
+        if: inputs.mode != 'clone'
         run: |
           npm install -g @railway/cli@latest
           railway --version
@@ -83,6 +95,7 @@ jobs:
           fi
 
       - name: Deploy preview environment
+        if: inputs.mode != 'clone'
         id: deploy
         env:
           PR_NUMBER: ${{ inputs.pr_number }}
@@ -216,6 +229,51 @@ jobs:
             exit 1
           fi
 
+      # Clone mode (issue #5650): setup (41) already created the environment,
+      # patched the images and smoked it, so the legacy deploy is redundant.
+      # This step re-verifies the smoke endpoints (mutation-free) and emits
+      # the same outputs the legacy step would, keeping the 14-chain's job
+      # graph (tests + PR comment) intact.
+      - name: Verify clone preview environment
+        if: inputs.mode == 'clone'
+        id: verify
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          chmod +x hosting/railway/oss/scripts/*.sh
+
+          # Same artifact contract as the legacy step: persist the full log so
+          # "Upload deploy log" publishes it regardless of live-log truncation.
+          log_file="${GITHUB_WORKSPACE:-$PWD}/railway-deploy-${PR_NUMBER:-unknown}.log"
+
+          set +e
+          hosting/railway/oss/scripts/preview-clone-create.sh --verify-only 2>&1 | tee "$log_file"
+          verify_status=${PIPESTATUS[0]}
+          set -e
+
+          status_label="Deployed"
+          [ "$verify_status" -ne 0 ] && status_label="Failed"
+          {
+            echo "### Railway Preview Deploy (clone mode)"
+            echo
+            echo "| Item | Value |"
+            echo "| --- | --- |"
+            echo "| PR | \`${PR_NUMBER}\` |"
+            echo "| Image tag | \`${IMAGE_TAG}\` |"
+            echo "| Status | ${status_label} |"
+            if [ "$verify_status" -ne 0 ]; then
+              echo
+              echo "<details><summary>Verify log (last 100 lines)</summary>"
+              echo
+              echo '```'
+              tail -n 100 "$log_file" 2>/dev/null
+              echo '```'
+              echo "</details>"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$verify_status"
+
       - name: Upload deploy log
         if: always()
         # Diagnostics only: a failed/duplicate upload must never fail the job.
@@ -229,17 +287,17 @@ jobs:
           retention-days: 7
 
       - name: Post preview URL as PR comment
-        if: inputs.pr_number != '' && steps.deploy.outputs.preview_url != ''
+        if: inputs.pr_number != '' && (steps.deploy.outputs.preview_url != '' || steps.verify.outputs.preview_url != '')
         uses: actions/github-script@v7
         with:
           script: |
             const prNumber = parseInt('${{ inputs.pr_number }}');
-            const previewUrl = '${{ steps.deploy.outputs.preview_url }}';
-            const projectName = '${{ steps.deploy.outputs.project_name }}';
+            const previewUrl = '${{ steps.deploy.outputs.preview_url || steps.verify.outputs.preview_url }}';
+            const projectName = '${{ steps.deploy.outputs.project_name || steps.verify.outputs.project_name }}';
             const imageTag = '${{ inputs.image_tag }}';
             const marker = '<!-- railway-preview-bot -->';
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const railwayLogsUrl = '${{ steps.deploy.outputs.railway_logs_url }}';
+            const railwayLogsUrl = '${{ steps.deploy.outputs.railway_logs_url || steps.verify.outputs.railway_logs_url }}';
 
             const body = [
               marker,
@@ -290,8 +348,8 @@ jobs:
             const imageTag = '${{ inputs.image_tag }}';
             const marker = '<!-- railway-preview-bot -->';
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const previewUrl = '${{ steps.deploy.outputs.preview_url }}';
-            const railwayLogsUrl = '${{ steps.deploy.outputs.railway_logs_url }}';
+            const previewUrl = '${{ steps.deploy.outputs.preview_url || steps.verify.outputs.preview_url }}';
+            const railwayLogsUrl = '${{ steps.deploy.outputs.railway_logs_url || steps.verify.outputs.railway_logs_url }}';
 
             const body = [
               marker,

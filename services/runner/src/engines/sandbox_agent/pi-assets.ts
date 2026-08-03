@@ -331,7 +331,6 @@ export function buildPiExtensionEnv(
     otlpAuthFilePath?: string;
     skills?: string[];
     builtinGatingActive?: boolean;
-    builtinGrants?: string[];
   } = {},
 ): Record<string, string> {
   const env: Record<string, string> = {};
@@ -364,12 +363,12 @@ export function buildPiExtensionEnv(
     if (responseWatch !== undefined)
       env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED = responseWatch;
   }
+  // Only reached for a Pi run (environment-setup gates on `plan.isPi`), and every Pi run
+  // activates all seven builtins.
+  env.AGENTA_AGENT_BUILTIN_ACTIVATION = "1";
   // Builtin gating needs no relay dir: the gate rides the extension's `ctx.ui.confirm`
   // dialog onto the ACP permission plane (Pi approval parking), not the file relay.
-  if (opts.builtinGatingActive) {
-    env.AGENTA_AGENT_BUILTIN_GATING = "1";
-    env.AGENTA_AGENT_BUILTIN_GRANTS = (opts.builtinGrants ?? []).join(",");
-  }
+  if (opts.builtinGatingActive) env.AGENTA_AGENT_BUILTIN_GATING = "1";
   if (opts.usageOutPath)
     env.AGENTA_AGENT_USAGE_CAPTURE_PATH = opts.usageOutPath;
   return env;

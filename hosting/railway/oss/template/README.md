@@ -1,0 +1,149 @@
+# Railway preview template (template-as-code)
+
+Per-PR preview environments on Railway are created by **cloning a template
+environment** (design: issue #5650; live proof:
+`docs/design/railway-preview-clone-spike/`). This directory makes that template
+code in the repo:
+
+- `template.json` — the full definition of the template environment: 13
+  services with images (tags parameterized), startCommands, restart policies,
+  volumes, healthcheck policy, deploy-ordering constraints, and every managed
+  variable by NAME. It contains **no secret values**.
+- `apply.sh` — idempotent converge of a live environment to the definition,
+  driving Railway's GraphQL API. `--dry-run` prints a structured diff and exits
+  nonzero (2) on drift; the default mode applies the delta.
+- `lib-graphql.sh` — the GraphQL client (redaction, bounded retries, call
+  accounting). Productionized copy of the spike client so this tooling stays
+  decoupled from `../scripts/` (the legacy per-PR path).
+- `.github/workflows/47-railway-template-drift.yml` — daily scheduled
+  `apply.sh --dry-run` against the template; fails loudly on drift.
+
+The template currently lives in project `agenta-oss-clone-spike`, environment
+`pr-template` (the rollout step re-points `project` in `template.json` —
+marked `TODO(WP3-project)`).
+
+## How to change the template
+
+Template changes are **pull requests**, exactly like DB migrations, and follow
+the same additive-first discipline:
+
+1. **Edit `template.json` in a PR.** Never hand-edit the template in the
+   Railway dashboard: the drift check will page on it, and hand-edits are not
+   reviewable or reproducible.
+2. **Order changes additive-first relative to code PRs.** A new variable or
+   service lands in the template *before* the code that requires it (old code
+   ignores the extra config); removal lands *after* no supported code path
+   needs it. This keeps every open PR's clone deployable throughout.
+3. **Test on a clone first.** Create a scratch clone of `pr-template` (or reuse
+   a preview clone), then converge *it* against your edited definition:
+
+   ```bash
+   hosting/railway/oss/template/apply.sh --env-name my-scratch-clone
+   ```
+
+   Deploy/smoke the clone before touching the template itself.
+4. **Apply on merge.** After the PR merges, run `apply.sh` (no flags) against
+   the template. Until this step runs, the daily drift check fails by design —
+   a merged-but-unapplied definition IS drift.
+5. **Drift check catches hand-edits.** Workflow 47 runs `--dry-run` daily.
+   When it fails: if the live change was accidental, run `apply.sh` to revert
+   it; if it was intentional, fold it into a PR that updates `template.json`,
+   merge, and the next run goes green.
+
+## Running apply locally
+
+```bash
+# Diff only (exit 0 clean / 2 drift / 1 error). Never mutates.
+hosting/railway/oss/template/apply.sh --dry-run
+
+# Converge the template to the committed definition.
+hosting/railway/oss/template/apply.sh
+
+# Converge a named environment (e.g. a scratch clone for testing a change).
+hosting/railway/oss/template/apply.sh --env-name my-scratch-clone
+
+# Override image tag parameters (see "Image tags" below).
+hosting/railway/oss/template/apply.sh --app-tag v0.108.0 --wrapper-tag <wp1-tag>
+```
+
+Auth: an **account** token in `RAILWAY_API_TOKEN` (auto-sourced from
+`~/.agenta-railway.env`; in CI, exported from `secrets.RAILWAY_TOKEN`). Never
+name the variable `RAILWAY_TOKEN` — the Railway CLI treats that name as
+project-scoped and account-level calls fail Unauthorized.
+
+Cost: a dry-run is ~18 API calls (instances + volumes in one query, plus one
+variables query per service) against the token's 1000/hour Hobby budget.
+
+## Image tags
+
+Two parameters in `template.json` (overridable via `--app-tag`/`--wrapper-tag`
+or `AGENTA_TEMPLATE_APP_TAG`/`AGENTA_PREVIEW_WRAPPER_TAG`):
+
+- `app_tag` — the four Agenta app images (`agenta-api`, `agenta-web`,
+  `agenta-services`, `agenta-runner`), pinned to a release tag. Clones patch
+  these to `pr-<n>-<sha>` tags per PR via `environmentPatchCommit`.
+- `wrapper_tag` — the three preview wrapper images
+  (`ghcr.io/agenta-ai/agenta-preview-{gateway,redis,seaweedfs}`, built by
+  workflow 42 / WP1). Placeholder default `spike` until WP1's content-addressed
+  tag is pinned (`TODO(WP1-tag)` in `template.json`).
+
+**Template tags must never be `latest` and never a `pr-*` tag.**
+`environmentPatchCommit` silently no-ops when a patched image:tag equals the
+template's, which strands a clone on template images (proven live; see
+findings.md "deploy-mode findings"). `apply.sh` refuses both.
+
+## Secrets and variable conventions
+
+`template.json` stores variables in three shapes:
+
+- **Reference values** (contain `${{...}}`) are per-environment-unique:
+  Railway re-resolves them inside every clone (e.g.
+  `https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}`, `${{Postgres.POSTGRES_PASSWORD}}`).
+- **Literal values** are shared, non-secret config (ports, internal URLs,
+  `AGENTA_LICENSE=oss`), byte-identical in template and clones.
+- **Secrets** appear as `{"secret": "NAME"}` referencing the top-level
+  `secrets` map, which declares only the *resolution*, never the value:
+  `from_env` (operator-provided env var wins) and `generate` (e.g.
+  `openssl-rand-hex-32`, `openssl-genpkey-rsa-2048`). At apply time a secret is
+  resolved only when a variable is missing live, preferring the value already
+  live on a sibling service (so shared secrets stay consistent), and is never
+  printed — diff output carries variable **names only**.
+
+`optionalVariables` lists names an operator may set without tripping the drift
+check (e.g. `POSTHOG_API_KEY`, `AGENTA_RUNNER_DAYTONA_*`). Any other
+undeclared variable is drift and is deleted by apply. Railway-injected
+`RAILWAY_*` variables are ignored unless explicitly declared (the definition
+declares `RAILWAY_RUN_UID/GID` on redis and
+`RAILWAY_DEPLOYMENT_DRAINING_SECONDS` on Postgres, which are user-set).
+
+## What apply will and will not do
+
+| Drift | dry-run | apply |
+|---|---|---|
+| Missing service | reported | `serviceCreate` (check-then-act + verify poll) |
+| Image mismatch | reported | `serviceInstanceUpdate` |
+| startCommand violation | reported | cleared with `""` (API fact: `null` is a no-op) or set |
+| Restart-policy mismatch | reported | `serviceInstanceUpdate` |
+| Missing variable | name reported | `variableCollectionUpsert` (skipDeploys, merge) |
+| Undeclared variable | name reported | `variableDelete` |
+| Missing volume | reported | `volumeCreate` (check-then-act) |
+| **Extra service / extra volume** | reported | **never deleted** — destructive; remove manually via a documented PR, then re-run |
+
+Apply changes **configuration only**; it never triggers deployments (template
+deployments are irrelevant to clones — clones copy config, not deployments).
+
+## Policy notes
+
+- **startCommand:** services whose image owns its entrypoint (Postgres,
+  supertokens, and the three wrapper images) must have it empty/unset. The
+  eight app services carry explicit startCommands because one image backs
+  several services (`agenta-api` alone backs api, worker-streams,
+  worker-queues, cron, alembic).
+- **Healthchecks:** unset on all services, matching the live-proven template
+  (10/10 green clone cycles). The legacy per-PR path (`../scripts/configure.sh`)
+  sets healthchecks on gateway/api/services/runner; adding them to the template
+  is a deliberate WP3 decision, not silent drift.
+- **Deploy order** (for anything deploying a fresh clone): infra
+  (Postgres/redis/seaweedfs) → alembic → everything else; supertokens must not
+  start before alembic has created its database. A single Postgres
+  first-deploy timeout in a fresh clone is retryable, not fatal.

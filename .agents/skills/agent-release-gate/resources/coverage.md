@@ -17,7 +17,24 @@ cells would test the same code twice.
 | C4 | `pi_core` | `daytona` | `gpt-5.6-luna` | vault key (OpenAI) | Pi in a cloud sandbox; the remote-mount path that surfaced the silent file-loss finding (F-7). |
 | P1 | `pi_core` | `local` | `openrouter/deepseek/deepseek-v4-flash` | vault key (OpenRouter) | OpenRouter as a first-class native provider. |
 | S1 | `pi_core` | `local` | `gpt-5.6-luna` | subscription (Codex OAuth) | The ChatGPT/Codex subscription path via the sidecar, independent of any vault key. |
+| X1 | `codex` | `local` | `gpt-5.6-luna` | vault key (OpenAI) | The native Codex harness with a managed key. Since the D-008 amendment (2026-07-31, patched bridge), Agenta-tool calls raise codex-native approval gates that park warm, and the `approve`/`deny` journeys RUN for codex with an MCP-shaped probe (the `list_connections` platform tool, per-tool `ask`) instead of the builtin-shell probe. Only `mcp` (Claude-only) and `mount` still SKIP (see below). |
 | P2 | `pi_core` | `local` | `deepseek/deepseek-v4-flash` | custom OpenAI-compatible provider | OpenRouter reached as a custom OpenAI-compatible endpoint — the path every self-hoster with a proxy or local vLLM uses, and the least-travelled one. Needs a `custom_provider` vault slug; pass `--custom-slug`. |
+
+The Codex cell (`X1`) runs `chat`, `tool`, `commit`, `warm`, `approve`, and `deny`; `mcp` SKIPs
+(Claude-only) and `mount` SKIPs with a codex-specific reason:
+
+- `approve` / `deny` RUN for codex with an MCP-shaped probe. The shared shell probe cannot park a
+  codex run — codex only raises exec (shell) approval when its filesystem sandbox is restricted,
+  and the default `agent-full-access` is not — but codex MCP/Agenta TOOL calls raise codex-native
+  `tool-approval-request` frames that park warm since the D-008 amendment (2026-07-31, the
+  patched codex-acp preset). So on codex the journey drives the self-contained
+  `list_connections` platform tool with per-tool `ask` instead of the `bash` builtin; the flow
+  and assertions are identical. Background QA:
+  `docs/design/codex-harness/reports/warm-approvals-qa.md` (driver:
+  `spike/scripts/codex-approval-matrix-qa.py`).
+- `mount` reads its token from a builtin-shell `tool-output-available` payload. Codex runs shell
+  through native ACP exec frames whose output is not in that payload field, so the probe cannot
+  extract the token even when the file persisted. A codex-shaped mount probe is a follow-up.
 
 The pinned models and connection modes are the gate's **fixtures**: each is chosen for a reason
 (alias vs full id on Claude, subscription vs vault where the sandbox forces it, a healthy provider
@@ -36,6 +53,14 @@ cell — keep them in sync if a cell changes.
 | `commit` | Save an agent config as a new workflow revision, then fetch it back. | The changed parameter survives the round trip and the version bumps (v0 seed → v1; see LESSONS #14). Harness-agnostic — it drives the config REST API, not a turn. |
 | `warm` | Run three turns, watch latency and the runner log. | Turns 2-3 are faster and the log confirms the session was genuinely **loaded**, not silently cold. |
 | `mcp` | Deliver an MCP server in the agent config and call one of its tools. | A `tool-output-available` frame fires for an `mcp__*` tool. **Claude only** — Pi rejects user MCP, so this `SKIP`s on every Pi cell. Uses the public DeepWiki server by default; override with `--mcp-url`. |
+| `rule_deny` | Policy `allow`, plus a `deny` rule for `Bash`. Ask for a bash command. | The model still attempts the call (the tool is not hidden), the call never executes, no approval card appears, and no real shell token reaches the reply. **Pi only.** |
+| `rule_allow` | Policy `ask`, plus an `allow` rule for `Bash`. Ask for the same command. | No approval card fires and the call executes — the rule overrode the policy. **Pi only.** |
+| `rule_case` | The same as `rule_allow` with the rule written `bash`. | Identical result: the runner matches built-in names case-insensitively. **Pi only.** |
+| `builtin_grep` | Policy `allow_reads`. Write a file with bash, then grep it. | A `grep` call executes with no approval card — grep is one of the three built-ins Pi does not activate on its own, and it is read-only, so it runs unattended. **Pi only.** |
+
+The four rule journeys are the only coverage of `harness.permissions`. Built-in tools are always
+active and are never listed in `tools`, so those three lists are the only lever over them: if they
+stop being honored, nothing else in the gate notices.
 
 Triggers are deliberately **out of scope** for this gate.
 

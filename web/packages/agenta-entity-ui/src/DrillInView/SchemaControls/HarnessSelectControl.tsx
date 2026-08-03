@@ -39,6 +39,7 @@ const HARNESS_META: Record<string, HarnessMeta> = {
     pi_core: {label: "Pi", short: "Pi", color: "#6b5bd6"},
     pi_agenta: {label: "Pi (Agenta)", short: "Ag", color: "#1c2c3d"},
     claude: {label: "Claude Code", short: "CC", color: "#d97757"},
+    codex: {label: "Codex", short: "Cx", color: "#10a37f"},
 }
 
 /**

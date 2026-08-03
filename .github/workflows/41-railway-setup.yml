@@ -12,6 +12,11 @@ on:
         required: false
         type: string
         default: ""
+      mode:
+        description: "Preview mode: 'legacy' (project per PR) or 'clone' (environment cloned from the template project; issue #5650)"
+        required: false
+        type: string
+        default: "legacy"
     secrets:
       RAILWAY_TOKEN:
         required: true
@@ -33,6 +38,11 @@ on:
         required: false
         type: string
         default: ""
+      mode:
+        description: "Preview mode: 'legacy' (project per PR) or 'clone' (environment cloned from the template project; issue #5650)"
+        required: false
+        type: string
+        default: "legacy"
 
 permissions:
   contents: read
@@ -48,12 +58,14 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     outputs:
-      project_name: ${{ steps.setup.outputs.project_name }}
-      environment_name: ${{ steps.setup.outputs.environment_name }}
+      # Exactly one of the two steps runs, selected by inputs.mode.
+      project_name: ${{ steps.setup.outputs.project_name || steps.clone.outputs.project_name }}
+      environment_name: ${{ steps.setup.outputs.environment_name || steps.clone.outputs.environment_name }}
     steps:
       - uses: actions/checkout@v6
 
       - name: Install Railway CLI
+        if: inputs.mode != 'clone'
         run: |
           npm install -g @railway/cli@latest
           railway --version
@@ -65,6 +77,7 @@ jobs:
           fi
 
       - name: Setup preview environment
+        if: inputs.mode != 'clone'
         id: setup
         env:
           PR_NUMBER: ${{ inputs.pr_number }}
@@ -100,6 +113,43 @@ jobs:
             exit "$setup_status"
           fi
 
+      # Clone mode (issue #5650): create-or-update the per-PR environment in
+      # the template project, patch the app images to this run's tag, wait for
+      # green, and smoke it — all in one script, pure GraphQL (no Railway
+      # CLI). The deploy workflow (43) then only re-verifies and posts the
+      # preview URL.
+      - name: Create or update clone preview environment
+        if: inputs.mode == 'clone'
+        id: clone
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          chmod +x hosting/railway/oss/scripts/*.sh
+
+          # Same artifact contract as the legacy step: persist the full log so
+          # "Upload setup log" publishes it regardless of live-log truncation.
+          log_file="${GITHUB_WORKSPACE:-$PWD}/railway-setup-${PR_NUMBER:-unknown}.log"
+
+          set +e
+          hosting/railway/oss/scripts/preview-clone-create.sh 2>&1 | tee "$log_file"
+          setup_status=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$setup_status" -ne 0 ]; then
+            {
+              echo "### Railway Preview Setup (clone mode) — Failed"
+              echo
+              echo "<details><summary>Setup log (last 100 lines)</summary>"
+              echo
+              echo '```'
+              tail -n 100 "$log_file" 2>/dev/null
+              echo '```'
+              echo "</details>"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$setup_status"
+          fi
+
       - name: Upload setup log
         if: always()
         # Diagnostics only: a failed/duplicate upload must never fail the job.
@@ -120,6 +170,7 @@ jobs:
             echo "| Item | Value |"
             echo "| --- | --- |"
             echo "| PR | \`${{ inputs.pr_number }}\` |"
-            echo "| Project | \`${{ steps.setup.outputs.project_name }}\` |"
-            echo "| Environment | \`${{ steps.setup.outputs.environment_name }}\` |"
+            echo "| Mode | \`${{ inputs.mode || 'legacy' }}\` |"
+            echo "| Project | \`${{ steps.setup.outputs.project_name || steps.clone.outputs.project_name }}\` |"
+            echo "| Environment | \`${{ steps.setup.outputs.environment_name || steps.clone.outputs.environment_name }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"

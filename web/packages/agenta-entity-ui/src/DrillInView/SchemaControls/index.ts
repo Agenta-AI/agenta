@@ -90,8 +90,8 @@ export type {SandboxPermissionControlProps} from "./SandboxPermissionControl"
 
 export {ClaudePermissionsControl} from "./ClaudePermissionsControl"
 export type {ClaudePermissionsControlProps} from "./ClaudePermissionsControl"
-export {PiSettingsControl} from "./PiSettingsControl"
-export type {PiSettingsControlProps} from "./PiSettingsControl"
+export {PiPermissionsControl} from "./PiPermissionsControl"
+export type {PiPermissionsControlProps} from "./PiPermissionsControl"
 
 export {AgentTemplateControl} from "./AgentTemplateControl"
 export type {AgentTemplateControlProps} from "./AgentTemplateControl"

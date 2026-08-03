@@ -91,8 +91,8 @@ ended" does NOT mean "the turn completed". Assert the reason.
 
 The sidecar rejects them: *"Code tools are not supported by the sidecar."* They only work against
 the in-process service — which is what the OLD driver (`run_matrix.py`) targets, and why copying
-its scenarios into a product-path test fails instantly. The product's real tool surface is
-`builtin` / `gateway` / `mcp`.
+its scenarios into a product-path test fails instantly. The product's real tool surface is the
+always-active harness built-ins plus `gateway` / `mcp`.
 
 ## 8. Gateway tools: discovery output is NOT config input, and the action has no prefix
 

@@ -83,6 +83,12 @@ class WireConnection(_WireModel):
     slug: Optional[str] = None
 
 
+class WireModelCapabilities(_WireModel):
+    """Resolved model capabilities supplied to the runner."""
+
+    input_modalities: Optional[List[str]] = Field(default=None, alias="inputModalities")
+
+
 class WireContentBlock(_WireModel):
     """One content block of a message (mirrors ``ContentBlock.to_wire``)."""
 
@@ -91,6 +97,9 @@ class WireContentBlock(_WireModel):
     data: Optional[str] = None
     mime_type: Optional[str] = Field(default=None, alias="mimeType")
     uri: Optional[str] = None
+    attachment_id: Optional[str] = Field(default=None, alias="attachmentId")
+    filename: Optional[str] = None
+    size: Optional[int] = None
     tool_call_id: Optional[str] = Field(default=None, alias="toolCallId")
     tool_name: Optional[str] = Field(default=None, alias="toolName")
     input: Optional[Any] = None
@@ -412,11 +421,15 @@ class WireRunRequest(_WireModel):
     # Model + connection. ``model`` stays a plain string; the structured provider/connection
     # fields ride alongside only when a resolved connection / model ref is present.
     model: Optional[str] = None
+    harness_mode: Optional[str] = Field(default=None, alias="harnessMode")
     provider: Optional[str] = None
     connection: Optional[WireConnection] = None
     deployment: Optional[str] = None
     endpoint: Optional[WireEndpoint] = None
     credential_mode: Optional[str] = Field(default=None, alias="credentialMode")
+    model_capabilities: Optional[WireModelCapabilities] = Field(
+        default=None, alias="modelCapabilities"
+    )
     # Turn.
     messages: Optional[List[WireChatMessage]] = None
     # Secrets injected as harness env (provider keys); never written to the agent filesystem.

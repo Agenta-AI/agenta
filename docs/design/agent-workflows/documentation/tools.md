@@ -30,7 +30,7 @@ shares two fields through `ToolConfigBase`, and then a `type` discriminator pick
 
 | Config (`type`) | Carries | Example use |
 | --- | --- | --- |
-| `builtin` | `name` | A harness-native tool such as Pi's `read` or `web_search`. |
+| `builtin` | `name` | Legacy, accepted and ignored. Pi's seven built-ins are always active and are never listed in `tools`; see [built-in tools](#built-in-tools-the-harness-runs-them-natively-gated-through-the-same-relay). |
 | `gateway` | `provider`, `integration`, `action`, `connection`, optional `name` | A Composio action, like `github__create_issue` on a connected account. |
 | `code` | `name`, `runtime` (`python`/`node`), `script`, `input_schema`, `secrets` | An inline snippet the author writes, with named vault secrets injected. |
 | `client` | `name`, `input_schema` | A tool the browser fulfils, like "ask the user to pick a date." |
@@ -94,7 +94,7 @@ because it is the seam between the two lives of a tool:
 
 | Declared `type` | Resolved form | Resolved `kind` |
 | --- | --- | --- |
-| `builtin` | a bare name in `builtin_names` | (none; not a spec) |
+| `builtin` | nothing (legacy, dropped with a warning) | (none; not a spec) |
 | `gateway` | `CallbackToolSpec` with a `call_ref` slug | `callback` |
 | `code` | `CodeToolSpec` with secrets in `env` | `code` |
 | `client` | `ClientToolSpec` | `client` |
@@ -103,8 +103,8 @@ because it is the seam between the two lives of a tool:
 
 The resolved specs are also defined in `tools/models.py` (`CallbackToolSpec`, `CodeToolSpec`,
 `ClientToolSpec`), and the matching TypeScript shape is `ResolvedToolSpec` in
-`services/agent/src/protocol.ts`. A run bundles them as a `ResolvedToolSet`: the built-in
-names, the list of specs, and one `ToolCallback` (the endpoint callback tools post back to).
+`services/agent/src/protocol.ts`. A run bundles them as a `ResolvedToolSet`: the list of specs
+and one `ToolCallback` (the endpoint callback tools post back to).
 
 ## How tools get resolved (the service side)
 
@@ -123,7 +123,8 @@ adapters plug in the Agenta-specific HTTP calls. The SDK never imports the servi
 
 Resolution runs per type:
 
-- **Builtin** passes straight through. The name lands in `builtin_names`. No network call.
+- **Builtin** is legacy: the entry is dropped with a warning and resolves to nothing. Built-in
+  tools are always active, so they need no configuration.
 - **Code** has its declared `secrets` looked up by name. The named-secret provider resolves
   them through `POST /secrets/resolve` (the platform adapter in
   `sdks/python/agenta/sdk/agents/platform/secrets.py`, re-exported by
@@ -395,11 +396,39 @@ verdict pauses the turn exactly like a relay tool does. The extension hook then 
 non-allow verdict to Pi's own `{ block: true }`, because Pi, not the runner, is the thing that
 would otherwise execute the call.
 
-The grant list (the wire `tools` field: the builtins an author selected) is enforced
-separately, at session start. The extension edits Pi's active tool set at
-`before_agent_start`, replacing only the builtin slice with the granted names and leaving
-every non-builtin tool untouched. A builtin outside the grant list is simply absent from the
-model's active tools, so no call for it ever fires, and the permission hook never sees it.
+Activation is separate from gating, and unconditional. At `before_agent_start` the extension
+replaces the builtin slice of Pi's active tool set with **every** builtin Pi implements —
+`read`, `bash`, `edit`, `write`, `grep`, `find`, `ls` — leaving every non-builtin tool untouched
+and in place. Pi on its own activates only the first four, so this is what makes `grep`, `find`
+and `ls` available to every Pi agent, and what makes Pi's system prompt list all seven
+(`setActiveToolsByName` rebuilds it).
+
+The canonical table is `PI_BUILTIN_TOOL_IDENTITY` in `services/runner/src/permission-plan.ts`,
+which also carries each builtin's canonical rule name (`Bash`) and its read-only flag. The Python
+mirror is `PI_BUILTIN_TOOL_NAMES` in `sdks/python/agenta/sdk/agents/pi_builtins.py`; the two are
+pinned against the shared golden fixture
+`sdks/python/oss/tests/pytest/unit/agents/golden/pi_builtin_tools.json`. The extension keeps a
+third copy of the names (it is bundled for the sandbox and cannot import the runner's table); the
+parity test pins that copy against the same fixture.
+
+Because activation is unconditional, the seven names are reserved. Pi registers custom tools in
+the same registry as its builtins, so a custom tool named `read` would replace the builtin `read`
+silently. `ToolResolver` refuses such a config with `ReservedToolNameError`, and the extension
+skips a colliding spec rather than registering it.
+
+The wire's `tools` field is deprecated. A current runner ignores it. The SDK still fills it with
+all seven names so a runner from before this change — which read it as a grant list — activates
+the same set.
+
+Being active is not the same as being allowed to run. Under the default permission mode
+`allow_reads`, a default agent runs the read-only builtins (`read`, `grep`, `find`, `ls`) without
+asking and raises an approval on every `bash`, `edit` and `write` call. To change that, write a
+rule into `harness.permissions.allow`, `.ask` or `.deny`; for these seven names the runner matches
+the rule case-insensitively.
+
+Revisions saved before this change still carry `{"type": "builtin", ...}` entries. They are
+accepted, ignored with a warning, and shown nowhere. Nothing repairs them, and nothing needs to:
+their agents run all seven builtins either way.
 
 ### External MCP servers: remote HTTP connections
 

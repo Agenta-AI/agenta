@@ -154,6 +154,19 @@ def test_resolved_connection_to_wire_excludes_env():
     }
 
 
+def test_resolved_connection_to_wire_emits_model_capabilities_when_set():
+    resolved = ResolvedConnection(
+        provider="openai",
+        model="gpt-5.5",
+        credential_mode="runtime_provided",
+        input_modalities=["text", "image"],
+    )
+
+    assert resolved.to_wire()["modelCapabilities"] == {
+        "inputModalities": ["text", "image"]
+    }
+
+
 def test_resolved_connection_to_wire_omits_endpoint_when_absent():
     resolved = ResolvedConnection(
         provider="openai",
@@ -162,6 +175,7 @@ def test_resolved_connection_to_wire_omits_endpoint_when_absent():
     )
     wire = resolved.to_wire()
     assert "endpoint" not in wire
+    assert "modelCapabilities" not in wire
     assert wire["credentialMode"] == "runtime_provided"
 
 

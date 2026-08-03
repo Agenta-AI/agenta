@@ -1,13 +1,12 @@
 """The Agenta harness's forced defaults: the things ``AgentaHarness`` always applies.
-(``ClaudeHarness`` shares the AGENTS.md preamble and forced platform skills; the persona and
-forced tools remain Pi-only — see :mod:`.harnesses`.)
+(``ClaudeHarness`` shares the AGENTS.md preamble and forced platform skills; the persona
+remains Pi-only — see :mod:`.harnesses`.)
 
 ``AgentaHarness`` is Pi with an opinion. It is the same engine as :class:`PiHarness`, but
 every run carries a fixed set of Agenta-shipped extras the author cannot turn off:
 
 - a base **persona** appended to Pi's system prompt (``AGENTA_FORCED_APPEND_SYSTEM``),
 - a base **AGENTS.md preamble** the author's instructions are appended to (``AGENTA_PREAMBLE``),
-- a set of **forced tools** (``AGENTA_FORCED_TOOLS``),
 - a set of **forced platform skills** (``AGENTA_FORCED_SKILLS``).
 
 The forced platform skills are the actually-forced part of "forced skills". The default agent
@@ -54,14 +53,6 @@ specific.
 AGENTA_FORCED_APPEND_SYSTEM = """\
 You are an Agenta agent. Be precise, cite what your tools and skills return, and do not
 fabricate results."""
-
-# Built-in tools the Agenta harness forces, unioned with the agent's resolved tools. These
-# grants are load-bearing on the wire: once ANY custom tool ships in ``request.tools``, the
-# runner flips Pi's builtin gating from "Pi defaults" to granted-only. So ``read`` and
-# ``bash`` must be granted explicitly wherever build-kit tools ship (e.g. the playground
-# overlay), or Pi loses them — skills are then announced but unloadable (``read`` loads
-# SKILL.md; ``bash`` runs skill helper scripts).
-AGENTA_FORCED_TOOLS: List[str] = ["read", "bash"]
 
 # Reserved slug of the platform default skill. The default agent config template embeds the
 # skill by this slug; the server-side StaticWorkflowCatalog resolves the slug to the
@@ -172,8 +163,12 @@ A list of tool entries, each discriminated on `type`. Every entry may also carry
 optional fields: `render` (a UI hint) and `permission` (`allow` / `ask` / `deny`, overriding the
 runner default for that one tool). The six `type` values:
 
-- `builtin` — a harness built-in: `{ "type": "builtin", "name": "read" }`. (A per-builtin
-  `permission` is dropped — builtins are granted by selection, not gated.)
+- `builtin` — legacy, accepted and ignored. The harness built-ins (`read`, `bash`, `edit`,
+  `write`, `grep`, `find`, `ls`) are always available and are never listed in `tools`, so do not
+  write a `{ "type": "builtin", "name": "..." }` entry. Whether a built-in call runs, asks, or is
+  refused comes from `runner.permissions.default` plus the `harness.permissions.allow` / `ask` /
+  `deny` rule lists. Those seven names are also reserved: no tool of any other type may take one,
+  and a config that does is refused.
 - `gateway` — a server-side gateway action (Composio). Do not hand-write it: run `discover_tools`
   and copy what it returns, adding the `connection` slug once the connection is ready.
   `{ "type": "gateway", "provider": "composio", "integration": "github",
@@ -237,10 +232,12 @@ the run:
 ## The execution parts (keep as-is unless asked)
 
 - `harness` — `{ "kind": "pi_core" | "pi_agenta" | "claude", "permissions": {...}, "extras":
-  {...} }`. `permissions` gates tool use on gating harnesses (Claude): `{ "default_mode":
-  "default"|"acceptEdits"|"plan"|"bypassPermissions", "allow": [...], "ask": [...], "deny":
-  [...] }`. Pi harnesses leave `permissions` empty and read prompt overrides (`system` /
-  `append_system`) from `extras`.
+  {...} }`. `permissions` is `{ "default_mode": "default"|"acceptEdits"|"plan"|
+  "bypassPermissions", "allow": [...], "ask": [...], "deny": [...] }`. The three rule lists name
+  tools that run without asking, that ask first, and that are never allowed to run; each entry is
+  a tool name (`Bash`) or a prefix pattern (`Bash(npm run:*)`), and they are how you control the
+  built-ins on every harness. `default_mode` applies to Claude only. Pi harnesses read prompt
+  overrides (`system` / `append_system`) from `extras`.
 - `runner` — `{ "kind": "sidecar", "permissions": { "default": "allow"|"ask"|"deny"|
   "allow_reads" }, "extras": {...} }`. `allow_reads` (the default) runs read-hinted tools and
   asks for everything else.
@@ -343,8 +340,8 @@ wholesale too, so include your existing entries (this example assumes the list w
 }
 ```
 
-Adding ONE gateway tool — `tools` replaces wholesale, so resend every entry you already have (the
-forced builtins, your existing platform ops, any `@ag.embed` tool) plus the new one. The gateway
+Adding ONE gateway tool — `tools` replaces wholesale, so resend every entry you already have (your
+existing platform ops, any `@ag.embed` tool) plus the new one. The gateway
 entry is copied from what `discover_tools` returned, with the `connection` slug filled in.
 CAVEAT: the list below is SHORTENED to keep the example readable — in a real commit, resend your
 ENTIRE current tools list, every entry you have, not this subset:
@@ -358,8 +355,6 @@ ENTIRE current tools list, every entry you have, not this subset:
         "parameters": {
           "agent": {
             "tools": [
-              { "type": "builtin", "name": "read" },
-              { "type": "builtin", "name": "bash" },
               { "type": "platform", "op": "discover_tools" },
               { "type": "platform", "op": "commit_revision" },
               { "type": "platform", "op": "test_run" },
@@ -769,18 +764,6 @@ def compose_append_system(user: Optional[str]) -> Optional[str]:
     """The ``append_system`` the harness ships: the forced base persona with the author's own
     ``append_system`` appended after it."""
     return _join(AGENTA_FORCED_APPEND_SYSTEM, user)
-
-
-def force_tools(builtin_tools: List[str]) -> List[str]:
-    """Union the resolved built-in tools with the forced set, order-stable and de-duplicated
-    (resolved tools first, then any forced tools not already present)."""
-    seen = set()
-    out: List[str] = []
-    for name in list(builtin_tools) + AGENTA_FORCED_TOOLS:
-        if name and name not in seen:
-            seen.add(name)
-            out.append(name)
-    return out
 
 
 def force_skills(skills: List[SkillTemplate]) -> List[SkillTemplate]:

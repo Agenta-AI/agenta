@@ -80,6 +80,7 @@ def test_request_schema_properties_equal_known_request_keys():
     [
         ("run_request.pi_core.json", WireRunRequest),
         ("run_request.claude.json", WireRunRequest),
+        ("run_request.attachment.json", WireRunRequest),
         ("run_result.ok.json", WireRunResult),
         ("run_result.error.json", WireRunResult),
     ],
@@ -96,6 +97,7 @@ def test_goldens_parse_into_the_wire_models(golden, golden_name, model):
     [
         ("run_request.pi_core.json", "run_request"),
         ("run_request.claude.json", "run_request"),
+        ("run_request.attachment.json", "run_request"),
         ("run_result.ok.json", "run_result"),
         ("run_result.error.json", "run_result"),
     ],

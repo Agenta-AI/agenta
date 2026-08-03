@@ -7,11 +7,16 @@ import {
   type HTMLAttributes,
 } from "react"
 
+import {type DroppedFile, readDroppedFiles} from "./dropEntries"
+
 /**
  * Drag-and-drop upload behaviour shared by the drive's tree and grid: highlight the folder under
  * the cursor, spring-load into it after a short hover (drill to a nested destination without
  * dropping), and upload on drop — into the hovered folder, or the current folder for a background
  * drop. The views wire the returned handler props onto folder targets and their container.
+ *
+ * Every drop reads its files through {@link readDroppedFiles}, which walks dropped directories into
+ * their contents; each file carries the path it should keep under the destination folder.
  */
 
 const SPRING_MS = 700
@@ -129,7 +134,7 @@ export function useDriveDrop({
 }: {
     /** False leaves the hook mounted but inert — no window listeners, nothing to hover. */
     enabled?: boolean
-    onUpload: (files: File[], folder: string) => void
+    onUpload: (files: DroppedFile[], folder: string) => void
     onNavigate: (folder: string) => void
 }): DriveDrop {
     const [dragging, setDragging] = useState(false)
@@ -254,7 +259,9 @@ export type FileDropProps = Partial<
 /**
  * Drop-to-STAGE: the lighter sibling of {@link useDriveDrop}
  */
-export function useStageDrop(onFiles: ((files: File[]) => void) | false | null | undefined): {
+export function useStageDrop(
+    onFiles: ((files: DroppedFile[]) => void) | false | null | undefined,
+): {
     dropActive: boolean
     dropProps: FileDropProps
 } {
