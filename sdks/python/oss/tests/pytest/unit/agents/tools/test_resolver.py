@@ -238,6 +238,62 @@ async def test_a_builtin_name_is_reserved_whatever_its_case(name):
         await ToolResolver().resolve([ClientToolConfig(name=name)])
 
 
+async def test_reserved_name_fails_fast_before_secret_lookup_and_adapter_calls():
+    # A reserved-named ``code`` tool that also declares a missing secret must fail up front
+    # with ReservedToolNameError (not MissingToolSecretError), and neither the secret
+    # provider nor any adapter resolver may be invoked.
+    secrets = DictSecretProvider({})
+    adapter_calls: list[str] = []
+
+    class RecordingGatewayResolver(FakeGatewayResolver):
+        async def resolve(self, tools):
+            adapter_calls.append("gateway")
+            return await super().resolve(tools)
+
+    with pytest.raises(ReservedToolNameError):
+        await ToolResolver(
+            secret_provider=secrets,
+            gateway_resolver=RecordingGatewayResolver(),
+        ).resolve(
+            [
+                CodeToolConfig(name="read", script="...", secrets=["TOKEN"]),
+                GatewayToolConfig(
+                    integration="github",
+                    action="GET_USER",
+                    connection="c1",
+                ),
+            ]
+        )
+
+    assert secrets.requests == []
+    assert adapter_calls == []
+
+
+async def test_reserved_gateway_name_fails_before_adapter_call():
+    # A gateway tool whose declared name collides with a built-in is rejected before the
+    # adapter resolver runs, so no adapter work happens for a payload that will be refused.
+    adapter_calls: list[str] = []
+
+    class RecordingGatewayResolver(FakeGatewayResolver):
+        async def resolve(self, tools):
+            adapter_calls.append("gateway")
+            return await super().resolve(tools)
+
+    with pytest.raises(ReservedToolNameError):
+        await ToolResolver(gateway_resolver=RecordingGatewayResolver()).resolve(
+            [
+                GatewayToolConfig(
+                    integration="github",
+                    action="GET_USER",
+                    connection="c1",
+                    name="read",
+                )
+            ]
+        )
+
+    assert adapter_calls == []
+
+
 async def test_a_bare_tool_name_string_is_ignored_too():
     # `coerce_tool_config` turns a bare string into a BuiltinToolConfig.
     resolved = await ToolResolver().resolve(coerce_tool_configs(["read"]))
