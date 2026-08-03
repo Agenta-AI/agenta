@@ -673,11 +673,36 @@ def _token_count(value) -> int:
         return 0
 
 
+# The incremental token buckets that carry a price. `total` is deliberately excluded: it
+# prices nothing on its own, so a bucket holding only a total is not a measurement this
+# path can turn into a cost.
+PRICEABLE_TOKEN_BUCKETS = ("prompt", "completion", "cache_read", "cache_creation")
+
+
+def _has_token_measurement(token_metrics: dict) -> bool:
+    """Whether the span reported a token count at all, as opposed to counting zero.
+
+    Missing and zero are different facts. A fully cached turn that reports `prompt = 0`
+    measured zero and is priceable; a span carrying no token bucket measured nothing.
+    """
+    return any(token_metrics.get(key) is not None for key in PRICEABLE_TOKEN_BUCKETS)
+
+
 # The providers litellm can price by name. A provider identity outside this set is a
 # customer's own connection slug, not a public catalog we can charge against.
 KNOWN_PRICING_PROVIDERS = frozenset(
     str(getattr(provider, "value", provider)).lower() for provider in provider_list
 )
+
+# Agenta provider identities litellm has no name for, each mapped to the litellm provider
+# whose published prices genuinely apply. An entry is a deliberate statement that this
+# identity always denotes a public catalog, never a customer's own deployment; every
+# identity absent from the map is treated as a custom connection and left unpriced.
+TRUSTED_PRICING_PROVIDERS: Dict[str, str] = {
+    # Pi's and codex's id for OpenAI's ChatGPT/Codex subscription. The models are OpenAI's
+    # own (gpt-5.x, served from chatgpt.com/backend-api), so OpenAI's list prices apply.
+    "openai-codex": "openai",
+}
 
 
 def _dict(node: dict, key: str) -> dict:
@@ -735,6 +760,18 @@ def _pricing_prompt_tokens(
     return uncached_input_tokens + cache_read_input_tokens + cache_creation_input_tokens
 
 
+def _is_priceable_provider(provider: str) -> bool:
+    """Whether a reported provider identity names a catalog litellm can price.
+
+    Resolving through the trusted map before the membership test is what makes each
+    trusted entry load-bearing: a value that is not itself a litellm provider fails the
+    test, so a typo withholds the estimate instead of silently granting public prices.
+    """
+    identity = provider.lower()
+
+    return TRUSTED_PRICING_PROVIDERS.get(identity, identity) in KNOWN_PRICING_PROVIDERS
+
+
 def _is_served_by_a_custom_connection(ag_meta: dict) -> bool:
     """Whether the span was served by something whose prices we cannot know.
 
@@ -744,6 +781,10 @@ def _is_served_by_a_custom_connection(ag_meta: dict) -> bool:
     survives as the provider attribute (the runner puts the slug in `gen_ai.system`),
     and third-party instrumentation additionally reports a base URL or endpoint for a
     self-hosted gateway. Either signal means no priceable identity exists.
+
+    A custom endpoint outranks a trusted provider identity: a gateway in front of a
+    public catalog charges its own prices, so the identity no longer implies the
+    catalog's.
     """
     request = _dict(ag_meta, "request")
     if _text(request.get("base_url")) or _text(request.get("endpoint")):
@@ -755,7 +796,7 @@ def _is_served_by_a_custom_connection(ag_meta: dict) -> bool:
         or _text(ag_meta.get("system"))
     )
 
-    return provider is not None and provider.lower() not in KNOWN_PRICING_PROVIDERS
+    return provider is not None and not _is_priceable_provider(provider)
 
 
 def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
@@ -770,28 +811,32 @@ def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
             ag_meta: dict = ag_attr.get("meta", {})
             ag_data: dict = ag_attr.get("data", {})
 
-            # The agent runner sets the response model only for codex; every other
-            # harness sets only the request model, so without that fallback those
-            # spans are never priced at all. The fallback is withheld from spans a
-            # custom connection served: a bare name we cannot attribute to a catalog
-            # would be priced confidently and wrongly, which is worse than no
-            # estimate. The response model is left alone, since the harnesses that
-            # set it (codex) also report a provider outside litellm's vocabulary.
-            request_model = (
+            # Every model name on the span is a bare id, so a custom connection
+            # disqualifies all of them equally: the Pi tracer stamps a response model on
+            # every assistant message, including one a customer's own connection served,
+            # so guarding only the request model would price that connection at public
+            # rates through the response model. A name we cannot attribute to a catalog
+            # is priced confidently and wrongly, which is worse than no estimate.
+            model = (
                 None
                 if _is_served_by_a_custom_connection(ag_meta)
-                else ag_meta.get("request", {}).get("model")
-            )
-
-            model = (
-                ag_meta.get("response", {}).get("model")
-                or request_model
-                or ag_data.get("parameters", {}).get("model")
+                else (
+                    ag_meta.get("response", {}).get("model")
+                    or ag_meta.get("request", {}).get("model")
+                    or ag_data.get("parameters", {}).get("model")
+                )
             )
 
             token_metrics: dict = (
                 ag_attr.get("metrics", {}).get("tokens", {}).get("incremental", {})
             )
+
+            # A span that reported no token count measured nothing. Estimating it anyway
+            # writes a zero-cost dictionary, and the presence of that dictionary is the
+            # `measured` signal the roll-up propagates, so every ancestor would claim the
+            # run was measured and free.
+            if not _has_token_measurement(token_metrics):
+                continue
 
             uncached_input_tokens = _token_count(token_metrics.get("prompt"))
             cache_read_input_tokens = _token_count(token_metrics.get("cache_read"))
