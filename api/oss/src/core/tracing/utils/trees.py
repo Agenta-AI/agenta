@@ -31,8 +31,8 @@ def calculate_and_propagate_metrics(
     """
     Calculate and propagate costs/tokens/errors for a list of span DTOs.
 
-    This must be called BEFORE batching to ensure complete trace trees.
-    If called after batching, partial traces will fail to propagate correctly.
+    Roll-up is batch-local: a span only ever sums the children present in this call,
+    so totals are complete only when the whole trace is passed in.
 
     Args:
         span_dtos: List of span DTOs (should be from a complete trace)
@@ -175,19 +175,39 @@ def promote_identity_by_trace(
 def parse_span_idx_to_span_id_tree(
     span_idx: Dict[str, OTelFlatSpan],
 ) -> OrderedDict:
-    span_id_tree = OrderedDict()
-    index = {}
+    """
+    Build the forest of span trees for one batch of spans.
 
-    def push(span_dto: OTelFlatSpan) -> None:
-        if span_dto.parent_id is None:
-            span_id_tree[span_dto.span_id] = OrderedDict()
-            index[span_dto.span_id] = span_id_tree[span_dto.span_id]
-        elif span_dto.parent_id in index:
-            index[span_dto.parent_id][span_dto.span_id] = OrderedDict()
-            index[span_dto.span_id] = index[span_dto.parent_id][span_dto.span_id]
+    A span whose parent is missing from the batch is a root here: a trace is split
+    across OTLP requests (the agent runner ships its own subtree, headed by a span
+    whose parent lives in the SDK's request), so a dangling parent id means "not in
+    this batch", not "no parent". Without this, such a batch yields an empty tree and
+    nothing is cumulated. Roll-up stays batch-local; it never crosses requests.
+
+    Every span has at most one parent and every parent is expanded at most once, so
+    each span appears at most once in the forest. Spans in a parent cycle are reachable
+    from no root and are simply left out.
+    """
+    span_id_tree = OrderedDict()
+    children_by_parent_id: Dict[str, List[OTelFlatSpan]] = {}
+    roots: List[OTelFlatSpan] = []
 
     for span_dto in sorted(span_idx.values(), key=lambda span_dto: span_dto.start_time):
-        push(span_dto)
+        if span_dto.parent_id is None or span_dto.parent_id not in span_idx:
+            roots.append(span_dto)
+        else:
+            children_by_parent_id.setdefault(span_dto.parent_id, []).append(span_dto)
+
+    stack = [(span_dto, span_id_tree) for span_dto in reversed(roots)]
+
+    while stack:
+        span_dto, siblings = stack.pop()
+
+        children = OrderedDict()
+        siblings[span_dto.span_id] = children
+
+        for child_span_dto in reversed(children_by_parent_id.get(span_dto.span_id, [])):
+            stack.append((child_span_dto, children))
 
     return span_id_tree
 
@@ -314,6 +334,14 @@ def cumulate_costs(
     def _set_cumulative(span: OTelFlatSpan, costs: dict):
         if span.attributes is None:
             span.attributes = {}
+
+        # A cumulative total already on the span was reported by the producer (an
+        # agent harness's gen_ai.usage.cost, mapped at ingest) and is the billed
+        # aggregate for this subtree. Child costs recomputed from token counts
+        # re-estimate the same spend, so overwriting here would swap a billed figure
+        # for a lossier one. The roll-up only fills spans that report nothing.
+        if _get_cumulative(span).get("total", 0.0) != 0.0:
+            return
 
         if (
             costs.get("prompt", 0.0) != 0.0
