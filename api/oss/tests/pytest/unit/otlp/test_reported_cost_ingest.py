@@ -150,7 +150,7 @@ def test_reported_cost_becomes_cumulative_total_after_ingest():
 def test_reported_cost_survives_rollup_when_no_model_span_is_priceable(
     fixed_token_pricing,
 ):
-    # The roll-up writes `cumulative` only when it computes a non-zero total, so an
+    # The roll-up writes `cumulative` only for a subtree that measured something, so an
     # agent run whose model spans price to nothing must keep the reported figure.
     span_idx = _ingest(
         [
@@ -185,29 +185,36 @@ def test_reported_cost_wins_over_recomputed_child_costs(fixed_token_pricing):
     assert _cumulative_costs(model_span)["total"] == pytest.approx(0.00021)
 
 
-def test_reported_cost_propagates_to_an_ancestor_that_reports_nothing(
+def test_reported_cost_is_carried_by_the_agent_span_across_ingest_batches(
     fixed_token_pricing,
 ):
-    # The SDK's workflow root does not always report a cost; it must still show the
-    # agent subtree's, which is what the trace list and playground read.
-    root = _otel_span(
-        span_id=ROOT_SPAN_ID,
-        span_name="workflow",
-        attributes={"ag.type.node": "workflow"},
-    )
-    span_idx = _ingest(
+    """The real topology: the SDK and the runner ship this trace in two OTLP requests.
+
+    Roll-up is per request (`TracingService.ingest_span_dtos` calls it on the batch it
+    was handed), so no batch ever holds both the workflow root and the runner subtree.
+    What this pins is therefore the opposite of a single-batch test: the reported cost
+    settles on the agent span, which is the *root of its own batch*, and the workflow
+    root gets no cost at ingest. Anything that needs a whole-trace total has to
+    aggregate stored spans; it cannot expect the roll-up to have crossed the requests.
+    """
+    sdk_batch = _ingest(
         [
-            root,
+            _otel_span(
+                span_id=ROOT_SPAN_ID,
+                span_name="workflow",
+                attributes={"ag.type.node": "workflow"},
+            )
+        ]
+    )
+    runner_batch = _ingest(
+        [
             _agent_span(parent_id=ROOT_SPAN_ID, start_offset_s=1),
             _unpriceable_model_span(parent_id=AGENT_SPAN_ID, start_offset_s=2),
         ]
     )
 
-    root_span = span_idx["workflow"]
-    agent_span = span_idx["invoke_agent"]
-
-    assert _cumulative_costs(root_span)["total"] == 0.4237
-    assert _cumulative_costs(agent_span)["total"] == 0.4237
+    assert _cumulative_costs(sdk_batch["workflow"]) == {}
+    assert _cumulative_costs(runner_batch["invoke_agent"])["total"] == 0.4237
 
 
 def test_reported_cost_is_not_double_counted_when_parent_and_child_both_report():

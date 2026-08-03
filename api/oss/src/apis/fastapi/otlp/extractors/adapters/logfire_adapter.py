@@ -193,6 +193,14 @@ GENAI_SEMCONV_ATTRIBUTES_EXACT: List[Tuple[str, str]] = [
         "gen_ai.usage.cache_creation.input_tokens",
         "ag.metrics.unit.tokens.cache_creation",
     ),
+    # Producer marker for how `gen_ai.usage.input_tokens` counts cached tokens. The
+    # OpenTelemetry contract says it includes them, which is what cost estimation
+    # assumes when this is absent; a producer whose count excludes them (the Agenta
+    # agent runner, which reports the cache buckets separately) sends false.
+    (
+        "agenta.usage.input_tokens_includes_cache",
+        "ag.meta.usage.input_tokens_includes_cache",
+    ),
     # Producer-reported cost. This is the aggregate total for the span's whole run
     # (see the agent SDK's record_usage), so it maps to `cumulative`, not
     # `incremental`: as an incremental value the tree roll-up would add it on top of
