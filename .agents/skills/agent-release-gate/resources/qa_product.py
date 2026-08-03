@@ -1127,19 +1127,27 @@ def _continuity(cell: dict, tier: str) -> dict:
     ok = cwd_back and not t_last.errors and (store_back is not False)
 
     if tier == "park":
-        # A reconnect and a recreate BOTH answer, both return the token, and both look identical
-        # in the reply. The ledger is what tells them apart: reconnecting keeps the sandbox and
-        # rebuilds only the harness session, so exactly one sandbox id across the turns and more
-        # than one harness session. If a second sandbox id appears, the runner threw the parked
-        # sandbox away and cold-created — which may still serve the user, but it did not test
-        # what this tier exists to test, so it cannot be reported as a pass.
+        # A reconnect and a rebuild BOTH answer and both return the token, so the reply cannot
+        # tell them apart. The SANDBOX ID can: reconnecting to a parked sandbox keeps it, while a
+        # rebuild creates a new one. `cold1` on the same deployment reports two sandbox ids for
+        # exactly that reason, which is what makes one id here meaningful rather than assumed.
+        #
+        # The harness session id deliberately does NOT change, and an earlier version of this
+        # check wrongly required that it did. Preserving it across a rebuilt session is the entire
+        # job of the runner's session-continuity store, so demanding a new one asserted the
+        # opposite of the intended behaviour and failed a correct product.
+        #
+        # What this tier cannot separate from the client alone is "parked and reconnected" versus
+        # "still pooled and served warm", since both keep the sandbox. The transition handles that
+        # by construction: it idles well past the pool TTL, so the session cannot still be pooled.
+        # The definitive witness stays the runner log line quoted in the evidence.
         #
         # An empty ledger is missing evidence, not evidence of success, exactly as in `warm`.
         ledger_available = bool(agents or sandboxes)
-        reconnected = len(sandboxes) == 1 and len(agents) > 1
+        same_sandbox = len(sandboxes) == 1
         evidence["ledger_available"] = ledger_available
-        evidence["reconnected_same_sandbox"] = reconnected
-        ok = ok and ledger_available and reconnected
+        evidence["reconnected_same_sandbox"] = same_sandbox
+        ok = ok and ledger_available and same_sandbox
 
     if tier == "warm":
         # A warm continuation cannot have rebuilt the harness session or the sandbox. More than
@@ -1173,9 +1181,10 @@ def _continuity(cell: dict, tier: str) -> dict:
             f"ever existed as an object (store-only file readable={store_back})"
         ),
         "park": (
-            f"park: the session idled out and the sandbox was PARKED, then the next turn "
-            f"reconnected to it (same sandbox across turns="
-            f"{evidence.get('reconnected_same_sandbox')}); the cwd token came back "
+            f"park: the session idled past the pool TTL so the sandbox was PARKED, and the next "
+            f"turn reconnected to the SAME sandbox rather than rebuilding one "
+            f"(same sandbox across turns={evidence.get('reconnected_same_sandbox')}, versus two "
+            f"sandbox ids on cold1); the cwd token came back "
             f"(in reply={cwd_back}) and the store-only file was readable ({store_back})"
             + (
                 ". On Daytona this is the one tier that proves a credential Secret still "
