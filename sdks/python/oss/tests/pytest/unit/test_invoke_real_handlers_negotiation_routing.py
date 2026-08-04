@@ -28,14 +28,14 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from types import SimpleNamespace
-from typing import Any, AsyncIterator, Dict, List, Optional
+from typing import Any, AsyncIterator, Callable, Dict, List, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from agenta.sdk.agents import AgentResult, HarnessKind
+from agenta.sdk.agents import AgentResult, AgentTemplate, HarnessKind
 from agenta.sdk.agents.dtos import Event
 from agenta.sdk.agents.handler import AgentComposition, make_agent_handler
 from agenta.sdk.agents.interfaces import Backend, Sandbox, Session
@@ -152,7 +152,12 @@ class _FakeBackend(Backend):
         )
 
 
-def _agent_client(*, text: str = "hello world") -> TestClient:
+def _agent_client(
+    *,
+    text: str = "hello world",
+    default_template: Optional[Callable[[], AgentTemplate]] = None,
+    raise_server_exceptions: bool = True,
+) -> TestClient:
     backend = _FakeBackend(events=_events_for(text), output=text)
 
     async def _no_connection(*, model, context) -> ResolvedConnection:
@@ -164,6 +169,8 @@ def _agent_client(*, text: str = "hello world") -> TestClient:
         select_backend=lambda template: backend,
         resolve_connection=_no_connection,
     )
+    if default_template is not None:
+        composition.default_template = default_template
     handler = make_agent_handler(composition)
     handler.__name__ = "agent_v0_under_test"
 
@@ -175,7 +182,7 @@ def _agent_client(*, text: str = "hello world") -> TestClient:
         return await call_next(request)
 
     route("/", app=app)(handler)
-    return TestClient(app)
+    return TestClient(app, raise_server_exceptions=raise_server_exceptions)
 
 
 def _post_agent(client, *, headers=None, flags=None, parameters=None):
@@ -276,6 +283,20 @@ def test_agent_v0_invalid_self_managed_connection_returns_422():
     status = resp.json()["status"]
     assert status["type"].endswith("#v0:agent:invalid-template")
     assert "self_managed' must not carry a 'slug'" in status["message"]
+
+
+def test_agent_v0_invalid_composition_default_remains_500():
+    def _invalid_default_template() -> AgentTemplate:
+        return AgentTemplate.model_validate({"permission_default": "invalid"})
+
+    resp = _post_agent(
+        _agent_client(
+            default_template=_invalid_default_template,
+            raise_server_exceptions=False,
+        )
+    )
+
+    assert resp.status_code == 500
 
 
 # llm_v0: batch-only. json/absent Accept OK; stream Accept -> 406 (symmetry).

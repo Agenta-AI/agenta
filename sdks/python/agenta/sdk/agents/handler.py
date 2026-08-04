@@ -234,10 +234,9 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
         session_id = request.session_id
 
         params = parameters or {}
+        defaults = comp.default_template()
         try:
-            agent_template = AgentTemplate.from_params(
-                params, defaults=comp.default_template()
-            )
+            agent_template = AgentTemplate.from_params(params, defaults=defaults)
         except ValidationError as exc:
             raise AgentTemplateValidationError(str(exc)) from exc
 
