@@ -1,5 +1,17 @@
 [
     {
+        "id": "changelog-2026-08-04-api-keys-hidden-from-agent-sandboxes",
+        "title": "API Keys Hidden from Sandboxes",
+        "description": "Agents in a cloud sandbox now see a placeholder instead of your provider API keys.",
+        "link": "https://agenta.ai/docs/changelog/api-keys-hidden-from-agent-sandboxes"
+    },
+    {
+        "id": "changelog-2026-08-03-codex-harness",
+        "title": "Codex Harness",
+        "description": "Run your agents on Codex, alongside Claude Code and Pi. Five OpenAI models, local or cloud sandbox.",
+        "link": "https://agenta.ai/docs/changelog/codex-harness"
+    },
+    {
         "id": "changelog-2026-06-05-dark-mode",
         "title": "Dark Mode",
         "description": "Agenta now has a dark theme. Switch between light, dark, and system from the top bar.",

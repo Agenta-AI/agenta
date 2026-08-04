@@ -19,6 +19,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
+import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../src/extensions/model-provider-override.ts";
 import {
   buildPiExtensionEnv,
   configurePiSkillSnapshot,
@@ -55,7 +56,7 @@ describe("Pi session workspace", () => {
 
     const env: Record<string, string> = {};
     const sessionDir = configurePiSessionWorkspace(
-      { isPi: true, cwd: "/work/session-1" },
+      { isPi: true, workspace: { cwd: "/work/session-1" } },
       env,
     );
 
@@ -70,7 +71,10 @@ describe("Pi session workspace", () => {
     const env: Record<string, string> = {};
 
     assert.equal(
-      configurePiSessionWorkspace({ isPi: false, cwd: "/work/session-1" }, env),
+      configurePiSessionWorkspace(
+        { isPi: false, workspace: { cwd: "/work/session-1" } },
+        env,
+      ),
       undefined,
     );
     assert.equal(env.PI_CODING_AGENT_SESSION_DIR, undefined);
@@ -91,6 +95,76 @@ afterEach(() => {
 });
 
 describe("buildPiExtensionEnv", () => {
+  it("carries only public provider endpoint config for Pi", () => {
+    const request = {
+      modelConnection: {
+        provider: "anthropic",
+        deployment: "claude-sonnet-4-5",
+        endpoint: {
+          baseUrl: "https://proxy.example.test/anthropic",
+          headers: { Authorization: "Bearer do-not-expose" },
+        },
+        credentialMode: "env",
+        environment: { PUBLIC_HINT: "not-needed-by-extension" },
+        credentials: [
+          {
+            binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+            value: "secret-model-key",
+            usage: "local_use",
+          },
+        ],
+      },
+    } as AgentRunRequest;
+
+    const env = buildPiExtensionEnv(request, false);
+
+    assert.deepEqual(JSON.parse(env[PI_MODEL_PROVIDER_OVERRIDE_ENV]), {
+      provider: "anthropic",
+      baseUrl: "https://proxy.example.test/anthropic",
+    });
+    assert.equal(JSON.stringify(env).includes("do-not-expose"), false);
+    assert.equal(JSON.stringify(env).includes("secret-model-key"), false);
+    assert.equal(JSON.stringify(env).includes("PUBLIC_HINT"), false);
+  });
+
+  it("rejects malformed provider endpoint overrides", () => {
+    const request = (provider: string, baseUrl: string) =>
+      ({
+        modelConnection: {
+          provider,
+          deployment: "model",
+          endpoint: { baseUrl },
+          credentialMode: "none",
+          credentials: [],
+        },
+      }) as AgentRunRequest;
+
+    assert.throws(
+      () =>
+        buildPiExtensionEnv(
+          request("bad/provider", "https://proxy.example.test"),
+          false,
+        ),
+      /invalid provider/,
+    );
+    assert.throws(
+      () =>
+        buildPiExtensionEnv(
+          request("anthropic", "http://proxy.example.test"),
+          false,
+        ),
+      /must be an HTTPS URL/,
+    );
+    assert.throws(
+      () =>
+        buildPiExtensionEnv(
+          request("anthropic", "https://user:pass@proxy.example.test"),
+          false,
+        ),
+      /without credentials/,
+    );
+  });
+
   it("exposes tracing, usage, and public tool metadata only", () => {
     const request = {
       context: {
@@ -198,6 +272,7 @@ describe("buildPiExtensionEnv", () => {
     assert.equal(env.TRACEPARENT, undefined);
     assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
+    assert.equal(env[PI_MODEL_PROVIDER_OVERRIDE_ENV], undefined);
   });
 
   it("sets builtin gating env WITHOUT a relay dir (the gate rides the ACP dialog plane)", () => {
@@ -471,11 +546,16 @@ describe("prepareLocalPiAssets (managed/none routes through a throwaway dir)", (
   const plainPiPlan = {
     isPi: true,
     isDaytona: false,
-    skillDirs: [],
-    hasSystemPrompt: false,
-    systemPrompt: undefined,
-    appendSystemPrompt: undefined,
-    sourcePiAgentDir: "/unused",
+    credentials: {},
+    workspace: {
+      skillDirs: [],
+      sourcePiAgentDir: "/unused",
+    },
+    prompt: {
+      hasSystemPrompt: false,
+      systemPrompt: undefined,
+      appendSystemPrompt: undefined,
+    },
   };
 
   it("installs the extension into a per-run temp dir it owns, independent of PI_CODING_AGENT_DIR", () => {
@@ -532,7 +612,10 @@ describe("prepareLocalPiAssets (managed/none routes through a throwaway dir)", (
     writeFileSync(join(source, "auth.json"), '{"token":"managed"}', "utf-8");
 
     const { dir: runDir } = prepareLocalPiAssets({
-      plan: { ...plainPiPlan, sourcePiAgentDir: source },
+      plan: {
+        ...plainPiPlan,
+        workspace: { ...plainPiPlan.workspace, sourcePiAgentDir: source },
+      },
       env: {},
     });
     assert.ok(runDir);
@@ -550,7 +633,10 @@ describe("prepareLocalPiAssets (managed/none routes through a throwaway dir)", (
     const env: Record<string, string> = {};
 
     const { dir: runDir, modelConfigWritten } = prepareLocalPiAssets({
-      plan: { ...plainPiPlan, sourcePiAgentDir: source },
+      plan: {
+        ...plainPiPlan,
+        workspace: { ...plainPiPlan.workspace, sourcePiAgentDir: source },
+      },
       env,
       piModelConfig: MODEL_CONFIG_PLAN,
     });
@@ -588,8 +674,10 @@ describe("Pi skill snapshots", () => {
 
     const first = resolvePiSkillSnapshot({
       isPi: true,
-      cwd,
-      skillDirs: [{ name: "release-notes", dir: skill }],
+      workspace: {
+        cwd,
+        skillDirs: [{ name: "release-notes", dir: skill }],
+      },
     });
     assert.ok(first);
     assert.match(first.dir, new RegExp(`${cwd}/agents/skills/[a-f0-9]{64}$`));
@@ -614,8 +702,10 @@ describe("Pi skill snapshots", () => {
     writeFileSync(join(skill, "SKILL.md"), "second", "utf-8");
     const second = resolvePiSkillSnapshot({
       isPi: true,
-      cwd,
-      skillDirs: [{ name: "release-notes", dir: skill }],
+      workspace: {
+        cwd,
+        skillDirs: [{ name: "release-notes", dir: skill }],
+      },
     });
     assert.ok(second);
     assert.notEqual(second.dir, first.dir);
@@ -633,8 +723,10 @@ describe("Pi skill snapshots", () => {
     writeFileSync(join(skill, "SKILL.md"), "skill", "utf-8");
     const snapshot = resolvePiSkillSnapshot({
       isPi: true,
-      cwd,
-      skillDirs: [{ name: "release-notes", dir: skill }],
+      workspace: {
+        cwd,
+        skillDirs: [{ name: "release-notes", dir: skill }],
+      },
     });
     assert.ok(snapshot);
     mkdirSync(snapshot.dir, { recursive: true });
@@ -652,11 +744,17 @@ describe("Pi skill snapshots", () => {
 
   it("does not configure snapshots for non-Pi or empty-skill runs", () => {
     assert.equal(
-      resolvePiSkillSnapshot({ isPi: false, cwd: "/work", skillDirs: [] }),
+      resolvePiSkillSnapshot({
+        isPi: false,
+        workspace: { cwd: "/work", skillDirs: [] },
+      }),
       undefined,
     );
     assert.equal(
-      resolvePiSkillSnapshot({ isPi: true, cwd: "/work", skillDirs: [] }),
+      resolvePiSkillSnapshot({
+        isPi: true,
+        workspace: { cwd: "/work", skillDirs: [] },
+      }),
       undefined,
     );
     const env: Record<string, string> = {};
@@ -674,17 +772,29 @@ describe("Pi skill snapshots", () => {
 describe("prepareLocalPiAssets (runtime_provided runs out of the mount, read-write)", () => {
   const subscriptionPlan = (
     mount: string,
-    over: Record<string, unknown> = {},
+    over: {
+      credentials?: Record<string, unknown>;
+      workspace?: Record<string, unknown>;
+      prompt?: Record<string, unknown>;
+    } = {},
   ) => ({
     isPi: true,
     isDaytona: false,
-    credentialMode: "runtime_provided",
-    skillDirs: [],
-    hasSystemPrompt: false,
-    systemPrompt: undefined,
-    appendSystemPrompt: undefined,
-    sourcePiAgentDir: mount,
-    ...over,
+    credentials: {
+      credentialMode: "runtime_provided",
+      ...over.credentials,
+    },
+    workspace: {
+      skillDirs: [],
+      sourcePiAgentDir: mount,
+      ...over.workspace,
+    },
+    prompt: {
+      hasSystemPrompt: false,
+      systemPrompt: undefined,
+      appendSystemPrompt: undefined,
+      ...over.prompt,
+    },
   });
 
   it("points PI_CODING_AGENT_DIR at the mount itself, not at a per-run copy", () => {
@@ -711,9 +821,8 @@ describe("prepareLocalPiAssets (runtime_provided runs out of the mount, read-wri
 
     const { dir: runDir } = prepareLocalPiAssets({
       plan: subscriptionPlan(mount, {
-        skillDirs: [],
-        hasSystemPrompt: true,
-        appendSystemPrompt: "extra",
+        workspace: { skillDirs: [] },
+        prompt: { hasSystemPrompt: true, appendSystemPrompt: "extra" },
       }) as never,
       env: {},
     });
@@ -730,9 +839,8 @@ describe("prepareLocalPiAssets (runtime_provided runs out of the mount, read-wri
 
     const { dir: runDir } = prepareLocalPiAssets({
       plan: subscriptionPlan(source, {
-        credentialMode: "env",
-        hasSystemPrompt: true,
-        appendSystemPrompt: "extra",
+        credentials: { credentialMode: "env" },
+        prompt: { hasSystemPrompt: true, appendSystemPrompt: "extra" },
       }) as never,
       env,
     });
@@ -745,6 +853,7 @@ describe("prepareLocalPiAssets (runtime_provided runs out of the mount, read-wri
     assert.equal(env.PI_CODING_AGENT_DIR, runDir);
     dirs.push(runDir as string);
   });
+
 });
 
 describe("sandbox uploads", () => {
@@ -781,8 +890,10 @@ describe("sandbox uploads", () => {
     writeFileSync(join(skill, "SKILL.md"), "skill", "utf-8");
     const snapshot = resolvePiSkillSnapshot({
       isPi: true,
-      cwd: "/workspace",
-      skillDirs: [{ name: "release-notes", dir: skill }],
+      workspace: {
+        cwd: "/workspace",
+        skillDirs: [{ name: "release-notes", dir: skill }],
+      },
     });
     assert.ok(snapshot);
 

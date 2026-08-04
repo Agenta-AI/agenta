@@ -42,13 +42,19 @@ describe("prepareWorkspace", () => {
       sandbox: {},
       plan: {
         isDaytona: false,
-        cwd,
-        relayDir: join(cwd, ".agenta-tools"),
-        useToolRelay: false,
-        agentsMd: "agent instructions",
         acpAgent: "claude",
         isPi: false,
-        skillDirs: [],
+        workspace: {
+          cwd,
+          relayDir: join(cwd, ".agenta-tools"),
+          skillDirs: [],
+        },
+        tools: {
+          useToolRelay: false,
+        },
+        prompt: {
+          agentsMd: "agent instructions",
+        },
       },
     });
 
@@ -68,13 +74,19 @@ describe("prepareWorkspace", () => {
       sandbox: {},
       plan: {
         isDaytona: false,
-        cwd,
-        relayDir: join(cwd, ".agenta-tools"),
-        useToolRelay: true,
-        agentsMd: "agent instructions",
         acpAgent: "pi",
         isPi: true,
-        skillDirs: [],
+        workspace: {
+          cwd,
+          relayDir: join(cwd, ".agenta-tools"),
+          skillDirs: [],
+        },
+        tools: {
+          useToolRelay: true,
+        },
+        prompt: {
+          agentsMd: "agent instructions",
+        },
       },
     });
 
@@ -102,13 +114,19 @@ describe("prepareWorkspace", () => {
       sandbox: {},
       plan: {
         isDaytona: false,
-        cwd,
-        relayDir,
-        useToolRelay: true,
-        agentsMd: "agent instructions",
         acpAgent: "pi",
         isPi: true,
-        skillDirs: [],
+        workspace: {
+          cwd,
+          relayDir,
+          skillDirs: [],
+        },
+        tools: {
+          useToolRelay: true,
+        },
+        prompt: {
+          agentsMd: "agent instructions",
+        },
       },
     });
 
@@ -138,13 +156,19 @@ describe("prepareWorkspace", () => {
       sandbox,
       plan: {
         isDaytona: true,
-        cwd: "/home/sandbox/agenta-fixed",
-        relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
-        useToolRelay: true,
-        agentsMd: "agent instructions",
         acpAgent: "pi",
         isPi: true,
-        skillDirs: [],
+        workspace: {
+          cwd: "/home/sandbox/agenta-fixed",
+          relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
+          skillDirs: [],
+        },
+        tools: {
+          useToolRelay: true,
+        },
+        prompt: {
+          agentsMd: "agent instructions",
+        },
       },
     });
 
@@ -178,13 +202,19 @@ describe("prepareWorkspace", () => {
       sandbox: {},
       plan: {
         isDaytona: false,
-        cwd,
-        relayDir: join(cwd, ".agenta-tools"),
-        useToolRelay: false,
-        agentsMd: "agent instructions",
         acpAgent: "claude",
         isPi: false,
-        skillDirs: [],
+        workspace: {
+          cwd,
+          relayDir: join(cwd, ".agenta-tools"),
+          skillDirs: [],
+        },
+        tools: {
+          useToolRelay: false,
+        },
+        prompt: {
+          agentsMd: "agent instructions",
+        },
       },
     });
 
@@ -218,14 +248,20 @@ describe("prepareWorkspace", () => {
       sandbox: {},
       plan: {
         isDaytona: false,
-        cwd,
-        relayDir: join(cwd, ".agenta-tools"),
-        useToolRelay: false,
-        agentsMd: "agent instructions",
         acpAgent: "claude",
         isPi: false,
-        harnessFiles: [{ path: ".claude/settings.json", content }],
-        skillDirs: [],
+        workspace: {
+          cwd,
+          relayDir: join(cwd, ".agenta-tools"),
+          harnessFiles: [{ path: ".claude/settings.json", content }],
+          skillDirs: [],
+        },
+        tools: {
+          useToolRelay: false,
+        },
+        prompt: {
+          agentsMd: "agent instructions",
+        },
       },
     });
 
@@ -244,13 +280,19 @@ describe("prepareWorkspace", () => {
       sandbox: {},
       plan: {
         isDaytona: false,
-        cwd,
-        relayDir: join(cwd, ".agenta-tools"),
-        useToolRelay: false,
-        agentsMd: "agent instructions",
         acpAgent: "claude",
         isPi: false,
-        skillDirs: [],
+        workspace: {
+          cwd,
+          relayDir: join(cwd, ".agenta-tools"),
+          skillDirs: [],
+        },
+        tools: {
+          useToolRelay: false,
+        },
+        prompt: {
+          agentsMd: "agent instructions",
+        },
       },
     });
 
@@ -271,13 +313,19 @@ describe("prepareWorkspace", () => {
       sandbox,
       plan: {
         isDaytona: true,
-        cwd: "/home/sandbox/agenta-fixed",
-        relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
-        useToolRelay: true,
-        agentsMd: "agent instructions",
         acpAgent: "pi",
         isPi: true,
-        skillDirs: [],
+        workspace: {
+          cwd: "/home/sandbox/agenta-fixed",
+          relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
+          skillDirs: [],
+        },
+        tools: {
+          useToolRelay: true,
+        },
+        prompt: {
+          agentsMd: "agent instructions",
+        },
       },
     });
     await workspace.cleanup();
@@ -307,13 +355,19 @@ describe("prepareWorkspace", () => {
       sandbox,
       plan: {
         isDaytona: true,
-        cwd: "/home/sandbox/agenta-fixed",
-        relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
-        useToolRelay: false,
-        agentsMd: "agent instructions",
         acpAgent: "claude",
         isPi: false,
-        skillDirs: [],
+        workspace: {
+          cwd: "/home/sandbox/agenta-fixed",
+          relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
+          skillDirs: [],
+        },
+        tools: {
+          useToolRelay: false,
+        },
+        prompt: {
+          agentsMd: "agent instructions",
+        },
       },
     });
 
@@ -352,14 +406,20 @@ describe("prepareWorkspace", () => {
       sandbox,
       plan: {
         isDaytona: true,
-        cwd: "/home/sandbox/agenta-fixed",
-        relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
-        useToolRelay: false,
-        agentsMd: "agent instructions",
         acpAgent: "claude",
         isPi: false,
-        harnessFiles: [{ path: ".claude/settings.json", content }],
-        skillDirs: [],
+        workspace: {
+          cwd: "/home/sandbox/agenta-fixed",
+          relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
+          harnessFiles: [{ path: ".claude/settings.json", content }],
+          skillDirs: [],
+        },
+        tools: {
+          useToolRelay: false,
+        },
+        prompt: {
+          agentsMd: "agent instructions",
+        },
       },
     });
 
@@ -393,13 +453,19 @@ describe("prepareWorkspace", () => {
       sandbox,
       plan: {
         isDaytona: true,
-        cwd: "/home/sandbox/agenta-fixed",
-        relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
-        useToolRelay: false,
-        agentsMd: "agent instructions",
         acpAgent: "pi",
         isPi: true,
-        skillDirs: [],
+        workspace: {
+          cwd: "/home/sandbox/agenta-fixed",
+          relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
+          skillDirs: [],
+        },
+        tools: {
+          useToolRelay: false,
+        },
+        prompt: {
+          agentsMd: "agent instructions",
+        },
       },
     });
 
@@ -419,12 +485,17 @@ describe("prepareWorkspace", () => {
       sandbox: {},
       plan: {
         isDaytona: false,
-        cwd,
-        relayDir: join(cwd, ".agenta-tools"),
-        useToolRelay: false,
         acpAgent: "claude",
         isPi: false,
-        skillDirs: [{ name: "release-notes", dir: skillDir }],
+        workspace: {
+          cwd,
+          relayDir: join(cwd, ".agenta-tools"),
+          skillDirs: [{ name: "release-notes", dir: skillDir }],
+        },
+        tools: {
+          useToolRelay: false,
+        },
+        prompt: {},
       },
     });
 
@@ -453,12 +524,17 @@ describe("prepareWorkspace", () => {
       sandbox,
       plan: {
         isDaytona: true,
-        cwd: "/home/sandbox/agenta-fixed",
-        relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
-        useToolRelay: false,
         acpAgent: "claude",
         isPi: false,
-        skillDirs: [{ name: "release-notes", dir: skillDir }],
+        workspace: {
+          cwd: "/home/sandbox/agenta-fixed",
+          relayDir: "/home/sandbox/agenta-fixed/.agenta-tools",
+          skillDirs: [{ name: "release-notes", dir: skillDir }],
+        },
+        tools: {
+          useToolRelay: false,
+        },
+        prompt: {},
       },
     });
 

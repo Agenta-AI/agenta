@@ -55,6 +55,7 @@ import {
   restoreReferencedWorkingCopies,
   type AcpPromptBlock,
 } from "./attachments.ts";
+import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
 import { conciseError } from "./errors.ts";
 import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
 import { findSwallowedPiError } from "./pi-error.ts";
@@ -86,7 +87,8 @@ import { resolveRunUsage } from "./usage.ts";
  * controller / decisions / responder into `env.currentTurn`, restart the tool relay,
  * send the prompt, resolve usage, and finish + flush the trace. It does NOT tear down the
  * environment (the caller owns `env.destroy`). On a continuation the prompt is only the new user
- * text (`buildTurnText` does not run); on a cold turn it is `plan.turnText`, exactly as before.
+ * text (`buildTurnText` does not run); on a cold turn it is `plan.prompt.turnText`,
+ * exactly as before.
  */
 export async function runTurn(
   env: SessionEnvironment,
@@ -226,37 +228,37 @@ export async function runTurn(
       ? resolvePromptText(request)
       : currentUserTurn(request).text;
     // Cold: replay the full transcript. Continuation or loaded: send only new text. When history
-    // was rebuilt from records, recompute the transcript from it — the prebuilt plan.turnText
-    // predates the reconstruction. An approval reply has no new text either way, so it sends the
-    // approval-resume frame `buildTurnText` renders (the harness already holds the prior turns
-    // when the session was loaded natively; otherwise the rebuilt transcript comes with it).
+    // was rebuilt from records, recompute the transcript from it — the prebuilt
+    // plan.prompt.turnText predates the reconstruction. An approval reply has no new text
+    // either way, so it sends the approval-resume frame `buildTurnText` renders (the
+    // harness already holds the prior turns when the session was loaded natively;
+    // otherwise the rebuilt transcript comes with it).
     const turnText = sendLastMessageOnly(opts)
       ? approvalReplyOnly
         ? buildTurnText(inboundRequest, logger)
         : promptText
       : reconstructed || historicalAttachmentsPresent
         ? buildTurnText(request, logger)
-        : plan.turnText;
+        : plan.prompt.turnText;
 
     const run = (deps.createOtel ?? createSandboxAgentOtel)({
       harness: plan.harness,
       model: env.model,
-      skills: plan.skillDirs.map((s) => s.name),
+      skills: plan.workspace.skillDirs.map((s) => s.name),
       traceparent: request.context?.propagation?.traceparent,
       baggage: request.context?.propagation?.baggage,
       endpoint: request.telemetry?.exporters?.otlp?.endpoint,
       authorization: request.telemetry?.exporters?.otlp?.headers?.authorization,
       captureContent: request.telemetry?.capture?.content?.enabled,
-      // Seed from the keys actually APPLIED to this run (`plan.secrets`) plus the mount's STS
-      // pair — neither lives in the sidecar's process env.
-      redactor: seedForRun(
-        { secrets: plan.secrets, telemetry: request.telemetry },
-        [
-          env.mountCreds?.accessKey,
-          env.mountCreds?.secretKey,
-          env.mountCreds?.sessionToken,
-        ],
-      ),
+      // Seed from the request's typed model/MCP credential material (`requestSecretValues` —
+      // on a Daytona Secrets run the opaque values left the plaintext env for the secret plan
+      // but still transit runner memory) plus the mount's STS pair — none of which lives in the
+      // sidecar's process env.
+      redactor: seedForRun(request, [
+        env.mountCreds?.accessKey,
+        env.mountCreds?.secretKey,
+        env.mountCreds?.sessionToken,
+      ]),
       emitSpans: !plan.isPi || plan.isDaytona,
       // Every emitted event is a progress signal for the idle/TTFB deadlines (message/thought
       // deltas, tool calls and results, usage, ...) — the one seam every harness's output flows
@@ -288,7 +290,7 @@ export async function runTurn(
               plan,
               capabilities: env.capabilities,
               modelCapabilities: request.modelCapabilities,
-              provider: request.provider,
+              provider: request.modelConnection?.provider,
               emit: (event) => run.emitEvent(event),
             })
           : [];
@@ -297,7 +299,7 @@ export async function runTurn(
       for (const image of legacyImages) {
         const gate = attachmentCapabilityGate({
           acpAgent: plan.acpAgent,
-          provider: request.provider,
+          provider: request.modelConnection?.provider,
           capabilities: env.capabilities,
           // Legacy inline images predate the catalog, so a caller that declares nothing keeps
           // the historical image-capable assumption; a caller that declares modalities is
@@ -641,7 +643,7 @@ export async function runTurn(
     const serverPermissions = serverPermissionsFromRequest(request);
     // The SAME name->spec index the relay execute loop hands to the relay execution guard, so
     // the approval card and the guard cannot disagree about a tool's permission/readOnly.
-    const specsByName = toolSpecsByName(plan.toolSpecs);
+    const specsByName = toolSpecsByName(plan.tools.toolSpecs);
     const settleBufferedPausedCompletions = (): void => {
       for (const [toolCallId, update] of [
         ...bufferedPausedCompletedFrames.entries(),
@@ -734,7 +736,7 @@ export async function runTurn(
       // policy). Absent for Claude, so a title collision there keeps the base path.
       piToolSpecsByName: plan.isPi
         ? new Map(
-            plan.toolSpecs.map((spec) => [
+            plan.tools.toolSpecs.map((spec) => [
               spec.name,
               {
                 permission: spec.permission,
@@ -817,15 +819,15 @@ export async function runTurn(
       executionGrants,
     });
 
-    if (plan.useToolRelay) {
+    if (plan.tools.useToolRelay) {
       turn.toolRelay = (deps.startToolRelay ?? startToolRelay)(
         plan.isDaytona
           ? (deps.sandboxRelayHost ?? sandboxRelayHost)(env.sandbox, {
               log: logger,
             })
           : (deps.localRelayHost ?? localRelayHost)(),
-        plan.relayDir,
-        plan.toolSpecs,
+        plan.workspace.relayDir,
+        plan.tools.toolSpecs,
         request.toolCallback as ToolCallbackContext | undefined,
         request.runContext,
         env.clientToolRelayRef.current,
@@ -835,7 +837,7 @@ export async function runTurn(
           // Derived from the run plan's client-tool pause disposition (the closed set lives at
           // the client-tool boundary; the relay only needs the boolean).
           writePausedAnswer: relayWritesPausedAnswer(
-            plan.clientToolPauseDisposition,
+            plan.tools.clientToolPauseDisposition,
           ),
         },
       );
@@ -1032,7 +1034,7 @@ export async function runTurn(
 
     const usage = await resolveRunUsage({
       sandbox: env.sandbox,
-      usageOutPath: plan.usageOutPath,
+      usageOutPath: plan.workspace.usageOutPath,
       isDaytona: plan.isDaytona,
       promptResult: result,
       streamUsage: run.usage(),
@@ -1044,18 +1046,19 @@ export async function runTurn(
       !plan.isDaytona &&
       !run.output().trim() &&
       !run.events().some((e) => e.type === "tool_call")
-        ? // The helper derives the transcript location from `piSessionWorkspaceDir(plan.cwd)`,
-          // the same shared helper `configurePiSessionWorkspace` used to point Pi at it.
-          findSwallowedPiError(plan.cwd)
+        ? // The helper derives the transcript location from
+          // `piSessionWorkspaceDir(plan.workspace.cwd)`, the same shared helper
+          // `configurePiSessionWorkspace` used to point Pi at it.
+          findSwallowedPiError(plan.workspace.cwd)
         : undefined;
     let swallowedError: string | undefined;
     if (swallowedPiError) {
       swallowedError = conciseError(
         new Error(swallowedPiError),
         plan.harness,
-        request.provider,
+        request.modelConnection?.provider,
       );
-      run.recordError(swallowedError, request.provider);
+      run.recordError(swallowedError, request.modelConnection?.provider);
       run.emitEvent({ type: "error", message: swallowedError });
     }
 
@@ -1121,8 +1124,13 @@ export async function runTurn(
       traceId: run.traceId(),
     } as AgentRunResult;
   } catch (err) {
-    const error = conciseError(err, plan.harness, request.provider);
-    otel?.recordError(error, request.provider);
+    const error = conciseError(
+      err,
+      plan.harness,
+      request.modelConnection?.provider,
+      { authFault: () => describeCodexSubscriptionAuthFault(plan) },
+    );
+    otel?.recordError(error, request.modelConnection?.provider);
     otel?.emitEvent({ type: "error", message: error });
     // An aborted turn may have left a partial turn in the native transcript.
     invalidateContinuity(sessionId, plan.harness, deps);
