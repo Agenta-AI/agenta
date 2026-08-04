@@ -131,20 +131,6 @@ const StripHome: React.FC = () => {
 
     return (
         <PageLayout className="grow min-h-0 !pb-0">
-            {/* Page-level, filled, top-right — the priority the mockups give it. Creating an agent
-                is the page's standing secondary action, so it does not belong only inside a section
-                header that scrolls in a rail. Hidden on the create surface: you are already there. */}
-            {!firstRun ? (
-                <div className="flex shrink-0 items-center justify-end px-6">
-                    <Button
-                        type="primary"
-                        icon={<PlusIcon size={14} />}
-                        onClick={() => void router.push(`${baseAppURL}?new=1`)}
-                    >
-                        New agent
-                    </Button>
-                </div>
-            ) : null}
             {/* First run stays a centered document — one question, one answer, nothing to
                 resume yet — and scrolls inside the frame rather than moving the page. A
                 returning user gets a workspace: two columns that fill the frame and scroll
@@ -159,7 +145,7 @@ const StripHome: React.FC = () => {
                 className={
                     firstRun
                         ? "mx-auto flex w-full min-h-0 max-w-[1040px] flex-1 flex-col overflow-y-auto px-6 pb-20 pt-14"
-                        : "flex min-h-0 w-full flex-1 gap-6 overflow-hidden px-6 pb-6 pt-2"
+                        : "flex min-h-0 w-full flex-1 gap-6 overflow-hidden px-6 pb-6 pt-8"
                 }
             >
                 <div
@@ -197,7 +183,10 @@ const StripHome: React.FC = () => {
                             className={
                                 firstRun
                                     ? "flex flex-col items-center gap-4 text-center"
-                                    : "flex flex-col"
+                                    : // The hero line carries the page's standing action. On its
+                                      // own row above everything it cost a full band of empty
+                                      // width and pushed the question it belongs beside downward.
+                                      "flex items-center justify-between gap-4"
                             }
                         >
                             <Typography.Title
@@ -212,6 +201,15 @@ const StripHome: React.FC = () => {
                                 <Typography.Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
                                     {HERO.subtitle}
                                 </Typography.Text>
+                            ) : null}
+                            {!firstRun ? (
+                                <Button
+                                    type="primary"
+                                    icon={<PlusIcon size={14} />}
+                                    onClick={() => void router.push(`${baseAppURL}?new=1`)}
+                                >
+                                    New agent
+                                </Button>
                             ) : null}
                         </div>
 
