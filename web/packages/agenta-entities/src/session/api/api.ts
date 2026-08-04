@@ -582,6 +582,43 @@ export async function querySessionMounts({
     return validated?.mounts ?? null
 }
 
+/**
+ * The durable drive bound to an AGENT rather than to a session — the files an agent carries
+ * between runs (its brief, its reference material) as opposed to a session's scratch mount.
+ *
+ * Backed by `POST /mounts/agents/query`, which takes the workflow ARTIFACT id and resolves the
+ * canonical agent id server-side, so callers pass the same id the rest of the app calls `appId`.
+ * Returns at most one mount; the list shape mirrors the session endpoint.
+ */
+export async function queryAgentMounts({
+    artifactId,
+    projectId,
+    appId,
+    abortSignal,
+    lowPriority,
+}: {
+    artifactId: string
+    projectId: string
+    appId?: string
+    abortSignal?: AbortSignal
+    lowPriority?: boolean
+}): Promise<Mount[] | null> {
+    if (!projectId || !artifactId) return null
+
+    const client = lowPriority ? getLowPriorityMountsClient() : getMountsClient()
+    // maxRetries 1: a small query; recover a transient blip once, but never a long retry pit.
+    const data = await callFern("[queryAgentMounts]", () =>
+        client.queryAgentMount(
+            {artifact_id: artifactId},
+            projectScopedRequest(projectId, appId, abortSignal, 1),
+        ),
+    )
+    if (!data) return null
+
+    const validated = safeParseWithLogging(sessionMountsResponseSchema, data, "[queryAgentMounts]")
+    return validated?.mounts ?? null
+}
+
 export interface MountFilesParams {
     mountId: string
     projectId: string

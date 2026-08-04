@@ -7,6 +7,7 @@ import UsageSummary from "@/oss/components/pages/agent-home/components/UsageSumm
 import SessionListCard from "@/oss/components/pages/sessions/components/SessionListCard"
 
 import AgentConfigurationCard from "./AgentConfigurationCard"
+import AgentFilesCard from "./AgentFilesCard"
 
 interface Props {
     appId: string
@@ -64,6 +65,8 @@ const AgentOverview = ({appId, agentName}: Props) => {
             </div>
 
             <div className="flex w-full shrink-0 grow-0 flex-col gap-6 lg:w-1/3 lg:min-w-[340px] lg:max-w-[520px]">
+                <AgentFilesCard appId={appId} />
+
                 <SessionListCard
                     agentId={appId}
                     origin="trigger"
