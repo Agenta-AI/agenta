@@ -16,19 +16,25 @@ import {pendingSessionOpenAtom} from "../state/pendingSessionOpen"
  * here") and the first-run seed (the message, sent as soon as the model is ready). Together they
  * land the user in a new conversation with their request already in flight.
  */
-export function useStartAgentSession(): (input: {appId: string; message: string}) => void {
+export function useStartAgentSession(): (input: {
+    appId: string
+    message: string
+    files?: File[]
+}) => void {
     const router = useRouter()
     const {baseAppURL} = useAtomValue(urlAtom)
     const setPendingOpen = useSetAtom(pendingSessionOpenAtom)
     const setSeed = useSetAtom(agentFirstRunSeedAtom)
 
     return useCallback(
-        ({appId, message}) => {
+        ({appId, message, files}) => {
             const seedMessage = message.trim()
             setPendingOpen({appId})
             // `autoSend`: the user already pressed Start, so asking them to press it again on the
             // other side would be the same decision twice.
-            if (seedMessage) setSeed({appId, seedMessage, autoSend: true})
+            // Files alone are a valid send: the chat holds the turn until they finish uploading.
+            if (seedMessage || files?.length)
+                setSeed({appId, seedMessage, autoSend: true, seedFiles: files})
 
             router.push(`${baseAppURL}/${appId}/playground`).catch(() => {
                 setPendingOpen(null)

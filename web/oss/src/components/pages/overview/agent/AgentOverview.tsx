@@ -5,6 +5,11 @@ import {useSetAtom} from "jotai"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
 import NextTriggersSection from "@/oss/components/pages/agent-home/components/NextTriggersSection"
+import {
+    SeedAttachButton,
+    SeedAttachmentChips,
+    useSeedAttachments,
+} from "@/oss/components/pages/agent-home/components/SeedAttachments"
 import UsageSummary from "@/oss/components/pages/agent-home/components/UsageSummary"
 import SessionListCard from "@/oss/components/pages/sessions/components/SessionListCard"
 import {PanelScroll, PanelSurface} from "@/oss/components/PanelSection"
@@ -53,11 +58,15 @@ const AgentOverview = ({appId, agentName}: Props) => {
     const {appURL} = useURL()
     const sessionsHref = appURL ? `${appURL}/sessions` : undefined
 
+    const attachments = useSeedAttachments()
+
     const handleSubmit = useCallback(
         (markdown: string) => {
-            if (markdown.trim()) startSession({appId, message: markdown})
+            if (!markdown.trim() && !attachments.files.length) return
+            startSession({appId, message: markdown, files: attachments.files})
+            attachments.clear()
         },
-        [appId, startSession],
+        [appId, startSession, attachments],
     )
 
     return (
@@ -71,6 +80,21 @@ const AgentOverview = ({appId, agentName}: Props) => {
                     // one collapsed to a hairline under the title once the lists overflowed.
                     className="shrink-0"
                     onSubmit={handleSubmit}
+                    sendForceEnabled={attachments.files.length > 0}
+                    header={
+                        <SeedAttachmentChips
+                            files={attachments.files}
+                            onChange={attachments.setFiles}
+                        />
+                    }
+                    trailing={
+                        attachments.enabled ? (
+                            <SeedAttachButton
+                                files={attachments.files}
+                                onChange={attachments.setFiles}
+                            />
+                        ) : null
+                    }
                     size="comfortable"
                     minHeightClassName="min-h-20"
                     textSizeClassName="text-sm"

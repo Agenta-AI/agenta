@@ -6,6 +6,11 @@ import {Select} from "antd"
 import {useAtomValue} from "jotai"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
+import {
+    SeedAttachButton,
+    SeedAttachmentChips,
+    useSeedAttachments,
+} from "@/oss/components/pages/agent-home/components/SeedAttachments"
 import {agentsWorkflowsAtom} from "@/oss/components/pages/agents/store"
 
 /**
@@ -26,6 +31,7 @@ const HomeTaskComposer = () => {
     const startSession = useStartAgentSession()
     const [agentId, setAgentId] = useState<string | null>(null)
     const [pickerOpen, setPickerOpen] = useState(false)
+    const attachments = useSeedAttachments()
 
     // Default to the most recently touched agent — the one you're most likely to want next.
     const effectiveAgentId = agentId ?? agents[0]?.workflowId ?? null
@@ -38,9 +44,10 @@ const HomeTaskComposer = () => {
     const handleSubmit = useCallback(
         (markdown: string) => {
             if (!effectiveAgentId) return
-            startSession({appId: effectiveAgentId, message: markdown})
+            startSession({appId: effectiveAgentId, message: markdown, files: attachments.files})
+            attachments.clear()
         },
-        [effectiveAgentId, startSession],
+        [effectiveAgentId, startSession, attachments],
     )
 
     return (
@@ -50,6 +57,10 @@ const HomeTaskComposer = () => {
             size="comfortable"
             minHeightClassName="min-h-24"
             textSizeClassName="text-sm"
+            sendForceEnabled={attachments.files.length > 0}
+            header={
+                <SeedAttachmentChips files={attachments.files} onChange={attachments.setFiles} />
+            }
             sendDisabled={!effectiveAgentId}
             sendDisabledReason={!effectiveAgentId ? "Pick an agent first" : undefined}
             placeholder="Describe the task, or start the conversation…"
@@ -70,6 +81,11 @@ const HomeTaskComposer = () => {
                     variant="borderless"
                     className="min-w-40"
                 />
+            }
+            trailing={
+                attachments.enabled ? (
+                    <SeedAttachButton files={attachments.files} onChange={attachments.setFiles} />
+                ) : null
             }
         />
     )

@@ -278,6 +278,8 @@ const AgentConversation = ({
         messagesCount: messages.length,
         modelBlocked,
         handleSubmitRef,
+        // Files picked on Home / the overview, where there was no session to upload against.
+        onSeedFiles: attachments.addFiles,
     })
     const consumedRunNonceRef = useRef<number | null>(null)
 

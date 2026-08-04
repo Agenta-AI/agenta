@@ -23,6 +23,7 @@ export const useFirstRunSeed = ({
     messagesCount,
     modelBlocked,
     handleSubmitRef,
+    onSeedFiles,
 }: {
     entityId: string
     /** The chat scope — an app id. Lets a seed aimed at an existing agent match without knowing
@@ -34,6 +35,8 @@ export const useFirstRunSeed = ({
     modelBlocked: boolean
     /** Read at fire time so the transition drives the send, not a stale closure. */
     handleSubmitRef: MutableRefObject<(text: string) => void | Promise<void>>
+    /** The chat's own `addFiles` — seed files go through the same staging paste and drop use. */
+    onSeedFiles?: (files: File[]) => void
 }) => {
     const [firstRunSeed, setFirstRunSeed] = useAtom(agentFirstRunSeedAtom)
     const [firstRunPrompt, setFirstRunPrompt] = useState<string | null>(null)
@@ -51,6 +54,7 @@ export const useFirstRunSeed = ({
         seedConsumedRef.current = true
         setFirstRunPrompt(firstRunSeed.seedMessage)
         setFirstRunAutoSend(!!firstRunSeed.autoSend)
+        if (firstRunSeed.seedFiles?.length) onSeedFiles?.(firstRunSeed.seedFiles)
         setFirstRunSeed(null)
     }, [
         firstRunSeed,
@@ -60,6 +64,7 @@ export const useFirstRunSeed = ({
         sessionId,
         messagesCount,
         setFirstRunSeed,
+        onSeedFiles,
     ])
 
     // Fires once, while the conversation is still empty, when EITHER: the model just unblocked (was
