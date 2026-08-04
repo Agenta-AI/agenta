@@ -54,17 +54,35 @@ The model-visible schema is `_COMMIT_REVISION_INPUT_SCHEMA` in
 | Field | Model-visible | Note |
 |---|---|---|
 | `workflow_revision.workflow_variant_id` | no | Bound from `$ctx.workflow.variant.id` and stripped. |
-| `workflow_revision.base_revision_id` | yes | The runner defaults it only when absent. `commit-transaction.md` section 8. |
+| `workflow_revision.base_revision_id` | yes | An ordered delta needs it. The model copies it from the `read_config` response. `read-config.md` section 10.1. |
 | `workflow_revision.message` | yes | |
 | `workflow_revision.delta` | yes | The `oneOf` of section 3. |
-| `...operations[].value_from.type` | yes | `"workspace"`. |
-| `...operations[].value_from.path` | yes | Relative to the import root. |
-| `...operations[].value_from.on_unsupported` | yes | `"reject"` (default) or `"omit"`. Section 5.1. |
-| `...operations[].value_from.allow_executable_files` | yes | Boolean, default `false`. Section 5.1. |
+| `value_from.type` | yes | `"workspace"`. On `set`, `add_item`, and `replace_item`. |
+| `value_from.path` | yes | Relative to the import root. A folder for the item verbs, one file for `set`. |
+| `value_from.on_unsupported` | yes | `"reject"` (default) or `"omit"`. Folder source only. Section 5.1.3. |
+| `value_from.on_executable` | yes | `"reject"` (default) or `"import"`. Folder source only. Section 5.1.3. |
+| `value_from.persist_executable_capability` | yes | Boolean, default `false`. Folder source only. It needs `on_executable: "import"`. Section 5.1.3. |
 
-The two `value_from` policy fields must appear here, or the model cannot set them and the
-defaults become the only reachable behavior. The runner strips the whole `value_from`
-object during resolution, so neither field ever reaches the API.
+The union carries two source schemas, one per shape:
+
+| Operation member | `value_from` | Fields |
+|---|---|---|
+| `add_item`, `replace_item` | the folder source | `type`, `path`, and the three policy fields |
+| `set` | the file source | `type` and `path` only |
+| `merge`, `remove`, `edit_text`, `remove_item` | none | the member must not offer the field |
+
+Section 5.1 gives the reason for each row. Section 5.1.1 lists the three conditions a
+`set` source must meet, and section 5.1.3 explains why the file source carries no policy
+fields.
+
+The three policy fields must appear here, or the model cannot set them and the defaults
+become the only reachable behavior. The runner strips the whole `value_from` object during
+resolution, so no `value_from` field ever reaches the API.
+
+`allow_executable_files` is no longer a `value_from` field. It is now only the persisted
+`SkillTemplate.allow_executable_files`, and an import sets it only through
+`persist_executable_capability`. `workspace-import.md` section 5.2 owns the four-layer
+split that this follows.
 
 Nothing else is model-visible. `data`, `flags`, `name`, `description`, `tags`, and `meta`
 stay off the model surface. `read-config.md` section 11 defines the second gate, the scope
@@ -200,25 +218,87 @@ collides.
 
 ### 5.1 Value sources
 
-| Operation | `value` | `value_from` |
-|---|---|---|
-| `set` | yes | yes |
-| `merge` | yes | **no** |
-| `remove` | no | no |
-| `edit_text` | no | no |
-| `add_item` | yes | yes |
-| `replace_item` | yes | yes |
-| `remove_item` | no | no |
+| Operation | `value` | `value_from` | Source shape |
+|---|---|---|---|
+| `set` | yes | yes, restricted | exactly one file. Section 5.1.1. |
+| `merge` | yes | **no** | — |
+| `remove` | no | no | — |
+| `edit_text` | no | no | — |
+| `add_item` | yes | yes | one folder, converted to an item. |
+| `replace_item` | yes | yes | one folder, converted to an item. |
+| `remove_item` | no | no | — |
 
-`merge` does not take `value_from`. A workspace source materializes a whole object, such
-as a complete skill. A deep merge of a whole materialized object into an existing object
-hides which fields survived. The result depends on the folder content, and the human who
-approves the call cannot see it. `set` and `replace_item` state the intent clearly.
+The rule follows the approval screen, not the engine. A human approves an import before the
+runner reads the bytes. The human must therefore see a readable change, never a byte count
+and a path.
+
+`merge` does not take `value_from` at all. A source materializes a whole object. A deep
+merge of a whole materialized object into an existing object hides which fields survived.
+The result depends on the folder content, and the human who approves the call cannot see
+it.
+
+#### 5.1.1 `set` with `value_from`: three conditions, all required
+
+The team lead decided this on 4 August, in answer to gate 2, new problem 9. The oversized
+instruction file is the founding use case of this project (#5554), so `set` must have a
+path for it.
+
+`set` accepts `value_from` only when all three conditions hold. The runner refuses the
+call before it reads any content if any one of them fails.
+
+**Condition 1: the source resolves to exactly one file.** Never a folder. A folder has no
+single text to show, and the file-manifest presentation belongs to the item verbs. A source
+path that names a directory is `source_invalid`. A source path that matches more than one
+file is `source_invalid`.
+
+**Condition 2: the target's last segment is a string-typed field.** The value replaces one
+long-text field, not a structure. Four target shapes are allowed:
+
+| Field | Target |
+|---|---|
+| the instructions | `["parameters","agent","instructions","agents_md"]` |
+| a skill body | `[...,{"field":"skills","key":K},"body"]` |
+| a skill file's content | `[...,{"field":"skills","key":K},{"field":"files","key":P},"content"]` |
+| a code tool's script | `[...,{"field":"tools","key":N},"script"]` |
+
+The field must already exist and must already hold a string. Parent creation
+(section 5.3) does not apply to a `set` that carries `value_from`: a missing field is
+`target_not_found`, and a non-string field is `target_type_mismatch`. A field that does not
+exist yet has no old text, so it has no honest diff. Use `add_item` for a new skill file.
+
+**Condition 3: the approval shows a unified diff of the old text against the new text.**
+The card presents a readable change: the target field, the diff, the line counts, and the
+digest of the exact bytes that will be committed. It must not present a byte count alone.
+`workspace-import.md` section 8 owns the presentation; runner-spike adds the single-text-file
+mode there.
+
+Two notes on the diff, for the runner to settle:
+
+- The old side comes from the configuration the runner holds for the current run. That
+  configuration can be behind the head. The base check catches the drift and answers 409
+  (`commit-transaction.md` section 6), so the human never approves a diff that then commits
+  silently against a different base.
+- If the runner cannot obtain the old text, it must show the complete new text and say that
+  no old text was available. It must never fall back to a byte count.
+
+#### 5.1.2 Folder into `set` stays disallowed
+
+A folder source into a `set` target is refused, and it stays refused. There is no honest
+presentation for it. A folder carries many files, and a `set` target is one field. The card
+would have to either flatten the folder into one value, which the human cannot review, or
+list the files without showing what each one becomes, which is the byte-count-and-path
+approval that condition 3 exists to prevent. The item verbs already carry folders, and they
+carry them with an item identity the card can name.
 
 A value-bearing operation carries exactly one of `value` and `value_from`. Both is
-`invalid_operation`. Neither is `invalid_operation`.
+`invalid_operation`. Neither is `invalid_operation`. A `value_from` on `merge`, `remove`,
+`edit_text`, or `remove_item` is `invalid_operation`, and the schema refuses it first.
 
 The engine refuses `value_from` with `source_invalid`. The runner must resolve it first.
+
+#### 5.1.3 Two source schemas, one per source shape
+
+The folder source, on `add_item` and `replace_item`:
 
 ```json
 {
@@ -229,28 +309,76 @@ The engine refuses `value_from` with `source_invalid`. The runner must resolve i
     "type": { "const": "workspace" },
     "path": { "type": "string", "minLength": 1 },
     "on_unsupported": { "enum": ["reject", "omit"], "default": "reject" },
-    "allow_executable_files": { "type": "boolean", "default": false }
+    "on_executable": { "enum": ["reject", "import"], "default": "reject" },
+    "persist_executable_capability": { "type": "boolean", "default": false }
   }
 }
 ```
 
-`on_unsupported` and `allow_executable_files` are import-policy declarations. The
-runner's import resolver consumes them. `workspace-import.md` section 4.2 defines
-`on_unsupported` and its default, section 4.3 defines the `omit` opt-in, and section 5.2
-defines `allow_executable_files`.
+The file source, on `set`:
+
+```json
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "path"],
+  "properties": {
+    "type": { "const": "workspace" },
+    "path": { "type": "string", "minLength": 1 }
+  }
+}
+```
+
+The three folder-source policy fields, in one line each:
+
+| Field | Meaning |
+|---|---|
+| `on_unsupported` | `"reject"` (default) refuses a folder that holds an unsupported file. `"omit"` imports the rest and lists every omission. |
+| `on_executable` | `"reject"` (default) refuses a folder that holds an executable file. `"import"` imports the folder and records the observed bits. |
+| `persist_executable_capability` | `false` (default) commits `SkillTemplate.allow_executable_files` as false. `true` commits it as true. |
+
+**One constraint binds the last two: `persist_executable_capability: true` needs
+`on_executable: "import"`.** The reverse is allowed. A caller may import the bits without
+granting the runtime capability, which gives a faithful copy of the folder that still
+cannot execute anything. A caller may not grant the runtime capability for bits it never
+permitted itself to read. A violation is `invalid_operation`, and the runner refuses it
+before any workspace read.
+
+The two fields are separate because they are two grants with two owners and two lifetimes.
+`on_executable` is an import grant: the caller and the human approver own it, and it dies
+with the operation. `persist_executable_capability` writes a stored capability that lives
+for the life of the revision. `workspace-import.md` section 5.2 defines the four-layer
+split this follows, and it shows the two as separate lines on the approval card.
+
+The file source carries no policy fields, because none of the three has a meaning for it:
+
+- `on_unsupported` chooses between refusing a folder and omitting some of its files. A
+  single-file source has nothing to omit. An unsupported single file always rejects, with
+  `source_unsupported_content`.
+- `on_executable` grants an import the right to carry executable bits. A `set` writes text
+  into an existing string field. It creates no file entry, so it carries no bit.
+- `persist_executable_capability` writes `SkillTemplate.allow_executable_files`. A `set`
+  never writes a skill template. It writes one long-text field inside an existing one.
+
+The three are import-policy declarations on the folder source. The runner's import
+resolver consumes them. `workspace-import.md` section 4.2 defines `on_unsupported` and its
+default, section 4.3 defines the `omit` opt-in, and section 5.2 defines `on_executable`,
+`persist_executable_capability`, and the constraint between them.
 
 Three points fix their place:
 
 1. **They sit on the source, not on the operation.** One commit can import two folders and
-   give each one a different answer. A field on the operation could not do that.
+   give each one a different answer. A field on the operation could not do that. With
+   `value_from` the runner generates the whole value, so the caller has no `value` object
+   to write `persist_executable_capability` into either.
 2. **The engine never sees them.** The runner resolves `value_from` and then strips the
-   whole `value_from` object. It puts a plain inline `value` in place of it. So these two
+   whole `value_from` object. It puts a plain inline `value` in place of it. So these
    fields never reach the API, and the engine surface does not grow. The engine still
    refuses any `value_from` that survives, with `source_invalid`.
 3. **The model must be able to write them.** This schema is model-facing. With
    `additionalProperties: false` and no such fields, the defaults would be the only
-   reachable behavior. A skill folder with one binary asset would then be permanently
-   uncommittable.
+   reachable behavior. A skill folder with one binary asset, or with one script, would
+   then be permanently uncommittable.
 
 This resolves the conflict `workspace-import.md` section 11 raises against this section.
 
@@ -290,6 +418,8 @@ Replaces the target value exactly. `value: null` writes null; it does not remove
    engine does not overwrite it with `{}`.
 5. Final validation stays mandatory. Parent creation is a convenience, not a licence to
    invent fields. The closed agent template rejects an invented path at validation.
+6. Parent creation does not apply when the operation carries `value_from`. That form needs
+   an existing string target, so it has an old text to diff. Section 5.1.1.
 
 Example. With `harness: {"kind": "pi_agenta"}` in the base:
 
@@ -587,9 +717,15 @@ see `commit-transaction.md`.
 | `invalid_delta` | Both forms, no form, or an unknown delta field. | no |
 | `invalid_operation` | A shape error. | no |
 | `final_validation_failed` | The finished tree is not a valid configuration. | yes |
+| `non_embeddable_reference` | The result embeds a static workflow that may not be embedded. | yes |
 
 `final_validation_failed` carries an `issues` array, so the agent gets every schema
 problem at once.
+
+`non_embeddable_reference` is wrapper-owned, not engine-owned. The commit wrapper raises
+it from the existing `_reject_non_embeddable_workflow_embeds` check. It shares this
+envelope so the agent learns one error vocabulary. `commit-transaction.md` section 4.1
+defines when it runs.
 
 ## 11. Final validation
 
@@ -609,7 +745,9 @@ The prototype is `api/oss/src/core/workflows/change_set.py` in worktree
 | # | Change | Where |
 |---|---|---|
 | 1 | Return `ChangeSetResult`, not a bare dict. Compute `changed`. Collect warnings. | `apply_change_set`, `_finish` |
-| 2 | Split `VALUE_BEARING`. `merge` accepts `value` only; the schema must not offer it `value_from`. | `VALUE_BEARING`, `_operation_value` |
+| 2 | Split `VALUE_BEARING`. `set`, `add_item`, and `replace_item` accept `value_from`; `merge` accepts `value` only. The schema must offer the folder source on the item verbs, the file source on `set`, and nothing on `merge`. | `VALUE_BEARING`, `_operation_value` |
+| 2b | `set` must not create parents when it carries `value_from`, and its target must already hold a string. Sections 5.1.1 and 5.3. | `_apply_operation` |
+| 2c | The folder source carries three policy fields: `on_unsupported`, `on_executable`, and `persist_executable_capability`. `allow_executable_files` is not one of them. Add the constraint check, `persist_executable_capability: true` needs `on_executable: "import"`, as `invalid_operation`. The runner enforces it before any read; the schema states it. Section 5.1.3. | new pydantic source models |
 | 3 | Accept and dispatch `match_mode`. Add a matcher table with one entry, `exact`. | `_apply_operation`, `apply_text_edits` |
 | 4 | Count occurrences with overlap. Replace `str.count` and `str.index`. | `apply_text_edits` |
 | 5 | Create missing plain-string object parents in `set`, under the five rules of 5.3. | `_apply_operation` |
@@ -632,3 +770,30 @@ the two that pin non-overlapping counting and the absence of parent creation.
 3. **Full-data commits.** They branch-touch everything, so rule 2 applies to them. The
    playground saves this way. We must measure how many existing configurations would gain
    a warning before we make rule 2 stricter.
+4. **The four allowed `set` targets** (section 5.1.1) are the long-text fields we know
+   today. A later schema can add another one. The list must live in one place, beside the
+   `item_key` table, so the SDK and the server never disagree about it.
+5. **Product call 1, storage normalization.** Gate 2 marks it as blocking engine and
+   transaction work. It changes exact matching, the stored bytes, and canonical equality.
+   Answer it before the engine slice starts.
+6. **Product call 2, unique-name enforcement.** Gate 2 marks it as blocking engine
+   validation. It decides which legacy configurations stay committable. Section 8 holds
+   the recommended rule.
+
+## 14. Gate 2 resolution
+
+Gate 2 marked item 1 RESOLVED. Two later points still touch this file.
+
+| Gate point | Answered in |
+|---|---|
+| New problem 9. The approval manifest cannot describe `set` plus `value_from` | Section 5.1.1 defines the constrained form the team lead arbitrated on 4 August: `set` takes `value_from` when the source is one file, the target is one of four known long-text fields, and the approval shows a unified diff. Section 5.1.2 records that a folder into `set` stays disallowed, because it has no honest presentation. `workspace-import.md` section 8 gains the single-text-file mode; runner-spike owns that edit. |
+| New problem 6. The embed check must survive the transaction | Section 10 adds the `non_embeddable_reference` reason code and marks it wrapper-owned. `commit-transaction.md` section 4.1 owns the behavior. |
+| New problem 10. `value_from` conflates import policy with a stored capability | Section 5.1.3 carries the four-layer split the team lead accepted on 4 August. The folder source now holds `on_unsupported`, `on_executable`, and `persist_executable_capability`. The old `allow_executable_files` field is gone from `value_from`; the persisted `SkillTemplate.allow_executable_files` is written only through `persist_executable_capability`. `workspace-import.md` section 5.2 owns the split. |
+| Item 1, product calls 1 and 2 can still change the contract | Section 13 items 5 and 6 record both as blocking, with the section each one would change. |
+
+Supporting changes: section 2.1 tables and note, section 5.1 table, sections 5.1.1 to
+5.1.3, section 10 reason table, section 12 rows 2, 2b, and 2c, and section 13 item 4.
+
+The founding use case is covered again. US-1 and #5554 are the oversized instruction file.
+Section 5.1.1 gives it a path: one workspace file into
+`["parameters","agent","instructions","agents_md"]`, approved as a unified diff.

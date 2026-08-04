@@ -70,15 +70,101 @@ memory only.
 
 ### 2.3 Canonical forms
 
-`argsDigest` and `contentDigest` both need one canonical serialization. The runner already has
-one. `canonicalJson` in `services/runner/src/responder.ts` sorts object keys and rejects any
-value that is not plain JSON. The authorization store must reuse it.
+`argsDigest` and `contentDigest` need an EXACT canonical serialization. The runner must build a
+new serializer for this. It must not reuse `canonicalJson` from
+`services/runner/src/responder.ts`.
 
-The runner must fail closed when canonicalization fails. It must not fall back to a weaker key.
-`ApprovedExecutionGrants.grant` in the same file already fails closed on an unkeyable call. The
-authorization store must do the same, but it must also refuse to mint the record. A grant that
-cannot be keyed is a silent no-op today. An authorization that cannot be keyed must be an error
-the model sees.
+#### 2.3.1 Why the existing serializer is unsafe here
+
+`canonicalJson` calls `normalizeJsonish` before it serializes. Read
+`services/runner/src/responder.ts` line 124 and the function below it. `normalizeJsonish` parses
+any string that looks like a JSON object or array, and replaces the string with the parsed
+value. `parseJsonContainer` even tolerates up to three stray trailing closers.
+
+So these two argument sets produce the same digest:
+
+```json
+{"value": "{\"x\":1}"}
+{"value": {"x": 1}}
+```
+
+And so does this third one:
+
+```json
+{"value": "{\"x\":1}}}"}
+```
+
+An ordered operation's `value` field holds arbitrary JSON. A skill body is a string. A file's
+content is a string. Any of them can look like JSON. So an attacker can write an authorized
+call whose arguments differ from the executed call, and both digest the same. That defeats the
+whole binding. It is the same-identifier argument-substitution hole the record exists to close.
+
+#### 2.3.2 The normalization is correct for its own job
+
+Do not remove `normalizeJsonish` from `ApprovedExecutionGrants`. It exists for a real reason,
+recorded in its own comment: a model copying object-valued arguments out of a flattened replay
+transcript writes them back as a JSON string. The stored approval and the re-issued gate must
+still meet at one key. That is a matching problem, and lenient matching is the right answer for
+it.
+
+Authorization is a different problem. It is an exact binding. Lenient matching is the wrong
+answer for it.
+
+So the runner keeps two serializers with two jobs. This must be stated in both call sites, or a
+later reader will "simplify" them back into one.
+
+| Serializer | Job | Behavior |
+|---|---|---|
+| `canonicalJson` (existing) | Approval-key matching across a replay | Lenient. Parses JSON-looking strings. |
+| `strictCanonicalJson` (new) | Authorization digests | Exact. Never parses a string. |
+
+#### 2.3.3 `strictCanonicalJson`
+
+The new serializer has these rules.
+
+1. **It never inspects the content of a string.** A string serializes as a JSON string literal,
+   always. No parsing, no trimming, no trailing-closer tolerance.
+2. **It preserves JSON types exactly.** A string stays a string. A number stays a number. A
+   boolean stays a boolean. `null` stays `null`. It never coerces between them.
+3. **It sorts object keys** by the code-unit order of their UTF-16 representation. This makes the
+   output independent of insertion order.
+4. **It preserves array order.** An array is ordered data.
+5. **It rejects, rather than encodes, every value JSON cannot represent exactly.** This covers
+   `undefined`, a function, a symbol, `NaN`, `Infinity`, `-Infinity`, a `BigInt`, and any object
+   with a prototype other than `Object.prototype` or `Array.prototype`.
+6. **It rejects a cycle.**
+7. **It encodes a number by its shortest round-trip form**, which is what `JSON.stringify`
+   already produces. `-0` serializes as `0`, matching JSON.
+8. **It escapes a string exactly as `JSON.stringify` does**, and it additionally escapes every
+   lone surrogate as `\uXXXX`, so an unpaired surrogate cannot make two different strings encode
+   to the same bytes.
+9. **It does not honour a `toJSON` method.** A `toJSON` hook would let a crafted object choose
+   its own digest input.
+10. **It reads only own enumerable properties.** It never walks a prototype chain.
+
+The digest is SHA-256 over the UTF-8 encoding of the serializer's output.
+
+#### 2.3.4 Fail closed
+
+Rejection is an error, not a fallback. The runner must not degrade to a weaker key when the
+strict serializer refuses a value.
+
+At mint time, a rejection refuses to mint the record. The model sees the error. This is stricter
+than `ApprovedExecutionGrants.grant`, which silently does nothing on an unkeyable call. A silent
+no-op is acceptable for a matching heuristic. It is not acceptable for an authorization.
+
+At verify time, a rejection fails the verification closed.
+
+#### 2.3.5 Test obligations for the serializer
+
+- The three example argument sets in section 2.3.1 must produce three different digests.
+- A JSON-looking string never changes type. `{"a": "[]"}` and `{"a": []}` differ.
+- Key order does not change the digest. Array order does.
+- `1`, `"1"`, and `true` all differ.
+- `undefined`, `NaN`, `Infinity`, a `BigInt`, a `Date`, a `Map`, and a cycle each raise an error.
+- A lone surrogate and a valid pair produce different digests.
+- An object carrying `toJSON` digests by its own properties, not by the hook's output.
+- A property added to `Object.prototype` never enters the digest.
 
 ## 3. Lifecycle
 
@@ -134,7 +220,99 @@ by a write.
 The runner then substitutes the frozen value into the call body. It replaces `value_from` with
 `value`. It never rereads the folder.
 
-### 3.4 Discard
+### 3.4 Multi-source commits
+
+One commit may carry up to eight `value_from` operations. Sections 3.1 to 3.3 describe one
+record. This section defines how the runner handles a set of them. The rule is that the set
+behaves as one unit.
+
+#### 3.4.1 Mint: check the policy before any read
+
+The runner must decide the permission verdict for the whole call BEFORE it reads any folder.
+
+The order is fixed:
+
+1. Parse the call. Collect every operation that carries a `value_from`. Record the operation
+   index of each.
+2. Read the permission plan verdict for the call. A `deny` verdict stops here. The runner returns
+   the deny reason. **It performs no workspace read at all.**
+3. Check the per-call and per-turn limits in section 6.2 against the collected count. A breach
+   stops here, again before any read.
+4. Resolve the sources in operation order. Mint one record per source.
+
+Step 2 matters on its own. A denied call must not touch the filesystem. Reading a folder for a
+call that will never run leaks the folder's existence and its content into runner memory, and it
+spends the turn's byte budget. Worse, on Daytona it runs a process inside the sandbox for a call
+the policy already refused.
+
+If any source fails to resolve, the whole mint fails. The runner discards every record it minted
+for that call and releases their bytes. It returns the failing operation's index and its
+structured error. A commit is one atomic change, so a partially resolvable commit has no useful
+meaning.
+
+The records for one call share one `catalogGeneration`, read once at step 4. They share one
+expiry, computed once. This stops a set from ageing apart.
+
+#### 3.4.2 Verify: all or nothing
+
+The runner verifies the complete set before it consumes any of it.
+
+1. Determine the required set: every operation index in the executed call that carries a
+   `value_from`.
+2. Look up a record for each required index, keyed by `toolCallId` plus `operationIndex`.
+3. Run every check in section 3.2 against every record.
+4. Every record must pass. One failure fails the whole call.
+
+Two extra checks apply to the set, and neither is implied by the per-record checks:
+
+- **No missing member.** Every required index must have a record. A call carrying three
+  `value_from` operations with only two records fails closed.
+- **No extra member.** Every record held for this `toolCallId` must correspond to a required
+  index in the executed call. A record with no matching operation means the executed call is not
+  the approved call. This catches an attacker who removes an operation from an approved
+  multi-operation commit to change what the commit does.
+
+The `argsDigest` check already covers both cases when it passes, because it binds the whole
+argument document. These two checks exist so the runner reports the real reason rather than an
+opaque digest mismatch, and so the set logic holds even if the argument shape later changes.
+
+#### 3.4.3 Consume: one atomic step
+
+The runner consumes the complete set in one synchronous step, with no `await` inside it.
+
+```
+verifyAll(requiredIndexes)      // no mutation
+  -> consumeAll(requiredIndexes) // synchronous, no await
+  -> substituteAll(callBody)     // synchronous
+  -> execute(callBody)           // the first await
+```
+
+`consumeAll` removes every record from the store, in one pass. JavaScript runs it to completion
+without interleaving, so no second execute record can consume a member in the middle.
+
+The runner must not verify-and-consume one record, then await a read for the next. Any `await`
+between two consumes opens a window where a concurrent forged record consumes the rest of the
+set and executes a different commit.
+
+If `consumeAll` finds any record already consumed, it must restore nothing and execute nothing.
+It fails the whole call. A partially consumed set is a bug, not a recoverable state, because
+verification passed moments earlier under the same synchronous turn.
+
+#### 3.4.4 Substitute: all frozen values, then execute
+
+The runner replaces `value_from` with `value` for every required index, using each record's
+frozen value. It does this after the consume, on a copy of the call body.
+
+It executes once, with the fully substituted body. It never executes a partly substituted body,
+and it never issues one API call per source.
+
+#### 3.4.5 Failure and cleanup
+
+Any failure in 3.4.2, 3.4.3, or 3.4.4 discards every record for that `toolCallId` and releases
+every frozen value. The runner does not leave a surviving member for a retry. A retry must
+re-mint the whole set, so the human re-approves the whole commit.
+
+### 3.5 Discard
 
 The runner discards a record on every one of these events.
 
@@ -245,7 +423,7 @@ snapshot of a folder should not authorize an execution hours later.
 
 ### 6.4 Cleanup obligations
 
-The runner must release frozen bytes on every path listed in section 3.4. The turn's `finally`
+The runner must release frozen bytes on every path listed in section 3.5. The turn's `finally`
 block is the backstop. It must clear the whole store. A leaked entry is a memory leak on a
 long-lived parked session, so the backstop must not be optional.
 
@@ -382,6 +560,25 @@ These tests gate the slice. They are a contract, not a suggestion.
 - Exceeding the per-turn source count or the aggregate byte budget produces a structured error
   and releases every partial allocation.
 
+**Multi-source commits.**
+- A denied permission verdict on a call carrying three sources performs ZERO workspace reads.
+  Assert on the reader, not only on the result.
+- A commit with three sources mints three records, all sharing one `catalogGeneration` and one
+  expiry.
+- One source failing to resolve discards the other two records and releases their bytes.
+- A call missing one of its three records fails closed, and consumes none of the other two.
+- A call carrying a record for an operation index the executed call does not have fails closed.
+- Removing one operation from an approved three-operation commit fails closed.
+- Two concurrent execute records for the same multi-source call produce exactly one execution.
+- The executed API call carries all three substituted values in one request.
+- A failure during substitution releases all three frozen values.
+
+**Strict serializer.**
+- The three argument sets in section 2.3.1 produce three different digests.
+- The full list in section 2.3.5 passes.
+- An authorization minted with the strict serializer does not verify against a digest computed
+  with `canonicalJson`. This guards against a later refactor merging the two.
+
 All of the above must run on both the local relay host and the Daytona relay host. The gate
 review is explicit that static inspection does not prove Daytona behavior.
 
@@ -391,6 +588,23 @@ review is explicit that static inspection does not prove Daytona behavior.
   tool-call-id cache with this contract.
 - `decisions.md`, the runner-spike block. Replace the "frozen per tool-call id, with inline
   resolution at execution as the fallback" line.
-- `decisions.md`, open product call 4. Record Mahmoud's answer on the forced gate.
+- `decisions.md`, open product call 4. Record Mahmoud's answer on the forced gate. Gate 2 notes
+  that calls 4 and 8 are one decision, so merge them.
 - `plan.md`. Split slice 3 into source codec, authorization and freeze integration, and approval
   user interface, as must-fix item 7 requires.
+
+## 12. Gate 2 resolution
+
+| Gate 2 point | Where it is answered |
+|---|---|
+| New problem 1: `argsDigest` is not exact; `canonicalJson` parses JSON-looking strings | §2.3.1 states the collision with the three colliding examples. §2.3.2 explains why the lenient serializer stays for approval matching. §2.3.3 specifies `strictCanonicalJson` with ten rules. §2.3.4 makes rejection an error. §2.3.5 and §10 give the tests. |
+| New problem 2: multi-source commits lack atomic verify-and-consume | §3.4 is new. §3.4.1 puts the permission verdict before any workspace read. §3.4.2 verifies the complete set with no-missing and no-extra checks. §3.4.3 consumes synchronously with no `await` between members. §3.4.4 substitutes every value and executes once. §3.4.5 defines cleanup. §10 adds thirteen tests. |
+| Item 4 status: record, lifecycle, frozen store, expiry, cold resume | Unchanged from gate 1. §2, §3.1 to §3.3, §5, §6, §7. |
+
+Not resolved here, by design:
+
+- Gate 2 product calls 4 and 8 are one decision and remain open. §4 states the two candidate
+  behaviors and says which one this contract implements.
+- Gate 2 new problem 9 concerns the approval manifest for `set` with `value_from`. It belongs to
+  `workspace-import.md` §8 and `change-set.md` §5.1.
+- Gate 2 item 7, the slice plan, belongs to `plan.md`.

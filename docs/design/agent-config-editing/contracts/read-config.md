@@ -30,19 +30,52 @@ PlatformOp(
     method="POST",
     path="/api/workflows/revisions/read-config",
     input_schema=_READ_CONFIG_INPUT_SCHEMA,
-    context_bindings={"target.workflow_variant_id": "$ctx.workflow.variant.id"},
+    context_bindings={
+        "target.workflow_variant_id": "$ctx.workflow.variant.id",
+        "target.run_is_draft":        "$ctx.workflow.is_draft",
+        "target.run_revision_id":     "$ctx.workflow.revision.id",
+    },
     read_only=True,
     timeout_ms=15000,
 )
 ```
 
-The binding gives the self-target guarantee. The model cannot name another variant,
+The first binding gives the self-target guarantee. The model cannot name another variant,
 because the field is stripped from the model-visible schema and filled server-side
 (`sdks/python/agenta/sdk/agents/platform/op_catalog.py:91`).
 
+### 2.1 Three bindings, because the endpoint cannot compute the draft state
+
+Gate 2, new problem 5, is correct: a variant id alone does not tell the endpoint whether
+the run is a draft. The variant is the same on a draft run and on a committed run. The
+draft fact lives in the run context, in the runner, and it must be carried in.
+
+Two more bindings carry it. Both resolve today. No new runner mechanism is needed:
+
+- `resolveCtxToken` walks any dotted path against the run-context blob. A unit test
+  already asserts `resolveCtxToken(RUN_CONTEXT, "$ctx.workflow.is_draft")`
+  (`services/runner/tests/unit/tool-direct.test.ts:314`).
+- `RunContextWorkflow` carries `is_draft` and `revision`
+  (`sdks/python/agenta/sdk/agents/dtos.py:485`). The SDK sets `is_draft = revision is None`
+  (`sdks/python/agenta/sdk/agents/tracing.py:166`).
+
+So the two new bindings behave like this:
+
+| Run | `run_is_draft` | `run_revision_id` |
+|---|---|---|
+| pinned to a committed revision | `false` | the revision id |
+| a playground draft | `true` | absent, because `$ctx.workflow.revision.id` does not resolve |
+
+Both fields are server-bound. The catalog strips them from the model-visible schema, so
+the model cannot claim it is not on a draft run.
+
+`run_revision_id` is not the answer to the read. The endpoint still answers from the
+committed head. The field lets the response state one more useful fact: whether the run's
+own revision is still the head. Section 4 carries it as `run_revision_is_head`.
+
 The op needs a new endpoint. The existing retrieve endpoint returns a whole revision. It
-cannot do partial reads, it cannot answer the draft question, and it returns fields the
-model must not see.
+cannot do partial reads, it cannot receive these bindings, and it returns fields the model
+must not see.
 
 ## 3. The request
 
@@ -57,6 +90,8 @@ model must not see.
       "additionalProperties": false,
       "properties": {
         "workflow_variant_id": {"type": "string"},
+        "run_is_draft": {"type": "boolean"},
+        "run_revision_id": {"type": "string"},
         "path": {"$ref": "#/$defs/Target"}
       }
     },
@@ -71,6 +106,10 @@ section 4. One grammar for read and write is the point. What the agent reads, it
 name in an operation.
 
 An absent `path` means the whole readable configuration.
+
+`workflow_variant_id`, `run_is_draft`, and `run_revision_id` are server-bound. Section 2.1
+explains them. They are stripped from the model-visible schema, so the model never writes
+them.
 
 Examples:
 
@@ -95,6 +134,7 @@ Examples:
   },
   "base_revision_id": "019c...",
   "is_draft": false,
+  "run_revision_is_head": true,
   "path": ["parameters", "agent", "llm"],
   "value": {"model": "openai/gpt-5", "extras": {"reasoning_effort": "high"}},
   "bytes": 74,
@@ -103,11 +143,14 @@ Examples:
 ```
 
 - `revision` says exactly which version answered. This is RFC requirement 3 on the tool.
-- `base_revision_id` is the value the agent must copy into its next commit. It equals
+- `base_revision_id` is the value the agent **must copy** into its next commit. It equals
   `revision.id`. It is a separate field because the agent must not have to guess which id
-  the commit wants.
-- `is_draft` says whether the run targets a committed revision or an unsaved playground
-  draft. Section 10 explains what it means for the answer.
+  the commit wants. Section 10.1 makes this the single rule, on every kind of run.
+- `is_draft` comes from the `$ctx.workflow.is_draft` binding of section 2.1. The endpoint
+  echoes it; it does not compute it. Section 10 explains what it means for the answer.
+- `run_revision_is_head` compares the bound `run_revision_id` with the head the endpoint
+  just read. It is `null` on a draft run, because the run has no revision. It tells the
+  agent whether the configuration it is running is still the head.
 - `path` echoes the resolved target, so a truncated model context still knows what it got.
 - `value` is the raw value at that path.
 
@@ -239,9 +282,38 @@ The response must say this, not only through a flag:
 }
 ```
 
-The runner must fill `base_revision_id` for a draft-run commit from the read, not from
-`$ctx.workflow.revision.id`, because that context value is absent
-(`commit-transaction.md` section 8).
+### 10.1 Who fills `base_revision_id`: one rule
+
+Gate 2 found a contradiction between section 4 and this section. Section 4 told the model
+to copy the value. This section told the runner to fill it "from the read", and it named
+no state for that. The runner keeps no read result, so that rule could not be built.
+
+**The single rule: the model always supplies `base_revision_id` for an ordered delta. It
+copies the value from the `read_config` response. The runner never fills it for an ordered
+delta.**
+
+The state source is the model's own context. The value travels from the response of one
+tool call into the arguments of the next tool call. That is the only place it lives, and
+it needs no new runner state.
+
+The runner keeps exactly one defaulting behavior, and only for the legacy form:
+
+| Delta form | Run | Who fills `base_revision_id` |
+|---|---|---|
+| ordered | any | the model, from the read response. Missing is 422. |
+| legacy | committed | the runner, from `$ctx.workflow.revision.id`, only when the model omitted it. |
+| legacy | draft | nobody. The context value does not resolve, so no base check runs. |
+
+Three points close the rule:
+
+1. The default never overwrites a model value. It is not a `context_bindings` entry.
+   `commit-transaction.md` section 8 explains why: a bound value would pin an agent to its
+   stale run revision after a 409, and it could never retry inside the same run.
+2. On a draft run an ordered delta is still safe, because the model carries the id it read.
+   A legacy draft-run delta keeps today's last-write-wins behavior, and the response
+   carries a warning that says so.
+3. `read_config` is therefore a hard prerequisite for ordered commits. Gate 1 item 7
+   already asks the plan to order the slices that way.
 
 Two consequences we accept for v1:
 
@@ -269,27 +341,47 @@ exposes `workflow_variant_id`, `message`, and `delta` only
 for every commit that arrives through the `commit_revision` platform tool. It does not run
 for a human or an SDK caller on the normal API.
 
-| Target root | Rule |
-|---|---|
-| `parameters` | allowed |
-| everything else | refused, `out_of_scope` |
+The policy is an allow-list, not a deny-list. It names what the agent may write. Everything
+else is refused with `out_of_scope`.
 
-Inside `parameters`, four subtrees are refused:
+| Target prefix | Rule |
+|---|---|
+| `parameters.agent` | allowed, minus the refused subtrees below |
+| every other `parameters` subtree | refused in v1. Section 11.1.1. |
+| every other root | refused |
+
+Inside `parameters.agent`, five subtrees are refused:
 
 | Path | Why |
 |---|---|
-| `parameters.agent.sandbox.kind` | The sandbox provider is a security and cost boundary. |
-| `parameters.agent.sandbox.permissions` | The security boundary the agent runs inside. |
-| `parameters.agent.harness.permissions` | The allow / ask / deny rules that gate its own tools. |
-| `parameters.agent.runner.permissions` | The runner-enforced execution policy. |
+| `harness.kind` | It is an identity and rebuild boundary. Section 11.1.1. |
+| `harness.permissions` | The allow / ask / deny rules that gate the agent's own tools. |
+| `runner.permissions` | The runner-enforced execution policy. |
+| `sandbox.kind` | The sandbox provider is a security and cost boundary. |
+| `sandbox.permissions` | The security boundary the agent runs inside. |
 
 An agent that could widen its own permission lists could grant itself any tool. An agent
 that could switch its sandbox could leave the boundary a human chose. Both are privilege
 escalation, and both are silent.
 
-`parameters.agent.harness.kind` stays writable. Changing the harness costs a rebuild, and
-it is a normal authoring choice, not a security boundary. This is a product call; section
-13 lists it.
+#### 11.1.1 Two v1 defaults, both fail-closed
+
+Gate 2 says product calls 10 and 11 leave the security scope unfinished, and that the
+contract allows more than the recommendation. Both calls stay open for Mahmoud. Until he
+answers, the contract takes the fail-closed side:
+
+| Call | v1 default | Reason |
+|---|---|---|
+| 10. `harness.kind` | **not writable** | It selects the coding agent, and it forces a full rebuild. A wrong self-directed switch can leave an agent that cannot run, and only a human can undo it. |
+| 11. `parameters` outside `agent` | **not writable** | A workflow revision can hold other subtrees, such as `prompt`. A builder agent has no reason to write them in v1. |
+
+The direction of the default matters, and it is not symmetric. Widening an allow-list
+later is additive: no stored configuration breaks, and no caller has to change. Narrowing
+it later is a breaking change: a playbook that worked stops working, and the failure looks
+like a bug to the user. So the safe default is the narrow one, in both cases.
+
+An answer from Mahmoud replaces either row. It does not change any other part of this
+contract.
 
 ### 11.2 Where it runs
 
@@ -368,17 +460,35 @@ want to persist it, we do that on purpose, with a decision.
 
 ## 13. Open items
 
-1. **`harness.kind` writability** (section 11.1). It is currently writable. Is a
-   self-directed harness switch acceptable? A wrong choice can make an agent unable to
-   run, and only a human can undo it.
-2. **`parameters` beyond `agent`.** A workflow revision can hold other `parameters`
-   subtrees, such as `prompt`. Should a builder agent be able to write them? The current
-   policy allows it.
-3. **Storing the authored operations for audit.** The RFC promises to store the diff with
-   the commit. This contract does not do it. The review lists it as missing. It needs its
-   own decision, because it adds a column or a meta field.
+1. **Product call 10, `harness.kind` writability.** The v1 default is now "not writable"
+   (section 11.1.1). Mahmoud can widen it. Widening is additive.
+2. **Product call 11, `parameters` beyond `agent`.** The v1 default is now "not writable"
+   (section 11.1.1). Mahmoud can widen it. Widening is additive.
+3. **Product call 12, storing the authored operations for audit.** The RFC promises to
+   store the diff with the commit. This contract does not do it. It needs its own
+   decision, because it adds a column or a meta field.
 4. **`max_bytes` default.** 65536 is a guess. Measure a real agent configuration before we
    fix it.
 5. **Draft reads, later.** Section 10 accepts that a draft run reads the head. RFC Q3
    Option C (the runner answers from memory) stays parked. If users find the caveat
    confusing, that option comes back.
+6. **`run_revision_is_head` on a stale run.** The field tells an agent that its running
+   configuration is behind the head. This contract does not say what the agent should do
+   about it. A tool description line is probably enough. Decide during the slice.
+
+## 14. Gate 2 resolution
+
+Gate 2 marked item 3 PARTIAL. New problem 5 restates the first point.
+
+| Gate point | Answered in |
+|---|---|
+| The catalog binds only `workflow_variant_id`, so no draft flag reaches the endpoint | Section 2.1. Two more server-bound context bindings, `$ctx.workflow.is_draft` and `$ctx.workflow.revision.id`. Both resolve through today's `resolveCtxToken`; the unit test at `services/runner/tests/unit/tool-direct.test.ts:314` proves the first one. |
+| The draft claim must be implemented or dropped | Implemented. Section 2.1 carries the flag in, section 4 echoes it, and section 10 states what it means. The endpoint never computes it. |
+| §4 and §10 contradict each other about `base_revision_id` | Section 10.1. One rule: the model always copies it from the read response for an ordered delta. The state source is the model's own context, carried call to call. The runner defaults it only for a legacy delta on a committed run. |
+| Calls 10 and 11 leave the security scope unfinished | Section 11.1.1. Both take the fail-closed default in v1, with the reason that widening an allow-list later is additive and narrowing it is a breaking change. Section 13 keeps both open for Mahmoud. |
+
+Supporting changes: section 3 request fields, section 4 response fields, section 11.1
+rewritten as an allow-list, and section 13 items 1 to 3 and 6.
+
+`commit-transaction.md` section 8 now points at section 10.1, so the two contracts state
+one rule.
