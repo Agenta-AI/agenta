@@ -16,14 +16,9 @@ const AgentActivityCell = ({agentId}: {agentId: string}) => {
 
     if (isPending) return <Skeleton.Input active size="small" className="!h-4 !min-w-16" />
 
-    // An em dash, not "No sessions yet": the roster's list form gives this a narrow right column,
-    // and the sentence wrapped to three lines and tripled the row's height.
-    if (!session)
-        return (
-            <Tooltip title="No sessions yet">
-                <span className="text-xs text-colorTextTertiary">—</span>
-            </Tooltip>
-        )
+    // Nothing at all: an agent that has never run has no activity to report, and a placeholder
+    // dash reads as a value that failed to load rather than as an absence.
+    if (!session) return null
 
     const activity = session.updated_at ?? session.created_at
     const label = session.name?.trim() || "Untitled session"
