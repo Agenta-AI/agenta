@@ -12,8 +12,14 @@ import {
     type SessionStatusFilter,
 } from "../state/filters"
 
+interface Props {
+    waitingCount: number | undefined
+    /** The agent-scoped page fixes the agent from the route, so the picker would only lie. */
+    hideAgentFilter?: boolean
+}
+
 /** Every control here maps to a server predicate — see `useSessionList`. */
-const SessionFiltersBar = ({waitingCount}: {waitingCount: number | undefined}) => {
+const SessionFiltersBar = ({waitingCount, hideAgentFilter}: Props) => {
     const [search, setSearch] = useAtom(sessionSearchAtom)
     const [agentId, setAgentId] = useAtom(sessionAgentFilterAtom)
     const [status, setStatus] = useAtom(sessionStatusFilterAtom)
@@ -32,17 +38,19 @@ const SessionFiltersBar = ({waitingCount}: {waitingCount: number | undefined}) =
                 className="w-64"
             />
 
-            <Select
-                allowClear
-                value={agentId}
-                onChange={(value) => setAgentId(value ?? null)}
-                placeholder="All agents"
-                className="w-48"
-                options={agents.map((agent) => ({
-                    value: agent.workflowId,
-                    label: agent.name,
-                }))}
-            />
+            {hideAgentFilter ? null : (
+                <Select
+                    allowClear
+                    value={agentId}
+                    onChange={(value) => setAgentId(value ?? null)}
+                    placeholder="All agents"
+                    className="w-48"
+                    options={agents.map((agent) => ({
+                        value: agent.workflowId,
+                        label: agent.name,
+                    }))}
+                />
+            )}
 
             <Segmented<SessionStatusFilter>
                 value={status}

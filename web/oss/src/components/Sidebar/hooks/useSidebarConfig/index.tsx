@@ -179,6 +179,17 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 disabled: !hasProjectURL,
             },
             {
+                key: "app-sessions-link",
+                title: "Sessions",
+                link: `${appURL || recentlyVisitedAppURL}/sessions`,
+                icon: <ChatsCircleIcon size={14} />,
+                isHidden,
+                disabled: !hasProjectURL,
+                // Only agents hold conversations — a prompt app or evaluator would get an
+                // always-empty list.
+                workflowCategories: ["agent"],
+            },
+            {
                 key: "app-variants-link",
                 title: "Registry",
                 link: `${appURL || recentlyVisitedAppURL}/variants`,

@@ -21,6 +21,7 @@ import {
     resetSessionFiltersAtom,
     sessionAgentFilterAtom,
     sessionFiltersActiveAtom,
+    sessionFiltersActiveExceptAgentAtom,
     sessionSearchAtom,
     sessionShowArchivedAtom,
     sessionShowTriggeredAtom,
@@ -35,19 +36,32 @@ import {
 } from "./state/useSessionList"
 import {SessionListEmpty, SessionListError, SessionListSkeleton} from "./states/SessionListStates"
 
+interface Props {
+    /** Route-supplied agent scope (`/apps/[app_id]/sessions`). Omit for the project-wide list. */
+    scopedAgentId?: string
+    title?: string
+}
+
 /**
- * The project-wide session list — sessions are the unit of work, so this is where they get
- * organised. Pins render as their own group, fetched by id, and are excluded from the main list so
- * nothing appears twice; both queries are server-ordered, so there is only ever one ordering.
+ * The session list — sessions are the unit of work, so this is where they get organised. Pins
+ * render as their own group, fetched by id, and are excluded from the main list so nothing appears
+ * twice; both queries are server-ordered, so there is only ever one ordering.
+ *
+ * `scopedAgentId` makes the same page serve an agent's own list. It overrides the agent filter
+ * rather than writing to it, so the project page's filter is never left holding a value the user
+ * did not choose.
  */
-const SessionsPage = () => {
+const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const search = useAtomValue(sessionSearchAtom)
-    const agentId = useAtomValue(sessionAgentFilterAtom)
+    const agentFilter = useAtomValue(sessionAgentFilterAtom)
+    const agentId = scopedAgentId ?? agentFilter
     const status = useAtomValue(sessionStatusFilterAtom)
     const includeArchived = useAtomValue(sessionShowArchivedAtom)
     const showTriggered = useAtomValue(sessionShowTriggeredAtom)
-    const filtersActive = useAtomValue(sessionFiltersActiveAtom)
+    const projectFiltersActive = useAtomValue(sessionFiltersActiveAtom)
+    const scopedFiltersActive = useAtomValue(sessionFiltersActiveExceptAgentAtom)
+    const filtersActive = scopedAgentId ? scopedFiltersActive : projectFiltersActive
     const resetFilters = useSetAtom(resetSessionFiltersAtom)
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
     const togglePin = useSetAtom(toggleSessionPinAtom)
@@ -137,6 +151,7 @@ const SessionsPage = () => {
                 pinned={pinned}
                 pending={pendingBySession?.get(row.session_id)}
                 menuItems={sessionActions.menuItems}
+                showAgent={!scopedAgentId}
                 {...actions}
             />
         </motion.div>
@@ -146,9 +161,12 @@ const SessionsPage = () => {
     const isError = listQuery.isError || pinnedQuery.isError
 
     return (
-        <PageLayout className="grow min-h-0" title="Sessions">
+        <PageLayout className="grow min-h-0" title={title}>
             <div className="flex flex-col flex-1 min-h-0">
-                <SessionFiltersBar waitingCount={pendingBySession?.size} />
+                <SessionFiltersBar
+                    waitingCount={pendingBySession?.size}
+                    hideAgentFilter={Boolean(scopedAgentId)}
+                />
 
                 <div className="flex-1 min-h-0 overflow-y-auto">
                     {isError ? (

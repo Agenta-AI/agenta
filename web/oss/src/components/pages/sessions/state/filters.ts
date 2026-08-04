@@ -15,13 +15,17 @@ export const sessionShowArchivedAtom = atom(false)
  * your own work. Hidden by default; the chip opts back in. */
 export const sessionShowTriggeredAtom = atom(false)
 
-export const sessionFiltersActiveAtom = atom(
+/** Everything the agent-scoped page can still narrow by — its agent comes from the route. */
+export const sessionFiltersActiveExceptAgentAtom = atom(
     (get) =>
         Boolean(get(sessionSearchAtom).trim()) ||
-        Boolean(get(sessionAgentFilterAtom)) ||
         get(sessionStatusFilterAtom) !== "all" ||
         get(sessionShowArchivedAtom) ||
         get(sessionShowTriggeredAtom),
+)
+
+export const sessionFiltersActiveAtom = atom(
+    (get) => get(sessionFiltersActiveExceptAgentAtom) || Boolean(get(sessionAgentFilterAtom)),
 )
 
 export const resetSessionFiltersAtom = atom(null, (_get, set) => {
