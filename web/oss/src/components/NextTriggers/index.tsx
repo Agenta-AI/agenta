@@ -3,6 +3,7 @@ import {useMemo} from "react"
 import {
     describeCron,
     nextCronRuns,
+    triggerBoundAgentId,
     useTriggerSchedules,
     useTriggerSubscriptions,
 } from "@agenta/entities/gatewayTrigger"
@@ -35,15 +36,6 @@ const formatNextRun = (at: Date) => {
  * event subscriptions have no next time by nature, so they say what they are instead and sort
  * after everything dated.
  */
-/** Schedules and subscriptions both name their agent through the same reference keys. */
-const boundAgentId = (
-    references: Record<string, {id?: string | null} | undefined> | null | undefined,
-) =>
-    references?.application?.id ??
-    references?.application_variant?.id ??
-    references?.application_revision?.id ??
-    null
-
 interface UpcomingTrigger {
     id: string
     /** What it does. Falls back to the cadence in words, never to a cron expression. */
@@ -72,11 +64,11 @@ const NextTriggersSection = ({agentId}: {agentId?: string} = {}) => {
 
     const rows = useMemo<UpcomingTrigger[]>(() => {
         const describeAgent = (references: unknown) => {
-            const boundId = boundAgentId(references as never)
+            const boundId = triggerBoundAgentId(references as never)
             return (boundId && agentNames.get(boundId)) || "Unassigned agent"
         }
         const isInScope = (references: unknown) =>
-            !agentId || boundAgentId(references as never) === agentId
+            !agentId || triggerBoundAgentId(references as never) === agentId
 
         const scheduled = schedules
             .filter(

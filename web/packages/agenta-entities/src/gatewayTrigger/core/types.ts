@@ -456,6 +456,24 @@ export interface TriggerScheduleQuery {
 // ---------------------------------------------------------------------------
 
 /** Read `flags.is_active`, defaulting to `true` when the flag is absent. */
+/**
+ * The agent a trigger runs, from its `data.references`.
+ *
+ * One reader for the reference precedence, because a trigger's binding is entity knowledge:
+ * every surface that names the agent behind a schedule or subscription (the rail's next-triggers
+ * list, the settings table) was deriving it independently off the same three keys.
+ */
+export function triggerBoundAgentId(
+    references?: Record<string, {id?: string | null} | undefined> | null,
+): string | null {
+    return (
+        references?.application?.id ??
+        references?.application_variant?.id ??
+        references?.application_revision?.id ??
+        null
+    )
+}
+
 export function isEntityActive(entity?: {flags?: Record<string, unknown> | null} | null): boolean {
     const raw = entity?.flags?.is_active
     return raw === undefined || raw === null ? true : Boolean(raw)
