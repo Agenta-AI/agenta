@@ -32,21 +32,52 @@ Codex review of the finalized design.
 
 ## Phase 2: vertical slices
 
-Slices 1 to 4 are API-and-frontend work (engine-spike). Slices 5 to 7 are runner work
-(runner-spike). The two tracks run in parallel; they touch disjoint files.
+The contracts in `contracts/` are the source of truth for every slice. The two tracks
+(API, runner) run in parallel but are NOT fully disjoint: the import slices touch
+runner approval and parked-state code that the lifecycle slices later refactor. The
+sequencing below respects that: import authorization (S3b) lands before the coordinator
+extraction (S6) rebases it, or waits for it, whichever is ready first; the team lead
+sequences the merge order at that point.
 
-| Slice | Content | User stories served |
+One ordering rule stands above the table: ordered operations do not become
+model-visible in the catalog until `read_config` exists. An agent that can be told
+"read, then edit" but cannot read would fail every conflict retry.
+
+| Slice | Content | Blocked by |
 |---|---|---|
-| 1 | Change-set engine + commit wrapper: ordered operations, base check atomic with the insert (409 with both ids), commit validation, unique names, strict DTOs, catalog schema. | US-1, US-2, US-4, US-7 |
-| 2 | `read_config` tool: self-bound revision read, partial reads, revision id + draft flag in the response, shaped output. | US-5, US-7 retry loop |
-| 3 | `value_from` workspace path end to end: runner resolution, folder-to-skill codec, frozen approval content, minimal approval card (name, file list, diff). | US-3 |
-| 4 | Optional agent-written `description` on builder tool calls, shown on tool cards. | R12 |
-| 5 | Runner safety fixes + applied-state identity (lifecycle migration steps 1 and 2): revision id out of the fingerprint, teardown stops instead of deleting where safe, environment owns applied state, approval-stale-config bug structurally dead. | US-8 |
-| 6 | Coordinator extraction + shadow routing (migration steps 3 and 4). Behavior unchanged; the new router runs in shadow and logs disagreements. | US-8 |
-| 7 | Lifecycle split + in-place routes (migration steps 5 to 8): workspace refresh with deletions, setModel, Codex mode, session reopen for Claude/Codex tool changes, runtime restart for Pi tool changes, credential refresh so Daytona keys never rebuild. | US-8 |
+| S1a | The pure engine and the operation schemas, per `contracts/change-set.md` §12's prototype changes. No catalog exposure. | nothing |
+| S1b | The commit transaction per `contracts/commit-transaction.md`: one transaction, base check, validation, canonical equality over all persisted fields, no-change response. | product calls 1, 2, 12 |
+| S2 | `read_config` per `contracts/read-config.md`, including the editable-scope policy. | product calls 10, 11 for the scope section |
+| S3a | The import codec and workspace readers per `contracts/workspace-import.md`. Pure, both platforms. | nothing |
+| S3b | The single-use execution authorization per `contracts/execution-authorization.md`, wired into the approval gate. | product call 4 |
+| S3c | The approval card: manifest, sizes, digests, diff, executable flags. Minimal frontend. | S3b |
+| S4 | The ephemeral `description` on builder tool-call envelopes, shown on tool cards. | nothing |
+| S5 | Runner safety + applied-state identity (lifecycle migration steps 1-2). | nothing |
+| S6 | Coordinator extraction + shadow routing (steps 3-4). | S5 |
+| S7a | Lifecycle extraction into units (step 5), behavior unchanged. | S6 |
+| S7b | In-place routes for workspace files and model (step 6, first half). | S7a |
+| S7c | Tool-catalog routes with the trusted acknowledgement channel per `contracts/adapter-matrix.md`. | S7a, spike S2 verdicts |
+| S7d | MCP reopen with positive native-history verification. | S7a |
+| S7e | Credential and provider reconciliation, including the Daytona creation-identity split (steps 8-9). | S7a |
 
 QA gates: the qa teammate tests each slice when it lands (unit suites plus live stories
 on the dev stack). A regression blocks the slice until fixed.
+
+### Rollout and compatibility
+
+- **Deployment order:** API first (it accepts both delta forms), then the SDK catalog
+  (it advertises the new schema), then runner images. Each step is backward-compatible
+  with the previous one.
+- **Kill switch:** one API-side setting disables the ordered delta form and
+  `value_from` acceptance; the catalog reads it and falls back to advertising the
+  legacy schema. The runner needs no switch of its own: without the catalog schema, no
+  model emits the new form.
+- **Legacy DTO compatibility:** `extra="forbid"` applies to the new operations form
+  only. The legacy `set`/`remove` form keeps its current tolerance, so old playbooks
+  and stored callers do not start failing.
+- **Cross-language fixtures:** the canonical tool key and the canonical JSON
+  serialization get golden fixtures shared by the Python engine and the TypeScript
+  runner, so the two implementations cannot drift silently.
 
 ## Phase 3: finalization
 
