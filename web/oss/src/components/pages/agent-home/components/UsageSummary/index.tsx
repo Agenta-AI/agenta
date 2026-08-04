@@ -38,6 +38,8 @@ const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) =>
     const {data} = useObservabilityDashboard()
     const [timeRange, setTimeRange] = useAtom(observabilityDashboardTimeRangeAtom)
 
+    // Cost and tokens are out until they're trustworthy: 60 requests reported $0.00 and 0 tokens,
+    // which discredited the two real stats beside them. Both remain in the expanded dashboard.
     const stats = useMemo(
         () => [
             {
@@ -45,14 +47,6 @@ const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) =>
                 value: data?.total_count == null ? EMPTY : formatNumber(data.total_count),
             },
             {label: "Latency", value: formatLatency(data?.avg_latency)},
-            {
-                label: "Cost",
-                value: data?.total_cost == null ? EMPTY : `$${data.total_cost.toFixed(2)}`,
-            },
-            {
-                label: "Tokens",
-                value: data?.total_tokens == null ? EMPTY : formatNumber(data.total_tokens),
-            },
         ],
         [data],
     )

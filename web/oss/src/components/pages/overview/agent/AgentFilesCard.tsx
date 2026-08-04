@@ -53,13 +53,29 @@ const AgentFilesCard = ({appId}: {appId: string}) => {
 
     return (
         <section className={`flex flex-col ${RAIL_CARD_CLASS}`}>
+            {/* Session-card header grammar: the count alone gave no way to reach files past the six shown. */}
             <div className="mb-1 flex items-center justify-between gap-2">
-                <h3 className="m-0 text-xs font-medium text-colorText">Files</h3>
-                {total ? (
-                    <span className="text-xs text-colorTextTertiary">
-                        {total}
-                        {files.data?.totalCapped ? "+" : ""} file{total === 1 ? "" : "s"}
-                    </span>
+                <div className="flex min-w-0 items-center gap-2">
+                    <h3 className="m-0 text-xs font-medium text-colorText">Files</h3>
+                    {total ? (
+                        <span className="shrink-0 text-xs text-colorTextTertiary">
+                            {total}
+                            {files.data?.totalCapped ? "+" : ""} file{total === 1 ? "" : "s"}
+                        </span>
+                    ) : null}
+                </div>
+                {mountId ? (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            // No path: the drawer opens on the drive root rather than a selection.
+                            setOpenPath(null)
+                            setOpen(true)
+                        }}
+                        className="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-xs text-colorPrimary"
+                    >
+                        View all
+                    </button>
                 ) : null}
             </div>
 
@@ -102,11 +118,10 @@ const AgentFilesCard = ({appId}: {appId: string}) => {
                                     {name}
                                 </span>
                             </Tooltip>
-                            {detail ? (
-                                <span className="shrink-0 text-[11px] text-colorTextTertiary">
-                                    {detail}
-                                </span>
-                            ) : null}
+                            {/* Fixed column: shrink-to-fit left "1.3 KB" and "293 B" without a shared edge. */}
+                            <span className="w-16 shrink-0 text-right text-[11px] text-colorTextTertiary">
+                                {detail}
+                            </span>
                             {file.mtime ? (
                                 <span className="w-14 shrink-0 text-right text-[11px] text-colorTextTertiary">
                                     {timeAgo(file.mtime)}

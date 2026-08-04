@@ -20,7 +20,9 @@ import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {agentConfigSummary} from "./agentConfigSummary"
 import {agentLatestRevisionAtomFamily} from "./state"
 
-const NONE = "None"
+/** An unset row says what to do about it — every row opens the playground anyway. */
+const emptyAction = (label: string) => ({value: label, isAction: true})
+const stated = (value: string) => ({value, isAction: false})
 
 /**
  * What this agent IS, in one card.
@@ -44,53 +46,56 @@ const AgentConfigurationCard = ({appId}: {appId: string}) => {
 
     const preview = summary.instructionPreview
 
-    // Mirrors the playground's config sections — same order, same icons, same "label left, current
-    // value right, chevron in" shape — so the overview reads as a view of that panel rather than a
-    // second, differently-shaped account of the same settings.
+    // Same order and icons as the playground's config sections, so this reads as a view of that
+    // panel rather than a second account of the same settings.
+    const model = [summary.model, summary.harness].filter(Boolean).join(" · ")
+    const advanced = [
+        summary.sandbox && `Sandbox: ${summary.sandbox.toLowerCase()}`,
+        summary.permissions && `Permissions: ${summary.permissions.toLowerCase()}`,
+    ]
+        .filter(Boolean)
+        .join(" · ")
+
     const rows = [
         {
             key: "model",
-            icon: <CpuIcon size={16} />,
+            icon: <CpuIcon size={15} />,
             label: "Model & harness",
-            value: [summary.model, summary.harness].filter(Boolean).join(" · ") || "Not set",
+            ...(model ? stated(model) : emptyAction("Choose a model")),
         },
         {
             key: "instructions",
-            icon: <FileTextIcon size={16} />,
+            icon: <FileTextIcon size={15} />,
             label: "Instructions",
-            value: summary.instructionWords
-                ? `AGENTS.md · ${summary.instructionWords} words`
-                : NONE,
+            ...(summary.instructionWords
+                ? stated(`AGENTS.md · ${summary.instructionWords} words`)
+                : emptyAction("Add instructions")),
         },
         {
             key: "tools",
-            icon: <WrenchIcon size={16} />,
+            icon: <WrenchIcon size={15} />,
             label: "Tools",
-            value: summary.tools ? String(summary.tools) : NONE,
+            ...(summary.tools ? stated(`${summary.tools} enabled`) : emptyAction("Add tools")),
         },
         {
             key: "mcps",
-            icon: <PlugsIcon size={16} />,
+            icon: <PlugsIcon size={15} />,
             label: "MCP servers",
-            value: summary.mcps ? String(summary.mcps) : NONE,
+            ...(summary.mcps
+                ? stated(`${summary.mcps} connected`)
+                : emptyAction("Connect a server")),
         },
         {
             key: "skills",
-            icon: <GraduationCapIcon size={16} />,
+            icon: <GraduationCapIcon size={15} />,
             label: "Skills",
-            value: summary.skills ? String(summary.skills) : NONE,
+            ...(summary.skills ? stated(`${summary.skills} available`) : emptyAction("Add skills")),
         },
         {
             key: "advanced",
-            icon: <SlidersHorizontalIcon size={16} />,
+            icon: <SlidersHorizontalIcon size={15} />,
             label: "Advanced",
-            value:
-                [
-                    summary.sandbox && `Sandbox: ${summary.sandbox.toLowerCase()}`,
-                    summary.permissions && `Permissions: ${summary.permissions.toLowerCase()}`,
-                ]
-                    .filter(Boolean)
-                    .join(" · ") || "Defaults",
+            ...stated(advanced || "Defaults"),
         },
     ]
 
@@ -131,15 +136,23 @@ const AgentConfigurationCard = ({appId}: {appId: string}) => {
                                           ? setInstructionsOpen((wasOpen) => !wasOpen)
                                           : goToPlayground(undefined, {appId})
                                   }
-                                  className="group box-border flex w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-2 py-3 text-left hover:bg-colorFillQuaternary"
+                                  className="group box-border flex w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-2 py-2.5 text-left hover:bg-colorFillQuaternary"
                               >
-                                  <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-colorFillQuaternary text-colorTextSecondary">
+                                  <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-colorFillQuaternary text-colorTextSecondary">
                                       {row.icon}
                                   </span>
-                                  <span className="shrink-0 text-sm font-medium text-colorText">
+                                  {/* Fixed label column: a right-anchored value put ~1100px of empty
+                                      row between the two halves of one fact on a wide screen. */}
+                                  <span className="w-32 shrink-0 text-xs font-medium text-colorText">
                                       {row.label}
                                   </span>
-                                  <span className="ml-auto min-w-0 truncate text-xs text-colorTextSecondary">
+                                  <span
+                                      className={`min-w-0 flex-1 truncate text-xs ${
+                                          row.isAction
+                                              ? "text-colorPrimary"
+                                              : "text-colorTextSecondary"
+                                      }`}
+                                  >
                                       {row.value}
                                   </span>
                                   {expandable ? (
