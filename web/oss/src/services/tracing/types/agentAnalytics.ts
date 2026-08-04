@@ -3,6 +3,7 @@
 // docs/design/agent-analytics/data-contract.md.
 
 export interface AgentAnalyticsBucket {
+    /** raw bucket start (ISO); formatted for display at the chart layer */
     timestamp: string
     /** success + failed */
     runs: number
@@ -47,6 +48,8 @@ export interface AgentAnalyticsBreakdowns {
 export interface AgentAnalyticsWindow {
     buckets: AgentAnalyticsBucket[]
     totals: AgentAnalyticsTotals
+    /** tick-format bucket ("24_hours" | "7_days" | "30_days") for the x-axis labels */
+    range: string
 }
 
 export interface AgentAnalyticsDashboard {

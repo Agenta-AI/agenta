@@ -78,6 +78,25 @@ describe("analyticsToAgentWindow", () => {
         expect(buckets[0].success).toBe(4)
     })
 
+    it("zero-fills a continuous x-axis so sparse buckets keep their real position", () => {
+        // Two non-empty 12h buckets a day apart, inside a 2-day window.
+        const unfiltered: AnalyticsResponse = {
+            buckets: [
+                bucket("2026-07-28T00:00:00.000Z", {[TRACE]: {count: 5}}),
+                bucket("2026-07-29T00:00:00.000Z", {[TRACE]: {count: 3}}),
+            ],
+        }
+        const {buckets} = analyticsToAgentWindow(unfiltered, {buckets: []}, "30_days", {
+            oldest: "2026-07-28T00:00:00.000Z",
+            newest: "2026-07-29T12:00:00.000Z",
+            intervalMinutes: 720, // 12h
+        })
+
+        // 4 slots at 12h across a 36h window; the two empty slots are zero-filled.
+        expect(buckets).toHaveLength(4)
+        expect(buckets.map((b) => b.runs)).toEqual([5, 0, 3, 0])
+    })
+
     it("returns zeroed totals for an empty response", () => {
         const {buckets, totals} = analyticsToAgentWindow({buckets: []}, {buckets: []}, "7_days")
         expect(buckets).toHaveLength(0)

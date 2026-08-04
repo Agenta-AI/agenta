@@ -5,11 +5,12 @@ import type {AgentAnalyticsWindow} from "@/oss/services/tracing/types/agentAnaly
 
 import {formatCost, formatLatency, formatRuns, formatTokens} from "../assets/format"
 import {useChartColors} from "../hooks/useChartColors"
+import {useTimeAxis} from "../hooks/useTimeAxis"
 
 import ChartCard, {type ChartState} from "./ChartCard"
 import CostAreaChart from "./CostAreaChart"
 import LatencyChart from "./LatencyChart"
-import StackedBarChart from "./StackedBarChart"
+import StackedAreaChart from "./StackedAreaChart"
 
 interface ChartsGridProps {
     current: AgentAnalyticsWindow | null
@@ -26,6 +27,7 @@ const ChartsGrid = ({current, failed}: ChartsGridProps) => {
 
     const data = current?.buckets ?? EMPTY_BUCKETS
     const totals = current?.totals
+    const timeAxis = useTimeAxis(data, current?.range ?? "7_days")
 
     const totalRuns = totals?.totalRuns ?? 0
     const hasRuns = totalRuns > 0
@@ -81,11 +83,12 @@ const ChartsGrid = ({current, failed}: ChartsGridProps) => {
                 state={coreState(hasRuns)}
             >
                 {(activeKeys) => (
-                    <StackedBarChart
+                    <StackedAreaChart
                         data={data}
                         series={runsSeries}
                         activeKeys={activeKeys}
                         valueFormatter={formatRuns}
+                        timeAxis={timeAxis}
                     />
                 )}
             </ChartCard>
@@ -97,7 +100,12 @@ const ChartsGrid = ({current, failed}: ChartsGridProps) => {
                 state={coreState(hasRuns)}
             >
                 {(activeKeys) => (
-                    <LatencyChart data={data} activeKeys={activeKeys} formatMs={formatLatency} />
+                    <LatencyChart
+                        data={data}
+                        activeKeys={activeKeys}
+                        formatMs={formatLatency}
+                        timeAxis={timeAxis}
+                    />
                 )}
             </ChartCard>
 
@@ -108,7 +116,9 @@ const ChartsGrid = ({current, failed}: ChartsGridProps) => {
                 state={costState}
                 unavailableMessage="Cost data isn't available for this window."
             >
-                {() => <CostAreaChart data={data} valueFormatter={formatCost} />}
+                {() => (
+                    <CostAreaChart data={data} valueFormatter={formatCost} timeAxis={timeAxis} />
+                )}
             </ChartCard>
 
             <ChartCard
@@ -118,11 +128,12 @@ const ChartsGrid = ({current, failed}: ChartsGridProps) => {
                 state={coreState(hasRuns)}
             >
                 {(activeKeys) => (
-                    <StackedBarChart
+                    <StackedAreaChart
                         data={data}
                         series={tokensSeries}
                         activeKeys={activeKeys}
                         valueFormatter={formatTokens}
+                        timeAxis={timeAxis}
                     />
                 )}
             </ChartCard>

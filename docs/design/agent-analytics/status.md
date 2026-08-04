@@ -4,9 +4,25 @@ Source of truth for progress. Update as work lands.
 
 ## Current state
 
-Phases 1–4 implemented (frontend-first scope). Typecheck clean, `pnpm lint-fix` clean, and
-the mapper + health-score unit tests pass (9 tests). Not yet verified against a live stack;
-Phase 5 (Tools/Models) remains deferred behind the backend prerequisites.
+v1 is implemented on `feat/agents-analytics-dashboard` and remediated to match these docs: the
+health donut, summary panel, stat tiles, success-rate, and previous-window comparison were
+removed; breakdown charts, the Harness/configured-Model filters, coverage gating, four card
+states, the latency **line** chart, the cost **area** chart, and the house colour palette were
+added. Two backend blockers (B1, B2) and one filter bug remain before v1 is done — see
+scope.md's "Remaining v1 work". Not yet verified against a live stack.
+
+### Done / not done (v1)
+
+- ✅ Page shell + route (OSS + EE mirror) + sidebar; data layer (`specs` + fetch + mapper);
+  Runs, Latency, Cost, Tokens charts; three breakdown charts; time-range control; four card
+  states; coverage gating for cost and the token split.
+- ✅ Agents filter (`references`).
+- ⚠️ **Harness and configured-Model filters do not work.** They send the dotted attribute path
+  as the condition `field`; the backend drops any unknown `field` with only a `log.warning`
+  (`filtering.py`), so nothing narrows and no error surfaces. Fix: `{field: "attributes",
+  key: "ag.data.parameters.agent.harness.kind", ...}`, plus a `key` field on the client
+  `FilterCondition`.
+- ⏳ **B1** (failure visibility) and **B2** (coverage-collapse investigation) — backend, not done.
 
 ### Landed files
 
@@ -15,23 +31,26 @@ Phase 5 (Tools/Models) remains deferred behind the backend prerequisites.
   re-exports each OSS page; without the mirror the route 404s in EE builds);
   `app-analytics-link` entry in `Sidebar/hooks/useSidebarConfig/index.tsx`.
 - Data layer: `specs` added to `SpansAnalyticsParams`/`fetchSpansAnalytics`
-  (`web/packages/agenta-entities/src/trace/api/api.ts`); new mapper + health-score
-  (`web/oss/src/services/tracing/lib/agentAnalytics.ts`, with `metricField`/`metricPct`
-  exported from `helpers.ts`); fetch fn
-  (`web/oss/src/services/tracing/api/agentAnalytics.ts`); types
+  (`web/packages/agenta-entities/src/trace/api/api.ts`); mapper + breakdown reducer + coverage
+  helper (`web/oss/src/services/tracing/lib/agentAnalytics.ts`, with `metricField`/`metricPct`
+  exported from `helpers.ts`); fetch fn issuing three calls — unfiltered, status-filtered, and
+  breakdown (`web/oss/src/services/tracing/api/agentAnalytics.ts`); types
   (`web/oss/src/services/tracing/types/agentAnalytics.ts`).
-- State: `web/oss/src/state/analytics/dashboard.ts` (time-range, agents-filter, query atoms).
-- UI: `web/oss/src/components/pages/analytics/` (page, header controls, summary panel with
-  health donut + 4 stat tiles, and the four charts via a reusable `ChartCard` shell).
+- State: `web/oss/src/state/analytics/dashboard.ts` (time-range, agents / harness / models
+  filter atoms, query atom).
+- UI: `web/oss/src/components/pages/analytics/` — page, header controls (three filters), the
+  four charts (StackedBarChart, LatencyChart line, CostAreaChart) and three BreakdownBarChart
+  cards, all via a reusable `ChartCard` shell with the four states.
 - Tests: `web/oss/src/services/tracing/lib/agentAnalytics.test.ts`.
 
-### Still to verify on a live stack (Phase 2 open questions)
+### Still to verify on a live stack
 
 - Nested `pcts.p95` reads correctly and the prompt/completion split is non-zero on real
   traffic.
-- The runner marks a failed run's root span `status_code = ERROR`.
-- The multi-agent `references in [...]` encoding returns the expected narrowed set.
-- Tune the `HEALTH_RUN_FLOOR` (currently 20) against real volume.
+- The runner marks a failed run's root span `status_code = STATUS_CODE_ERROR`.
+- The Agents `references in [...]` filter, and (once fixed) the Harness/Model attribute
+  filters, narrow rather than returning an empty 200.
+- Real cost / token-split coverage against the `COVERAGE_THRESHOLD` (currently 0.5).
 
 ## Locked decisions
 
@@ -46,9 +65,11 @@ Phase 5 (Tools/Models) remains deferred behind the backend prerequisites.
    agent; the Agents filter narrows the set.
 3. An **agent** is an application/workflow artifact. The Agents multi-select lists the project's
    agents and narrows by `references`. v1 has three filters — Agents, Harness, and configured
-   Model — all server-side conditions on root-span fields, so all three filter today with no
-   backend change. The configured-Model filter narrows by the author's alias, not the model that
-   answered (that is the deferred resolved-Model view).
+   Model — all server-side conditions on root-span fields, so all three *can* filter with no
+   backend change. Agents works; Harness and configured Model are currently sent with the wrong
+   condition shape and are silently dropped (see "Remaining v1 work" in scope.md). The
+   configured-Model filter narrows by the author's alias, not the model that answered (that is
+   the deferred resolved-Model view).
 4. One agent invocation is a **run**. The Observability dashboard calls the same metric a
    "request"; the two may diverge until Observability is aligned in a later, separate change.
 5. A **failed run** is a run whose root span `status_code` is `STATUS_CODE_ERROR` — a run-level
@@ -93,10 +114,10 @@ the scope carries two backend prerequisites (Phase 0) rather than none.
   `agentsWorkflowsAtom` from `web/oss/src/components/pages/agents/store.ts`. It returns
   `AppWorkflowRow[]` (`{workflowId, name, ...}`); the `workflowId` is the `references` id
   the analytics filter narrows by.
-- Multi-agent reference filter encoding: a single `in` with all ids, or one condition per
-  agent combined with `or` (Phase 2, against the existing filter builder).
+- ~~Multi-agent reference filter encoding.~~ **Resolved in code:** a single `references in [{id}, …]`
+  condition. Confirm it narrows on live traffic.
 - Whether the runner marks a failed run's root span `status_code = STATUS_CODE_ERROR`. The
-  failed-run count depends on it; validate on live traffic (Phase 2).
+  failed-run count depends on it; validate on live traffic.
 - Live-response validation: the `trace_type` and `status_code` filters narrow rather than
   returning an empty 200, the nested `pcts.p95` reads correctly, and the cost / token-split
   coverage on real traffic (Phase 2; it may be near zero — the Phase 0 investigation).

@@ -1,4 +1,5 @@
 import type {AnalyticsResponse} from "@agenta/entities/trace"
+import dayjs from "dayjs"
 
 import type {
     AgentAnalyticsBreakdownItem,
@@ -8,7 +9,7 @@ import type {
     AgentAnalyticsWindow,
 } from "../types/agentAnalytics"
 
-import {formatTick, metricField, metricPct, type BucketMetrics} from "./helpers"
+import {metricField, metricPct, type BucketMetrics} from "./helpers"
 
 // Dotted `MetricSpec.path` keys this page reads. The observability defaults only
 // carry `.total`; the token-split / latency-percentile fields below require an
@@ -68,12 +69,78 @@ const metricFreq = (metrics: BucketMetrics, path: string): FreqEntry[] => {
 
 const emptyBreakdowns = (): AgentAnalyticsBreakdowns => ({harness: [], model: []})
 
+// The requested window, used to rebuild a continuous x-axis. The backend omits
+// empty buckets, so without this the sparse buckets that come back get spread
+// evenly across the chart and read as if they were outside the range.
+export interface AnalyticsAxisWindow {
+    /** ISO start of the requested window (buckets are aligned to this). */
+    oldest: string
+    /** ISO end of the requested window. */
+    newest: string
+    /** Requested bucket width in minutes; matches bucket spacing below 1024 buckets. */
+    intervalMinutes: number
+}
+
+// Guard against a pathological window/interval producing an unbounded grid.
+const MAX_AXIS_SLOTS = 2000
+
+const zeroBucket = (timestamp: string): AgentAnalyticsBucket => ({
+    timestamp,
+    runs: 0,
+    success: 0,
+    failed: 0,
+    latencyAvg: 0,
+    latencyMin: 0,
+    latencyMax: 0,
+    latencyP95: 0,
+    cost: 0,
+    tokens: 0,
+    tokensPrompt: 0,
+    tokensCompletion: 0,
+})
+
+// Place each non-empty bucket onto its true time slot and zero-fill the gaps, so
+// bars sit where they belong on a real timeline. Slots are anchored to `oldest`
+// (the backend bins from there), and the grid is stretched to cover any bucket
+// that lands past `newest` (e.g. the current partial bucket).
+const buildContinuousAxis = (
+    present: AgentAnalyticsBucket[],
+    axis: AnalyticsAxisWindow,
+): AgentAnalyticsBucket[] => {
+    const stepMs = Math.max(1, Math.round(axis.intervalMinutes)) * 60_000
+    const oldestMs = dayjs(axis.oldest).valueOf()
+    const newestMs = dayjs(axis.newest).valueOf()
+    if (!Number.isFinite(oldestMs) || !Number.isFinite(newestMs)) return present
+
+    const byIndex = new Map<number, AgentAnalyticsBucket>()
+    let maxPresentIndex = 0
+    for (const bucket of present) {
+        const ms = dayjs(bucket.timestamp).valueOf()
+        if (!Number.isFinite(ms)) continue
+        const index = Math.max(0, Math.round((ms - oldestMs) / stepMs))
+        byIndex.set(index, bucket)
+        maxPresentIndex = Math.max(maxPresentIndex, index)
+    }
+
+    const lastIndex = Math.min(
+        MAX_AXIS_SLOTS,
+        Math.max(maxPresentIndex, Math.round((newestMs - oldestMs) / stepMs)),
+    )
+
+    const slots: AgentAnalyticsBucket[] = []
+    for (let i = 0; i <= lastIndex; i++) {
+        slots.push(byIndex.get(i) ?? zeroBucket(dayjs(oldestMs + i * stepMs).toISOString()))
+    }
+    return slots
+}
+
 // Combine the unfiltered window (totals/latency/cost/tokens) with the
 // status-filtered window (failed-run count); success = runs − failed per bucket.
 export function analyticsToAgentWindow(
     unfiltered: AnalyticsResponse,
     failed: AnalyticsResponse,
     range: string,
+    axis?: AnalyticsAxisWindow,
 ): AgentAnalyticsWindow {
     const buckets = unfiltered.buckets ?? []
 
@@ -112,7 +179,10 @@ export function analyticsToAgentWindow(
         tokenSplitCount += metricField(m, TOKENS_PROMPT_PATH, "count")
 
         return {
-            timestamp: formatTick(b.timestamp, range),
+            // Keep the raw bucket start; the chart layer formats and de-duplicates
+            // the x-axis labels. Baking a day-granular label here made sub-day
+            // buckets collapse to the same tick (a date shown twice).
+            timestamp: String(b.timestamp),
             runs,
             success,
             failed: failedCount,
@@ -135,7 +205,11 @@ export function analyticsToAgentWindow(
         tokenSplitCount,
     }
 
-    return {buckets: mapped, totals}
+    // Rebuild a continuous timeline: the backend drops empty buckets, so without
+    // this the few non-empty ones spread across the width and read as out-of-range.
+    const continuous = axis ? buildContinuousAxis(mapped, axis) : mapped
+
+    return {buckets: continuous, totals, range}
 }
 
 // Sum a category spec's `freq` counts across every bucket into a per-value map.

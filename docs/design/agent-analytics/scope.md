@@ -6,9 +6,10 @@ every verdict.
 
 ## The rule
 
-- **v1** is the planned release scope: the charts and Agents filter we will build against
-  today's endpoint — runs, latency, cost, tokens, and the harness / configured-model / agent
-  breakdowns. No code is written yet (see status.md); this is the plan, not a shipped state.
+- **v1** is the release scope built against today's endpoint — runs, latency, cost, tokens, and
+  the harness / configured-model / agent breakdowns, plus the Agents / Harness / configured-Model
+  filters. Most of it has shipped (see the **Status** column and status.md); the two backend
+  blockers and the two attribute filters are the work that remains.
 - **v2** is anything that needs backend integration or a major fix — a new query capability, a
   storage change, or new instrumentation.
 - **Exception, by decision of the requester:** the two backend items in Phase 0 (make a killed or
@@ -29,25 +30,25 @@ every verdict.
 
 ## Scope v1 — build now
 
-Planned against today's endpoint, plus the two backend blockers. No code is written yet (see
-status.md). Every capability here is verified backend-*available* in capability-review.md §4.2
-unless a note says otherwise — "ready" describes what the endpoint can answer today, not shipped
-UI, and B1 and B2 remain release blockers.
+Built against today's endpoint, plus the two backend blockers. The **Status** column tracks what
+has shipped on `feat/agents-analytics-dashboard`; status.md holds the file-level detail. Every
+capability here is verified backend-*available* in capability-review.md §4.2 unless a note says
+otherwise — "ready" describes what the endpoint can answer, and B1 and B2 remain release blockers.
 
-| Priority | Feature | What it delivers | Value | Effort | Depends on |
+| Priority | Status | Feature | What it delivers | Value | Effort |
 |---|---|---|---|---|---|
-| P0 | Page shell, route, sidebar | The Analytics page exists, reachable, project-scoped | Enabler | S | — |
-| P0 | Data layer (`specs` field + fetch + mapper) | The page requests explicit specs and maps buckets to chart shape | Enabler | M | — |
-| P0 | **B1 — Make killed / rejected queries surface an error** *(backend blocker)* | 504 / 4xx + per-metric `sample_count` instead of a silent empty 200 | High | M | — |
-| P0 | Runs per period (success vs failed) | Stacked Runs chart; corrected `status_code is STATUS_CODE_ERROR` filter + second query | High | M | B1 |
-| P0 | Latency per period (avg + p95 + min/max) | Latency chart with per-bucket p95 line; ships free on the numeric spec | High | S | — |
-| P0 | Time-range control (any window, 7-day default) | Reuses the observability `Sort` / `SortResult` | High | S | — |
-| P0 | Four page states (data / no-data / unavailable / failed) | Honest empty vs failure vs coverage-gap, per card | High | M | B1 |
-| P1 | **B2 — Investigate cost / token coverage collapse** *(backend blocker)* | Restores dependable coverage for cost and the token split | High | M–? | — |
-| P1 | Cost per period (coverage-gated total) | Cost chart from `gen_ai.usage.cost`; renders only above the coverage threshold | High | M | B2 |
-| P1 | Tokens per period (total + coverage-gated split) | Tokens chart; the prompt/completion split shows only above threshold | Med | M | B2 (split only) |
-| P1 | Breakdown charts: runs per harness / configured model / agent | Three `categorical/single` breakdowns; agent unions `workflow_variant` + `application_variant` | High | M | — |
-| P1 | Filters: agents, harness, configured model | Three server-side filters on root-span fields; no backend change (§4.2 items 10–12). Agents by `references`; the model filter narrows the configured alias | High | M | — |
+| P0 | ✅ Done | Page shell, route, sidebar | The Analytics page exists, reachable, project-scoped (OSS route + EE mirror + sidebar entry) | Enabler | S |
+| P0 | ✅ Done | Data layer (`specs` field + fetch + mapper) | The page requests explicit specs and maps buckets to chart shape | Enabler | M |
+| P0 | ⏳ Not done — backend | **B1 — Make killed / rejected queries surface an error** *(backend blocker)* | 504 / 4xx + per-metric `sample_count` instead of a silent empty 200. FE already sends the corrected filter; the backend still returns a silent empty 200 | High | M |
+| P0 | ✅ Done | Runs per period (success vs failed) | Stacked Runs chart; `status_code is STATUS_CODE_ERROR` filter + second query | High | M |
+| P0 | ✅ Done | Latency per period (avg + p95 + min/max) | Latency **line** chart (avg + dashed p95), min/max in the tooltip | High | S |
+| P0 | ✅ Done | Time-range control (any window, 7-day default) | Reuses the observability `Sort` / `SortResult` | High | S |
+| P0 | ✅ Done | Four page states (data / no-data / unavailable / failed) | Honest empty vs failure vs coverage-gap, per card | High | M |
+| P1 | ⏳ Not done — backend | **B2 — Investigate cost / token coverage collapse** *(backend blocker)* | Restores dependable coverage for cost and the token split | High | M–? |
+| P1 | ✅ Done (FE) | Cost per period (coverage-gated total) | Cost **area** chart from `gen_ai.usage.cost`; gates to "unavailable" below the coverage threshold. Depends on B2 for dependable data | High | M |
+| P1 | ✅ Done | Tokens per period (total + coverage-gated split) | Tokens chart; the prompt/completion split shows only above threshold, else total only | Med | M |
+| P1 | ✅ Done | Breakdown charts: runs per harness / configured model / agent | Three sorted horizontal-bar breakdowns; agent unions `workflow_variant` + `application_variant` | High | M |
+| P1 | ⚠️ Partial | Filters: agents, harness, configured model | **Agents works** (`references`). **Harness and configured-Model do not** — they are sent with the dotted attribute path as the condition `field`, which the backend silently drops (must be `field: "attributes", key: "<path>"`). See status.md and the remaining-work note | High | M |
 
 Notes:
 
@@ -57,6 +58,25 @@ Notes:
   labeled honestly; the real answered model is v2 (needs `focus=span`).
 - **Not on the v1 page at all:** tool usage, resolved-model usage, per-model cost, cache tokens,
   per-user numbers, skills. All are v2 (below), each for a backend reason.
+
+### Remaining v1 work
+
+Everything in the table above is ✅ except these:
+
+1. **Harness & configured-Model filters (⚠️ code fix).** Both conditions pass the dotted
+   attribute path as the `field`, which the backend drops with only a `log.warning`
+   (`filtering.py`), so selecting a harness or model changes nothing and raises no error. Reshape
+   them to `{field: "attributes", key: "ag.data.parameters.agent.harness.kind", ...}` and add a
+   `key` field to the client `FilterCondition`. The Agents filter (`references`) is unaffected.
+2. **B1 — failure visibility (backend).** The endpoint still returns a silent empty 200 for a
+   killed or rejected query. Until it raises a typed 504 / 4xx and adds a per-metric
+   `sample_count`, the page cannot always tell "no data" from "the query died".
+3. **B2 — coverage-collapse investigation (backend).** Cost and the token split read near-zero
+   coverage since mid-July for an unknown cause; the coverage gate hides them until this is fixed.
+
+Follow-ups (not blockers): the Harness/Model filter option lists narrow themselves once filter
+#1 works (source them from an unfiltered breakdown); and a live-stack pass to confirm the runner
+stamps `status_code = STATUS_CODE_ERROR`, the nested `pcts.p95` reads, and real coverage.
 
 ---
 

@@ -1,29 +1,52 @@
-import {CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis} from "recharts"
+import {
+    Area,
+    CartesianGrid,
+    ComposedChart,
+    Line,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
+} from "recharts"
 
 import type {AgentAnalyticsBucket} from "@/oss/services/tracing/types/agentAnalytics"
 
 import {useChartColors} from "../hooks/useChartColors"
+import type {TimeAxis} from "../hooks/useTimeAxis"
 
 import ChartTooltip, {type TooltipRow} from "./ChartTooltip"
+import TimeTick from "./TimeTick"
+
+// Above this many buckets a per-point marker becomes noise, so dots only render on
+// sparse windows (where a lone point would otherwise be invisible).
+const DOT_THRESHOLD = 14
 
 interface LatencyChartProps {
     data: AgentAnalyticsBucket[]
     /** Legend-visible series keys ("latencyAvg", "latencyP95"). */
     activeKeys: string[]
     formatMs: (value: number) => string
+    timeAxis: TimeAxis
 }
 
-// Average latency as a solid line and p95 as a dashed line on one axis. Latency
-// statistics are not additive, so a line reads truer than bars; min/max stay in
-// the tooltip.
-const LatencyChart = ({data, activeKeys, formatMs}: LatencyChartProps) => {
+// Average latency as a gradient area with p95 as a dashed line on one axis, matching
+// the home-page charts. Latency statistics are not additive, so an area/line reads
+// truer than bars; min/max stay in the tooltip.
+const LatencyChart = ({data, activeKeys, formatMs, timeAxis}: LatencyChartProps) => {
     const colors = useChartColors()
     const showAvg = activeKeys.includes("latencyAvg")
     const showP95 = activeKeys.includes("latencyP95")
+    const showDots = data.length <= DOT_THRESHOLD
 
     return (
         <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{top: 5, right: 5, left: -12, bottom: 0}}>
+            <ComposedChart data={data} margin={{top: 5, right: 12, left: -12, bottom: 0}}>
+                <defs>
+                    <linearGradient id="latency-area-fill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={colors.primary} stopOpacity={0.35} />
+                        <stop offset="100%" stopColor={colors.primary} stopOpacity={0.02} />
+                    </linearGradient>
+                </defs>
                 <CartesianGrid
                     strokeDasharray="2 4"
                     horizontal
@@ -32,11 +55,20 @@ const LatencyChart = ({data, activeKeys, formatMs}: LatencyChartProps) => {
                 />
                 <XAxis
                     dataKey="timestamp"
+                    ticks={timeAxis.ticks}
+                    interval={0}
                     tickLine={false}
                     axisLine={false}
-                    tick={{fontSize: 12, fill: colors.axis}}
                     tickMargin={10}
                     minTickGap={20}
+                    tick={(props) => (
+                        <TimeTick
+                            {...props}
+                            ticks={timeAxis.ticks}
+                            formatter={timeAxis.tickFormatter}
+                            fill={colors.axis}
+                        />
+                    )}
                 />
                 <YAxis
                     tickLine={false}
@@ -65,17 +97,23 @@ const LatencyChart = ({data, activeKeys, formatMs}: LatencyChartProps) => {
                             {label: "Min", value: formatMs(bucket.latencyMin)},
                             {label: "Max", value: formatMs(bucket.latencyMax)},
                         ]
-                        return <ChartTooltip title={String(props.label ?? "")} rows={rows} />
+                        return (
+                            <ChartTooltip
+                                title={timeAxis.formatTooltipLabel(String(props.label ?? ""))}
+                                rows={rows}
+                            />
+                        )
                     }}
                 />
                 {showAvg ? (
-                    <Line
+                    <Area
                         dataKey="latencyAvg"
                         name="Avg"
                         type="monotone"
                         stroke={colors.primary}
                         strokeWidth={2}
-                        dot={false}
+                        fill="url(#latency-area-fill)"
+                        dot={showDots ? {r: 2, fill: colors.primary, strokeWidth: 0} : false}
                         activeDot={{r: 4}}
                         isAnimationActive={false}
                     />
@@ -88,12 +126,12 @@ const LatencyChart = ({data, activeKeys, formatMs}: LatencyChartProps) => {
                         stroke={colors.p95}
                         strokeWidth={2}
                         strokeDasharray="5 4"
-                        dot={false}
+                        dot={showDots ? {r: 2, fill: colors.p95, strokeWidth: 0} : false}
                         activeDot={{r: 4}}
                         isAnimationActive={false}
                     />
                 ) : null}
-            </LineChart>
+            </ComposedChart>
         </ResponsiveContainer>
     )
 }

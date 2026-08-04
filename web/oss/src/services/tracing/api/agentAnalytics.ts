@@ -162,6 +162,7 @@ export const fetchAgentAnalyticsDashboard = async ({
         unfiltered ?? {buckets: []},
         failed ?? {buckets: []},
         rangeString,
+        {oldest, newest, intervalMinutes: interval},
     )
 
     return {current}
