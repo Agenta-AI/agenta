@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { inspect } from "node:util";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
+import { AppliedState } from "../../src/engines/sandbox_agent/applied-state.ts";
 import {
   approvalDecisionForToolCall,
   computeCredentialEpoch,
@@ -48,13 +49,24 @@ describe("resolvesToLocalProvider (local/remote gate)", () => {
   });
 });
 
-// A fake environment: only `destroy` matters to the pool; we count destroys. Idempotent like
-// the real engine `destroy()` closure (the pool's contract): a second call is a no-op.
-function fakeEnv() {
+// A fake environment: `destroy` and `appliedState` are what the pool touches. Destroys are
+// counted. `teardown` is idempotent like the real engine `destroy()` closure (the pool's
+// contract): a second call is a no-op.
+//
+// The environment now OWNS its applied configuration (lifecycle migration, step 2), so the fake
+// carries a real `AppliedState`. The pool reads `configFingerprint` through it and no test can
+// hand the pool a fingerprint of its own.
+function fakeEnv(configFp = "cfg") {
   const state = { destroyed: 0, reasons: [] as string[] };
+  const applied = new AppliedState(configFp);
   let done = false;
   return {
     state,
+    get appliedState() {
+      return applied.appliedState;
+    },
+    commitApplied: (result: { configFingerprint: string }) =>
+      applied.commitApplied(result),
     teardown: async (reason: string) => {
       if (done) return;
       done = true;
@@ -71,7 +83,6 @@ function parkInput(key: string, env = fakeEnv()) {
     input: {
       key,
       environment: env,
-      configFingerprint: "cfg",
       historyFingerprint: "hist",
       credentialEpoch: epoch,
       teardown: env.teardown,
@@ -970,8 +981,14 @@ describe("SessionPool", () => {
   it("strict capacity keeps a stopping seat and awaits teardown before inserting", async () => {
     let releaseTeardown: (() => void) | undefined;
     let teardownCompleted = false;
+    const stoppingApplied = new AppliedState("cfg");
     const stoppingEnv = {
       state: { destroyed: 0, reasons: [] as string[] },
+      get appliedState() {
+        return stoppingApplied.appliedState;
+      },
+      commitApplied: (r: { configFingerprint: string }) =>
+        stoppingApplied.commitApplied(r),
       teardown: async (reason: string) => {
         await new Promise<void>((resolve) => {
           releaseTeardown = resolve;
@@ -1039,8 +1056,14 @@ describe("SessionPool", () => {
 
   it("a strict stopping entry cannot be checked out or reparked over", async () => {
     let releaseTeardown: (() => void) | undefined;
+    const envApplied = new AppliedState("cfg");
     const environment = {
       state: { destroyed: 0, reasons: [] as string[] },
+      get appliedState() {
+        return envApplied.appliedState;
+      },
+      commitApplied: (r: { configFingerprint: string }) =>
+        envApplied.commitApplied(r),
       teardown: async (_reason: string) =>
         new Promise<void>((resolve) => {
           releaseTeardown = resolve;
@@ -1061,7 +1084,6 @@ describe("SessionPool", () => {
       await pool.repark(
         stopping,
         {
-          configFingerprint: "new",
           historyFingerprint: "new",
           credentialEpoch: epoch,
         },
@@ -1082,8 +1104,14 @@ describe("SessionPool", () => {
   it("non-strict capacity still frees the seat before teardown completes", async () => {
     let releaseTeardown: (() => void) | undefined;
     let teardownCompleted = false;
+    const nonStrictApplied = new AppliedState("cfg");
     const environment = {
       state: { destroyed: 0, reasons: [] as string[] },
+      get appliedState() {
+        return nonStrictApplied.appliedState;
+      },
+      commitApplied: (r: { configFingerprint: string }) =>
+        nonStrictApplied.commitApplied(r),
       teardown: async (reason: string) => {
         await new Promise<void>((resolve) => {
           releaseTeardown = resolve;
@@ -1133,7 +1161,6 @@ describe("SessionPool", () => {
     const ok = await pool.repark(
       live,
       {
-        configFingerprint: "cfg2",
         historyFingerprint: "hist2",
         credentialEpoch: epoch,
       },
@@ -1160,7 +1187,6 @@ describe("SessionPool", () => {
     const ok = await pool.repark(
       live,
       {
-        configFingerprint: "cfg2",
         historyFingerprint: "hist2",
         credentialEpoch: epoch,
       },
@@ -1187,7 +1213,6 @@ describe("SessionPool", () => {
     const ok = await pool.repark(
       live,
       {
-        configFingerprint: "cfg2",
         historyFingerprint: "hist2",
         credentialEpoch: epoch,
       },
@@ -1267,7 +1292,6 @@ describe("SessionPool", () => {
       await pool.repark(
         live,
         {
-          configFingerprint: "c2",
           historyFingerprint: "h2",
           credentialEpoch: epoch,
         },
@@ -1285,7 +1309,6 @@ describe("SessionPool", () => {
       await pool.repark(
         live2,
         {
-          configFingerprint: "c",
           historyFingerprint: "h",
           credentialEpoch: epoch,
         },
@@ -1362,8 +1385,14 @@ describe("SessionPool", () => {
     // A's destroy is gated: it does not resolve until we release it, standing in for a slow unmount.
     let releaseADestroy: (() => void) | undefined;
     const aState = { destroyed: 0, reasons: [] as string[] };
+    const aApplied = new AppliedState("cfg");
     const aEnv = {
       state: aState,
+      get appliedState() {
+        return aApplied.appliedState;
+      },
+      commitApplied: (r: { configFingerprint: string }) =>
+        aApplied.commitApplied(r),
       teardown: async (reason: string) => {
         await new Promise<void>((resolve) => {
           releaseADestroy = resolve;

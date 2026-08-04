@@ -195,9 +195,16 @@ function canonicalJson(value: unknown): string {
  * every hash, the credential epoch included — each turn's relay uses the INCOMING request's
  * `toolCallback` (see `CredentialEpoch` and `run-turn.ts`), so the parked copy never executes
  * anything.
+ *
+ * LIFECYCLE MIGRATION, STEP 1. The workflow REVISION id, the revision version, and the draft flag
+ * were in this hash and are now out. They are turn METADATA, not environment identity: nothing in
+ * the sandbox, the daemon, the workspace, or the harness session changes when a revision id
+ * changes. Keeping them here meant that committing a revision mid-conversation threw away a warm
+ * sandbox that was still perfectly usable, which is the exact cost this project exists to remove.
+ * They stay in `runContext` for tool binding and observability; they simply no longer decide
+ * whether an environment may be reused.
  */
 export function configFingerprint(request: AgentRunRequest): string {
-  const workflow = request.runContext?.workflow;
   const shape = {
     harness: request.harness ?? null,
     sandbox: request.sandbox ?? null,
@@ -247,13 +254,7 @@ export function configFingerprint(request: AgentRunRequest): string {
     permissions: request.permissions ?? null,
     sandboxPermission: request.sandboxPermission ?? null,
     harnessFiles: request.harnessFiles ?? null,
-    workflowRevision: workflow?.revision
-      ? {
-          id: workflow.revision.id ?? null,
-          version: workflow.revision.version ?? null,
-        }
-      : null,
-    isDraft: workflow?.is_draft ?? null,
+    // No `workflowRevision` and no `isDraft`. See the doc comment above.
   };
   return sha256(canonicalJson(shape));
 }
