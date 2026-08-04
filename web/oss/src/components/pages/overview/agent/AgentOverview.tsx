@@ -4,15 +4,15 @@ import {RichChatInput} from "@agenta/ui/rich-chat-input"
 import {useSetAtom} from "jotai"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
-import NextTriggersSection from "@/oss/components/pages/agent-home/components/NextTriggersSection"
+import NextTriggersSection from "@/oss/components/NextTriggers"
+import SessionListCard from "@/oss/components/pages/sessions/components/SessionListCard"
+import {PanelScroll, PanelSurface} from "@/oss/components/PanelSection"
 import {
     SeedAttachButton,
     SeedAttachmentChips,
     useSeedAttachments,
-} from "@/oss/components/pages/agent-home/components/SeedAttachments"
-import UsageSummary from "@/oss/components/pages/agent-home/components/UsageSummary"
-import SessionListCard from "@/oss/components/pages/sessions/components/SessionListCard"
-import {PanelScroll, PanelSurface} from "@/oss/components/PanelSection"
+} from "@/oss/components/SeedAttachments"
+import UsageSummary from "@/oss/components/UsageSummary"
 import useURL from "@/oss/hooks/useURL"
 import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
 

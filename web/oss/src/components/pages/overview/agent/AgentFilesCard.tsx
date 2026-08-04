@@ -4,12 +4,18 @@ import {latestMountFilesQueryFamily, type MountFile} from "@agenta/entities/sess
 import {FileIcon, FolderIcon} from "@phosphor-icons/react"
 import {Skeleton, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 
 import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
 import {agentMountQueryFamily} from "@/oss/components/Drives/agentDrive"
-import {FilesDrawer} from "@/oss/components/Drives/FilesDrawer"
 import {AGENT_FILES_DIR, useSessionDrive} from "@/oss/components/Drives/useSessionDrive"
 import {PANEL_ACTION_CLASS, PanelSection} from "@/oss/components/PanelSection"
+
+// The whole drive explorer, pulled in only once the drawer is actually opened.
+const FilesDrawer = dynamic(
+    () => import("@/oss/components/Drives/FilesDrawer").then((mod) => mod.FilesDrawer),
+    {ssr: false},
+)
 
 /** Enough to show what the agent is carrying without turning the card into an explorer. */
 const LIMIT = 6
@@ -133,17 +139,21 @@ const AgentFilesCard = ({appId}: {appId: string}) => {
 
             {/* The one Files drawer, in app scope — the same explorer the config panel and chat
                 open, so a file opens the same way wherever you clicked it. */}
-            <FilesDrawer
-                open={open}
-                onClose={() => {
-                    setOpen(false)
-                    setOpenPath(null)
-                }}
-                drive={drive}
-                scope="app"
-                initialPath={openPath}
-                driveIds={mountId ? [{key: "mount", label: "Drive ID", value: mountId}] : undefined}
-            />
+            {open ? (
+                <FilesDrawer
+                    open={open}
+                    onClose={() => {
+                        setOpen(false)
+                        setOpenPath(null)
+                    }}
+                    drive={drive}
+                    scope="app"
+                    initialPath={openPath}
+                    driveIds={
+                        mountId ? [{key: "mount", label: "Drive ID", value: mountId}] : undefined
+                    }
+                />
+            ) : null}
         </PanelSection>
     )
 }

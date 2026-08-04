@@ -6,12 +6,12 @@ import {Select} from "antd"
 import {useAtomValue} from "jotai"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
+import {agentsWorkflowsAtom} from "@/oss/components/pages/agents/store"
 import {
     SeedAttachButton,
     SeedAttachmentChips,
     useSeedAttachments,
-} from "@/oss/components/pages/agent-home/components/SeedAttachments"
-import {agentsWorkflowsAtom} from "@/oss/components/pages/agents/store"
+} from "@/oss/components/SeedAttachments"
 
 /**
  * Home's primary action: describe a task, pick the agent to run it, send.
