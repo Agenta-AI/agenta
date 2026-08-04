@@ -22,7 +22,9 @@ const TemplateSection = ({category, templates, onSelectTemplate}: TemplateSectio
                 </span>
             </div>
 
-            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
+            {/* `pt-5` is the room the card's overhanging monogram needs — it belongs to the grid,
+                not to each card, so every cell in a row still starts at the same y. */}
+            <div className="grid grid-cols-1 gap-4 pt-5 sm:grid-cols-2 xl:grid-cols-3">
                 {templates.map((template) => (
                     <TemplateCard
                         key={template.key}
