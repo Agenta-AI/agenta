@@ -2,8 +2,6 @@ import {type RefObject} from "react"
 
 import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
-import {COMPOSER_SURFACE_CLASS} from "@/oss/components/PanelSection"
-
 import {STRIP_COPY} from "../assets/constants"
 
 import AgentIntentActions from "./AgentIntentActions"
@@ -52,7 +50,7 @@ const StripComposer = ({
             size="comfortable"
             minHeightClassName="min-h-24"
             textSizeClassName="text-sm"
-            className={`${COMPOSER_SURFACE_CLASS} ${composerClassName}`}
+            className={composerClassName}
             trailing={
                 <AgentIntentActions
                     onCreate={() => onCreate()}

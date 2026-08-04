@@ -7,7 +7,7 @@ import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useSta
 import NextTriggersSection from "@/oss/components/pages/agent-home/components/NextTriggersSection"
 import UsageSummary from "@/oss/components/pages/agent-home/components/UsageSummary"
 import SessionListCard from "@/oss/components/pages/sessions/components/SessionListCard"
-import {COMPOSER_SURFACE_CLASS, PanelScroll, PanelSurface} from "@/oss/components/PanelSection"
+import {PanelScroll, PanelSurface} from "@/oss/components/PanelSection"
 import useURL from "@/oss/hooks/useURL"
 import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
 
@@ -69,7 +69,7 @@ const AgentOverview = ({appId, agentName}: Props) => {
                 <RichChatInput
                     // The column scrolls, so every child of it is shrinkable by default and this
                     // one collapsed to a hairline under the title once the lists overflowed.
-                    className={`shrink-0 ${COMPOSER_SURFACE_CLASS}`}
+                    className="shrink-0"
                     onSubmit={handleSubmit}
                     size="comfortable"
                     minHeightClassName="min-h-20"

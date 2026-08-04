@@ -212,7 +212,10 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         // Single rounded border around the whole composer; overflow-hidden clips the
                         // editor + toolbar to the rounded corners. The toolbar has no divider of its
                         // own, so the bottom edge reads as one border, not two.
-                        "relative flex flex-col overflow-hidden rounded-lg border border-solid bg-[var(--ag-colorBgContainer)] shadow-[var(--ag-surface-chat-shadow)] transition-colors",
+                        // Filled, not transparent: an outlined box reads as an outline, where a fill reads as
+                        // somewhere to type. A FILL token rather than an opaque surface — it lifts off the
+                        // page in dark and settles into it in light, where "elevated" is the page colour.
+                        "relative flex flex-col overflow-hidden rounded-lg border border-solid bg-[var(--ag-colorFillTertiary)] shadow-[var(--ag-surface-chat-shadow)] transition-colors",
                         // The primary input reads as a defined, slightly-lifted field: a visible edge
                         // + soft shadow, then the accent border on focus (1px, no glow).
                         "border-[var(--ag-composer-border)] focus-within:border-[var(--ag-composer-focus)]",
