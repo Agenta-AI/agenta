@@ -367,7 +367,10 @@ const SessionListCard = ({
                             {grouped && rows.length > 0
                                 ? groupHeading("recent-heading", "Recent")
                                 : null}
-                            {rows.map((row) => renderRow(row, false))}
+                            {/* Not a literal `false`: a card with no pinned group (Automation runs)
+                                shows its pinned rows here, and hard-coding it left the pin icon
+                                outlined after a click — the toggle looked like it did nothing. */}
+                            {rows.map((row) => renderRow(row, pinnedSet.has(row.session_id)))}
                         </AnimatePresence>
 
                         {isEmpty ? (
