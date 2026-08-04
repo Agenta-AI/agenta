@@ -1,6 +1,14 @@
 import {useMemo} from "react"
 
-import {CaretRight} from "@phosphor-icons/react"
+import {
+    CaretRight,
+    CpuIcon,
+    FileTextIcon,
+    GraduationCapIcon,
+    PlugsIcon,
+    SlidersHorizontalIcon,
+    WrenchIcon,
+} from "@phosphor-icons/react"
 import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -31,21 +39,45 @@ const AgentConfigurationCard = ({appId}: {appId: string}) => {
         [revision.data],
     )
 
-    const rows: {label: string; value: string}[] = [
+    // Mirrors the playground's config sections — same order, same icons, same "label left, current
+    // value right, chevron in" shape — so the overview reads as a view of that panel rather than a
+    // second, differently-shaped account of the same settings.
+    const rows = [
         {
-            label: "Model",
+            key: "model",
+            icon: <CpuIcon size={16} />,
+            label: "Model & harness",
             value: [summary.model, summary.harness].filter(Boolean).join(" · ") || "Not set",
         },
         {
+            key: "instructions",
+            icon: <FileTextIcon size={16} />,
             label: "Instructions",
             value: summary.instructionWords
                 ? `AGENTS.md · ${summary.instructionWords} words`
                 : NONE,
         },
-        {label: "Tools", value: summary.tools ? String(summary.tools) : NONE},
-        {label: "MCP servers", value: summary.mcps ? String(summary.mcps) : NONE},
-        {label: "Skills", value: summary.skills ? String(summary.skills) : NONE},
         {
+            key: "tools",
+            icon: <WrenchIcon size={16} />,
+            label: "Tools",
+            value: summary.tools ? String(summary.tools) : NONE,
+        },
+        {
+            key: "mcps",
+            icon: <PlugsIcon size={16} />,
+            label: "MCP servers",
+            value: summary.mcps ? String(summary.mcps) : NONE,
+        },
+        {
+            key: "skills",
+            icon: <GraduationCapIcon size={16} />,
+            label: "Skills",
+            value: summary.skills ? String(summary.skills) : NONE,
+        },
+        {
+            key: "advanced",
+            icon: <SlidersHorizontalIcon size={16} />,
             label: "Advanced",
             value:
                 [

@@ -9,7 +9,7 @@ import {RAIL_CARD_CLASS} from "@/oss/assets/railCard"
 import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
 import {agentMountQueryFamily} from "@/oss/components/Drives/agentDrive"
 import {FilesDrawer} from "@/oss/components/Drives/FilesDrawer"
-import {useSessionDriveSummary} from "@/oss/components/Drives/useSessionDrive"
+import {AGENT_FILES_DIR, useSessionDrive} from "@/oss/components/Drives/useSessionDrive"
 
 /** Enough to show what the agent is carrying without turning the card into an explorer. */
 const LIMIT = 6
@@ -41,8 +41,10 @@ const AgentFilesCard = ({appId}: {appId: string}) => {
         [mountId],
     )
     const files = useAtomValue(filesAtom)
-    // No session id: this surface is the AGENT's drive, so the session half stays disabled.
-    const drive = useSessionDriveSummary("", open ? appId : undefined)
+    // The FULL drive, not the summary: the summary's listing comes from a session's record
+    // recency, which an agent-only surface has none of — it opened the drawer on an empty tree.
+    // No session id, so the session half of this stays disabled and only the agent mount loads.
+    const drive = useSessionDrive("", open ? appId : undefined)
 
     // `total` is the whole drive's count; `files` is only the slice this card asked for.
     const total = files.data?.total ?? null
@@ -83,7 +85,9 @@ const AgentFilesCard = ({appId}: {appId: string}) => {
                             key={file.path}
                             type="button"
                             onClick={() => {
-                                setOpenPath(file.path)
+                                // The drive folds the agent mount in under `agent-files/`, so a
+                                // raw mount path would select nothing.
+                                setOpenPath(`${AGENT_FILES_DIR}/${file.path}`)
                                 setOpen(true)
                             }}
                             className="group box-border flex w-full cursor-pointer items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-2 text-left last:border-b-0 hover:bg-colorFillQuaternary"
