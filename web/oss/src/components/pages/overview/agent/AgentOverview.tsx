@@ -87,7 +87,8 @@ const AgentOverview = ({appId, agentName}: Props) => {
                             onChange={attachments.setFiles}
                         />
                     }
-                    trailing={
+                    // Leading, like the playground's — the footer's right edge belongs to send.
+                    prefix={
                         attachments.enabled ? (
                             <SeedAttachButton
                                 files={attachments.files}
