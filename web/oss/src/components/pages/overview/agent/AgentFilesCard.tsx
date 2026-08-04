@@ -1,16 +1,15 @@
-import {useMemo} from "react"
+import {useMemo, useState} from "react"
 
-import {
-    agentMountsQueryFamily,
-    latestMountFilesQueryFamily,
-    type MountFile,
-} from "@agenta/entities/session"
+import {latestMountFilesQueryFamily, type MountFile} from "@agenta/entities/session"
 import {FileIcon, FolderIcon} from "@phosphor-icons/react"
 import {Skeleton, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 
 import {RAIL_CARD_CLASS} from "@/oss/assets/railCard"
 import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
+import {agentMountQueryFamily} from "@/oss/components/Drives/agentDrive"
+import {FilesDrawer} from "@/oss/components/Drives/FilesDrawer"
+import {useSessionDriveSummary} from "@/oss/components/Drives/useSessionDrive"
 
 /** Enough to show what the agent is carrying without turning the card into an explorer. */
 const LIMIT = 6
@@ -28,15 +27,22 @@ const formatSize = (bytes: number | null | undefined): string | null => {
  * changed; the drive itself is browsed and edited where drives are browsed and edited.
  */
 const AgentFilesCard = ({appId}: {appId: string}) => {
-    const mountsAtom = useMemo(() => agentMountsQueryFamily(appId), [appId])
+    const [openPath, setOpenPath] = useState<string | null>(null)
+    const [open, setOpen] = useState(false)
+
+    // The app's own drive family — shared with the config panel and chat, so this card and the
+    // drawer it opens read one cache entry rather than each fetching the mount.
+    const mountsAtom = useMemo(() => agentMountQueryFamily(appId), [appId])
     const mounts = useAtomValue(mountsAtom)
-    const mountId = mounts.data?.[0]?.id ?? ""
+    const mountId = mounts.data?.id ?? ""
 
     const filesAtom = useMemo(
         () => latestMountFilesQueryFamily({mountId, limit: LIMIT, order: "recent"}),
         [mountId],
     )
     const files = useAtomValue(filesAtom)
+    // No session id: this surface is the AGENT's drive, so the session half stays disabled.
+    const drive = useSessionDriveSummary("", open ? appId : undefined)
 
     // `total` is the whole drive's count; `files` is only the slice this card asked for.
     const total = files.data?.total ?? null
@@ -73,9 +79,14 @@ const AgentFilesCard = ({appId}: {appId: string}) => {
                         : formatSize(file.size)
 
                     return (
-                        <div
+                        <button
                             key={file.path}
-                            className="flex items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-2 py-2 last:border-b-0"
+                            type="button"
+                            onClick={() => {
+                                setOpenPath(file.path)
+                                setOpen(true)
+                            }}
+                            className="group box-border flex w-full cursor-pointer items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-2 text-left last:border-b-0 hover:bg-colorFillQuaternary"
                         >
                             {file.is_folder ? (
                                 <FolderIcon size={14} className="shrink-0 text-colorTextTertiary" />
@@ -97,10 +108,24 @@ const AgentFilesCard = ({appId}: {appId: string}) => {
                                     {timeAgo(file.mtime)}
                                 </span>
                             ) : null}
-                        </div>
+                        </button>
                     )
                 })
             )}
+
+            {/* The one Files drawer, in app scope — the same explorer the config panel and chat
+                open, so a file opens the same way wherever you clicked it. */}
+            <FilesDrawer
+                open={open}
+                onClose={() => {
+                    setOpen(false)
+                    setOpenPath(null)
+                }}
+                drive={drive}
+                scope="app"
+                initialPath={openPath}
+                driveIds={mountId ? [{key: "mount", label: "Drive ID", value: mountId}] : undefined}
+            />
         </section>
     )
 }

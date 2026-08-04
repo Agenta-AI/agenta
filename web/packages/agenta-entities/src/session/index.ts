@@ -91,7 +91,6 @@ export {
 } from "./state/records"
 export {
     sessionMountsQueryFamily,
-    agentMountsQueryFamily,
     mountFilesQueryFamily,
     latestMountFilesQueryFamily,
     mountRootQueryFamily,

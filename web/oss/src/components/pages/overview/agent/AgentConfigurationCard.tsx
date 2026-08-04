@@ -1,13 +1,14 @@
 import {useMemo} from "react"
 
-import {workflowMolecule} from "@agenta/entities/workflow"
 import {CaretRight} from "@phosphor-icons/react"
+import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 
 import {RAIL_CARD_CLASS} from "@/oss/assets/railCard"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 
 import {agentConfigSummary} from "./agentConfigSummary"
+import {agentLatestRevisionAtomFamily} from "./state"
 
 const NONE = "None"
 
@@ -21,9 +22,14 @@ const NONE = "None"
  */
 const AgentConfigurationCard = ({appId}: {appId: string}) => {
     const {goToPlayground} = usePlaygroundNavigation()
-    const parametersAtom = useMemo(() => workflowMolecule.selectors.parameters(appId), [appId])
-    const parameters = useAtomValue(parametersAtom)
-    const summary = useMemo(() => agentConfigSummary(parameters), [parameters])
+    // Configuration lives on a revision, not on the artifact — reading the artifact gave a
+    // workflow with no parameters, so every row said "Not set".
+    const revisionAtom = useMemo(() => agentLatestRevisionAtomFamily(appId), [appId])
+    const revision = useAtomValue(revisionAtom)
+    const summary = useMemo(
+        () => agentConfigSummary(revision.data?.data?.parameters),
+        [revision.data],
+    )
 
     const rows: {label: string; value: string}[] = [
         {
@@ -64,23 +70,29 @@ const AgentConfigurationCard = ({appId}: {appId: string}) => {
                 </button>
             </div>
 
-            {rows.map((row) => (
-                <button
-                    key={row.label}
-                    type="button"
-                    onClick={() => goToPlayground(undefined, {appId})}
-                    className="group box-border flex w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-2 text-left last:border-b-0 hover:bg-colorFillQuaternary"
-                >
-                    <span className="shrink-0 text-xs text-colorTextSecondary">{row.label}</span>
-                    <span className="ml-auto min-w-0 truncate text-xs text-colorText">
-                        {row.value}
-                    </span>
-                    <CaretRight
-                        size={12}
-                        className="shrink-0 text-colorTextQuaternary opacity-0 group-hover:opacity-100"
-                    />
-                </button>
-            ))}
+            {revision.isPending ? <Skeleton active paragraph={{rows: 5}} title={false} /> : null}
+
+            {revision.isPending
+                ? null
+                : rows.map((row) => (
+                      <button
+                          key={row.label}
+                          type="button"
+                          onClick={() => goToPlayground(undefined, {appId})}
+                          className="group box-border flex w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-2 text-left last:border-b-0 hover:bg-colorFillQuaternary"
+                      >
+                          <span className="shrink-0 text-xs text-colorTextSecondary">
+                              {row.label}
+                          </span>
+                          <span className="ml-auto min-w-0 truncate text-xs text-colorText">
+                              {row.value}
+                          </span>
+                          <CaretRight
+                              size={12}
+                              className="shrink-0 text-colorTextQuaternary opacity-0 group-hover:opacity-100"
+                          />
+                      </button>
+                  ))}
         </section>
     )
 }

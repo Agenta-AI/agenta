@@ -16,7 +16,6 @@ import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {
     queryLatestMountFiles,
-    queryAgentMounts,
     queryMountDir,
     queryMountFiles,
     querySessionMounts,
@@ -28,8 +27,6 @@ import type {Mount, MountFile} from "../core/schema"
 // Query keys, factored so the revalidate atom and the families can never drift.
 export const sessionMountsQueryKey = (projectId: string, sessionId: string) =>
     ["session", "mounts", projectId, sessionId] as const
-export const agentMountsQueryKey = (projectId: string, artifactId: string) =>
-    ["agent", "mounts", projectId, artifactId] as const
 export const mountFilesQueryKey = (projectId: string, mountId: string, includeGitignored = false) =>
     ["mounts", "files", projectId, mountId, includeGitignored] as const
 export const latestMountFilesQueryKey = (
@@ -48,25 +45,6 @@ export const mountDirQueryKey = (
     path: string,
     includeGitignored = false,
 ) => ["mounts", "files-dir", projectId, mountId, path, includeGitignored] as const
-
-/**
- * The drive bound to one AGENT — the files it carries between runs, distinct from a session's
- * scratch mount. Everything downstream (file listings, previews, the explorer) is keyed on the
- * mount id, so only this lookup is agent-specific.
- */
-export const agentMountsQueryFamily = atomFamily((artifactId: string) =>
-    atomWithQuery<Mount[] | null>((get) => {
-        const projectId = get(projectIdAtom) ?? ""
-        return {
-            queryKey: agentMountsQueryKey(projectId, artifactId),
-            queryFn: ({signal}) =>
-                queryAgentMounts({artifactId, projectId, abortSignal: signal, lowPriority: true}),
-            enabled: Boolean(artifactId && projectId),
-            staleTime: 30_000,
-            refetchOnWindowFocus: false,
-        }
-    }),
-)
 
 /** The mounts (drives) bound to one session. */
 export const sessionMountsQueryFamily = atomFamily((sessionId: string) =>
