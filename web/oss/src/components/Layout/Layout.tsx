@@ -370,6 +370,11 @@ const AppWithVariants = memo(
                                                 "pb-0 mb-8": !isFullHeight,
                                                 "h-[calc(100%-30px)]": !isFullHeight && !isAppRoute,
                                                 "flex flex-col min-h-0 grow": isFullHeight,
+                                                // The shared content style carries a 2rem bottom
+                                                // margin for flowing pages. A full-height page
+                                                // fills the frame, so that margin is pure dead
+                                                // space under it.
+                                                "[&.ant-layout-content]:!mb-0": isFullHeight,
                                                 "h-full": isFullHeight && !isAppRoute,
                                                 "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
                                                     isPlayground ||

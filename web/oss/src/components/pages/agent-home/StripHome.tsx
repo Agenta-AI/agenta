@@ -102,7 +102,7 @@ const StripHome: React.FC = () => {
     }, [message, posthog])
 
     return (
-        <PageLayout className="grow min-h-0">
+        <PageLayout className="grow min-h-0 !pb-0">
             {/* First run stays a centered document — one question, one answer, nothing to
                 resume yet — and scrolls inside the frame rather than moving the page. A
                 returning user gets a workspace: two columns that fill the frame and scroll

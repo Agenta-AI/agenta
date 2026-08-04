@@ -163,7 +163,7 @@ const OverviewContent = () => {
             {/* The agent branch runs inside the layout's bounded frame (it asks for it), so the
                 page column must be allowed to shrink or its children can't take a definite
                 height and the per-column scrolls collapse back into one page scroll. */}
-            <PageLayout className={clsx("gap-8", isAgent && "min-h-0")}>
+            <PageLayout className={clsx("gap-8", isAgent && "min-h-0 !pb-0")}>
                 <AppDetailsSection />
 
                 {/* An agent's overview is its own surface. Charts move into that layout's usage
