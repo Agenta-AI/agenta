@@ -118,7 +118,7 @@ const StripHome: React.FC = () => {
                         firstRun
                             ? "flex w-full flex-col"
                             : // `min-w-0` or a wide table would push the column past its share.
-                              "flex min-w-0 flex-1 flex-col gap-14 overflow-y-auto pr-1"
+                              "box-border flex min-w-0 flex-1 flex-col gap-14 overflow-y-auto pr-1"
                     }
                 >
                     <div
@@ -194,9 +194,15 @@ const StripHome: React.FC = () => {
                 </div>
 
                 {/* Right column: what's in flight. Scrolls on its own so a long session list
-                    never pushes the composer off screen. */}
+                    never pushes the composer off screen.
+
+                    A third of the width rather than a fixed 400px, which held its proportion
+                    only at one screen size — it read as a third on a large display and as a
+                    slab on a laptop. The bounds keep it a rail at either extreme: below the
+                    floor a session row's title, preview and timestamp stop coexisting, and
+                    above the ceiling the extra width only pads the gap between them. */}
                 {!firstRun ? (
-                    <div className="flex w-[400px] shrink-0 flex-col gap-6 overflow-y-auto pr-1">
+                    <div className="box-border flex w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col gap-6 overflow-y-auto pr-1">
                         <HomeSessionsSection limit={10} />
                         <HomeAutomationsSection />
                         <UsageSummary variant="strip" />
