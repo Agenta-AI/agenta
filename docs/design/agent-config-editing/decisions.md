@@ -67,43 +67,36 @@ reasoning is in `spikes/engine-spike.md` (D1-D33, O1-O12) and `spikes/runner-spi
 
 (Empty. The open calls below move here once answered.)
 
+## Settled by the contracts (no longer open)
+
+- Binary and unsupported files reject the whole import by default; `on_unsupported:
+  "omit"` is the explicit opt-in. (Was open call 5.)
+- Imports come from the designated `imports/` root, not the whole workspace. (Was open
+  call 6.)
+- Cold resume refuses the old approval and asks again; frozen bytes are not persisted
+  durably. (Was open call 9.)
+- Pi tool removal hides the tool AND drops the runner execution binding; hidden-only
+  never ships. (Was open call 7.)
+- Embedded skills stay unaddressable in v1; support can be added later without a
+  breaking change. (Was open call 3.)
+
 ## Open product calls (waiting on Mahmoud)
 
-1. **Storage normalization (engine O2, O3).** Normalize configuration strings once on
-   write: Unicode to NFC, line endings to LF. Exact matching then stays honest.
-   Recommended: yes. Risk: stored bytes change on the next write of old fields.
-2. **Unique-name enforcement and old configurations (engine O7).** A configuration that
-   already holds a duplicate name would become uncommittable under a global check.
-   Recommended: enforce per commit only for collections the commit touches, warn on the
-   rest, and file a cleanup migration separately.
-3. **Embedded skills stay unaddressable in v1 (engine O6).** An agent with an
-   `@ag.embed` skill cannot edit it by name; it must use a whole-list `set`.
-   Recommended: accept for v1, design a stable embed key later.
-4. **Ungated `value_from` (runner Q1).** When the run's permission policy raises no
-   approval gate, the folder content is committed without a human seeing it.
-   Recommended: follow the run's policy (no forced gate); the policy owner opted out.
-5. **Binary files in skill folders are dropped with a warning (runner Q3).** A skill
-   with a PNG or a compiled helper loses that file in v1. The eventual fix is a blob
-   `uri` file variant. Recommended: accept for v1, flag in the approval card.
-6. **`value_from` reach (runner Q4).** Any path under the workspace root, or a
-   designated subfolder only? Recommended: whole workspace; the approval manifest is
-   the control.
-7. **Pi tool removal means hidden (runner Q5).** The tool stays registered but the
-   model cannot see or call it. The runner additionally drops the execution binding, so
-   a hidden tool cannot run even if called. Recommended: accept with that invariant.
-8. **Force a gate on every value_from import?** The gate review says always gate; the
-   contracts implement the narrower rule (inline resolution only on an explicit allow
-   verdict). Recommended: keep the narrower rule; it gates by default and respects an
-   explicit allow policy.
-9. **Cold resume after a value_from approval.** The frozen bytes die with the
-   environment. The contract asks again (a second approval prompt) instead of
-   persisting the bytes durably. Recommended: ask again; durable persistence recreates
-   the large-payload storage problem.
-10. **May the agent change its own harness.kind?** It is the most identity-defining
-    field and forces a sandbox rebuild. Recommended: no; human commit only.
-11. **May the agent write parameters outside the agent subtree?** Nothing else lives
-    there today for agent workflows. Recommended: no; scope commits to
-    parameters.agent.
-12. **Store the authored operations for audit?** The RFC promises the diff as a commit
-    artifact; the plan currently drops it. Recommended: store the operations list on
-    the revision commit record; it is small and makes agent commits reviewable.
+Six distinct decisions. The first five block their implementation slices.
+
+1. **Storage normalization** (blocks S1a/S1b). Normalize configuration strings once on
+   write (Unicode NFC, line endings LF), or preserve exact bytes? The second gate
+   review recommends exact bytes in v1. My earlier recommendation was normalize.
+   Mahmoud decides; the engine's matching and the migration story follow.
+2. **Unique-name enforcement** (blocks S1b validation). The contract proposes: a commit
+   must not introduce a new duplicate, a touched collection must end clean, untouched
+   legacy duplicates only warn. Confirm or change.
+3. **Import gating rule** (blocks S3b). Always force an approval gate on `value_from`,
+   or gate by default with inline resolution only on an explicit allow verdict from the
+   permission plan? The contracts implement the second. (Merges former calls 4 and 8.)
+4. **May the agent change its own `harness.kind`?** (blocks S2's scope section.)
+   Recommended: no; human commit only.
+5. **May the agent write `parameters` outside the `agent` subtree?** (blocks S2's
+   scope section.) Recommended: no.
+6. **Store the authored operations for audit** (blocks S1b persistence design).
+   Recommended: yes, on the revision commit record.
