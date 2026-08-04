@@ -31,8 +31,10 @@ const AgentsGrid = ({
         return <Skeleton active paragraph={{rows: 6}} title={false} />
     }
 
+    // `pt-5` is the room the grid variant's overhanging avatar needs. It belongs to the grid, not
+    // to each card — on the card it left the avatar-less dashed cell misaligned.
     return (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4 pt-5">
             {rows.map((record) => (
                 <AgentCard
                     key={record.key}
@@ -47,7 +49,7 @@ const AgentsGrid = ({
             <button
                 type="button"
                 onClick={onCreate}
-                className="box-border flex min-h-[104px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-colorBorder bg-transparent p-4 text-center transition-colors hover:border-colorPrimary"
+                className="box-border flex h-full min-h-[132px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-colorBorder bg-transparent p-4 text-center transition-colors hover:border-colorPrimary"
             >
                 <PlusIcon size={18} className="text-colorTextTertiary" />
                 <span className="text-sm text-colorText">New agent</span>

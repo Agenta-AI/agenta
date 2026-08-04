@@ -152,7 +152,7 @@ const AgentCard = ({
                 if (event.key === "Enter" || event.key === " ") open()
             }}
             className={`group box-border flex cursor-pointer flex-col rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated transition-colors hover:border-colorBorder ${
-                isGrid ? "relative mt-5 h-full gap-2 p-4 pt-7" : "gap-2 p-4"
+                isGrid ? "relative h-full gap-2 p-4 pt-7" : "gap-2 p-4"
             }`}
         >
             {isGrid ? avatar : null}
