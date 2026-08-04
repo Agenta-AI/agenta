@@ -297,6 +297,9 @@ def test_agent_v0_invalid_composition_default_remains_500():
     )
 
     assert resp.status_code == 500
+    status = resp.json()["status"]
+    assert status["code"] == 500
+    assert status["type"].endswith("#v1:sdk:unknown-workflow-invoke-error")
 
 
 # llm_v0: batch-only. json/absent Accept OK; stream Accept -> 406 (symmetry).
