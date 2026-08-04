@@ -77,10 +77,9 @@ const AgentOverview = ({appId, agentName}: Props) => {
                     }
                 />
 
-                {/* One sheet, not a stack of outlined cards: the sections separate themselves with
-                    their header bands. The composer stays outside it — it is an input, and inputs
-                    keep their own border. */}
-                <PanelSurface className="shrink-0 grow">
+                {/* Bare, on the page background — the rail opposite is the page's one defined
+                    object, and two sheets facing each other read as equal weight. */}
+                <div className="flex flex-col gap-10">
                     <SessionListCard
                         withPinned
                         agentId={appId}
@@ -102,7 +101,7 @@ const AgentOverview = ({appId, agentName}: Props) => {
                         minHeightClassName="min-h-[100px]"
                         viewAllHref={sessionsHref}
                     />
-                </PanelSurface>
+                </div>
             </div>
 
             <div className="flex w-full shrink-0 grow-0 flex-col gap-6 lg:h-full lg:w-1/3 lg:min-w-[340px] lg:max-w-[520px] lg:overflow-y-auto lg:pr-1">

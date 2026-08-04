@@ -105,7 +105,7 @@ const AgentFilesCard = ({appId}: {appId: string}) => {
                                 setOpenPath(`${AGENT_FILES_DIR}/${file.path}`)
                                 setOpen(true)
                             }}
-                            className="group box-border flex w-full cursor-pointer items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-2 text-left last:border-b-0 hover:bg-colorFillQuaternary"
+                            className="group box-border flex w-full cursor-pointer items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-3 text-left last:border-b-0 hover:bg-colorFillQuaternary"
                         >
                             {file.is_folder ? (
                                 <FolderIcon size={14} className="shrink-0 text-colorTextTertiary" />
@@ -113,7 +113,7 @@ const AgentFilesCard = ({appId}: {appId: string}) => {
                                 <FileIcon size={14} className="shrink-0 text-colorTextTertiary" />
                             )}
                             <Tooltip title={file.path}>
-                                <span className="min-w-0 flex-1 truncate text-xs text-colorText">
+                                <span className="min-w-0 flex-1 truncate text-sm text-colorText">
                                     {name}
                                 </span>
                             </Tooltip>

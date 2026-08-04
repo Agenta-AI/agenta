@@ -208,10 +208,12 @@ const StripHome: React.FC = () => {
                         // EXPERIMENT: the columns' contents are swapped. What's in flight takes
                         // the wide column under the composer; the templates strip and the agents
                         // roster move to the rail. The hero and composer stay put.
-                        <PanelSurface className="mt-8 shrink-0 grow">
+                        // Bare, on the page background: the rail is the page's one defined
+                        // object, and a second sheet opposite it made both read as equal weight.
+                        <div className="mt-10 flex flex-col gap-10">
                             <HomeSessionsSection limit={6} />
                             <HomeAutomationsSection />
-                        </PanelSurface>
+                        </div>
                     )}
                 </div>
 

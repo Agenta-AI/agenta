@@ -1,7 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {type SessionStream} from "@agenta/entities/session"
-import {PushPinIcon} from "@phosphor-icons/react"
+import {ChatCircleIcon, ClockIcon, PushPinIcon} from "@phosphor-icons/react"
 import {Dropdown, Skeleton, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
@@ -219,64 +219,76 @@ const SessionListCard = ({
                     <button
                         type="button"
                         onClick={() => handleOpen(row)}
-                        className="group box-border flex w-full cursor-pointer flex-col gap-0.5 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-2 text-left hover:bg-colorFillQuaternary"
+                        className="group box-border flex w-full cursor-pointer items-start gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-3 text-left hover:bg-colorFillQuaternary"
                     >
-                        <span className="flex w-full items-center gap-2">
-                            <Tooltip title={status.label}>
+                        {/* A glyph for the KIND of row, with the status as a dot on its shoulder.
+                            Two lists in the same column read as one long list when every row leads
+                            with the same dot; the clock and the chat bubble separate them without
+                            a heading. */}
+                        <Tooltip title={status.label}>
+                            <span className="relative mt-0.5 flex shrink-0 text-colorTextTertiary">
+                                {origin ? <ClockIcon size={18} /> : <ChatCircleIcon size={18} />}
                                 <span
-                                    className={`h-2 w-2 shrink-0 rounded-full ${status.dotClassName} ${
+                                    className={`absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-solid border-colorBgContainer ${status.dotClassName} ${
                                         status.pulse ? "motion-safe:animate-pulse" : ""
                                     }`}
                                 />
-                            </Tooltip>
-                            <span className="min-w-0 flex-1 truncate text-xs text-colorText">
-                                {title}
                             </span>
-                            {/* Inside a "Waiting on you" group the urgency is already stated, so the
+                        </Tooltip>
+                        <span className="flex min-w-0 flex-1 flex-col gap-1">
+                            <span className="flex w-full items-center gap-2">
+                                <span className="min-w-0 flex-1 truncate text-sm text-colorText">
+                                    {title}
+                                </span>
+                                {/* Inside a "Waiting on you" group the urgency is already stated, so the
                             chip spends itself on WHAT is being asked and stays visually quiet —
                             the amber lives on the dot and the header badge. The fill is the
                             faintest available: a solid pill beside a title reads as a button,
                             and this chip is a label. */}
-                            {status.chipLabel ? (
-                                <span className="shrink-0 rounded bg-colorFillQuaternary px-1.5 py-0.5 text-[11px] leading-none text-colorTextSecondary">
-                                    {pendingGateLabel(pending?.kinds)}
-                                </span>
-                            ) : null}
-                            {/* An agent-scoped card is already one agent's, so naming it on every row
+                                {status.chipLabel ? (
+                                    <span className="shrink-0 rounded bg-colorFillQuaternary px-1.5 py-0.5 text-xs leading-none text-colorTextSecondary">
+                                        {pendingGateLabel(pending?.kinds)}
+                                    </span>
+                                ) : null}
+                                {/* An agent-scoped card is already one agent's, so naming it on every row
                             spends a third of the row width restating the heading. */}
-                            {agentId ? null : (
-                                <span className="w-24 shrink-0 truncate text-right">
-                                    <SessionAgentLabel appId={target?.appId ?? null} />
+                                {agentId ? null : (
+                                    <span className="w-24 shrink-0 truncate text-right">
+                                        <SessionAgentLabel appId={target?.appId ?? null} />
+                                    </span>
+                                )}
+                                <span className="w-16 shrink-0 text-right text-xs text-colorTextTertiary">
+                                    {activity ? timeAgo(Date.parse(activity)) : "—"}
                                 </span>
-                            )}
-                            <span className="w-14 shrink-0 text-right text-xs text-colorTextTertiary">
-                                {activity ? timeAgo(Date.parse(activity)) : "—"}
+                                <Tooltip title={pinned ? "Unpin" : "Pin"}>
+                                    <span
+                                        role="button"
+                                        tabIndex={-1}
+                                        aria-label={pinned ? "Unpin session" : "Pin session"}
+                                        onClick={(event) => {
+                                            event.stopPropagation()
+                                            togglePin(row.session_id)
+                                        }}
+                                        className={`shrink-0 text-colorTextTertiary ${
+                                            pinned ? "" : "opacity-0 group-hover:opacity-100"
+                                        }`}
+                                    >
+                                        <PushPinIcon
+                                            size={14}
+                                            weight={pinned ? "fill" : "regular"}
+                                        />
+                                    </span>
+                                </Tooltip>
                             </span>
-                            <Tooltip title={pinned ? "Unpin" : "Pin"}>
-                                <span
-                                    role="button"
-                                    tabIndex={-1}
-                                    aria-label={pinned ? "Unpin session" : "Pin session"}
-                                    onClick={(event) => {
-                                        event.stopPropagation()
-                                        togglePin(row.session_id)
-                                    }}
-                                    className={`shrink-0 text-colorTextTertiary ${
-                                        pinned ? "" : "opacity-0 group-hover:opacity-100"
-                                    }`}
-                                >
-                                    <PushPinIcon size={14} weight={pinned ? "fill" : "regular"} />
-                                </span>
-                            </Tooltip>
-                        </span>
-                        {/* What actually happened, so deciding whether to reopen a session
+                            {/* What actually happened, so deciding whether to reopen a session
                             doesn't mean opening it. Indented past the status dot. Absent when the
                             title is already the message. */}
-                        {subtitle ? (
-                            <span className="min-w-0 truncate pl-4 text-[11px] text-colorTextTertiary">
-                                {subtitle}
-                            </span>
-                        ) : null}
+                            {subtitle ? (
+                                <span className="min-w-0 truncate text-[13px] text-colorTextTertiary">
+                                    {subtitle}
+                                </span>
+                            ) : null}
+                        </span>
                     </button>
                 </Dropdown>
             </motion.div>
@@ -302,6 +314,7 @@ const SessionListCard = ({
         // sections then swap their pinned header the way the config panel's regions do.
         <PanelSection
             sticky
+            variant="page"
             title={title}
             minHeightClassName={minHeightClassName}
             bodyClassName="flex grow flex-col px-2 pb-2 pt-1"
@@ -352,7 +365,7 @@ const SessionListCard = ({
                         </AnimatePresence>
 
                         {isEmpty ? (
-                            <p className="m-0 flex grow items-center px-2 py-3 text-xs text-colorTextTertiary">
+                            <p className="m-0 flex grow items-center px-2 py-3 text-[13px] text-colorTextTertiary">
                                 {emptyText}
                             </p>
                         ) : null}

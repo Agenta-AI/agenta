@@ -16,7 +16,14 @@ const AgentActivityCell = ({agentId}: {agentId: string}) => {
 
     if (isPending) return <Skeleton.Input active size="small" className="!h-4 !min-w-16" />
 
-    if (!session) return <span className="text-xs text-colorTextTertiary">No sessions yet</span>
+    // An em dash, not "No sessions yet": the roster's list form gives this a narrow right column,
+    // and the sentence wrapped to three lines and tripled the row's height.
+    if (!session)
+        return (
+            <Tooltip title="No sessions yet">
+                <span className="text-xs text-colorTextTertiary">—</span>
+            </Tooltip>
+        )
 
     const activity = session.updated_at ?? session.created_at
     const label = session.name?.trim() || "Untitled session"

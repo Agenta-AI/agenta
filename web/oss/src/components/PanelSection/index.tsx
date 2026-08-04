@@ -1,36 +1,25 @@
 import type {ReactNode} from "react"
 
 /**
- * THROWAWAY — a local trial of the playground panel's section language, so the look can be
+ * THROWAWAY — a local trial of the section language for `/apps` and `/overview`, so it can be
  * judged before anything is extracted into `@agenta/ui`. Do not import this from a package.
  *
- * The rail and overview marked every region with the same 1px outlined box, which is what made
- * the pages read as a wireframe: one surface level, uniform rectangles, and the border — the
- * signal that should mark an ITEM — spent on containers instead. The panel does it with surface:
- * a column is one continuous sheet, and regions are separated by a filled header band and a
- * hairline. Boxes survive only one level in, around actual items.
- */
-
-/**
- * The band's fill must sit on an OPAQUE base: these headers are sticky, and a bare rgba fill
- * token lets the rows scroll through visibly. Same technique as the config panel's header bar,
- * with `colorBgContainer` in place of that copy's `--ag-c-FFFFFF` compat literal.
- */
-const BAND_CLASS =
-    "flex h-10 shrink-0 items-center justify-between gap-2 border-0 border-b border-solid border-colorBorderSecondary px-4 " +
-    "bg-colorBgContainer bg-[image:linear-gradient(var(--ant-color-fill-tertiary),var(--ant-color-fill-tertiary))]"
-
-/**
- * The sheet a column's sections live on. No border — the surface step against the page's own
- * background is what bounds it, and an outline here would reintroduce what we are removing.
+ * Modelled on Claude's project page rather than on our playground panel. Two rules carry most of
+ * it: the rail is ONE bordered container holding hairline-separated sections, and the main column
+ * has no container at all — bare rows under a muted label. That contrast is what keeps the page
+ * from reading as uniform; when both columns were sheets with filled header bands, every region
+ * looked equally important and the density read as clutter.
  *
- * `overflow-clip`, NOT `overflow-hidden`: hidden makes this a scroll container, and the section
- * bands inside resolve their `sticky` against it. Since it never scrolls they would simply never
- * pin — the same trap the session card's own comment warned about. Clip rounds the corners
- * without creating that container.
+ * There are no filled bands here. Section headers are distinguished by weight and size, which is
+ * also why the type scale on these two pages runs wider than the app's 12px default.
  */
+
+/** The rail's container. The border is deliberate and used exactly once — around the whole rail,
+ * never around each section inside it. */
 export const PanelSurface = ({children, className}: {children: ReactNode; className?: string}) => (
-    <div className={`box-border overflow-clip rounded-lg bg-colorBgContainer ${className ?? ""}`}>
+    <div
+        className={`box-border overflow-clip rounded-xl border border-solid border-colorBorderSecondary bg-colorBgContainer ${className ?? ""}`}
+    >
         {children}
     </div>
 )
@@ -40,29 +29,53 @@ export const PanelSection = ({
     titleExtra,
     extra,
     sticky = false,
-    bodyClassName = "flex flex-col px-2 py-2",
+    variant = "rail",
+    bodyClassName,
     minHeightClassName,
     children,
 }: {
     title: ReactNode
     /** Rendered beside the title, e.g. a count or a "2 waiting" badge. */
     titleExtra?: ReactNode
-    /** Rendered at the band's right edge, e.g. "View all". */
+    /** Rendered at the header's right edge, e.g. "View all". */
     extra?: ReactNode
-    /** Pin the band while its own section scrolls past. Only meaningful in a scrolling column. */
+    /**
+     * Pin the header while its own section scrolls past. The background it carries is opaque
+     * rather than a fill token — a sticky header with an rgba fill lets the rows scroll through
+     * it visibly.
+     */
     sticky?: boolean
+    /** `rail` sits inside {@link PanelSurface}; `page` sits bare on the page background. */
+    variant?: "rail" | "page"
     bodyClassName?: string
     minHeightClassName?: string
     children: ReactNode
-}) => (
-    <section className={`flex flex-col ${minHeightClassName ?? ""}`}>
-        <div className={`${BAND_CLASS} ${sticky ? "sticky top-0 z-10" : ""}`}>
-            <div className="flex min-w-0 items-center gap-2">
-                <h3 className="m-0 truncate text-[13px] font-semibold text-colorText">{title}</h3>
-                {titleExtra}
+}) => {
+    const isRail = variant === "rail"
+    return (
+        <section className={`flex flex-col ${minHeightClassName ?? ""}`}>
+            <div
+                className={`flex shrink-0 items-center justify-between gap-2 ${
+                    isRail
+                        ? "border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer px-4 py-3"
+                        : "bg-colorBgLayout px-2 pb-2 pt-1"
+                } ${sticky ? "sticky top-0 z-10" : ""}`}
+            >
+                <div className="flex min-w-0 items-center gap-2">
+                    <h3
+                        className={`m-0 truncate text-[15px] ${
+                            isRail
+                                ? "font-semibold text-colorText"
+                                : "font-medium text-colorTextSecondary"
+                        }`}
+                    >
+                        {title}
+                    </h3>
+                    {titleExtra}
+                </div>
+                {extra}
             </div>
-            {extra}
-        </div>
-        <div className={bodyClassName}>{children}</div>
-    </section>
-)
+            <div className={bodyClassName ?? "flex flex-col px-2 py-1"}>{children}</div>
+        </section>
+    )
+}
