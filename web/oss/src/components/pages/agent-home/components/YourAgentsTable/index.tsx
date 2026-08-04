@@ -12,6 +12,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
+import AgentCard from "@/oss/components/AgentCard"
 import {
     agentsWorkflowsAtom,
     agentsWorkflowsLoadingAtom,
@@ -26,7 +27,6 @@ import useURL from "@/oss/hooks/useURL"
 
 import EmptyAgents from "../EmptyAgents"
 
-import AgentRow from "./AgentRow"
 import {createAgentColumns, type AgentColumnActions} from "./columns"
 import {useWaitingByAgent} from "./useAgentActivity"
 
@@ -145,7 +145,7 @@ const YourAgentsTable = ({forceEmpty = false, variant = "table"}: YourAgentsTabl
             <PanelSection
                 sticky
                 title="Your agents"
-                bodyClassName="flex flex-col gap-0.5 px-2 pb-3"
+                bodyClassName="flex flex-col gap-2 px-3 pb-3"
                 extra={
                     <div className="flex shrink-0 items-center gap-3">
                         <button
@@ -169,7 +169,7 @@ const YourAgentsTable = ({forceEmpty = false, variant = "table"}: YourAgentsTabl
                     <EmptyAgents />
                 ) : (
                     rows.map((record) => (
-                        <AgentRow
+                        <AgentCard
                             key={record.key}
                             record={record}
                             waiting={waitingByAgent.get(record.workflowId) ?? 0}
