@@ -8,8 +8,8 @@
 import {memo, useCallback, useEffect, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {LabeledField} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
+import {Field} from "@agenta/ui/ui"
 import {Input, Typography} from "antd"
 
 const {TextArea} = Input
@@ -126,10 +126,9 @@ export const TextInputControl = memo(function TextInputControl({
     )
 
     return (
-        <LabeledField
+        <Field
             label={label}
-            description={tooltipText}
-            withTooltip={withTooltip && !!label}
+            tooltip={withTooltip && !!label ? tooltipText : undefined}
             direction="vertical"
             gap={isMultiline ? "sm" : "xs"}
             className={cn(className)}
@@ -142,6 +141,6 @@ export const TextInputControl = memo(function TextInputControl({
                     {maxLength && `Max: ${maxLength}`}
                 </Typography.Text>
             )}
-        </LabeledField>
+        </Field>
     )
 })

@@ -2,7 +2,7 @@
 
 import {memo, useCallback, useMemo} from "react"
 
-import {LabeledField} from "@agenta/ui/components/presentational"
+import {Field} from "@agenta/ui/ui"
 import {Plus, Trash} from "@phosphor-icons/react"
 import {Button, Input} from "antd"
 import clsx from "clsx"
@@ -53,7 +53,7 @@ const HeadersControl = memo(function HeadersControl({
     }, [value, onChange])
 
     return (
-        <LabeledField label="Headers" direction="vertical">
+        <Field label="Headers" direction="vertical">
             <div className="flex flex-col gap-2">
                 {rows.map(([key, val], index) => (
                     <div key={index} className="flex items-center gap-2">
@@ -92,7 +92,7 @@ const HeadersControl = memo(function HeadersControl({
                     Header
                 </Button>
             </div>
-        </LabeledField>
+        </Field>
     )
 })
 
@@ -123,7 +123,7 @@ export const HookConfigControl = memo(function HookConfigControl({
 
     return (
         <div className={clsx("flex flex-col gap-4", className)}>
-            <LabeledField label="URL" direction="vertical">
+            <Field label="URL" direction="vertical">
                 <Input
                     placeholder="https://your-service"
                     className="font-mono"
@@ -131,7 +131,7 @@ export const HookConfigControl = memo(function HookConfigControl({
                     disabled={disabled}
                     onChange={(e) => patch("url", e.target.value)}
                 />
-            </LabeledField>
+            </Field>
             <HeadersControl
                 value={(group.headers as HeadersValue) ?? {}}
                 onChange={(next) => patch("headers", next)}

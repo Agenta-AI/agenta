@@ -15,7 +15,7 @@ export const DebugPlugin = () => {
     const [editor] = useLexicalComposerContext()
 
     return (
-        <div className="border-t p-4">
+        <div className="border-0 border-t border-solid p-4">
             <h3 className="text-sm font-semibold mb-2">Debug View</h3>
             <TreeView
                 viewClassName="tree-view-output"

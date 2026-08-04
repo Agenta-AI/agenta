@@ -1,0 +1,29 @@
+import {Meta} from "@storybook/addon-docs/blocks"
+
+<Meta title="@agenta/ui/Presentational/Tags/Overview" />
+
+# Presentational · Tags
+
+Small labelled pills that render a domain status or attribute (environment, sync state,
+draft, source, version, type). They map fixed domain values onto a tag, so there is no 1:1
+antd control to diff; the migration target for the base is the `@agenta/ui` **Badge**
+primitive.
+
+| Component            | What it is                                           | antd inside?          |
+| -------------------- | ---------------------------------------------------- | --------------------- |
+| **StatusTag**        | Generic status pill with color per state.            | antd `Tag`            |
+| **EnvironmentTag**   | Deployment environment label (dev / staging / prod). | antd `Tag`            |
+| **DraftTag**         | "Draft" marker for uncommitted entities.             | antd `Tag`            |
+| **SyncStateTag**     | Synced / out-of-sync indicator with tooltip.         | antd `Tag`, `Tooltip` |
+| **MappingStatusTag** | Column-mapping status for testsets.                  | antd `Tag`            |
+| **SourceIndicator**  | Where an entity originated (UI / SDK / …).           | antd `Tag`            |
+| **VersionBadge**     | `vN` revision tag.                                   | none (pure)           |
+| **TypeChip**         | Entity / workflow type chip.                         | none (pure)           |
+
+**How to read these stories**
+
+- The **antd** column names the tag these still wrap internally — that doubles as a
+  migration to-do toward the `@agenta/ui` Badge primitive.
+- Each story enumerates the domain values so every color / state variant is visible at once.
+
+Open a component's **Docs** tab for its full prop table.

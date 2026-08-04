@@ -37,13 +37,11 @@ import {
 } from "react"
 
 import {CaretDown, CaretRight, Lock} from "@phosphor-icons/react"
-import {Tooltip, Typography} from "antd"
 import {motion} from "motion/react"
 
 import {cn} from "../../../utils/styles"
 import {HeightCollapse} from "../../HeightCollapse"
-
-const {Text} = Typography
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
 
 /**
  * Whether the enclosing accordion section is currently expanded. Because the body stays MOUNTED while
@@ -269,6 +267,48 @@ export function ConfigAccordionSection({
         onOpenChange?.(next)
     }, [opensDrawer, onOpen, canToggle, isOpen, isControlled, onOpenChange])
 
+    const iconNode = icon ? (
+        <span
+            className="relative flex shrink-0 items-center motion-safe:transition-colors motion-safe:duration-300"
+            style={{color: iconColor}}
+        >
+            {icon}
+            {/* Attention ripple: expands + fades out from behind the dot, repeating while the
+                caller holds `pulse` true (e.g. a change from another pane). */}
+            {indicator?.pulse ? (
+                <motion.span
+                    className="absolute -right-1 -top-0.5 h-2 w-2 rounded-full"
+                    style={{background: dotColor ?? undefined}}
+                    initial={{opacity: 0, scale: 1}}
+                    animate={{opacity: [0, 0.5, 0], scale: [1, 2, 3]}}
+                    transition={{duration: 1.8, ease: "easeOut", repeat: 1, times: [0, 0.25, 1]}}
+                />
+            ) : null}
+            {/* Always mounted: state changes play as scale/opacity/color
+                transitions instead of the dot popping in and out. */}
+            <span
+                className={cn(
+                    "absolute -right-1 -top-0.5 box-border h-2 w-2 rounded-full border-[1.5px] border-solid border-[var(--ag-colorBgContainer)]",
+                    "motion-safe:transition-[transform,opacity,background-color] motion-safe:duration-300 motion-safe:ease-out",
+                    indicator ? "scale-100 opacity-100" : "scale-0 opacity-0",
+                )}
+                style={{background: dotColor ?? undefined}}
+            />
+        </span>
+    ) : null
+
+    const iconAffordance =
+        icon && indicator?.tooltip ? (
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>{iconNode}</TooltipTrigger>
+                    <TooltipContent>{indicator.tooltip}</TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
+        ) : (
+            iconNode
+        )
+
     const sectionInner = (
         <div
             className={cn(
@@ -330,57 +370,19 @@ export function ConfigAccordionSection({
                 )}
             >
                 <div className="flex min-w-0 items-center gap-2">
-                    {icon ? (
-                        <Tooltip title={indicator?.tooltip}>
-                            <span
-                                className="relative flex shrink-0 items-center motion-safe:transition-colors motion-safe:duration-300"
-                                style={{color: iconColor}}
-                            >
-                                {icon}
-                                {/* Attention ripple: expands + fades out from behind the dot,
-                                    repeating while the caller holds `pulse` true (e.g. a change
-                                    from another pane). Uses `motion` so it animates reliably. */}
-                                {indicator?.pulse ? (
-                                    <motion.span
-                                        className="absolute -right-1 -top-0.5 h-2 w-2 rounded-full"
-                                        style={{background: dotColor ?? undefined}}
-                                        initial={{opacity: 0, scale: 1}}
-                                        animate={{opacity: [0, 0.5, 0], scale: [1, 2, 3]}}
-                                        transition={{
-                                            duration: 1.8,
-                                            ease: "easeOut",
-                                            repeat: 1,
-                                            times: [0, 0.25, 1],
-                                        }}
-                                    />
-                                ) : null}
-                                {/* Always mounted: state changes play as scale/opacity/color
-                                    transitions instead of the dot popping in and out. */}
-                                <span
-                                    className={cn(
-                                        "absolute -right-1 -top-0.5 h-2 w-2 rounded-full border-[1.5px] border-[var(--ag-colorBgContainer)]",
-                                        "motion-safe:transition-[transform,opacity,background-color] motion-safe:duration-300 motion-safe:ease-out",
-                                        indicator ? "scale-100 opacity-100" : "scale-0 opacity-0",
-                                    )}
-                                    style={{background: dotColor ?? undefined}}
-                                />
-                            </span>
-                        </Tooltip>
-                    ) : null}
-                    {/* Title. The base text stays fully opaque/crisp; while `pulse` holds, a blue
-                        DUPLICATE laid exactly on top is revealed through a moving mask, so a glint
-                        sweeps across the letters (in cadence with the dot ripple) without ever
-                        fading the real text. Sweep = the `config-shimmer` CSS keyframe (motion is
-                        unreliable at animating mask/background position). */}
+                    {iconAffordance}
+                    {/* Title. Base text stays crisp; while `pulse` holds, an accent DUPLICATE laid
+                        on top is revealed through a moving mask (config-shimmer keyframe), so a
+                        glint sweeps the letters without fading the real text. */}
                     <span className="relative flex min-w-0">
-                        <Text
+                        <span
                             className={cn(
                                 "min-w-0 truncate font-medium",
                                 size === "compact" ? "text-xs" : "text-sm",
                             )}
                         >
                             {title}
-                        </Text>
+                        </span>
                         {indicator?.pulse ? (
                             <span
                                 aria-hidden
@@ -409,12 +411,10 @@ export function ConfigAccordionSection({
 
                 <div className="flex shrink-0 items-center gap-2">
                     {summary && (!summaryCollapsedOnly || !isOpen) ? (
-                        <Text
-                            type="secondary"
-                            className="max-w-[220px] truncate text-right text-xs"
-                        >
+                        // antd `Text type="secondary"` is colorTextDescription, not colorTextSecondary.
+                        <span className="max-w-[220px] truncate text-right text-xs text-colorTextDescription">
                             {summary}
-                        </Text>
+                        </span>
                     ) : null}
                     {extra ? (
                         // `-my-2` keeps a full-height control (e.g. a 32px antd add-button) from
@@ -430,9 +430,21 @@ export function ConfigAccordionSection({
                         </span>
                     ) : null}
                     {locked ? (
-                        <Tooltip title={lockedReason}>
+                        lockedReason ? (
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Lock
+                                            size={14}
+                                            className="text-[var(--ag-c-97A4B0,#97a4b0)]"
+                                        />
+                                    </TooltipTrigger>
+                                    <TooltipContent>{lockedReason}</TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        ) : (
                             <Lock size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
-                        </Tooltip>
+                        )
                     ) : opensDrawer ? (
                         <CaretRight size={14} className="text-[var(--ag-c-97A4B0,#97a4b0)]" />
                     ) : collapsible ? (

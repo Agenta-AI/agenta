@@ -14,7 +14,7 @@
 import {memo, useCallback, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {LabeledField} from "@agenta/ui/components/presentational"
+import {Field} from "@agenta/ui/ui"
 import {MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import {Button, Input, Tag, Tooltip, Typography} from "antd"
 
@@ -91,10 +91,9 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
     )
 
     return (
-        <LabeledField
+        <Field
             label={label}
-            description={tooltipText}
-            withTooltip={withTooltip && !!label}
+            tooltip={withTooltip && !!label ? tooltipText : undefined}
             className={className}
         >
             <div className="flex flex-col gap-2">
@@ -175,6 +174,6 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                     )}
                 </div>
             </div>
-        </LabeledField>
+        </Field>
     )
 })

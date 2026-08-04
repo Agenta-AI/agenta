@@ -18,8 +18,8 @@ import {memo, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {formatEnumLabel} from "@agenta/shared/utils"
-import {LabeledField} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
+import {Field} from "@agenta/ui/ui"
 import {Select, Typography} from "antd"
 
 interface HarnessMeta {
@@ -143,10 +143,9 @@ export const HarnessSelectControl = memo(function HarnessSelectControl({
     const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
     return (
-        <LabeledField
+        <Field
             label={label}
-            description={tooltipText}
-            withTooltip={withTooltip && !!label}
+            tooltip={withTooltip && !!label ? tooltipText : undefined}
             className={cn(className)}
         >
             <Select
@@ -180,6 +179,6 @@ export const HarnessSelectControl = memo(function HarnessSelectControl({
                     )
                 }}
             />
-        </LabeledField>
+        </Field>
     )
 })

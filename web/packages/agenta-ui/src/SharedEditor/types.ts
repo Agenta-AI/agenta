@@ -1,7 +1,7 @@
 import type {HTMLProps} from "react"
 
-import type {InputProps, TextAreaProps} from "antd/es/input"
-
+import type {InputProps} from "../components/ui/input"
+import type {AutosizeTextareaProps} from "../components/ui/input-composed"
 import type {EditorProps} from "../Editor"
 
 export interface PasteLimitExceededPayload {
@@ -22,7 +22,19 @@ export interface BaseContainerProps<T = HTMLDivElement> extends HTMLProps<T> {
     className?: string
 }
 
-type SharedAntdInputProps = (InputProps & {textarea?: false}) | (TextAreaProps & {textarea: true})
+export type SharedAntdTextareaProps = AutosizeTextareaProps & {textarea: true}
+
+export type SharedAntdInputProps = (InputProps & {textarea?: false}) | SharedAntdTextareaProps
+
+/**
+ * Discriminates the `antdInputProps` union. A bare `"textarea" in p && p.textarea` check only
+ * narrows under `strictNullChecks`; a type predicate narrows under every tsconfig.
+ */
+export function isSharedAntdTextareaProps(
+    props: SharedAntdInputProps,
+): props is SharedAntdTextareaProps {
+    return "textarea" in props && props.textarea === true
+}
 
 export interface SharedEditorProps extends BaseContainerProps {
     /** Unique ID for the editor instance */

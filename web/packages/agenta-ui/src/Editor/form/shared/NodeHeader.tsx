@@ -1,6 +1,6 @@
 import {type FC, type ReactNode, createElement} from "react"
 
-import {RightOutlined, DownOutlined} from "@ant-design/icons"
+import {CaretDown, CaretRight} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 import styles from "../FormView.module.css"
@@ -23,8 +23,9 @@ interface NodeHeaderProps {
  */
 const NodeHeader: FC<NodeHeaderProps> = ({depth, folded, onToggle, children, extra, className}) => (
     <TreeRow depth={depth} className={clsx(styles["node-header"], className)}>
-        {createElement(folded ? RightOutlined : DownOutlined, {
-            className: "text-[10px] mr-1 cursor-pointer",
+        {createElement(folded ? CaretRight : CaretDown, {
+            size: 12,
+            className: "mr-1 cursor-pointer",
             onClick: onToggle,
         })}
         {children}
