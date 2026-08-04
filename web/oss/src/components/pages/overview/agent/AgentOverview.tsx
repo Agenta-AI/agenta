@@ -123,6 +123,7 @@ const AgentOverview = ({appId, agentName}: Props) => {
                         user configured but did not start. A toggle would hide one of the two
                         behind a click, which ranks them. */}
                     <SessionListCard
+                        withPinned
                         agentId={appId}
                         origin="trigger"
                         title="Automation runs"

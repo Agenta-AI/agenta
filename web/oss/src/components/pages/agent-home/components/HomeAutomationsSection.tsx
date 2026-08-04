@@ -9,6 +9,9 @@ import SessionListCard from "@/oss/components/pages/sessions/components/SessionL
  */
 const HomeAutomationsSection = () => (
     <SessionListCard
+        // Pinned runs lead here too. The pinned query carries `origin`, so it stays this card's
+        // own set — the Sessions card still excludes trigger-origin sessions from its group.
+        withPinned
         origin="trigger"
         title="Automation runs"
         emptyText="Runs from your automations will show up here."
