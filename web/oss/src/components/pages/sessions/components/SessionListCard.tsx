@@ -263,8 +263,17 @@ const SessionListCard = ({
     )
 
     return (
-        <section className={`flex flex-col ${RAIL_CARD_CLASS} ${minHeightClassName ?? ""}`}>
-            <div className="mb-1 flex items-center justify-between gap-2">
+        // `pt-0` hands the card's top padding to the sticky header below (Tailwind emits `pt-*`
+        // after `py-*`, so it wins); without that the header would stick flush to the rail's edge.
+        <section className={`flex flex-col ${RAIL_CARD_CLASS} pt-0 ${minHeightClassName ?? ""}`}>
+            {/* Sticky within its own card, so scrolling a long list never leaves you looking at
+                rows that don't say which list they belong to. The card's top padding moved onto
+                this element (`pt-3` here, `pt-0` on the section) so the spacing above the title
+                is identical stuck or unstuck, and the opaque background is what the rows pass
+                behind. The section must NOT get `overflow-hidden` to clip its corners against
+                this — that would make it the scroll container and the header would stop
+                sticking at all. */}
+            <div className="sticky top-0 z-10 mb-1 flex items-center justify-between gap-2 bg-colorBgContainer pb-1 pt-3">
                 <div className="flex min-w-0 items-center gap-2">
                     <h3 className="m-0 text-xs font-medium text-colorText">{title}</h3>
                     {waitingRowsAll.length > 0 ? (
