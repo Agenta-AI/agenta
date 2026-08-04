@@ -11,9 +11,9 @@ import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
+import AgentOverview from "@/oss/components/pages/overview/agent/AgentOverview"
 import DeploymentOverview from "@/oss/components/pages/overview/deployments/DeploymentOverview"
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
-import SessionListCard from "@/oss/components/pages/sessions/components/SessionListCard"
 import WorkflowPageTitle from "@/oss/components/PageTitle/WorkflowPageTitle"
 import RequireWorkflowKind from "@/oss/components/RequireWorkflowKind"
 import {useAppId} from "@/oss/hooks/useAppId"
@@ -162,26 +162,19 @@ const OverviewContent = () => {
             <PageLayout className="gap-8">
                 <AppDetailsSection />
 
+                {/* An agent's overview is its own surface. Charts move into that layout's usage
+                    strip (expandable to the same dashboard) rather than opening with four
+                    full-page graphs, and Deployment goes with the prompt-app sections: an agent
+                    is not promoted through environments. Both branches wait for the agents list
+                    so neither flashes in and vanishes. */}
                 {isAgent && appId ? (
-                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                        <SessionListCard
-                            withPinned
-                            agentId={appId}
-                            title="Sessions"
-                            emptyText="Conversations with this agent will show up here."
-                        />
-                        <SessionListCard
-                            agentId={appId}
-                            origin="trigger"
-                            title="Automation runs"
-                            emptyText="Runs from automations bound to this agent will show up here."
-                            limit={5}
-                        />
-                    </div>
-                ) : null}
-
-                <ObservabilityOverview />
-                {!isEvaluator ? <DeploymentOverview /> : null}
+                    <AgentOverview appId={appId} agentName={currentWorkflow?.name ?? undefined} />
+                ) : agentsLoading ? null : (
+                    <>
+                        <ObservabilityOverview />
+                        {!isEvaluator ? <DeploymentOverview /> : null}
+                    </>
+                )}
 
                 {showWorkflowSections ? (
                     <>
