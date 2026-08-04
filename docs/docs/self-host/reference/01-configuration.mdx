@@ -334,6 +334,17 @@ variables, exactly as they did before v0.108.1.
 `disabled`, and `plaintext` work too. Anything the runner does not recognize leaves hiding on, so a
 typo in this variable cannot silently remove the protection.
 
+In Helm, quote the value. YAML reads a bare `off` as the boolean `false`, and the chart's
+`values.schema.json` types `opaqueSecrets` as a string, so an unquoted value fails the install with
+`agentRunner.providers.daytona.opaqueSecrets: Invalid type. Expected: string, given: boolean`.
+
+```yaml
+agentRunner:
+  providers:
+    daytona:
+      opaqueSecrets: "off" # quote it: a bare off is a YAML boolean
+```
+
 **What `process_local` means.** Setting the variable to `process_local` is the same as leaving it
 unset, and the name states the cleanup guarantee: the runner tracks the Secret records it created
 in its own memory and deletes them when the sandbox goes away. Restart the runner while sandboxes
@@ -342,11 +353,10 @@ mode will add durable tracking, which is why the setting takes a mode name rathe
 `on`.
 
 **What cannot be hidden.** Keys that a provider SDK signs with locally instead of sending, which
-today means the AWS access keys used for Bedrock, still reach the sandbox in full. Nothing Daytona
-substitutes on the way out can help there, because the secret never leaves the sandbox in the first
-place. Those runs work normally; they just do not get this protection.
-
-Leaving the variable unset keeps the previous behavior exactly.
+today means the AWS access keys used for Bedrock and the Google service account credentials used
+for Vertex AI, still reach the sandbox in full. Nothing Daytona substitutes on the way out can help
+there, because the secret never leaves the sandbox in the first place. Those runs work normally;
+they just do not get this protection.
 
 :::warning The bare `DAYTONA_*` variables configure a different sandbox
 `DAYTONA_API_KEY`, `DAYTONA_API_URL`, `DAYTONA_TARGET`, `DAYTONA_SNAPSHOT`, and

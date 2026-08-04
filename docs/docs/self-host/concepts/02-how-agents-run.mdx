@@ -26,7 +26,7 @@ Its replicas all share the same provider configuration.
 
 Two separate choices shape a run:
 
-- **The harness** is the agent program that runs: Pi, or Claude Code.
+- **The harness** is the agent program that runs: Pi, Claude Code, or Codex.
 - **The sandbox provider** is where that program runs: the local runner container, or a Daytona
   cloud sandbox.
 
@@ -75,8 +75,9 @@ the upgrade note and for how to switch it off if you would rather not grant that
 
 This works for a key the remote service reads over HTTPS, which covers the provider keys and the
 MCP keys. It does not work for a key a provider SDK signs with locally, which today means the AWS
-access keys behind Bedrock: that secret never leaves the sandbox, so there is no outbound request
-to substitute it into, and the sandbox holds the real value.
+access keys behind Bedrock and the Google service account credentials behind Vertex AI: those
+secrets never leave the sandbox, so there is no outbound request to substitute them into, and the
+sandbox holds the real values.
 
 The local sandbox is unaffected. The harness runs inside the runner container there, so its keys are
 already inside your own deployment rather than a third party's.
