@@ -27,6 +27,10 @@ result.
 An acknowledgement must be an observation the runner makes, not an action the runner takes. It
 must identify the generation it confirms.
 
+Every acknowledgement in this contract is an **untrusted best-effort acknowledgement** when the
+reporter runs inside a sandbox. Section 4.3 defines what that means and what bounds it. The
+table below ranks the SHAPE of the evidence, not its trustworthiness.
+
 | Acknowledgement | Strength |
 |---|---|
 | The adapter returns the installed catalog, and the runner compares it to the desired catalog. | Strong. Preferred. |
@@ -41,8 +45,9 @@ Every live catalog route follows the same five steps.
 
 1. Build the desired catalog. Compute its generation identifier.
 2. Apply the harness-specific mechanism.
-3. Wait for an acknowledgement, bounded by a deadline.
-4. On acknowledgement, commit the new generation to applied state.
+3. Wait for an untrusted best-effort acknowledgement, bounded by a deadline.
+4. On acknowledgement, commit the new generation to applied state. The four rules in section
+   4.3.2 must hold, or this step is unsafe.
 5. On timeout, on a mismatch, or on an error, do not commit. Escalate to reopen. If reopen is
    not available, escalate to rebuild.
 
@@ -133,13 +138,31 @@ Each entry holds exactly these fields, in this order:
 | `permission` | Execution plan | Whether a call gates. Changing it changes what an approval means. |
 | `dispatchKind` | Execution plan | `direct`, `gateway`, `client`, or `relay`. It decides which code path runs the call. |
 | `dispatchTarget` | Execution plan | For a direct call, the method plus the path template. For a gateway call, the `callRef`. This is WHERE the call goes. |
-| `contextBindingPaths` | Execution plan | The sorted list of bound argument paths. Not their values. A new binding changes which argument the runner overwrites. |
+| `contextBindings` | Execution plan | The sorted list of `{destinationPath, sourceToken}` PAIRS. Not the resolved values. See the note below. |
 | `argsIntoPath` | Execution plan | Where the model's arguments land in the body. |
 | `staticBodyDigest` | Execution plan | A digest of the server-fixed `body` fields. It captures a changed fixed field without copying it. |
 | `timeoutMs` | Execution plan | A behavior change the approver could reasonably care about. |
 
 The list is sorted by `name`. The set of tools is part of the document, so adding or removing a
 tool changes the generation even when no surviving tool changed.
+
+**`contextBindings` hashes the mapping, not the destinations.** Gate 3, finding 4 caught this.
+The gate 2 version hashed `contextBindingPaths`, a sorted list of destination paths alone. That
+misses a real behavior change: rewiring a binding from `$ctx.workflow.variant.id` to
+`$ctx.workflow.artifact.id` at the SAME destination changes the argument the runner actually
+sends, while the destination list stays identical. The generation would not move, and a parked
+authorization would still verify against a call that now targets a different workflow entity.
+
+So the field holds pairs, sorted by `destinationPath`:
+
+```
+[ {destinationPath: "references.workflow_variant.id", sourceToken: "$ctx.workflow.variant.id"},
+  {destinationPath: "trace.parent_id",                sourceToken: "$ctx.trace.span_id"} ]
+```
+
+The `sourceToken` is the literal `$ctx.` token from the descriptor. It is NOT the resolved value.
+The token is stable configuration; the value is per-turn data. Section 2.4.2 keeps per-turn data
+out.
 
 #### 2.4.2 What is deliberately excluded
 
@@ -159,7 +182,7 @@ die for no reason and users re-approve constantly.
 #### 2.4.3 Execution-plan-only changes
 
 This is the case gate 2 named as undefined. A change to `permission`, `dispatchTarget`,
-`contextBindingPaths`, `argsIntoPath`, `staticBodyDigest`, or `timeoutMs` changes the generation
+`contextBindings`, `argsIntoPath`, `staticBodyDigest`, or `timeoutMs` changes the generation
 even though the model-visible catalog is byte-identical.
 
 Two consequences follow, and both are intended.
@@ -188,8 +211,12 @@ with an explicit split is simpler than two values that can disagree.
   authorization still verifies.
 - Reordering the input tool list does NOT change the generation.
 - Adding a tool changes the generation even when every existing tool is unchanged.
-- Changing a `contextBindings` VALUE source without changing its PATH does not change the
-  generation. Changing the path does.
+- Rewiring a binding's `sourceToken` at an UNCHANGED `destinationPath` DOES change the
+  generation. This is gate 3 finding 4 and it must have its own test.
+- Changing only the resolved VALUE a token points at, with the token unchanged, does NOT change
+  the generation.
+- Reordering the binding list does not change the generation. The pairs sort by
+  `destinationPath`.
 
 ### 2.5 `customTools` and the fingerprint
 
@@ -208,7 +235,7 @@ The order is therefore fixed:
 
 1. Build `ToolCatalogManifest` and `ToolExecutionPlan` with one generation.
 2. Make `runTurn` take both from the incoming request.
-3. Add the acknowledgement mechanism for the target harness.
+3. Add the untrusted best-effort acknowledgement mechanism for the target harness.
 4. Only then remove `customTools` from `configFingerprint`.
 
 Steps 1 to 3 change no reuse behavior. Step 4 is the only behavior change, and by then the
@@ -285,7 +312,7 @@ blocking execution invariant, and this contract adopts it.
 
 If either half cannot be confirmed, Pi removal escalates to `restart-runtime`.
 
-### 4.3 Pi acknowledgement, and the channel it needs
+### 4.3 Pi untrusted best-effort acknowledgement
 
 The extension hook returns the result of `getActiveTools()` after the refresh. The runner
 compares that set to the desired active set. Equality acknowledges the generation. Any
@@ -296,7 +323,7 @@ is right to reject it. The relay directory is sandbox-writable. It is the exact 
 motivated the whole execution-authorization contract. A forged acknowledgement there would
 advance applied state.
 
-#### 4.3.1 There is no fully trusted channel from inside a Daytona sandbox
+#### 4.3.1 No channel from inside a Daytona sandbox can be trusted
 
 State this plainly, because it shapes every option below.
 
@@ -310,7 +337,13 @@ The read-once file pattern the runner already uses for the OTLP bearer
 raises the cost of a forgery. It does not remove it. A same-user process in the sandbox can read
 the file before the extension does.
 
-So the design must not depend on a trusted acknowledgement. It must make a forged one harmless.
+So the design must not depend on the acknowledgement being honest. It must make a forged one
+harmless.
+
+**The mechanism is named "untrusted best-effort acknowledgement", everywhere, without
+exception.** Gate 3, finding 5 found that the gate 2 text still called it a channel to be
+trusted in places, which invites an implementer to secure it and then rely on it. It cannot be
+secured. The guarantee is section 4.3.2, not the message.
 
 #### 4.3.2 Make the blast radius small, then authenticate what is left
 
@@ -340,21 +373,29 @@ A fourth rule bounds it further:
    invent a state; it can only claim that a change the runner already decided to make did
    happen.
 
-#### 4.3.3 The channel
+#### 4.3.3 How the acknowledgement travels
 
-Given the above, the acknowledgement channel is defined as follows.
+The transport is deliberately unremarkable, because nothing rests on it.
 
-- **Not the relay directory.** The relay directory is swept, sandbox-writable, and already
-  carries execution records. Mixing a control-plane message into it invites exactly the
-  confusion gate 2 flagged. Use a dedicated path the relay sweep never touches.
-- **Per-reconciliation nonce.** The runner mints a fresh random nonce for each reconciliation
-  and delivers it through the read-once `0600` file pattern above. The acknowledgement must echo
-  it. The nonce is single-use and expires with the reconciliation deadline.
+- **Never the relay directory.** The relay directory carries EXECUTION records. It is swept
+  between turns, and the execution-authorization contract treats every byte in it as hostile.
+  Putting a control-plane message beside execution records confuses two planes with two
+  different trust stories. Use a dedicated per-reconciliation path that the relay sweep never
+  touches, and never read a control message out of the relay directory.
+- **Per-reconciliation nonce.** The runner mints a fresh random nonce for each reconciliation and
+  delivers it through the read-once `0600` file pattern above. The acknowledgement echoes it. The
+  nonce is single-use and it expires with the reconciliation deadline.
 - **The acknowledgement carries** the nonce, the pending generation identifier, and a digest of
   the active tool set. The runner checks all three.
-- **Local runs are genuinely trusted.** On a local run the extension executes on the runner host
-  under the runner's own user. The file channel there is as trustworthy as the runner. The
-  distinction is worth recording, because local is where this can be tested honestly.
+
+The nonce raises the cost of a forgery. It does not make the acknowledgement trustworthy, and no
+document, comment, or log line may describe it as doing so. A sandbox process that runs arbitrary
+code can read the file. The four rules in section 4.3.2 are the guarantee. The nonce is hygiene.
+
+**Local runs differ, and the difference is worth recording.** On a local run the extension
+executes on the runner host under the runner's own user, so the file is as reliable as the
+runner itself. Local is therefore where this path can be tested honestly. It does not change the
+Daytona story, and the code must not branch on it to skip the section 4.3.2 rules.
 
 #### 4.3.4 The stronger option, if it can be built
 
@@ -374,6 +415,9 @@ so it inherits everything above. It uses the same nonce channel and the same fou
 Claude's acknowledgement is slightly stronger in one respect: the shim reports that the harness
 issued a `tools/list`, which is an event the shim observes rather than a state it asserts. A
 forged report still only confirms the pending generation.
+
+It is still an untrusted best-effort acknowledgement, and it must be named that way in code,
+comments, logs, and metrics.
 
 ### 4.4 Pi and MCP
 
@@ -426,8 +470,12 @@ The capability key is therefore `{harness, adapterVersion, transport, provider}`
 The runner does not see Claude's internal refresh. It sees the shim.
 
 So the shim is the observer. After it emits the notification, it waits for the client's
-`tools/list`. It records which generation it served. It reports that back to the runner over the
-relay directory, as in section 4.3.
+`tools/list`. It records which generation it served. It reports that back to the runner as an
+untrusted best-effort acknowledgement, over the dedicated path in section 4.3.3. **Never over
+the relay directory.**
+
+The shim runs inside the sandbox on Daytona, so its report carries exactly the trust level of
+Pi's. Section 4.3.2's four rules bound it identically.
 
 No `tools/list` inside the deadline means no acknowledgement. The runner escalates to reopen.
 
@@ -507,7 +555,8 @@ Each step ships alone. No step changes reuse behavior until step 5.
    change.
 2. Make `runTurn` build both from the incoming request. Remove the `env.plan` read at
    `run-turn.ts:822`. No behavior change.
-3. Add the acknowledgement channel over the relay directory. No behavior change.
+3. Add the untrusted best-effort acknowledgement path, dedicated and outside the relay
+   directory. No behavior change.
 4. Ship the Pi specs file and the extension hook, plus the Claude stdio shim capability and
    notification. Route both to reopen still, and log the acknowledgement. This is shadow mode.
 5. Compare the shadow logs. Flip Pi and Claude-on-Daytona to `apply-live`. Remove `customTools`
@@ -589,8 +638,8 @@ not close the gate.
 
 | Gate 2 point | Where it is answered |
 |---|---|
-| New problem 7: the Pi acknowledgement channel is sandbox-writable and forgeable | §4.3 is rewritten. §4.3.1 states that NO fully trusted channel exists from inside a Daytona sandbox, and explains why signing does not fix it. §4.3.2 makes a forged acknowledgement harmless with four runner-side rules, so the worst case is a stale model-visible catalog and never a privilege escalation. §4.3.3 defines the channel: off the relay directory, single-use nonce over the existing read-once `0600` file pattern, echoed with the pending generation and an active-set digest. §4.3.4 names the stronger runner-observed design as the target. §4.3.5 applies the same reasoning to the Claude stdio shim. |
-| New problem 8: generation semantics are incomplete for execution-plan-only changes | §2.4 is new. §2.4.1 defines the canonical document with eleven fields per tool, including `permission`, `dispatchKind`, `dispatchTarget`, `contextBindingPaths`, `argsIntoPath`, `staticBodyDigest`, and `timeoutMs`. §2.4.2 excludes rotating credentials and explains the include-what-changes-meaning rule. §2.4.3 defines the execution-plan-only case: the generation advances, parked authorizations fail closed, and the harness session is NOT reopened. §2.4.4 gives six tests. |
+| New problem 7: the Pi acknowledgement channel is sandbox-writable and forgeable | §4.3 is rewritten. §4.3.1 states that NO fully trusted channel exists from inside a Daytona sandbox, and explains why signing does not fix it. §4.3.2 makes a forged acknowledgement harmless with four runner-side rules, so the worst case is a stale model-visible catalog and never a privilege escalation. §4.3.3 defines how it travels: never the relay directory, single-use nonce over the existing read-once `0600` file pattern, echoed with the pending generation and an active-set digest. §4.3.4 names the stronger runner-observed design as the target. §4.3.5 applies the same reasoning to the Claude stdio shim. |
+| New problem 8: generation semantics are incomplete for execution-plan-only changes | §2.4 is new. §2.4.1 defines the canonical document with eleven fields per tool, including `permission`, `dispatchKind`, `dispatchTarget`, `contextBindings` as sorted `{destinationPath, sourceToken}` pairs, `argsIntoPath`, `staticBodyDigest`, and `timeoutMs`. §2.4.2 excludes rotating credentials and explains the include-what-changes-meaning rule. §2.4.3 defines the execution-plan-only case: the generation advances, parked authorizations fail closed, and the harness session is NOT reopened. §2.4.4 gives eight tests. |
 | Item 6 status: acknowledgement, generation coupling, transport-specific capability, Pi execution revocation, continuity verification | Unchanged from gate 1. §1, §2.1 to §2.3, §2.5, §3, §4.2, §5.2, §6.2. |
 
 Two things this rewrite makes explicit that gate 1 left implied:
@@ -607,3 +656,17 @@ Not resolved here, by design:
 - Whether Pi's ACP surface can report its active tool set, which would replace §4.3.3 with the
   stronger §4.3.4 design. The spike found no such surface. It needs a live check, not another
   static read.
+
+## 12. Gate 3 resolution
+
+| Gate 3 finding | Where it is answered |
+|---|---|
+| Finding 4: the generation digest omits binding SOURCES, so rewiring `$ctx.workflow.variant.id` to another token at the same destination changes the executed arguments without changing the generation | §2.4.1 replaces `contextBindingPaths` with `contextBindings`, a list of `{destinationPath, sourceToken}` pairs sorted by destination, with a worked example and a note on why the token and not the resolved value. §2.4.3 and §2.4.4 follow. Two new tests: rewiring a token at an unchanged destination MUST move the generation; changing only the value a token resolves to must NOT. |
+| Finding 5: §5.3 and rollout step 3 still used the relay directory, and the plan called the channel "trusted", contradicting the arbitration | The mechanism is renamed **untrusted best-effort acknowledgement** throughout: §1.2, §1.3, §4.3 heading, §4.3.1, §4.3.3, §4.3.5, and rollout step 3. §4.3.3 forbids the relay directory explicitly and says why the two planes must not mix. §5.3 now routes Claude's report over the dedicated path and states that the stdio shim carries exactly Pi's trust level. §4.3.3 states that the nonce is hygiene, not trust, and that no document, comment, or log line may describe it otherwise. |
+| Arbitration ruling 3: harmless-forgery accepted conditionally | The three conditions are §4.3.2's rules 1 to 3: the runner-side execution plan stays authoritative, removals and permission tightening take effect independently of any acknowledgement, and acknowledgement affects model visibility only. §11 already records that these are load-bearing rather than defense in depth. |
+
+Not resolved here, by design:
+
+- Gate 3's plan ruling, including the missing standalone foundation slice for the
+  `ToolCatalogManifest` / `ToolExecutionPlan` split, belongs to `plan.md`. §8 step 1 and step 2
+  describe the work that slice must contain.

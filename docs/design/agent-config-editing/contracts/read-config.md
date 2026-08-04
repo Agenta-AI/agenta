@@ -33,7 +33,6 @@ PlatformOp(
     context_bindings={
         "target.workflow_variant_id": "$ctx.workflow.variant.id",
         "target.run_is_draft":        "$ctx.workflow.is_draft",
-        "target.run_revision_id":     "$ctx.workflow.revision.id",
     },
     read_only=True,
     timeout_ms=15000,
@@ -44,34 +43,67 @@ The first binding gives the self-target guarantee. The model cannot name another
 because the field is stripped from the model-visible schema and filled server-side
 (`sdks/python/agenta/sdk/agents/platform/op_catalog.py:91`).
 
-### 2.1 Three bindings, because the endpoint cannot compute the draft state
+### 2.1 Two bindings, because the endpoint cannot compute the draft state
 
 Gate 2, new problem 5, is correct: a variant id alone does not tell the endpoint whether
 the run is a draft. The variant is the same on a draft run and on a committed run. The
 draft fact lives in the run context, in the runner, and it must be carried in.
 
-Two more bindings carry it. Both resolve today. No new runner mechanism is needed:
+One more binding carries it, and it always resolves.
 
-- `resolveCtxToken` walks any dotted path against the run-context blob. A unit test
-  already asserts `resolveCtxToken(RUN_CONTEXT, "$ctx.workflow.is_draft")`
-  (`services/runner/tests/unit/tool-direct.test.ts:314`).
-- `RunContextWorkflow` carries `is_draft` and `revision`
-  (`sdks/python/agenta/sdk/agents/dtos.py:485`). The SDK sets `is_draft = revision is None`
-  (`sdks/python/agenta/sdk/agents/tracing.py:166`).
+**Gate 3, finding 1, corrected this section.** The gate 2 version also bound
+`target.run_revision_id` to `$ctx.workflow.revision.id`. That value does not resolve on a
+draft run, and an unresolved binding is a hard failure:
+`assembleBody` throws `missing run-context value for direct-call binding '<path>'`
+(`services/runner/src/tools/direct.ts:228`), and `applyContextBindings` throws the same way
+(`:257`). So the third binding would have made every draft `read_config` call fail, which
+is the exact run where the draft answer matters most.
 
-So the two new bindings behave like this:
+**The fix, chosen from the two options: drop the revision binding.** `read_config` binds
+`workflow_variant_id` and `is_draft` only.
 
-| Run | `run_is_draft` | `run_revision_id` |
+**The runner change this needs: none.** That is why this option wins over an
+optional-binding marker. No new catalog syntax, no new resolver branch, and no new failure
+mode. Section 2.2 records the marker as a later option, for the day a real need appears.
+
+`is_draft` is exactly as available as `workflow_variant_id`, so the new binding adds no new
+way to fail:
+
+| Run | `$ctx.workflow.variant.id` | `$ctx.workflow.is_draft` |
 |---|---|---|
-| pinned to a committed revision | `false` | the revision id |
-| a playground draft | `true` | absent, because `$ctx.workflow.revision.id` does not resolve |
+| pinned to a committed revision | resolves | resolves to `false` |
+| a playground draft | resolves | resolves to `true` |
+| no workflow identity at all | does not resolve | does not resolve |
 
-Both fields are server-bound. The catalog strips them from the model-visible schema, so
-the model cannot claim it is not on a draft run.
+The third row already fails today, on the variant binding alone, and `read_config` could
+not answer without a variant anyway. `RunContextWorkflow.is_draft` is set unconditionally
+whenever the run has any workflow identity, as `revision is None`
+(`sdks/python/agenta/sdk/agents/tracing.py:166`), and `False` survives the `exclude_none`
+dump. `resolveCtxToken` walks any dotted path against the run-context blob; the unit test
+at `services/runner/tests/unit/tool-direct.test.ts:314` asserts the `is_draft` token
+resolves.
 
-`run_revision_id` is not the answer to the read. The endpoint still answers from the
-committed head. The field lets the response state one more useful fact: whether the run's
-own revision is still the head. Section 4 carries it as `run_revision_is_head`.
+**What we give up.** The gate 2 draft said the response would carry
+`run_revision_is_head`, computed from the bound revision id. That field is removed from
+section 4. No requirement asked for it. It was a convenience, and it is not worth a runner
+mechanism.
+
+### 2.2 The optional-binding marker, if it is ever needed
+
+A future op may really need a binding that can be absent. Two things must then change
+together, and neither is in scope now:
+
+1. The catalog needs a way to mark a binding optional. A separate
+   `optional_context_bindings` dict is clearer than a token suffix, because it stays
+   readable in the op definition and it cannot be confused with a token value.
+2. `assembleBody` and `applyContextBindings` must, for an optional binding only, delete
+   the path and continue instead of throwing.
+
+**A defect to fix when that work happens, or sooner.** The `assembleBody` docstring already
+claims the behavior the code does not have: "a token that does not resolve is left unset
+(the field is simply absent)" (`services/runner/src/tools/direct.ts:208`). The code throws.
+A reader who trusts the comment will design another broken binding, exactly as this
+contract did. Correct the comment even if nothing else changes.
 
 The op needs a new endpoint. The existing retrieve endpoint returns a whole revision. It
 cannot do partial reads, it cannot receive these bindings, and it returns fields the model
@@ -91,7 +123,6 @@ must not see.
       "properties": {
         "workflow_variant_id": {"type": "string"},
         "run_is_draft": {"type": "boolean"},
-        "run_revision_id": {"type": "string"},
         "path": {"$ref": "#/$defs/Target"}
       }
     },
@@ -107,7 +138,7 @@ name in an operation.
 
 An absent `path` means the whole readable configuration.
 
-`workflow_variant_id`, `run_is_draft`, and `run_revision_id` are server-bound. Section 2.1
+`workflow_variant_id` and `run_is_draft` are server-bound. Section 2.1
 explains them. They are stripped from the model-visible schema, so the model never writes
 them.
 
@@ -134,7 +165,6 @@ Examples:
   },
   "base_revision_id": "019c...",
   "is_draft": false,
-  "run_revision_is_head": true,
   "path": ["parameters", "agent", "llm"],
   "value": {"model": "openai/gpt-5", "extras": {"reasoning_effort": "high"}},
   "bytes": 74,
@@ -148,9 +178,6 @@ Examples:
   the commit wants. Section 10.1 makes this the single rule, on every kind of run.
 - `is_draft` comes from the `$ctx.workflow.is_draft` binding of section 2.1. The endpoint
   echoes it; it does not compute it. Section 10 explains what it means for the answer.
-- `run_revision_is_head` compares the bound `run_revision_id` with the head the endpoint
-  just read. It is `null` on a draft run, because the run has no revision. It tells the
-  agent whether the configuration it is running is still the head.
 - `path` echoes the resolved target, so a truncated model context still knows what it got.
 - `value` is the raw value at that path.
 
@@ -472,9 +499,11 @@ want to persist it, we do that on purpose, with a decision.
 5. **Draft reads, later.** Section 10 accepts that a draft run reads the head. RFC Q3
    Option C (the runner answers from memory) stays parked. If users find the caveat
    confusing, that option comes back.
-6. **`run_revision_is_head` on a stale run.** The field tells an agent that its running
-   configuration is behind the head. This contract does not say what the agent should do
-   about it. A tool description line is probably enough. Decide during the slice.
+6. **A stale running configuration.** An agent on a committed run can be running revision
+   N while the head is N+1. This contract no longer reports that, because the field that
+   reported it needed the removed binding (section 2.1). The commit still fails safely
+   with 409. If agents need the earlier warning, add it to the endpoint from the head read
+   plus the run's own revision, carried some other way.
 
 ## 14. Gate 2 resolution
 
@@ -482,13 +511,28 @@ Gate 2 marked item 3 PARTIAL. New problem 5 restates the first point.
 
 | Gate point | Answered in |
 |---|---|
-| The catalog binds only `workflow_variant_id`, so no draft flag reaches the endpoint | Section 2.1. Two more server-bound context bindings, `$ctx.workflow.is_draft` and `$ctx.workflow.revision.id`. Both resolve through today's `resolveCtxToken`; the unit test at `services/runner/tests/unit/tool-direct.test.ts:314` proves the first one. |
+| The catalog binds only `workflow_variant_id`, so no draft flag reaches the endpoint | Section 2.1. One more server-bound context binding, `$ctx.workflow.is_draft`. It resolves through today's `resolveCtxToken`; the unit test at `services/runner/tests/unit/tool-direct.test.ts:314` proves it. |
 | The draft claim must be implemented or dropped | Implemented. Section 2.1 carries the flag in, section 4 echoes it, and section 10 states what it means. The endpoint never computes it. |
 | §4 and §10 contradict each other about `base_revision_id` | Section 10.1. One rule: the model always copies it from the read response for an ordered delta. The state source is the model's own context, carried call to call. The runner defaults it only for a legacy delta on a committed run. |
 | Calls 10 and 11 leave the security scope unfinished | Section 11.1.1. Both take the fail-closed default in v1, with the reason that widening an allow-list later is additive and narrowing it is a breaking change. Section 13 keeps both open for Mahmoud. |
 
-Supporting changes: section 3 request fields, section 4 response fields, section 11.1
-rewritten as an allow-list, and section 13 items 1 to 3 and 6.
-
 `commit-transaction.md` section 8 now points at section 10.1, so the two contracts state
 one rule.
+
+## 15. Gate 3 resolution
+
+Gate 3 marked item 3 PARTIAL and new problem 5 UNRESOLVED. Both name one defect.
+
+| Gate point | Answered in |
+|---|---|
+| Finding 1. The `target.run_revision_id` binding makes every draft call fail, because `direct.ts:228` treats an absent binding as a hard failure | Section 2.1. The binding is removed. `read_config` binds `workflow_variant_id` and `is_draft` only. The chosen option needs **no runner change**, which is why it beats an optional-binding marker. |
+| The cited test proves only that `is_draft` resolves, not that optional bindings work | Section 2.1 no longer claims optional bindings work. It claims only what the test proves, and it adds the table showing that `is_draft` fails in exactly the cases where `workflow_variant_id` already fails. |
+| New problem 5. Draft `is_draft` | Resolved. The draft call now dispatches, because no binding on the op can be absent. |
+
+Supporting changes: section 3 drops `run_revision_id` from the request, section 4 drops
+`run_revision_is_head` from the response, and section 13 item 6 records what that costs.
+
+Section 2.2 records the optional-binding marker as a later option, and it reports a defect
+found while checking this: the `assembleBody` docstring at
+`services/runner/src/tools/direct.ts:208` describes an absent binding as "left unset",
+while the code throws. The comment misled this contract once already. Fix it.
