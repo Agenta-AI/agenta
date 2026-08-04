@@ -266,20 +266,45 @@ The field must already exist and must already hold a string. Parent creation
 `target_not_found`, and a non-string field is `target_type_mismatch`. A field that does not
 exist yet has no old text, so it has no honest diff. Use `add_item` for a new skill file.
 
-**Condition 3: the approval shows a unified diff of the old text against the new text.**
-The card presents a readable change: the target field, the diff, the line counts, and the
-digest of the exact bytes that will be committed. It must not present a byte count alone.
-`workspace-import.md` section 8 owns the presentation; runner-spike adds the single-text-file
-mode there.
+**Condition 3: the approval shows a unified diff of the old text against the new text, and
+the old text comes from the exact revision the operation names.** The card presents a
+readable change: the target field, the diff, the line counts, and the digest of the exact
+bytes that will be committed. It must not present a byte count alone.
+`workspace-import.md` section 8.4 owns the presentation.
 
-Two notes on the diff, for the runner to settle:
+**The old side must come from `base_revision_id`, and from nothing else.** Gate 3, finding
+2 and arbitration ruling 1, corrected this. The gate 2 draft took the old text from the
+configuration the runner holds for the current run. That is wrong, and the error is silent:
 
-- The old side comes from the configuration the runner holds for the current run. That
-  configuration can be behind the head. The base check catches the drift and answers 409
-  (`commit-transaction.md` section 6), so the human never approves a diff that then commits
-  silently against a different base.
-- If the runner cannot obtain the old text, it must show the complete new text and say that
-  no old text was available. It must never fall back to a byte count.
+- The session runs revision N. The model reads the head, which is N+1, and correctly puts
+  N+1 in `base_revision_id`.
+- The runner renders the diff from its own memory, so the human approves an N-to-new diff.
+- The base check passes, because the base really is the head. The commit replaces N+1.
+- The user approved one change and got another. Nothing reports it.
+
+The base check cannot catch this, because the base is not stale. Only the diff is.
+
+So the rule is exact:
+
+1. The runner fetches the old text from the revision named by `base_revision_id`, at the
+   operation's target path. `read_config` is the natural way to fetch it.
+2. If `base_revision_id` is absent, the call fails. A single-text `set` from a workspace
+   file needs a named base. This is not a new burden: an ordered delta already requires
+   `base_revision_id` (`read-config.md` section 10.1).
+3. **If the runner cannot fetch that revision's text, for any reason, the call fails
+   closed.** It does not fall back to session memory. It does not fall back to the complete
+   new text. It does not fall back to a byte count. It refuses, with
+   `source_diff_base_unavailable`, and it reads no workspace bytes.
+
+Failing closed is the right cost here. A refused call tells the agent to retry, and a retry
+costs one turn. A diff against the wrong base commits the wrong content with a human
+signature on it, and nothing detects it afterwards.
+
+An alternative exists, and this contract does not choose it: the API could accept a digest
+of the approved old value and refuse the commit when the stored value does not match. That
+moves the check to the server and survives a lying runner. It also adds a field to the
+commit envelope and a second failure mode. Revisit it if the runner-side fetch proves
+unreliable.
 
 #### 5.1.2 Folder into `set` stays disallowed
 
@@ -712,6 +737,7 @@ see `commit-transaction.md`.
 | `item_key_undefined` | The value has no derivable key. | yes |
 | `source_not_found` | The runner could not read the workspace path. | yes |
 | `source_invalid` | The source is unusable, or `value_from` reached the engine. | no |
+| `source_diff_base_unavailable` | A single-text `set` could not read its old text from `base_revision_id`. Runner-owned. Section 5.1.1. | yes |
 | `source_too_large` | The source is above the byte limit. | no |
 | `out_of_scope` | The scope policy refuses the target. | no |
 | `invalid_delta` | Both forms, no form, or an unknown delta field. | no |
@@ -797,3 +823,18 @@ Supporting changes: section 2.1 tables and note, section 5.1 table, sections 5.1
 The founding use case is covered again. US-1 and #5554 are the oversized instruction file.
 Section 5.1.1 gives it a path: one workspace file into
 `["parameters","agent","instructions","agents_md"]`, approved as a unified diff.
+
+## 15. Gate 3 resolution
+
+Gate 3 marked arbitration ruling 1 "not accepted as written", and finding 2 says why.
+
+| Gate point | Answered in |
+|---|---|
+| Finding 2. The single-text approval can show a diff against the running session while the commit replaces a newer head | Section 5.1.1, condition 3. The old text comes from the revision named by `base_revision_id`, and from nothing else. The worked failure is written out, with the reason the base check cannot catch it: the base is not stale, only the diff is. |
+| Ruling 1. If the old value cannot be obtained, fail closed rather than claim a unified-diff approval | Section 5.1.1, condition 3, rule 3. The call refuses with `source_diff_base_unavailable` and reads no workspace bytes. Every earlier fallback is named and forbidden: session memory, the complete new text, and a byte count. |
+| The alternative: the API validates an approved old-value digest | Section 5.1.1 records it, states its cost (a new envelope field and a second failure mode), and does not choose it. |
+
+Supporting changes: section 10 adds `source_diff_base_unavailable`, and the cross-reference
+now points at `workspace-import.md` section 8.4, the single-text mode.
+
+The restricted target set and the single-file rule are unchanged. Gate 3 accepted both.

@@ -147,19 +147,32 @@ The descriptor walk in section 3.2 defends against the adversarial process, on t
 Nothing in this contract fully defends against the adversarial process on the Daytona path.
 Section 6.5 says so.
 
-### 3.4 If the descriptor walk cannot be built
+### 3.4 The descriptor walk is required for v1
 
-If the plan decides the native helper is not worth its cost for v1, the local path falls back to
-a path-based walk with `O_NOFOLLOW`. That is acceptable only with all three of these:
+**Decided in answer to gate 3, finding 3.** The descriptor-relative walk in section 3.2 is
+REQUIRED. The path-based fallback is a rejected alternative. The plan must budget the work.
 
-1. The contract, the plan, and the code comment all state that the local path defends against the
-   confused agent and not against an adversarial process.
-2. The fallback is not described as a TOCTOU defense anywhere.
-3. `contentDigest` still binds what was read. An attacker who wins the race changes what the
-   human approves, and the human still sees the substituted content on the card before approving.
+The gate 1 and gate 2 versions of this section left the choice open, "if the plan decides the
+native helper is not worth its cost". Gate 3 is right that this is not a choice a plan can defer:
+the two options have different threat models, and the rest of this contract is written for the
+stronger one. Leaving it open meant no reader could tell which contract they were implementing.
 
-Point 3 is the real backstop in the fallback case, and it is weaker than it sounds: it works only
-because a human reads the card. It is not a technical control.
+**The rejected alternative, recorded.** A path-based walk with `O_NOFOLLOW` is cheaper. It needs
+no native helper. It is rejected because it does not defend against a replaced intermediate
+directory, which section 3.2 shows is the attack that matters. Its only remaining backstop would
+be a human reading the approval card, and a human reading a card is not a technical control.
+
+If a later decision reverses this, three things must change together, and none of them may be
+skipped:
+
+1. This section, section 3.2, and section 3.3 must all say that the local path defends against
+   the confused agent and not against an adversarial process.
+2. The intermediate-directory test in section 10 becomes a recorded known failure. It is never
+   deleted and never marked passing.
+3. `plan.md` must record the accepted risk, in the same place it records the accepted Daytona
+   risk from section 6.5.
+
+Until that reversal happens, treat the fallback as out of scope.
 
 ### 3.5 Symbolic links are refused, not followed
 
@@ -360,9 +373,18 @@ The runner reads each file's owner-execute bit. It uses it for three things.
 2. It reports every executable file in the manifest and on the approval card.
 3. It compares the set against `on_executable` and rejects the import when the grant is absent.
 
-At run time an executable file needs three independent yes answers: `on_executable: "import"` at
-the moment of import, the stored `allow_executable_files`, and the sandbox execution policy in
-`resolveSkillDirs`. That is the intended depth, and each answer has a different owner.
+Three independent yes answers must line up before a bundled file ever becomes executable, and
+they do NOT all act at the same time. Gate 3 is right that the gate 2 wording blurred this.
+
+| Answer | When it acts | Owner |
+|---|---|---|
+| `on_executable: "import"` | At IMPORT time, once. It decides whether the bits may be read and carried at all. It is never consulted again. | The caller, plus the human approver |
+| The stored `allow_executable_files` | At RUN time, on every materialization | The stored configuration |
+| The materializer's `execPolicy` | At RUN time, on every materialization | The platform |
+
+`on_executable` is an ephemeral import grant. It is not a runtime permission, and it is never
+persisted. Saying it is "checked at run time" would imply the import grant survives into the
+revision, which is exactly the conflation the four-layer split exists to remove.
 
 ### 5.5 Two source shapes, two schemas
 
@@ -429,6 +451,34 @@ Three framing rules make this safe.
    The runner then refuses it under section 3.5. `%Y` would follow the link and hide it.
 3. **`-maxdepth 8`** bounds the walk inside the command, so a deep or cyclic tree cannot make
    the command run long.
+
+**`-maxdepth 8` alone is not safe, and the gate 1 text missed this.** `find` with `-maxdepth 8`
+does not report an entry below depth 8. It does not warn either. So a file at depth 9 simply is
+not in the manifest, and the import commits a skill that silently lacks it. Section 4.2 says a
+too-deep entry is unsupported and must reject or appear as an omission. A silent disappearance
+is neither.
+
+So the runner runs a **depth-overflow probe** beside the manifest command:
+
+```
+find <absRoot> -mindepth 9 -printf 'x' -quit
+```
+
+`-quit` stops at the first match, so the probe costs one entry, not a full walk. Any output at
+all means the tree goes deeper than the walk. The runner then treats the whole source as
+carrying too-deep entries and applies `on_unsupported`:
+
+- under `reject`, the import fails with `source_unsupported_content` and names the depth limit;
+- under `omit`, the import proceeds and the manifest records one omission entry with reason
+  `too_deep`.
+
+The probe reports existence, not the paths. That is deliberate. Listing every too-deep path
+could be unbounded, and the user only needs to know that the tree exceeds the limit. When the
+user needs the paths, they run their own `find`.
+
+The local reader has the same obligation. Its descriptor walk stops at depth 8, so it must
+record that it stopped rather than return quietly. Section 4.2's rule is the same on both
+readers.
 
 The runner runs two more commands to resolve paths. Both matter, and the gate 1 version got the
 comparison wrong.
@@ -560,9 +610,20 @@ the manifest. Those are inputs, not the committed value.
 The value must serialize the same way every time, or the digest is useless.
 
 - `files[]` is sorted by `path`, using byte-wise comparison of the UTF-8 encoding.
-- Object keys are sorted by the canonical serializer.
-- The serializer is `canonicalJson` in `services/runner/src/responder.ts`, the same function the
-  execution authorization uses.
+- Object keys are sorted by the serializer.
+- **The serializer is `strictCanonicalJson`**, defined in `execution-authorization.md` section
+  2.3.3. It is NOT `canonicalJson` from `services/runner/src/responder.ts`.
+
+The gate 1 version of this section named `canonicalJson`. That was wrong, and it contradicted
+the authorization contract. `canonicalJson` calls `normalizeJsonish`, which parses any string
+that looks like a JSON object or array and replaces the string with the parsed value. A skill
+body is a string. A file's content is a string. Either can look like JSON. So the lenient
+serializer would give two different skill values the same `contentDigest`.
+
+`contentDigest` and `argsDigest` must sit on the same side of the serializer boundary. The
+authorization verifies both at consume time (`execution-authorization.md` section 3.2), so a
+lenient `contentDigest` would reopen the exact substitution hole the strict `argsDigest` closes.
+One rule, stated once: **every digest that authorizes an execution uses the strict serializer.**
 
 ### 7.3 The manifest digest
 
@@ -601,8 +662,9 @@ mint time.
   intent,                    // "add" | "replace"
   totalBytes,
   fileCount,
-  allowExecutableFiles,      // the caller's explicit policy
-  executableFiles: [path],
+  onExecutable,              // "reject" | "import" -- the import grant (layer 2)
+  persistExecutableCapability, // boolean -- the stored capability (layer 3)
+  executableFiles: [path],   // the observed bits (layer 1)
   omitted: [{path, reason, bytes}],
   descriptionText,
   bodyDigest,
@@ -624,7 +686,8 @@ The card shows, in this order:
 2. The source path.
 3. The omission section, when `omitted` is non-empty. This comes before the content, because it
    is what the user is most likely to miss.
-4. The executable section, when `executableFiles` is non-empty. It names the policy value.
+4. The executable section, when `executableFiles` is non-empty. It shows the two grants on two
+   separate lines, per section 5.2.
 5. The description, in full.
 6. The body, or a diff against the current body for a replace.
 7. The file list, with sizes.
@@ -667,13 +730,13 @@ an oversized instruction file, so this path must exist and it must read well.
   newBytes,
   newLines,
   newDigest,
-  oldAvailable,              // boolean
-  oldBytes,                  // present only when oldAvailable
-  oldLines,                  // present only when oldAvailable
-  oldDigest,                 // present only when oldAvailable
-  diff,                      // present only when oldAvailable
-  addedLines,                // present only when oldAvailable
-  removedLines,              // present only when oldAvailable
+  baseRevisionId,            // the operation's base_revision_id. Always present.
+  oldBytes,
+  oldLines,
+  oldDigest,                 // the digest of the old text AS FETCHED FROM baseRevisionId
+  diff,
+  addedLines,
+  removedLines,
   contentDigest,             // equals newDigest in this mode
   catalogGeneration
 }
@@ -681,6 +744,8 @@ an oversized instruction file, so this path must exist and it must read well.
 
 There is no `itemName`, no `files`, no `omitted`, and no executable section. A `set` writes one
 string. None of those concepts applies.
+
+There is also no `oldAvailable` flag any more. Section 8.4.3 explains why it is gone.
 
 #### 8.4.2 What the card shows, with old text available
 
@@ -694,38 +759,54 @@ string. None of those concepts applies.
 
 The diff is the substance of the card. Items 4 to 6 support it. They never replace it.
 
-The old side comes from the configuration the runner holds for the current run. That
-configuration can be behind the head. This is safe, because the base check answers 409 on drift
-(`commit-transaction.md` section 6), so the human never approves a diff that then commits
-silently against a different base. The card does not need to warn about this.
+**The old side comes from the exact `base_revision_id` the operation carries. It never comes
+from the configuration running in the session.**
 
-#### 8.4.3 What the card shows, with old text unavailable
+Gate 3, finding 2 found the hole in the gate 2 wording, and it is a real one. The session may be
+running revision N. The model may correctly supply head revision N+1 as `base_revision_id`,
+because it read the head with `read_config`. If the card diffs against the session's revision N,
+the human approves an N-to-new change. The base check then passes, because the base really is
+N+1, and the commit replaces N+1 with text the human never compared against it. Nothing fails,
+and the wrong thing commits.
 
-The runner may not hold the old text. The field may sit outside the configuration the run
-carries, or the run may carry no configuration at all.
+So the runner fetches the old text at `base_revision_id`, by the operation's own target path.
+The card renders that text as the old side, and the manifest records `baseRevisionId` and
+`oldDigest` beside it. Approval then means one thing: this exact old text becomes this exact new
+text, on this exact base.
 
-In that case the card shows the **complete new text**, and it says plainly why:
+The base check in `commit-transaction.md` section 6 still runs. It catches a head that moves
+between the approval and the commit. It does not substitute for fetching the correct old side,
+because it compares revision identifiers and never compares the text the human read.
 
-```
-No previous text was available, so this shows the complete new content.
-```
+#### 8.4.3 When the old text cannot be fetched: fail closed
 
-Two rules bind this case.
+**Decided in answer to gate 3, arbitration ruling 1.** If the runner cannot obtain the old text
+at `base_revision_id`, the operation FAILS. The runner does not show a card, does not mint an
+authorization, and does not commit.
 
-- **The new text is shown in full.** It is not truncated to a preview. The human has no diff to
-  read, so the full text is the only thing that makes the change reviewable.
-- **The card never falls back to a byte count and a path.** That is the failure mode condition 3
-  exists to prevent, and it is the one this mode must never reach.
+The error is `source_base_unavailable`. It is retryable, because a transient fetch failure is
+the common cause.
 
-If the complete new text exceeds the size the interface can render, the interface scrolls it. It
-does not summarize it. The 200 000-byte per-file cap in section 4.4 bounds the worst case.
+This replaces the gate 2 rule, which showed the complete new text and said no old text was
+available. That rule was wrong for this mode. A `set` REPLACES a field that already holds a
+string; `change-set.md` section 5.1.1 requires the target to exist and to hold a string, so an
+old text always exists somewhere. "Unavailable" therefore never means "there is none". It means
+the runner failed to fetch it. Presenting a fetch failure as a complete-content approval invites
+the human to approve a replacement without seeing what it replaces, which is the one thing this
+mode exists to prevent.
+
+The complete-new-text presentation still applies in the ITEM mode, where a genuinely new skill
+body has no predecessor. See section 8.2. It has no place here.
+
+The rule stated once, for both modes: **the card never shows only a byte count and a path, and
+the single-text mode never shows a new text without the old text it replaces.**
 
 #### 8.4.4 Truncation rules, single-text mode
 
 | Element | Rule |
 |---|---|
 | Diff, old text available | Capped at 400 lines, matching the item mode's replace rule. Beyond that, show the first 400 diff lines, then the changed-line counts and both digests. |
-| New text, old text unavailable | **Never truncated.** See section 8.4.3. |
+| New text | Shown only inside the diff. There is no no-old-text presentation in this mode. See section 8.4.3. |
 | Line counts and digests | Never truncated. |
 
 The 400-line diff cap is a display cap only. The card must state that `contentDigest` covers the
@@ -755,6 +836,7 @@ full diff and the full new text on demand, served from the frozen value.
 | `source_read_failed` | A daemon or filesystem error. |
 | `source_timeout` | The import passed its deadline. |
 | `source_cancelled` | The turn aborted. |
+| `source_base_unavailable` | The old text could not be fetched at `base_revision_id`. Single-text mode only. Retryable. |
 
 Every code carries the offending paths, up to 20, and a count of the rest.
 
@@ -779,6 +861,12 @@ Every code carries the offending paths, up to 20, and a count of the rest.
 - If the fallback in section 3.4 ships, the intermediate-directory test is marked as a KNOWN
   FAILURE with a reference to section 3.4. It must not be deleted, and it must not be marked
   passing.
+
+**Depth overflow.**
+- A file at depth 9 is DETECTED, not silently omitted. Under `reject` the import fails with
+  `source_unsupported_content`. Under `omit` the manifest carries one `too_deep` omission.
+- The local descriptor walk reports the same condition at the same depth.
+- The probe costs one entry, not a full walk. Assert the command shape, not only the outcome.
 
 **TOCTOU, Daytona.**
 - Change a file's size between the manifest and the read. The import must reject with
@@ -812,18 +900,23 @@ Every code carries the offending paths, up to 20, and a count of the rest.
 - A folder source on `set` is `source_invalid`, refused before any content read.
 - A source matching more than one file is `source_invalid`.
 - A policy field on a file source is refused by the schema.
-- With old text available, the card renders a unified diff plus changed-line counts.
-- With old text UNAVAILABLE, the card renders the COMPLETE new text and states why. Assert on
-  the full text, not on its presence.
-- The card never renders only a byte count and a path. Assert this for both the available and
-  the unavailable case.
+- The card renders a unified diff plus changed-line counts.
+- The old side is fetched from `base_revision_id`, NOT from the session's configuration. Run the
+  session at revision N, supply N+1 as the base, and assert the diff's old side equals the text
+  at N+1. This is gate 3 finding 2 and it must have its own test.
+- A failure to fetch the old text produces `source_base_unavailable`. No card is shown and no
+  authorization is minted.
+- The card never renders only a byte count and a path.
 - A diff longer than 400 lines truncates the DIFF and still states that the digest covers the
   full text.
-- New text longer than 400 lines with no old text is NOT truncated.
+- `oldDigest` in the manifest matches the text actually fetched from the base.
 - A target that does not exist is `target_not_found`. A non-string target is
   `target_type_mismatch`. Neither reads any content.
 
 **Digest.**
+- `contentDigest` uses `strictCanonicalJson`, not `canonicalJson`. A skill body holding the text
+  `{"x":1}` must NOT digest the same as a skill body holding the object. This is gate 3 finding
+  3 and it guards the serializer boundary from the import side.
 - Two imports of an unchanged folder give the same `contentDigest`.
 - Changing one byte in one file changes `contentDigest`.
 - The value sent to the API digests to the approved `contentDigest`.
@@ -940,3 +1033,30 @@ Not resolved here, by design:
 
 - Gate 2 item 7, the slice plan, belongs to `plan.md`. §2.3, §3.2, and §6 each name work the
   plan must budget.
+
+## 14. Gate 3 resolution
+
+| Gate 3 finding | Where it is answered |
+|---|---|
+| Finding 3a: `contentDigest` still named the lenient `canonicalJson`, contradicting the authorization contract | §7.2 now names `strictCanonicalJson` from `execution-authorization.md` §2.3.3, explains that a skill body or a file's content is a string that can look like JSON, and states the boundary once: every digest that authorizes an execution uses the strict serializer. §10 adds a test asserting the two digests differ. |
+| Finding 3b: the item manifest still carried the obsolete single `allowExecutableFiles` | §8.1 replaces it with `onExecutable` and `persistExecutableCapability`, labelled by layer, with `executableFiles` kept as the observed bits. §8.2 item 4 now shows two lines, per §5.2. |
+| Finding 3c: `find -maxdepth 8` silently omits deeper entries | §6.2 adds a depth-overflow probe, `find -mindepth 9 -printf 'x' -quit`, which costs one entry rather than a full walk. Overflow applies `on_unsupported`: reject fails loudly, omit records one `too_deep` omission. The local descriptor walk carries the same obligation. §10 adds three depth tests. |
+| Finding 3d: the local reader left the native-helper versus fallback choice to a plan that chose neither | §3.4 is rewritten. The descriptor-relative walk is REQUIRED for v1. The path-based fallback is a recorded rejected alternative, with the three things that would have to change together if the decision is ever reversed. |
+| Finding 2 / arbitration ruling 1: the single-text diff compared against the session's configuration, so a correct `base_revision_id` of N+1 could commit against text the human never saw | §8.4.2 now fetches the old side from the exact `base_revision_id`, never from the session, and works the N versus N+1 case through. §8.4.1 adds `baseRevisionId` and `oldDigest` to the manifest and drops `oldAvailable`. §8.4.3 replaces the complete-new-text presentation with a fail-closed `source_base_unavailable`, because a `set` always replaces an existing string, so "unavailable" means a fetch failure and never "there is none". §9 adds the code. §10 adds a dedicated N/N+1 test. |
+| Arbitration ruling 2: `on_executable` was wrongly described as an at-runtime permission | §5.4 replaces the three-yes-answers sentence with a table separating what acts at import time from what acts at run time, and states that the import grant is ephemeral and never persisted. |
+
+One product call this contract cannot make:
+
+- Gate 3 arbitration ruling 2 asks whether setting the persisted capability must always force
+  approval, independently of the generic commit permission. This contract does not decide it.
+  The conservative reading is yes: `persist_executable_capability: true` grants a durable
+  runtime capability, which is a different question from whether the agent may commit at all.
+  It needs an owner's answer before S3c.
+
+Not resolved here, by design:
+
+- The accepted Daytona race risk from §6.5 must be recorded in `plan.md`. Gate 3 finding 4's
+  ruling notes it is still missing there. This contract states the risk; the plan must accept it
+  in writing.
+- `decisions.md` still names `allow_executable_files` on `value_from` in its contract-phase
+  paragraph. That is the pre-split name. §5.2 and §11 carry the current one.
