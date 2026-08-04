@@ -1,285 +1,341 @@
 # Implementation plan
 
-Read `research.md` first. Three of its corrections change the API this plan calls.
+Read `research.md` first. Several of its corrections change the API this plan calls.
 
 Everything lives under `web/oss/src/components/Drives/`. Paths below are relative to that
 directory unless they start with `web/`.
 
-## 1. The state machine
+## 1. What this PR ships
 
-### The twelve names and what they actually are
+Open a text file in the Files drawer, click **Edit**, change it, save it back to the mount.
+Every write is guarded by a pre-write modification-time check, every exit from a dirty buffer
+is guarded by a dialog, and a failed write never loses a character.
 
-The spec lists twelve states. They are not twelve values of one variable. Three of them describe
-the file before any editing starts, two describe how the buffer is rendered, and one is a
-pending exit. Storing them as a flat enum produces an unreachable-combination mess (a file can
-be dirty and in preview and in conflict at the same time).
+Deliberately deferred, with the reason in `status.md`: the side-by-side conflict diff, the
+agent-activity early conflict warning, Save-and-continue from the guard dialog, the editor
+status footer, new/rename/delete, and `.env.local`-style multi-dot config files.
 
-So the stored state is a small record, and the twelve spec names are a **derived label**
-computed from it. The derived label exists so the code and the spec share one vocabulary, and so
-the state machine can be unit-tested against the spec name by name.
+## 2. The state model
 
-Stored record, one per open buffer:
+### One buffer, one atom
 
 ```ts
-// driveEditState.ts
+// editMode/state.ts
+export const driveEditBufferAtom = atom<DriveEditBuffer | null>(null)
+```
+
+A single module-level atom, not an atom family. The spec's rule is "one file is editable at a
+time — the drawer never holds two buffers", and a single nullable value enforces that with the
+type rather than a check. It also means the action atoms need no key, and closing a buffer
+releases its two potentially 1.5 MB strings instead of pinning them per mount for the module
+lifetime.
+
+Module-level (not provider-scoped) because the drawer uses `destroyOnClose`, and because
+`FilesDrawer` remounts `DriveExplorer` under a new `key` when the host swaps one real drive for
+another (`useDriveGeneration`, `FilesDrawer.tsx:35-56`). A buffer must survive both. The guard
+dialog is therefore rendered by `FilesDrawer`, above that remount boundary.
+
+### The record
+
+```ts
 export interface DriveEditBuffer {
-    mountId: string
-    /** Mount-relative path. The write target. */
-    path: string
-    /** Presented path with any `agent-files/` prefix. Breadcrumb, tree row, dialog copy. */
+    /** Identity for this open buffer. Late save completions are matched against it. */
+    bufferId: string
+    /** The drawer slot that opened it: the primary drive's mount id. */
+    driveKey: string
+    /** The mount actually written to. NOT driveKey — `agent-files/x` resolves to the agent mount. */
+    targetMountId: string
+    /** Path relative to targetMountId's root. The write target. */
+    targetPath: string
+    /** Presented path, including any `agent-files/` prefix. Breadcrumb, tree row, dialog copy. */
     displayPath: string
+    scope: DriveScope
     /** Bytes as read when the buffer opened. Dirty is measured against this. */
     original: string
     draft: string
-    /** mtime of the file when the buffer opened; null when the store omitted it. */
+    /** mtime from the directory listing when the buffer opened; null when the store omitted it. */
     baseMtime: number | null
-    phase: "clean" | "dirty" | "saving" | "saved"
-    view: "source" | "preview"
-    banner: EditBanner | null
-    pendingExit: ExitIntent | null
-    /** Set by "Save anyway". Skips the pre-write mtime check for exactly one attempt. */
-    forceNextSave: boolean
-    /** When the save landed. Drives the two-second Saved chip. */
-    savedAt: number | null
-    /** Aborts an in-flight save when Cancel is pressed during `saving`. */
-    abort: AbortController | null
+    mode: "markdown" | "code"
+    language: CodeLanguage
+    editorView: "source" | "preview"
+    saveStatus: "idle" | "saving"
+    /** Identity of the in-flight write. Completions that do not match are dropped. */
+    inflightRequestId: string | null
+    /** One banner slot. Setting either kind replaces the other. */
+    issue: EditIssue | null
+    pendingNavigation: NavigationIntent | null
+    /** Set by Overwrite. Skips the pre-write check for exactly one attempt. */
+    skipConflictCheckOnce: boolean
+    /** The session-teardown notice has been shown for this buffer. */
+    teardownWarned: boolean
 }
 
-export type EditBanner =
+export type EditIssue =
     | {kind: "error"; message: string}
-    | {kind: "conflict"; theirMtime: number | null}
+    | {kind: "conflict"; reason: "changed" | "missing"; theirMtime: number | null}
 
-export type ExitIntent =
+export type NavigationIntent =
     | {kind: "cancel"}
     | {kind: "close"}
-    | {kind: "select"; path: string}
-    | {kind: "filter"; run: () => void}
-    | {kind: "reload-theirs"}
+    | {kind: "select"; path: string | null}
+    | {kind: "reload"}
 ```
 
-The three pre-edit names come from a pure function over the selected file, not from the record:
+Four separate names for what a looser model would call "mount id" and "path". `agent-files/`
+paths fold a second mount into one presented tree (`useSessionDrive.ts:180-194`,
+`resolveMount`), so the display path, the write path, the write mount, and the drawer slot are
+four different values. Collapsing any two of them produces a wrong query key or a write to the
+wrong mount.
+
+Dirty is derived, never stored: `draft !== original`.
+
+### No twelve-state label
+
+The spec's twelve state names are a vocabulary for the design, not a variable. Six of them are
+orthogonal to the other six (a buffer can be dirty and in preview and in conflict), so any
+first-match table that flattens them loses information — and a `code` label that no
+function can ever return makes a "one assertion per spec name" test impossible to write.
+
+The state is read as orthogonal facets instead:
 
 ```ts
-// driveEdit.ts
-export type DriveEditAffordance = "offer" | "capped" | "hidden"
+export interface DriveEditFacets {
+    editing: boolean
+    dirty: boolean
+    saving: boolean
+    mode: "markdown" | "code"
+    editorView: "source" | "preview"
+    issue: EditIssue | null
+    guardOpen: boolean
+}
 ```
 
-Derived label:
+Each spec state maps onto a combination of those, and each facet is independently testable.
 
-| Spec name | Condition |
+### Actions
+
+Every action atom is pure state manipulation with no I/O, so the whole reducer tests against a
+bare `createStore()` with no React. Actions that need something to happen in the world **return
+a value the controller interprets**; they never call into the app themselves.
+
+| Atom | Effect |
 |---|---|
-| `read` | no buffer, affordance `offer` |
-| `locked` | no buffer, affordance `hidden` |
-| `capped` | no buffer, affordance `capped` |
-| `confirm` | `pendingExit != null` |
-| `conflict` | `banner?.kind === "conflict"` |
-| `error` | `banner?.kind === "error"` |
-| `saving` | `phase === "saving"` |
-| `saved` | `phase === "saved"` |
-| `preview` | `view === "preview"` |
-| `clean` | `phase === "clean"` |
-| `dirty` | `phase === "dirty"` |
-| `code` | buffer mode is `code` (orthogonal, reported alongside the label) |
+| `openEditBufferAtom(input)` | no buffer → a clean buffer |
+| `setEditDraftAtom(text)` | updates `draft`; ignored while `saveStatus === "saving"` |
+| `setEditorViewAtom(view)` | swaps source/preview, nothing else |
+| `requestNavigationAtom(intent)` | clean: clears the buffer, returns `{run: intent}`. Dirty or with an issue: sets `pendingNavigation`, returns `{run: null}` |
+| `resolveNavigationAtom("keep")` | clears `pendingNavigation` |
+| `resolveNavigationAtom("discard")` | returns the intent to run; clears the buffer unless the intent is `reload` |
+| `startEditSaveAtom(requestId)` | `saveStatus = "saving"`, clears `issue` and `skipConflictCheckOnce` |
+| `editSaveSucceededAtom(requestId)` | no-op unless `requestId === inflightRequestId`; otherwise clears the buffer |
+| `editSaveFailedAtom({requestId, message})` | no-op on mismatch; otherwise `saveStatus = "idle"`, `issue = {kind:"error"}`, draft untouched |
+| `markEditConflictAtom({requestId, reason, theirMtime})` | no-op on mismatch; sets the conflict issue |
+| `overwriteNextSaveAtom()` | clears the issue, sets `skipConflictCheckOnce` |
+| `replaceBufferFromRemoteAtom({content, mtime})` | replaces `original`, `draft`, `baseMtime`; clears the issue; buffer stays open and clean |
+| `markTeardownWarnedAtom()` | sets `teardownWarned` |
+| `closeEditBufferAtom()` | clears the buffer |
 
-`deriveEditStatus(buffer, affordance)` evaluates that table top to bottom and returns the first
-match. The precedence is deliberate and matches the spec's own rendering rules: the guard dialog
-sits over everything; the banner slot holds exactly one banner ("uses the same banner slot as
-the conflict case, so only one can ever be shown"); phase beats view.
+Two rules that are one line each in the reducer and remove whole classes of bug:
 
-`code` is not returned by `deriveEditStatus`. It is a second value, `driveEditBufferMode(path)`
-returning `"markdown" | "code"`, because the spec's own note says everything else about the
-`code` state is identical: "One state machine for all text kinds."
+**Every completion carries the request id it belongs to.** A save started against file A can
+settle after the drawer closed and a buffer for file B opened. Matching `inflightRequestId`
+makes that completion a no-op instead of marking B saved or moving B's baseline. An
+`AbortController` does not prevent this: aborting the client request does not prove the server
+did not write, and a queued completion can still land.
 
-### Where the state lives
+**A successful save exits edit mode.** The write response carries no modification time
+(`MountFileWrittenResponse` is `path` and `size` only), so a buffer that stays open after a save
+has no trustworthy baseline: any mtime fetched afterwards might belong to an agent write that
+landed in between, and adopting it would arm the next save to overwrite that agent write without
+a conflict. Exiting means the baseline is always established by a fresh read at Edit time. The
+header shows a transient "Saved" tag for about two seconds, owned by the controller hook and
+cleared on unmount or on the next edit.
 
-```ts
-// driveEditState.ts
-export const driveEditBufferAtomFamily = atomFamily(
-    (_driveKey: string) => atom<DriveEditBuffer | null>(null),
-)
-```
-
-**Keyed by the drive's mount id** (`drive.mount?.id ?? ""`), the same key
-`driveSelectionAtomFamily` already uses in `useDriveSelection.ts`. Reasons:
-
-- The value is a single nullable buffer, never a map. One drive therefore cannot hold two
-  buffers. That is the "one file at a time" rule enforced by the type, not by a check.
-- Module-level, so it survives the drawer's `destroyOnClose` remount the same way the persisted
-  selection does. A user who accidentally closes the drawer does not silently lose a buffer,
-  though the guard should have caught them first.
-- Scoped per drive, so the chat host and the config host cannot fight over one slot if both
-  ever mount at once.
-
-Derived read atoms in the same file:
-
-```ts
-export const driveEditDirtyAtomFamily      // buffer != null && draft !== original
-export const driveEditStatusAtomFamily     // deriveEditStatus(...) for display and tests
-export const driveEditPathAtomFamily       // the display path, or null. Read by DriveTreeRow
-                                           // for the dirty dot, so the dot needs no prop drilling.
-```
-
-Write-only action atoms, one per transition. Every one of them is pure state manipulation with
-no I/O, so the whole machine tests with a bare `createStore()` and no React:
-
-| Atom | From | To |
-|---|---|---|
-| `openEditBufferAtom({mountId, path, displayPath, original, baseMtime})` | no buffer | `clean` |
-| `setEditDraftAtom(text)` | `clean` or `dirty` | `dirty`, or back to `clean` when text equals `original` |
-| `setEditViewAtom("source" \| "preview")` | any | same phase, new `view` |
-| `requestEditExitAtom(intent)` | `clean` | runs the intent, clears the buffer |
-| | `dirty` / banner set | sets `pendingExit`, renders the guard |
-| `resolveEditExitAtom("keep")` | `pendingExit` set | clears `pendingExit`, phase unchanged |
-| `resolveEditExitAtom("discard")` | `pendingExit` set | runs the intent, clears the buffer |
-| `resolveEditExitAtom("save")` | `pendingExit` set | starts a save; the intent runs on success |
-| `startEditSaveAtom(abort)` | `clean` / `dirty` | `saving`, clears any banner |
-| `editSaveSucceededAtom({size, mtime})` | `saving` | `saved` if draft unchanged during the write, otherwise `dirty` |
-| `editSaveFailedAtom(message)` | `saving` | `dirty`, `banner = {kind:"error"}`, draft untouched |
-| `markEditConflictAtom(theirMtime)` | any open buffer | `banner = {kind:"conflict"}` |
-| `forceNextEditSaveAtom()` | `conflict` banner | clears the banner, sets `forceNextSave` |
-| `adoptTheirsAtom({content, mtime})` | any open buffer | replaces `original`, `draft`, `baseMtime`; phase `clean`; clears the banner |
-| `closeEditBufferAtom()` | any | no buffer |
-
-Setting either banner clears the other. That is one line in the reducer and it is what makes the
-"only one banner can ever be shown" rule impossible to violate.
-
-`editSaveSucceededAtom` returning to `dirty` instead of `saved` when the draft moved during the
-write is the spec's rule: "If the user has already typed again during the write, stay in edit
-mode and go straight back to dirty."
+Because the editor is genuinely disabled during the write (section 5) and Cancel is disabled
+with it, the draft cannot move while a save is in flight. The spec's "if the user has already
+typed again during the write" branch is therefore unreachable and is not implemented.
 
 ### Exit routes that must run through the guard
 
-The spec names five, and they all call `requestEditExitAtom`:
-
 | Route | Where it is intercepted |
 |---|---|
-| Cancel button | `DriveHeader` edit cluster |
-| Escape | drawer-level `keydown` in `useDriveEdit` |
-| Closing the drawer | `DriveExplorer` wraps the `onClose` it passes to `DriveHeader` |
-| Selecting another file or folder | `DriveExplorer` wraps `select` before handing it to the tree, the breadcrumb, the folder grid, and `DriveFilePreview` |
-| Changing a filter | not reachable: the edit bar replaces the toolbar, so search, origin, and the visibility toggles are unmounted while editing. The intent kind stays in the union for the browser-unload case and for any future control that survives the swap. |
-| Browser unload | `beforeunload` listener in `useDriveEdit`, registered only while dirty. The browser shows its own dialog; ours cannot run there. |
+| Cancel button | `DriveHeader` edit cluster → controller |
+| Escape | drawer-level `keydown` in the controller |
+| Drawer close: header button, mask click, antd Escape | `FilesDrawer` wraps the host `onClose` **before** giving it to `EnhancedDrawer`. Wrapping only the callback passed to `DriveHeader` leaves mask and keyboard dismissal unguarded — antd receives the raw callback (`FilesDrawer.tsx:95-104`, `EnhancedDrawer.tsx:71-80`) |
+| Selecting another file or folder | `DriveExplorer` wraps `select` before the tree, breadcrumb, folder grid, and preview |
+| A changed `initialPath` | `useDriveSelection` re-selects from its own effect (`useDriveSelection.ts:84-90`), which a wrapper around the returned `select` cannot intercept. `FilesDrawer` holds the incoming `initialPath` while a dirty buffer is open and passes the previous value down; Discard releases it |
+| Drag spring-navigation | `useDriveDrop` calls `onNavigate` from a 700 ms timer (`useDriveDrop.ts:94-105`). Pass `enabled: canUpload && !editing` so drop and its timers are off entirely — CSS `pointer-events-none` does not stop a timer that has already started |
+| Browser unload | `beforeunload` registered only while dirty. The browser shows its own dialog; ours cannot run there, so this route does not use `NavigationIntent` |
+| Drive swap under an open drawer | The host changes `drive.mount.id`, `useDriveGeneration` bumps, and React replaces `DriveExplorer`. A child cannot stop its parent remounting it, so the buffer survives in the module atom and `FilesDrawer` shows the guard on the next mount. The buffer carries its own `targetMountId`, so Save still writes to the right place |
 
-## 2. Files that change and how
+The spec's fifth route, changing a filter, is not reachable: the edit bar replaces the toolbar,
+so search, origin, and the visibility toggles are unmounted while editing. No intent kind for it.
 
-### Existing files
+## 3. Files that change
+
+### Package changes (`web/packages/agenta-entities/src/session/`)
+
+- `core/schema.ts`: add `mountFileWrittenResponseSchema` — `{path: z.string(), size: z.number()}`.
+  `size` is required. The backend always sends an integer, and falling back to `content.length`
+  would report a UTF-16 character count as a byte count.
+- `api/api.ts`: add `writeMountFile` beside the existing `readMountFile`. The write boundary
+  belongs where the mount reads and their validation already live; splitting the schema into the
+  package and the call into the app is the worst of both.
+- `index.ts`: export `writeMountFile`, `mountFileWrittenResponseSchema`, and `mountDirQueryKey`.
+  The last one exists in `state/mounts.ts:42` but is not in the barrel today, and the package
+  exposes only the `./session` subpath, so the pre-write check cannot reach it otherwise.
+
+### Existing Drives files
 
 **`driveKinds.ts`**: move `TEXT_CAP` here from `renderers.tsx` and export it. This module is
-deliberately React-free and renderer-free so light consumers can import it; the edit gate is
-exactly such a consumer and must not pull the Shiki and Markdown graph in to read a number. Add
-nothing else.
+deliberately React-free so light consumers can import it; the edit gate must not pull the Shiki
+and Markdown graph in to read a number. Also export `CODE_LANGS` as a `Readonly<Record<...>>` so
+the language mapper's test can iterate it — today it is module-private.
 
-**`renderers.tsx`**: one line: `export {TEXT_CAP} from "./driveKinds"` and import it from there
-for the existing cap checks. One definition, both readers. No other change to this file.
+**`renderers.tsx`**: `export {TEXT_CAP} from "./driveKinds"` and import it from there for the
+existing cap checks. One definition, both readers. No other change.
 
-**`DriveHeader.tsx`**: add one optional prop group:
+**`FilesDrawer.tsx`**: owns the guarded close, the held `initialPath`, and renders
+`DriveEditGuardModal` above the `key`-remount boundary. This is the shell that antd actually
+talks to, so it is the only place a close guard can be complete.
+
+**`DriveHeader.tsx`**: one optional prop group.
 
 ```ts
 edit?: {
-    affordance: DriveEditAffordance
+    availability: DriveEditAvailability
     editing: boolean
     dirty: boolean
-    saved: boolean
     saving: boolean
+    justSaved: boolean
     onEdit: () => void
     onCancel: () => void
     onSave: () => void
 }
 ```
 
-Three changes inside:
-
 1. In the browsing cluster, between the details toggle and `DriveFileDownloadButton`, render an
-   Edit button when `affordance === "offer"`, or a disabled Edit button with a tooltip naming the
-   cap when `affordance === "capped"`. Render nothing when `hidden`. Secondary style, never
-   primary: Download stays the loudest action for a reader.
-2. When `edit.editing`, replace the whole right-hand cluster (upload, copy, details, download,
-   overflow) with Cancel and Save. Save is `type="primary"` and disabled unless dirty; during
-   `saving` it shows the antd `loading` spinner and reads "Saving". Cancel stays enabled during
-   `saving` so a slow mount does not trap anyone.
-3. Next to the origin `Tag`, render an "Unsaved" `Tag` when dirty, or a success-toned "Saved"
-   `Tag` when `saved`. Both reuse the already-imported `Tag`.
+   Edit button when `availability === "enabled"`, or a disabled Edit button with an explanatory
+   tooltip when it is `"too-large"`, `"loading"`, or `"unreadable"`. Render nothing when
+   `"unavailable"`. Secondary style, never primary: Download stays the loudest action for a reader.
+2. While editing, replace the whole right-hand cluster (upload, copy, details, download, overflow)
+   with Cancel and Save. Save is `type="primary"`, disabled unless dirty, and shows the antd
+   `loading` spinner reading "Saving" during the write. Cancel is disabled during the write.
+3. Next to the origin `Tag`, an "Unsaved" `Tag` when dirty, or a success-toned "Saved" `Tag`
+   while `justSaved`. Both reuse the already-imported `Tag`.
+4. An `aria-live="polite"` region carrying the current status text (Saving, Saved, the error
+   message, the conflict message), so the asynchronous state changes are announced.
 
 Do not touch the `CopyButton size="small"` line. The antd migration branch changes it.
 
-**`DriveToolbar.tsx`**: unchanged. `DriveExplorer` chooses between it and `DriveEditBar`. Adding
-an `editing` flag to `DriveToolbar` would mean threading every filter prop through a component
-that renders none of them while editing, and would grow that file's antd surface for no gain.
+**`DriveToolbar.tsx`**: unchanged. `DriveExplorer` chooses between it and `DriveEditBar`.
 
-**`DriveFilePreview.tsx`**: when a buffer is open for this file, render `DriveFileEditor`
-instead of `DriveFileContentViewer`. The meta band above it is unchanged and still obeys
-`detailsOpen`. Do not touch its `CopyButton size="small"` line.
+**`DriveFilePreview.tsx`**: when a buffer is open for this file, render `DriveFileEditor` instead
+of `DriveFileContentViewer`. The meta band above is unchanged. Do not touch its `CopyButton` line.
 
-**`DriveFileContentViewer.tsx`**: unchanged.
+**`DriveTreePane.tsx`**: add an `interactive` prop (default true). When false it sets `inert` on
+the tree scroll container and the resize handle and drops `onTreeKeyDown`. The pane has no such
+seam today, and the resize handle is a sibling of the tree element, so opacity on the tree alone
+would leave both keyboard focus and resizing live.
 
-**`DriveTreeRow.tsx`**: read `driveEditPathAtomFamily` and render a small dot on the row whose
-path matches. The spec asks for exactly two dirty affordances, one dot each: this one and the
-header chip.
+**`DriveTreeList.tsx` / `DriveTreeRow.tsx`**: `DriveTreeList` takes a `dirtyPath: string | null`
+and passes a boolean to the matching row, which renders the dot. One subscription at the list,
+not one per virtualized row — and `DriveTreeRow` receives no drive identity, so it could not
+select a keyed atom member anyway.
 
-**`DriveExplorer.tsx`**: the composition work:
+**`useMountUpload.ts`**: export its `refreshListing` body as
+`invalidateMountListings(queryClient, projectId)`. It invalidates `files`, `files-latest`,
+`files-root`, and `files-dir` — every root the drawer's header, recents, and tree actually read.
+The save reuses it rather than inventing a narrower policy that leaves the header size stale.
 
-- call `useDriveEdit({drive, selectedPath, select, onClose, canUpload})`
+**`DriveExplorer.tsx`**: composition only.
+
+- call `useDriveEditController(...)`
 - swap `<DriveToolbar/>` for `<DriveEditBar/>` while editing
-- pass the `edit` prop group to `DriveHeader`
-- pass the guarded `select` to the tree, the breadcrumb, the folder grid, and the preview
-- render `<DriveEditBanner/>` between the second header row and the body, in the one banner slot
-- render `<DriveEditGuardModal/>` and `<DriveEditDiffModal/>` at the end of the chrome branch
-- while editing, give the tree pane `pointer-events-none opacity-45` and `inert`, so its scroll
-  position and expanded folders survive
+- pass the `edit` prop group to `DriveHeader` and `dirtyPath` to `DriveTreeList`
+- pass the guarded `select` to the tree, breadcrumb, folder grid, and preview
+- pass `enabled: canUpload && !editing` into `useDriveUploads`
+- pass `interactive={!editing}` to `DriveTreePane`
+- render `<DriveEditBanner/>` between the second header row and the body
 
-### New files
+### New files, under `editMode/`
 
 | File | Contents | React? | antd? |
 |---|---|---|---|
-| `driveEdit.ts` | Pure helpers: `EDIT_KINDS`, `driveEditAffordance`, `driveEditBufferMode`, `driveEditorLanguage`, `isEditDirty`, `deriveEditStatus`, `conflictFromActivity` | no | no |
-| `driveEditState.ts` | The atom family and every action atom above | no | no |
-| `driveEditSave.ts` | The Fern call, the pre-write mtime re-check, cache invalidation | no | no |
-| `useDriveEdit.ts` | Wires atoms to the drawer: reads the original bytes, runs the save, subscribes to file activity, binds the keys | hook | no |
-| `DriveEditBar.tsx` | Header row 2 while editing: "Editing" label, Source/Preview segmented for markdown, language chip for code, the hint line | yes | `Segmented`, `Button`, `Tooltip` |
-| `DriveFileEditor.tsx` | The editor pane: `SharedEditor` in an `EditorProvider`, the markdown synchroniser, the preview pane, the status footer | yes | no |
-| `DriveEditBanner.tsx` | The one banner slot: error with Try again, conflict with View diff / Reload theirs / Save anyway | yes | `Alert`, `Button` |
-| `DriveEditGuardModal.tsx` | Discard dialog. `EnhancedModal` from `@agenta/ui/components` | yes | no |
-| `DriveEditDiffModal.tsx` | View diff. `computeTextDiffLines` list, or `DiffView` for the `json` kind | yes | no |
-| `driveEdit.test.ts` | Unit tests for the pure helpers | no | no |
-| `driveEditState.test.ts` | Unit tests for the transitions | no | no |
+| `model.ts` | `EDIT_KINDS`, `driveEditAvailability`, `driveEditBufferMode`, `driveEditorLanguage`, `isEditDirty`, `conflictFromListing` | no | no |
+| `state.ts` | `driveEditBufferAtom`, the facets selector, every action atom | no | no |
+| `api.ts` | `saveDriveFile`: pre-write check, the package write call, cache seeding, invalidation | no | no |
+| `useDriveEditController.ts` | The drawer-level controller, plus `useDriveEditGuard` for `FilesDrawer` | hook | no |
+| `components/DriveEditBar.tsx` | Header row 2 while editing: "Editing" label, Source/Preview segmented for markdown, language chip for code, hint line, session-teardown notice | yes | `Segmented`, `Button`, `Tooltip` |
+| `components/DriveFileEditor.tsx` | `SharedEditor` in an `EditorProvider`, plus the markdown preview pane | yes | no |
+| `components/DriveEditBanner.tsx` | The one banner slot: error with Try again, conflict with Reload from disk / Overwrite | yes | `Alert`, `Button` |
+| `components/DriveEditGuardModal.tsx` | Discard dialog, `EnhancedModal` from `@agenta/ui/components` | yes | no |
+| `model.test.ts`, `state.test.ts`, `controller.test.ts` | see section 8 | no | no |
 
-## 3. Reusing the editor components
+A directory rather than eleven more flat files in an already large module: `driveEdit.ts`,
+`driveEditState.ts`, `driveEditSave.ts`, and `useDriveEdit.ts` are indistinguishable in an import
+list and reveal no hierarchy.
 
-### Which wrapper, and why not the other one
+## 4. The controller
 
-Use `SharedEditor` from `@agenta/ui/shared-editor`, wrapped in our own `EditorProvider` from
-`@agenta/ui/editor`.
+```ts
+useDriveEditController({
+    driveKey,          // drive.mount?.id ?? ""
+    resolveMountPath,  // (displayPath) => {mount, path} | null — folds agent-files/
+    selectedPath,
+    scope,
+    canEditMountFiles,
+    includeGitignored, // part of every directory query key
+    select,
+    close,
+})
+```
 
-Do **not** use `SimpleSharedEditor`. It sniffs the content on every render and forces the editor
-into JSON, YAML, or HTML mode when the text happens to parse as one
-(`SimpleSharedEditor/index.tsx:288-311`). A `.txt` file containing a single JSON object would
-silently become a JSON code editor with a format dropdown. It also renders its own header with
-Format, Copy, and Minimize controls, which duplicates what the edit bar owns. Its value is the
-prompt-field use case, not a file buffer.
+It owns everything the reducer cannot: reading the original bytes, resolving `baseMtime`,
+running the save, executing returned navigation intents, the key bindings (⌘E to open, ⌘S to
+save, Escape to exit), the `beforeunload` registration, the `AbortController` (in a ref, as
+`useMountUpload` already does — not in the atom), and the "Saved" tag timer.
 
-The right precedent to copy is `ChatMessageEditor.tsx` in `@agenta/ui`: same `EditorProvider` +
-`SharedEditor` + `noProvider` shape, and it already solves the markdown-view dispatch race.
+Opening a buffer requires all of:
 
-### The editor call
+- a resolved `{mount, path}` from the drive's own resolver, so the write target is right for
+  `agent-files/`
+- raw content that has actually loaded. `useDriveFileText` returns `{data, isPending}` and
+  represents a failed read as non-pending `undefined` (`driveFileSource.tsx:63-84`), so
+  `isPending` means loading and `!isPending && data === undefined` means unreadable. Edit is
+  disabled in both cases with a tooltip saying which
+- a length re-check against `TEXT_CAP` on the loaded string. The listing size can be stale or
+  unknown, and `driveTree.ts` converts a null size to `0`, so the listing snapshot alone is not
+  a cap
+- `baseMtime` read from the raw directory listing for the file's parent
+  (`mountDirQueryKey(projectId, targetMountId, parentDir, includeGitignored)`), not from the
+  tree node — `DriveTreeNode` discards `mtime`
+
+`canEditMountFiles` is derived from the drawer's existing `canUpload`
+(`isAgentFileUploadsEnabled() && !explicitFiles && !!drive.mount`). It is a capability proxy, not
+proof the backend will accept the write: `mountSchema` has no read-only flag and we do not invent
+one. The name says "can edit", not "mount is writable".
+
+## 5. The editor
+
+### Every editable kind is `codeOnly`, including markdown
 
 ```tsx
-// DriveFileEditor.tsx
-const mode = driveEditBufferMode(path)          // "markdown" | "code"
-const language = driveEditorLanguage(path)      // CodeLanguage, only used when mode === "code"
-const editorId = `drive-edit-${mountId}-${path}`
+const editorId = `drive-edit-${bufferId}`
 
 <EditorProvider
-    codeOnly={mode === "code"}
-    language={mode === "code" ? language : undefined}
+    codeOnly
+    language={language}
     enableTokens={false}
     showToolbar={false}
-    disabled={phase === "saving"}
+    disabled={saving}
     id={editorId}
 >
     <SharedEditor
         id={editorId}
         editorType="borderless"
-        state={phase === "saving" ? "readOnly" : "filled"}
+        state={saving ? "readOnly" : "filled"}
+        disabled={saving}
         initialValue={original}
         value={draft}
         handleChange={onDraftChange}
@@ -287,69 +343,76 @@ const editorId = `drive-edit-${mountId}-${path}`
         noProvider
         autoFocus
         editorProps={{
-            codeOnly: mode === "code",
-            language: mode === "code" ? language : undefined,
+            codeOnly: true,
+            language,
             noProvider: true,
             showToolbar: false,
             enableTokens: false,
         }}
-        footer={<DriveEditStatusBar mode={mode} language={language} savedAt={savedAt} />}
-        className={view === "preview" ? "hidden" : undefined}
+        className={editorView === "preview" ? "hidden" : undefined}
     />
-    {mode === "markdown" ? <MarkdownSourceSynchronizer editorId={editorId} /> : null}
 </EditorProvider>
 ```
 
-Prop-by-prop, with the reason each value is what it is:
+**Markdown is edited as source through `codeOnly`, never through the rich-text markdown mode.**
+This is a correctness requirement, not a preference. In rich mode the editor emits changes by
+serializing the Lexical document and then running `stripBackslashEscapes`
+(`Editor.tsx:282-299`), which removes every backslash that precedes another character
+(`plugins/markdown/utils/textCleanup.ts:146-177`). Worse, the first `SET_MARKDOWN_VIEW(true)`
+does not inject the original file text: it serializes the rich tree it hydrated
+(`markdownPlugin.tsx:151-168`), so the file can be reformatted before the user types anything.
+`ChatMessageEditor` is not a precedent here — it edits a semantic chat message and never promises
+byte preservation.
 
-- `editorType="borderless"`: the pane already draws the inset border. A second border reads as a
-  nested box.
-- `state`: `"readOnly"` while saving. The spec chose this over an overlay: "typing into a buffer
-  that's mid-flight is the bug this prevents." The other five values in the union are not used;
-  `filled` covers every other phase and focus is handled by the component's own tracking.
-- `disableDebounce`: required. The default is a 300 ms `useDebounceInput` window
-  (`SharedEditor.tsx:76-81`). Dirty tracking has to be keystroke-accurate, or Save stays disabled
-  for a third of a second after the first keystroke and the guard can miss a change typed
-  immediately before Escape.
-- `initialValue` + `value`: `SharedEditor` uses `initialValue` for the mount-time Lexical seed
-  and `value` for the controlled sync (`SharedEditor.tsx:71-73`). Pass `original` and `draft`.
-  Do not pass `syncWithInitialValueChanges`: it would re-seed the buffer when the underlying
-  query refetches, which is exactly the overwrite we are trying to prevent.
-- `noProvider` on both the wrapper and `editorProps`: we own the provider, as `ChatMessageEditor`
-  does.
-- `autoFocus`: the spec wants focus in the editor on open, cursor at the start of the document.
-- `footer`: the status bar (language, `UTF-8`, cursor position, last-saved). Uses the slot rather
-  than a sibling so it sits inside the editor's border.
+`codeOnly` also means `MarkdownPlugin` is not mounted at all
+(`plugins/index.tsx: singleLine || codeOnly ? null : <MarkdownPlugin/>`), so there is no
+`SET_MARKDOWN_VIEW` command to pin, no `markdownViewAtom` to write, and no synchronizer
+component. The whole markdown-view mechanism drops out of this feature.
 
-### Source and preview for markdown
+**`disabled` goes on `SharedEditor`, not only on the provider.** `SharedEditor.state` only
+changes container classes and cursor styling; editability comes from the `disabled` prop it
+forwards to `Editor` (`SharedEditor.tsx:216-235`), which reaches `EditorInner`, where it defaults
+to `false` and calls `editor.setEditable(!disabled)` (`Editor.tsx:455-457`). A provider-only
+`disabled` is re-enabled by that inner effect and the user can type into a buffer mid-write.
+`state="readOnly"` stays for the visual treatment.
 
-Two separate mechanisms, and it is easy to conflate them.
+**The buffer owns `original` and `draft`; the editor's props are outputs, not the source of
+truth.** `SharedEditor` prefers `value` over `initialValue` for its controlled value
+(`SharedEditor.tsx:71-80`), and in code mode the plugin seeds its initial content from
+`value !== undefined ? value : initialValue` (`plugins/index.tsx:149-160`). So `initialValue`
+is not a separate mount-time channel. Never infer the save baseline from it. Do not pass
+`syncWithInitialValueChanges`: it would re-seed the buffer on a background refetch, which is the
+overwrite this feature exists to prevent.
 
-**The buffer is always raw markdown source.** `MarkdownSourceSynchronizer` pins
-`SET_MARKDOWN_VIEW` to `true` for the life of a markdown buffer, and sets `markdownViewAtom(editorId)`
-to `true` so the CSS flag agrees with the node state. It is a direct copy of
-`MarkdownViewSynchronizer` from `ChatMessageEditor.tsx:88-104`, including both dispatches:
-a `useLayoutEffect` for the steady state, and a `requestAnimationFrame` in a `useEffect` for the
-mount race where the layout effect fires before `MarkdownPlugin` registers the command. Setting
-the atom alone does nothing; the comment in `ChatMessageEditorProps.markdownView` says so and the
-plugin confirms it. Editing markdown as rich text would round-trip the file through the markdown
-serialiser on every keystroke and reflow formatting the user never touched.
+`disableDebounce` is required. The default is a 300 ms window (`SharedEditor.tsx:76-81`), which
+would leave Save disabled for a third of a second after the first keystroke and let the guard
+miss a change typed immediately before Escape.
 
-**Preview is a separate pane.** The Source/Preview segmented in the edit bar sets
-`buffer.view`. In `preview`, the `SharedEditor` gets `className="hidden"` (it stays mounted, so
-cursor position and undo history survive the round trip) and we render the existing `Markdown`
-component from `@/oss/components/AgentChatSlice/assets/markdown` over `draft`, inside the same
-scroll container `TextBody` uses (`renderers.tsx:153-160`). That satisfies the spec's requirement
-that nothing shifts between preview and the read-only view after save, because it is literally
-the same component.
+`autoFocus` mounts Lexical's `AutoFocusPlugin`, which focuses but does not promise the caret is
+at the start of the document. Verify that in QA; if the caret lands at the end, add a small
+select-start plugin through `editorProps.additionalCodePlugins`.
 
-Preview is offered only when `mode === "markdown"`. For `code` the edit bar shows the language
-chip instead, so the bar does not reflow.
+### Markdown source and preview
 
-### codeOnly and the language mapper
+The Source/Preview segmented in the edit bar sets `editorView`. In `preview` the `SharedEditor`
+gets `className="hidden"` — `SharedEditor` merges the caller's className onto its outer node, so
+the class reaches the right subtree — and we render the existing `Markdown` component from
+`@/oss/components/AgentChatSlice/assets/markdown` over `draft`, inside the same scroll container
+`TextBody` uses (`renderers.tsx:153-160`). Same component as the read view, so nothing shifts
+between preview and viewing after save.
+
+Keeping the editor mounted avoids a remount and preserves undo history. Whether the caret
+position survives the round trip is untested and is not claimed; nothing in the code restores a
+selection across the toggle.
+
+Preview is offered only when `mode === "markdown"`. For `code` the bar shows the language chip
+instead, so it does not reflow. The spec's "formatting controls stay visible but disabled in
+preview" does not apply: `codeOnly` has no rich-text toolbar to disable.
+
+### The language mapper
 
 `driveEditorLanguage(path)` maps the Shiki id from `driveCodeLanguage(path)` into the six-value
-`CodeLanguage` union (see `research.md` correction 4):
+`CodeLanguage` union (`plugins/code/types.ts`, see `research.md` correction 4):
 
 ```
 json, yaml            -> "json" / "yaml"
@@ -359,321 +422,280 @@ typescript, tsx       -> "typescript"
 everything else       -> "code"
 ```
 
-`"code"` is the union's generic highlighter and is the honest answer for shell, Rust, Go, CSV,
-plain text, and `.env`. A unit test asserts every value in `CODE_LANGS` maps into the union, so
-adding a language to `driveKinds.ts` later cannot produce a type error at a call site far away.
+`"code"` is the union's generic highlighter and is the honest answer for markdown, shell, Rust,
+Go, CSV, plain text, and `.env`.
 
-### DiffView and the conflict diff
-
-`DriveEditDiffModal.tsx` shows the mount's current bytes against the buffer.
-
-- kind `json`: `<DiffView language="json" original={theirs} modified={draft} />`. This is the one
-  case `DiffView` handles correctly.
-- every other kind: `computeTextDiffLines(theirs, draft, {contextLines: 3, enableFolding: true,
-  foldThreshold: 5})` from `@agenta/ui/diff`, rendered as a list of lines coloured by
-  `line.type`. `DiffView` cannot be used here; `research.md` correction 2 has the evidence.
-
-## 4. The save path
+## 6. The save path
 
 ```ts
-// driveEditSave.ts
-import {getMountsClient, projectScopedRequest} from "@agenta/entities/session"
-
-export async function writeDriveFile({
-    mountId, path, content, projectId, signal,
-}): Promise<{ok: true; size: number} | {ok: false; message: string}> {
-    const name = path.split("/").pop() || "file"
-    const file = new File([content], name, {type: "text/plain"})
-    try {
-        const written = await getMountsClient().uploadMountFile(
-            {mount_id: mountId, path, file},
-            projectScopedRequest(projectId, undefined, signal, 0),
-        )
-        const parsed = safeParseWithLogging(
-            mountFileWrittenResponseSchema, written, "[writeDriveFile]",
-        )
-        return {ok: true, size: parsed?.size ?? content.length}
-    } catch (error) {
-        if (isAbortError(error)) throw error
-        return {ok: false, message: toWriteErrorMessage(error)}
-    }
-}
+// packages/agenta-entities/src/session/api/api.ts
+export async function writeMountFile({
+    projectId, mountId, path, content, signal,
+}): Promise<{ok: true; size: number} | {ok: false; message: string}>
 ```
 
-Notes on each choice:
+- `uploadMountFile`, not the generated `writeMountFile`. The generated raw-body method sends no
+  body and would truncate the file. Both endpoints reach the same `MountsService.write_file`,
+  with the same `EDIT_MOUNTS` check and the same full `put_object` overwrite. `research.md`
+  correction 1.
+- The full mount-relative `path` in the query. `upload_mount_file` uses it verbatim unless it is
+  empty or ends in `/` (`api/oss/src/apis/fastapi/mounts/utils.py:79-83`), so it overwrites
+  exactly that object and the multipart filename is irrelevant.
+- `projectScopedRequest(projectId, undefined, signal, 0)`. `maxRetries: 0`: a retried PUT after a
+  timeout can land after the user has edited again.
+- Not `callFern` — it turns every failure into `null` and the error banner needs the message.
+  Aborts are rethrown.
+- `safeParseWithLogging(mountFileWrittenResponseSchema, ...)` at the boundary.
+- An explicit request timeout, so a hung mount surfaces as an error banner with the buffer intact
+  rather than a permanently disabled Cancel.
 
-- `uploadMountFile`, not `writeMountFile`. The generated `writeMountFile` sends no body and would
-  truncate the file. Both endpoints call the same `MountsService.write_file`. `research.md`
-  correction 1 has the proof.
-- `path` is the full mount-relative path. `upload_mount_file` uses the query `path` verbatim
-  unless it is empty or ends in `/` (`api/oss/src/apis/fastapi/mounts/utils.py:79-83`), so a
-  full path overwrites exactly that object.
-- `projectScopedRequest(..., signal, 0)`. `maxRetries: 0` because a write must never be retried
-  transparently: a retried PUT after a timeout can land after the user has already edited again.
-- Not `callFern`. It converts every failure into `null` and the error state needs the message.
-  Aborts are rethrown so Cancel during `saving` unwinds cleanly.
-- A zod parse at the boundary, per `web/AGENTS.md`. Add `mountFileWrittenResponseSchema` to
-  `packages/agenta-entities/src/session/core/schema.ts` next to the existing mount schemas
-  (`{path: z.string(), size: z.number().nullish()}`), since none exists yet.
+### After a successful write
 
-### What is invalidated after a successful write
+1. `queryClient.setQueryData(mountFileContentQueryKey(projectId, targetMountId, targetPath), draft)`
+   — the drawer returns to the read view with the saved bytes already rendered, no refetch, no
+   skeleton flash.
+2. `invalidateMountListings(queryClient, projectId)` — the same four roots the upload path
+   invalidates. The header prefers `drive.recents` over the tree node's size
+   (`DriveExplorer.tsx:180-193`), and recents come from `files-latest`/`files-root`, so a
+   directory-only invalidation leaves the visible size stale.
 
-In order, and deliberately narrow:
+Do **not** call `revalidateSessionMountsAtom`: it invalidates every mount in the project plus
+every cached body, which is right after an agent turn and far too wide for a one-file save.
 
-1. `queryClient.setQueryData(mountFileContentQueryKey(projectId, mountId, path), draft)`:
-   seed the cache with the bytes we just wrote. This is what lets the drawer return to the
-   read-only view with the saved text already rendered, with no refetch and no skeleton flash.
-2. `queryClient.invalidateQueries({queryKey: mountDirQueryKey(projectId, mountId, parentDir)})`:
-   the file's own directory level. This refreshes `size` and `mtime` for the tree row and the
-   header chip, and it is how we learn the post-write mtime the response does not carry.
-3. `queryClient.invalidateQueries({queryKey: ["mounts", "files", projectId, mountId]})`: the
-   whole-mount listing, used by the recents and the search view.
+## 7. Conflict detection
 
-Do **not** call `revalidateSessionMountsAtom`. It invalidates every mount in the project plus
-every cached body (`mounts.ts:219-247`), which is right for a finished agent turn and far too
-wide for a one-file save.
+One trigger: the pre-write modification-time check. Before every write, unless
+`skipConflictCheckOnce` is set:
 
-## 5. Conflict detection
+1. `queryClient.fetchQuery` on
+   `mountDirQueryKey(projectId, targetMountId, parentDir, includeGitignored)` with `staleTime: 0`,
+   using the same fetcher `mountDirQueryFamily` uses. `includeGitignored` is part of the key; a
+   check against the wrong listing variant would look at a listing the file is absent from.
+2. **No entry for the path → conflict, `reason: "missing"`.** The agent deleted the file. Treating
+   a missing entry as "no mtime to compare, proceed" would silently recreate a deleted file,
+   because the write is an unconditional `put_object`.
+3. Entry present, both mtimes non-null and different → conflict, `reason: "changed"`.
+4. Entry present, either mtime null → cannot compare; proceed. A silent degradation, recorded in
+   `status.md` rather than hidden.
 
-Two independent triggers. Neither is sufficient alone.
+There is no self-write grace window and no agent-activity trigger.
 
-### Trigger one: the file-activity signal
+A grace window that suppresses the check for N seconds after a save is a correctness bug: an
+agent write inside the window is overwritten silently, and the "next save catches it" claim is
+false because the next save can fall inside the same window. Its stated purpose — stopping our
+own invalidation from raising a conflict against our own bytes — does not exist either: file
+activity is appended from detected agent tool calls, and a frontend save appends nothing
+(`fileActivity.ts:75-139`). Exiting edit mode on save (section 2) removes the problem the window
+was invented for.
 
-`useDriveEdit` subscribes to `latestSessionFileActivityAtomFamily(sessionId)` with
-`sessionId = useDriveSessionId()`. A pure predicate decides:
+The activity trigger is cut because it usually cannot fire. `fileActivity` resolves a tool path
+only by scanning cached queries under the full-listing prefix `["mounts", "files", projectId]`
+(`fileActivity.ts:86-99`), and the drawer loads per-directory `files-dir` queries, fetching the
+full listing only while search is active (`useLazyDriveTree.tsx:117-138`). An open drawer
+normally gets an entry with no `resolved` mount/path. It is worth adding later, once it can
+resolve `files-dir` entries; it only ever made the warning arrive earlier, and the pre-write check
+is what actually prevents data loss.
 
-```ts
-// driveEdit.ts
-export function conflictFromActivity(
-    entry: SessionFileActivityEntry | null,
-    buffer: DriveEditBuffer | null,
-    selfWriteUntil: number,
-): boolean {
-    if (!entry || !buffer) return false
-    if (entry.resolved?.mountId !== buffer.mountId) return false
-    if (entry.resolved?.path !== buffer.path) return false
-    if (entry.at <= buffer.openedAt) return false
-    if (entry.at <= selfWriteUntil) return false
-    return true
-}
-```
+### The two ways out of a conflict
 
-Limitation, stated plainly: the config-panel host does not mount `DriveSessionProvider`, so
-`useDriveSessionId()` returns null there and this trigger never fires. Trigger two covers that
-host. This is not worth fixing by threading a session id through the config host, because the
-pre-write check is the one that actually prevents data loss; the activity signal only makes the
-warning arrive earlier.
+- **Reload from disk** — when dirty this routes through the guard with a `reload` intent; on
+  Discard the content query is invalidated, refetched, and `replaceBufferFromRemoteAtom` swaps
+  `original`, `draft`, and `baseMtime` in place. The buffer stays open and clean. It does not
+  close the buffer and then adopt into it.
+- **Overwrite** — `overwriteNextSaveAtom()` then save. The flag clears on the next
+  `startEditSaveAtom`, so a second conflict is caught normally. The button copy says it
+  overwrites.
 
-### Trigger two: the pre-write modification-time check
+Seeing what changed before choosing is deferred: the diff needs a fresh content read, a modal,
+and its own async lifecycle, and `DiffView` cannot render it — its props are restricted to JSON
+and YAML and its extension parses the strings before diffing, so a file that is mid-edit and not
+yet valid JSON renders nothing (`DiffView.tsx:178-199`,
+`plugins/code/extensions/diffHighlight.tsx:385-425,526-529`). When it lands it should use
+`computeTextDiffLines` for every kind, including `.json`, because the product compares raw file
+bytes, not parsed data structures.
 
-The spec requires the conflict be "re-checked immediately before every write". Before calling
-`writeDriveFile`, and unless `forceNextSave` is set:
-
-1. `await queryClient.fetchQuery({queryKey: mountDirQueryKey(projectId, mountId, parentDir), ...})`
-   with `staleTime: 0`, so it goes to the network.
-2. Find the entry whose `path` matches and read its `mtime`.
-3. If both `mtime` and `buffer.baseMtime` are non-null and differ, do not write. Call
-   `markEditConflictAtom(theirMtime)` and stop. Otherwise proceed.
-
-A null on either side means the object store did not report a time, and the check cannot fire.
-That is a silent degradation, so it is recorded in `status.md` rather than hidden.
-
-`baseMtime` at open comes from the directory listing already cached for the file's folder
-(`mountDirQueryFamily`), falling back to the drive's `recents` entry, falling back to null.
-
-### The write response has no modification time
-
-`MountFileWrittenResponse` returns `path` and `size` only. Handled in two parts, neither of which
-touches the backend:
-
-**Self-write suppression.** On a successful save, set a module-level
-`selfWriteUntil = Date.now() + SELF_WRITE_GRACE_MS` (5000) for that `(mountId, path)`.
-`conflictFromActivity` ignores any activity entry inside that window, and the pre-write check is
-skipped for the same window. Without this, the invalidation we fire ourselves in step 2 above
-would return a new mtime and raise a conflict against our own bytes.
-
-**Adopt the real mtime one refetch later.** The directory invalidation lands within the grace
-window. When it does, and the buffer is still open (the user kept editing after saving), read the
-fresh entry's mtime and write it into `buffer.baseMtime`. The window closes and conflict
-detection is armed again against a true value.
-
-The effect is that "no mtime on the write response" costs one extra listing refetch we were
-already firing, and a five-second window in which a conflict raised by someone else would be
-missed. That window is acceptable: the pre-write check on the *next* save still catches it, and
-the alternative is a backend change that turns a frontend PR into a cross-stack one.
-
-### The three ways out of a conflict
-
-- **View diff** opens `DriveEditDiffModal` with the freshly-fetched mount bytes as original and
-  the draft as modified.
-- **Reload theirs** routes through the guard when dirty (it discards the buffer), then invalidates
-  and refetches `mountFileContentQueryKey`, then calls `adoptTheirsAtom({content, mtime})`.
-- **Save anyway** calls `forceNextEditSaveAtom()` and then saves. The flag clears after one
-  attempt, so a second conflict is caught normally. The button copy says it overwrites.
-
-## 6. Which files can be edited
-
-### The rule
+## 8. Which files can be edited
 
 ```ts
-// driveEdit.ts
+// editMode/model.ts
 export const EDIT_KINDS = new Set<DriveFileKind>([
     "markdown", "text", "code", "json", "csv", "html",
 ])
 
-export function driveEditAffordance({kind, size, canWrite}): DriveEditAffordance {
-    if (!canWrite) return "hidden"
-    if (!EDIT_KINDS.has(kind)) return "hidden"
-    if (size != null && size > TEXT_CAP) return "capped"
-    return "offer"
+export type DriveEditAvailability =
+    | "enabled" | "loading" | "unreadable" | "too-large" | "unavailable"
+
+export function driveEditAvailability({kind, listingSize, contentLength, isPending, canEdit}) {
+    if (!canEdit) return "unavailable"
+    if (!EDIT_KINDS.has(kind)) return "unavailable"
+    if (listingSize != null && listingSize > TEXT_CAP) return "too-large"
+    if (isPending) return "loading"
+    if (contentLength == null) return "unreadable"
+    if (contentLength > TEXT_CAP) return "too-large"
+    return "enabled"
 }
 ```
 
 `kind` comes from `resolveDriveFileKind(path)`. There is no second extension list anywhere in
-this feature. `TEXT_CAP` is the existing 1.5 MB constant, moved to `driveKinds.ts` and imported
-here. `canWrite` is the drawer's existing `canUpload`
-(`isAgentFileUploadsEnabled() && !explicitFiles && !!drive.mount`), which is the closest thing to
-a writable-mount answer the frontend has. `mountSchema` has no read-only flag to read and we do
-not invent one.
-
-`hidden` renders no Edit button at all. `capped` renders it disabled with a tooltip naming the
-cap. The spec's reasoning: a category is not a limit, and a disabled Edit on every image would
-train people to ignore the button.
+this feature. `unavailable` renders no Edit button at all — a category is not a limit, and a
+disabled Edit on every image would train people to ignore the button. The other three render it
+disabled with a tooltip that says which.
 
 ### The five extensions the user will QA
 
-| Extension | `resolveDriveFileKind` | Affordance | Buffer mode | Read view today | What editing does |
-|---|---|---|---|---|---|
-| `.txt` | `text` | offer | `code`, language `code` | `TextBody`, a `<pre>` | plain source buffer, verbatim round trip |
-| `.csv` | `csv` | offer | `code`, language `code` | `CsvBody`, a parsed table | swaps to a plain source buffer over the raw text; the table returns after save |
-| `.md` | `markdown` | offer | `markdown` | `TextBody` rendering `Markdown` | raw markdown source, with a Preview pane using the same `Markdown` component |
-| `.env` | `text` | offer | `code`, language `code` | `TextBody`, a `<pre>` | same as `.txt` |
-| `.json` | `json` | offer | `code`, language `json` | `CodeBody`, pretty-printed | source buffer seeded from the **raw** content, not from the pretty print |
+| Extension | Kind | Buffer mode | Read view today | What editing does |
+|---|---|---|---|---|
+| `.txt` | `text` | `code`, language `code` | `TextBody`, a `<pre>` | plain source buffer, verbatim round trip |
+| `.csv` | `csv` | `code`, language `code` | `CsvBody`, a parsed table | plain source buffer over the raw text; the table returns after save |
+| `.md` | `markdown` | `code`, language `code` | `TextBody` rendering `Markdown` | raw markdown source, with a Preview pane using the same `Markdown` component |
+| `.env` | `text` | `code`, language `code` | `TextBody`, a `<pre>` | same as `.txt` |
+| `.json` | `json` | `code`, language `json` | `CodeBody`, pretty-printed | source buffer seeded from the **raw** content, not from the pretty print |
 
-Three of these carry a trap worth stating:
+Three traps worth stating:
 
 **`.json` must not be seeded from the read view.** `CodeBody` runs
-`JSON.stringify(JSON.parse(content), null, 2)` before displaying
-(`renderers.tsx:178-186`). Seeding the buffer from that reformats the entire file the moment the
-user changes one line. Seed from `useDriveFileText` directly, which returns the raw content
-string.
+`JSON.stringify(JSON.parse(content), null, 2)` before displaying (`renderers.tsx:178-186`).
+Seeding from that reformats the whole file the moment the user changes one line. Seed from
+`useDriveFileText`, which returns the raw string.
 
 **`.csv` becomes text while editing.** The spec lists `csv` among the editable kinds and there is
-no cell editor here. The table is a read view only.
+no cell editor here. The table is a read view only. `csv` is not in `TEXT_KINDS` but the renderer
+already applies `TEXT_CAP` to it (`renderers.tsx:585-638`), so the cap behaviour matches.
 
 **`.env` works, `.env.local` does not.** `resolveDriveFileKind(".env")` returns `text` because
-the pattern `/\.(txt|log|env)$/i` matches a leading dot. `.env.local` matches nothing and lands on
-`other`, which shows the download card and offers no Edit. Widening the resolver would change the
-read-only viewer's behaviour for every host, so it stays out of this PR and is logged in
-`status.md`. Also note `.env` is a dotfile: it appears only with the hidden-files toggle on, which
-is its default (`useDriveFilters.ts:16`).
+`/\.(txt|log|env)$/i` matches a leading dot. `.env.local` matches nothing and lands on `other`,
+the download card. Widening the resolver would change the read-only viewer for every host, so it
+stays out of this PR and is logged in `status.md`. `.env` is a dotfile and appears only with the
+hidden-files toggle on, which is its default (`useDriveFilters.ts:16`).
 
-For completeness on the non-QA kinds: `.html` is editable as a `code` buffer (its read view has
-its own Preview/Source toggle, which is unrelated and untouched); `image`, `pdf`, `audio`,
-`video`, and `other` are `hidden`.
+`.html` is editable as a `code` buffer; `image`, `pdf`, `audio`, `video`, and `other` are
+`unavailable`.
 
-## 7. Test plan
+## 9. Session-scoped files warn on first edit
+
+The spec's rules require it: a session's files can be torn down with the session. On the first
+keystroke in a buffer whose `scope === "session"`, the edit bar shows a one-line inline notice and
+`markTeardownWarnedAtom` fires so it does not repeat for that buffer. A line in the bar, not a
+modal — it is a caveat, not a decision.
+
+## 10. Test plan
 
 Vitest, colocated, following `dropEntries.test.ts`. No snapshot tests of the rendered drawer.
 
-### `driveEdit.test.ts` (pure helpers)
+### `model.test.ts`
 
-- `resolveDriveFileKind` for `.txt`, `.csv`, `.md`, `.env`, `.json`, plus `agent-files/.env`,
-  `.env.local`, `.png`, `.pdf`, `README`. This locks the dotfile behaviour that the whole `.env`
-  story rests on.
-- `driveEditAffordance` across the matrix: every kind, times `{size under cap, size exactly cap,
-  size over cap, size null}`, times `{canWrite true, canWrite false}`. Assert `capped` only ever
-  appears for a kind in `EDIT_KINDS`, and that `size == null` never produces `capped`.
-- `driveEditBufferMode`: `markdown` only for markdown extensions, `code` for everything else.
-- `driveEditorLanguage`: every key of `CODE_LANGS` maps into the six-value `CodeLanguage` union,
-  and `.json` maps to `json`, `.yaml` to `yaml`, `.py` to `python`, `.sh` to `code`.
+- `resolveDriveFileKind` for `.txt`, `.csv`, `.md`, `.env`, `.json`, `agent-files/.env`,
+  `.env.local`, `.png`, `.pdf`, `README`. Locks the dotfile behaviour the `.env` story rests on.
+- `driveEditAvailability` across the matrix: every kind × `{under cap, exactly cap, over cap,
+  null listing size}` × `{pending, loaded, unreadable}` × `{canEdit true/false}`. Assert
+  `too-large` only ever appears for a kind in `EDIT_KINDS`, that a null listing size still gets
+  capped once the content length is known, and that a failed read never reports `enabled`.
+- `driveEditBufferMode`: `markdown` only for markdown extensions, `code` otherwise.
+- `driveEditorLanguage`: every value in the now-exported `CODE_LANGS` maps into the six-value
+  union; `.json`→`json`, `.yaml`→`yaml`, `.py`→`python`, `.sh`→`code`, `.md`→`code`.
 - `isEditDirty`: differs, identical, identical after retyping, trailing-newline difference,
   empty original.
-- `deriveEditStatus`: one assertion per spec name, twelve in total, each with the minimal record
-  that produces it. Plus the precedence cases: dirty and in preview returns `preview`; dirty with
-  a conflict banner returns `conflict`; conflict with a pending exit returns `confirm`.
-- `conflictFromActivity`: matching path and mount, wrong mount, wrong path, entry timestamped
-  before the buffer opened, entry inside the self-write grace window, null entry, null buffer.
+- `conflictFromListing`: entry missing → conflict; mtime changed → conflict; mtime equal → none;
+  either mtime null → none.
 
-### `driveEditState.test.ts` (transitions)
+### `state.test.ts` (bare `createStore()`, no React)
 
-Uses a bare jotai `createStore()`. No React, no rendering.
+- open puts the machine in a clean buffer with Save disabled; one edit makes it dirty; editing
+  back to the original text makes it clean again.
+- `requestNavigationAtom` on a clean buffer returns the intent and clears the buffer; on a dirty
+  buffer it returns nothing and sets `pendingNavigation`.
+- `resolveNavigationAtom("keep")` clears `pendingNavigation` and touches nothing else.
+- `resolveNavigationAtom("discard")` returns the intent; it clears the buffer for `close`,
+  `cancel`, and `select`, and keeps it for `reload`.
+- `setEditDraftAtom` is ignored while saving.
+- a completion whose `requestId` does not match `inflightRequestId` is a no-op — assert this for
+  success, failure, and conflict, including the case where the buffer was replaced in between.
+- `editSaveSucceededAtom` clears the buffer (edit mode exits).
+- `editSaveFailedAtom` leaves a character-identical draft and an error issue.
+- `markEditConflictAtom` replaces an error issue and vice versa; the two never coexist.
+- `overwriteNextSaveAtom` clears the conflict and sets the flag; `startEditSaveAtom` clears it.
+- `replaceBufferFromRemoteAtom` replaces original, draft, and `baseMtime` and leaves the buffer
+  open and clean.
+- opening a second file while a buffer is open goes through `requestNavigationAtom`; the atom
+  still holds exactly one buffer and the new selection does not apply until the guard resolves.
 
-- open puts the machine in `clean` with Save disabled.
-- one edit gives `dirty`; editing back to the original text returns to `clean`.
-- `clean` plus `requestEditExitAtom` runs the intent immediately, with no guard.
-- `dirty` plus `requestEditExitAtom` sets `pendingExit` and does not run the intent.
-- `resolveEditExitAtom("keep")` clears `pendingExit` and leaves the phase and the draft alone.
-- `resolveEditExitAtom("discard")` runs the intent and clears the buffer.
-- `resolveEditExitAtom("save")` starts a save and runs the intent only after success. A failed
-  save leaves the intent unrun and the buffer alive.
-- `saving` then `editSaveSucceededAtom` gives `saved`. `saving`, then an edit, then
-  `editSaveSucceededAtom` gives `dirty`, not `saved`.
-- `editSaveFailedAtom` gives `dirty` with an error banner and a character-identical draft.
-- `markEditConflictAtom` while an error banner is showing replaces it, and the reverse. Assert
-  the two banners never coexist.
-- `forceNextEditSaveAtom` clears the conflict banner and sets `forceNextSave`; the flag is
-  cleared by the next `startEditSaveAtom`.
-- `adoptTheirsAtom` replaces original, draft, and `baseMtime`, and returns the phase to `clean`.
-- opening a second file while a buffer is open: `requestEditExitAtom({kind:"select"})` is what
-  runs, the atom value is still exactly one object, and the new selection does not apply until
-  the guard resolves.
+### `controller.test.ts` (the seams that actually break)
 
-### What is deliberately not unit-tested
+Thin fakes for the query client and the write call; no Lexical.
 
-The Lexical editor itself, the `SET_MARKDOWN_VIEW` dispatch timing, and the antd rendering. Those
-are covered by the live QA matrix in `CONTEXT.md`, which is where the markdown source toggle and
-the two themes actually get checked.
+- a drawer close from the shell (mask/Escape path) routes through the guard.
+- a changed `initialPath` while dirty routes through the guard and does not re-select underneath.
+- a missing directory entry produces a conflict rather than recreating a deleted file.
+- the pre-write fetch key carries the active `includeGitignored` value.
+- a late success from file A does not mutate a buffer for file B.
+- `agent-files/x.md` writes to the agent mount with path `x.md`, and its content-cache seed and
+  directory fetch use that mount id.
+- a successful save seeds the content cache with the exact draft and invalidates all four
+  listing roots.
+- the write goes out as multipart with the full path and `maxRetries: 0`.
 
-## 8. The antd migration constraint
+### Deliberately not unit-tested
+
+The Lexical editor itself and the antd rendering. Byte fidelity is instead structural: markdown
+never enters rich mode, so there is no serializer in the path. A test asserts
+`driveEditBufferMode` never produces a non-`codeOnly` editor configuration, and QA checks the
+bytes.
+
+## 11. The antd migration constraint
 
 PR #5643 rewrites `import {X} from "antd"` to `import {X} from "@agenta/ui/ui"` across the app.
-`@agenta/ui/ui` does not exist on `release/v0.109.0`, so nothing here can be written
-forward-compatible. The goal is instead to make the post-merge fixup mechanical and short.
-
-**antd imports this feature adds, in full:**
+`@agenta/ui/ui` does not exist on `release/v0.109.0`, so nothing here can be forward-compatible.
+The goal is to make the post-merge fixup mechanical.
 
 | File | antd imports | Why here |
 |---|---|---|
-| `DriveEditBar.tsx` | `Segmented`, `Button`, `Tooltip` | The Source/Preview control is a segmented control by the spec's own drawing, and `Segmented` is what `DriveToolbar` and `renderers.tsx` already use for the same shape. |
-| `DriveEditBanner.tsx` | `Alert`, `Button` | `Alert` is already used elsewhere in `Drives/` and carries the error and warning tones the two banners need. |
+| `components/DriveEditBar.tsx` | `Segmented`, `Button`, `Tooltip` | The Source/Preview control is a segmented control in the spec's drawing, and `Segmented` is what `DriveToolbar` and `renderers.tsx` already use for that shape |
+| `components/DriveEditBanner.tsx` | `Alert`, `Button` | `Alert` is already used in `Drives/` and carries both tones |
 
 **Zero new antd import lines in existing files.** `DriveHeader.tsx` already imports `Button`,
-`Tooltip`, and `Tag`, which is everything its Edit / Cancel / Save / chip additions need.
+`Tooltip`, and `Tag`. `DriveEditGuardModal` uses `EnhancedModal` from `@agenta/ui/components`,
+which `web/AGENTS.md` requires over raw antd `Modal`. `DriveFileEditor` uses `SharedEditor`,
+`EditorProvider`, and the existing `Markdown` component. `model.ts`, `state.ts`, `api.ts`, and
+the controller have no React and no antd by construction.
 
-**Files that avoid antd entirely and why:**
-
-- `DriveEditGuardModal.tsx` and `DriveEditDiffModal.tsx` use `EnhancedModal` from
-  `@agenta/ui/components`. `web/AGENTS.md` requires it over raw antd `Modal`, and it keeps the two
-  dialogs out of the migration's path.
-- `DriveFileEditor.tsx` uses `SharedEditor`, `EditorProvider`, and the existing `Markdown`
-  component. No antd.
-- `driveEdit.ts`, `driveEditState.ts`, `driveEditSave.ts`, `useDriveEdit.ts` have no React and no
-  antd by construction.
-
-So the whole feature concentrates raw antd into two new files. After #5643 merges, the fixup is
-two import lines.
+After #5643 merges the fixup is two import lines.
 
 **Lines not to touch:** the `CopyButton size="small"` occurrences in `DriveFilePreview.tsx`,
-`DriveHeader.tsx`, and `FolderView.tsx`. #5643 changes each of them to `size="icon-sm"`. Leaving
-them alone keeps the merge clean.
+`DriveHeader.tsx`, and `FolderView.tsx`. #5643 changes each to `size="icon-sm"`.
 
-## 9. Build order
+## 12. Accessibility
+
+- The header's `aria-live="polite"` region announces Saving, Saved, save errors, and conflicts.
+- `DriveTreePane`'s `interactive={false}` sets `inert` so the tree's focusable row buttons and
+  the focusable resize separator leave the tab order — pointer-events alone is not an interaction
+  boundary.
+- The guard modal returns focus to the editor on Keep editing.
+- Both light and dark themes are checked for every new state, not only the happy-path editor:
+  the error banner, the conflict banner, the disabled Edit tooltip, the saving spinner, the
+  Unsaved and Saved tags, and the guard modal.
+
+## 13. Build order
 
 Each step leaves the tree building and testable.
 
-1. `driveKinds.ts` gets `TEXT_CAP`; `renderers.tsx` re-exports it. No behaviour change.
-2. `driveEdit.ts` plus `driveEdit.test.ts`. Pure, no UI.
-3. `driveEditState.ts` plus `driveEditState.test.ts`. Pure, no UI.
-4. `driveEditSave.ts` and the `mountFileWrittenResponseSchema` addition. Verify the write against
-   the local stack with a scratch call before any UI exists.
-5. `DriveFileEditor.tsx` and `DriveEditBar.tsx`, wired into `DriveFilePreview` and
-   `DriveExplorer`. At the end of this step a `.txt` file edits and saves, with no guard, no
-   banner, and no conflict handling.
-6. `useDriveEdit.ts`: the guard, `DriveEditGuardModal`, the key bindings, the tree pane going
-   inert, the header chips, the tree-row dot.
-7. `DriveEditBanner.tsx`, the pre-write check, self-write suppression, the activity subscription,
-   `DriveEditDiffModal.tsx`.
-8. Markdown Source/Preview.
-9. Both themes, then the five-extension QA matrix.
-10. `pnpm lint-fix` inside `web/`.
+1. `driveKinds.ts` gets `TEXT_CAP` and exports `CODE_LANGS`; `renderers.tsx` re-exports the cap.
+   No behaviour change.
+2. Package: `mountFileWrittenResponseSchema`, `writeMountFile`, and the three barrel exports.
+   Verify the write against the local stack with a scratch call before any UI exists.
+3. `editMode/model.ts` + `model.test.ts`. Pure, no UI.
+4. `editMode/state.ts` + `state.test.ts`. Pure, no UI.
+5. `editMode/api.ts` and `invalidateMountListings`.
+6. `DriveFileEditor` and `DriveEditBar`, wired through `DriveFilePreview` and `DriveExplorer`.
+   At the end of this step a `.txt` file edits and saves, with no guard and no conflict handling.
+7. The controller: guard modal owned by `FilesDrawer`, the held `initialPath`, the guarded
+   `select`, drop disabled while editing, `DriveTreePane` inertness, key bindings, header chips,
+   tree-row dot.
+8. `DriveEditBanner`, the pre-write check, Reload from disk, Overwrite.
+9. Markdown Source/Preview, the session-teardown notice, the `aria-live` region.
+10. `controller.test.ts`.
+11. Both themes, then the five-extension QA matrix.
+12. `pnpm lint-fix` inside `web/`.
+
+Keep the reasoning in this document. Implementation comments are one short line each
+(`web/AGENTS.md`); the only two that earn a line are the multipart-body constraint and the
+stale-request check.

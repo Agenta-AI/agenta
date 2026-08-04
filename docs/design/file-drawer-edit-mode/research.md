@@ -72,9 +72,14 @@ parsing fails. Handed a markdown or CSV file it produces an empty or mangled dif
 **What we do instead.** `computeTextDiffLines(original, modified, options)` is exported from
 `@agenta/ui/diff` (`Editor/utils/diffUtils.ts:481`) and returns `ExtendedDiffLine[]` with
 `type: "context" | "added" | "removed" | "fold"` plus line numbers. It is already used this way
-by `packages/agenta-entities/src/workflow/commitDiff/classify.ts:167`. The conflict diff renders
-that list. `DiffView` is still used, but only for the `json` kind, where its language handling
-is correct.
+by `packages/agenta-entities/src/workflow/commitDiff/classify.ts:167`.
+
+`DiffView` is not used at all, not even for `json`. Its diff extension parses the strings with
+YAML or JSON5 before computing the diff and logs-and-bails on a parse failure
+(`plugins/code/extensions/diffHighlight.tsx:385-425,526-529`), and a file with a `.json` suffix
+is routinely mid-edit and not yet valid. The product compares raw file bytes, not parsed data
+structures. The conflict diff is deferred out of the first PR; when it lands it uses
+`computeTextDiffLines` for every kind.
 
 ### 3. `SharedEditor`'s README describes props that do not exist
 
@@ -88,7 +93,21 @@ state?: "default" | "filled" | "disabled" | "readOnly" | "focus" | "typing"
 ```
 
 There is no `containerVariant` prop. Write against `types.ts` and `SharedEditor.tsx`, not the
-README.
+README. Two semantics the prop list does not reveal:
+
+- **`state` is visual only.** It changes container classes and cursor styling
+  (`SharedEditor.tsx:114-178`). Editability comes from the separate `disabled` prop, forwarded to
+  `Editor` (`:216-235`) and on to `EditorInner`, which defaults it to `false` and calls
+  `editor.setEditable(!disabled)` (`Editor.tsx:455-457`). Disabling only the provider is undone by
+  that inner effect.
+- **`value` wins over `initialValue` immediately.** `controlledValue = value ?? initialValue`
+  (`SharedEditor.tsx:71-80`), and in code mode the plugin seeds from
+  `value !== undefined ? value : initialValue` (`plugins/index.tsx:149-160`). There is no
+  two-phase "seed from one, sync from the other". The buffer must own its own baseline.
+
+`EditorProviderProps` in `Editor/types.d.ts:19-26` is also stale — it declares only HTML props,
+`children`, and `dimensions`, while the component is typed `EditorProps & {children}`
+(`Editor.tsx:816-847`). The JSX call still type-checks off the inferred signature.
 
 ### 4. `EditorProps.language` is a six-value union, not a Shiki language id
 
@@ -102,7 +121,8 @@ export type CodeLanguage = "json" | "yaml" | "code" | "python" | "javascript" | 
 
 Passing `"shellscript"` type-errors. `SimpleSharedEditor` works around this today by casting
 (`"html" as string as CodeLanguage`, `SimpleSharedEditor/index.tsx:95`). We add a small pure
-mapper instead, and unit-test that every entry in `CODE_LANGS` maps into the union.
+mapper instead, and unit-test that every entry in `CODE_LANGS` maps into the union. `CODE_LANGS`
+is module-private today, so the plan exports it — a test cannot import its subject otherwise.
 
 ### 5. `SET_MARKDOWN_VIEW(true)` means raw markdown source, not preview
 
@@ -119,9 +139,21 @@ pattern is `MarkdownViewSynchronizer` in
 `requestAnimationFrame` to cover the mount race where the effect runs before `MarkdownPlugin`
 has registered the command.
 
-This matters for correctness, not just for the toggle. A markdown file edited in rich-text mode
-round-trips through the markdown serialiser on every keystroke, which reflows the user's
-original formatting. So a markdown buffer pins `SET_MARKDOWN_VIEW` to `true` for its whole life.
+Pinning that command is nonetheless **not** enough to make a markdown buffer byte-preserving, and
+this feature does not use it. Two reasons, both verified:
+
+- The first `SET_MARKDOWN_VIEW(true)` does not inject the original file text. Unless its source
+  cache is already reusable it produces the source by serializing the rich tree it just hydrated
+  (`markdownPlugin.tsx:151-168`), so the file can be reformatted before the user types.
+- Rich-mode change emission serializes the document and then runs `stripBackslashEscapes`
+  (`Editor.tsx:282-299`), which strips every backslash preceding another character
+  (`plugins/markdown/utils/textCleanup.ts:146-177`).
+
+`ChatMessageEditor` is not a precedent for a file editor: it edits a semantic chat message and
+never promises byte preservation. Markdown is therefore edited as source through `codeOnly`, like
+every other kind. `codeOnly` does not mount `MarkdownPlugin` at all
+(`plugins/index.tsx: singleLine || codeOnly ? null : <MarkdownPlugin/>`), so there is no command
+to pin, no `markdownViewAtom` to write, and no synchronizer component.
 
 ### 6. `mountFileSchema.mtime` is populated, despite a comment saying it is not
 
