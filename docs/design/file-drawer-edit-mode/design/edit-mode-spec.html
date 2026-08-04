@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/agenta-design-system-0263eb0f-a904-4476-a73b-7afca7b6d749/colors_and_type.css">
+<link rel="stylesheet" href="_ds/agenta-design-system-0263eb0f-a904-4476-a73b-7afca7b6d749/ui_kits/web/kit.css">
+<script src="_ds/agenta-design-system-0263eb0f-a904-4476-a73b-7afca7b6d749/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#f5f7fa; font-family:Inter, system-ui, sans-serif; -webkit-font-smoothing:antialiased; }
+  a { color:#1c2c3d; text-decoration:none; }
+  a:hover { color:#394857; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</helmet>
+
+<div style="min-height:100vh; padding:32px 32px 64px; color:#1c2c3d; font-family:Inter, system-ui, sans-serif;">
+
+  <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:24px; max-width:900px;">
+    <div style="font-size:12px; font-weight:500; letter-spacing:0.06em; text-transform:uppercase; color:#758391;">Files drawer · inline editing</div>
+    <div style="font-size:28px; font-weight:600; line-height:1.2;">Edit takes over the toolbar</div>
+    <div style="font-size:14px; line-height:1.6; color:#586673; text-wrap:pretty;">Direction 1a, at fidelity. Entering edit swaps <span style="font-family:'JetBrains Mono',monospace; font-size:13px;">DriveToolbar</span> (search + origin filter + visibility toggles) for the edit bar, and the header's action cluster for Cancel / Save. Every state below is a real state the implementation has to handle — pick one from the rail to see it.</div>
+  </div>
+
+  <div style="display:flex; gap:24px; align-items:flex-start;">
+
+    <div style="width:224px; flex-shrink:0; position:sticky; top:32px; display:flex; flex-direction:column; gap:4px;">
+      <div style="font-size:11px; font-weight:500; letter-spacing:0.06em; text-transform:uppercase; color:#758391; padding:0 8px 8px;">States</div>
+      <sc-for list="{{ states }}" as="s" hint-placeholder-count="11">
+        <div onClick="{{ s.select }}" style="{{ s.style }}" style-hover="background:rgba(5,23,41,0.04);">
+          <div style="font-size:13px; font-weight:500;">{{ s.label }}</div>
+          <div style="font-size:11px; color:#758391; margin-top:2px;">{{ s.hint }}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:20px; min-width:0;">
+
+      <!-- ============ DRAWER ============ -->
+      <div style="width:960px; background:#fff; border:1px solid #eaeff5; border-radius:8px; box-shadow:0 1px 3px 0 rgb(0 0 0 / 0.1); overflow:hidden; position:relative;">
+
+        <!-- header row 1 — DriveHeader -->
+        <div style="display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid #eaeff5;">
+          <div style="width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#586673; flex-shrink:0;" style-hover="background:rgba(5,23,41,0.04);">
+            <span style="width:16px; height:16px; flex-shrink:0; background:#586673; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/x.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/x.svg) center/contain no-repeat;"></span>
+          </div>
+          <div style="width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#586673; flex-shrink:0;" style-hover="background:rgba(5,23,41,0.04);">
+            <span style="width:16px; height:16px; flex-shrink:0; background:#586673; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/arrows-out.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/arrows-out.svg) center/contain no-repeat;"></span>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">
+            <div style="display:flex; align-items:center; gap:6px; min-width:0; font-family:'JetBrains Mono', monospace; font-size:12px; color:#758391; white-space:nowrap;">
+              <span>root</span><span style="color:#bdc7d1;">/</span><span>agent-files</span><span style="color:#bdc7d1;">/</span><span style="color:#1c2c3d; font-weight:500;">{{ fileName }}</span>
+            </div>
+            <span style="font-size:11px; color:#758391; flex-shrink:0;">{{ fileSize }}</span>
+            <span style="display:inline-flex; align-items:center; height:18px; padding:0 6px; border:1px solid #eaeff5; background:#fafafa; border-radius:4px; font-size:10px; color:#586673; flex-shrink:0;">Agent</span>
+
+            <sc-if value="{{ dirty }}" hint-placeholder-val="{{ false }}">
+              <span style="display:inline-flex; align-items:center; gap:5px; height:20px; padding:0 8px 0 6px; border-radius:10px; background:#fffbe6; border:1px solid #ffe58f; flex-shrink:0;">
+                <span style="width:6px; height:6px; border-radius:50%; background:#faad14;"></span>
+                <span style="font-size:11px; color:#8c6d1f; white-space:nowrap;">Unsaved</span>
+              </span>
+            </sc-if>
+            <sc-if value="{{ saved }}" hint-placeholder-val="{{ false }}">
+              <span style="display:inline-flex; align-items:center; gap:5px; height:20px; padding:0 8px; border-radius:10px; background:#f6ffed; border:1px solid #b7eb8f; flex-shrink:0;">
+                <span style="font-size:11px; color:#389e0d; white-space:nowrap;">Saved</span>
+              </span>
+            </sc-if>
+          </div>
+
+          <!-- view-mode actions -->
+          <sc-if value="{{ browsing }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex; align-items:center; gap:2px; flex-shrink:0;">
+              <div style="width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#586673;" style-hover="background:rgba(5,23,41,0.04);">
+                <span style="width:16px; height:16px; flex-shrink:0; background:#586673; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/upload-simple.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/upload-simple.svg) center/contain no-repeat;"></span>
+              </div>
+              <div style="width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#758391;" style-hover="background:rgba(5,23,41,0.04);">
+                <span style="width:16px; height:16px; flex-shrink:0; background:#758391; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/copy.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/copy.svg) center/contain no-repeat;"></span>
+              </div>
+              <div style="width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#758391;" style-hover="background:rgba(5,23,41,0.04);">
+                <span style="width:16px; height:16px; flex-shrink:0; background:#758391; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/info.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/info.svg) center/contain no-repeat;"></span>
+              </div>
+              <sc-if value="{{ canEdit }}" hint-placeholder-val="{{ true }}">
+                <div style="height:28px; padding:0 12px; margin-left:4px; display:flex; align-items:center; gap:6px; border:1px solid #bdc7d1; border-radius:6px; font-size:12px; font-weight:500; color:#1c2c3d; white-space:nowrap; cursor:pointer;" style-hover="border-color:#394857;" onClick="{{ startEdit }}">
+                  <span style="width:13px; height:13px; flex-shrink:0; background:currentColor; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/pencil-simple.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/pencil-simple.svg) center/contain no-repeat;"></span>
+                  Edit
+                </div>
+              </sc-if>
+              <sc-if value="{{ editBlocked }}" hint-placeholder-val="{{ false }}">
+                <div title="Only text files can be edited" style="height:28px; padding:0 12px; margin-left:4px; display:flex; align-items:center; gap:6px; border:1px solid #eaeff5; border-radius:6px; font-size:12px; font-weight:500; color:#bdc7d1; white-space:nowrap; cursor:not-allowed;">
+                  <span style="width:13px; height:13px; flex-shrink:0; background:currentColor; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/pencil-simple.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/pencil-simple.svg) center/contain no-repeat;"></span>
+                  Edit
+                </div>
+              </sc-if>
+              <div style="height:28px; padding:0 12px; display:flex; align-items:center; gap:6px; border:1px solid #bdc7d1; border-radius:6px; font-size:12px; color:#1c2c3d; white-space:nowrap;" style-hover="border-color:#394857;">
+                <span style="width:13px; height:13px; flex-shrink:0; background:currentColor; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/download-simple.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/download-simple.svg) center/contain no-repeat;"></span>
+                Download
+              </div>
+              <div style="width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center;" style-hover="background:rgba(5,23,41,0.04);"><span style="width:18px; height:18px; flex-shrink:0; background:#758391; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/dots-three.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/dots-three.svg) center/contain no-repeat;"></span></div>
+            </div>
+          </sc-if>
+
+          <!-- edit-mode actions -->
+          <sc-if value="{{ editing }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+              <div onClick="{{ cancel }}" style="height:28px; padding:0 12px; display:flex; align-items:center; border:1px solid #bdc7d1; border-radius:6px; font-size:12px; color:#586673; white-space:nowrap; cursor:pointer;" style-hover="border-color:#394857; color:#1c2c3d;">Cancel</div>
+              <sc-if value="{{ saveEnabled }}" hint-placeholder-val="{{ false }}">
+                <div onClick="{{ save }}" style="height:28px; padding:0 12px; display:flex; align-items:center; gap:7px; background:#1c2c3d; color:#fff; border-radius:6px; font-size:12px; font-weight:500; white-space:nowrap; cursor:pointer;" style-hover="background:#394857;">Save<span style="opacity:0.55; font-size:11px;">⌘S</span></div>
+              </sc-if>
+              <sc-if value="{{ saving }}" hint-placeholder-val="{{ false }}">
+                <div style="height:28px; padding:0 12px; display:flex; align-items:center; gap:7px; background:#394857; color:#fff; border-radius:6px; font-size:12px; font-weight:500; white-space:nowrap;">
+                  <span style="width:11px; height:11px; border:1.5px solid rgba(255,255,255,0.35); border-top-color:#fff; border-radius:50%; display:inline-block; animation:spin 0.7s linear infinite;"></span>
+                  Saving
+                </div>
+              </sc-if>
+              <sc-if value="{{ saveDisabled }}" hint-placeholder-val="{{ true }}">
+                <div style="height:28px; padding:0 12px; display:flex; align-items:center; gap:7px; background:#f0f3f7; color:#bdc7d1; border-radius:6px; font-size:12px; font-weight:500; white-space:nowrap; cursor:not-allowed;">Save<span style="font-size:11px;">⌘S</span></div>
+              </sc-if>
+            </div>
+          </sc-if>
+        </div>
+
+        <!-- header row 2 — DriveToolbar / edit bar -->
+        <sc-if value="{{ browsing }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; align-items:center; gap:8px; padding:7px 12px; border-bottom:1px solid #eaeff5;">
+            <div style="width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#1c2c3d; flex-shrink:0;" style-hover="background:rgba(5,23,41,0.04);">
+              <span style="width:16px; height:16px; flex-shrink:0; background:#1c2c3d; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/sidebar-simple.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/sidebar-simple.svg) center/contain no-repeat;"></span>
+            </div>
+            <div style="width:220px; height:28px; border:1px solid #d6dee6; border-radius:6px; display:flex; align-items:center; gap:7px; padding:0 9px; flex-shrink:0;">
+              <span style="width:12px; height:12px; flex-shrink:0; background:#bdc7d1; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/magnifying-glass.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/magnifying-glass.svg) center/contain no-repeat;"></span>
+              <span style="font-size:12px; color:#bdc7d1;">Search files</span>
+            </div>
+            <div style="display:flex; gap:2px; padding:2px; background:#f5f7fa; border-radius:6px; flex-shrink:0;">
+              <div style="padding:3px 12px; font-size:12px; font-weight:500; background:#fff; border-radius:4px; box-shadow:0 1px 2px 0 rgb(0 0 0 / 0.05);">All</div>
+              <div style="padding:3px 12px; font-size:12px; color:#586673;">Agent</div>
+              <div style="padding:3px 12px; font-size:12px; color:#586673;">Session</div>
+            </div>
+            <div style="flex:1;"></div>
+            <div style="width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#1c2c3d;" style-hover="background:rgba(5,23,41,0.04);">
+              <span style="width:16px; height:16px; flex-shrink:0; background:#1c2c3d; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/eye.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/eye.svg) center/contain no-repeat;"></span>
+            </div>
+            <div style="width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#758391;" style-hover="background:rgba(5,23,41,0.04);">
+              <span style="width:16px; height:16px; flex-shrink:0; background:#758391; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/file-dashed.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/file-dashed.svg) center/contain no-repeat;"></span>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ editing }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; align-items:center; gap:10px; padding:7px 12px; border-bottom:1px solid #eaeff5; background:#f5f7fa;">
+            <div style="font-size:12px; font-weight:500; color:#1c2c3d; flex-shrink:0;">Editing</div>
+            <div style="width:1px; height:16px; background:#d6dee6; flex-shrink:0;"></div>
+
+            <sc-if value="{{ isMarkdown }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex; gap:2px; padding:2px; background:#fff; border:1px solid #d6dee6; border-radius:6px; flex-shrink:0;">
+                <div onClick="{{ showSource }}" style="{{ sourceTabStyle }}">Source</div>
+                <div onClick="{{ showPreview }}" style="{{ previewTabStyle }}">Preview</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:1px; flex-shrink:0;">
+                <div style="width:26px; height:26px; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; color:#586673;" style-hover="background:rgba(5,23,41,0.04);">B</div>
+                <div style="width:26px; height:26px; border-radius:4px; display:flex; align-items:center; justify-content:center;" style-hover="background:rgba(5,23,41,0.04);"><span style="width:14px; height:14px; background:#586673; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/text-italic.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/text-italic.svg) center/contain no-repeat;"></span></div>
+                <div style="width:26px; height:26px; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:#586673;" style-hover="background:rgba(5,23,41,0.04);">H2</div>
+                <div style="width:1px; height:14px; background:#eaeff5; margin:0 4px;"></div>
+                <div style="width:26px; height:26px; border-radius:4px; display:flex; align-items:center; justify-content:center; color:#586673;" style-hover="background:rgba(5,23,41,0.04);">
+                  <span style="width:14px; height:14px; flex-shrink:0; background:#586673; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/list-bullets.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/list-bullets.svg) center/contain no-repeat;"></span>
+                </div>
+                <div style="width:26px; height:26px; border-radius:4px; display:flex; align-items:center; justify-content:center; color:#586673;" style-hover="background:rgba(5,23,41,0.04);">
+                  <span style="width:14px; height:14px; flex-shrink:0; background:#586673; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/code.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/code.svg) center/contain no-repeat;"></span>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isCode }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                <div style="height:24px; padding:0 8px; display:flex; align-items:center; gap:6px; border:1px solid #d6dee6; background:#fff; border-radius:4px; font-size:11px; color:#586673;">Python<span style="color:#bdc7d1;">▾</span></div>
+                <div style="font-size:11px; color:#758391;">Syntax highlighting only — no markdown toggle</div>
+              </div>
+            </sc-if>
+
+            <div style="flex:1;"></div>
+            <div style="font-size:11px; color:#758391; white-space:nowrap; flex-shrink:0;">Esc to cancel · filters resume after saving</div>
+          </div>
+        </sc-if>
+
+        <!-- banners -->
+        <sc-if value="{{ conflict }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; align-items:center; gap:10px; padding:9px 12px; background:#fffbe6; border-bottom:1px solid #ffe58f;">
+            <span style="width:15px; height:15px; flex-shrink:0; background:#faad14; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/fill/warning-circle-fill.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/fill/warning-circle-fill.svg) center/contain no-repeat;"></span>
+            <div style="font-size:12px; color:#8c6d1f; line-height:1.5;">The agent wrote to <span style="font-family:'JetBrains Mono',monospace;">INDEX.md</span> while you were editing. Saving now overwrites its version.</div>
+            <div style="flex:1;"></div>
+            <div style="display:flex; gap:6px; flex-shrink:0;">
+              <div style="height:24px; padding:0 10px; display:flex; align-items:center; border:1px solid #ffe58f; background:#fff; border-radius:4px; font-size:11px; color:#8c6d1f; white-space:nowrap;">View diff</div>
+              <div style="height:24px; padding:0 10px; display:flex; align-items:center; border:1px solid #ffe58f; background:#fff; border-radius:4px; font-size:11px; color:#8c6d1f; white-space:nowrap;">Reload theirs</div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ error }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; align-items:center; gap:10px; padding:9px 12px; background:#fff2f0; border-bottom:1px solid #ffccc7;">
+            <span style="width:15px; height:15px; flex-shrink:0; background:#d61010; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/fill/warning-circle-fill.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/fill/warning-circle-fill.svg) center/contain no-repeat;"></span>
+            <div style="font-size:12px; color:#a8071a; line-height:1.5;">Couldn't save — the mount rejected the write. Your changes are still here.</div>
+            <div style="flex:1;"></div>
+            <div style="height:24px; padding:0 10px; display:flex; align-items:center; border:1px solid #ffccc7; background:#fff; border-radius:4px; font-size:11px; color:#a8071a; white-space:nowrap; flex-shrink:0;">Try again</div>
+          </div>
+        </sc-if>
+
+        <!-- body -->
+        <div style="display:flex; height:440px;">
+          <div style="{{ treeStyle }}">
+            <div style="display:flex; flex-direction:column; font-size:12px; color:#586673;">
+
+              <div style="white-space:nowrap; display:flex; align-items:center; gap:6px; padding:4px 12px 4px 6px; border-radius:4px;" style-hover="background:rgba(5,23,41,0.02);">
+                <span style="width:16px; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><span style="width:10px; height:10px; background:#bdc7d1; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/caret-right.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/caret-right.svg) center/contain no-repeat;"></span></span>
+                <span style="width:14px; height:14px; flex-shrink:0; background:#faad14; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/folder-simple.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/folder-simple.svg) center/contain no-repeat;"></span>
+                <span style="font-family:'JetBrains Mono', monospace;">.codex</span>
+                <span style="display:inline-flex; align-items:center; height:16px; padding:0 4px; border:1px solid #eaeff5; border-radius:4px; font-size:10px; font-weight:500; color:#758391; flex-shrink:0;">Session</span>
+              </div>
+
+              <div style="white-space:nowrap; display:flex; align-items:center; gap:6px; padding:4px 12px 4px 6px; border-radius:4px;" style-hover="background:rgba(5,23,41,0.02);">
+                <span style="width:16px; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><span style="width:10px; height:10px; background:#bdc7d1; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/caret-down.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/caret-down.svg) center/contain no-repeat;"></span></span>
+                <span style="width:14px; height:14px; flex-shrink:0; background:#faad14; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/folder-simple.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/folder-simple.svg) center/contain no-repeat;"></span>
+                <span style="font-family:'JetBrains Mono', monospace; color:#1c2c3d;">agent-files</span>
+                <span style="display:inline-flex; align-items:center; height:16px; padding:0 4px; border:1px solid #13c2c2; border-radius:4px; font-size:10px; font-weight:500; color:#13c2c2; flex-shrink:0;">Agent</span>
+              </div>
+
+              <div style="white-space:nowrap; display:flex; align-items:center; gap:6px; padding:4px 12px 4px 20px; border-radius:4px;" style-hover="background:rgba(5,23,41,0.02);">
+                <span style="width:16px; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><span style="width:10px; height:10px; background:#bdc7d1; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/caret-right.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/caret-right.svg) center/contain no-repeat;"></span></span>
+                <span style="width:14px; height:14px; flex-shrink:0; background:#faad14; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/folder-simple.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/folder-simple.svg) center/contain no-repeat;"></span>
+                <span style="font-family:'JetBrains Mono', monospace;">_archive</span>
+              </div>
+
+              <div style="white-space:nowrap; display:flex; align-items:center; gap:6px; padding:4px 12px 4px 20px; border-radius:4px;" style-hover="background:rgba(5,23,41,0.02);">
+                <span style="width:16px; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><span style="width:10px; height:10px; background:#bdc7d1; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/caret-right.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/caret-right.svg) center/contain no-repeat;"></span></span>
+                <span style="width:14px; height:14px; flex-shrink:0; background:#faad14; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/folder-simple.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/folder-simple.svg) center/contain no-repeat;"></span>
+                <span style="font-family:'JetBrains Mono', monospace;">00-product</span>
+              </div>
+
+              <div style="white-space:nowrap; display:flex; align-items:center; gap:6px; padding:4px 12px 4px 20px; border-radius:4px;" style-hover="background:rgba(5,23,41,0.02);">
+                <span style="width:16px; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><span style="width:10px; height:10px; background:#bdc7d1; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/caret-right.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/caret-right.svg) center/contain no-repeat;"></span></span>
+                <span style="width:14px; height:14px; flex-shrink:0; background:#faad14; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/folder-simple.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/folder-simple.svg) center/contain no-repeat;"></span>
+                <span style="font-family:'JetBrains Mono', monospace;">06-measurement</span>
+              </div>
+
+              <div style="white-space:nowrap; display:flex; align-items:center; gap:6px; padding:4px 12px 4px 36px; border-radius:4px; opacity:0.6;" style-hover="background:rgba(5,23,41,0.02);">
+                <span style="width:14px; height:14px; flex-shrink:0; background:#758391; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/file.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/file.svg) center/contain no-repeat;"></span>
+                <span style="font-family:'JetBrains Mono', monospace;">.env</span>
+                <span style="font-size:11px; color:#bdc7d1; flex-shrink:0;">257 B</span>
+              </div>
+
+              <div style="white-space:nowrap; display:flex; align-items:center; gap:6px; padding:4px 12px 4px 36px; border-radius:4px;" style-hover="background:rgba(5,23,41,0.02);">
+                <span style="width:14px; height:14px; flex-shrink:0; background:#4fd1b5; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/file-text.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/file-text.svg) center/contain no-repeat;"></span>
+                <span style="font-family:'JetBrains Mono', monospace;">AGENT-OPERATING-RULES.md</span>
+              </div>
+
+              <div style="white-space:nowrap; display:flex; align-items:center; gap:6px; padding:4px 12px 4px 36px; border-radius:4px; background:#eef2f6; box-shadow:inset 0 0 0 1px #1c2c3d;">
+                <span style="{{ selectedIconStyle }}"></span>
+                <span style="font-family:'JetBrains Mono', monospace; color:#1c2c3d;">{{ fileName }}</span>
+                <span style="font-size:11px; color:#bdc7d1; flex-shrink:0;">{{ fileSize }}</span>
+                <sc-if value="{{ dirty }}" hint-placeholder-val="{{ false }}">
+                  <span style="width:6px; height:6px; border-radius:50%; background:#faad14; flex-shrink:0;"></span>
+                </sc-if>
+              </div>
+
+              <div style="white-space:nowrap; display:flex; align-items:center; gap:6px; padding:4px 12px 4px 36px; border-radius:4px;" style-hover="background:rgba(5,23,41,0.02);">
+                <span style="width:14px; height:14px; flex-shrink:0; background:#4fd1b5; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/file-text.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/file-text.svg) center/contain no-repeat;"></span>
+                <span style="font-family:'JetBrains Mono', monospace;">README.md</span>
+                <span style="font-size:11px; color:#bdc7d1; flex-shrink:0;">293 B</span>
+              </div>
+
+              <div style="white-space:nowrap; display:flex; align-items:center; gap:6px; padding:4px 12px 4px 36px; border-radius:4px;" style-hover="background:rgba(5,23,41,0.02);">
+                <span style="width:14px; height:14px; flex-shrink:0; background:#4fd1b5; -webkit-mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/file-text.svg) center/contain no-repeat; mask:url(https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/file-text.svg) center/contain no-repeat;"></span>
+                <span style="font-family:'JetBrains Mono', monospace;">trello-main-board.md</span>
+                <span style="font-size:11px; color:#bdc7d1; flex-shrink:0;">153 B</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="flex:1; min-width:0; display:flex; flex-direction:column; position:relative;">
+
+            <sc-if value="{{ showSourcePane }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sourcePaneStyle }}">
+                <div style="font-family:'JetBrains Mono', monospace; font-size:12px; line-height:1.9; color:#1c2c3d;">
+                  <div><span style="color:#758391;"># </span>Agenta GTM — folder index</div>
+                  <div style="height:23px;"></div>
+                  <div><span style="color:#758391;">**</span>Updated:<span style="color:#758391;">**</span> 2026-08-01 <span style="color:#758391;">**</span>Status:<span style="color:#758391;">**</span> live — this IS the durable agent-folder root.</div>
+                  <div style="height:23px;"></div>
+                  <div><span style="color:#758391;">## </span>How this folder works</div>
+                  <div style="height:23px;"></div>
+                  <div><span style="color:#758391;">- </span>Numbered folders follow GTM funnel order: product → research → positioning.</div>
+                  <div><span style="color:#758391;">- </span><span style="background:#f0f2f5; padding:1px 4px; border-radius:3px;">_archive/</span> = superseded material, kept with self-describing names.</div>
+                  <div><span style="color:#758391;">- </span>Provenance tags: original, recovered verbatim, recovered (synthesis).<span style="{{ caretStyle }}"></span></div>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ showPreviewPane }}" hint-placeholder-val="{{ false }}">
+              <div style="flex:1; padding:20px 24px; overflow:hidden;">
+                <div style="font-size:19px; font-weight:600; margin-bottom:10px;">Agenta GTM — folder index</div>
+                <div style="font-size:13px; line-height:1.7; color:#586673; margin-bottom:16px;"><strong style="color:#1c2c3d; font-weight:600;">Updated:</strong> 2026-08-01 <strong style="color:#1c2c3d; font-weight:600;">Status:</strong> live — this IS the durable agent-folder root.</div>
+                <div style="font-size:15px; font-weight:600; margin-bottom:8px;">How this folder works</div>
+                <div style="display:flex; flex-direction:column; gap:6px; font-size:13px; line-height:1.7; color:#586673;">
+                  <div>· Numbered folders follow GTM funnel order: product → research → positioning.</div>
+                  <div>· <span style="font-family:'JetBrains Mono',monospace; font-size:12px; background:#f0f2f5; padding:1px 5px; border-radius:3px;">_archive/</span> = superseded material, kept with self-describing names.</div>
+                  <div>· Provenance tags: original, recovered verbatim, recovered (synthesis).</div>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ showCodePane }}" hint-placeholder-val="{{ false }}">
+              <div style="flex:1; display:flex; overflow:hidden;">
+                <div style="width:44px; padding:16px 0; display:flex; flex-direction:column; align-items:flex-end; gap:0; background:#fcfdfe; border-right:1px solid #eaeff5; flex-shrink:0;">
+                  <div style="font-family:'JetBrains Mono',monospace; font-size:11px; line-height:23px; color:#bdc7d1; padding-right:10px;">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8</div>
+                </div>
+                <div style="flex:1; padding:16px 18px; font-family:'JetBrains Mono', monospace; font-size:12px; line-height:23px; color:#1c2c3d;">
+                  <div><span style="color:#758391;">#!/usr/bin/env python3</span></div>
+                  <div><span style="color:#758391;">"""Export public X engagement profiles."""</span></div>
+                  <div style="height:23px;"></div>
+                  <div><span style="color:#722ed1;">from</span> __future__ <span style="color:#722ed1;">import</span> annotations</div>
+                  <div style="height:23px;"></div>
+                  <div><span style="color:#722ed1;">def</span> <span style="color:#096dd9;">main</span>() -&gt; <span style="color:#722ed1;">None</span>:</div>
+                  <div>&nbsp;&nbsp;&nbsp;&nbsp;profiles = fetch_profiles()</div>
+                  <div>&nbsp;&nbsp;&nbsp;&nbsp;write_csv(profiles)<span style="display:inline-block; width:1px; height:13px; background:#1c2c3d; vertical-align:-2px; margin-left:1px;"></span></div>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ showImagePane }}" hint-placeholder-val="{{ false }}">
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; background:#fcfdfe;">
+                <div style="width:180px; height:120px; border:1px solid #eaeff5; border-radius:6px; background:#f5f7fa;"></div>
+                <div style="font-size:12px; color:#758391;">Preview only — Edit is hidden for images, PDFs and binaries.</div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ editing }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; align-items:center; gap:14px; padding:6px 14px; border-top:1px solid #eaeff5; background:#f5f7fa; font-size:11px; color:#758391;">
+                <span>{{ language }}</span>
+                <span>UTF-8</span>
+                <span>{{ cursor }}</span>
+                <div style="flex:1;"></div>
+                <span>{{ savedAt }}</span>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+
+        <!-- discard dialog -->
+        <sc-if value="{{ confirm }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute; inset:0; background:rgba(5,23,41,0.45); display:flex; align-items:center; justify-content:center;">
+            <div style="width:420px; background:#fff; border-radius:8px; box-shadow:0 12px 28px 0 rgba(0,0,0,0.2); padding:20px; display:flex; flex-direction:column; gap:10px;">
+              <div style="font-size:15px; font-weight:600;">Discard unsaved changes?</div>
+              <div style="font-size:13px; line-height:1.6; color:#586673;"><span style="font-family:'JetBrains Mono',monospace; font-size:12px;">INDEX.md</span> has changes that haven't been saved. Leaving now discards them.</div>
+              <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:6px;">
+                <div onClick="{{ keepEditing }}" style="height:30px; padding:0 12px; display:flex; align-items:center; border:1px solid #bdc7d1; border-radius:6px; font-size:12px; color:#586673; white-space:nowrap; cursor:pointer;" style-hover="border-color:#394857;">Keep editing</div>
+                <div onClick="{{ discard }}" style="height:30px; padding:0 12px; display:flex; align-items:center; border:1px solid #bdc7d1; border-radius:6px; font-size:12px; color:#586673; white-space:nowrap; cursor:pointer;" style-hover="border-color:#394857;">Discard</div>
+                <div onClick="{{ save }}" style="height:30px; padding:0 12px; display:flex; align-items:center; background:#1c2c3d; color:#fff; border-radius:6px; font-size:12px; font-weight:500; white-space:nowrap; cursor:pointer;" style-hover="background:#394857;">Save and continue</div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+
+      <!-- ============ NOTES FOR THE CURRENT STATE ============ -->
+      <div style="width:960px; border:1px solid #eaeff5; background:#fff; border-radius:8px; padding:18px 20px; display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; align-items:baseline; gap:10px;">
+          <div style="font-size:15px; font-weight:600;">{{ stateTitle }}</div>
+          <div style="font-size:12px; color:#758391;">{{ stateTrigger }}</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:7px;">
+          <sc-for list="{{ notes }}" as="n" hint-placeholder-count="4">
+            <div style="display:flex; gap:9px; font-size:13px; line-height:1.6; color:#586673;">
+              <span style="color:#bdc7d1; flex-shrink:0;">—</span>
+              <span style="text-wrap:pretty;">{{ n }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- ============ IMPLEMENTATION MAP ============ -->
+      <div style="width:960px; border:1px solid #eaeff5; background:#fff; border-radius:8px; padding:18px 20px; display:flex; flex-direction:column; gap:14px;">
+        <div style="font-size:15px; font-weight:600;">What this reuses</div>
+
+        <div style="display:grid; grid-template-columns:230px 1fr; gap:10px 18px; font-size:13px; line-height:1.6; color:#586673;">
+          <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:#1c2c3d;">SharedEditor</div>
+          <div>Same wrapper the prompt fields use: <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">header</span> / <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">footer</span> slots, <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">editorType="borderless"</span> inside the pane, and its <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">state</span> union (<span style="font-family:'JetBrains Mono',monospace; font-size:12px;">filled · focus · typing · readOnly · disabled</span>) maps 1:1 onto the states in the rail. Set <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">disableDebounce</span> — a file buffer wants keystroke-accurate dirty tracking, not the 300ms prompt debounce.</div>
+
+          <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:#1c2c3d;">Editor + markdownPlugin</div>
+          <div>Source ↔ Preview is <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">TOGGLE_MARKDOWN_VIEW</span> / <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">SET_MARKDOWN_VIEW</span> with <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">markdownViewAtom(id)</span> — already built for the prompt editor. The segmented control in the edit bar is a bigger, explicit surface for the same command; the hover toggle stays out of this pane.</div>
+
+          <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:#1c2c3d;">Editor codeOnly</div>
+          <div>Non-markdown text files use <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">editorProps</span> with <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">codeOnly: true</span> and a <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">language</span>, with language resolved from <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">resolveDriveFileKind(path)</span> and the existing <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">editorLanguage</span> util. Markdown toggle is hidden there.</div>
+
+          <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:#1c2c3d;">DiffView</div>
+          <div>Powers "View diff" in the conflict banner — <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">original</span> = the mount's current bytes, <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">modified</span> = the local buffer.</div>
+
+          <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:#1c2c3d;">DriveHeader / DriveToolbar</div>
+          <div>Both take an <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">editing</span> flag. DriveHeader swaps its action cluster for Cancel / Save; DriveToolbar is replaced by the edit bar, so the origin filter, search and visibility toggles can't be touched mid-edit. The tree pane stays mounted but goes <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">inert</span>, so its scroll position and expansion survive.</div>
+
+          <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:#1c2c3d;">Mount write API</div>
+          <div>Save posts the buffer and expects <span style="font-family:'JetBrains Mono',monospace; font-size:12px;">MountFileWrittenResponse</span>; the response's size/mtime refresh the header chip and the tree row without a full drive refetch. Read-only mounts hide Edit entirely.</div>
+        </div>
+
+        <div style="height:1px; background:#eaeff5;"></div>
+
+        <div style="display:flex; flex-direction:column; gap:7px;">
+          <div style="font-size:13px; font-weight:500;">Rules</div>
+          <div style="font-size:13px; line-height:1.7; color:#586673;">Edit is offered only for text kinds (<span style="font-family:'JetBrains Mono',monospace; font-size:12px;">markdown · text · code · json · csv · html</span>) on a writable mount, and only below the size cap the viewer already enforces. ⌘S saves, Esc cancels (routing through the guard when dirty). One file is editable at a time — the drawer never holds two buffers. Closing the drawer, switching origin filter, switching file, and the browser's own unload all hit the same guard. Session-scoped files warn on first edit that the session may be torn down.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:900}}">
+const STATES = [
+  {id:"read", label:"Viewing", hint:"Read-only, Edit offered"},
+  {id:"clean", label:"Editing — clean", hint:"Buffer opened, Save off"},
+  {id:"dirty", label:"Editing — dirty", hint:"Unsaved changes"},
+  {id:"preview", label:"Editing — preview", hint:"Rendered markdown"},
+  {id:"saving", label:"Saving", hint:"Write in flight"},
+  {id:"saved", label:"Saved", hint:"Confirmation, then exit"},
+  {id:"error", label:"Save failed", hint:"Buffer preserved"},
+  {id:"conflict", label:"Changed on disk", hint:"Agent wrote underneath"},
+  {id:"confirm", label:"Discard confirm", hint:"Leaving while dirty"},
+  {id:"code", label:"Code file", hint:"codeOnly, no toggle"},
+  {id:"locked", label:"Not editable", hint:"Image / PDF / binary"},
+  {id:"capped", label:"Over size cap", hint:"Text, but too large"},
+];
+
+const NOTES = {
+  read: {
+    title: "Viewing",
+    trigger: "Default — a text file selected in the tree",
+    notes: [
+      "Edit sits between the icon actions and Download: a bordered secondary button, never primary. Download stays the loudest thing a reader can do.",
+      "Edit is absent (not disabled) when the mount is read-only or the kind isn't text — a disabled button on every image would train people to ignore it.",
+      "Nothing else about this state changes. The pane is still headerless; the header is still the one header.",
+    ],
+  },
+  clean: {
+    title: "Editing — clean",
+    trigger: "Edit clicked, or ⌘E",
+    notes: [
+      "The toolbar row is replaced, not augmented: search, the All/Agent/Session segmented and the visibility toggles are gone for the duration, which is the whole point of this direction.",
+      "Save is disabled until the buffer differs from what was read — an untouched open-and-close must not write a new mtime.",
+      "The tree stays visible but inert; its scroll and expanded folders survive the round trip.",
+      "Focus lands in the editor with the cursor at the start of the document, not the end.",
+    ],
+  },
+  dirty: {
+    title: "Editing — unsaved changes",
+    trigger: "First keystroke",
+    notes: [
+      "Two dirty affordances, one dot each: the 'Unsaved' chip next to the breadcrumb and a dot on the file's tree row.",
+      "Save becomes primary. ⌘S fires it from anywhere in the drawer.",
+      "The chip is the anchor for the guard dialog's copy — same file name, same wording.",
+    ],
+  },
+  preview: {
+    title: "Editing — preview",
+    trigger: "Preview segment, or the markdown toggle command",
+    notes: [
+      "Preview is a view of the buffer, not an exit from edit mode: Cancel and Save stay in the header, and the dirty chip persists.",
+      "Rendered with the same Markdown component the viewer uses, so nothing shifts between preview and the read-only view after save.",
+      "The formatting controls stay visible but disabled in preview — their absence would reflow the bar on every toggle.",
+    ],
+  },
+  saving: {
+    title: "Saving",
+    trigger: "Save or ⌘S",
+    notes: [
+      "The editor goes readOnly for the duration rather than blocking with an overlay; typing into a buffer that's mid-flight is the bug this prevents.",
+      "Cancel stays live and aborts the request — a slow mount shouldn't trap anyone.",
+      "No skeleton, no layout change. Only the button swaps to the spinner.",
+    ],
+  },
+  saved: {
+    title: "Saved",
+    trigger: "Write acknowledged",
+    notes: [
+      "The dirty chip becomes a green 'Saved' chip for about two seconds, then the drawer returns to the viewing state with the file re-rendered.",
+      "Header size chip and tree row update from the write response — no drive refetch, no flash back to skeleton.",
+      "If the user has already typed again during the write, stay in edit mode and go straight back to dirty.",
+    ],
+  },
+  error: {
+    title: "Save failed",
+    trigger: "Write rejected or the request failed",
+    notes: [
+      "Never lose the buffer. The banner is the only new chrome; the editor keeps every character.",
+      "Retry re-posts the same buffer. Cancel still routes through the guard.",
+      "Uses the same banner slot as the conflict case, so only one can ever be shown.",
+    ],
+  },
+  conflict: {
+    title: "Changed on disk",
+    trigger: "The mount's mtime moved while the buffer was open",
+    notes: [
+      "This is the case the current drawer has no answer for: the agent writes constantly, and a naive save silently clobbers it.",
+      "Detected on the file-activity signal that already exists, and re-checked immediately before every write.",
+      "Three ways out: View diff (DiffView, mount bytes vs. buffer), Reload theirs (discards the buffer through the guard), or Save anyway — which overwrites, and says so.",
+    ],
+  },
+  confirm: {
+    title: "Discard confirm",
+    trigger: "Closing, switching file, switching origin filter, or Esc while dirty",
+    notes: [
+      "One dialog for every exit, including the browser's own beforeunload.",
+      "Three actions in escalating order: Keep editing, Discard, Save and continue — the last one completes the action that was interrupted, so switching files still lands on the file you clicked.",
+      "Discard is not destructive-red: this is a scratch buffer, not a deletion.",
+    ],
+  },
+  code: {
+    title: "Code file",
+    trigger: "A non-markdown text kind is selected",
+    notes: [
+      "Same shell, different body: codeOnly with the language resolved from the extension, plus line numbers.",
+      "No Source/Preview segmented — there's nothing to preview. The bar shows the language instead, so the space doesn't read as broken.",
+      "Everything else — dirty tracking, guard, conflict, save — is identical. One state machine for all text kinds.",
+    ],
+  },
+  locked: {
+    title: "Not editable",
+    trigger: "Image, PDF, or anything over the size cap",
+    notes: [
+      "Edit is not rendered at all; Download stays.",
+      "For a text file past the size cap, Edit IS rendered but disabled, with a tooltip naming the cap — that one is a limit, not a category.",
+      "The viewer's existing kind resolver decides this; no second list of extensions to keep in sync.",
+    ],
+  },
+};
+
+class Component extends DCLogic {
+  state = {s: "read"};
+
+  set(id) { this.setState({s: id}); }
+
+  componentDidMount() {
+    this._key = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") { e.preventDefault(); this.set("saved"); }
+      if (e.key === "Escape") this.set(this.dirtyIn(this.state.s) ? "confirm" : "read");
+    };
+    window.addEventListener("keydown", this._key);
+  }
+  componentWillUnmount() { window.removeEventListener("keydown", this._key); }
+
+  dirtyIn(s) { return ["dirty", "preview", "error", "conflict", "confirm"].includes(s); }
+
+  renderVals() {
+    const s = this.state.s;
+    const editing = !["read", "locked"].includes(s);
+    const dirty = this.dirtyIn(s);
+    const isCode = s === "code";
+    const isMarkdown = editing && !isCode;
+    const note = NOTES[s];
+
+    const tab = (on) => "padding:3px 12px; font-size:12px; border-radius:4px; cursor:pointer; white-space:nowrap;" +
+      (on ? " font-weight:500; background:#eef2f6; color:#1c2c3d;" : " color:#586673;");
+
+    return {
+      states: STATES.map((st) => ({
+        label: st.label,
+        hint: st.hint,
+        select: () => this.set(st.id),
+        style: "padding:8px 10px; border-radius:6px; cursor:pointer; border:1px solid " +
+          (st.id === s ? "#d6dee6; background:#fff; box-shadow:0 1px 2px 0 rgb(0 0 0 / 0.05);" : "transparent; background:transparent;"),
+      })),
+
+      selectedIconStyle: (() => {
+        const icon = isCode ? "file-code" : s === "locked" ? "image-square" : "file-text";
+        const tint = isCode ? "#1c2c3d" : s === "locked" ? "#7fb0ff" : "#4fd1b5";
+        const url = "https://unpkg.com/@phosphor-icons/core@2.1.1/assets/regular/" + icon + ".svg";
+        return "width:14px; height:14px; flex-shrink:0; background:" + tint +
+          "; -webkit-mask:url(" + url + ") center/contain no-repeat; mask:url(" + url + ") center/contain no-repeat;";
+      })(),
+
+      fileName: isCode ? "x-engagement-export.py" : s === "locked" ? "launch-frame.png" : "INDEX.md",
+      fileSize: isCode ? "10.1 KB" : s === "locked" ? "412 KB" : "41.2 KB",
+
+      browsing: !editing,
+      editing,
+      dirty,
+      saved: s === "saved",
+      saving: s === "saving",
+      error: s === "error",
+      conflict: s === "conflict",
+      confirm: s === "confirm",
+      canEdit: s === "read",
+      editBlocked: s === "locked",
+      saveEnabled: dirty && s !== "saving",
+      saveDisabled: editing && !dirty && s !== "saving",
+
+      isMarkdown,
+      isCode,
+      showSourcePane: (s === "read" || (editing && !isCode && s !== "preview")),
+      showPreviewPane: s === "preview",
+      showCodePane: isCode,
+      showImagePane: s === "locked",
+
+      sourcePaneStyle: "flex:1; padding:18px 22px; overflow:hidden;" + (s === "saving" ? " opacity:0.6;" : ""),
+      caretStyle: editing && s !== "saving"
+        ? "display:inline-block; width:1px; height:13px; background:#1c2c3d; vertical-align:-2px; margin-left:2px;"
+        : "display:none;",
+      treeStyle: "width:250px; flex-shrink:0; border-right:1px solid #eaeff5; padding:10px 8px; overflow:hidden;" +
+        (editing ? " opacity:0.45; pointer-events:none;" : ""),
+
+      sourceTabStyle: tab(s !== "preview"),
+      previewTabStyle: tab(s === "preview"),
+      showSource: () => this.set("dirty"),
+      showPreview: () => this.set("preview"),
+      startEdit: () => this.set("clean"),
+      cancel: () => this.set(dirty ? "confirm" : "read"),
+      save: () => this.set("saved"),
+      discard: () => this.set("read"),
+      keepEditing: () => this.set("dirty"),
+
+      language: isCode ? "Python" : "Markdown",
+      cursor: isCode ? "Ln 8, Col 25" : "Ln 8, Col 62",
+      savedAt: s === "saved" ? "Saved just now" : "Last saved 13:41",
+
+      stateTitle: note.title,
+      stateTrigger: note.trigger,
+      notes: note.notes,
+    };
+  }
+}
+</script>
+</body>
+</html>
