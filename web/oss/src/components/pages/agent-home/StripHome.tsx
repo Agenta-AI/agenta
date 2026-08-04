@@ -103,14 +103,20 @@ const StripHome: React.FC = () => {
     return (
         <PageLayout className="grow min-h-0">
             {/* First run stays a centered document — one question, one answer, nothing to
-                resume yet. A returning user gets a workspace: two columns that fill the
-                viewport and scroll independently, so starting work and resuming it are both
-                always on screen instead of one being scrolled past. */}
+                resume yet — and scrolls inside the frame rather than moving the page. A
+                returning user gets a workspace: two columns that fill the frame and scroll
+                independently, so starting work and resuming it are both always on screen
+                instead of one being scrolled past.
+
+                Both fill the layout's own full-height frame (`isFullHeight`, which is what
+                puts the `100dvh` calc on the content wrapper) instead of restating a viewport
+                height here. Asserting one locally on a route the layout thinks is a normal
+                flowing document gave the body its own scrollbar underneath the columns'. */}
             <div
                 className={
                     firstRun
-                        ? "mx-auto flex w-full max-w-[1040px] flex-col px-6 pb-20 pt-14"
-                        : "flex h-[calc(100dvh-75px)] w-full gap-6 overflow-hidden px-6 pb-6 pt-8"
+                        ? "mx-auto flex w-full min-h-0 max-w-[1040px] flex-1 flex-col overflow-y-auto px-6 pb-20 pt-14"
+                        : "flex min-h-0 w-full flex-1 gap-6 overflow-hidden px-6 pb-6 pt-8"
                 }
             >
                 <div

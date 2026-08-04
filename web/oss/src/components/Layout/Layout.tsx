@@ -72,6 +72,10 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
     // Covers /agents and /agents/archived, both full-height InfiniteVirtualTable pages.
     const isAgents = pathname.includes("/agents")
     const isSessions = pathname.includes("/sessions")
+    // The apps INDEX only (Home): its two columns scroll independently, so it needs the bounded
+    // frame. Anchored to the end of the path so an app's own sub-routes — /apps/<id>/overview,
+    // /apps/<id>/playground — keep whichever layout they already had.
+    const isAppsHome = /\/apps\/?$/.test(pathname)
 
     return {
         isAuthRoute:
@@ -92,7 +96,8 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
             isAuditLog ||
             isAgentTemplates ||
             isAgents ||
-            isSessions,
+            isSessions ||
+            isAppsHome,
     }
 })
 
