@@ -1,6 +1,7 @@
 import { rmSync } from "node:fs";
 
 import { apiBase } from "../../apiBase.ts";
+import { AppliedState } from "./applied-state.ts";
 
 import { resolveRunSessionId, type AgentRunRequest } from "../../protocol.ts";
 import { type ClientToolOutcome } from "../../responder.ts";
@@ -32,6 +33,7 @@ import {
   type PiModelConfigPlan,
 } from "./pi-model-config.ts";
 import { buildRunPlan } from "./run-plan.ts";
+import { configFingerprint } from "./session-identity.ts";
 import type {
   SandboxAgentDeps,
   SessionEnvironment,
@@ -368,7 +370,16 @@ export async function prepareEnvironmentSetup(
   // so its handler is torn down deterministically and cannot write a result after the turn ends.
   const mcpAbort = new AbortController();
 
+  // LIFECYCLE MIGRATION, STEP 2. The environment owns what it applied. It is seeded from the
+  // request that is building it, because that request IS what this environment installs. Every
+  // later change must go through `commitApplied`, and only after the change succeeds.
+  const applied = new AppliedState(configFingerprint(request));
+
   const environment: SessionEnvironment = {
+    get appliedState() {
+      return applied.appliedState;
+    },
+    commitApplied: (result) => applied.commitApplied(result),
     plan,
     logger,
     deps,

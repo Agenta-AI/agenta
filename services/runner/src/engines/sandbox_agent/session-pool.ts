@@ -12,6 +12,7 @@
  * never imports the engine, so it stays a pure map + timer + policy unit. Operators can disable
  * it explicitly with `AGENTA_RUNNER_SESSION_KEEPALIVE=off`.
  */
+import type { AppliedStateOwner } from "./applied-state.ts";
 import type { CredentialEpoch, KeepaliveConfig } from "./session-identity.ts";
 import type { TeardownReason } from "./teardown.ts";
 
@@ -27,10 +28,19 @@ export type SessionState = "busy" | "idle" | "awaiting_approval" | "destroyed";
  * One parked live session. `environment` is opaque to the pool (the engine reads it on a
  * continuation). `teardown` is the engine's complete, idempotent teardown closure.
  */
-export interface LiveSession<E = unknown> {
+export interface LiveSession<E extends AppliedStateOwner = AppliedStateOwner> {
   key: string;
   environment: E;
-  configFingerprint: string;
+  /**
+   * The configuration this session's environment ACTUALLY runs.
+   *
+   * LIFECYCLE MIGRATION, STEP 2. This is a READ-ONLY view of `environment.appliedState`, not a
+   * stored copy. It used to be a field the caller wrote at park time, and the approval-resume
+   * path wrote the INCOMING request's value into it — a configuration the environment had never
+   * applied. Reading through to the environment removes the field a caller could stamp, so that
+   * bug can no longer be written.
+   */
+  readonly configFingerprint: string;
   historyFingerprint: string;
   /**
    * Whether the request this session parked from asserted a transcript beyond its own turn. A
@@ -49,11 +59,15 @@ export interface LiveSession<E = unknown> {
   teardownPromise?: Promise<void>;
 }
 
-/** Fields the caller supplies to park a session (the pool arms the timer and state itself). */
-export interface ParkInput<E> {
+/**
+ * Fields the caller supplies to park a session (the pool arms the timer and state itself).
+ *
+ * There is deliberately NO `configFingerprint` here. The environment owns that, and the pool
+ * reads it. See `LiveSession.configFingerprint`.
+ */
+export interface ParkInput<E extends AppliedStateOwner> {
   key: string;
   environment: E;
-  configFingerprint: string;
   historyFingerprint: string;
   /** See `LiveSession.historyAsserted`. Omitted defaults to the strictest resume check. */
   historyAsserted?: boolean;
@@ -66,7 +80,7 @@ export interface ParkInput<E> {
  * (Node), so check-and-set on a key needs no lock. All teardown routes through the session's
  * one idempotent `teardown`.
  */
-export class SessionPool<E = unknown> {
+export class SessionPool<E extends AppliedStateOwner = AppliedStateOwner> {
   private readonly sessions = new Map<string, LiveSession<E>>();
 
   constructor(
@@ -156,7 +170,6 @@ export class SessionPool<E = unknown> {
   async repark(
     session: LiveSession<E>,
     update: {
-      configFingerprint: string;
       historyFingerprint: string;
       /** See `LiveSession.historyAsserted`. Omitted defaults to the strictest resume check. */
       historyAsserted?: boolean;
@@ -182,7 +195,8 @@ export class SessionPool<E = unknown> {
       this.sessions.set(session.key, session);
     }
     this.clearTimer(session);
-    session.configFingerprint = update.configFingerprint;
+    // No `configFingerprint` assignment. It reads through to the environment, which is the only
+    // thing that knows what it actually applied.
     session.historyFingerprint = update.historyFingerprint;
     session.historyAsserted = update.historyAsserted ?? true;
     session.credentialEpoch = update.credentialEpoch;
@@ -225,10 +239,14 @@ export class SessionPool<E = unknown> {
       return false;
     }
 
+    const environment = input.environment;
     const session: LiveSession<E> = {
       key: input.key,
-      environment: input.environment,
-      configFingerprint: input.configFingerprint,
+      environment,
+      // A getter, not a copy: the pool always reports what the environment currently has applied.
+      get configFingerprint() {
+        return environment.appliedState.configFingerprint;
+      },
       historyFingerprint: input.historyFingerprint,
       historyAsserted: input.historyAsserted ?? true,
       credentialEpoch: input.credentialEpoch,

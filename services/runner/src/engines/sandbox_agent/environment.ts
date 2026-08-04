@@ -108,7 +108,10 @@ import {
   routeSessionEventToActiveTurn,
 } from "./session-events.ts";
 import { buildSandboxProvider } from "./provider.ts";
-import { readStoredSandboxPointer } from "./sandbox-reconnect.ts";
+import {
+  markSandboxDestroyed,
+  readStoredSandboxPointer,
+} from "./sandbox-reconnect.ts";
 import type {
   AcquireEnvironmentResult,
   SandboxAgentDeps,
@@ -322,7 +325,15 @@ export async function acquireEnvironment(
         );
       }
     }
-    if (!parked) await environment.sandbox?.destroySandbox().catch(() => {});
+    if (!parked) {
+      // Record the id BEFORE the delete call, and record it even when the call throws. A delete
+      // that failed may still have removed the sandbox, so reconnecting to it is a wasted round
+      // trip either way. See `markSandboxDestroyed`.
+      markSandboxDestroyed(
+        environment.sandbox?.sandboxId ?? plan.sandboxId ?? undefined,
+      );
+      await environment.sandbox?.destroySandbox().catch(() => {});
+    }
     await environment.sandbox?.dispose().catch(() => {});
     // Unmount the durable cwd BEFORE removing the dir: data lives in the store, only the host
     // mountpoint is torn down. If unmount is not CONFIRMED gone, skip the delete: rmSync must
