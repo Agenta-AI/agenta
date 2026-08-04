@@ -18,7 +18,10 @@ import type {ReactNode} from "react"
  * never around each section inside it. */
 export const PanelSurface = ({children, className}: {children: ReactNode; className?: string}) => (
     <div
-        className={`box-border overflow-hidden rounded-xl border border-solid border-colorBorderSecondary bg-colorBgContainer ${className ?? ""}`}
+        // An opaque card role, not a fill: the sticky headers inside must hide the rows scrolling
+        // under them, and a translucent surface lets them show through. In dark it sits above the
+        // page (#212327 over #141414); in light the page is already white and the border carries it.
+        className={`box-border overflow-hidden rounded-xl border border-solid border-[var(--ag-surface-card-border)] bg-[var(--ag-surface-card)] ${className ?? ""}`}
     >
         {children}
     </div>
@@ -92,7 +95,7 @@ export const PanelSection = ({
             <div
                 className={`flex shrink-0 items-center justify-between gap-2 ${
                     isRail
-                        ? `bg-colorBgContainer px-4 pb-2 pt-4 ${sticky ? "sticky top-0 z-10" : ""}`
+                        ? `bg-[var(--ag-surface-card)] px-4 pb-2 pt-4 ${sticky ? "sticky top-0 z-10" : ""}`
                         : `px-2 pb-2 pt-2 ${
                               // The page surface is colorBgContainer (#141414 dark / #fff light);
                               // colorBgLayout is pure black and paints a bar the page never uses.
