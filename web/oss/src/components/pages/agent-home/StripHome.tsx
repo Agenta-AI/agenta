@@ -3,8 +3,8 @@ import {useCallback, useEffect, useRef, useState} from "react"
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
 import {PageLayout} from "@agenta/ui"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {ArrowLeftIcon} from "@phosphor-icons/react"
-import {App, Typography} from "antd"
+import {ArrowLeftIcon, PlusIcon} from "@phosphor-icons/react"
+import {App, Button, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
@@ -131,6 +131,20 @@ const StripHome: React.FC = () => {
 
     return (
         <PageLayout className="grow min-h-0 !pb-0">
+            {/* Page-level, filled, top-right — the priority the mockups give it. Creating an agent
+                is the page's standing secondary action, so it does not belong only inside a section
+                header that scrolls in a rail. Hidden on the create surface: you are already there. */}
+            {!firstRun ? (
+                <div className="flex shrink-0 items-center justify-end px-6">
+                    <Button
+                        type="primary"
+                        icon={<PlusIcon size={14} />}
+                        onClick={() => void router.push(`${baseAppURL}?new=1`)}
+                    >
+                        New agent
+                    </Button>
+                </div>
+            ) : null}
             {/* First run stays a centered document — one question, one answer, nothing to
                 resume yet — and scrolls inside the frame rather than moving the page. A
                 returning user gets a workspace: two columns that fill the frame and scroll
@@ -145,7 +159,7 @@ const StripHome: React.FC = () => {
                 className={
                     firstRun
                         ? "mx-auto flex w-full min-h-0 max-w-[1040px] flex-1 flex-col overflow-y-auto px-6 pb-20 pt-14"
-                        : "flex min-h-0 w-full flex-1 gap-6 overflow-hidden px-6 pb-6 pt-8"
+                        : "flex min-h-0 w-full flex-1 gap-6 overflow-hidden px-6 pb-6 pt-2"
                 }
             >
                 <div
