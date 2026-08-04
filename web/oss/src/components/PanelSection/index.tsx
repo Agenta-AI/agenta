@@ -14,17 +14,10 @@ import type {ReactNode} from "react"
  * also why the type scale on these two pages runs wider than the app's 12px default.
  */
 
-/** The rail's container. The border is deliberate and used exactly once — around the whole rail,
- * never around each section inside it. */
+/** The rail column's frame. Transparent now — the sections are the cards, and a card inside a
+ * card was exactly the "one monolithic block" problem. */
 export const PanelSurface = ({children, className}: {children: ReactNode; className?: string}) => (
-    <div
-        // Opaque, not a fill: the sticky headers inside must hide the rows scrolling under them,
-        // and a translucent surface lets them show through. `colorBgElevated` is the app's existing
-        // elevation shade (every dropdown, modal and popover sits on it) rather than a new one.
-        className={`box-border overflow-hidden rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated ${className ?? ""}`}
-    >
-        {children}
-    </div>
+    <div className={`box-border ${className ?? ""}`}>{children}</div>
 )
 
 /**
@@ -40,7 +33,7 @@ export const PanelSurface = ({children, className}: {children: ReactNode; classN
  * container whenever the sections don't reach the bottom, which is most of the time.
  */
 export const PanelScroll = ({children}: {children: ReactNode}) => (
-    <div className="min-h-0 shrink overflow-y-auto">{children}</div>
+    <div className="flex min-h-0 shrink flex-col gap-3 overflow-y-auto pr-1">{children}</div>
 )
 
 /**
@@ -85,13 +78,12 @@ export const PanelSection = ({
         <section
             className={`flex flex-col ${
                 isRail
-                    ? "border-0 border-t border-solid border-colorBorderSecondary first:border-t-0"
+                    ? // Each section is its own card. Stacked inside one, they read as a single
+                      // block: same surface, same colour, a hairline carrying every boundary.
+                      "shrink-0 overflow-hidden rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated"
                     : ""
             } ${minHeightClassName ?? ""}`}
         >
-            {/* The rule belongs BETWEEN sections, not under a header: a header with a rule under it
-                reads as a table head over its rows, and leaves the boundary that matters — one
-                section's last row against the next one's title — completely unmarked. */}
             <div
                 className={`flex shrink-0 items-center justify-between gap-2 ${
                     isRail
