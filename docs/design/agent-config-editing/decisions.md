@@ -67,6 +67,25 @@ reasoning is in `spikes/engine-spike.md` (D1-D33, O1-O12) and `spikes/runner-spi
 
 (Empty. The open calls below move here once answered.)
 
+## Arbitrations after gate 2 (team lead, 4 August)
+
+- **Text-file import into a text field.** `value_from` on `set` is allowed under three
+  required conditions: single file source, string-typed target from the four known
+  long-text fields, unified diff at approval. Folder-into-`set` stays disallowed. This
+  restores the founding use case (an oversized instruction file, issue #5554).
+  change-set.md §5.1.1-§5.1.2; workspace-import.md §8.
+- **Executable permission, four layers, one owner each.** The file's `executable` bit
+  is data. `on_executable` on the folder source is the ephemeral import grant, default
+  reject. `persist_executable_capability` writes the stored skill capability, default
+  false, and requires the import grant. The materializer's exec policy stays the
+  platform's. The conservative always-false alternative was rejected: an inert
+  imported skill with no visible reason is a worse failure than an explicit two-line
+  approval card. workspace-import.md §5.2; change-set.md §5.1.3.
+- **Acknowledgement channel realism.** No fully trusted channel exists from inside a
+  Daytona sandbox. The design makes a forged acknowledgement harmless instead of
+  pretending to secure the channel: worst case is a stale model-visible catalog, never
+  a privilege escalation. adapter-matrix.md §4.3.
+
 ## Settled by the contracts (no longer open)
 
 - Binary and unsupported files reject the whole import by default; `on_unsupported:

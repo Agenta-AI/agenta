@@ -103,7 +103,95 @@ private metadata. That is the seam to build on.
 Both objects carry `catalogGeneration`. The turn runner receives both as one unit, freshly built
 from the incoming request. It must not read either from `env.plan`.
 
-### 2.4 `customTools` and the fingerprint
+### 2.4 The canonical generation payload
+
+Gate 2 is right that "changes when the model-visible catalog changes" is not a definition. An
+authorization minted under generation N also depends on execution semantics the model never
+sees. Those must be in the generation, or the authorization's generation check does not mean
+what `execution-authorization.md` §8 claims.
+
+`catalogGeneration` is SHA-256 over the strict canonical serialization of one document. It uses
+`strictCanonicalJson` from `execution-authorization.md` §2.3.3, not the lenient serializer.
+
+#### 2.4.1 The document
+
+```
+{
+  version: 1,
+  tools: [ ... one entry per tool, sorted by name ... ]
+}
+```
+
+Each entry holds exactly these fields, in this order:
+
+| Field | Source | Why it is in the generation |
+|---|---|---|
+| `name` | The canonical tool key | Identity. |
+| `description` | Public metadata | The model chooses on it. |
+| `inputSchema` | Public metadata | The model's arguments are validated against it. |
+| `readOnly` | Public metadata | The model and the permission policy both read it. |
+| `permission` | Execution plan | Whether a call gates. Changing it changes what an approval means. |
+| `dispatchKind` | Execution plan | `direct`, `gateway`, `client`, or `relay`. It decides which code path runs the call. |
+| `dispatchTarget` | Execution plan | For a direct call, the method plus the path template. For a gateway call, the `callRef`. This is WHERE the call goes. |
+| `contextBindingPaths` | Execution plan | The sorted list of bound argument paths. Not their values. A new binding changes which argument the runner overwrites. |
+| `argsIntoPath` | Execution plan | Where the model's arguments land in the body. |
+| `staticBodyDigest` | Execution plan | A digest of the server-fixed `body` fields. It captures a changed fixed field without copying it. |
+| `timeoutMs` | Execution plan | A behavior change the approver could reasonably care about. |
+
+The list is sorted by `name`. The set of tools is part of the document, so adding or removing a
+tool changes the generation even when no surviving tool changed.
+
+#### 2.4.2 What is deliberately excluded
+
+| Excluded | Reason |
+|---|---|
+| Callback authorization | It is per-turn credential material. It rotates on an ordinary turn. Including it would change the generation constantly and would invalidate every parked authorization for no security gain. |
+| Gateway or MCP credential values | Same reason. Credentials have their own subsystem and their own epoch comparison. |
+| The callback ENDPOINT | Borderline. It is routing, not a credential, and it is already in `configFingerprint`. An endpoint change today evicts the session, so it cannot silently change under a parked authorization. Revisit this if the endpoint ever leaves the fingerprint. |
+| `runContext` values | Per-turn data. The BINDING PATHS are included; the values are not. |
+| Trace and telemetry identifiers | Per-turn. Never behavior. |
+| Tool ordering as delivered | The document sorts, so a reordered input does not churn the generation. |
+
+The rule behind the split: **include what changes the meaning of a call; exclude what rotates.**
+A field that changes on an ordinary turn must not be in the generation, or parked authorizations
+die for no reason and users re-approve constantly.
+
+#### 2.4.3 Execution-plan-only changes
+
+This is the case gate 2 named as undefined. A change to `permission`, `dispatchTarget`,
+`contextBindingPaths`, `argsIntoPath`, `staticBodyDigest`, or `timeoutMs` changes the generation
+even though the model-visible catalog is byte-identical.
+
+Two consequences follow, and both are intended.
+
+1. **Parked authorizations minted under the old generation fail closed.** The human approved a
+   call that would have gone to one place with one permission. It would now go elsewhere. That
+   approval is stale, and `execution-authorization.md` §3.2 refuses it.
+2. **The harness needs no reconciliation.** Nothing the model sees changed, so there is nothing
+   to install and nothing to acknowledge. The runner advances the generation locally and
+   continues. It must not reopen the session for this.
+
+So the reconciliation router reads the generation change and then asks a second question: did
+the model-visible part change? If yes, run the harness route from section 1.3. If no, advance
+the generation and skip straight to the turn.
+
+This makes the generation serve two consumers correctly. Authorizations need every
+behavior-bearing field. Harness reconciliation needs only the model-visible subset. One value
+with an explicit split is simpler than two values that can disagree.
+
+#### 2.4.4 Test obligations
+
+- Changing only `timeoutMs` changes the generation, fails a parked authorization, and does NOT
+  reopen the harness session.
+- Changing only `description` changes the generation and DOES run the harness route.
+- Rotating the callback authorization does NOT change the generation, and a parked
+  authorization still verifies.
+- Reordering the input tool list does NOT change the generation.
+- Adding a tool changes the generation even when every existing tool is unchanged.
+- Changing a `contextBindings` VALUE source without changing its PATH does not change the
+  generation. Changing the path does.
+
+### 2.5 `customTools` and the fingerprint
 
 **`customTools` leaves `configFingerprint` only in the same change that makes the catalog and
 the execution plan atomic.**
@@ -125,6 +213,8 @@ The order is therefore fixed:
 
 Steps 1 to 3 change no reuse behavior. Step 4 is the only behavior change, and by then the
 foundation exists.
+
+Section 2.4 defines the generation these steps compute.
 
 ## 3. The corrected matrix
 
@@ -195,15 +285,95 @@ blocking execution invariant, and this contract adopts it.
 
 If either half cannot be confirmed, Pi removal escalates to `restart-runtime`.
 
-### 4.3 Pi acknowledgement
+### 4.3 Pi acknowledgement, and the channel it needs
 
 The extension hook returns the result of `getActiveTools()` after the refresh. The runner
 compares that set to the desired active set. Equality acknowledges the generation. Any
 difference fails the reconciliation and escalates to restart.
 
-The return path needs a channel. The extension can write the acknowledgement into the relay
-directory, which the runner already polls. Design it as an ordinary relay record with a reserved
-name, so no new transport is needed.
+The gate 1 version put that acknowledgement in the relay directory. That was wrong, and gate 2
+is right to reject it. The relay directory is sandbox-writable. It is the exact surface that
+motivated the whole execution-authorization contract. A forged acknowledgement there would
+advance applied state.
+
+#### 4.3.1 There is no fully trusted channel from inside a Daytona sandbox
+
+State this plainly, because it shapes every option below.
+
+On Daytona the Pi extension runs inside the sandbox. So does the Claude stdio shim. Any message
+either one sends is a message from the untrusted party. Signing it does not change that: the
+signing key must also live inside the sandbox to be usable, and a process that already runs
+arbitrary code there can read it.
+
+The read-once file pattern the runner already uses for the OTLP bearer
+(`writeOtlpAuthFile` in `services/runner/src/engines/sandbox_agent/pi-assets.ts`, mode `0600`)
+raises the cost of a forgery. It does not remove it. A same-user process in the sandbox can read
+the file before the extension does.
+
+So the design must not depend on a trusted acknowledgement. It must make a forged one harmless.
+
+#### 4.3.2 Make the blast radius small, then authenticate what is left
+
+Three runner-side rules bound what a forged acknowledgement can achieve. All three already exist
+elsewhere in this contract set. This section makes them load-bearing.
+
+1. **The execution plan is runner-side and authoritative.** Section 2.3 keeps
+   `ToolExecutionPlan` in runner memory. Section 4.2 half 2 makes the relay refuse a tool absent
+   from the current generation's plan. So a forged acknowledgement can never make a removed tool
+   executable.
+2. **The authorization checks the generation runner-side.** `execution-authorization.md` §3.2
+   compares `catalogGeneration` against the runner's own live value, not against anything the
+   sandbox reports.
+3. **Security-relevant changes never take the apply-live route.** Section 1.4 already exempts
+   permission tightening and credential revocation. Add harness permission files to that list.
+   These always reopen or restart, and they never wait on an acknowledgement.
+
+With those three, the worst a forged acknowledgement achieves is a **stale model-visible
+catalog**: the model still sees a removed tool it cannot call, or does not yet see an added one.
+That is a correctness and user-experience defect. It is not a privilege escalation.
+
+A fourth rule bounds it further:
+
+4. **Applied state may only advance to the generation the runner is currently installing.** The
+   runner holds one pending generation per reconciliation. An acknowledgement can only confirm
+   that pending value. It can never name a generation of its own. So a forged message cannot
+   invent a state; it can only claim that a change the runner already decided to make did
+   happen.
+
+#### 4.3.3 The channel
+
+Given the above, the acknowledgement channel is defined as follows.
+
+- **Not the relay directory.** The relay directory is swept, sandbox-writable, and already
+  carries execution records. Mixing a control-plane message into it invites exactly the
+  confusion gate 2 flagged. Use a dedicated path the relay sweep never touches.
+- **Per-reconciliation nonce.** The runner mints a fresh random nonce for each reconciliation
+  and delivers it through the read-once `0600` file pattern above. The acknowledgement must echo
+  it. The nonce is single-use and expires with the reconciliation deadline.
+- **The acknowledgement carries** the nonce, the pending generation identifier, and a digest of
+  the active tool set. The runner checks all three.
+- **Local runs are genuinely trusted.** On a local run the extension executes on the runner host
+  under the runner's own user. The file channel there is as trustworthy as the runner. The
+  distinction is worth recording, because local is where this can be tested honestly.
+
+#### 4.3.4 The stronger option, if it can be built
+
+The best acknowledgement is a runner-observed effect, not a message. For Pi the candidate is a
+runner-side observation of what the harness actually advertises on its next prompt. If Pi's ACP
+surface can be made to report its active tool set to the client, the runner reads it directly and
+needs no message from inside the sandbox at all.
+
+This contract does not assume that surface exists. The spike did not find one. Record it as the
+target design, and use section 4.3.3 until it exists.
+
+#### 4.3.5 The same reasoning applies to Claude
+
+Section 5.3 makes the Daytona stdio shim the acknowledger. The shim also runs inside the sandbox,
+so it inherits everything above. It uses the same nonce channel and the same four bounding rules.
+
+Claude's acknowledgement is slightly stronger in one respect: the shim reports that the harness
+issued a `tools/list`, which is an event the shim observes rather than a state it asserts. A
+forged report still only confirms the pending generation.
 
 ### 4.4 Pi and MCP
 
@@ -357,6 +527,20 @@ generation mismatches. The rollout must be able to fall back before users see a 
 - Applied state never advances after a failed action. This is the partial-reconciliation test
   the gate review requires.
 
+**Acknowledgement channel.**
+- An acknowledgement written to the RELAY directory is ignored. The runner must not read control
+  messages from the relay dir at all.
+- An acknowledgement with no nonce, a stale nonce, or a reused nonce is refused.
+- An acknowledgement naming a generation the runner is NOT currently installing is refused. This
+  is bounding rule 4 in §4.3.2.
+- A forged acknowledgement for the pending generation, accepted at face value, still cannot make
+  a removed tool executable. Assert on the relay refusal, not on the acknowledgement.
+- A forged acknowledgement cannot install a loosened permission. Permission tightening never
+  takes the apply-live route, per §1.4 and bounding rule 3.
+
+**Generation payload.**
+- The six tests in §2.4.4.
+
 **One generation.**
 - A turn's advertised catalog and its relay execution plan always report the same generation.
 - A tool removed in generation N+1 cannot execute through the relay, even when the harness still
@@ -393,10 +577,33 @@ not close the gate.
 
 - `decisions.md`, the runner-spike tools-discovery block. Replace the four verdict lines with
   section 3's matrix, and add the acknowledgement invariant.
-- `decisions.md`, the `customTools` prerequisite line. Replace it with section 2.4's order.
+- `decisions.md`, the `customTools` prerequisite line. Replace it with section 2.5's order.
 - `decisions.md`, open product call 7. Pi removal by hiding is accepted only with section 4.2's
   execution invariant.
 - `research/runner-lifecycle-codex.md`, section 3's adapter matrix and the
   `HarnessLifecycleCapabilities` type. The capability key needs transport and provider.
 - `spikes/runner-spike.md`, the Part 2 verdict table and summary block.
 - `plan.md`. Split slice 7 as must-fix item 7 requires, and adopt section 8's order.
+
+## 11. Gate 2 resolution
+
+| Gate 2 point | Where it is answered |
+|---|---|
+| New problem 7: the Pi acknowledgement channel is sandbox-writable and forgeable | §4.3 is rewritten. §4.3.1 states that NO fully trusted channel exists from inside a Daytona sandbox, and explains why signing does not fix it. §4.3.2 makes a forged acknowledgement harmless with four runner-side rules, so the worst case is a stale model-visible catalog and never a privilege escalation. §4.3.3 defines the channel: off the relay directory, single-use nonce over the existing read-once `0600` file pattern, echoed with the pending generation and an active-set digest. §4.3.4 names the stronger runner-observed design as the target. §4.3.5 applies the same reasoning to the Claude stdio shim. |
+| New problem 8: generation semantics are incomplete for execution-plan-only changes | §2.4 is new. §2.4.1 defines the canonical document with eleven fields per tool, including `permission`, `dispatchKind`, `dispatchTarget`, `contextBindingPaths`, `argsIntoPath`, `staticBodyDigest`, and `timeoutMs`. §2.4.2 excludes rotating credentials and explains the include-what-changes-meaning rule. §2.4.3 defines the execution-plan-only case: the generation advances, parked authorizations fail closed, and the harness session is NOT reopened. §2.4.4 gives six tests. |
+| Item 6 status: acknowledgement, generation coupling, transport-specific capability, Pi execution revocation, continuity verification | Unchanged from gate 1. §1, §2.1 to §2.3, §2.5, §3, §4.2, §5.2, §6.2. |
+
+Two things this rewrite makes explicit that gate 1 left implied:
+
+- The four bounding rules in §4.3.2 are now load-bearing, not defense in depth. If §2.3 or §4.2
+  half 2 is dropped during implementation, the acknowledgement channel becomes security-critical
+  and this contract no longer holds.
+- §2.4.3 splits the generation's two consumers. Authorizations need every behavior-bearing field.
+  Harness reconciliation needs only the model-visible subset. The router must ask both questions.
+
+Not resolved here, by design:
+
+- Gate 2 item 7, the slice plan, belongs to `plan.md`. §8 gives the order this contract needs.
+- Whether Pi's ACP surface can report its active tool set, which would replace §4.3.3 with the
+  stronger §4.3.4 design. The spike found no such surface. It needs a live check, not another
+  static read.

@@ -59,12 +59,13 @@ BEGIN
  2. SELECT the latest non-archived revision for that variant  -> head
  3. IF base_revision_id is present AND base_revision_id != head.id
        -> ROLLBACK, 409 revision_conflict            (section 6)
- 4. candidate = build(head.data)                     (section 4, pure, no I/O)
+ 4. candidate = build(head)                          (section 4, pure, no I/O)
        -> ChangeSetError: ROLLBACK, 422              (change-set.md section 10)
+       -> NonEmbeddableWorkflowReferenceError: ROLLBACK, 422
  5. validate(candidate)                              (schema + unique names)
        -> issues: ROLLBACK, 422 final_validation_failed
- 6. canonical_new = canonicalize(candidate)          (section 5)
-    canonical_head = canonicalize(head.data)
+ 6. canonical_new  = canonicalize(candidate)         (section 5)
+    canonical_head = canonicalize(head)
  7. IF canonical_new == canonical_head
        -> COMMIT (nothing was written), status = no_change, return head
  8. INSERT the new revision row
@@ -119,12 +120,35 @@ build(head):
   data      = normalize_snippet_data(data)
   data      = infer url from uri                 (when uri is set and url is not)
   data      = merge interface schemas            (retrieve_interface + infer_outputs_schema)
+  reject_non_embeddable_workflow_embeds(data)    (MANDATORY, see 4.1)
   flags     = infer_flags_from_data(...)
   return BuildOutcome(data=data, flags=flags, warnings=result.warnings)
 ```
 
 A full-data commit skips the engine and starts from the supplied `data`. Every later step
 is identical, so both paths produce the same canonical form.
+
+### 4.1 The non-embeddable-reference check stays
+
+`commit_workflow_revision` calls `_reject_non_embeddable_workflow_embeds` today
+(`api/oss/src/core/workflows/service.py:1884`, definition at `:1353`). The checked
+transaction must keep it. It is not optional, and it is not a legacy step.
+
+The check scans the finished configuration for `@ag.embed` references, and it refuses a
+reference to a static workflow that may not be embedded. It raises
+`NonEmbeddableWorkflowReferenceError`. Dropping it would let a change set write an embed
+that the old path refused, so the ordered form would be weaker than the legacy form.
+
+Three properties make it fit inside the lock:
+
+1. It is synchronous, and it does no I/O. It reads the dumped configuration and the
+   in-memory static catalog.
+2. It runs on the FINAL data, after every enrichment step. An embed can arrive through an
+   operation value, so the check must see the result, not the delta.
+3. It maps to 422, like every other change-set refusal. The reason code is
+   `non_embeddable_reference`. Add it to the reason table of `change-set.md` section 10 as
+   a wrapper-owned code, and add `NonEmbeddableWorkflowReferenceError` to the
+   `suppress_exceptions(exclude=[...])` list of section 3.1.
 
 ## 5. Canonicalization and the equality test
 
@@ -133,18 +157,57 @@ enrichment of section 4 fills `url`, `schemas`, and `flags`. The stored head alr
 through the same pipeline. A comparison before enrichment reports a change when only the
 enrichment differs.
 
+### 5.1 The comparison covers every persisted behavior-bearing field
+
+`data` alone is not enough. `flags` is computed by `infer_flags_from_data` and stored in
+its own column (`api/oss/src/dbs/postgres/git/dao.py:1596`). Two revisions can hold equal
+`data` and different `flags`, because the flag inference can change between deployments.
+A comparison over `data` alone would then answer `no_change` for a commit that really does
+change behavior, and the new flags would never reach the database.
+
+So the comparison covers a record, not a tree:
+
 ```text
-canonicalize(data) = data.model_dump(mode="json", exclude_none=True)
-                     with every object key sorted, recursively
+canonical(revision_like) = {
+    "data":  json_dump(data,  exclude_none=True),
+    "flags": json_dump(flags, exclude_none=True),
+}
+with every object key sorted, recursively, at every depth
 ```
 
-Three rules:
+- `json_dump` is `model_dump(mode="json", exclude_none=True)`, the same call the insert
+  path uses. The comparison must use the persisted form, not the in-memory objects.
+- The head side reads `head.data` and `head.flags` from the stored row. It does NOT
+  re-infer them. A re-inference would hide exactly the drift this rule exists to catch.
+- Both sides sort object keys recursively, so key order never decides the answer.
+
+**Behavior-bearing means: the field changes what a run does.** `data` and `flags` do.
+Section 5.2 lists what does not.
+
+### 5.2 What stays out of the comparison
+
+| Field | In the comparison | Why |
+|---|---|---|
+| `data` | yes | It is the configuration. |
+| `flags` | yes | It routes and gates the run. Section 5.1. |
+| `message` | no | Commit metadata. |
+| `name`, `description` | no | Revision metadata. |
+| `tags`, `meta` | no | Labels. They do not change a run. |
+| `slug`, `id`, `version`, `author`, `date` | no | Identity, assigned at insert. |
+
+A commit that changes only a field in the second group is a no-change commit. It creates
+no revision. A caller who wants to record a message with no configuration change must be
+told that no revision was created; the `no_change` status and its warning do that.
+
+This is a deliberate call, and it has a cost: an agent cannot leave a note in the history
+without changing something. Section 12 lists it as an open item.
+
+### 5.3 Three rules
 
 1. **Validate before you compare.** An invalid change set must fail with 422, even when
    its result would equal the head. A caller who sends a bad operation must learn that.
-2. **Compare the canonical persisted data only.** `message`, `name`, `description`,
-   `tags`, and `meta` are not part of the comparison. A commit that changes only the
-   message is a no-change commit. It creates no revision.
+2. **Compare the canonical persisted record.** Section 5.1 defines it. `message`, `name`,
+   `description`, `tags`, and `meta` stay out.
 3. **List order is data.** Two `tools` lists with the same entries in a different order
    are not equal. `add_item` appends, so a remove-then-add of the same entry moves it to
    the end and is a real change.
@@ -156,11 +219,12 @@ The order is fixed. A stale base always wins.
 1. The variant does not exist: 404.
 2. `base_revision_id` is present and does not equal the head: **409**.
 3. The change set fails: 422.
-4. Final validation fails: 422.
-5. The canonical result equals the head: **200 `no_change`**.
-6. Otherwise: **200 `committed`**.
+4. The non-embeddable-reference check fails: 422. Section 4.1.
+5. Final validation fails: 422.
+6. The canonical record equals the head record: **200 `no_change`**. Section 5.1.
+7. Otherwise: **200 `committed`**.
 
-Rule 2 beats rule 5 on purpose. A stale caller can produce a result that happens to equal
+Rule 2 beats rule 6 on purpose. A stale caller can produce a result that happens to equal
 the new head. Answering `no_change` would tell that caller its base was current. It was
 not. The caller must re-read and decide again.
 
@@ -241,7 +305,10 @@ model-supplied value (`sdks/python/agenta/sdk/agents/platform/op_catalog.py:91`)
 that hit a 409 would stay pinned to its stale run revision and could never retry inside
 the same run. The runner fills the field only when it is absent.
 
-On a draft run there is no `$ctx.workflow.revision.id`. See `read-config.md` section 10.
+On a draft run there is no `$ctx.workflow.revision.id`. The runner therefore fills nothing,
+and no base check runs for a legacy draft-run commit. An ordered delta still needs the
+value from the model. `read-config.md` section 10.1 states the single rule and names the
+state source.
 
 ## 9. Events and cache
 
@@ -270,6 +337,7 @@ The service layer must therefore translate:
 | Internal | HTTP |
 |---|---|
 | `ChangeSetError` | `HTTPException(422, detail=error.to_detail())` |
+| `NonEmbeddableWorkflowReferenceError` | `HTTPException(422, reason `non_embeddable_reference`)` |
 | `RevisionConflict` | `HTTPException(409, detail={...})` |
 
 The translation lives at the service or router boundary, and `HTTPException` is already
@@ -294,8 +362,20 @@ excluded from suppression.
 7. **Enrichment parity.** A full-data commit and an equivalent delta commit produce the
    same canonical stored data.
 8. **Suppression.** A forced `RevisionConflict` inside the DAO reaches the client as 409,
-   not as `count: 0`.
+   not as `count: 0`. Repeat it for `NonEmbeddableWorkflowReferenceError` and 422.
 9. **Lock timeout.** A commit that waits longer than the statement timeout fails loudly.
+10. **Flags decide equality.** A commit with identical `data` but different inferred
+    `flags` returns `committed`, and the stored row carries the new flags. Force the
+    difference by changing what `infer_flags_from_data` sees, not by writing flags
+    directly. Section 5.1.
+11. **Flags are read, not re-inferred.** The head side of the comparison uses the stored
+    `flags` column. A test changes the inference rule, leaves `data` alone, and asserts
+    `committed`.
+12. **The embed check survives.** A change set that writes an `@ag.embed` reference to a
+    non-embeddable static workflow returns 422 `non_embeddable_reference`, through both
+    the ordered form and the legacy form. Section 4.1.
+13. **The embed check sees the result.** The embed arrives through an operation `value`,
+    not through the base. The check must still catch it.
 
 ## 12. Open items
 
@@ -311,3 +391,27 @@ excluded from suppression.
    (`api/oss/src/dbs/postgres/git/dao.py:1668`).
 4. **Statement timeout value.** Pick it with the team, and make it an env setting through
    `api/oss/src/utils/env.py`.
+5. **A message-only commit creates nothing.** Section 5.2 keeps `message` out of the
+   comparison, so an agent cannot leave a note in the history without a real change. If
+   the team wants a note-only revision, that is a new decision, and it needs its own
+   status value.
+6. **Product call 12, storing the authored operations.** The gate lists it as blocking
+   this contract. If we store the operations, the persisted record grows a field. Decide
+   before the wrapper lands, or accept a schema migration later.
+
+## 13. Gate 2 resolution
+
+Gate 2 marked item 2 PARTIAL, with two named gaps. New problem 6 restates both.
+
+| Gate point | Answered in |
+|---|---|
+| §4 omits `_reject_non_embeddable_workflow_embeds` | Section 4 pseudocode, and section 4.1 for the rules, the error code, and the placement after enrichment. |
+| §5 claims flags are canonicalized, but compares only `data` | Section 5.1. The comparison covers `data` and `flags` as one record. Section 5.2 lists what stays out and why. |
+| Canonical equality must cover every persisted behavior-bearing field | Section 5.1 defines "behavior-bearing". Section 5.2 gives the full field table. |
+| The checked build must retain the embed check | Section 4.1, point 2: it runs on the FINAL data, so an embed that arrives through an operation value is caught. |
+
+Supporting changes: section 3 pseudocode step 4, section 6 precedence steps 4 and 6,
+section 10 error translation, and tests 8 and 10 to 13.
+
+Still open from gate 2, and not in this contract's scope: item 7, the slice plan, and
+item 8, the mixed-version rollout order and kill switch. Both live in `plan.md`.
