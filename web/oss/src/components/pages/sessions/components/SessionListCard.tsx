@@ -208,9 +208,9 @@ const SessionListCard = ({
                     </AnimatePresence>
 
                     {rows.length === 0 && pinnedRows.length === 0 ? (
-                        <p className="m-0 px-2 py-6 text-center text-xs text-colorTextTertiary">
-                            {emptyText}
-                        </p>
+                        // Deliberately short: an empty card in the rail should take the space it
+                        // needs for one sentence, not reserve a list's worth of height.
+                        <p className="m-0 px-2 py-3 text-xs text-colorTextTertiary">{emptyText}</p>
                     ) : null}
                 </MotionConfig>
             )}

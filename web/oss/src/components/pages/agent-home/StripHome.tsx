@@ -157,24 +157,29 @@ const StripHome: React.FC = () => {
                     />
                 ) : (
                     <>
-                        {/* Returning users get their work first: the sessions they're in the
-                            middle of, then what the automations did. Templates and the agents
-                            table are setup concerns and sit below them. */}
-                        <div className="mt-16 grid grid-cols-1 gap-12 lg:grid-cols-2">
-                            <HomeSessionsSection />
-                            <HomeAutomationsSection />
+                        {/* Two jobs, unequal weight: resuming work is the primary column, and
+                            everything that gives it context sits in a rail beside it. Equal-width
+                            halves gave an empty automations card 50% of the best row on the page. */}
+                        <div className="mt-14 grid grid-cols-1 gap-6 lg:grid-cols-3">
+                            <div className="lg:col-span-2">
+                                <HomeSessionsSection limit={10} />
+                            </div>
+                            <div className="flex flex-col gap-6">
+                                <HomeAutomationsSection />
+                                <UsageSummary variant="strip" />
+                            </div>
                         </div>
+
+                        {/* Setup material, below the work. The agents table keeps full width — it's
+                            a table, and the rail would crush its columns. */}
                         <TemplateStrip
-                            className="mt-16"
+                            className="mt-14"
                             surface="home"
                             layout="grid"
                             selectedTemplateKey={provenance.selectedTemplateKey}
                             onPick={handlePick}
                         />
-                        <div className="mt-16">
-                            <UsageSummary variant="strip" />
-                        </div>
-                        <div className="mt-16">
+                        <div className="mt-14">
                             <YourAgentsTable />
                         </div>
                     </>
