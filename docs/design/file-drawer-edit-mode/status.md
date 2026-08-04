@@ -246,3 +246,80 @@ Deliberately left alone:
   A `setEditIssueAtom` would be the honest fix; logged here rather than done blind.
 - **`DriveEditBanner`'s two `Alert` branches.** Collapsing them into one `Alert` with three
   ternaries reads worse than the two explicit branches.
+
+---
+
+# Review triage — 2026-08-04 (orchestrated Codex fix pass, commit `ed64d2be0b`)
+
+Two independent implementation reviews were run against `af1d33c29a`, `2d7220ae5b`,
+`8301888ee8` and are preserved verbatim at
+`docs/design/file-drawer-edit-mode/reviews/impl-review-claude.md` and
+`.../impl-review-codex.md`. I triaged both against the source before briefing the fix run.
+**25 findings accepted, 12 rejected.** Everything accepted landed in one commit.
+
+## Accepted (deduped across the two reviews)
+
+P1 — correctness, each with a regression test:
+
+| # | Finding | Fix that landed |
+|---|---|---|
+| 1 | Editor is not byte-preserving (Codex B1) — `editorCodeUtils.ts:121,145` turns tabs into two spaces and `trimEnd()`s the document; `code/index.tsx:128` pretty-prints compact JSON on hydration | `DriveFileEditor` switched to `useNativeCodeNodes` (byte-preserving hydrate + `getTextContent()` serialize). New `DriveFileEditor.test.tsx` drives the real Lexical editor in jsdom over trailing newline / trailing spaces / literal tab / CRLF / non-ASCII / empty / compact JSON |
+| 2 | Overwrite permanently disarms conflict detection (Codex B2) — `onSave` early-returns on `draft === original`, leaving `skipConflictCheckOnce` armed | The bypass is no longer buffer state; `save(skipConflictCheck)` takes it as an argument |
+| 3 | Module-global buffer contaminates other drawers (Claude 1 / Codex B3) — a session switch unmounts the host without `onClose`, bricking the next drawer | Every consumer scoped through `ownedEditBufferAtomFamily(driveKey)`; a clean buffer is cleared on controller unmount, a dirty one survives but is invisible to other drives |
+| 4 | Unmount aborts the PUT and reports a failure for a write that may have landed (Claude 4) | AbortController removed entirely; the promise settles against the request-id discipline |
+| 5 | The save's abort signal hijacked the shared directory query (Claude 12) | `abortSignal: querySignal` — react-query owns cancellation |
+| 6 | A null `baseMtime` failed **open** (Claude 3) — two paths manufacture a null baseline, making every later save an unchecked overwrite | `conflictFromListing` tolerates a null baseline only when the listing entry also has no mtime; reload now re-reads the parent listing for a real mtime instead of reusing `theirMtime` |
+| 7 | "Reload from disk" silently no-ops if the user types during the fetch (Claude 2) | Explicit `reloading` buffer state; draft writes rejected and the editor read-only while it is set; `canAdoptReload` no longer depends on the draft |
+
+P2 — accepted: stale open snapshot via `isFetching` (Codex B4, cheap variant); known-oversized
+files no longer downloaded (S1); UTF-8 byte cap instead of `String.length` (S2); guard only on
+dirty so a clean buffer with a stale issue exits without a false dialog (S5); the
+saving-blocks-navigation deadlock — drive-swap deferred while saving, "Keep editing" re-enabled,
+blocked exits announced through the `aria-live` status (Claude 6); per-keystroke re-render of the
+whole drawer killed with `selectAtom` families, dead facets deleted (Claude 7 / Codex N3);
+shortcuts scoped to the explorer root (S4); a listing failure gets its own
+`listing-unavailable` availability and honest tooltip (Claude 8); reload errors get
+`editReloadFailedAtom`/`setEditIssueAtom` instead of faking a save (Claude 11 / Codex N2); the
+inert tree is dimmed (Claude 5); `teardownWarned` → `showTeardownNotice`, edit-bar row wraps,
+invented "filters resume after saving" copy dropped (Claude 10); Reload hidden for a `missing`
+conflict (S3); size-cap tooltip derived from `TEXT_CAP` (Claude 9); and the controller is finally
+mounted in tests — `useDriveEditController.test.tsx`, plus the two `saveDriveFile` gaps
+(null listing fails closed, `skipConflictCheck` skips the fetch) (Claude 13 / Codex S6).
+
+P3 — accepted: no double punctuation and product-copy-first error banner; `EDIT_KINDS` exposed as
+`ReadonlySet`; `mode: "markdown"` renamed to `supportsMarkdownPreview`; `invalidateMountListings`
+moved out of the React upload hook into `agenta-entities/session/state/mounts.ts` (Codex N4).
+
+## Rejected, and why
+
+1. **Per-drawer Jotai store/Provider** (Codex B3's prescribed fix) — the contamination is real,
+   but `driveKey` scoping fixes it without restructuring the drawer's composition root.
+2. **Splitting `useDriveEditController.ts` into three modules** (Codex N1) — churn with no
+   behaviour change, and it would have invalidated the controller tests added in the same pass.
+3. **The listing → content → listing retry loop** (Codex B4's prescribed fix) — the `isFetching`
+   gate closes the observed window; the residual race is logged in `open-questions.md`.
+4. **Removing the drilled `dirtyPath` prop for an atom in `DriveTreeList`/`TreeRow`** (Codex N6) —
+   passing one boolean into a virtualized row is deliberate; an atom subscription per row is worse.
+5. **Moving the `@agenta/entities/session` transport test into the package suite** (Codex N7) —
+   real, but out of scope for a correctness pass.
+6. **Using `size` from `MountFileWrittenResponse` instead of invalidating listings** (Claude's
+   `saved` note) — the reviewer already scored it acceptable.
+7. **`CODE_LANGS` being exported for a test** and 8. **`renderers.tsx` re-exporting `TEXT_CAP`**
+   (Claude's conventions nits) — not worth the churn.
+9. **The `autoFocus` caret-position claim** — a manual QA item, not a code finding.
+10-12. **Codex's four "questions the author must answer"** (Cancel disabled during save, no
+   "View diff", no "Save and continue", edit gated on the upload capability) — these are the
+   deviations already documented above, not new findings.
+
+## Verification (run independently of the fix agent)
+
+- `npx vitest run src/components/Drives` from `web/oss` — **6 files, 92 tests, all pass**
+  (was 4 files / 70 tests).
+- `tsc -p oss/tsconfig.json --noEmit` — exit 0.
+- `eslint src/components/Drives` — 0 errors, 2 pre-existing TanStack Virtual compiler warnings.
+- `prettier --check` on all touched files — clean.
+- Byte-fidelity test proven to bite: reverting only the two `useNativeCodeNodes` flags makes
+  3 of the 7 round-trip cases fail (compact JSON, trailing newline, CRLF).
+
+Still unverified and still owed: manual QA of the caret position under `autoFocus`, the theme
+pass, and the guard-route walkthrough in a live stack.
