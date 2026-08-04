@@ -128,22 +128,43 @@ const StripHome: React.FC = () => {
                                 : "flex w-full flex-col"
                         }
                     >
-                        <div className="flex flex-col items-center gap-4 text-center">
+                        {/* First run centres: one column, nothing else on the page, and the
+                            centred axis is the page's own. In the workspace that axis stops
+                            existing — the left column is an asymmetric slice, and every other
+                            block on the page (composer, Templates, the agents table, every rail
+                            card) starts at its left edge. So here the hero joins that rag and
+                            drops to a label's size: the composer is the invitation, and its
+                            placeholder already asks the question the subtitle repeated. */}
+                        <div
+                            className={
+                                firstRun
+                                    ? "flex flex-col items-center gap-4 text-center"
+                                    : "flex flex-col"
+                            }
+                        >
                             <Typography.Title
                                 level={2}
-                                className="!m-0 !text-[30px] !leading-tight"
+                                className={`!m-0 !leading-tight ${
+                                    firstRun ? "!text-[30px]" : "!text-[20px]"
+                                }`}
                             >
                                 {firstRun ? HERO.title : RETURNING_HERO.title}
                             </Typography.Title>
-                            <Typography.Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
-                                {firstRun ? HERO.subtitle : RETURNING_HERO.subtitle}
-                            </Typography.Text>
+                            {firstRun ? (
+                                <Typography.Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
+                                    {HERO.subtitle}
+                                </Typography.Text>
+                            ) : null}
                         </div>
 
-                        {/* Chip docks into the hero gap (bottom-full), so mt-11 holds with or without it.
+                        {/* Chip docks into this gap (bottom-full), so it can only tighten so far.
                         The 2px nudge + z-10 overlap and paint above the composer's top border so the
                         chip reads as one shape, not a seam. */}
-                        <div className="relative mt-11 flex flex-col items-stretch">
+                        <div
+                            className={`relative flex flex-col items-stretch ${
+                                firstRun ? "mt-11" : "mt-8"
+                            }`}
+                        >
                             <div className="absolute bottom-full left-0 z-10 translate-y-[2px]">
                                 {provenance.chipNode}
                             </div>

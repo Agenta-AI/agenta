@@ -35,9 +35,9 @@ export const TEMPLATE_STRIP_MODE =
 
 /** Returning users start a task with an agent they already have; first-run users describe an
  * agent to create. Different question, different verb. */
+/** No subtitle: the composer's placeholder asks the same thing one line below it. */
 export const RETURNING_HERO = {
     title: "What do you want to do?",
-    subtitle: "Describe a task and pick the agent to run it.",
 }
 
 export const HERO = {
