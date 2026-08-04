@@ -1,7 +1,8 @@
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.sessions.records.dtos import (
+    SessionMessagePreview,
     SessionRecord,
     SessionRecordEvent,
 )
@@ -37,4 +38,12 @@ class RecordsDAOInterface:
         project_id: UUID,
         record_id: UUID,
     ) -> Optional[SessionRecord]:
+        raise NotImplementedError
+
+    async def latest_message_per_session(
+        self,
+        *,
+        project_id: UUID,
+        session_ids: List[str],
+    ) -> Dict[str, SessionMessagePreview]:
         raise NotImplementedError

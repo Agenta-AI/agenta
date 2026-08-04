@@ -24,6 +24,7 @@ import useURL from "@/oss/hooks/useURL"
 import EmptyAgents from "../EmptyAgents"
 
 import {createAgentColumns, type AgentColumnActions} from "./columns"
+import {useWaitingByAgent} from "./useAgentActivity"
 
 // Keep the virtual viewport independent from the page's content height. Without this bound,
 // the table measures its own rendered height and feeds it back into its scroll viewport.
@@ -89,7 +90,11 @@ const YourAgentsTable = ({forceEmpty = false}: YourAgentsTableProps) => {
         }),
         [handleOpenOverview, handleOpenPlayground, handleRename, handleArchive],
     )
-    const columns = useMemo(() => createAgentColumns(actions), [actions])
+    const waitingByAgent = useWaitingByAgent()
+    const columns = useMemo(
+        () => createAgentColumns(actions, waitingByAgent),
+        [actions, waitingByAgent],
+    )
 
     const tableScope = useMemo<TableScopeConfig>(
         () => ({

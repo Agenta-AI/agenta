@@ -2,8 +2,8 @@
 
 Orchestrates across the session facets (streams, turns, interactions, mounts),
 anchored on `session_id` — the universal handle. Fan-out NEVER routes through
-`stream_id`. Records (tracing DB) are untouched here; tracing retention owns
-them.
+`stream_id`. Records (tracing DB) are READ here for the list's message preview and
+never written; tracing retention still owns their lifecycle.
 
 peek is NOT a verb and NOT built here: the individual reads (this service's
 `query_sessions`, the streams/turns/records fetch-and-query endpoints) are the
@@ -21,6 +21,7 @@ from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.turns.dtos import SessionTurnQuery
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.mounts.service import MountsService
 
 
@@ -48,11 +49,15 @@ class SessionsService:
         turns_service: SessionTurnsService,
         interactions_service: SessionInteractionsService,
         mounts_service: MountsService,
+        # Optional: records live in the tracing DB, so a deployment without that engine still
+        # lists sessions — it just lists them without previews.
+        records_service: Optional[RecordsService] = None,
     ) -> None:
         self.streams_service = streams_service
         self.turns_service = turns_service
         self.interactions_service = interactions_service
         self.mounts_service = mounts_service
+        self.records_service = records_service
 
     async def query_sessions(
         self,
@@ -71,8 +76,8 @@ class SessionsService:
         proves hot.
 
         Each row is enriched (READ-time only, see `SessionListItem`) with its latest
-        turn's `references` via a single batch lookup keyed on every listed
-        `session_id` — never one `latest_turn` call per row (WP0-R3).
+        turn's `references` and its last message, each via a single batch lookup keyed on
+        every listed `session_id` — never one call per row (WP0-R3).
         """
         session_ids = await self._resolve_session_ids(
             project_id=project_id, query=query
@@ -91,9 +96,19 @@ class SessionsService:
         if not streams:
             return []
 
+        listed_ids = [stream.session_id for stream in streams]
+
         latest_turns = await self.turns_service.latest_turn_per_session(
             project_id=project_id,
-            session_ids=[stream.session_id for stream in streams],
+            session_ids=listed_ids,
+        )
+        previews = (
+            await self.records_service.latest_message_per_session(
+                project_id=project_id,
+                session_ids=listed_ids,
+            )
+            if self.records_service
+            else {}
         )
 
         items = []
@@ -103,6 +118,7 @@ class SessionsService:
                 SessionListItem(
                     **stream.model_dump(),
                     references=turn.references if turn else None,
+                    last_message=previews.get(stream.session_id),
                 )
             )
         return items

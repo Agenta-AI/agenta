@@ -2,6 +2,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
+from oss.src.core.sessions.records.dtos import SessionMessagePreview
 from oss.src.core.sessions.streams.dtos import SessionStream, SessionStreamQueryFlags
 from oss.src.core.shared.dtos import Reference
 
@@ -10,10 +11,16 @@ class SessionListItem(SessionStream):
     """A `/sessions/query` row, enriched at READ time with the session's HIGHEST
     `turn_index` turn's `references` — the agent/workflow that produced the latest turn.
 
-    Hydrated by `SessionsService.query_sessions` via a batch turns lookup; never
-    denormalized onto `session_streams` (see that method's docstring)."""
+    Also carries the session's last message, so a row can say what happened rather than only
+    when. Both enrichments are batch lookups keyed on the whole page; never one call per row.
+
+    Hydrated by `SessionsService.query_sessions`; never denormalized onto `session_streams`
+    (see that method's docstring)."""
 
     references: Optional[List[Reference]] = None
+    # The session's newest `message` record, hydrated by the same batch pattern. Absent when the
+    # session has no message yet, or when the deployment runs without the records (tracing) engine.
+    last_message: Optional[SessionMessagePreview] = None
 
 
 # Reserved tag naming WHO started a session. Lives in `tags` rather than a column: the sessions

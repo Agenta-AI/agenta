@@ -1094,6 +1094,8 @@ sessions_service = SessionsService(
     turns_service=session_turns_service,
     interactions_service=interactions_service,
     mounts_service=mounts_service,
+    # Read-only, for the list's message preview — records themselves stay the records router's.
+    records_service=records_service,
 )
 
 sessions = SessionsRouter(

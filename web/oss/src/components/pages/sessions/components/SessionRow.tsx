@@ -9,6 +9,7 @@ import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionO
 import type {useSessionActions} from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
 import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
 
+import {sessionPreviewText} from "../assets/sessionPreview"
 import {pendingGateLabel, sessionRowStatus} from "../assets/sessionRowStatus"
 import type {SessionPending} from "../state/useSessionList"
 
@@ -42,6 +43,7 @@ const SessionRow = ({
     onDelete,
 }: Props) => {
     const status = sessionRowStatus(row, pending?.count)
+    const preview = useMemo(() => sessionPreviewText(row), [row])
     const target = useMemo(() => sessionOpenTarget(row), [row])
     const activity = row.updated_at ?? row.created_at
     const openable = Boolean(target)
@@ -100,8 +102,15 @@ const SessionRow = ({
                     />
                 </Tooltip>
 
-                <span className="flex-1 min-w-0 text-xs text-colorText truncate">
-                    {row.name?.trim() || "Untitled session"}
+                <span className="flex-1 min-w-0 flex flex-col gap-0.5">
+                    <span className="text-xs text-colorText truncate">
+                        {row.name?.trim() || "Untitled session"}
+                    </span>
+                    {preview ? (
+                        <span className="truncate text-[11px] text-colorTextTertiary">
+                            {preview}
+                        </span>
+                    ) : null}
                 </span>
 
                 {status.chipLabel ? (

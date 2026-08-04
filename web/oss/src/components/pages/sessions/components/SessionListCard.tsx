@@ -16,6 +16,7 @@ import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
 import useURL from "@/oss/hooks/useURL"
 import {projectIdAtom} from "@/oss/state/project"
 
+import {sessionPreviewText} from "../assets/sessionPreview"
 import {pendingGateLabel, sessionRowStatus} from "../assets/sessionRowStatus"
 import {applySessionScopeAtom} from "../state/filters"
 import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "../state/pins"
@@ -156,6 +157,7 @@ const SessionListCard = ({
     const renderRow = (row: SessionStream, pinned: boolean) => {
         const pending = pendingBySession?.get(row.session_id)
         const status = sessionRowStatus(row, pending?.count)
+        const preview = sessionPreviewText(row)
         const target = sessionOpenTarget(row)
         const activity = row.updated_at ?? row.created_at
         const actionTarget = {
@@ -185,52 +187,61 @@ const SessionListCard = ({
                     <button
                         type="button"
                         onClick={() => handleOpen(row)}
-                        className="group flex w-full cursor-pointer items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-2 text-left hover:bg-colorFillQuaternary"
+                        className="group flex w-full cursor-pointer flex-col gap-0.5 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-2 text-left hover:bg-colorFillQuaternary"
                     >
-                        <Tooltip title={status.label}>
-                            <span
-                                className={`h-2 w-2 shrink-0 rounded-full ${status.dotClassName} ${
-                                    status.pulse ? "motion-safe:animate-pulse" : ""
-                                }`}
-                            />
-                        </Tooltip>
-                        <span className="min-w-0 flex-1 truncate text-xs text-colorText">
-                            {row.name?.trim() || "Untitled session"}
-                        </span>
-                        {/* Inside a "Waiting on you" group the urgency is already stated, so the
+                        <span className="flex w-full items-center gap-2">
+                            <Tooltip title={status.label}>
+                                <span
+                                    className={`h-2 w-2 shrink-0 rounded-full ${status.dotClassName} ${
+                                        status.pulse ? "motion-safe:animate-pulse" : ""
+                                    }`}
+                                />
+                            </Tooltip>
+                            <span className="min-w-0 flex-1 truncate text-xs text-colorText">
+                                {row.name?.trim() || "Untitled session"}
+                            </span>
+                            {/* Inside a "Waiting on you" group the urgency is already stated, so the
                             chip spends itself on WHAT is being asked and stays visually quiet —
                             the amber lives on the dot and the header badge. */}
-                        {status.chipLabel ? (
-                            <span className="shrink-0 rounded bg-colorFillSecondary px-1.5 py-0.5 text-[11px] leading-none text-colorTextSecondary">
-                                {pendingGateLabel(pending?.kinds)}
+                            {status.chipLabel ? (
+                                <span className="shrink-0 rounded bg-colorFillSecondary px-1.5 py-0.5 text-[11px] leading-none text-colorTextSecondary">
+                                    {pendingGateLabel(pending?.kinds)}
+                                </span>
+                            ) : null}
+                            {/* An agent-scoped card is already one agent's, so naming it on every row
+                            spends a third of the row width restating the heading. */}
+                            {agentId ? null : (
+                                <span className="w-24 shrink-0 truncate text-right">
+                                    <SessionAgentLabel appId={target?.appId ?? null} />
+                                </span>
+                            )}
+                            <span className="w-14 shrink-0 text-right text-xs text-colorTextTertiary">
+                                {activity ? timeAgo(Date.parse(activity)) : "—"}
+                            </span>
+                            <Tooltip title={pinned ? "Unpin" : "Pin"}>
+                                <span
+                                    role="button"
+                                    tabIndex={-1}
+                                    aria-label={pinned ? "Unpin session" : "Pin session"}
+                                    onClick={(event) => {
+                                        event.stopPropagation()
+                                        togglePin(row.session_id)
+                                    }}
+                                    className={`shrink-0 text-colorTextTertiary ${
+                                        pinned ? "" : "opacity-0 group-hover:opacity-100"
+                                    }`}
+                                >
+                                    <PushPinIcon size={14} weight={pinned ? "fill" : "regular"} />
+                                </span>
+                            </Tooltip>
+                        </span>
+                        {/* What actually happened, so deciding whether to reopen a session
+                            doesn't mean opening it. Indented past the status dot. */}
+                        {preview ? (
+                            <span className="w-full truncate pl-4 text-[11px] text-colorTextTertiary">
+                                {preview}
                             </span>
                         ) : null}
-                        {/* An agent-scoped card is already one agent's, so naming it on every row
-                            spends a third of the row width restating the heading. */}
-                        {agentId ? null : (
-                            <span className="w-24 shrink-0 truncate text-right">
-                                <SessionAgentLabel appId={target?.appId ?? null} />
-                            </span>
-                        )}
-                        <span className="w-14 shrink-0 text-right text-xs text-colorTextTertiary">
-                            {activity ? timeAgo(Date.parse(activity)) : "—"}
-                        </span>
-                        <Tooltip title={pinned ? "Unpin" : "Pin"}>
-                            <span
-                                role="button"
-                                tabIndex={-1}
-                                aria-label={pinned ? "Unpin session" : "Pin session"}
-                                onClick={(event) => {
-                                    event.stopPropagation()
-                                    togglePin(row.session_id)
-                                }}
-                                className={`shrink-0 text-colorTextTertiary ${
-                                    pinned ? "" : "opacity-0 group-hover:opacity-100"
-                                }`}
-                            >
-                                <PushPinIcon size={14} weight={pinned ? "fill" : "regular"} />
-                            </span>
-                        </Tooltip>
                     </button>
                 </Dropdown>
             </motion.div>

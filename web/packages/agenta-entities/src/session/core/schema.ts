@@ -125,6 +125,16 @@ export const sessionStreamSchema = z.object({
     // `/sessions/query` only (WP0-R3): the session's latest turn's workflow/agent references —
     // absent for a session with no turns yet, and for a plain stream fetch (not query'd).
     references: z.array(sessionReferenceSchema).nullish(),
+    // `/sessions/query` only: the session's newest `message` record, so a row can say what
+    // happened rather than only when. Absent for a session with no message yet.
+    last_message: z
+        .object({
+            text: z.string(),
+            /** "user" or "agent" — a row prefixes your own words so a preview isn't read as a reply. */
+            source: z.string().nullish(),
+            timestamp: z.string().nullish(),
+        })
+        .nullish(),
 })
 
 export const sessionStreamsResponseSchema = z.object({
