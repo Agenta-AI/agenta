@@ -1,0 +1,1063 @@
+<title>RFC: The agent edits its own configuration</title>
+
+<style>
+  :root {
+    --paper: #EFF1F3;
+    --surface: #FFFFFF;
+    --ink: #131A21;
+    --ink-2: #38454E;
+    --muted: #6B7880;
+    --rule: #D3D9DD;
+    --rule-strong: #A9B4BB;
+    --accent: #1D4E6B;
+    --crit: #99332B;
+    --warn: #7F5310;
+    --ok: #2C6449;
+
+    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", ui-serif, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #0F151A;
+      --surface: #151D23;
+      --ink: #E3E9ED;
+      --ink-2: #B7C3CB;
+      --muted: #7C8A93;
+      --rule: #253038;
+      --rule-strong: #3B4A55;
+      --accent: #7BB0CD;
+      --crit: #DB847B;
+      --warn: #D4A45C;
+      --ok: #74B291;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #0F151A;
+    --surface: #151D23;
+    --ink: #E3E9ED;
+    --ink-2: #B7C3CB;
+    --muted: #7C8A93;
+    --rule: #253038;
+    --rule-strong: #3B4A55;
+    --accent: #7BB0CD;
+    --crit: #DB847B;
+    --warn: #D4A45C;
+    --ok: #74B291;
+  }
+
+  :root[data-theme="light"] {
+    --paper: #EFF1F3;
+    --surface: #FFFFFF;
+    --ink: #131A21;
+    --ink-2: #38454E;
+    --muted: #6B7880;
+    --rule: #D3D9DD;
+    --rule-strong: #A9B4BB;
+    --accent: #1D4E6B;
+    --crit: #99332B;
+    --warn: #7F5310;
+    --ok: #2C6449;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 54rem;
+    margin: 0 auto;
+    padding: 3.5rem 1.5rem 7rem;
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+  }
+
+  a { color: var(--accent); text-underline-offset: 2px; text-decoration-thickness: 1px; }
+  a:hover { color: var(--ink); }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.84em;
+    color: var(--ink-2);
+    word-break: break-word;
+  }
+
+  p { margin: 0; max-width: 68ch; }
+
+  .masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    border-bottom: 2px solid var(--rule-strong);
+    padding-bottom: 1.75rem;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .masthead h1 {
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: clamp(2rem, 5vw, 2.9rem);
+    line-height: 1.1;
+    letter-spacing: -0.022em;
+    text-wrap: balance;
+    margin: 0;
+    max-width: 22ch;
+  }
+
+  .dateline { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); }
+
+  .contents {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    padding: 1.25rem 1.5rem;
+  }
+
+  .contents h2 {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 400;
+    margin: 0 0 0.75rem;
+  }
+
+  .contents ol { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.3rem; }
+  .contents li { font-size: 0.92rem; }
+  .contents a { text-decoration: none; }
+  .contents a:hover { text-decoration: underline; }
+
+  .sect { display: flex; flex-direction: column; gap: 1.5rem; }
+
+  .sect > h2 {
+    font-family: var(--serif);
+    font-size: 1.85rem;
+    font-weight: 700;
+    letter-spacing: -0.018em;
+    line-height: 1.15;
+    margin: 0;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--rule-strong);
+  }
+
+  .sub { display: flex; flex-direction: column; gap: 0.85rem; }
+
+  .sub > h3 {
+    font-family: var(--serif);
+    font-size: 1.24rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+
+  .num {
+    font-family: var(--mono);
+    font-size: 0.72em;
+    color: var(--muted);
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    margin-right: 0.55rem;
+  }
+
+  .sect > h2 .num { font-size: 0.6em; }
+
+  ul.plain, ol.plain {
+    margin: 0;
+    padding-left: 1.15rem;
+    max-width: 68ch;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .where {
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: var(--muted);
+    max-width: 78ch;
+  }
+
+  /* story cards */
+  .story {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .story h4 {
+    margin: 0;
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 1rem;
+  }
+  .story h4 .sid {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-weight: 400;
+    margin-right: 0.55rem;
+    letter-spacing: 0.06em;
+  }
+  .story p { font-size: 0.95rem; }
+  .story .lab {
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-right: 0.45rem;
+  }
+  .story .today { color: var(--ink-2); }
+  .story .target { }
+
+  /* requirements */
+  .req { display: flex; gap: 0.9rem; max-width: 72ch; }
+  .req .rid {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--accent);
+    white-space: nowrap;
+    padding-top: 0.2rem;
+    min-width: 2.4rem;
+  }
+  .req p { font-size: 0.97rem; }
+
+  /* options */
+  .option {
+    border-left: 3px solid var(--rule-strong);
+    padding: 0.15rem 0 0.15rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+  .option h5 {
+    margin: 0;
+    font-family: var(--sans);
+    font-size: 0.97rem;
+    font-weight: 600;
+  }
+  .option p { font-size: 0.95rem; }
+  .option.rec { border-left-color: var(--accent); }
+  .pick {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.1rem 0.4rem;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    margin-left: 0.5rem;
+    vertical-align: 0.15em;
+    font-weight: 400;
+  }
+
+  .tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.12rem 0.42rem;
+    border: 1px solid currentColor;
+    color: var(--muted);
+    vertical-align: 0.18em;
+    margin-left: 0.5rem;
+    font-weight: 400;
+  }
+  .t-crit { color: var(--crit); }
+  .t-open { color: var(--warn); }
+  .t-ok { color: var(--ok); }
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--rule); background: var(--surface); }
+
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+
+  th, td {
+    text-align: left;
+    padding: 0.65rem 0.9rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+
+  th {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 400;
+    white-space: nowrap;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+
+  td.id { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  footer {
+    border-top: 2px solid var(--rule-strong);
+    padding-top: 1.4rem;
+    font-size: 0.9rem;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <p class="eyebrow">Agenta · agent workflows · RFC / PRD · draft for discussion</p>
+    <h1>The agent edits its own configuration</h1>
+    <p class="dateline">4 August 2026 · grounded in code on main · written in simple technical English</p>
+  </header>
+
+  <nav class="contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#summary">Summary</a></li>
+      <li><a href="#background">Background: what happens today</a></li>
+      <li><a href="#stories">User stories</a></li>
+      <li><a href="#requirements">Requirements</a></li>
+      <li><a href="#design">Design space</a></li>
+      <li><a href="#plan">Decisions, spikes, and next steps</a></li>
+      <li><a href="#found">New defects found during this research</a></li>
+      <li><a href="#open">Open questions</a></li>
+    </ol>
+  </nav>
+
+  <!-- ============================= 1 ============================= -->
+  <section class="sect" id="summary">
+    <h2><span class="num">1</span>Summary</h2>
+    <p>
+      An agent in Agenta can edit its own configuration. Today, every edit must send the full
+      content again. This costs many tokens. Large payloads fail (#5554). Whole lists get
+      replaced by mistake. The agent cannot read its own configuration before it writes.
+    </p>
+    <p>
+      This document defines what we want instead. It gives the user stories, the requirements,
+      and the design options for each open question. It ends with a proposed plan. The deep
+      research behind it is in the
+      <a href="https://claude.ai/code/artifact/585e3254-0e96-44a1-9d85-025d83ac1a8a">companion report</a>.
+    </p>
+  </section>
+
+  <!-- ============================= 2 ============================= -->
+  <section class="sect" id="background">
+    <h2><span class="num">2</span>Background: what happens today</h2>
+    <p>
+      The configuration is one JSON object. It holds the instructions (one long Markdown
+      string), the model, the tools, the skills, the MCP servers, the harness, and the
+      permissions. The agent saves with one tool: <code>commit_revision</code>. The tool takes a
+      change set: <code>set</code> (a partial object to merge) and <code>remove</code> (paths to
+      delete).
+    </p>
+    <p>
+      The merge has one rule that causes most of the pain: it merges objects, but it replaces
+      scalars and lists whole. The instructions are one string. Skills, tools, and MCP servers
+      are lists. So every real edit is a full rewrite.
+    </p>
+    <p>Five facts from the research set the stage. All are verified in code.</p>
+    <ul class="plain">
+      <li>
+        The instruction file and the skill folders are already real files in the agent's
+        workspace. The runner writes them at session start. They land on the durable mount, so
+        they also exist in object storage.
+      </li>
+      <li>
+        The write-back path already exists. When the agent writes a file, the mount pushes it to
+        object storage on file close. The Files drawer reads it back. No upload step exists.
+      </li>
+      <li>
+        The runner can read files from a live sandbox. It does this on every tool call today.
+        It also injects server-owned fields into tool calls after the model's arguments, so the
+        model cannot fake them.
+      </li>
+      <li>
+        The session fingerprint keeps sessions correct. When the configuration changes, the next
+        turn rebuilds the files from the new configuration. This works with any number of runner
+        replicas, because the signal travels with the request. One hole exists on the approval
+        path (see section 7).
+      </li>
+      <li>
+        The draft exists only in the browser and in the runner's memory. No server endpoint can
+        return the configuration a draft run is executing. A server read returns the committed
+        head.
+      </li>
+    </ul>
+    <p class="where">workspace.ts:50-157 · relay.ts:255-300 · direct.ts:210-247 · session-identity.ts:199-259 · runnableSetup.ts:105-170</p>
+  </section>
+
+  <!-- ============================= 3 ============================= -->
+  <section class="sect" id="stories">
+    <h2><span class="num">3</span>User stories</h2>
+
+    <div class="story">
+      <h4><span class="sid">US-1</span>Fix one line of the instructions</h4>
+      <p><span class="lab">Today</span><span class="today">The agent must resend the whole instruction file. Above about 4.8 KB the call arrives cut off and fails (#5554). The agent loops on a wrong error message.</span></p>
+      <p><span class="lab">Target</span>The agent sends one small edit: the old text and the new text. The cost is the size of the change, not the size of the file.</p>
+    </div>
+
+    <div class="story">
+      <h4><span class="sid">US-2</span>Change one line in one skill</h4>
+      <p><span class="lab">Today</span><span class="today">The agent must resend every skill, with every bundled file. Anything it forgets is deleted.</span></p>
+      <p><span class="lab">Target</span>The agent names the skill and sends one edit for its body. All other skills stay untouched.</p>
+    </div>
+
+    <div class="story">
+      <h4><span class="sid">US-3</span>Install a large skill from the internet</h4>
+      <p><span class="lab">Today</span><span class="today">The agent downloads the skill into its workspace. Then it must retype the full content through a tool call. Large skills always hit the 4.8 KB failure.</span></p>
+      <p><span class="lab">Target</span>The commit call points at the folder in the workspace. The platform reads the files from there. The content never passes through the model.</p>
+    </div>
+
+    <div class="story">
+      <h4><span class="sid">US-4</span>Add or remove one tool</h4>
+      <p><span class="lab">Today</span><span class="today">The agent must resend the full tool list. This is also how run-only platform tools leak into the stored configuration.</span></p>
+      <p><span class="lab">Target</span>The agent adds or removes one entry by name. The rest of the list stays untouched.</p>
+    </div>
+
+    <div class="story">
+      <h4><span class="sid">US-5</span>Read before write</h4>
+      <p><span class="lab">Today</span><span class="today">The agent cannot read its own configuration. It guesses, and after a save it can report the wrong model to the user (#5186).</span></p>
+      <p><span class="lab">Target</span>The agent reads its running configuration and its draft status before it edits. This also serves parts of the configuration that files do not cover, such as the model and the tools.</p>
+    </div>
+
+    <div class="story">
+      <h4><span class="sid">US-6</span>Try a change without saving</h4>
+      <p><span class="lab">Today</span><span class="today">To run with a changed configuration, you must commit it, or use the playground draft. API callers have no option at all.</span></p>
+      <p><span class="lab">Target</span>A run can carry a temporary change on top of a saved revision. No new revision is created.</p>
+    </div>
+
+    <div class="story">
+      <h4><span class="sid">US-7</span>Two writers, no silent loss</h4>
+      <p><span class="lab">Today</span><span class="today">The commit merges onto the latest committed head. If someone else moved the head, the write silently overwrites their change.</span></p>
+      <p><span class="lab">Target</span>A commit built on an old base fails with a clear error. The writer reads the new head and retries.</p>
+    </div>
+
+    <div class="story">
+      <h4><span class="sid">US-8</span>Running sessions stay correct</h4>
+      <p><span class="lab">Today</span><span class="today">Mostly correct: a config change makes the next turn start cold with fresh files. One hole: a config edit during an approval pause can leave a warm session on stale files.</span></p>
+      <p><span class="lab">Target</span>No session ever runs a stale configuration. Faster refresh is optional; correctness is not.</p>
+    </div>
+  </section>
+
+  <!-- ============================= 4 ============================= -->
+  <section class="sect" id="requirements">
+    <h2><span class="num">4</span>Requirements</h2>
+
+    <div class="req"><span class="rid">R1</span><p>The token cost of an edit must be proportional to the change, not to the configuration size.</p></div>
+    <div class="req"><span class="rid">R2</span><p>Large new content must move by reference to workspace files, not through the model's context or the tool-call channel.</p></div>
+    <div class="req"><span class="rid">R3</span><p>Every edit target must have a stable address. List entries are addressed by name, never by position. The platform must therefore enforce unique names for skills, tools, and MCP servers at save time. Today it does not (see section 7).</p></div>
+    <div class="req"><span class="rid">R4</span><p>A commit built on a base that has moved must fail with a clear error. It must never overwrite silently.</p></div>
+    <div class="req"><span class="rid">R5</span><p>The agent must be able to read its configuration before it writes, including single parts of it, and know which revision it got and whether it is a draft.</p></div>
+    <div class="req"><span class="rid">R6</span><p>The mechanism must work the same on all harnesses (Pi, Claude, Codex) and both sandboxes (local, Daytona).</p></div>
+    <div class="req"><span class="rid">R7</span><p>Builder capabilities stay playground-only, and the self-target guarantee stays: the agent can only edit itself. Server-owned fields must remain outside the model's control.</p></div>
+    <div class="req"><span class="rid">R8</span><p>A run with a temporary change must not create a revision, and must not require the playground.</p></div>
+    <div class="req"><span class="rid">R9</span><p>No credential enters the sandbox. All reads and writes keep passing through the relay.</p></div>
+    <div class="req"><span class="rid">R10</span><p>No session ever runs a stale configuration. The known approval-path hole gets fixed.</p></div>
+    <div class="req"><span class="rid">R11</span><p>The commit must validate the configuration shape and report a specific error. Bad shapes must not save cleanly and fail later.</p></div>
+    <div class="req"><span class="rid">R12</span><p>Every builder tool call accepts an optional description, written by the agent, that says what it is doing and why. The frontend shows it with the call and its result. This applies to the commit and to the other builder tools.</p></div>
+  </section>
+
+  <!-- ============================= 5 ============================= -->
+  <section class="sect" id="design">
+    <h2><span class="num">5</span>Design space</h2>
+    <p>
+      Six questions. The review on 4 August decided four of them. Two stay open: the read
+      tool's draft answer (Q3) and the reload table (Q5, Spike S2). Closed options stay in the
+      text, marked, so we do not reopen them by accident.
+    </p>
+
+    <!-- Q1 -->
+    <div class="sub" id="q1">
+      <h3><span class="num">Q1</span>How does the agent express an edit?</h3>
+      <p>
+        The research classified every configuration field. Two groups exist. Documents: the
+        instructions, skill bodies, skill files, code-tool scripts, and system-prompt overrides.
+        Structured data: everything else, including three lists (tools, skills, MCP servers)
+        whose entries need addressing by name.
+      </p>
+
+      <div class="option">
+        <h5>Option A: keep set and remove only (today)</h5>
+        <p>
+          Fails R1. Every document edit resends the document. Every list edit resends the list.
+          This is the current pain.
+        </p>
+      </div>
+
+      <div class="option rec">
+        <h5>Option B: add anchored edits and named list operations<span class="pick">decided 4 aug</span></h5>
+        <p>
+          Add an <code>edit</code> mode next to <code>set</code> and <code>remove</code>. An
+          anchored edit says: in this field, find this exact text, replace it with this text.
+          The old text must appear exactly one time. Many edits can travel in one call. The
+          platform checks all edits first, then applies all or none.
+        </p>
+        <p>
+          Pi's edit tool already implements these exact rules. Its matching engine is small,
+          pure, and built for a pluggable storage layer. We port it and point it at
+          configuration fields instead of files. It also outputs a unified diff. We show that
+          diff on the approval screen and store it with the commit.
+        </p>
+        <p>
+          For lists, address entries by name: <code>skills["release-qa"].body</code>,
+          <code>tools["send-slack-message"]</code>. Add-one and remove-one operations complete
+          the set. This needs R3 (unique names) first.
+        </p>
+      </div>
+
+      <div class="option">
+        <h5>Option C: the agent edits the workspace files; a commit collects them</h5>
+        <p>
+          Most native for the agent: it uses its own file editor. The files already exist and
+          already persist on the mount. But three gaps are real today. The skill-to-disk format
+          loses data on the way back (executable flags, multi-line descriptions, binary files,
+          embedded references). The mount can silently fail to attach (#5342), and then a
+          server-side read sees nothing. And today the configuration always wins over the disk:
+          every commit rebuilds the files. Option C inverts that rule and must define who wins
+          when.
+        </p>
+        <p>
+          Keep this as a second step, not the first. Option B and Option C share the same
+          engine: a file diff and a tool-call edit are the same operation. Nothing built for B
+          is lost if C follows.
+        </p>
+      </div>
+    </div>
+
+    <!-- Q2 -->
+    <div class="sub" id="q2">
+      <h3><span class="num">Q2</span>How does large content enter the configuration?</h3>
+      <p>
+        US-3 is the driving story. The content already exists as files in the workspace. The
+        question is who reads them into the commit.
+      </p>
+
+      <div class="option">
+        <h5>Option A: through the tool-call arguments (today)</h5>
+        <p>Fails. The model retypes the content. Cost is high. Large calls die at 4.8 KB (#5554).</p>
+      </div>
+
+      <div class="option rec">
+        <h5>Option B: the runner reads the files and attaches them<span class="pick">decided 4 aug · spike S1</span></h5>
+        <p>
+          The commit call carries a path: "add the skill at <code>./downloaded-skills/pdf-tools/</code>".
+          The runner reads the files and attaches the content to the call before it forwards it.
+        </p>
+        <p>
+          Where exactly does this happen? Every tool call leaves the sandbox as a small file.
+          The runner, outside the sandbox, picks that file up. It then builds the HTTP request
+          in three layers: first the model's arguments, then fixed server values, then the
+          server-owned identity fields. The model can never overwrite the later layers. The new
+          read step slots in right there: the runner sees a path field in the call, reads those
+          files from the sandbox, and puts the content into the request body as one more layer.
+          The runner already reads sandbox files this way on every tool call today. New work:
+          the read step itself, and a folder-to-skill converter (the reverse of the one that
+          writes skills to disk).
+        </p>
+        <p>
+          Spike S1 proves this end to end before we design more on top of it.
+        </p>
+        <p class="where">pickup: services/runner/src/tools/relay.ts:255-300 · layering: services/runner/src/tools/direct.ts:210-247</p>
+      </div>
+
+      <div class="option">
+        <h5>Option C: the API reads the files from object storage<span class="tag t-crit">closed</span></h5>
+        <p>
+          Options B and C read the same files. The difference is who reads, and which copy.
+          The runner (B) reads the files inside the live sandbox: always present, always
+          current. The API (C) reads the copy in object storage: that copy appears only after
+          the file is closed and flushed, and when the mount silently failed to attach (#5342),
+          the copy does not exist at all while the agent still sees its files. Same files, less
+          reliable copy. Closed in favor of B.
+        </p>
+      </div>
+    </div>
+
+    <!-- Q3 -->
+    <div class="sub" id="q3">
+      <h3><span class="num">Q3</span>How does the agent read its own configuration?</h3>
+      <p>
+        The draft gap shapes this question. A server read returns the committed head. On a
+        draft run, that is not what is executing. The running configuration exists in only two
+        places: the browser, and the runner's memory for the current run.
+      </p>
+
+      <div class="option">
+        <h5>Option A: write the configuration as a file in the workspace<span class="tag t-crit">closed</span></h5>
+        <p>
+          Closed in the 4 August review, for two reasons. First, the builder tools are
+          playground-only on purpose: when an agent is shared with other people later, those
+          people must not see its internals. A configuration file written into every run's
+          workspace breaks that split. Second, a file can go stale during a session, and then
+          the agent has no action to take. It can only wait for the next session. A tool always
+          gives the agent an action: call it again and get a fresh answer.
+        </p>
+      </div>
+
+      <div class="option rec">
+        <h5>Option B: a read_config tool<span class="pick">decided 4 aug</span></h5>
+        <p>
+          A playground tool, injected like the other builder tools, removed for shared agents
+          like the other builder tools. Three requirements on it:
+        </p>
+        <ul class="plain">
+          <li>
+            <b>It returns the base the commit will write on.</b> Read and write must agree. If
+            the agent reads X and edits X, the commit must apply to X.
+          </li>
+          <li>
+            <b>It supports partial reads.</b> "Give me the tool list." "Give me the skill named
+            release-qa." "Give me the model." The agent must not pay for the whole object to
+            check one field.
+          </li>
+          <li>
+            <b>It says what it returns.</b> The response carries the revision id and the draft
+            flag, so the agent knows which version it is looking at.
+          </li>
+        </ul>
+        <p>
+          The mechanics are cheap: the existing revision endpoint plus a self-binding covers
+          the whole-object read with no new backend code. Partial reads and response shaping
+          are the new work. One open point remains: on a draft run, the server does not have
+          the draft, so the tool returns the committed head. That head IS the base the commit
+          writes on today, so read and write agree. But it is not what is running. The tool
+          must say so, and the final answer depends on the commit-base decision (open question
+          1).
+        </p>
+      </div>
+
+      <div class="option">
+        <h5>Option C: the runner answers the read from its memory<span class="tag t-crit">parked</span></h5>
+        <p>
+          The runner holds the running configuration in memory during a run. It could answer
+          the read locally. But its memory holds the config this run started with, not the
+          latest version after a commit. So it answers a different question ("what am I
+          running") than the one the agent needs before an edit ("what will my commit apply
+          to"). Parked until a real need for "what am I running" appears.
+        </p>
+      </div>
+    </div>
+
+    <!-- Q4 -->
+    <div class="sub" id="q4">
+      <h3><span class="num">Q4</span>How do two writers avoid silent loss?</h3>
+      <p>
+        Two sessions can edit the same agent. A user can edit the drawer while the agent works.
+        Today the last write silently wins over the head.
+      </p>
+
+      <div class="option rec">
+        <h5>Option A: a base check plus loud anchored edits<span class="pick">decided 4 aug</span></h5>
+        <p>
+          The commit carries the revision id it was built on. If the head moved, the server
+          refuses with a clear error. The writer calls <code>read_config</code>, gets the new
+          head, and retries. No locks. Anchored edits add a second net for free: if the target
+          text changed, the anchor does not match, and the edit fails loudly instead of
+          overwriting. Note the contrast: the current merge is silent when stale; the anchored
+          edit is loud when stale.
+        </p>
+      </div>
+
+      <div class="option">
+        <h5>Option B: locks</h5>
+        <p>
+          A session takes a lock on the agent before editing. Heavy, needs lease management,
+          and punishes the common case where no conflict exists. Not recommended. Gumloop, for
+          reference, has neither: one mutable draft row, last write wins.
+        </p>
+      </div>
+    </div>
+
+    <!-- Q5 -->
+    <div class="sub" id="q5">
+      <h3><span class="num">Q5</span>When the configuration changes, what happens to the running session?</h3>
+
+      <p><b>First, what the fingerprint is and why it exists.</b></p>
+      <p>
+        Starting a session from nothing is slow: about 12.5 seconds. So after a turn ends, the
+        runner keeps the sandbox and the harness session alive, parked, ready for the next
+        turn. Before it reuses a parked session, it must answer one question: is this session
+        still correct for the next turn?
+      </p>
+      <p>
+        To answer it, the runner uses a fingerprint. A fingerprint is one checksum computed
+        over all the configuration values: the model, the harness, the instruction text, the
+        skills, the tools, the permissions, and more. When the runner parks a session, it
+        stores the checksum with it. When the next turn arrives, the runner computes the
+        checksum of that turn's configuration and compares. Same checksum: reuse the session,
+        1.4 seconds. Different checksum: throw the session away and build a new one, 12.5
+        seconds.
+      </p>
+      <p>
+        The checksum is blunt on purpose. It cannot tell <i>what</i> changed. It only tells
+        <i>that</i> something changed. And today the runner has no way to apply any change to a
+        live session. So its only possible answer to any change, however small, is a full
+        rebuild. That is why changing one word of the instructions costs 12.5 seconds.
+      </p>
+
+      <p><b>The real design question: which changes truly need a rebuild?</b></p>
+      <p>
+        Most configuration values are just files or data inside the sandbox. The instructions
+        are a file. The skills are folders. The tool list is data the harness receives. The
+        model is a parameter. In principle the runner could update these in place: rewrite the
+        file, update the folders, send the new tool list, set the new model, and keep the
+        session. A rebuild would then only be needed for the values that define the sandbox
+        itself: the harness kind and the sandbox provider.
+      </p>
+      <p>
+        One thing must be verified per harness before we build this: does a live harness pick
+        up the change on its next turn? Example: Claude reads its instruction file when the
+        session starts. If we rewrite the file under a live session, the next turn may still
+        use the old text. The same question applies to skills, to the tool list, to MCP
+        servers, and to the model. Nobody has this table today. Building it is Spike S2.
+      </p>
+
+      <div class="option">
+        <h5>Option A: keep the full rebuild; fix the one correctness bug</h5>
+        <p>
+          This is the floor. Correct on any number of runner replicas, with zero coordination,
+          because the checksum travels with each request. The cost stays: every small change
+          pays the full rebuild. Two cheap improvements belong here regardless: on a checksum
+          mismatch, stop the sandbox instead of deleting it; and compute the checksum from the
+          configuration content only, not from the revision id, so a commit that changes
+          nothing keeps the session.
+        </p>
+      </div>
+
+      <div class="option rec">
+        <h5>Option B: update in place; rebuild only for harness and sandbox changes<span class="pick">decided 4 aug</span></h5>
+        <p>
+          The runner classifies each changed value. Most values get applied to the live
+          session: rewrite the instruction file, update the skill folders, refresh credentials
+          and environment values. Only the values that define the sandbox force a rebuild: the
+          harness kind and the sandbox provider.
+        </p>
+        <p>
+          The review settled most of the reload question without a spike. Harnesses do not
+          re-read the instruction file or the skills on their own; you have to tell them. That
+          is correct harness behavior, and it is the harness's business, not ours. We update
+          the files; the harness reads them when it reads them. The same holds for API keys
+          and environment values on Daytona: updating them must not force a rebuild.
+        </p>
+        <p>
+          One value stays open: <b>tools</b>. If the tool list changes, does a live harness
+          discover the new list by itself? If yes, tools update in place too. If no, a tool
+          change keeps today's behavior and rebuilds. This is now the whole of Spike S2. (One
+          lead to check: the tool channel speaks MCP, and MCP has a "tool list changed"
+          notification. Our shim could send it.)
+        </p>
+      </div>
+
+      <div class="option">
+        <h5>Option C: push a signal to running sessions<span class="tag t-crit">deferred</span></h5>
+        <p>
+          Not needed for correctness. The pieces exist if we ever want it (the commit event is
+          already published to a Redis stream; a session-to-replica registry exists). It would
+          only make the refresh happen earlier. Revisit after Option B exists.
+        </p>
+      </div>
+
+      <p><b>The correctness bug, in simple words.</b></p>
+      <p>
+        A run stops and waits for your approval. While it waits, you change the configuration.
+        You approve. The run continues in the old sandbox with the old files. That part is
+        correct: the turn started before your change. The bug comes at the end of the turn.
+        The runner parks the sandbox and writes a label on it: "this sandbox matches
+        configuration B" (your new one). But the sandbox still holds the files of
+        configuration A. The next turn compares labels, sees a match, and reuses the sandbox.
+        The session now runs on old instructions, and nothing detects it. The fix: write the
+        true label, A. Then the next turn sees the difference and rebuilds. Small, local
+        change in the runner. Decision: on the task list for the Q5 work, not a separate
+        project.
+      </p>
+      <p class="where">services/runner/src/server.ts:596-603, 767-854</p>
+    </div>
+
+    <!-- Q6 -->
+    <div class="sub" id="q6">
+      <h3><span class="num">Q6</span>How does a run try a change without saving it?<span class="tag t-crit">out of scope 4 aug</span></h3>
+      <p>
+        Moved out of scope in the 4 August review. The text stays for the record, because the
+        change-set format was designed so this can be added later without rework.
+      </p>
+      <p>
+        Today a run has two choices. Use a saved revision exactly as stored. Or send a
+        complete configuration inline, which is what the playground does. There is no middle
+        way. You cannot say: "run revision X, but with model Y."
+      </p>
+      <p>
+        The building blocks exist. The agent's test tool does exactly this internally: it
+        takes the saved configuration, applies a change in memory, runs once, and saves
+        nothing. But only the agent has that tool, and only on itself.
+      </p>
+      <p>
+        The proposal: add one field to the normal run request. The field carries a change on
+        top of the referenced revision. The change uses the same format as Q1: set, remove,
+        edit. Nothing gets saved. The first user is the playground model picker: trying a
+        model stops forcing a draft. One point to settle: the change needs a base. A pinned
+        revision gives an exact base. An environment gives a moving base, whatever is deployed
+        that day.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================= 6 ============================= -->
+  <section class="sect" id="plan">
+    <h2><span class="num">6</span>Decisions, spikes, and next steps</h2>
+
+    <p><b>Decided on 4 August:</b></p>
+    <ul class="plain">
+      <li><b>Q1:</b> Option B. Anchored edits plus named list operations, next to set and remove. Files-as-config stays a later step on the same engine.</li>
+      <li><b>Q2:</b> Option B. The runner reads workspace files and attaches them to the commit. Spike S1 proves it first.</li>
+      <li><b>Q3:</b> Option B. A read_config tool with partial reads. No configuration file in the workspace.</li>
+      <li><b>Q4:</b> Option A. The base check, no locks.</li>
+      <li><b>Q5:</b> Option B. Update in place; rebuild only for harness and sandbox changes. Harnesses not re-reading files on their own is accepted harness behavior. Spike S2 shrinks to one question: tool discovery on a live session. The approval-path bug goes on the task list of this work.</li>
+      <li><b>Q6:</b> Out of scope. The format stays compatible so it can come back later.</li>
+      <li><b>New requirement R12:</b> builder tool calls carry an optional agent-written description for the frontend.</li>
+    </ul>
+
+    <p><b>Closed options.</b> Do not reopen without new information:</p>
+    <ul class="plain">
+      <li>A CLI in the sandbox (the authentication problem).</li>
+      <li>Large content through the tool-call arguments (Q2 Option A).</li>
+      <li>The API reading the storage copy at commit time (Q2 Option C).</li>
+      <li>A configuration file in every workspace (Q3 Option A).</li>
+      <li>Locks for concurrent writers (Q4 Option B).</li>
+      <li>Rewriting files under a live harness before Spike S2 proves what reloads (old Q5 Option C).</li>
+    </ul>
+
+    <p><b>Spikes, in order:</b></p>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Question the spike answers</th><th>Output</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="id">S1</td>
+            <td>Can a commit tool take a workspace path, have the runner read the files, and land them in the configuration? Smallest possible proof: one path argument, the existing runner read, the existing commit endpoint.</td>
+            <td>A working demo, plus the list of problems it uncovers.</td>
+          </tr>
+          <tr>
+            <td class="id">S2</td>
+            <td>Narrowed on 4 August to one question: when the tool list changes, does a live harness discover the new list (per harness: Pi, Claude, Codex)? Check the MCP "tool list changed" notification as the likely mechanism. If discovery fails, tool changes keep today's rebuild.</td>
+            <td>Tools: in-place or rebuild, per harness.</td>
+          </tr>
+          <tr>
+            <td class="id">S4</td>
+            <td>The runner lifecycle architecture. Design how the runner separates sandbox create/destroy, session open/close, and per-turn setup, with a harness port-and-adapter layer, and the fingerprint split into tiers that route to rebuild, session reload, or in-place update. Assigned to Codex (GPT), with our framing.</td>
+            <td>A proposed module structure and migration path, for our review.</td>
+          </tr>
+          <tr>
+            <td class="id">S3</td>
+            <td>The interface design for the change set: set, remove, edit, path reference, and the base check, as one coherent schema. Assigned to Codex (GPT), briefed with the design-interfaces skill.</td>
+            <td>Delivered 4 August. See below.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="sub" id="s3-result">
+      <h3>Spike S3 result: the proposed interface</h3>
+      <p>
+        Codex (GPT, highest reasoning setting) reviewed our first sketch against the code and
+        rejected it, with reasons. Its counter-proposal is below. We consider it strong and
+        take it as the working draft, pending our own review.
+      </p>
+      <p>
+        <b>The shape.</b> The commit keeps its envelope: <code>message</code>,
+        <code>delta</code>, and a new <code>base_revision_id</code> beside them. The delta has
+        two forms, never mixed. The legacy form is today's <code>set</code> and
+        <code>remove</code>, unchanged, so shipped playbooks keep working. The new form is one
+        ordered list: <code>operations</code>. Each operation names its verb, its target, and
+        its payload. Operations apply in order, all or nothing.
+      </p>
+      <p><b>Seven verbs:</b></p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Operation</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td class="id">set</td><td>Replace the target value exactly.</td></tr>
+            <tr><td class="id">merge</td><td>Deep-merge an object, with today's rules.</td></tr>
+            <tr><td class="id">remove</td><td>Remove an object field. A missing target is an error.</td></tr>
+            <tr><td class="id">edit_text</td><td>Apply anchored edits to one string: old_text, new_text, exact match, exactly one occurrence, all or nothing.</td></tr>
+            <tr><td class="id">add_item</td><td>Add a named entry to a list. A name collision is an error.</td></tr>
+            <tr><td class="id">replace_item</td><td>Replace a named entry. A missing entry is an error.</td></tr>
+            <tr><td class="id">remove_item</td><td>Remove a named entry. A missing entry is an error.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        There is no "add or replace" verb on purpose. The model must say which one it means,
+        so the server can catch the case where reality disagrees.
+      </p>
+      <p>
+        <b>The target is a list of steps, not a string.</b> A plain string step means an
+        object field. An object step means a named list entry:
+      </p>
+      <p>
+        <code>["parameters", "agent", {"field": "skills", "key": "release-qa"}, "body"]</code>
+      </p>
+      <p>
+        This avoids a new string grammar with escaping rules. The schema can validate every
+        step. Nested lists work the same way: a skill file is
+        <code>{"field": "files", "key": "scripts/check.py"}</code>. The key field per list is
+        fixed: skills and MCP servers key by name, files by path, tools by their canonical
+        tool name. New third-party tool entries must carry an explicit name.
+      </p>
+      <p>
+        <b>Large content by reference.</b> A value-bearing operation accepts
+        <code>value_from: {type: "workspace", path: "downloaded-skills/pdf-tools"}</code>
+        instead of an inline value. The runner resolves it: it confines the path to the
+        workspace, reads the files once, converts the folder to a skill, and replaces
+        <code>value_from</code> with a normal inline value before the call reaches the API.
+        The API never resolves paths; it only ever sees complete values. This also means the
+        approval screen needs frozen content: the runner reads the files before the approval,
+        shows the name, the diff, the file list with sizes, and commits exactly the approved
+        bytes. It must not re-read the folder after approval.
+      </p>
+      <p>
+        <b>Conflicts and errors.</b> A stale base returns 409 with both revision ids, old and
+        new, so the agent can re-read and retry in one step. Any failed operation fails the
+        whole commit with 422, naming the operation index, the target, and a machine-readable
+        reason code such as <code>text_not_unique</code> with a corrective hint. No partial
+        commits.
+      </p>
+      <p>
+        <b>One engine, two wrappers.</b> A pure function applies a change set to a base:
+        <code>apply_change_set(base, delta, scope_policy)</code>. The commit wrapper checks
+        the base id and persists. The run-override wrapper (Q6) takes an immutable revision,
+        applies, runs, persists nothing. The workspace <code>value_from</code> is a
+        runner-side extension, resolved before either wrapper.
+      </p>
+      <p><b>Four catches from the review worth recording:</b></p>
+      <ul class="plain">
+        <li>
+          Pi's edit tool is not truly exact: on a miss, it retries with normalized quotes,
+          dashes, and whitespace. Fine for source files, dangerous for configuration strings.
+          We port the contract, not the fallback. Exact match by default; a relaxed mode only
+          ever as an explicit option later.
+        </li>
+        <li>
+          Do not server-bind <code>base_revision_id</code> like the variant id. Binding
+          overwrites what the model sends. After a conflict, the agent could then never retry
+          inside the same run, because the binding would keep stamping the stale id. The field
+          stays model-visible; the runner only fills it when it is absent.
+        </li>
+        <li>
+          The head comparison must happen inside the same database transaction as the insert.
+          Today the head is fetched in one place and the commit happens in another, so two
+          commits can still race between check and insert.
+        </li>
+        <li>
+          The delta DTO on the API side does not reject unknown fields today. It must, or
+          typos in operation names save silently.
+        </li>
+      </ul>
+    </div>
+
+    <p>
+      The phased delivery plan comes after the spikes report. Writing it earlier would guess at
+      answers the spikes exist to give. S1 can now use these field names.
+    </p>
+  </section>
+
+  <!-- ============================= 7 ============================= -->
+  <section class="sect" id="found">
+    <h2><span class="num">7</span>New defects found during this research</h2>
+    <p>These came up while tracing the design space. None has an issue yet.</p>
+    <ul class="plain">
+      <li>
+        <b>Stale configuration after an approval.</b> A run stops and waits for your approval.
+        While it waits, you change the configuration. You approve, and the run finishes on the
+        old files, which is correct. Then the runner parks the sandbox with the wrong label:
+        it records the new configuration on a sandbox that holds the old files. The next turn
+        sees a match and reuses it. The session runs on old instructions and nothing detects
+        it. (Explained in full in Q5.)
+        <span class="where">server.ts:596-603, 767-854</span>
+      </li>
+      <li>
+        <b>Two skills with the same name: one silently vanishes.</b> The save accepts both. At
+        run time, the runner writes the first and silently skips the second. The user believes
+        both exist.
+        <span class="where">skills.ts:156-176</span>
+      </li>
+      <li>
+        <b>Two tools with the same name: the error comes too late.</b> A duplicate-name check
+        exists, but it runs at run time, not at save time. The bad configuration saves cleanly
+        and breaks the next run instead.
+        <span class="where">resolver.py:90-135</span>
+      </li>
+      <li>
+        <b>A third-party tool can have no stable name.</b> The name field is optional. Without
+        a stable name, we cannot address the entry for edits (requirement R3).
+        <span class="where">tools/models.py:87-96</span>
+      </li>
+      <li>
+        <b>The durable storage fails silently.</b> When the durable mount cannot attach, the
+        runner continues without it and only writes a log line. The agent sees its files. The
+        server sees nothing. The files die with the sandbox. Adjacent to #5342.
+        <span class="where">environment.ts:777-789, 835-845</span>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ============================= 8 ============================= -->
+  <section class="sect" id="open">
+    <h2><span class="num">8</span>Open questions</h2>
+    <ol class="plain">
+      <li>
+        The commit base for user drafts stays undecided (companion report, section 3.1). The
+        base-revision check in P1 makes staleness loud, but the product question remains: should
+        an agent save include the user's uncommitted edits, or refuse, or ignore them visibly?
+      </li>
+      <li>
+        Which configuration parts may the agent edit at all? Instructions and skills, clearly.
+        The model, the harness, the permissions: should those need a human commit?
+      </li>
+      <li>
+        What does the approval screen show for a path-reference commit (US-3)? The content did
+        not pass through the model, but a human still approves it. A file listing with sizes and
+        a diff seems right; this needs a UX decision.
+      </li>
+      <li>
+        Name collisions on import: the agent installs a downloaded skill whose name already
+        exists. Replace, rename, or refuse?
+      </li>
+    </ol>
+  </section>
+
+  <footer>
+    <p>
+      Companion research: <a href="https://claude.ai/code/artifact/585e3254-0e96-44a1-9d85-025d83ac1a8a">Agent
+      self-configuration: how it works and what breaks</a>. Prior art checked: Gumloop (no diff
+      mechanism, no concurrency handling; one mutable draft row, last write wins) and Pi's edit
+      tool (anchored, unique-match, all-or-nothing; engine is pure and storage-pluggable).
+    </p>
+  </footer>
+
+</div>
