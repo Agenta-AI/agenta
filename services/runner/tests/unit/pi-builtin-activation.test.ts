@@ -49,8 +49,8 @@ describe("the deprecated `tools` field does not influence the plan", () => {
   ]) {
     it(`produces the same gating decision for tools=${JSON.stringify(tools)}`, () => {
       const plan = planFor({ permissions, tools } as Partial<AgentRunRequest>);
-      assert.equal(plan.builtinGatingActive, false);
-      assert.equal(plan.useToolRelay, false);
+      assert.equal(plan.tools.builtinGatingActive, false);
+      assert.equal(plan.tools.useToolRelay, false);
     });
   }
 });
@@ -58,7 +58,7 @@ describe("the deprecated `tools` field does not influence the plan", () => {
 describe("builtin gating follows the permission policy alone", () => {
   it("stays off under a blanket allow with no builtin rules", () => {
     assert.equal(
-      planFor({ permissions: { default: "allow", rules: [] } })
+      planFor({ permissions: { default: "allow", rules: [] } }).tools
         .builtinGatingActive,
       false,
     );
@@ -66,7 +66,7 @@ describe("builtin gating follows the permission policy alone", () => {
 
   it("turns on under allow_reads", () => {
     assert.equal(
-      planFor({ permissions: { default: "allow_reads", rules: [] } })
+      planFor({ permissions: { default: "allow_reads", rules: [] } }).tools
         .builtinGatingActive,
       true,
     );
@@ -79,7 +79,7 @@ describe("builtin gating follows the permission policy alone", () => {
           default: "allow",
           rules: [{ pattern: "bash(npm:*)", permission: "deny" }],
         },
-      }).builtinGatingActive,
+      }).tools.builtinGatingActive,
       true,
     );
   });

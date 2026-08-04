@@ -205,6 +205,15 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
 
     const providerIndex = filteredProviders.findIndex((g) => g.label === hoveredProvider)
 
+    // The enclosing drawer (a modal Radix Sheet) locks page scroll via react-remove-scroll,
+    // which intercepts wheel events globally and doesn't recognize this popover's own list —
+    // a separate portal — as a scrollable region, so the native wheel gesture never reaches
+    // it (keyboard nav still works since that's JS-driven, not a browser scroll). Apply the
+    // scroll ourselves so it doesn't depend on the browser's default wheel handling at all.
+    const handleWheelScroll = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+        e.currentTarget.scrollTop += e.deltaY
+    }, [])
+
     const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
         const move = (list: unknown[], from: number, dir: 1 | -1) =>
             list.length ? (from + dir + list.length) % list.length : 0
@@ -453,6 +462,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                 role="listbox"
                                 aria-label={ariaLabel ?? "Options"}
                                 className="max-h-[256px] overflow-y-auto"
+                                onWheel={handleWheelScroll}
                             >
                                 {flatItems.length === 0 ? (
                                     <div className="py-4 text-center text-field-sm text-placeholder">
@@ -549,6 +559,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                     aria-label={hoveredGroup.label ?? "Models"}
                                     className="absolute inset-y-0 right-0 overflow-y-auto border-0 border-l border-solid border-border py-1"
                                     style={{width: modelListWidthCss}}
+                                    onWheel={handleWheelScroll}
                                 >
                                     {hoveredGroup.options.map((option, index) => (
                                         <div

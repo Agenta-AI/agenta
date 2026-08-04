@@ -433,6 +433,60 @@ describe("createAgentServer", () => {
     }
   });
 
+  it("redacts this run's credentials from the stderr stack log when a run throws", async () => {
+    // A per-run provider key rides ONLY the typed request (never process env). When the run
+    // throws with that key captured in the error message/stack (an auth failure echoing it,
+    // a dumped env), the stack must pass through the run's deny-set before reaching the
+    // stderr sink — persistence is already redacted; stderr must be too.
+    const PER_RUN_KEY = "sk-escaping-stack-fake-key-DO-NOT-USE-9a8b7c";
+    const throwingRun: RunAgent = async () => {
+      throw new Error(`provider auth failed for key ${PER_RUN_KEY}`);
+    };
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const s = await listen(throwingRun);
+    try {
+      const res = await fetch(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          modelConnection: {
+            provider: "openai",
+            deployment: "direct",
+            endpoint: { baseUrl: "https://api.openai.com/v1" },
+            credentialMode: "env",
+            credentials: [
+              {
+                binding: { kind: "environment", name: "OPENAI_API_KEY" },
+                value: PER_RUN_KEY,
+                usage: "opaque_http",
+              },
+            ],
+          },
+        }),
+      });
+      assert.equal(res.status, 200);
+      const records = (await res.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+      // The escaping error still terminates the stream with a failed result.
+      assert.equal(records.at(-1)!.kind, "result");
+      assert.equal(records.at(-1)!.result.ok, false);
+
+      const logged = errorSpy.mock.calls
+        .map((args) => args.map(String).join(" "))
+        .join("\n");
+      // The log keeps its shape (an Error stack was written)...
+      assert.match(logged, /Error: provider auth failed/);
+      assert.match(logged, /\n\s+at /);
+      // ...but the live credential value never reaches the stderr sink.
+      assert.equal(logged.includes(PER_RUN_KEY), false);
+      assert.match(logged, /\[ag:redacted/);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("rejects an over-cap session turn before persistence or attachment claiming", async () => {
     // Override the cap rather than generating a default-sized batch, so the case stays small.
     process.env.AGENTA_ATTACHMENTS_MAX_PER_TURN = "2";
@@ -551,9 +605,7 @@ describe("createAgentServer", () => {
           messages: [
             {
               role: "user",
-              content: [
-                { type: "image", uri: "data:image/png;base64,AQID" },
-              ],
+              content: [{ type: "image", uri: "data:image/png;base64,AQID" }],
             },
           ],
         }),

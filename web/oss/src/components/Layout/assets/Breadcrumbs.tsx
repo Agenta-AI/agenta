@@ -82,7 +82,10 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string; appName?: strin
         <section
             className={clsx(
                 classes.breadcrumbContainer,
-                "sticky top-0 z-[100] bg-[var(--ag-surface-raised)] border-0 border-b border-solid border-[var(--ag-surface-divider)] max-w-full overflow-hidden gap-4 !px-3",
+                // z-30, not z-100: this only needs to clear in-page scrolled content (sticky
+                // table headers etc). @agenta/ui's Dialog/Sheet overlays sit at z-40/z-50, so
+                // anything higher here bleeds this bar over open modals/drawers.
+                "sticky top-0 z-30 bg-[var(--ag-surface-raised)] border-0 border-b border-solid border-[var(--ag-surface-divider)] max-w-full overflow-hidden gap-4 !px-3",
             )}
         >
             <div className="flex flex-nowrap items-center shrink-1 min-w-0">

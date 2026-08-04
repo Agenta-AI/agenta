@@ -33,6 +33,76 @@ export const shippedFeatures: ShippedFeature[] = [
   // Channels: 2DD4BF
   // Mobile: F472B6
   {
+    id: "durable-sessions",
+    title: "Durable Agent Sessions",
+    description:
+      "An agent keeps its conversation and its work folder when the process running it restarts. The runner rebuilds the session from stored records, so the agent picks up where it left off instead of losing earlier turns.",
+    changelogPath: "/docs/changelog/api-keys-hidden-from-agent-sandboxes",
+    shippedAt: "2026-08-04",
+    labels: [
+      {
+        name: "Reliability",
+        color: "FF6B6B",
+      },
+    ],
+  },
+  {
+    id: "sandbox-credential-hiding",
+    title: "API Keys Hidden from Agent Sandboxes",
+    description:
+      "An agent running in a cloud sandbox no longer sees its own provider API keys. Each model or MCP key becomes a Daytona Secret restricted to the one host it authenticates against, and the sandbox holds only a placeholder. On by default.",
+    changelogPath: "/docs/changelog/api-keys-hidden-from-agent-sandboxes",
+    shippedAt: "2026-08-04",
+    labels: [
+      {
+        name: "Security",
+        color: "000000",
+      },
+    ],
+  },
+  {
+    id: "codex-harness",
+    title: "Codex as an Agent Harness",
+    description:
+      "Run an agent on Codex, next to Claude Code and Pi. Five OpenAI models, the local or Daytona sandbox, image attachments, your own HTTP MCP servers, and the same tool approvals as the other harnesses.",
+    changelogPath: "/docs/changelog/codex-harness",
+    shippedAt: "2026-08-03",
+    labels: [
+      {
+        name: "Agent Builder",
+        color: "BCFF78",
+      },
+    ],
+  },
+  {
+    id: "work-folder",
+    title: "Shared Workspace Files",
+    description:
+      "One cloud folder for you, your team, and your agents. Upload images, PDFs, or a whole folder, and each agent keeps its own folder that survives between conversations, so it starts every session already knowing your material.",
+    changelogPath: "/docs/changelog/file-attachments-in-agent-chat",
+    shippedAt: "2026-08-02",
+    labels: [
+      {
+        name: "Multimodality",
+        color: "5CC8FF",
+      },
+    ],
+  },
+  {
+    id: "batch-tool-approvals",
+    title: "Batch Tool Approvals",
+    description:
+      "Approve or deny several tool calls together in one step, including a deny-all option, instead of answering one approval card at a time.",
+    changelogPath: "/docs/changelog/file-attachments-in-agent-chat",
+    shippedAt: "2026-07-30",
+    labels: [
+      {
+        name: "Approvals",
+        color: "FFC53D",
+      },
+    ],
+  },
+  {
     id: "agents-from-ui",
     title: "Creating Agents from the UI",
     description:
@@ -77,61 +147,6 @@ export const shippedFeatures: ShippedFeature[] = [
 ];
 export const inProgressFeatures: PlannedFeature[] = [
   {
-    id: "durable-sessions",
-    title: "Durable Agent Sessions",
-    description:
-      "Keep the full conversation when the process running an agent restarts. The runner rebuilds session history from stored records on a cold start, so an agent resumes exactly where it left off instead of losing or replaying earlier turns.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/issues/5443",
-    labels: [
-      {
-        name: "Reliability",
-        color: "FF6B6B",
-      },
-    ],
-  },
-  {
-    id: "voice-and-attachments",
-    title: "Voice and Attachments",
-    description:
-      "Talk to an agent with voice input, and attach files or drive uploads to a message. Adds input beyond text so agents can work with what the user says and shares, not just typed prompts.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/pull/5439",
-    labels: [
-      {
-        name: "Multimodality",
-        color: "5CC8FF",
-      },
-    ],
-  },
-  {
-    id: "batch-tool-approvals",
-    title: "Batch Tool Approvals",
-    description:
-      "Approve or deny several tool calls together in one step, including a deny-all option, instead of handling one approval card at a time. Makes the human-in-the-loop approval flow faster when an agent requests many tools at once.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/issues/5391",
-    labels: [
-      {
-        name: "Approvals",
-        color: "FFC53D",
-      },
-    ],
-  },
-  {
-    id: "build-kit-context",
-    title: "A Build Kit That Manages Its Own Context",
-    description:
-      "Give agents with many tools and large tool results a reliable context. Tools are revealed to the model in stages as the toolset grows, and oversized tool outputs are capped so a single large result does not break a long conversation.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/issues/5341",
-    labels: [
-      {
-        name: "Build Kit",
-        color: "FFA500",
-      },
-    ],
-  },
-];
-
-export const plannedFeatures: PlannedFeature[] = [
-  {
     id: "channels",
     title: "Channels: Slack, Telegram, and More",
     description:
@@ -157,6 +172,22 @@ export const plannedFeatures: PlannedFeature[] = [
       },
     ],
   },
+  {
+    id: "build-kit-context",
+    title: "A Build Kit That Manages Its Own Context",
+    description:
+      "Give agents with many tools and large tool results a reliable context. Tools are revealed to the model in stages as the toolset grows, and oversized tool outputs are capped so a single large result does not break a long conversation.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/issues/5341",
+    labels: [
+      {
+        name: "Build Kit",
+        color: "FFA500",
+      },
+    ],
+  },
+];
+
+export const plannedFeatures: PlannedFeature[] = [
   {
     id: "skill-registry",
     title: "Skill Registry",

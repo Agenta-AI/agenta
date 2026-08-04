@@ -118,6 +118,10 @@ spec:
             - name: AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES
               value: {{ $daytona.autodeleteMinutes | quote }}
             {{- end }}
+            {{- if $daytona.opaqueSecrets }}
+            - name: AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS
+              value: {{ $daytona.opaqueSecrets | quote }}
+            {{- end }}
             {{- if $daytona.apiKeySecretRef }}
             - name: AGENTA_RUNNER_DAYTONA_API_KEY
               valueFrom:
