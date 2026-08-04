@@ -146,7 +146,7 @@ const StripHome: React.FC = () => {
                 className={
                     firstRun
                         ? "mx-auto flex w-full min-h-0 max-w-[1040px] flex-1 flex-col overflow-y-auto px-6 pb-20 pt-14"
-                        : "flex min-h-0 w-full flex-1 gap-6 overflow-hidden px-6 pb-6 pt-8"
+                        : "flex min-h-0 w-full flex-1 gap-10 overflow-hidden px-10 pb-6 pt-8"
                 }
             >
                 <div
