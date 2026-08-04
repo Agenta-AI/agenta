@@ -2,9 +2,11 @@ import React from "react"
 
 import ThemeContextProvider from "@agenta/oss/src/components/Layout/ThemeContextProvider"
 import {default as AppMessageBridge} from "@agenta/ui/app-message"
-import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
+import {QueryClientProvider, type QueryClient} from "@tanstack/react-query"
 import {App as AntApp} from "antd"
 import {getDefaultStore, Provider as JotaiProvider} from "jotai"
+
+import {defaultStoryQueryClient} from "./withAgentaData"
 
 // The REAL app theme provider (ConfigProvider + antd theme + cssVar:{key:"agenta"} +
 // .agenta/.dark class wiring). Reused verbatim so Storybook renders exactly what the
@@ -24,24 +26,6 @@ export type StoryTheme = "light" | "dark"
  * not affect component appearance. `key={theme}` remounts ThemeContextProvider so it
  * re-reads the forced localStorage mode when the toolbar toggles light/dark.
  */
-// Shared inert client: no retries/refetches so stories render deterministically.
-let fallbackClient: QueryClient | undefined
-export function defaultStoryQueryClient(): QueryClient {
-    return (fallbackClient ??= new QueryClient({
-        defaultOptions: {
-            queries: {
-                retry: false,
-                staleTime: Infinity,
-                gcTime: Infinity,
-                refetchOnMount: false,
-                refetchOnWindowFocus: false,
-                refetchOnReconnect: false,
-                refetchInterval: false,
-            },
-        },
-    }))
-}
-
 export function AgentaProviders({
     theme,
     queryClient = defaultStoryQueryClient(),
