@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {type SessionStream} from "@agenta/entities/session"
 import {PushPinIcon} from "@phosphor-icons/react"
@@ -67,6 +67,9 @@ const SessionListCard = ({
     minHeightClassName,
     viewAllHref,
 }: Props) => {
+    // Revealed in place, a page at a time. "View all" leaves for a filterable page; wanting three
+    // more rows is not that errand, and the list's own query already holds the next page.
+    const [extraRows, setExtraRows] = useState(0)
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
     const togglePin = useSetAtom(toggleSessionPinAtom)
@@ -127,7 +130,8 @@ const SessionListCard = ({
     // `limit` caps the CARD, not each group. Applying it per-group made every pin add a row at
     // the top without dropping one at the bottom, so the card grew by a row each time — which is
     // the height change you see mid-transition. Pinning a visible row is now a pure reorder.
-    const waitingRows = waitingRowsAll.slice(0, limit)
+    const shownLimit = limit + extraRows
+    const waitingRows = waitingRowsAll.slice(0, shownLimit)
     // A waiting session that is also pinned renders once, in the group you must act on.
     const allPinned = usePins
         ? pinnedIds.flatMap((id) => {
@@ -135,10 +139,10 @@ const SessionListCard = ({
               return row && !waitingSet.has(id) ? [row] : []
           })
         : []
-    const pinnedRows = allPinned.slice(0, Math.max(0, limit - waitingRows.length))
+    const pinnedRows = allPinned.slice(0, Math.max(0, shownLimit - waitingRows.length))
     const rows = listRows
         .filter((row) => !pinnedSet.has(row.session_id) && !waitingSet.has(row.session_id))
-        .slice(0, Math.max(0, limit - waitingRows.length - pinnedRows.length))
+        .slice(0, Math.max(0, shownLimit - waitingRows.length - pinnedRows.length))
 
     const isEmpty = rows.length === 0 && pinnedRows.length === 0 && waitingRows.length === 0
     // A lone "Recent" heading over a plain list is noise; it only earns its place as a boundary.
@@ -163,6 +167,17 @@ const SessionListCard = ({
     const handleViewAll = useCallback(() => {
         applyScope(linkScope)
     }, [applyScope, linkScope])
+    // More rows exist if the loaded set already exceeds what is shown, or the server has another
+    // page to give.
+    const canShowMore =
+        !isEmpty &&
+        (listRows.length > rows.length + pinnedRows.length + waitingRows.length ||
+            Boolean(listQuery.hasNextPage))
+    const handleShowMore = useCallback(() => {
+        setExtraRows((shown) => shown + limit)
+        if (listQuery.hasNextPage && !listQuery.isFetchingNextPage) void listQuery.fetchNextPage()
+    }, [limit, listQuery])
+
     const handleWaitingClick = useCallback(() => {
         applyScope({...linkScope, status: "waiting"})
     }, [applyScope, linkScope])
@@ -340,6 +355,15 @@ const SessionListCard = ({
                             <p className="m-0 flex grow items-center px-2 py-3 text-xs text-colorTextTertiary">
                                 {emptyText}
                             </p>
+                        ) : null}
+                        {canShowMore ? (
+                            <button
+                                type="button"
+                                onClick={handleShowMore}
+                                className="cursor-pointer border-0 bg-transparent px-2 py-2 text-left text-xs text-colorPrimary"
+                            >
+                                Show more
+                            </button>
                         ) : null}
                     </div>
                 </MotionConfig>

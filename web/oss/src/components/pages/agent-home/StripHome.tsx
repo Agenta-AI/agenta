@@ -209,7 +209,7 @@ const StripHome: React.FC = () => {
                         // the wide column under the composer; the templates strip and the agents
                         // roster move to the rail. The hero and composer stay put.
                         <PanelSurface className="mt-8 shrink-0 grow">
-                            <HomeSessionsSection limit={10} />
+                            <HomeSessionsSection limit={6} />
                             <HomeAutomationsSection />
                         </PanelSurface>
                     )}
@@ -224,16 +224,18 @@ const StripHome: React.FC = () => {
                     <div className="box-border flex w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col gap-6 overflow-y-auto pr-1">
                         {/* Rows, not the scroller: a 238px card and a six-tab category row both
                             need width this column doesn't have. */}
-                        <TemplateStrip
-                            surface="home"
-                            layout="list"
-                            selectedTemplateKey={provenance.selectedTemplateKey}
-                            onPick={handlePick}
-                        />
-                        <YourAgentsTable variant="list" />
-                        {/* Usage sits with what you could start, not with what is in flight —
-                            it is the column you glance at rather than work from. */}
-                        <UsageSummary variant="strip" />
+                        <PanelSurface className="shrink-0 grow">
+                            <TemplateStrip
+                                surface="home"
+                                layout="list"
+                                selectedTemplateKey={provenance.selectedTemplateKey}
+                                onPick={handlePick}
+                            />
+                            <YourAgentsTable variant="list" />
+                            {/* Usage sits with what you could start, not with what is in flight —
+                                it is the column you glance at rather than work from. */}
+                            <UsageSummary variant="strip" />
+                        </PanelSurface>
                     </div>
                 ) : null}
             </div>

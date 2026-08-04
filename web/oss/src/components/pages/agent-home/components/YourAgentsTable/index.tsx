@@ -18,6 +18,7 @@ import {
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
+import {PanelSection} from "@/oss/components/PanelSection"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
 
@@ -139,23 +140,20 @@ const YourAgentsTable = ({forceEmpty = false, variant = "table"}: YourAgentsTabl
 
     if (variant === "list") {
         return (
-            <section className="flex flex-col gap-2">
-                <span className="text-[13px] font-semibold text-colorText">Your agents</span>
+            <PanelSection sticky title="Your agents" bodyClassName="flex flex-col px-2 pb-2">
                 {showEmpty ? (
                     <EmptyAgents />
                 ) : (
-                    <div className="flex flex-col">
-                        {rows.map((record) => (
-                            <AgentRow
-                                key={record.key}
-                                record={record}
-                                waiting={waitingByAgent.get(record.workflowId) ?? 0}
-                                actions={actions}
-                            />
-                        ))}
-                    </div>
+                    rows.map((record) => (
+                        <AgentRow
+                            key={record.key}
+                            record={record}
+                            waiting={waitingByAgent.get(record.workflowId) ?? 0}
+                            actions={actions}
+                        />
+                    ))
                 )}
-            </section>
+            </PanelSection>
         )
     }
 

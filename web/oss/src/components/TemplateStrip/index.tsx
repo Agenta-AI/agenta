@@ -11,6 +11,7 @@ import {
     templateCategories,
     type AgentTemplate,
 } from "@/oss/components/pages/agent-home/assets/templates"
+import {PanelSection} from "@/oss/components/PanelSection"
 
 import {STRIP_COPY} from "./assets/constants"
 import {PAGE_SIZE} from "./assets/pagerMath"
@@ -151,18 +152,15 @@ const TemplateStrip = ({
         )
     }
 
-    return (
-        <div className={className}>
-            {/* Header: label + tabs + right cluster (counter, arrows, optional hide menu). */}
-            <div className="flex items-center gap-[14px]">
-                <span
-                    className={`font-semibold text-[var(--ag-colorText)] ${
-                        isList ? "text-[13px]" : "text-[14.5px]"
-                    }`}
-                >
-                    {STRIP_COPY.label}
-                </span>
-                {isList ? (
+    if (isList) {
+        // A real section, so its header pins like the rest of the rail's — otherwise expanding
+        // "Show all 28" scrolls the only label saying what the rows are off the top.
+        return (
+            <PanelSection
+                sticky
+                title={STRIP_COPY.label}
+                bodyClassName="flex flex-col px-2 pb-2"
+                titleExtra={
                     <Dropdown
                         trigger={["click"]}
                         menu={{
@@ -189,7 +187,40 @@ const TemplateStrip = ({
                             <CaretDown size={12} />
                         </button>
                     </Dropdown>
+                }
+            >
+                {(showAllRows ? filtered : filtered.slice(0, LIST_SIZE)).map((template) => (
+                    <StripRow
+                        key={template.key}
+                        template={template}
+                        selected={template.key === selectedTemplateKey}
+                        onPick={onPick}
+                    />
+                ))}
+                {filtered.length > LIST_SIZE ? (
+                    <button
+                        type="button"
+                        onClick={() => setShowAllRows((wasOpen) => !wasOpen)}
+                        className="cursor-pointer border-0 bg-transparent px-2 py-2 text-left text-xs text-colorPrimary"
+                    >
+                        {showAllRows ? "Show fewer" : `Show all ${filtered.length}`}
+                    </button>
                 ) : null}
+            </PanelSection>
+        )
+    }
+
+    return (
+        <div className={className}>
+            {/* Header: label + tabs + right cluster (counter, arrows, optional hide menu). */}
+            <div className="flex items-center gap-[14px]">
+                <span
+                    className={`font-semibold text-[var(--ag-colorText)] ${
+                        isList ? "text-[13px]" : "text-[14.5px]"
+                    }`}
+                >
+                    {STRIP_COPY.label}
+                </span>
                 {isList ? null : (
                     <div className="flex items-center">
                         {categories.map((category) => {
@@ -279,29 +310,7 @@ const TemplateStrip = ({
                 </div>
             </div>
 
-            {isList ? (
-                /* Rows, capped: 28 templates below a rail's session list is a catalogue nobody
-                   opened this page to read. The rest are one click away, in place. */
-                <div className="mt-2 flex flex-col">
-                    {(showAllRows ? filtered : filtered.slice(0, LIST_SIZE)).map((template) => (
-                        <StripRow
-                            key={template.key}
-                            template={template}
-                            selected={template.key === selectedTemplateKey}
-                            onPick={onPick}
-                        />
-                    ))}
-                    {filtered.length > LIST_SIZE ? (
-                        <button
-                            type="button"
-                            onClick={() => setShowAllRows((wasOpen) => !wasOpen)}
-                            className="cursor-pointer border-0 bg-transparent px-2 py-2 text-left text-xs text-colorPrimary"
-                        >
-                            {showAllRows ? "Show fewer" : `Show all ${filtered.length}`}
-                        </button>
-                    ) : null}
-                </div>
-            ) : isGrid ? (
+            {isGrid ? (
                 /* Card page: a full-width 3-up grid — every visible card is whole (no clipped
                    fourth card), and the window always matches the "X–Y of N" counter. */
                 <div className="mt-5 grid grid-cols-3 gap-[18px]">
