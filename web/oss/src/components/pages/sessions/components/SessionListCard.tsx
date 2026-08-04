@@ -141,7 +141,12 @@ const SessionListCard = ({
         : []
     const pinnedRows = allPinned.slice(0, Math.max(0, shownLimit - waitingRows.length))
     const rows = listRows
-        .filter((row) => !pinnedSet.has(row.session_id) && !waitingSet.has(row.session_id))
+        // Only a card that RENDERS a pinned group may withhold pinned rows from here. Automation
+        // runs doesn't, so filtering them out unconditionally made pinning one delete it from view.
+        .filter(
+            (row) =>
+                (!withPinned || !pinnedSet.has(row.session_id)) && !waitingSet.has(row.session_id),
+        )
         .slice(0, Math.max(0, shownLimit - waitingRows.length - pinnedRows.length))
 
     const isEmpty = rows.length === 0 && pinnedRows.length === 0 && waitingRows.length === 0
