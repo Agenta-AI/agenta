@@ -637,7 +637,13 @@ export function useModelHarness({
     // different id namespaces; the provider is the reliable cross-harness signal on the config).
     const selectedKeepsModel =
         !modelId ||
-        harnessAllowsModel(capabilities, harnessValue, modelId) ||
+        harnessAllowsModel(
+            capabilities,
+            harnessValue,
+            modelId,
+            customSecrets,
+            connection.slug || null,
+        ) ||
         (!!connection.provider && selectedProviders.includes(connection.provider))
     const selectedIsCurrent = !!harnessValue && (savedHarnessValue ?? harnessValue) === harnessValue
     const selectedHarnessLabel =
