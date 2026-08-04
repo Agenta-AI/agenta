@@ -1457,7 +1457,7 @@ const FocusDrawer = () => {
             afterOpenChange={handleAfterOpenChange}
             closeOnLayoutClick={false}
             expandable
-            className="[&_.ant-drawer-body]:p-0 [&_.ant-drawer-header]:p-4"
+            styles={{body: {padding: 0}, header: {padding: 16}}}
             sideContentDefaultSize={240}
             headerExtra={
                 shouldRenderContent ? (

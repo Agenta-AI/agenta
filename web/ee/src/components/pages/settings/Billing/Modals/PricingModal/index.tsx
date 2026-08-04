@@ -9,7 +9,7 @@ const PricingModalContent = dynamic(() => import("./assets/PricingModalContent")
 const PricingModal = ({onCancelSubscription, ...props}: PricingModalProps) => {
     return (
         <EnhancedModal
-            className={clsx("[&_.ant-modal-close]:top-[19px]", props.className)}
+            className={clsx('[&_[data-slot="dialog-close-x"]]:!top-[19px]', props.className)}
             width={1200}
             title={<PricingModalTitle />}
             footer={null}
