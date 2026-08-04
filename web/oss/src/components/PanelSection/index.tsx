@@ -56,9 +56,9 @@ export const PanelSection = ({
     /** Rendered at the header's right edge, e.g. "View all". */
     extra?: ReactNode
     /**
-     * Pin the header while its own section scrolls past. The background it carries is opaque
-     * rather than a fill token — a sticky header with an rgba fill lets the rows scroll through
-     * it visibly.
+     * Pin the header while its own section scrolls past. The background it carries is the opaque
+     * page/rail surface, never a fill token — an rgba fill lets the rows scroll through it visibly,
+     * and `colorBgLayout` is a shade neither surface actually uses.
      */
     sticky?: boolean
     /** `rail` sits inside {@link PanelSurface}; `page` sits bare on the page background. */
@@ -79,14 +79,15 @@ export const PanelSection = ({
             {/* The rule belongs BETWEEN sections, not under a header: a header with a rule under it
                 reads as a table head over its rows, and leaves the boundary that matters — one
                 section's last row against the next one's title — completely unmarked. */}
-            {/* Only the rail's headers pin, and only they carry a background. A bare section has
-                no surface of its own to match — painting one drew a bar in a shade the page never
-                uses — and the reference doesn't pin its main-column label either. */}
             <div
                 className={`flex shrink-0 items-center justify-between gap-2 ${
                     isRail
                         ? `bg-colorBgContainer px-4 pb-2 pt-4 ${sticky ? "sticky top-0 z-10" : ""}`
-                        : "px-2 pb-2 pt-1"
+                        : `px-2 pb-2 pt-2 ${
+                              // The page surface is colorBgContainer (#141414 dark / #fff light);
+                              // colorBgLayout is pure black and paints a bar the page never uses.
+                              sticky ? "sticky top-0 z-10 bg-colorBgContainer" : ""
+                          }`
                 }`}
             >
                 <div className="flex min-w-0 items-center gap-2">
