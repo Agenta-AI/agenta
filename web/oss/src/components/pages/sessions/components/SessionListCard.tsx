@@ -187,7 +187,7 @@ const SessionListCard = ({
                     <button
                         type="button"
                         onClick={() => handleOpen(row)}
-                        className="group flex w-full cursor-pointer flex-col gap-0.5 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-2 text-left hover:bg-colorFillQuaternary"
+                        className="group box-border flex w-full cursor-pointer flex-col gap-0.5 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-2 text-left hover:bg-colorFillQuaternary"
                     >
                         <span className="flex w-full items-center gap-2">
                             <Tooltip title={status.label}>
@@ -238,7 +238,7 @@ const SessionListCard = ({
                         {/* What actually happened, so deciding whether to reopen a session
                             doesn't mean opening it. Indented past the status dot. */}
                         {preview ? (
-                            <span className="w-full truncate pl-4 text-[11px] text-colorTextTertiary">
+                            <span className="min-w-0 truncate pl-4 text-[11px] text-colorTextTertiary">
                                 {preview}
                             </span>
                         ) : null}
@@ -290,9 +290,12 @@ const SessionListCard = ({
                 <Skeleton active paragraph={{rows: 4}} title={false} />
             ) : (
                 <MotionConfig transition={SESSION_SPRING} reducedMotion="user">
-                    {/* `flex-1` so the empty state can centre in whatever the floor leaves over,
-                        instead of hanging at the top above a block of dead space. */}
-                    <div className="flex flex-1 flex-col">
+                    {/* `grow`, NOT `flex-1`: `flex-1` sets `flex-basis: 0`, so this card sized
+                        itself as though the list were empty and every row past the min-height
+                        floor spilled out of the bottom border. `grow` keeps the content's own
+                        height and still fills the floor's leftover, which is all the empty
+                        state needed it for. */}
+                    <div className="flex grow flex-col">
                         <AnimatePresence initial={false}>
                             {waitingRows.length > 0
                                 ? groupHeading("waiting-heading", "Waiting on you")
@@ -313,7 +316,7 @@ const SessionListCard = ({
                         </AnimatePresence>
 
                         {isEmpty ? (
-                            <p className="m-0 flex flex-1 items-center px-2 py-3 text-xs text-colorTextTertiary">
+                            <p className="m-0 flex grow items-center px-2 py-3 text-xs text-colorTextTertiary">
                                 {emptyText}
                             </p>
                         ) : null}
