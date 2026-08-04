@@ -1,59 +1,60 @@
 # Agent Analytics page
 
-A new project-scoped **Analytics** page for the Agenta web app. It charts how a project's
-agents perform over a chosen window: run volume, success and failure, latency, cost, and
-tokens. The page reads the existing spec-driven analytics endpoint
-(`POST /spans/analytics/query`) and reuses the frontend data-layer atoms already built for it,
-so this work adds a page, not a data layer.
+A project-scoped **Analytics** page for the Agenta web app. It charts how a project's agents
+perform over a chosen window: run volume, success and failure, latency, cost, and tokens. The
+page reads the existing analytics endpoint (`POST /spans/analytics/query`) and reuses the
+frontend data layer already built for it, so this work adds a page, not a data layer.
 
-## Reading order
+## State
 
-1. **context.md** — why the page exists, what a user sees today, goals and non-goals, and the
-   locked scope decisions.
-2. **scope.md** — the v1 / v2 split: what ships now versus what waits for backend work, each as
-   a ranked table. Read it to know what is in scope before the how.
-3. **research.md** — the code this feature reuses, path by path: the analytics fetch layer, the
-   response-to-dashboard mapper, the sidebar and routing, and the charting library. Read it
-   before you propose any new file.
-4. **data-contract.md** — the request the page sends (window, filter, metric specs) and the
-   response fields the new mapper reads, including the fields the current mapper drops.
-5. **plan.md** — the build in phases, with the file list per phase and the seam where the
-   deferred model and tool views drop in once the backend supports them.
-6. **status.md** — current state, open questions, and decisions. This is the source of truth
-   for progress; update it as work lands.
-7. **capability-review.md** — an independent, evidence-backed review of what the analytics
-   backend can answer today, written after the documents above. It tests each wanted capability
-   against the running code with live queries, times those queries, and proposes a v1 and a v2.
-   It contradicts the earlier documents in several places, so read it before you build. Where
-   the two disagree, the review carries the evidence.
+**Planned, not built.** No code is written and no branch exists. The scope is designed against
+today's endpoint; most of the open work — and every wanted-but-missing view — is v2 backend work.
+
+## The docs
+
+- **[scope.md](scope.md)** — the scope line: what the backend can answer **today** (with honest
+  labels) versus what **needs v2 work** (blockers first, then deferred features, each ranked with
+  the backend change it needs). Start here. Scan its tables in a few seconds.
+- **[research.md](research.md)** — ground truth: how the analytics engine actually works
+  (root-spans-only, the dead `focus` field, specs and percentiles, the silent-failure modes),
+  what live queries prove, and the code the page reuses. Read it before proposing any change.
+- **[capability-review.md](capability-review.md)** — the evidence base: every verdict tested
+  against the running code with live queries on two stacks. Where a summary and the review
+  disagree, the review carries the evidence. Its line citations are frozen at commit
+  `31c0781d42`; the load-bearing ones are re-verified and corrected in research.md.
+
+## The short version
+
+**Today** the endpoint answers: runs (success vs failed), latency (avg + p95 + min/max), runs per
+agent, and filters on agent / harness / configured model. Cost and the token split are
+expressible but coverage-gated. Breakdowns by harness and configured model are run-counts only,
+so the useful version — cost and tokens per harness/model — is v2. It reads root spans only, and
+it fails silently — a killed query looks like an empty one.
+
+**v2** is where the open problems live: two defects (silent query failures, and a mid-July
+collapse in cost/token coverage), one contract decision, and the wall behind every missing view.
+Some need only a group-by dimension (cost/tokens per harness and configured model, which are
+root-span attributes); the rest wait on a `focus=span` fix because the endpoint cannot read child
+spans — tool usage, the model that actually answered, per-resolved-model cost, and cache tokens.
 
 ## Glossary
 
-Terms used across these documents, defined once. This section is the workspace glossary; a
-separate `CONTEXT.md` cannot sit beside `context.md`, because the filesystem is case-insensitive
-and the two names collide.
-
-- **Agent**: a configured AI agent in the project — the top-level thing a user builds, runs, and
-  analyzes. It is the unit the page aggregates over and the unit the Agents filter narrows to.
-  This page's copy never calls it application, app, workflow, or variant.
+- **Agent**: a configured AI agent in the project — the unit the page aggregates over. Never
+  called application, app, workflow, or variant in the page copy.
 - **Run**: one agent invocation. On the backend it is one root span (a span with no parent). Run
-  count per bucket equals the count of the `ag.type.trace` metric. This page says "run"; the
-  Observability dashboard says "request" for the same metric, and the two may diverge until
-  Observability is aligned later.
-- **Span**: one unit of work inside a run — a model call, a tool call, or the agent step itself.
-  Model name and tool name live on child spans, not on the root span.
-- **Root span**: the top span of a run. Today's analytics endpoint reads root spans only.
-- **Failed run**: a run whose root span status is `STATUS_CODE_ERROR`, a run-level outcome
-  (there is no `STATUS_CODE_OK` on root spans, so success is the complement). It is counted from
-  the `status_code` column, not from the errors metric.
-- **Error**: any errored step inside a run. A run can contain errors and still succeed, so an
-  error count is not a failed-run count.
-- **Bucket**: one time slice of the chart x-axis — one day, or one hour. The endpoint returns
-  one metrics object per bucket.
-- **Metric spec**: a request instruction of the form `{type, path}` that tells the endpoint
-  which JSON path on the span to summarize, and how. The endpoint has no fixed metric list; it
-  summarizes whatever path a spec names.
-- **Focus**: a request field that selects whether the query aggregates over root spans (`trace`)
-  or all spans (`span`). Only `trace` works today; see context.md.
-- **Project scope**: the web app always has exactly one project in context. This page lives at
-  that level and, by default, aggregates every agent in the project.
+  count is the count of the `ag.type.trace` metric. The Observability page calls the same metric
+  a "request"; the two may diverge until Observability is aligned later.
+- **Root span** / **child span**: the top span of a run versus every other span in it. Today's
+  endpoint reads root spans only. Model name and tool name live on child spans.
+- **Configured / resolved / invoked**: what the author wrote down (the model alias, the tool
+  list) / what the system turned it into at run time / what the run actually did. Today's page can
+  chart only *configured* values; *resolved* and *invoked* are v2.
+- **Failed run**: a run whose root span `status_code` is `STATUS_CODE_ERROR`. There is no
+  `STATUS_CODE_OK` on root spans, so success is the complement. It is a run-level outcome, not a
+  count of errored steps.
+- **Bucket**: one time slice of the x-axis — a fixed-width period offset from the window start,
+  not a calendar day. Calendar months are not expressible.
+- **Metric spec**: a `{type, path}` instruction naming a JSON path to summarize. The endpoint
+  has no fixed metric list; it summarizes whatever path a spec names.
+- **Coverage-gated**: a metric that is expressible but often holds no data, so the chart renders
+  only when enough runs carry the value and otherwise says so, rather than showing a zero.

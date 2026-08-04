@@ -1,101 +1,78 @@
-# Scope: v1 now, v2 later
+# Scope — possible today vs needs v2 work
 
-This page draws the line between what ships now (**v1**) and what waits (**v2**). It is the
-roadmap view; plan.md holds the build steps, and capability-review.md holds the evidence behind
-every verdict.
+The scope line for the Analytics page: what the backend can answer **today**, and what needs a
+backend change in **v2**. This is a scoping doc, not a build guide — it says what is in and what
+is out, not how to wire it. The mechanics behind every verdict are in [research.md](research.md);
+the live-query evidence is in [capability-review.md](capability-review.md) (`§`).
 
-## The rule
-
-- **v1** is the planned release scope: the charts and Agents filter we will build against
-  today's endpoint — runs, latency, cost, tokens, and the harness / configured-model / agent
-  breakdowns. No code is written yet (see status.md); this is the plan, not a shipped state.
-- **v2** is anything that needs backend integration or a major fix — a new query capability, a
-  storage change, or new instrumentation.
-- **The two backend items (B1, B2) are v2, not v1 blockers.** By decision of the requester, making
-  a killed or rejected query surface an error, and investigating the cost / token coverage
-  collapse, are backend work and follow the base rule above — they move to v2. v1 ships against
-  today's endpoint without them, accepting the two known limits they would have fixed: the page
-  cannot tell "no data" from "the query died", and cost may read empty with no signal. Both are
-  tracked in the v2 table below.
-
-## How to read the tables
-
-- **Priority** ranks work within each scope by value against effort: `P0` first, then `P1`, `P2`,
-  `P3`.
-- **Value** — how much the feature matters to a user: High / Med / Low.
-- **Effort** — how much work it is: `S` (a day or so), `M` (a few days), `L` (a week or more, or
-  open-ended).
-- Every v1 row is frontend-only; the two backend items (B1, B2) are v2, in the v2 table.
+Priority ranks value against effort (P0 first). Effort is S (a day), M (a few days), L (a week+).
 
 ---
 
-## Scope v1 — build now
+## V1 = Possible today
 
-Planned against today's endpoint. No code is written yet (see status.md). Every capability here is
-verified backend-*available* in capability-review.md §4.2 unless a note says otherwise — "ready"
-describes what the endpoint can answer today, not shipped UI. B1 and B2 (the two backend fixes)
-are now v2, so nothing in v1 blocks on them; v1 lives with the limits noted below.
+Works against today's endpoint with no backend change. Each is verified backend-available in
+§4.2. The label matters: several of these are proxies that must be named honestly in the UI.
 
-| Priority | Feature | What it delivers | Value | Effort | Depends on |
-|---|---|---|---|---|---|
-| P0 | Page shell, route, sidebar | The Analytics page exists, reachable, project-scoped | Enabler | S | — |
-| P0 | Data layer (`specs` field + fetch + mapper) | The page requests explicit specs and maps buckets to chart shape | Enabler | M | — |
-| P0 | Runs per period (success vs failed) | Stacked Runs chart; corrected `status_code is STATUS_CODE_ERROR` filter + second query | High | M | — |
-| P0 | Latency per period (avg + p95 + min/max) | Latency chart with per-bucket p95 line; ships free on the numeric spec | High | S | — |
-| P0 | Time-range control (any window, 7-day default) | Reuses the observability `Sort` / `SortResult` | High | S | — |
-| P0 | Four page states (data / no-data / unavailable / failed) | Honest empty vs failure vs coverage-gap, per card | High | M | — |
-| P1 | Cost per period (coverage-gated total) | Cost chart from `gen_ai.usage.cost`; renders only above the coverage threshold | High | M | — |
-| P1 | Tokens per period (total + coverage-gated split) | Tokens chart; the prompt/completion split shows only above threshold | Med | M | — |
-| P1 | Breakdown charts: runs per harness / configured model / agent | Three `categorical/single` breakdowns; agent unions `workflow_variant` + `application_variant` | High | M | — |
-| P1 | Filters: agents, harness, configured model | Three server-side filters on root-span fields; no backend change (§4.2 items 10–12). Agents by `references`; the model filter narrows the configured alias | High | M | — |
+| Capability | What the number actually means | Ready? |
+|---|---|---|
+| Runs per period | Root spans in the window, in fixed-width buckets. Calendar months are not expressible | **Yes**, with a `trace_type` filter |
+| Success vs failed runs | Root-span status. Blind to failures inside a run that recovered a clean root (~1.2%) | **Yes**, with the corrected `status_code` filter |
+| Average latency per period | Mean root-span wall clock | **Yes** |
+| Latency min / max / p95 | Exact percentile over root durations; 27 percentiles ship free on every numeric spec | **Yes** |
+| Total tokens per period | Harness-reported total tokens | **Yes**, with a coverage label |
+| Runs per agent | Agent identity from `references`; two naming families unioned | **Yes**, run counts only |
+| Filter by agent / harness / configured model | Server-side conditions on root-span fields | **Yes** |
 
-Notes:
-
-- **The two backend fixes (B1, B2) are v2**, and v1 lives with their absence. The four page states
-  are all built, but until B1 the "failed / query-died" state cannot be told apart from "no data",
-  so a killed query reads as an honest empty. The Cost chart stays coverage-gated and may read
-  unavailable until B2. Both fixes and their limits are in the v2 table.
-- **Cost** is "blocked on coverage" in the review (§4.2 item 4). v1 ships the chart
-  coverage-gated; B2 (now v2) is what makes it dependable.
-- **Configured model** is a proxy for the model that answered — the author's alias. It is
-  labeled honestly; the real answered model is v2 (needs `focus=span`).
-- **Not on the v1 page at all:** tool usage, resolved-model usage, per-model cost, cache tokens,
-  per-user numbers, skills. All are v2 (below), each for a backend reason.
 
 ---
 
-## Scope v2 — future, needs backend work
+## V2 Missing features/issues
 
-Ordered by dependency and combined value-vs-effort. The backend column names the enabling change
-and its capability-review.md §8.4 item.
+One table, ordered by priority (P0 first) and, within a tier, **fixes before missing
+capabilities**. The **Type** column says whether a row repairs something that exists but is broken
+(**Fix**) or builds a capability that isn't there yet (**Missing**). The "Blocked by / fix" column
+is the gate: for a Fix it is the repair, for a Missing item the capability it waits on — one gate
+often unlocks several rows. The wall behind most missing items: the endpoint reads root spans only,
+and the `focus` field that would widen the scan to child spans is accepted, echoed, and ignored
+(§4.3, [research.md](research.md)).
 
-| Priority | Feature | What it delivers | Value | Effort | Backend work it needs |
-|---|---|---|---|---|---|
-| P0 | Typed analytics contract | Named metrics / dimensions / aggregations, validated and capped; the foundation the rest build on | High | M | Replace the arbitrary-path protocol (§8.4 item 2) |
-| P0 | B1 — Make killed / rejected queries surface an error | 504 / 4xx + per-metric `sample_count` instead of a silent empty 200; lets the page tell "no data" from "the query died", and unblocks span-focus | High | M | Typed timeout / filter error in core + router `HTTPException` + per-metric `sample_count` (§8.4 item 1) |
-| P1 | B2 — Investigate cost / token coverage collapse | Restores dependable coverage for cost and the token split | High | M–? | Diagnose the mid-July collapse of `gen_ai.usage.cost` and the token split (§4.4 item 4) |
-| P1 | Stop reading JSONB on the chart path | Hot columns or a per-run facts table; a permanent latency win and a home for invoked facts | High | M–L | Ingest + storage change (§8.4 item 4) |
-| P1 | Tool usage per period (which tools ran) | Real tool-call counts, and a path to per-tool error rate | High | M | `focus=span` wiring + 3 guards + non-root index (§8.4 item 3) |
-| P1 | Resolved model usage per period | The model that actually answered, distinct from the configured alias | High | M | `focus=span` (shares the wiring) |
-| P2 | Per-model cost / tokens | A numeric metric split by model in one call | High | L | `focus=span` + a group-by dimension (§8.4 item 5) |
-| P2 | Cost mapped to the canonical path | `gen_ai.usage.cost` → `ag.metrics.costs.cumulative.total`; also fixes evaluation cost | Med | S | Semconv adapter map (§8.4) |
-| P2 | Cache tokens per period | Cache read and write per model call | Low–Med | M | `focus=span`, or roll up to the root |
-| P2 | Per-user numbers | Runs / latency / cost per user | Med* | S | A nameable `created_by_id` dimension (needs the contract or facts table) (§8.4 item 6) |
-| P2 | Calendar-aware periods | True calendar days and months, timezone-correct | Low | M | Timezone-aware bucketing in the backend (§4.4 item 1) |
-| P3 | Skills used (invoked) | Which skills the agent actually invoked | Med | L | Runner instrumentation, then promotion to the root (§4.4 item 14) |
-| P3 | Pre-aggregation rollups | Fast wide-window queries at high volume | Med | L | A rollup table; sequence last, after facts land (§8.4 item 7) |
+| Priority | Type | Item | Blocked by / fix | Effort |
+|---|---|---|---|---|
+| **P0** | Fix | **B1** — killed / rejected queries return an empty HTTP 200, indistinguishable from no data | Raise a typed timeout/filter error in core; re-raise as `HTTPException` (504 / 4xx) at the router; add a per-metric `sample_count` | M |
+| **P0** | Fix | **B2** — cost + token-split coverage collapsed to near zero mid-July, cause unknown | Diagnose the collapse (first checks in §4.4 item 4); both measured stacks were local dev, production unverified | M–? |
+| **P0** | Fix | **Contract** — request is an arbitrary JSON path validated by silence, pinning every UI to today's ingest shape | Keep it, or move to a typed contract (named metrics/dimensions, filter grammar, caps); gates F1–F5 | M |
+| P1 | Fix | **Total cost per period** — harness-reported run total (`gen_ai.usage.cost`); total only, canonical paths empty on roots. UI built + coverage-gated, so it lights up on the B2 fix | B2 | S (UI done) |
+| P1 | Fix | **Prompt / completion token split** — same field family as total tokens. UI built + coverage-gated, lights up on the B2 fix | B2 | S (UI done) |
+| P1 | Fix | **Stop reading JSONB on the chart path** (F2) — a permanent latency win + a home for invoked facts | Ingest + storage change (hot columns or a facts table) | M–L |
+| P1 | Missing | **Tool usage per period** — which tools actually ran | `focus=span` wiring (F1) | M |
+| P1 | Missing | **Resolved model usage** — the model that answered | `focus=span` (shares F1) | M |
+| P2 | Fix | **Cost on the canonical path** — map `gen_ai.usage.cost` → `ag.metrics.costs.cumulative.total` | Semconv adapter map | S |
+| P2 | Missing | **Cost / tokens per harness & per configured model** — the breakdowns worth showing; today's give run counts only | A group-by dimension (F3); both are root-span attributes, so **no** `focus=span` | M |
+| P2 | Missing | **Cost / tokens per resolved model** — split by the model that answered | `focus=span` **and** a group-by dimension (F3) | L |
+| P2 | Missing | **Cache tokens per period** | `focus=span`, or roll up to the root | M |
+| P2 | Missing | **Calendar-aware periods** — true days/months, timezone-correct | Timezone-aware bucketing | M |
+| P3 | Missing | **Skills used (invoked)** | Runner instrumentation, then promotion to the root | L |
+| P3 | Missing | **Pre-aggregation rollups** — fast wide-window queries at scale | A rollup table, sequenced last | L |
 
-\* Per-user value is conditional: it means nothing until a project has more than one writing
-credential. On both measured stacks `created_by_id` had exactly one value per project (§4.4
-item 13).
 
----
+### What the gates require
 
-## Where each source draws the line
+- **F1 — span-focus wiring.** Make `WHERE parent_id IS NULL` conditional on `focus`. Ship three
+  guards or it returns wrong numbers: cumulative metrics double-count (use the `incremental`
+  paths), the run count needs a dedupe (`ag.type.trace` is on every span), and non-root rows need
+  an index (~5x row fan-out). Do not ship it before B1. §8.4 item 3.
+- **F2 — storage.** Reading one number out of a 10 KB JSONB value costs a full detoast; the fix
+  is storage, not SQL. Promote hot fields to typed columns, or build a per-run facts table (which
+  also homes invoked tools and resolved models). Both need a late-arriving-batch plan. §8.4 item 4.
+- **F3 — a group-by dimension.** No request can split a numeric metric by a category today. Prefer
+  a per-series dimension under the typed contract over one `group_by` path per query, and cap
+  cardinality. Harder; defer until F1 ships. §8.4 item 5.
 
-- **capability-review.md §4.2** — the per-capability verdict table (ready / proxy / not
-  available) that seeds v1 versus v2.
-- **capability-review.md §8.3** — the v1 beta scope.
-- **capability-review.md §8.4** — the v2 backend work, in dependency order.
-- **plan.md** — the v1 build, phase by phase (Phases 1–4 = the page). Phase 0 (the two backend
-  fixes, B1 and B2) and Phase 5 are v2 backend work and do not gate the v1 page.
+### Also unresolved before the page leaves beta
+
+Not analytics questions, but the page cannot ship past beta without answers (§8.5): whether
+Analytics **replaces or sits beside** Observability (and the two deprecated, uncalled analytics
+routes still in the clients); **test coverage** (one analytics unit test exists, asserting bucket
+order); **tenancy tests** (nothing proves a filter cannot reach another project's rows); a
+**performance gate** on production-shaped data; and a **rollout flag** until B2 is answered.
