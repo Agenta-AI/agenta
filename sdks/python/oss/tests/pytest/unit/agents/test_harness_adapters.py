@@ -65,13 +65,14 @@ def test_pi_keeps_native_tools(make_env):
     assert result.model == "m"
 
 
-def test_pi_threads_model_ref_so_connection_reaches_wire(make_env):
-    """Regression: a named custom connection's ``{mode, slug}`` must reach the ``/run`` wire.
+def test_pi_threads_model_ref_so_connection_reaches_resolver(make_env):
+    """Regression: a named custom connection's ``{mode, slug}`` must survive the adapter.
 
     ``_to_harness_config`` builds the wire-producing harness template. If it drops
-    ``model_ref`` (passing only the plain ``model`` string), ``wire_model_ref`` returns ``{}``
-    and the runner never sees the connection slug, so it cannot build its ``models.json`` plan
-    for an OpenAI-compatible custom connection (the run then falls back to a default provider).
+    ``model_ref`` (passing only the plain ``model`` string), the connection resolver never
+    sees the slug, so it cannot select the OpenAI-compatible custom connection (the run then
+    falls back to a default provider). Author intent itself no longer rides the ``/run``
+    wire — only the resolved ``modelConnection`` (route + typed credentials) does.
     """
     harness = PiHarness(make_env(supported=[HarnessKind.PI]))
     agent = AgentTemplate(
@@ -86,14 +87,11 @@ def test_pi_threads_model_ref_so_connection_reaches_wire(make_env):
 
     assert result.model_ref is not None
     assert result.model_ref.connection.slug == "my-compat"
-    # The connection intent reaches the /run wire so the runner can register the provider.
-    assert result.wire_model_ref().get("connection") == {
-        "mode": "agenta",
-        "slug": "my-compat",
-    }
+    # Unresolved author intent never rides the wire; only a resolved connection would.
+    assert result.wire_model_connection() == {}
 
 
-def test_agenta_threads_model_ref_so_connection_reaches_wire(make_env):
+def test_agenta_threads_model_ref_so_connection_reaches_resolver(make_env):
     """Same guarantee as Pi for the ``pi_agenta`` harness (it also runs Pi)."""
     harness = AgentaHarness(make_env(supported=[HarnessKind.AGENTA]))
     agent = AgentTemplate(
@@ -107,10 +105,8 @@ def test_agenta_threads_model_ref_so_connection_reaches_wire(make_env):
     result = harness._to_harness_config(_session_config(agent=agent))
 
     assert result.model_ref is not None
-    assert result.wire_model_ref().get("connection") == {
-        "mode": "agenta",
-        "slug": "my-compat",
-    }
+    assert result.model_ref.connection.slug == "my-compat"
+    assert result.wire_model_connection() == {}
 
 
 def test_pi_reads_its_harness_extras_slice(make_env):

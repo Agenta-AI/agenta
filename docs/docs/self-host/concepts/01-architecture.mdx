@@ -129,7 +129,7 @@ selector (for example, `AGENTA_WORKER_STREAMS=spans` on its own).
 - **Port**: 8765 (internal)
 - **Purpose**: Executes agent workflows on behalf of the Services API
 
-The runner receives `/run` requests from the Services API (routed via `AGENTA_RUNNER_INTERNAL_URL`) and starts harness processes (Pi, Claude Code, or other supported adapters) in local or remote sandboxes. It mounts durable working directories from the store into each sandbox and relays server-side tools back to the Services API without exposing the full stack environment to the harness.
+The runner receives `/run` requests from the Services API (routed via `AGENTA_RUNNER_INTERNAL_URL`) and starts harness processes (Pi, Claude Code, Codex, or other supported adapters) in local or remote sandboxes. It mounts durable working directories from the store into each sandbox and relays server-side tools back to the Services API without exposing the full stack environment to the harness.
 
 The runner runs each harness in a sandbox: the local runner container (`local`, the default) or a
 Daytona cloud sandbox (`daytona`, enabled by adding `daytona` to

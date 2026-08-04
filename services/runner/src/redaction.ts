@@ -389,17 +389,49 @@ export function seedFromEnv(options?: {
 /** The shape `seedForRun` reads off an `AgentRunRequest` (structural, to avoid importing the
  * wire types into the redaction primitive). */
 export interface RunSeedSource {
-  /** Provider API keys resolved per run and applied into the run env (`daemon.ts`). */
-  secrets?: Record<string, string>;
+  /** Resolved model routing: typed credential values plus the materialized environment values. */
+  modelConnection?: {
+    environment?: Record<string, string>;
+    credentials?: Array<{ value?: string }>;
+  };
+  /** Resolved MCP servers: each connection's typed secret header credential values. */
+  mcpServers?: Array<{
+    connection?: { credentials?: Array<{ value?: string }> };
+  }>;
   telemetry?: {
     exporters?: { otlp?: { headers?: Record<string, string> } };
   };
 }
 
 /**
- * The runner's per-run deny-set (WP1.1). The run's resolved provider keys ride `secrets` on the
- * wire and never appear in the sidecar's own process env, so a process-env-only seed would miss
- * exactly the highest-value secrets — they must be seeded from the REQUEST.
+ * Every credential-bearing value the request's TYPED shapes carry: the model connection's
+ * credential values and materialized environment values, plus each MCP server connection's
+ * credential values. This is a superset of whatever subset actually lands in the sandbox env
+ * (on a Daytona Secrets run the opaque values leave the plaintext env for the secret plan, but
+ * they still transit runner memory and can be echoed by the model), so the deny-set seeds from
+ * the request, not from the delivered environment.
+ */
+export function requestSecretValues(
+  request: RunSeedSource,
+): Array<string | undefined> {
+  return [
+    ...Object.values(request.modelConnection?.environment ?? {}),
+    ...(request.modelConnection?.credentials ?? []).map(
+      (credential) => credential.value,
+    ),
+    ...(request.mcpServers ?? []).flatMap((server) =>
+      (server.connection?.credentials ?? []).map(
+        (credential) => credential.value,
+      ),
+    ),
+  ];
+}
+
+/**
+ * The runner's per-run deny-set (WP1.1). The run's resolved credential values ride the typed
+ * `modelConnection` / `mcpServers` wire shapes and never appear in the sidecar's own process
+ * env, so a process-env-only seed would miss exactly the highest-value secrets — they must be
+ * seeded from the REQUEST (`requestSecretValues`).
  */
 export function seedForRun(
   request: RunSeedSource,
@@ -412,7 +444,7 @@ export function seedForRun(
     ""
   ).trim();
   return seedFromEnv({
-    resolvedSecrets: Object.values(request.secrets ?? {}),
+    resolvedSecrets: requestSecretValues(request),
     runCredential: runCredential || null,
     extraValues,
   });
