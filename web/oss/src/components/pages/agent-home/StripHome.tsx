@@ -211,7 +211,6 @@ const StripHome: React.FC = () => {
                         <PanelSurface className="mt-8 shrink-0 grow">
                             <HomeSessionsSection limit={10} />
                             <HomeAutomationsSection />
-                            <UsageSummary variant="strip" />
                         </PanelSurface>
                     )}
                 </div>
@@ -231,7 +230,10 @@ const StripHome: React.FC = () => {
                             selectedTemplateKey={provenance.selectedTemplateKey}
                             onPick={handlePick}
                         />
-                        <YourAgentsTable />
+                        <YourAgentsTable variant="list" />
+                        {/* Usage sits with what you could start, not with what is in flight —
+                            it is the column you glance at rather than work from. */}
+                        <UsageSummary variant="strip" />
                     </div>
                 ) : null}
             </div>

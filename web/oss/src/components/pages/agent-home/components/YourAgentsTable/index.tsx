@@ -23,6 +23,7 @@ import useURL from "@/oss/hooks/useURL"
 
 import EmptyAgents from "../EmptyAgents"
 
+import AgentRow from "./AgentRow"
 import {createAgentColumns, type AgentColumnActions} from "./columns"
 import {useWaitingByAgent} from "./useAgentActivity"
 
@@ -33,13 +34,15 @@ const AGENT_TABLE_BODY_HEIGHT = 576
 interface YourAgentsTableProps {
     /** Force the empty state (first-run preview). */
     forceEmpty?: boolean
+    /** `list` is the rail form — see {@link AgentRow} for why the columns can't come along. */
+    variant?: "table" | "list"
 }
 
 /**
  * "Your agents" — lean read-only table over the shared, correctly-classified agents list
  * (agent identity is revision-derived; see @/oss/components/pages/agents/store).
  */
-const YourAgentsTable = ({forceEmpty = false}: YourAgentsTableProps) => {
+const YourAgentsTable = ({forceEmpty = false, variant = "table"}: YourAgentsTableProps) => {
     const router = useRouter()
     const {baseAppURL} = useURL()
     const {goToPlayground} = usePlaygroundNavigation()
@@ -133,6 +136,28 @@ const YourAgentsTable = ({forceEmpty = false}: YourAgentsTableProps) => {
     )
 
     const showEmpty = forceEmpty || (!isLoading && rows.length === 0)
+
+    if (variant === "list") {
+        return (
+            <section className="flex flex-col gap-2">
+                <span className="text-[13px] font-semibold text-colorText">Your agents</span>
+                {showEmpty ? (
+                    <EmptyAgents />
+                ) : (
+                    <div className="flex flex-col">
+                        {rows.map((record) => (
+                            <AgentRow
+                                key={record.key}
+                                record={record}
+                                waiting={waitingByAgent.get(record.workflowId) ?? 0}
+                                actions={actions}
+                            />
+                        ))}
+                    </div>
+                )}
+            </section>
+        )
+    }
 
     return (
         <section className="flex flex-col gap-5">
