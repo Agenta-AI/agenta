@@ -31,6 +31,30 @@ SESSION_ORIGIN_TAG = "ag.origin"
 SESSION_ORIGIN_MANUAL = "manual"
 SESSION_ORIGIN_TRIGGER = "trigger"
 
+# WHICH automation started the session. Written by the same single writer as the origin tag
+# (`SessionStreamsService.set_origin`), so the tags stay one write and never need a merge.
+SESSION_TRIGGER_ID_TAG = "ag.trigger.id"
+SESSION_TRIGGER_NAME_TAG = "ag.trigger.name"
+SESSION_TRIGGER_KIND_TAG = "ag.trigger.kind"
+
+SESSION_TRIGGER_KIND_SCHEDULE = "schedule"
+SESSION_TRIGGER_KIND_SUBSCRIPTION = "subscription"
+
+
+class SessionTriggerRef(BaseModel):
+    """The automation that started a session.
+
+    The name is a SNAPSHOT taken at dispatch, not a live join: a row is history, and resolving
+    names at read time would make the session list depend on the triggers domain. Renaming an
+    automation therefore does not retitle its past runs — the id is stamped alongside so a
+    read-time resolve can supersede the snapshot later without a migration.
+    """
+
+    id: str
+    name: Optional[str] = None
+    # "schedule" (a cron fired) or "subscription" (an event arrived).
+    kind: Optional[str] = None
+
 
 class SessionQuery(BaseModel):
     """Root `/sessions/query` filter: reference-scoped, joined through the turns'

@@ -25,7 +25,12 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscription,
 )
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
-from oss.src.core.sessions.dtos import SESSION_ORIGIN_TRIGGER
+from oss.src.core.sessions.dtos import (
+    SESSION_ORIGIN_TRIGGER,
+    SESSION_TRIGGER_KIND_SCHEDULE,
+    SESSION_TRIGGER_KIND_SUBSCRIPTION,
+    SessionTriggerRef,
+)
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.utils.logging import get_module_logger
@@ -324,6 +329,17 @@ class TriggersDispatcher:
                     user_id=user_id,
                     session_id=session_id,
                     origin=SESSION_ORIGIN_TRIGGER,
+                    # Stamped here because this is the only place that knows WHICH automation
+                    # fired: nothing links a session back to a trigger afterwards.
+                    trigger=SessionTriggerRef(
+                        id=str(entity.id),
+                        name=entity.name,
+                        kind=(
+                            SESSION_TRIGGER_KIND_SUBSCRIPTION
+                            if is_subscription
+                            else SESSION_TRIGGER_KIND_SCHEDULE
+                        ),
+                    ),
                 )
             except Exception as e:  # best-effort: a missing tag must not block the run
                 log.warning("[TRIGGERS DISPATCHER] origin stamp failed: %s", e)

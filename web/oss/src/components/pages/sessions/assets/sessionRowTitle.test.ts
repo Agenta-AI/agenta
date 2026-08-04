@@ -10,8 +10,22 @@ describe("sessionRowTitle", () => {
         })
     })
 
+    it("names the automation when one fired the run", () => {
+        expect(sessionRowTitle(null, "Digest sent.", "Nightly digest")).toEqual({
+            title: "Nightly digest",
+            subtitle: "Digest sent.",
+        })
+    })
+
+    it("prefers a typed name over the automation's", () => {
+        // Someone renamed the run; that beats the automation that started it.
+        expect(
+            sessionRowTitle("Investigating the spike", "Digest sent.", "Nightly digest"),
+        ).toEqual({title: "Investigating the spike", subtitle: "Digest sent."})
+    })
+
     it("leads with the message when nobody named the session", () => {
-        // The automation-run case: no human was there to type a name.
+        // A run from before the trigger stamp existed, or a nameless manual session.
         expect(sessionRowTitle(null, "Ran the nightly digest.")).toEqual({
             title: "Ran the nightly digest.",
             subtitle: null,

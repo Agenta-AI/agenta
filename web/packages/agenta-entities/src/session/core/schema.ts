@@ -109,6 +109,9 @@ export const sessionStreamSchema = z.object({
     name: z.string().nullish(),
     description: z.string().nullish(),
     turn_id: z.string().nullish(),
+    // Reserved `ag.*` tags. `ag.origin` says a run was automated; `ag.trigger.*` says which
+    // automation, stamped at dispatch because nothing links a session back to a trigger after.
+    tags: z.record(z.string(), z.unknown()).nullish(),
     status: z.object({code: z.string().nullish(), message: z.string().nullish()}).nullish(),
     flags: z
         .object({

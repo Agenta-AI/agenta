@@ -13,7 +13,7 @@ Command matrix (inputs/data × force):
 """
 
 import uuid_utils.compat as uuid
-from typing import Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
@@ -66,7 +66,13 @@ from oss.src.core.sessions.streams.types import (
     SessionStreamAlreadyExists,
     SessionTurnInUse,
 )
-from oss.src.core.sessions.dtos import SESSION_ORIGIN_TAG
+from oss.src.core.sessions.dtos import (
+    SESSION_ORIGIN_TAG,
+    SESSION_TRIGGER_ID_TAG,
+    SESSION_TRIGGER_KIND_TAG,
+    SESSION_TRIGGER_NAME_TAG,
+    SessionTriggerRef,
+)
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.streams.runner_client import kill_runner_sandbox
 from oss.src.core.shared.dtos import Windowing
@@ -683,15 +689,23 @@ class SessionStreamsService:
         user_id: Optional[UUID],
         session_id: str,
         origin: str,
+        trigger: Optional[SessionTriggerRef] = None,
     ) -> Optional[SessionStream]:
-        """Record WHO started a session, as a reserved tag.
+        """Record WHO started a session, and which automation did, as reserved tags.
 
         Written before the run, so the row usually does not exist yet — hence the same
         create-or-update shape as `set_header`. Tags are replaced wholesale, which is safe only
-        because this is the first writer; a second tag writer would need a merge.
+        because this is the first writer; the trigger identity is stamped HERE rather than by a
+        second writer for exactly that reason.
         """
         _validate_session_id(session_id)
-        tags = {SESSION_ORIGIN_TAG: origin}
+        tags: Dict[str, Any] = {SESSION_ORIGIN_TAG: origin}
+        if trigger is not None:
+            tags[SESSION_TRIGGER_ID_TAG] = trigger.id
+            if trigger.name:
+                tags[SESSION_TRIGGER_NAME_TAG] = trigger.name
+            if trigger.kind:
+                tags[SESSION_TRIGGER_KIND_TAG] = trigger.kind
         updated = await self._dao.update(
             project_id=project_id,
             user_id=user_id,
