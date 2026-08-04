@@ -6,6 +6,8 @@ import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useSta
 import UsageSummary from "@/oss/components/pages/agent-home/components/UsageSummary"
 import SessionListCard from "@/oss/components/pages/sessions/components/SessionListCard"
 
+import AgentConfigurationCard from "./AgentConfigurationCard"
+
 interface Props {
     appId: string
     /** Used only in the composer's placeholder, so a null name degrades to a generic prompt. */
@@ -49,6 +51,8 @@ const AgentOverview = ({appId, agentName}: Props) => {
                             : "Describe a task — starts a new session"
                     }
                 />
+
+                <AgentConfigurationCard appId={appId} />
 
                 <SessionListCard
                     withPinned
