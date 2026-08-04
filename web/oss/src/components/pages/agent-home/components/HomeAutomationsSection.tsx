@@ -13,7 +13,9 @@ const HomeAutomationsSection = () => (
         title="Automation runs"
         emptyText="Runs from your automations will show up here."
         limit={5}
-        minHeightClassName="min-h-[200px]"
+        // Barely above the empty state's own height: a taller floor on a one-row card leaves a
+        // block of dead space that reads as a rendering failure rather than a short list.
+        minHeightClassName="min-h-[120px]"
     />
 )
 

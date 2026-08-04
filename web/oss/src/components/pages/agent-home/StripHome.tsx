@@ -178,9 +178,13 @@ const StripHome: React.FC = () => {
                         />
                     ) : (
                         <>
+                            {/* Returning users get the scroller, not the paged grid: here the
+                                strip is a sample you glance at, and paging 28 templates three at
+                                a time is a browsing control in a slot nobody came to browse. */}
                             <TemplateStrip
                                 surface="home"
-                                layout="grid"
+                                layout="scroll"
+                                surfaceColorVar="--ag-colorBgLayout"
                                 selectedTemplateKey={provenance.selectedTemplateKey}
                                 onPick={handlePick}
                             />

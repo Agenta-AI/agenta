@@ -13,12 +13,23 @@ export interface SessionRowStatusMeta {
     dotClassName: string
     /** Only `waiting` and `running` justify a pulse; a warm sandbox is not activity. */
     pulse: boolean
+    /** Text shown inline on the row. Set only where a colour alone would under-report the state. */
+    chipLabel?: string
+    chipClassName?: string
 }
 
 /** Presentation for each status. The status itself is derived in `@agenta/entities/session`, so
  * every surface that lists sessions agrees on what a row IS; only the styling lives here. */
 const META: Record<SessionRowStatus, Omit<SessionRowStatusMeta, "status">> = {
-    waiting: {label: "Waiting on you", dotClassName: "bg-colorWarning", pulse: true},
+    // A blocked session is the only row that costs you something to miss, so it is the only one
+    // that gets words — a 8px dot is not a call to action.
+    waiting: {
+        label: "Waiting on you",
+        dotClassName: "bg-colorWarning",
+        pulse: true,
+        chipLabel: "Waiting",
+        chipClassName: "bg-colorWarningBg text-colorWarningText",
+    },
     running: {label: "Running", dotClassName: "bg-colorSuccess", pulse: true},
     alive: {label: "Ready to resume", dotClassName: "bg-colorInfoBorder", pulse: false},
     ended: {label: "Ended", dotClassName: "bg-colorTextQuaternary", pulse: false},

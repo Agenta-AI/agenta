@@ -103,6 +103,17 @@ const SessionRow = ({
                     {row.name?.trim() || "Untitled session"}
                 </span>
 
+                {status.chipLabel ? (
+                    <span
+                        className={clsx(
+                            "shrink-0 rounded px-1.5 py-0.5 text-[11px] leading-none",
+                            status.chipClassName,
+                        )}
+                    >
+                        {status.chipLabel}
+                    </span>
+                ) : null}
+
                 <span className="w-40 shrink-0 truncate">
                     <SessionAgentLabel appId={target?.appId ?? null} />
                 </span>
