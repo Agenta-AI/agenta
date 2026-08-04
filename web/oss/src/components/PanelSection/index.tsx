@@ -18,10 +18,23 @@ import type {ReactNode} from "react"
  * never around each section inside it. */
 export const PanelSurface = ({children, className}: {children: ReactNode; className?: string}) => (
     <div
-        className={`box-border overflow-clip rounded-xl border border-solid border-colorBorderSecondary bg-colorBgContainer ${className ?? ""}`}
+        className={`box-border overflow-hidden rounded-xl border border-solid border-colorBorderSecondary bg-colorBgContainer ${className ?? ""}`}
     >
         {children}
     </div>
+)
+
+/**
+ * The scrolling half of the rail, INSIDE {@link PanelSurface}.
+ *
+ * The column used to scroll and the surface rode along inside it, which broke twice: the surface's
+ * own top border scrolled away and left the pinned header floating against nothing, and a surface
+ * told to fill the column clipped whatever exceeded it, since the column never grew past its own
+ * height and so never scrolled. Scrolling belongs inside the frame: the border stays put, the
+ * headers pin just below it, and nothing is unreachable.
+ */
+export const PanelScroll = ({children}: {children: ReactNode}) => (
+    <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
 )
 
 export const PanelSection = ({

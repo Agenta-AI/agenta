@@ -7,7 +7,7 @@ import {App, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/pages/agents/store"
-import {PanelSurface} from "@/oss/components/PanelSection"
+import {PanelScroll, PanelSurface} from "@/oss/components/PanelSection"
 import TemplateStrip from "@/oss/components/TemplateStrip"
 import {buildCodingAgentClipboard} from "@/oss/components/TemplateStrip/assets/codingAgentClipboard"
 import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
@@ -223,20 +223,22 @@ const StripHome: React.FC = () => {
                     only at one screen size — it read as a third on a large display and as a
                     slab on a laptop. */}
                 {!firstRun ? (
-                    <div className="box-border flex w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col gap-6 overflow-y-auto pr-1">
-                        {/* Rows, not the scroller: a 238px card and a six-tab category row both
-                            need width this column doesn't have. */}
-                        <PanelSurface className="shrink-0 grow">
-                            <TemplateStrip
-                                surface="home"
-                                layout="list"
-                                selectedTemplateKey={provenance.selectedTemplateKey}
-                                onPick={handlePick}
-                            />
-                            <YourAgentsTable variant="list" />
-                            {/* Usage sits with what you could start, not with what is in flight —
-                                it is the column you glance at rather than work from. */}
-                            <UsageSummary variant="strip" />
+                    <div className="box-border flex min-h-0 w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col pr-1">
+                        <PanelSurface className="flex min-h-0 flex-1 flex-col">
+                            <PanelScroll>
+                                {/* Rows, not the scroller: a 238px card and a six-tab category
+                                    row both need width this column doesn't have. */}
+                                <TemplateStrip
+                                    surface="home"
+                                    layout="list"
+                                    selectedTemplateKey={provenance.selectedTemplateKey}
+                                    onPick={handlePick}
+                                />
+                                <YourAgentsTable variant="list" />
+                                {/* Usage sits with what you could start, not with what is in
+                                    flight — it is the column you glance at, not work from. */}
+                                <UsageSummary variant="strip" />
+                            </PanelScroll>
                         </PanelSurface>
                     </div>
                 ) : null}

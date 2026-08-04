@@ -6,7 +6,7 @@ import {useSetAtom} from "jotai"
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
 import UsageSummary from "@/oss/components/pages/agent-home/components/UsageSummary"
 import SessionListCard from "@/oss/components/pages/sessions/components/SessionListCard"
-import {PanelSurface} from "@/oss/components/PanelSection"
+import {PanelScroll, PanelSurface} from "@/oss/components/PanelSection"
 import useURL from "@/oss/hooks/useURL"
 import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
 
@@ -104,13 +104,15 @@ const AgentOverview = ({appId, agentName}: Props) => {
                 </div>
             </div>
 
-            <div className="flex w-full shrink-0 grow-0 flex-col gap-6 lg:h-full lg:w-1/3 lg:min-w-[340px] lg:max-w-[520px] lg:overflow-y-auto lg:pr-1">
-                <PanelSurface className="shrink-0 grow">
-                    <AgentConfigurationCard appId={appId} />
+            <div className="flex min-h-0 w-full shrink-0 grow-0 flex-col lg:h-full lg:w-1/3 lg:min-w-[340px] lg:max-w-[520px] lg:pr-1">
+                <PanelSurface className="flex min-h-0 flex-1 flex-col">
+                    <PanelScroll>
+                        <AgentConfigurationCard appId={appId} />
 
-                    <AgentFilesCard appId={appId} />
+                        <AgentFilesCard appId={appId} />
 
-                    <UsageSummary variant="strip" />
+                        <UsageSummary variant="strip" />
+                    </PanelScroll>
                 </PanelSurface>
             </div>
         </div>
