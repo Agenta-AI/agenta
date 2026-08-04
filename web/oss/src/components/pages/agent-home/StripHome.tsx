@@ -224,7 +224,7 @@ const StripHome: React.FC = () => {
                     slab on a laptop. */}
                 {!firstRun ? (
                     <div className="box-border flex min-h-0 w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col pr-1">
-                        <PanelSurface className="flex min-h-0 flex-1 flex-col">
+                        <PanelSurface className="flex max-h-full min-h-0 flex-col">
                             <PanelScroll>
                                 {/* Rows, not the scroller: a 238px card and a six-tab category
                                     row both need width this column doesn't have. */}

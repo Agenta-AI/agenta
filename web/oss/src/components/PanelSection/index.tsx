@@ -32,9 +32,12 @@ export const PanelSurface = ({children, className}: {children: ReactNode; classN
  * told to fill the column clipped whatever exceeded it, since the column never grew past its own
  * height and so never scrolled. Scrolling belongs inside the frame: the border stays put, the
  * headers pin just below it, and nothing is unreachable.
+ *
+ * The frame is capped (`max-h-full`), not stretched: a stretched frame is full of empty bordered
+ * container whenever the sections don't reach the bottom, which is most of the time.
  */
 export const PanelScroll = ({children}: {children: ReactNode}) => (
-    <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+    <div className="min-h-0 shrink overflow-y-auto">{children}</div>
 )
 
 export const PanelSection = ({
