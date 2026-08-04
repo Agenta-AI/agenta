@@ -9,11 +9,8 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {createRoot, type Root} from "react-dom/client"
 import {afterAll, afterEach, beforeAll, describe, expect, it, vi} from "vitest"
 
-import {invalidateMountListings} from "../useMountUpload"
-
 import {saveDriveFile, type SaveDriveFileDependencies} from "./api"
 import {
-    closeEditBufferAtom,
     driveEditBufferAtom,
     editSaveSucceededAtom,
     openEditBufferAtom,
@@ -63,11 +60,7 @@ const saveDependencies = ({
 } = {}) => {
     const queryDir = vi.fn().mockResolvedValue(listing)
     const writeFile = vi.fn().mockResolvedValue({ok: true as const, size})
-    const dependencies: SaveDriveFileDependencies = {
-        queryDir,
-        writeFile,
-        invalidateListings: invalidateMountListings,
-    }
+    const dependencies: SaveDriveFileDependencies = {queryDir, writeFile}
     return {dependencies, queryDir, writeFile}
 }
 
@@ -213,7 +206,7 @@ describe("stale save completion", () => {
         const store = createStore()
         store.set(openEditBufferAtom, baseBuffer)
         store.set(startEditSaveAtom, "request-a")
-        store.set(closeEditBufferAtom)
+        store.set(driveEditBufferAtom, null)
         store.set(openEditBufferAtom, {
             ...baseBuffer,
             bufferId: "buffer-b",
@@ -242,7 +235,7 @@ describe("useDriveEditGuard", () => {
         initialPath,
         store,
         onClose,
-        runNavigation,
+        runNavigation = vi.fn(),
         driveKey = "drive-a",
         heldDriveKey = "drive-a",
     }: {

@@ -20,7 +20,17 @@ import {DriveRetryButton} from "./DriveFileRow"
 import {humanSize} from "./driveTree"
 import {type DriveId} from "./driveTypes"
 import {type DriveEditAvailability} from "./editMode/model"
+import {type DriveEditController} from "./editMode/useDriveEditController"
 import {fileOrigin} from "./useSessionDrive"
+
+// Empty for "enabled" — antd renders no tooltip, so one Button covers both states.
+const EDIT_DISABLED_REASON: Record<DriveEditAvailability, string> = {
+    enabled: "",
+    loading: "File content is still loading",
+    unreadable: "This file couldn’t be read",
+    "too-large": "Files larger than 1.5 MB can’t be edited",
+    unavailable: "",
+}
 
 /**
  * DriveHeader — the drawer's ONE header. The breadcrumb IS the header (its last crumb the current
@@ -96,17 +106,18 @@ export const DriveHeader = ({
     partialErrored?: boolean
     onRetry?: () => void
     retrying?: boolean
-    edit?: {
-        availability: DriveEditAvailability
-        editing: boolean
-        dirty: boolean
-        saving: boolean
-        justSaved: boolean
-        statusText: string
-        onEdit: () => void
-        onCancel: () => void
-        onSave: () => void
-    }
+    edit?: Pick<
+        DriveEditController,
+        | "availability"
+        | "editing"
+        | "dirty"
+        | "saving"
+        | "justSaved"
+        | "statusText"
+        | "onEdit"
+        | "onCancel"
+        | "onSave"
+    >
 }) => {
     const atRoot = !selectedPath
     // A file always has details (size/modified); a folder only when it's a repo. Nothing selected
@@ -263,21 +274,14 @@ export const DriveHeader = ({
                         />
                     </Tooltip>
                 ) : null}
-                {edit?.availability === "enabled" ? (
-                    <Button size="small" icon={<PencilSimple size={14} />} onClick={edit.onEdit}>
-                        Edit
-                    </Button>
-                ) : edit && edit.availability !== "unavailable" ? (
-                    <Tooltip
-                        title={
-                            edit.availability === "too-large"
-                                ? "Files larger than 1.5 MB can’t be edited"
-                                : edit.availability === "loading"
-                                  ? "File content is still loading"
-                                  : "This file couldn’t be read"
-                        }
-                    >
-                        <Button size="small" icon={<PencilSimple size={14} />} disabled>
+                {edit && edit.availability !== "unavailable" ? (
+                    <Tooltip title={EDIT_DISABLED_REASON[edit.availability]}>
+                        <Button
+                            size="small"
+                            icon={<PencilSimple size={14} />}
+                            disabled={edit.availability !== "enabled"}
+                            onClick={edit.onEdit}
+                        >
                             Edit
                         </Button>
                     </Tooltip>

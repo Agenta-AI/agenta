@@ -12,6 +12,7 @@ import {projectIdAtom} from "@/oss/state/project"
 
 import {useDriveFileText} from "../driveFileSource"
 import {resolveDriveFileKind} from "../driveKinds"
+import {parentOf} from "../driveTreeView"
 import type {DriveScope} from "../driveTypes"
 import type {ResolvedMountPath} from "../useSessionDrive"
 
@@ -45,11 +46,10 @@ const newId = (): string =>
 
 const focusEditor = (bufferId: string) => {
     requestAnimationFrame(() => {
-        const container = Array.from(
-            document.querySelectorAll<HTMLElement>("[data-drive-edit-buffer]"),
-        ).find((element) => element.dataset.driveEditBuffer === bufferId)
-        container
-            ?.querySelector<HTMLElement>(".agenta-shared-editor [contenteditable='true']")
+        document
+            .querySelector<HTMLElement>(
+                `[data-drive-edit-buffer="${bufferId}"] .agenta-shared-editor [contenteditable='true']`,
+            )
             ?.focus()
     })
 }
@@ -65,7 +65,6 @@ export interface DriveEditController {
     onEdit: () => void
     onSave: () => void
     onCancel: () => void
-    onRetry: () => void
     onReload: () => void
     onOverwrite: () => void
     select: (path: string | null) => void
@@ -122,13 +121,10 @@ export function useDriveEditController({
             ? resolveMountPath(selectedPath)
             : (null as ResolvedMountPath | null)
     const content = useDriveFileText(resolved?.mount ?? null, resolved?.path ?? "")
-    const directory = resolved?.path.includes("/")
-        ? resolved.path.slice(0, resolved.path.lastIndexOf("/"))
-        : ""
     const listingQuery = useAtomValue(
         mountDirQueryFamily({
             mountId: resolved?.mount.id ?? "",
-            path: directory,
+            path: parentOf(resolved?.path ?? ""),
             includeGitignored,
         }),
     )
@@ -159,8 +155,8 @@ export function useDriveEditController({
     const guardedSelect = useCallback(
         (path: string | null) => {
             if (path === selectedPath) return
-            const result = requestNavigation({kind: "select", path})
-            if (result.run) runIntent(result.run)
+            const intent = requestNavigation({kind: "select", path})
+            if (intent) runIntent(intent)
         },
         [requestNavigation, runIntent, selectedPath],
     )
@@ -200,7 +196,6 @@ export function useDriveEditController({
         availability,
         content.data,
         driveKey,
-        includeGitignored,
         listingQuery.data,
         openBuffer,
         projectId,
@@ -271,12 +266,12 @@ export function useDriveEditController({
 
     const onCancel = useCallback(() => {
         if (store.get(driveEditBufferAtom)?.saveStatus === "saving") return
-        const result = requestNavigation({kind: "cancel"})
-        if (result.run) runIntent(result.run)
+        const intent = requestNavigation({kind: "cancel"})
+        if (intent) runIntent(intent)
     }, [requestNavigation, runIntent, store])
     const onReload = useCallback(() => {
-        const result = requestNavigation({kind: "reload"})
-        if (result.run) runIntent(result.run)
+        const intent = requestNavigation({kind: "reload"})
+        if (intent) runIntent(intent)
     }, [requestNavigation, runIntent])
     const onOverwrite = useCallback(() => {
         overwriteNextSave()
@@ -351,7 +346,6 @@ export function useDriveEditController({
         onEdit,
         onSave,
         onCancel,
-        onRetry: onSave,
         onReload,
         onOverwrite,
         select: guardedSelect,
@@ -368,10 +362,10 @@ export function useDriveEditGuard({
 }: {
     active: boolean
     initialPath?: string | null
-    driveKey?: string
-    heldDriveKey?: string
+    driveKey: string
+    heldDriveKey: string
     onClose: () => void
-    runNavigation?: (intent: NavigationIntent) => void
+    runNavigation: (intent: NavigationIntent) => void
 }) {
     const store = useStore()
     const projectId = useAtomValue(projectIdAtom)
@@ -387,9 +381,7 @@ export function useDriveEditGuard({
     const requestedDriveSwap = useRef<string | null>(null)
     const pendingDriveSwap = useRef(false)
     const reloadRequest = useRef<string | null>(null)
-    const holdDrive = Boolean(
-        active && buffer && driveKey !== undefined && driveKey !== heldDriveKey,
-    )
+    const holdDrive = Boolean(active && buffer && driveKey !== heldDriveKey)
 
     useEffect(() => {
         if (!active) {
@@ -406,10 +398,10 @@ export function useDriveEditGuard({
             setHeldInitialPath(initialPath)
             return
         }
-        const result = requestNavigation({kind: "select", path: initialPath ?? null})
-        if (result.run?.kind === "select") {
-            setHeldInitialPath(result.run.path)
-            runNavigation?.(result.run)
+        const intent = requestNavigation({kind: "select", path: initialPath ?? null})
+        if (intent?.kind === "select") {
+            setHeldInitialPath(intent.path)
+            runNavigation(intent)
         }
     }, [active, initialPath, requestNavigation, runNavigation, store])
 
@@ -433,8 +425,7 @@ export function useDriveEditGuard({
     const guardedClose = useCallback(() => {
         if (!active) return
         if (store.get(driveEditBufferAtom)?.saveStatus === "saving") return
-        const result = requestNavigation({kind: "close"})
-        if (result.run?.kind === "close") onClose()
+        if (requestNavigation({kind: "close"})) onClose()
     }, [active, onClose, requestNavigation, store])
 
     const keepEditing = useCallback(() => {
@@ -446,8 +437,7 @@ export function useDriveEditGuard({
     const discard = useCallback(() => {
         const current = store.get(driveEditBufferAtom)
         const discardedDraft = current?.draft
-        const result = resolveNavigation("discard")
-        const intent = result.run
+        const intent = resolveNavigation("discard")
         if (!intent) return
         if (intent.kind === "close") {
             onClose()
@@ -455,7 +445,7 @@ export function useDriveEditGuard({
         }
         if (intent.kind === "select") {
             setHeldInitialPath(intent.path)
-            if (!pendingDriveSwap.current) runNavigation?.(intent)
+            if (!pendingDriveSwap.current) runNavigation(intent)
             pendingDriveSwap.current = false
             return
         }

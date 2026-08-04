@@ -196,3 +196,53 @@ Then:
 - check both light and dark themes for every new state, not only the editor: the error banner,
   the conflict banner, the disabled Edit tooltip, the saving spinner, the Unsaved and Saved tags,
   and the guard modal
+
+## Simplification pass (2026-08-04)
+
+Behaviour-preserving cleanups over the two implementation commits. Unit tests (70) and
+`pnpm type-check` green before and after; `pnpm lint-fix` clean.
+
+Applied:
+
+- `parentOf` (`driveTreeView.ts`) replaces the new `parentDirectory` in `editMode/api.ts`
+  and the inline `lastIndexOf("/")` slice in the controller. One parent-path helper in the
+  module, not three.
+- `requestNavigationAtom` / `resolveNavigationAtom` return `NavigationIntent | null`
+  instead of `{run: intent | null}`. The wrapper existed at six call sites and bought
+  nothing; the `?.kind === "close"` checks it forced were tautological.
+- `saveDriveFile`'s injected `invalidateListings` dependency dropped — no test ever
+  overrode it. `queryDir` and `writeFile` (the two seams tests actually use) stay.
+- `DriveEditController.onRetry` removed; it was an alias for `onSave`. `DriveEditBanner`
+  takes `onRetry={edit.onSave}`.
+- `DriveExplorer` passes `edit={edit}` instead of re-listing nine fields, and `DriveHeader`
+  types the prop as `Pick<DriveEditController, …>` so the field list lives in one place.
+- The Edit button in `DriveHeader` was written twice (enabled / disabled-with-tooltip).
+  Now one `Button` with `disabled` plus an `EDIT_DISABLED_REASON` lookup — antd renders no
+  tooltip for the empty string, so the enabled case is unchanged.
+- `useDriveDrop`'s new "reset when disabled" effect duplicated the existing `onEnd` body.
+  Merged into the listener effect, which calls `onEnd()` on the `!enabled` path.
+- `useDriveUploads` no longer passes `onUpload: … ? uploadIntoFolder : () => {}` — every
+  `useDriveDrop` handler is now gated on `enabled`, so the noop was unreachable.
+- `focusEditor` uses one attribute selector instead of `querySelectorAll` + `find`.
+- `closeEditBufferAtom` deleted: no production caller. Tests set `driveEditBufferAtom` to
+  `null` directly (it is a plain writable atom).
+- Dropped the unused `includeGitignored` entry from `onEdit`'s dependency array.
+
+Deliberately left alone:
+
+- **`driveEditFacetsAtom`.** `mode`, `editorView`, and `guardOpen` have no production
+  reader today (components read `buffer.mode` / `buffer.editorView` directly). It is the
+  read model `plan.md` §2 specifies and `state.test.ts` asserts on, so trimming it would
+  contradict a settled plan for no behavioural gain. Worth revisiting if it stays unused.
+- **`DriveExplorer`'s second read of `editing` via `driveEditFacetsAtom`.** It exists to
+  break a cycle: `useDriveUploads` produces `canUpload`, which the controller consumes, so
+  the controller cannot be called before it.
+- **The drive-swap hold** (`heldDrive`/`holdDrive`/`requestedDriveSwap`/`pendingDriveSwap`).
+  More machinery than §2's table describes, but removing it changes what the user sees
+  when the host swaps drives under an open dirty buffer.
+- **`canAdoptReload()`'s nine-way check and the `startSave` + `saveFailed` pair used to
+  surface a reload error.** Both are convoluted (the second abuses the save atoms to set an
+  error issue), but the reload path has no unit test and the change is not risk-free.
+  A `setEditIssueAtom` would be the honest fix; logged here rather than done blind.
+- **`DriveEditBanner`'s two `Alert` branches.** Collapsing them into one `Alert` with three
+  ternaries reads worse than the two explicit branches.

@@ -399,17 +399,7 @@ export function DriveExplorer({
                         onUpload={canUpload ? () => uploadInputRef.current?.click() : undefined}
                         stagedCount={staged.length}
                         onUploadStaged={commitStaged}
-                        edit={{
-                            availability: edit.availability,
-                            editing: edit.editing,
-                            dirty: edit.dirty,
-                            saving: edit.saving,
-                            justSaved: edit.justSaved,
-                            statusText: edit.statusText,
-                            onEdit: edit.onEdit,
-                            onCancel: edit.onCancel,
-                            onSave: edit.onSave,
-                        }}
+                        edit={edit}
                     />
                     <input
                         ref={uploadInputRef}
@@ -453,7 +443,7 @@ export function DriveExplorer({
                         />
                     )}
                     <DriveEditBanner
-                        onRetry={edit.onRetry}
+                        onRetry={edit.onSave}
                         onReload={edit.onReload}
                         onOverwrite={edit.onOverwrite}
                     />

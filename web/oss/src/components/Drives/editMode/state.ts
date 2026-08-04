@@ -109,27 +109,28 @@ export const setEditorViewAtom = atom(
     },
 )
 
+/** Returns the intent to run now, or null when the guard took over. */
 export const requestNavigationAtom = atom(null, (get, set, intent: NavigationIntent) => {
     const buffer = get(driveEditBufferAtom)
-    if (!buffer) return {run: intent}
+    if (!buffer) return intent
 
     if (isEditDirty(buffer.original, buffer.draft) || buffer.issue) {
         set(driveEditBufferAtom, {...buffer, pendingNavigation: intent})
-        return {run: null}
+        return null
     }
 
     set(driveEditBufferAtom, null)
-    return {run: intent}
+    return intent
 })
 
 export const resolveNavigationAtom = atom(null, (get, set, resolution: "keep" | "discard") => {
     const buffer = get(driveEditBufferAtom)
     const intent = buffer?.pendingNavigation ?? null
-    if (!buffer || !intent) return {run: null}
+    if (!buffer || !intent) return null
 
     if (resolution === "keep") {
         set(driveEditBufferAtom, {...buffer, pendingNavigation: null})
-        return {run: null}
+        return null
     }
 
     if (intent.kind === "reload") {
@@ -137,7 +138,7 @@ export const resolveNavigationAtom = atom(null, (get, set, resolution: "keep" | 
     } else {
         set(driveEditBufferAtom, null)
     }
-    return {run: intent}
+    return intent
 })
 
 export const startEditSaveAtom = atom(null, (get, set, requestId: string) => {
@@ -233,8 +234,4 @@ export const markTeardownWarnedAtom = atom(null, (get, set) => {
     if (!buffer) return
 
     set(driveEditBufferAtom, {...buffer, teardownWarned: true})
-})
-
-export const closeEditBufferAtom = atom(null, (_get, set) => {
-    set(driveEditBufferAtom, null)
 })

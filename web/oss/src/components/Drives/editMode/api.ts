@@ -6,6 +6,7 @@ import {
 } from "@agenta/entities/session"
 import type {QueryClient} from "@tanstack/react-query"
 
+import {parentOf} from "../driveTreeView"
 import {invalidateMountListings} from "../useMountUpload"
 
 import {conflictFromListing, type DriveEditConflict} from "./model"
@@ -30,18 +31,11 @@ export type SaveDriveFileResult =
 export interface SaveDriveFileDependencies {
     queryDir: typeof queryMountDir
     writeFile: typeof writeMountFile
-    invalidateListings: typeof invalidateMountListings
 }
 
 const DEFAULT_DEPENDENCIES: SaveDriveFileDependencies = {
     queryDir: queryMountDir,
     writeFile: writeMountFile,
-    invalidateListings: invalidateMountListings,
-}
-
-export const parentDirectory = (path: string): string => {
-    const separator = path.lastIndexOf("/")
-    return separator < 0 ? "" : path.slice(0, separator)
 }
 
 export async function saveDriveFile(
@@ -61,7 +55,7 @@ export async function saveDriveFile(
     } = input
 
     if (!skipConflictCheck) {
-        const directory = parentDirectory(targetPath)
+        const directory = parentOf(targetPath)
         const listing = await queryClient.fetchQuery({
             queryKey: mountDirQueryKey(projectId, targetMountId, directory, includeGitignored),
             queryFn: ({signal: querySignal}) =>
@@ -92,6 +86,6 @@ export async function saveDriveFile(
     if (!written.ok) return {kind: "error", message: written.message}
 
     queryClient.setQueryData(mountFileContentQueryKey(projectId, targetMountId, targetPath), draft)
-    dependencies.invalidateListings(queryClient, projectId)
+    invalidateMountListings(queryClient, projectId)
     return {kind: "saved", size: written.size}
 }

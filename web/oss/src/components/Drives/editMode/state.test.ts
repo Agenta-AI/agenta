@@ -2,7 +2,6 @@ import {createStore} from "jotai"
 import {describe, expect, it} from "vitest"
 
 import {
-    closeEditBufferAtom,
     driveEditBufferAtom,
     driveEditFacetsAtom,
     editSaveFailedAtom,
@@ -86,7 +85,7 @@ describe("drive edit state", () => {
         open(store)
         const intent: NavigationIntent = {kind: "select", path: "other.txt"}
 
-        expect(store.set(requestNavigationAtom, intent)).toEqual({run: intent})
+        expect(store.set(requestNavigationAtom, intent)).toEqual(intent)
         expect(store.get(driveEditBufferAtom)).toBeNull()
     })
 
@@ -96,7 +95,7 @@ describe("drive edit state", () => {
         makeDirty(store)
         const intent: NavigationIntent = {kind: "close"}
 
-        expect(store.set(requestNavigationAtom, intent)).toEqual({run: null})
+        expect(store.set(requestNavigationAtom, intent)).toBeNull()
         expect(store.get(driveEditBufferAtom)?.pendingNavigation).toEqual(intent)
         expect(store.get(driveEditFacetsAtom).guardOpen).toBe(true)
     })
@@ -107,7 +106,7 @@ describe("drive edit state", () => {
         store.set(startEditSaveAtom, "request-a")
         store.set(editSaveFailedAtom, {requestId: "request-a", message: "rejected"})
 
-        expect(store.set(requestNavigationAtom, {kind: "cancel"})).toEqual({run: null})
+        expect(store.set(requestNavigationAtom, {kind: "cancel"})).toBeNull()
         expect(store.get(driveEditBufferAtom)?.pendingNavigation).toEqual({kind: "cancel"})
     })
 
@@ -118,7 +117,7 @@ describe("drive edit state", () => {
         store.set(requestNavigationAtom, {kind: "close"})
         const before = store.get(driveEditBufferAtom)!
 
-        expect(store.set(resolveNavigationAtom, "keep")).toEqual({run: null})
+        expect(store.set(resolveNavigationAtom, "keep")).toBeNull()
         expect(store.get(driveEditBufferAtom)).toEqual({...before, pendingNavigation: null})
     })
 
@@ -132,7 +131,7 @@ describe("drive edit state", () => {
         makeDirty(store)
         store.set(requestNavigationAtom, intent)
 
-        expect(store.set(resolveNavigationAtom, "discard")).toEqual({run: intent})
+        expect(store.set(resolveNavigationAtom, "discard")).toEqual(intent)
         expect(store.get(driveEditBufferAtom)).toBeNull()
     })
 
@@ -143,7 +142,7 @@ describe("drive edit state", () => {
         const intent: NavigationIntent = {kind: "reload"}
         store.set(requestNavigationAtom, intent)
 
-        expect(store.set(resolveNavigationAtom, "discard")).toEqual({run: intent})
+        expect(store.set(resolveNavigationAtom, "discard")).toEqual(intent)
         expect(store.get(driveEditBufferAtom)).toMatchObject({
             bufferId: "buffer-a",
             draft: "changed\n",
@@ -187,7 +186,7 @@ describe("drive edit state", () => {
         open(store)
         makeDirty(store)
         store.set(startEditSaveAtom, "request-a")
-        store.set(closeEditBufferAtom)
+        store.set(driveEditBufferAtom, null)
         open(store, {
             bufferId: "buffer-b",
             targetPath: "other.txt",
@@ -327,7 +326,7 @@ describe("drive edit state", () => {
             pendingNavigation: intent,
         })
 
-        expect(store.set(resolveNavigationAtom, "discard")).toEqual({run: intent})
+        expect(store.set(resolveNavigationAtom, "discard")).toEqual(intent)
         expect(store.get(driveEditBufferAtom)).toBeNull()
     })
 
@@ -338,7 +337,7 @@ describe("drive edit state", () => {
         store.set(markTeardownWarnedAtom)
         expect(store.get(driveEditBufferAtom)?.teardownWarned).toBe(true)
 
-        store.set(closeEditBufferAtom)
+        store.set(driveEditBufferAtom, null)
         expect(store.get(driveEditBufferAtom)).toBeNull()
     })
 })

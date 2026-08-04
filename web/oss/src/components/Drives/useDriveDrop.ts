@@ -61,7 +61,6 @@ export function useDriveDrop({
     // dragenter/leave flicker from moving across child elements).
     const depth = useRef(0)
     useEffect(() => {
-        if (!enabled) return
         const has = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files")
         const onEnter = (e: DragEvent) => {
             if (has(e)) {
@@ -79,6 +78,11 @@ export function useDriveDrop({
             setHoverPath(null)
             clearSpring()
         }
+        // Disabling mid-drag must also clear whatever the drag left behind.
+        if (!enabled) {
+            onEnd()
+            return
+        }
         window.addEventListener("dragenter", onEnter)
         window.addEventListener("dragleave", onLeave)
         window.addEventListener("drop", onEnd)
@@ -90,14 +94,6 @@ export function useDriveDrop({
             window.removeEventListener("dragend", onEnd)
         }
     }, [enabled, clearSpring])
-
-    useEffect(() => {
-        if (enabled) return
-        depth.current = 0
-        clearSpring()
-        setDragging(false)
-        setHoverPath(null)
-    }, [clearSpring, enabled])
 
     const startSpring = useCallback(
         (path: string) => {

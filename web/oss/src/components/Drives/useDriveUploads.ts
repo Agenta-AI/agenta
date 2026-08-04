@@ -88,9 +88,10 @@ export function useDriveUploads({
     )
     // Drag-and-drop uploads: highlight + spring-load into folders, drop to upload. Disabled in the
     // local-file preview (no mount to write to).
+    // useDriveDrop gates every handler on `enabled`, so onUpload is unreachable when it is off.
     const drop = useDriveDrop({
         enabled: canUpload && enabled,
-        onUpload: canUpload && enabled ? uploadIntoFolder : () => {},
+        onUpload: uploadIntoFolder,
         onNavigate: select,
     })
 
