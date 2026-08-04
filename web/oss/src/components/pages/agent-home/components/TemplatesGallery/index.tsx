@@ -19,7 +19,6 @@ import {
     templateCategories,
     type AgentTemplate,
 } from "../../assets/templates"
-import {useTemplateSelect} from "../../hooks/useTemplateSelect"
 import TemplateSetupDrawer, {type TemplateSetupResult} from "../TemplateSetupDrawer"
 
 import TemplateSection from "./TemplateSection"
@@ -96,7 +95,13 @@ const TemplatesGalleryPage = () => {
     // Template card click: builder mode → straight to a seeded playground; else open the setup
     // drawer. Gated by NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER.
     const [setupTemplate, setSetupTemplate] = useState<AgentTemplate | null>(null)
-    const handleSelectTemplate = useTemplateSelect(setSetupTemplate)
+    // A card opens the template rather than creating from it: the detail page is where you find
+    // out what it needs before committing, which is the point of having one.
+    const handleSelectTemplate = useCallback(
+        (template: AgentTemplate) =>
+            void router.push(`${baseAppURL}/agent-templates/${template.key}`),
+        [router, baseAppURL],
+    )
 
     // TODO(Phase B): create the ephemeral draft from the template + open the playground.
     const handleTemplateCreate = useCallback(
