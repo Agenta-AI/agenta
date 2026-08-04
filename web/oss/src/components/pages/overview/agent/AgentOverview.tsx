@@ -65,18 +65,15 @@ const AgentOverview = ({appId, agentName}: Props) => {
                 <SessionListCard
                     withPinned
                     agentId={appId}
-                    limit={12}
+                    limit={8}
                     title="Sessions"
                     emptyText="Conversations with this agent will show up here."
                     viewAllHref={sessionsHref}
                 />
-            </div>
 
-            <div className="flex w-full shrink-0 grow-0 flex-col gap-6 lg:w-1/3 lg:min-w-[340px] lg:max-w-[520px]">
-                <AgentConfigurationCard appId={appId} />
-
-                <AgentFilesCard appId={appId} />
-
+                {/* Co-equal with Sessions, not a filter of it: an automation run is one the user
+                    configured but did not start. A toggle would hide one of the two behind a
+                    click, which ranks them. */}
                 <SessionListCard
                     agentId={appId}
                     origin="trigger"
@@ -86,6 +83,13 @@ const AgentOverview = ({appId, agentName}: Props) => {
                     minHeightClassName="min-h-[100px]"
                     viewAllHref={sessionsHref}
                 />
+            </div>
+
+            <div className="flex w-full shrink-0 grow-0 flex-col gap-6 lg:w-1/3 lg:min-w-[340px] lg:max-w-[520px]">
+                <AgentConfigurationCard appId={appId} />
+
+                <AgentFilesCard appId={appId} />
+
                 <UsageSummary variant="strip" />
             </div>
         </div>
