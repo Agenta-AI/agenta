@@ -14,8 +14,25 @@ Phase 1 exit review. Both spikes are complete and green:
   Report: `spikes/runner-spike.md`.
 
 The consolidated decisions are in `decisions.md`. Seven product calls wait on Mahmoud
-(listed there). A Codex design review of the finalized design is running. Slices start
-when it returns. Draft PR: https://github.com/Agenta-AI/agenta/pull/5733.
+(listed there). Draft PR: https://github.com/Agenta-AI/agenta/pull/5733.
+
+## Design gate: NO-GO (first pass)
+
+The Codex design gate review (`research/design-gate-review-codex.md`) returned NO-GO
+with eight must-fix items before implementation. The largest: the value_from approval
+flow needs a single-use execution authorization (the toolCallId cache is forgeable via
+the relay directory); the commit transaction and the no-change response are
+unspecified; read_config, the editable-scope policy, and the description field need
+real contracts; live tool routes need an applied-generation acknowledgement; the slice
+plan understates dependencies and slices 1, 3, 7 are too big.
+
+Response: the team writes the missing contracts before any slice starts. engine-spike
+owns the change-set contract, the commit transaction and response, and the read_config
+contract. runner-spike owns the execution authorization, the workspace import
+boundary, and the corrected adapter matrix. Second gate review after that. Fail-closed
+defaults adopted meanwhile: value_from always gates, imports come from a designated
+root, unsupported files reject the source unless the caller opts into omission,
+executable policy is explicit and default-deny, no blanket text normalization.
 
 ## Decisions taken (4 August review with Mahmoud)
 
