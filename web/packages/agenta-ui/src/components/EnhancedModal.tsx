@@ -8,11 +8,13 @@
  * (declared below; 0 antd type/runtime dependency) that mirrors the antd props call-sites pass.
  *
  * Covered: open · onCancel · onOk · title · footer (custom / null / default Cancel+OK) ·
- * okText/cancelText/okButtonProps/cancelButtonProps/confirmLoading · width · closable ·
- * maskClosable · keyboard(Esc) · afterClose · styles(body/footer/header/content) ·
- * className · zIndex · getContainer · maxHeight · lazyRender · centered (always).
+ * okText/cancelText/okButtonProps/cancelButtonProps (incl. data-* passthrough)/confirmLoading ·
+ * okType="danger" · width · closable · closeIcon (null suppresses, a node overrides the
+ * default X) · maskClosable · keyboard(Esc) · afterClose ·
+ * styles(body/footer/header/content/container) · style · className · zIndex · getContainer ·
+ * maxHeight · lazyRender · centered (always).
  * Deferred (rare / unused by call-sites): footer as a render fn, `modalRender`, `mask={false}`,
- * `closeIcon` customisation, imperative `Modal.confirm`. Add if a call-site needs them.
+ * imperative `Modal.confirm`. Add if a call-site needs them.
  */
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
@@ -169,13 +171,21 @@ export interface EnhancedModalProps extends Omit<ModalProps, "styles"> {
 
 // antd `okButtonProps`/`cancelButtonProps` → @agenta/ui Button props. antd-only fields
 // (type/size/shape/ghost/icon/htmlType) are dropped; `danger` → destructive variant.
-const mapAntButton = (p: ModalButtonProps | undefined) => ({
-    danger: !!p?.danger,
-    disabled: p?.disabled,
-    loading: !!p?.loading,
-    className: p?.className,
-    style: p?.style,
-})
+// `data-*` attrs pass through as-is — onboarding tours target buttons by them (e.g.
+// `okButtonProps={{"data-tour": "run-eval-confirm"}}`).
+const mapAntButton = (p: ModalButtonProps | undefined) => {
+    const dataAttrs = Object.fromEntries(
+        Object.entries(p ?? {}).filter(([key]) => key.startsWith("data-")),
+    )
+    return {
+        danger: !!p?.danger,
+        disabled: p?.disabled,
+        loading: !!p?.loading,
+        className: p?.className,
+        style: p?.style,
+        dataAttrs,
+    }
+}
 
 export function EnhancedModal(props: EnhancedModalProps) {
     const {
@@ -193,6 +203,8 @@ export function EnhancedModal(props: EnhancedModalProps) {
         cancelButtonProps,
         confirmLoading,
         closable = true,
+        closeIcon,
+        okType,
         maskClosable = true,
         keyboard = true,
         focusable,
@@ -200,6 +212,7 @@ export function EnhancedModal(props: EnhancedModalProps) {
         getContainer,
         styles: customStyles,
         className,
+        style,
         maxHeight = "90vh",
         lazyRender = true,
     } = props
@@ -226,11 +239,14 @@ export function EnhancedModal(props: EnhancedModalProps) {
     const resolved = typeof customStyles === "function" ? customStyles({props}) : customStyles
 
     // antd `getContainer` (element | () => element | false | undefined) → Radix portal target.
+    // `HTMLElement` is a browser-only global: guard it so SSR doesn't throw evaluating
+    // `instanceof` before this ever needs a real container.
     const container = useMemo<HTMLElement | undefined>(() => {
         if (getContainer === false) return undefined
         if (typeof getContainer === "function")
             return (getContainer as () => HTMLElement)() ?? undefined
-        if (getContainer instanceof HTMLElement) return getContainer
+        if (typeof HTMLElement !== "undefined" && getContainer instanceof HTMLElement)
+            return getContainer
         return undefined
     }, [getContainer])
 
@@ -262,16 +278,18 @@ export function EnhancedModal(props: EnhancedModalProps) {
                     className={cancelBtn.className}
                     style={cancelBtn.style}
                     onClick={(e) => onCancel?.(e)}
+                    {...cancelBtn.dataAttrs}
                 >
                     {cancelText}
                 </Button>
                 <LoadingButton
-                    variant={okBtn.danger ? "destructive" : "default"}
+                    variant={okBtn.danger || okType === "danger" ? "destructive" : "default"}
                     loading={confirmLoading || okBtn.loading}
                     disabled={okBtn.disabled}
                     className={okBtn.className}
                     style={okBtn.style}
                     onClick={(e) => onOk?.(e)}
+                    {...okBtn.dataAttrs}
                 >
                     {okText}
                 </LoadingButton>
@@ -282,7 +300,8 @@ export function EnhancedModal(props: EnhancedModalProps) {
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent
                 container={container}
-                showCloseButton={closable !== false}
+                showCloseButton={closeIcon !== null && closable !== false}
+                closeIcon={closeIcon}
                 // Facade scroll layout: drop the content's own padding/gap so the body scrolls
                 // edge-to-edge; header/footer keep the horizontal padding + antd's 12px rhythm.
                 className={cn("gap-0 p-0", className)}
@@ -291,6 +310,11 @@ export function EnhancedModal(props: EnhancedModalProps) {
                     maxWidth: modalWidth,
                     ...(maxHeight ? {maxHeight} : {}),
                     ...(zIndex != null ? {zIndex} : {}),
+                    // Legacy root `style` and `styles.container` (antd's outer wrapper slot —
+                    // collapsed onto this single node here) come before `styles.content`, the
+                    // most specific slot, so content still wins on overlap.
+                    ...resolved?.container,
+                    ...style,
                     ...resolved?.content,
                 }}
                 onOpenAutoFocus={focusable?.trap === false ? (e) => e.preventDefault() : undefined}

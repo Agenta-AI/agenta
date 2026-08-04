@@ -61,6 +61,7 @@ function DialogContent({
     children,
     container,
     showCloseButton = true,
+    closeIcon,
     ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
     /** Portal target. Defaults to document.body; pass an element to render inline (e.g. a
@@ -68,6 +69,9 @@ function DialogContent({
     container?: HTMLElement | null
     /** antd `closable`. Renders the top-right close X. */
     showCloseButton?: boolean
+    /** antd `closeIcon`. Overrides the default X (e.g. a caller-owned icon carrying its own
+     * `data-tour`/test attributes) — falls back to the default X when omitted. */
+    closeIcon?: React.ReactNode
 }) {
     return (
         <DialogPortal container={container}>
@@ -119,7 +123,7 @@ function DialogContent({
                             aria-label="Close"
                         >
                             {/* antd close icon is 14px; size via class, not the lucide size prop. */}
-                            <X className="size-3.5" />
+                            {closeIcon ?? <X className="size-3.5" />}
                         </DialogPrimitive.Close>
                     )}
                 </DialogPrimitive.Content>

@@ -33,9 +33,9 @@ const CellContentPopover = ({
                         text={copyContent}
                         icon={true}
                         buttonText={null}
-                        size="small"
+                        size="sm"
                         stopPropagation={true}
-                        type="text"
+                        variant="ghost"
                     />
                 </div>
             )}
