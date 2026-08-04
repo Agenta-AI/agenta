@@ -13,6 +13,7 @@ const HomeAutomationsSection = () => (
         title="Automation runs"
         emptyText="Runs from your automations will show up here."
         limit={5}
+        minHeightClassName="min-h-[200px]"
     />
 )
 

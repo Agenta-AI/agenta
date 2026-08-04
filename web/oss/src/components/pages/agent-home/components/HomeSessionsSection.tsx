@@ -5,6 +5,7 @@ const HomeSessionsSection = ({limit}: {limit?: number} = {}) => (
     <SessionListCard
         withPinned
         limit={limit}
+        minHeightClassName="min-h-[320px]"
         title="Sessions"
         emptyText="Your conversations will show up here."
     />

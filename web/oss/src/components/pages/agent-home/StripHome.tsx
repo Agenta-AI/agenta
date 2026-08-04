@@ -102,88 +102,102 @@ const StripHome: React.FC = () => {
 
     return (
         <PageLayout className="grow min-h-0">
-            {/* One centered 1040px column — hero, composer, templates, usage, and the table all
-                share the same left/right edges. PageLayout's p-4 supplies the outer 16px, the
-                px-6 here tops it up to ~40px sides; pt-14/pb-20 give the page air (≈72/96px). */}
-            <div className="mx-auto flex w-full max-w-[1040px] flex-col px-6 pb-20 pt-14">
-                {/* Hero + composer keep a readable 840px measure, centered in the column (a
-                    full-width text area reads worse, not better). The hero text is centered so
-                    the narrower block reads as a deliberate hero above the full-width sections. */}
-                <div className="mx-auto flex w-full max-w-[840px] flex-col">
-                    <div className="flex flex-col items-center gap-4 text-center">
-                        <Typography.Title level={2} className="!m-0 !text-[30px] !leading-tight">
-                            {firstRun ? HERO.title : RETURNING_HERO.title}
-                        </Typography.Title>
-                        <Typography.Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
-                            {firstRun ? HERO.subtitle : RETURNING_HERO.subtitle}
-                        </Typography.Text>
-                    </div>
+            {/* First run stays a centered document — one question, one answer, nothing to
+                resume yet. A returning user gets a workspace: two columns that fill the
+                viewport and scroll independently, so starting work and resuming it are both
+                always on screen instead of one being scrolled past. */}
+            <div
+                className={
+                    firstRun
+                        ? "mx-auto flex w-full max-w-[1040px] flex-col px-6 pb-20 pt-14"
+                        : "flex h-[calc(100dvh-75px)] w-full gap-6 overflow-hidden px-6 pb-6 pt-8"
+                }
+            >
+                <div
+                    className={
+                        firstRun
+                            ? "flex w-full flex-col"
+                            : // `min-w-0` or a wide table would push the column past its share.
+                              "flex min-w-0 flex-1 flex-col gap-14 overflow-y-auto pr-1"
+                    }
+                >
+                    <div
+                        className={
+                            firstRun
+                                ? "mx-auto flex w-full max-w-[840px] flex-col"
+                                : "flex w-full flex-col"
+                        }
+                    >
+                        <div className="flex flex-col items-center gap-4 text-center">
+                            <Typography.Title
+                                level={2}
+                                className="!m-0 !text-[30px] !leading-tight"
+                            >
+                                {firstRun ? HERO.title : RETURNING_HERO.title}
+                            </Typography.Title>
+                            <Typography.Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
+                                {firstRun ? HERO.subtitle : RETURNING_HERO.subtitle}
+                            </Typography.Text>
+                        </div>
 
-                    {/* Chip docks into the hero gap (bottom-full), so mt-11 holds with or without it.
+                        {/* Chip docks into the hero gap (bottom-full), so mt-11 holds with or without it.
                         The 2px nudge + z-10 overlap and paint above the composer's top border so the
                         chip reads as one shape, not a seam. */}
-                    <div className="relative mt-11 flex flex-col items-stretch">
-                        <div className="absolute bottom-full left-0 z-10 translate-y-[2px]">
-                            {provenance.chipNode}
-                        </div>
-                        {/* First run has no agent to talk to, so the composer describes one to
+                        <div className="relative mt-11 flex flex-col items-stretch">
+                            <div className="absolute bottom-full left-0 z-10 translate-y-[2px]">
+                                {provenance.chipNode}
+                            </div>
+                            {/* First run has no agent to talk to, so the composer describes one to
                             create. Once agents exist, the daily action is starting a task with one
                             of them — creating another moves into the picker's footer. */}
-                        {firstRun ? (
-                            <StripComposer
-                                composerRef={composerRef}
-                                onCreate={handleCreate}
-                                onCodingAgentCopy={handleCodingAgentCopy}
-                                composerClassName={provenance.composerClassName}
-                                onTextChange={provenance.onComposerTextChange}
-                                loading={loading}
-                            />
-                        ) : (
-                            <HomeTaskComposer
-                                onCreateAgent={(markdown) => void handleCreate(markdown)}
-                                creating={loading}
-                            />
-                        )}
-                    </div>
-                </div>
-
-                {firstRun ? (
-                    <TemplateStrip
-                        className="mt-20"
-                        surface="home"
-                        layout="grid"
-                        selectedTemplateKey={provenance.selectedTemplateKey}
-                        onPick={handlePick}
-                    />
-                ) : (
-                    <>
-                        {/* Two jobs, unequal weight: resuming work is the primary column, and
-                            everything that gives it context sits in a rail beside it. Equal-width
-                            halves gave an empty automations card 50% of the best row on the page. */}
-                        <div className="mt-14 grid grid-cols-1 gap-6 lg:grid-cols-3">
-                            <div className="lg:col-span-2">
-                                <HomeSessionsSection limit={10} />
-                            </div>
-                            <div className="flex flex-col gap-6">
-                                <HomeAutomationsSection />
-                                <UsageSummary variant="strip" />
-                            </div>
+                            {firstRun ? (
+                                <StripComposer
+                                    composerRef={composerRef}
+                                    onCreate={handleCreate}
+                                    onCodingAgentCopy={handleCodingAgentCopy}
+                                    composerClassName={provenance.composerClassName}
+                                    onTextChange={provenance.onComposerTextChange}
+                                    loading={loading}
+                                />
+                            ) : (
+                                <HomeTaskComposer
+                                    onCreateAgent={(markdown) => void handleCreate(markdown)}
+                                    creating={loading}
+                                />
+                            )}
                         </div>
+                    </div>
 
-                        {/* Setup material, below the work. The agents table keeps full width — it's
-                            a table, and the rail would crush its columns. */}
+                    {firstRun ? (
                         <TemplateStrip
-                            className="mt-14"
+                            className="mt-20"
                             surface="home"
                             layout="grid"
                             selectedTemplateKey={provenance.selectedTemplateKey}
                             onPick={handlePick}
                         />
-                        <div className="mt-14">
+                    ) : (
+                        <>
+                            <TemplateStrip
+                                surface="home"
+                                layout="grid"
+                                selectedTemplateKey={provenance.selectedTemplateKey}
+                                onPick={handlePick}
+                            />
                             <YourAgentsTable />
-                        </div>
-                    </>
-                )}
+                        </>
+                    )}
+                </div>
+
+                {/* Right column: what's in flight. Scrolls on its own so a long session list
+                    never pushes the composer off screen. */}
+                {!firstRun ? (
+                    <div className="flex w-[400px] shrink-0 flex-col gap-6 overflow-y-auto pr-1">
+                        <HomeSessionsSection limit={10} />
+                        <HomeAutomationsSection />
+                        <UsageSummary variant="strip" />
+                    </div>
+                ) : null}
             </div>
 
             <CopiedToast

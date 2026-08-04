@@ -36,6 +36,9 @@ interface Props {
     limit?: number
     /** Pinned sessions lead the list, and are excluded from the recent rows below them. */
     withPinned?: boolean
+    /** Floor for the card in a column layout — one row (or none) must not collapse it to a
+     * sliver next to a full-height neighbour. */
+    minHeightClassName?: string
 }
 
 /**
@@ -49,6 +52,7 @@ const SessionListCard = ({
     emptyText,
     limit = 7,
     withPinned = false,
+    minHeightClassName,
 }: Props) => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
@@ -177,7 +181,9 @@ const SessionListCard = ({
     }
 
     return (
-        <section className="rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-3">
+        <section
+            className={`flex flex-col rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-3 ${minHeightClassName ?? ""}`}
+        >
             <div className="mb-1 flex items-baseline justify-between">
                 <h3 className="m-0 text-xs font-medium text-colorText">{title}</h3>
                 <Link href={`${projectURL}/sessions`} className="text-xs">
