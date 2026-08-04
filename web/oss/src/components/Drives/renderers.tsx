@@ -26,9 +26,11 @@ import {
     useDriveMediaSrc,
     useDriveObjectUrl,
 } from "./driveFileSource"
-import {driveCodeLanguage, resolveDriveFileKind, type DriveFileKind} from "./driveKinds"
+import {driveCodeLanguage, resolveDriveFileKind, TEXT_CAP, type DriveFileKind} from "./driveKinds"
 import {fetchMountFileBlob} from "./driveMedia"
 import {humanSize} from "./driveTree"
+
+export {TEXT_CAP} from "./driveKinds"
 
 // Lexical + lazy-Shiki code block (theme-paired highlighting). Loaded only when a code body
 // actually opens — @lexical/code-shiki is an ~8.7 MB chunk that must stay out of first load.
@@ -38,7 +40,6 @@ const LazyCodeBlock = dynamic(() => import("@/oss/components/DynamicCodeBlock/Co
 })
 
 // Inline-render caps (bytes). Over-cap is a graceful card, never a frozen tab.
-const TEXT_CAP = 1.5 * 1024 * 1024
 const MEDIA_CAP = 25 * 1024 * 1024
 
 /** Quote-aware-enough CSV parse for previews (RFC 4180 essentials: quotes, escaped quotes,

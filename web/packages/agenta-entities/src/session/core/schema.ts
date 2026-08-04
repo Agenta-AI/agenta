@@ -168,6 +168,11 @@ export const mountFileContentResponseSchema = z.object({
     content: z.string().nullish(),
 })
 
+export const mountFileWrittenResponseSchema = z.object({
+    path: z.string(),
+    size: z.number(),
+})
+
 /** A mount row (a drive): the durable prefix bound to a session (or, later, an agent). */
 export const mountSchema = z.object({
     id: z.string(),

@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {type Mount} from "@agenta/entities/session"
+import {type QueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
@@ -65,6 +66,16 @@ export interface MountUpload {
     dismiss: (id: string) => void
 }
 
+export function invalidateMountListings(
+    queryClient: QueryClient,
+    projectId: string | null | undefined,
+): void {
+    if (!projectId) return
+    for (const root of ["files", "files-latest", "files-root", "files-dir"]) {
+        void queryClient.invalidateQueries({queryKey: ["mounts", root, projectId]})
+    }
+}
+
 export function useMountUpload(): MountUpload {
     const projectId = useAtomValue(projectIdAtom)
     const queryClient = useAtomValue(queryClientAtom)
@@ -82,12 +93,10 @@ export function useMountUpload(): MountUpload {
         setItems((prev) => prev.map((it) => (it.id === id ? {...it, ...next} : it)))
     }, [])
 
-    const refreshListing = useCallback(() => {
-        // Prefix-match every mount file-query root for the project (dir listing, root, latest, summary).
-        for (const root of ["files", "files-latest", "files-root", "files-dir"]) {
-            void queryClient.invalidateQueries({queryKey: ["mounts", root, projectId]})
-        }
-    }, [queryClient, projectId])
+    const refreshListing = useCallback(
+        () => invalidateMountListings(queryClient, projectId),
+        [queryClient, projectId],
+    )
 
     const run = useCallback(
         (id: string) => {

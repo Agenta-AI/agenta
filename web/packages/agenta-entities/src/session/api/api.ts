@@ -12,6 +12,7 @@ import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {
     mountFileContentResponseSchema,
     mountFileListResponseSchema,
+    mountFileWrittenResponseSchema,
     sessionInteractionResponseSchema,
     sessionInteractionsResponseSchema,
     sessionRecordsQueryResponseSchema,
@@ -36,6 +37,7 @@ import {
     getLowPrioritySessionsClient,
     getMountsClient,
     getSessionsClient,
+    isAbortError,
     projectScopedRequest,
 } from "./client"
 
@@ -687,4 +689,53 @@ export async function readMountFile({
 
     const validated = safeParseWithLogging(mountFileContentResponseSchema, data, "[readMountFile]")
     return validated?.content ?? null
+}
+
+export async function writeMountFile({
+    projectId,
+    mountId,
+    path,
+    content,
+    signal,
+}: {
+    projectId: string
+    mountId: string
+    path: string
+    content: string
+    signal?: AbortSignal
+}): Promise<{ok: true; size: number} | {ok: false; message: string}> {
+    if (!projectId || !mountId || !path) {
+        return {ok: false, message: "Missing project, mount, or file path"}
+    }
+
+    try {
+        // Multipart is required because the generated raw-body method drops file content.
+        const data = await getMountsClient().uploadMountFile(
+            {
+                mount_id: mountId,
+                path,
+                file: {
+                    data: new Blob([content], {type: "text/plain;charset=utf-8"}),
+                    filename: path.split("/").pop() || "file",
+                },
+            },
+            {
+                ...projectScopedRequest(projectId, undefined, signal, 0),
+                timeoutInSeconds: 30,
+            },
+        )
+        const validated = safeParseWithLogging(
+            mountFileWrittenResponseSchema,
+            data,
+            "[writeMountFile]",
+        )
+        if (!validated) return {ok: false, message: "The mount returned an invalid response"}
+        return {ok: true, size: validated.size}
+    } catch (error) {
+        if (isAbortError(error)) throw error
+        return {
+            ok: false,
+            message: error instanceof Error ? error.message : String(error),
+        }
+    }
 }

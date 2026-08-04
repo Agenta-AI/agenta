@@ -19,9 +19,11 @@ export type DriveFileKind =
     | "video"
     | "other"
 
+export const TEXT_CAP = 1.5 * 1024 * 1024
+
 // Extension → Shiki language id for the code body (the lexical CodeBlock normalizes further;
 // unknown ids degrade to plaintext, never a broken viewer).
-const CODE_LANGS: Record<string, string> = {
+export const CODE_LANGS: Readonly<Record<string, string>> = {
     py: "python",
     ts: "typescript",
     tsx: "tsx",

@@ -21,8 +21,10 @@ export {
     unarchiveSession as unarchiveSessionRemote,
     querySessionMounts,
     queryMountFiles,
+    queryMountDir,
     queryLatestMountFiles,
     readMountFile,
+    writeMountFile,
     type MountFilesPage,
     type LatestMountFilesParams,
     type QueryRecordsParams,
@@ -55,6 +57,7 @@ export {
     type StreamStatusCode,
     type CommandMode,
     mountFileSchema,
+    mountFileWrittenResponseSchema,
     mountSchema,
     type MountFile,
     type Mount,
@@ -89,6 +92,7 @@ export {
     sessionMountsQueryKey,
     mountFilesQueryKey,
     latestMountFilesQueryKey,
+    mountDirQueryKey,
     mountFileContentQueryKey,
 } from "./state/mounts"
 export {
