@@ -1,10 +1,13 @@
-import {useCallback, useRef, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
 import {PageLayout} from "@agenta/ui"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {ArrowLeftIcon} from "@phosphor-icons/react"
 import {App, Typography} from "antd"
 import {useAtomValue} from "jotai"
+import Link from "next/link"
+import {useRouter} from "next/router"
 
 import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/pages/agents/store"
 import {PanelScroll, PanelSurface} from "@/oss/components/PanelSection"
@@ -14,11 +17,12 @@ import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
 import CopiedToast from "@/oss/components/TemplateStrip/components/CopiedToast"
 import StripComposer from "@/oss/components/TemplateStrip/components/StripComposer"
 import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
+import useURL from "@/oss/hooks/useURL"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
 import {HERO, RETURNING_HERO} from "./assets/constants"
 import {captureFirstAgentIntent, truncateForCapture} from "./assets/onboardingAnalytics"
-import {type AgentTemplate} from "./assets/templates"
+import {AGENT_TEMPLATES, type AgentTemplate} from "./assets/templates"
 import HomeAutomationsSection from "./components/HomeAutomationsSection"
 import HomeSessionsSection from "./components/HomeSessionsSection"
 import HomeTaskComposer from "./components/HomeTaskComposer"
@@ -36,8 +40,10 @@ const StripHome: React.FC = () => {
     const composerRef = useRef<RichChatInputHandle>(null)
     // Home creates, navigates to the playground, and auto-sends (owner decision).
     const {onCreate} = useAgentHomeActions(composerRef, {autoSendSeed: true})
-    const {firstRunOverride} = useAgentHomeVariants()
+    const {firstRunOverride, creatingAgent} = useAgentHomeVariants()
     const posthog = usePostHogAg()
+    const {baseAppURL} = useURL()
+    const router = useRouter()
     const {message} = App.useApp()
     const [toastOpen, setToastOpen] = useState(false)
     // Create is a multi-step async round-trip; on success we navigate away, so we keep the
@@ -49,7 +55,10 @@ const StripHome: React.FC = () => {
 
     const agents = useAtomValue(agentsWorkflowsAtom)
     const agentsLoading = useAtomValue(agentsWorkflowsLoadingAtom)
-    const firstRun = firstRunOverride ?? (!agentsLoading && agents.length === 0)
+    const isFirstRun = firstRunOverride ?? (!agentsLoading && agents.length === 0)
+    // The create-an-agent surface IS the first-run surface — describe it, pick a template, send.
+    // A returning user gets there via `?new=1` rather than through the task composer.
+    const firstRun = isFirstRun || creatingAgent
 
     const provenance = useTemplateProvenance({
         composerApi: {
@@ -60,6 +69,12 @@ const StripHome: React.FC = () => {
 
     const handlePick = useCallback(
         (template: AgentTemplate) => {
+            // On the workspace home the composer runs tasks, so a pick here has no composer to
+            // seed — it means "build this", which is the create surface's job.
+            if (!firstRun) {
+                void router.push(`${baseAppURL}?new=1&template=${template.key}`)
+                return
+            }
             provenance.pick(template)
             captureFirstAgentIntent(posthog, {
                 source: "template",
@@ -73,8 +88,21 @@ const StripHome: React.FC = () => {
                 intentValue: template.category || template.name,
             })
         },
-        [provenance.pick, posthog],
+        [firstRun, router, baseAppURL, provenance.pick, posthog],
     )
+
+    // Seed once when the create surface is opened with a template already chosen.
+    const seededTemplate = useRef(false)
+    const templateParam = Array.isArray(router.query.template)
+        ? router.query.template[0]
+        : router.query.template
+    useEffect(() => {
+        if (seededTemplate.current || !templateParam) return
+        const template = AGENT_TEMPLATES.find((entry) => entry.key === templateParam)
+        if (!template) return
+        seededTemplate.current = true
+        provenance.pick(template)
+    }, [templateParam, provenance.pick])
 
     const handleCreate = useCallback(
         async (markdown?: string) => {
@@ -142,6 +170,15 @@ const StripHome: React.FC = () => {
                             card) starts at its left edge. So here the hero joins that rag and
                             drops to a label's size: the composer is the invitation, and its
                             placeholder already asks the question the subtitle repeated. */}
+                        {creatingAgent && !isFirstRun ? (
+                            <Link
+                                href={baseAppURL}
+                                className="mb-6 inline-flex items-center gap-1 self-start text-xs !text-colorTextSecondary"
+                            >
+                                <ArrowLeftIcon size={14} />
+                                Back to home
+                            </Link>
+                        ) : null}
                         <div
                             className={
                                 firstRun
@@ -188,10 +225,7 @@ const StripHome: React.FC = () => {
                                     loading={loading}
                                 />
                             ) : (
-                                <HomeTaskComposer
-                                    onCreateAgent={(markdown) => void handleCreate(markdown)}
-                                    creating={loading}
-                                />
+                                <HomeTaskComposer />
                             )}
                         </div>
                     </div>

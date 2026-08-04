@@ -5,6 +5,7 @@ import {
     type TableFeaturePagination,
     type TableScopeConfig,
 } from "@agenta/ui/table"
+import {PlusIcon} from "@phosphor-icons/react"
 import {Typography} from "antd"
 import type {TableProps} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -144,6 +145,18 @@ const YourAgentsTable = ({forceEmpty = false, variant = "table"}: YourAgentsTabl
                 sticky
                 title="Your agents"
                 bodyClassName="flex flex-col gap-0.5 px-2 pb-3"
+                extra={
+                    // The only visible way to create an agent. It used to be an option inside the
+                    // composer's agent picker, i.e. nowhere until you opened a dropdown.
+                    <button
+                        type="button"
+                        onClick={() => router.push(`${baseAppURL}?new=1`)}
+                        className="inline-flex shrink-0 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs text-colorPrimary"
+                    >
+                        <PlusIcon size={14} />
+                        New agent
+                    </button>
+                }
             >
                 {showEmpty ? (
                     <EmptyAgents />
