@@ -69,16 +69,23 @@ export const PanelSection = ({
 }) => {
     const isRail = variant === "rail"
     return (
-        <section className={`flex flex-col ${minHeightClassName ?? ""}`}>
+        <section
+            className={`flex flex-col ${
+                isRail
+                    ? "border-0 border-t border-solid border-colorBorderSecondary first:border-t-0"
+                    : ""
+            } ${minHeightClassName ?? ""}`}
+        >
+            {/* The rule belongs BETWEEN sections, not under a header: a header with a rule under it
+                reads as a table head over its rows, and leaves the boundary that matters — one
+                section's last row against the next one's title — completely unmarked. */}
             {/* Only the rail's headers pin, and only they carry a background. A bare section has
                 no surface of its own to match — painting one drew a bar in a shade the page never
                 uses — and the reference doesn't pin its main-column label either. */}
             <div
                 className={`flex shrink-0 items-center justify-between gap-2 ${
                     isRail
-                        ? `border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer px-4 py-3 ${
-                              sticky ? "sticky top-0 z-10" : ""
-                          }`
+                        ? `bg-colorBgContainer px-4 pb-2 pt-4 ${sticky ? "sticky top-0 z-10" : ""}`
                         : "px-2 pb-2 pt-1"
                 }`}
             >
@@ -96,7 +103,9 @@ export const PanelSection = ({
                 </div>
                 {extra}
             </div>
-            <div className={bodyClassName ?? "flex flex-col px-2 py-1"}>{children}</div>
+            {/* Rows inside a rail section separate by spacing, never by a rule — a rule inside a
+                section competes with the rule that ends it. Lines mean "new section", nothing else. */}
+            <div className={bodyClassName ?? "flex flex-col gap-0.5 px-2 pb-3"}>{children}</div>
         </section>
     )
 }

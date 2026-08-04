@@ -117,7 +117,7 @@ const AgentConfigurationCard = ({appId}: {appId: string}) => {
     return (
         <PanelSection
             title="Configuration"
-            bodyClassName="flex flex-col px-4 pb-2"
+            bodyClassName="flex flex-col px-4 pb-3"
             extra={
                 <button
                     type="button"

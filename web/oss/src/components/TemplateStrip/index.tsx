@@ -159,7 +159,7 @@ const TemplateStrip = ({
             <PanelSection
                 sticky
                 title={STRIP_COPY.label}
-                bodyClassName="flex flex-col px-2 pb-2"
+                bodyClassName="flex flex-col gap-0.5 px-2 pb-3"
                 extra={
                     filtered.length > LIST_SIZE ? (
                         <button

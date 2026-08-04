@@ -105,7 +105,7 @@ const AgentFilesCard = ({appId}: {appId: string}) => {
                                 setOpenPath(`${AGENT_FILES_DIR}/${file.path}`)
                                 setOpen(true)
                             }}
-                            className="group box-border flex w-full cursor-pointer items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-3 text-left last:border-b-0 hover:bg-colorFillQuaternary"
+                            className="group box-border flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-2 py-2.5 text-left hover:bg-colorFillQuaternary"
                         >
                             {file.is_folder ? (
                                 <FolderIcon size={14} className="shrink-0 text-colorTextTertiary" />

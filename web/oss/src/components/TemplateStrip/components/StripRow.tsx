@@ -25,7 +25,7 @@ const StripRow = ({
         type="button"
         aria-pressed={selected}
         onClick={() => onPick(template)}
-        className={`group box-border flex w-full cursor-pointer items-start gap-3 border-0 border-b border-solid border-colorBorderSecondary px-2 py-3 text-left last:border-b-0 ${
+        className={`group box-border flex w-full cursor-pointer items-start gap-3 rounded-lg border-0 px-2 py-2.5 text-left ${
             selected
                 ? "bg-[var(--ag-strip-selected-bg)]"
                 : "bg-transparent hover:bg-colorFillQuaternary"

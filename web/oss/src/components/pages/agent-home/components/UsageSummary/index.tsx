@@ -60,7 +60,7 @@ const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) =>
             // the no-shrink itself.
             <PanelSection
                 title="Usage"
-                bodyClassName="flex flex-col gap-3 px-4 py-3"
+                bodyClassName="flex flex-col gap-3 px-4 pb-4"
                 titleExtra={
                     <Sort
                         type="text"

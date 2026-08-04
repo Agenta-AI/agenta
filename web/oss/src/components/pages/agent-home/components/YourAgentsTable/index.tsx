@@ -140,7 +140,11 @@ const YourAgentsTable = ({forceEmpty = false, variant = "table"}: YourAgentsTabl
 
     if (variant === "list") {
         return (
-            <PanelSection sticky title="Your agents" bodyClassName="flex flex-col px-2 pb-2">
+            <PanelSection
+                sticky
+                title="Your agents"
+                bodyClassName="flex flex-col gap-0.5 px-2 pb-3"
+            >
                 {showEmpty ? (
                     <EmptyAgents />
                 ) : (
