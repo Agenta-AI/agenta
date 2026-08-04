@@ -86,7 +86,8 @@ const AgentOverview = ({appId, agentName}: Props) => {
                     <SessionListCard
                         withPinned
                         agentId={appId}
-                        limit={8}
+                        // Same sensible limit Home settles on; the rest reveal in place.
+                        limit={6}
                         title="Sessions"
                         emptyText="Conversations with this agent will show up here."
                         viewAllHref={sessionsHref}
