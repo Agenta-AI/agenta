@@ -202,9 +202,11 @@ const SessionListCard = ({
                             </span>
                             {/* Inside a "Waiting on you" group the urgency is already stated, so the
                             chip spends itself on WHAT is being asked and stays visually quiet —
-                            the amber lives on the dot and the header badge. */}
+                            the amber lives on the dot and the header badge. The fill is the
+                            faintest available: a solid pill beside a title reads as a button,
+                            and this chip is a label. */}
                             {status.chipLabel ? (
-                                <span className="shrink-0 rounded bg-colorFillSecondary px-1.5 py-0.5 text-[11px] leading-none text-colorTextSecondary">
+                                <span className="shrink-0 rounded bg-colorFillQuaternary px-1.5 py-0.5 text-[11px] leading-none text-colorTextSecondary">
                                     {pendingGateLabel(pending?.kinds)}
                                 </span>
                             ) : null}

@@ -49,15 +49,20 @@ export function sessionRowStatus(
  * What a blocked session is actually asking for. The gate poll already carries `kind` and the row
  * used to throw it away, so a waiting row said only that it was stuck — never whether it wanted a
  * decision, a message, or a tool run.
+ *
+ * Nouns, never imperatives. "Approve" in a chip is a button, and this one does nothing: the row
+ * opens the session, where the gate is already docked above the composer. Approving from a list
+ * would mean approving an action you haven't read, so the label names the state and leaves the
+ * decision on the surface that shows what is being decided.
  */
 export function pendingGateLabel(kinds: string[] | undefined): string {
     if (!kinds?.length) return "Waiting"
-    if (kinds.length > 1) return "Needs you"
+    if (kinds.length > 1) return "Multiple"
     switch (kinds[0]) {
         case "user_approval":
-            return "Approve"
+            return "Approval"
         case "user_input":
-            return "Needs input"
+            return "Input"
         case "client_tool":
             return "Tool call"
         default:

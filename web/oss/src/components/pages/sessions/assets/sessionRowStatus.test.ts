@@ -52,9 +52,16 @@ describe("sessionRowStatus", () => {
 
 describe("pendingGateLabel", () => {
     it("names what the session is asking for", () => {
-        expect(pendingGateLabel(["user_approval"])).toBe("Approve")
-        expect(pendingGateLabel(["user_input"])).toBe("Needs input")
+        expect(pendingGateLabel(["user_approval"])).toBe("Approval")
+        expect(pendingGateLabel(["user_input"])).toBe("Input")
         expect(pendingGateLabel(["client_tool"])).toBe("Tool call")
+    })
+
+    it("names a state rather than commanding one, because the chip does not act", () => {
+        // The gate is answered in the session, where what is being decided is on screen.
+        for (const kinds of [["user_approval"], ["user_input"], ["client_tool"], undefined]) {
+            expect(pendingGateLabel(kinds)).not.toMatch(/^(Approve|Answer|Run|Reply|Open)$/)
+        }
     })
 
     it("falls back to the generic label when the kind is unknown or absent", () => {
@@ -64,6 +71,6 @@ describe("pendingGateLabel", () => {
     })
 
     it("does not claim one action when several are open", () => {
-        expect(pendingGateLabel(["user_approval", "user_input"])).toBe("Needs you")
+        expect(pendingGateLabel(["user_approval", "user_input"])).toBe("Multiple")
     })
 })
