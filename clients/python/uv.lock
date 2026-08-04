@@ -4,7 +4,7 @@ requires-python = ">=3.11, <3.14"
 
 [[package]]
 name = "agenta-client"
-version = "0.108.1"
+version = "0.109.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
