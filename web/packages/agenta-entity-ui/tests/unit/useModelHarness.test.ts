@@ -18,5 +18,6 @@ describe("resolveHarnessKindValue", () => {
     it("preserves explicit harness kinds", () => {
         expect(resolveHarnessKindValue({kind: "pi_agenta"})).toBe("pi_agenta")
         expect(resolveHarnessKindValue({kind: "claude"})).toBe("claude")
+        expect(resolveHarnessKindValue({kind: "codex"})).toBe("codex")
     })
 })
