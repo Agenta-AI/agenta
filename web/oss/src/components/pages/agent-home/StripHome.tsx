@@ -205,39 +205,35 @@ const StripHome: React.FC = () => {
                             onPick={handlePick}
                         />
                     ) : (
-                        <>
-                            {/* Returning users get the scroller, not the paged grid: here the
-                                strip is a sample you glance at, and paging 28 templates three at
-                                a time is a browsing control in a slot nobody came to browse. */}
-                            <TemplateStrip
-                                surface="home"
-                                layout="scroll"
-                                surfaceColorVar="--ag-colorBgLayout"
-                                selectedTemplateKey={provenance.selectedTemplateKey}
-                                onPick={handlePick}
-                            />
-                            <YourAgentsTable />
-                        </>
-                    )}
-                </div>
-
-                {/* Right column: what's in flight. Scrolls on its own so a long session list
-                    never pushes the composer off screen.
-
-                    A third of the width rather than a fixed 400px, which held its proportion
-                    only at one screen size — it read as a third on a large display and as a
-                    slab on a laptop. The bounds keep it a rail at either extreme: below the
-                    floor a session row's title, preview and timestamp stop coexisting, and
-                    above the ceiling the extra width only pads the gap between them. */}
-                {!firstRun ? (
-                    <div className="box-border flex w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col gap-6 overflow-y-auto pr-1">
-                        {/* One sheet: the sections' header bands separate them, and each band
-                            pins in turn as the rail scrolls. */}
-                        <PanelSurface className="shrink-0 grow">
+                        // EXPERIMENT: the columns' contents are swapped. What's in flight takes
+                        // the wide column under the composer; the templates strip and the agents
+                        // roster move to the rail. The hero and composer stay put.
+                        <PanelSurface className="mt-8 shrink-0 grow">
                             <HomeSessionsSection limit={10} />
                             <HomeAutomationsSection />
                             <UsageSummary variant="strip" />
                         </PanelSurface>
+                    )}
+                </div>
+
+                {/* Right column, post-swap: what you could start. Scrolls on its own.
+
+                    A third of the width rather than a fixed 400px, which held its proportion
+                    only at one screen size — it read as a third on a large display and as a
+                    slab on a laptop. */}
+                {!firstRun ? (
+                    <div className="box-border flex w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col gap-6 overflow-y-auto pr-1">
+                        {/* Returning users get the scroller, not the paged grid: here the strip
+                            is a sample you glance at, and paging 28 templates three at a time is
+                            a browsing control in a slot nobody came to browse. */}
+                        <TemplateStrip
+                            surface="home"
+                            layout="scroll"
+                            surfaceColorVar="--ag-colorBgLayout"
+                            selectedTemplateKey={provenance.selectedTemplateKey}
+                            onPick={handlePick}
+                        />
+                        <YourAgentsTable />
                     </div>
                 ) : null}
             </div>
