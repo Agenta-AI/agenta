@@ -49,11 +49,16 @@ export function useWaitingByAgent(): Map<string, number> {
  * The agent's most recent session, whenever it ran.
  *
  * One row's worth of the server's own activity ordering — exact rather than derived from whatever
- * happened to be in the list's window. This is one small request per roster row; the roster is a
- * short, stable table, so it stays cheap where the session list (long, polling) would not.
+ * happened to be in the list's window. This is one single-row request per roster row; the roster
+ * is a short, stable table, so it stays cheap where the session list (long, polling) would not.
  */
 export function useAgentLastSession(agentId: string) {
-    const query = useSessionList({agentId, showTriggered: true, enabled: Boolean(agentId)})
+    const query = useSessionList({
+        agentId,
+        showTriggered: true,
+        limit: 1,
+        enabled: Boolean(agentId),
+    })
     const rows = rowsFromPages(query.data?.pages)
 
     return {

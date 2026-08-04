@@ -73,6 +73,9 @@ interface SessionListOptions {
     origin?: string
     /** Ids of sessions with a pending gate — the pushdown behind the "Waiting" filter. */
     waitingSessionIds?: string[]
+    /** Page size. Drop it for callers that want one row (a roster's "last active") rather than
+     * a list — a full page per row is a lot of list to throw away. */
+    limit?: number
     enabled?: boolean
 }
 
@@ -98,6 +101,7 @@ export const useSessionList = ({
     showTriggered = false,
     origin,
     waitingSessionIds,
+    limit,
     enabled = true,
 }: SessionListOptions = {}) => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
@@ -121,6 +125,7 @@ export const useSessionList = ({
         flags: status === "live" ? {is_alive: true} : undefined,
         sessionIds: restrictIds,
         excludeSessionIds,
+        limit,
     })
 
     return useInfiniteQuery({
@@ -130,7 +135,7 @@ export const useSessionList = ({
         enabled: Boolean(projectId) && enabled && !waitingUnresolved,
         initialPageParam: null as SessionListCursor | null,
         queryFn: ({pageParam, signal}) => options.queryFn({pageParam, signal}),
-        getNextPageParam: (lastPage) => nextSessionCursor(lastPage, SESSIONS_PAGE_SIZE),
+        getNextPageParam: (lastPage) => nextSessionCursor(lastPage, options.limit),
         // Pins and filters are part of the key, so every toggle mints a new query. Without this
         // the list would fall back to `pending` and flash its skeleton — the rows are still valid,
         // only their membership is being rechecked.
