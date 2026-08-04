@@ -26,6 +26,7 @@ import {AGENT_TEMPLATES, type AgentTemplate} from "./assets/templates"
 import HomeAutomationsSection from "./components/HomeAutomationsSection"
 import HomeSessionsSection from "./components/HomeSessionsSection"
 import HomeTaskComposer from "./components/HomeTaskComposer"
+import NextTriggersSection from "./components/NextTriggersSection"
 import UsageSummary from "./components/UsageSummary"
 import YourAgentsTable from "./components/YourAgentsTable"
 import {useAgentHomeActions} from "./hooks/useAgentHomeActions"
@@ -281,6 +282,10 @@ const StripHome: React.FC = () => {
                                     onPick={handlePick}
                                 />
                                 <YourAgentsTable variant="list" />
+                                {/* Forward-looking, unlike the automation RUNS in the main column:
+                                    a schedule that stopped firing is invisible in a list of things
+                                    that already happened. */}
+                                <NextTriggersSection />
                                 {/* Usage sits with what you could start, not with what is in
                                     flight — it is the column you glance at, not work from. */}
                                 <UsageSummary variant="strip" />

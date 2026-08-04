@@ -1,7 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {type SessionStream} from "@agenta/entities/session"
-import {ChatCircleIcon, ClockIcon, PushPinIcon} from "@phosphor-icons/react"
+import {ArrowRightIcon, ChatCircleIcon, ClockIcon, PushPinIcon} from "@phosphor-icons/react"
 import {Dropdown, Skeleton, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
@@ -332,6 +332,7 @@ const SessionListCard = ({
             extra={
                 <Link href={scopedHref} onClick={handleViewAll} className={PANEL_ACTION_CLASS}>
                     View all
+                    <ArrowRightIcon size={12} />
                 </Link>
             }
         >

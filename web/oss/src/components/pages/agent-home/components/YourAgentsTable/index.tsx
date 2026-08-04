@@ -5,10 +5,11 @@ import {
     type TableFeaturePagination,
     type TableScopeConfig,
 } from "@agenta/ui/table"
-import {PlusIcon} from "@phosphor-icons/react"
+import {ArrowRightIcon, PlusIcon} from "@phosphor-icons/react"
 import {Typography} from "antd"
 import type {TableProps} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
+import Link from "next/link"
 import {useRouter} from "next/router"
 
 import {
@@ -46,7 +47,7 @@ interface YourAgentsTableProps {
  */
 const YourAgentsTable = ({forceEmpty = false, variant = "table"}: YourAgentsTableProps) => {
     const router = useRouter()
-    const {baseAppURL} = useURL()
+    const {baseAppURL, projectURL} = useURL()
     const {goToPlayground} = usePlaygroundNavigation()
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
     const openEditAppModal = useSetAtom(openEditAppModalAtom)
@@ -146,16 +147,22 @@ const YourAgentsTable = ({forceEmpty = false, variant = "table"}: YourAgentsTabl
                 title="Your agents"
                 bodyClassName="flex flex-col gap-0.5 px-2 pb-3"
                 extra={
-                    // The only visible way to create an agent. It used to be an option inside the
-                    // composer's agent picker, i.e. nowhere until you opened a dropdown.
-                    <button
-                        type="button"
-                        onClick={() => router.push(`${baseAppURL}?new=1`)}
-                        className={PANEL_ACTION_CLASS}
-                    >
-                        <PlusIcon size={14} />
-                        New agent
-                    </button>
+                    <div className="flex shrink-0 items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => router.push(`${baseAppURL}?new=1`)}
+                            className={PANEL_ACTION_CLASS}
+                        >
+                            <PlusIcon size={14} />
+                            New agent
+                        </button>
+                        {/* An arrow means the action leaves the page. In-place reveals
+                            ("View all 28", "Expand") deliberately don't carry one. */}
+                        <Link href={`${projectURL}/agents`} className={PANEL_ACTION_CLASS}>
+                            All agents
+                            <ArrowRightIcon size={12} />
+                        </Link>
+                    </div>
                 }
             >
                 {showEmpty ? (
