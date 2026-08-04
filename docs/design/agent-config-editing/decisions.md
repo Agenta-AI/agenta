@@ -56,10 +56,11 @@ reasoning is in `spikes/engine-spike.md` (D1-D33, O1-O12) and `spikes/runner-spi
   opts into omission; executable permission is caller-declared and default-deny, never
   derived from file mode bits; frozen approval bytes never ride tool arguments; a cold
   resume refuses the old approval and raises a new gate.
-- Arbitration: the `value_from` object gains two optional import-policy fields
-  (`on_unsupported`, `allow_executable_files`). The runner consumes and strips them;
-  the engine never sees them. change-set.md §5.1 and workspace-import.md §11
-  cross-reference this.
+- Arbitration (superseded in detail by the four-layer split below): the `value_from`
+  folder source carries optional import-policy fields that the runner consumes and
+  strips; the engine never sees them. The current fields are `on_unsupported`,
+  `on_executable`, and `persist_executable_capability`. change-set.md §5.1 and
+  workspace-import.md §5.2 are authoritative.
 - Inline resolution happens only on an explicit allow verdict from the permission
   plan; a missing authorization for a gated call fails closed.
 
