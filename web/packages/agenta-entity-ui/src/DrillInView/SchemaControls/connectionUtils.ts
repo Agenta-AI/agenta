@@ -376,6 +376,21 @@ export function harnessAllowsModel(
     slug?: string | null | undefined,
 ): boolean {
     if (!modelId) return true
+    if (slug) {
+        if (customSecrets?.length) {
+            for (const secret of customSecrets) {
+                const secretSlug = secret.name?.trim()
+                const kind = secret.provider?.toLowerCase() || null
+                const secretModels = (secret.models ?? []).filter(Boolean)
+                if (!secretModels.includes(modelId)) continue
+                if (secretSlug !== slug) continue
+                if (!kind || harnessReachesCustomProviderKind(capabilities, harness, kind))
+                    return true
+            }
+        }
+        return false
+    }
+
     const caps = capsFor(capabilities, harness)
     const catalog = caps?.model_catalog
     const models = caps?.models
@@ -390,11 +405,9 @@ export function harnessAllowsModel(
 
     if (customSecrets?.length) {
         for (const secret of customSecrets) {
-            const secretSlug = secret.name?.trim()
             const kind = secret.provider?.toLowerCase() || null
             const secretModels = (secret.models ?? []).filter(Boolean)
             if (!secretModels.includes(modelId)) continue
-            if (slug && secretSlug !== slug) continue
             if (!kind || harnessReachesCustomProviderKind(capabilities, harness, kind)) return true
         }
     }
@@ -404,7 +417,6 @@ export function harnessAllowsModel(
     if (!hasCatalog && !hasModels) return true
     return false
 }
-
 
 // ---------------------------------------------------------------------------
 // Vault-hosted model options (Agenta-managed): a custom_provider connection's own models,

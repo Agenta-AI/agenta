@@ -297,6 +297,38 @@ describe("connectionUtils: harness-filtered model picker", () => {
         ).toBe(false)
     })
 
+    it("requires a specific vault connection to explicitly support a model when slug is provided, skipping generic catalog checks (name collision)", () => {
+        const secrets = [
+            {name: "my-custom-conn", provider: "bedrock", models: ["other-model"]},
+        ]
+        // "opus" is in the claude catalog. 
+        // A generic check (no slug) for "opus" returns true.
+        expect(harnessAllowsModel(CAPABILITIES, "claude", "opus")).toBe(true)
+        
+        // But if we specifically ask whether "my-custom-conn" (which only supports "other-model") 
+        // allows "opus", it must return false, not falling back to the catalog.
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "opus",
+                secrets,
+                "my-custom-conn",
+            ),
+        ).toBe(false)
+
+        // And it should return true for the model it actually supports
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "other-model",
+                secrets,
+                "my-custom-conn",
+            ),
+        ).toBe(true)
+    })
+
     it("selectedKeepsModel regression: vault model flagged unavailable without secrets, available with them", () => {
         // Reproduces the false 'model not available' badge: the selectedKeepsModel derivation in
         // useModelHarness called harnessAllowsModel WITHOUT customSecrets or slug. The function is
