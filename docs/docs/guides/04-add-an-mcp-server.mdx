@@ -16,7 +16,7 @@ Have these ready:
 
 - **The server's HTTP URL**, such as `https://example.com/mcp`. Agenta supports HTTP connections, but not local processes over stdio.
 - **The authentication header and key**, if the server requires them. Check the server's documentation for the header name, such as `x-api-key`.
-- **An agent on the Claude Code harness.** MCP servers are available on Claude Code. If the agent runs on Pi, the **MCP servers** section does not appear in its configuration. See [Choose a harness and model](/guides/choose-a-harness-and-model).
+- **An agent on the Claude Code or Codex harness.** MCP servers are available on both. If the agent runs on Pi, the **MCP servers** section does not appear in its configuration, and a run that declares one is refused. See [Choose a harness and model](/guides/choose-a-harness-and-model).
 
 ## Store the key as a project secret first
 
@@ -68,4 +68,4 @@ The agent's `Policy` in the **Advanced** dialog governs MCP tools. They do not s
 ## Next
 
 - [Control what an agent can do](/guides/control-what-an-agent-can-do) covers the policy that decides when an MCP call waits for you.
-- [Choose a harness and model](/guides/choose-a-harness-and-model) covers switching an agent to Claude Code.
+- [Choose a harness and model](/guides/choose-a-harness-and-model) covers switching an agent to Claude Code or Codex.

@@ -106,7 +106,7 @@ When you self-host Agenta, you can run agents locally with your existing Claude 
 
 ### Choose your harness and model
 
-Switch harnesses and models without rebuilding your agent. Agenta already supports almost any model, whether self-hosted or accessed through an API. Agenta supports Claude Code and Pi as harnesses today, with [more harnesses planned](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme).
+Switch harnesses and models without rebuilding your agent. Agenta already supports almost any model, whether self-hosted or accessed through an API. Agenta supports Claude Code, Pi, and Codex as harnesses today, with [more harnesses planned](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme).
 
 ### Build with open agent standards
 
@@ -163,7 +163,7 @@ For more details, read the [self-hosting documentation](https://agenta.ai/docs/s
 
 - [x] Claude Code
 - [x] Pi
-- [ ] Codex
+- [x] Codex
 - [ ] Gemini
 - [ ] OpenCode
 - [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
@@ -225,7 +225,7 @@ Claude Cowork provides a workspace built around Claude. Agenta is open source an
 
 ### Claude Code, Codex, Pi, and OpenCode
 
-These coding agents provide the execution layer that plans work and uses tools. Agenta adds the shared workspace around that execution layer: files, team access, triggers, versions, and traces. Agenta supports Claude Code and Pi today. Support for more harnesses is on the roadmap.
+These coding agents provide the execution layer that plans work and uses tools. Agenta adds the shared workspace around that execution layer: files, team access, triggers, versions, and traces. Agenta supports Claude Code, Pi, and Codex today. Support for more harnesses is on the roadmap.
 
 ## Community and contributing
 
