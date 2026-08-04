@@ -250,10 +250,13 @@ async def test_test_run_emits_handler_call_ref_with_bindings_and_timeout_by_defa
     assert spec.read_only is False
     assert spec.effective_permission() is None
     assert "target" not in spec.input_schema["properties"]
+    # `description` is the ephemeral per-call note every builder op offers (R12); the runner
+    # strips it before it builds the request. See test_op_catalog_description.py.
     assert set(spec.input_schema["properties"]) == {
         "inputs",
         "delta",
         "expectations",
+        "description",
     }
     assert spec.input_schema["required"] == ["inputs"]
     assert spec.input_schema["properties"]["inputs"]["required"] == ["messages"]

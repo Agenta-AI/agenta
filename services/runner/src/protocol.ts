@@ -153,6 +153,15 @@ export interface ResolvedToolSpec {
     context?: Record<string, string>;
     args_into?: string;
   };
+  /**
+   * Top-level argument names the model may write but the request must NOT carry. The runner
+   * deletes them from the model's arguments before it builds either request (direct or gateway),
+   * so the field reaches the human — the recorded call and the approval card keep it — and never
+   * reaches the API. Today the list holds one name, `description`: the ephemeral per-call note the
+   * agent writes to explain what it is doing (R12). Executor-private, like `contextBindings`: it
+   * never goes to a harness child process.
+   */
+  ephemeralArgs?: string[];
   kind?: "callback" | "code" | "client";
   render?: RenderHint;
   /** MCP behavioral hint: true (read-only), false (mutating), absent (unknown). */

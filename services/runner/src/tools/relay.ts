@@ -41,6 +41,7 @@ import {
   deepDelete,
   directCallUrl,
   pathParamNames,
+  stripEphemeralArgs,
 } from "./direct.ts";
 import type {
   ResolvedToolSpec,
@@ -375,13 +376,18 @@ async function executeAllowedRelayedTool(
   if (!callback?.endpoint) {
     throw new Error(`missing toolCallback endpoint for '${spec.name}'`);
   }
+  // Drop the model-authored arguments that are for the human only (today: the ephemeral per-call
+  // `description`, R12). This runs BEFORE the dispatch fork so both modes strip identically, and
+  // before `assembleBody` so an `args_into` op cannot deep-set the note inside its payload. The
+  // recorded call and the approval card keep the full arguments; only the request loses them.
+  const dispatchArgs = stripEphemeralArgs(req.args, spec.ephemeralArgs);
   // Direct-call tools (reference / platform): the host makes the call directly so the sandbox
   // child still sends only name + args. The origin is bound to the run's own callback endpoint
   // and the run's authorization is reused (see tools/direct.ts). A spec carries `call` XOR
   // `callRef`, so this is checked before the gateway fallback. `runContext` fills the
   // `call.context` bindings server-side (direct-call tools, Phase 3a), hidden from the model.
   if (spec.call) {
-    const body = assembleBody(spec.call, req.args, runContext);
+    const body = assembleBody(spec.call, dispatchArgs, runContext);
     const url = directCallUrl(callback.endpoint, spec.call, body);
     // Path params were just substituted into the URL from this same body; strip them so a
     // POST handler whose request model expects the identifier only in the route (e.g.
@@ -393,10 +399,11 @@ async function executeAllowedRelayedTool(
       runKind: runContext?.run?.kind,
     });
   }
-  // Gateway (Composio): POST back through Agenta's /tools/call so the secret stays server-side.
+  // Gateway (Composio) and handler-mode platform ops: POST back through Agenta's /tools/call so
+  // the secret stays server-side.
   const args = spec.contextBindings
-    ? applyContextBindings(req.args, spec.contextBindings, runContext)
-    : req.args;
+    ? applyContextBindings(dispatchArgs, spec.contextBindings, runContext)
+    : dispatchArgs;
   return callAgentaTool(
     callback.endpoint,
     callback.authorization,
