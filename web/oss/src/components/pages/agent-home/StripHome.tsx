@@ -223,13 +223,11 @@ const StripHome: React.FC = () => {
                     slab on a laptop. */}
                 {!firstRun ? (
                     <div className="box-border flex w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col gap-6 overflow-y-auto pr-1">
-                        {/* Returning users get the scroller, not the paged grid: here the strip
-                            is a sample you glance at, and paging 28 templates three at a time is
-                            a browsing control in a slot nobody came to browse. */}
+                        {/* Rows, not the scroller: a 238px card and a six-tab category row both
+                            need width this column doesn't have. */}
                         <TemplateStrip
                             surface="home"
-                            layout="scroll"
-                            surfaceColorVar="--ag-colorBgLayout"
+                            layout="list"
                             selectedTemplateKey={provenance.selectedTemplateKey}
                             onPick={handlePick}
                         />

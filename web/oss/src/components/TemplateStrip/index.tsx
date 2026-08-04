@@ -1,6 +1,6 @@
 import {useMemo, useState, type ButtonHTMLAttributes, type ReactNode} from "react"
 
-import {DotsThree, EyeSlash} from "@phosphor-icons/react"
+import {CaretDown, DotsThree, EyeSlash} from "@phosphor-icons/react"
 import {Dropdown} from "antd"
 import {useAtom} from "jotai"
 import {ChevronLeft, ChevronRight} from "lucide-react"
@@ -15,8 +15,12 @@ import {
 import {STRIP_COPY} from "./assets/constants"
 import {PAGE_SIZE} from "./assets/pagerMath"
 import StripCard from "./components/StripCard"
+import StripRow from "./components/StripRow"
 import {useStripPager} from "./hooks/useStripPager"
 import {stripHiddenAtom} from "./state"
+
+/** Rows shown before "Show all" — enough to sample, short enough to sit under a session list. */
+const LIST_SIZE = 5
 
 export interface TemplateStripProps {
     /** Template registry (defaults to AGENT_TEMPLATES). */
@@ -33,9 +37,11 @@ export interface TemplateStripProps {
     /**
      * Card-row layout. `scroll` (default) is the compact horizontal scroller for docked
      * playground strips. `grid` shows exactly one 3-card page (arrows page, nothing clips) —
-     * the wide home surface, where a partially clipped fourth card reads as a bug.
+     * the wide home surface, where a partially clipped fourth card reads as a bug. `list` is the
+     * vertical rail form: the cards and the inline category tabs both need width this column
+     * doesn't have, so rows stack and the categories collapse into a menu.
      */
-    layout?: "scroll" | "grid"
+    layout?: "scroll" | "grid" | "list"
     className?: string
 }
 
@@ -86,6 +92,7 @@ const TemplateStrip = ({
     const [hidden, setHidden] = useAtom(stripHiddenAtom)
     const [activeCategory, setActiveCategory] = useState<string>(ALL_TEMPLATES_CATEGORY)
     const [gridPage, setGridPage] = useState(0)
+    const [showAllRows, setShowAllRows] = useState(false)
 
     const categories = useMemo(
         () => [ALL_TEMPLATES_CATEGORY, ...templateCategories()],
@@ -115,10 +122,12 @@ const TemplateStrip = ({
     const gridItems = filtered.slice(gridStart, gridStart + PAGE_SIZE)
 
     const isGrid = layout === "grid"
+    // The rail scrolls, so paging a list would be a second scroll control for the same rows.
+    const isList = layout === "list"
     const {scrollerRef, resetScroll} = scrollPager
     const atStart = isGrid ? page === 0 : scrollPager.atStart
     const atEnd = isGrid ? page >= pageCount - 1 : scrollPager.atEnd
-    const showPager = isGrid ? filtered.length > PAGE_SIZE : scrollPager.showPager
+    const showPager = isList ? false : isGrid ? filtered.length > PAGE_SIZE : scrollPager.showPager
     const counterLabel = isGrid
         ? `${gridStart + 1}–${Math.min(gridStart + PAGE_SIZE, filtered.length)} of ${filtered.length}`
         : scrollPager.counterLabel
@@ -146,36 +155,70 @@ const TemplateStrip = ({
         <div className={className}>
             {/* Header: label + tabs + right cluster (counter, arrows, optional hide menu). */}
             <div className="flex items-center gap-[14px]">
-                <span className="text-[14.5px] font-semibold text-[var(--ag-colorText)]">
+                <span
+                    className={`font-semibold text-[var(--ag-colorText)] ${
+                        isList ? "text-[13px]" : "text-[14.5px]"
+                    }`}
+                >
                     {STRIP_COPY.label}
                 </span>
-                <div className="flex items-center">
-                    {categories.map((category) => {
-                        const active = category === activeCategory
-                        return (
-                            <button
-                                key={category}
-                                type="button"
-                                aria-pressed={active}
-                                onClick={() => {
+                {isList ? (
+                    <Dropdown
+                        trigger={["click"]}
+                        menu={{
+                            selectedKeys: [activeCategory],
+                            items: categories.map((category) => ({
+                                key: category,
+                                label: `${category} · ${countFor(category)}`,
+                                onClick: () => {
                                     setActiveCategory(category)
                                     setGridPage(0)
                                     resetScroll()
-                                }}
-                                className={`cursor-pointer rounded-t-md border-0 border-b-2 border-solid bg-transparent px-[11px] py-[5px] text-[13px] hover:bg-[var(--ag-colorFillTertiary)] ${
-                                    active
-                                        ? "border-b-[var(--ag-colorPrimary)] font-semibold text-[var(--ag-colorText)]"
-                                        : "border-b-transparent font-normal text-[var(--ag-colorTextTertiary)]"
-                                }`}
-                            >
-                                {category}
-                                <span className="ml-1.5 text-[11px] text-[var(--ag-colorTextTertiary)]">
-                                    {countFor(category)}
-                                </span>
-                            </button>
-                        )
-                    })}
-                </div>
+                                },
+                            })),
+                        }}
+                    >
+                        <button
+                            type="button"
+                            className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)]"
+                        >
+                            {activeCategory}
+                            <span className="text-[var(--ag-colorTextTertiary)]">
+                                {countFor(activeCategory)}
+                            </span>
+                            <CaretDown size={12} />
+                        </button>
+                    </Dropdown>
+                ) : null}
+                {isList ? null : (
+                    <div className="flex items-center">
+                        {categories.map((category) => {
+                            const active = category === activeCategory
+                            return (
+                                <button
+                                    key={category}
+                                    type="button"
+                                    aria-pressed={active}
+                                    onClick={() => {
+                                        setActiveCategory(category)
+                                        setGridPage(0)
+                                        resetScroll()
+                                    }}
+                                    className={`cursor-pointer rounded-t-md border-0 border-b-2 border-solid bg-transparent px-[11px] py-[5px] text-[13px] hover:bg-[var(--ag-colorFillTertiary)] ${
+                                        active
+                                            ? "border-b-[var(--ag-colorPrimary)] font-semibold text-[var(--ag-colorText)]"
+                                            : "border-b-transparent font-normal text-[var(--ag-colorTextTertiary)]"
+                                    }`}
+                                >
+                                    {category}
+                                    <span className="ml-1.5 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                        {countFor(category)}
+                                    </span>
+                                </button>
+                            )
+                        })}
+                    </div>
+                )}
                 <div className="ml-auto flex items-center gap-[7px]">
                     {showPager ? (
                         <>
@@ -236,7 +279,29 @@ const TemplateStrip = ({
                 </div>
             </div>
 
-            {isGrid ? (
+            {isList ? (
+                /* Rows, capped: 28 templates below a rail's session list is a catalogue nobody
+                   opened this page to read. The rest are one click away, in place. */
+                <div className="mt-2 flex flex-col">
+                    {(showAllRows ? filtered : filtered.slice(0, LIST_SIZE)).map((template) => (
+                        <StripRow
+                            key={template.key}
+                            template={template}
+                            selected={template.key === selectedTemplateKey}
+                            onPick={onPick}
+                        />
+                    ))}
+                    {filtered.length > LIST_SIZE ? (
+                        <button
+                            type="button"
+                            onClick={() => setShowAllRows((wasOpen) => !wasOpen)}
+                            className="cursor-pointer border-0 bg-transparent px-2 py-2 text-left text-xs text-colorPrimary"
+                        >
+                            {showAllRows ? "Show fewer" : `Show all ${filtered.length}`}
+                        </button>
+                    ) : null}
+                </div>
+            ) : isGrid ? (
                 /* Card page: a full-width 3-up grid — every visible card is whole (no clipped
                    fourth card), and the window always matches the "X–Y of N" counter. */
                 <div className="mt-5 grid grid-cols-3 gap-[18px]">
