@@ -165,7 +165,7 @@ const OverviewContent = () => {
                 height and the per-column scrolls collapse back into one page scroll. */}
             {/* `!px-10` matches Home's inset (PageLayout's own p-4 plus the columns' px-6 there),
                 applied at page level so the title and the columns share one left edge. */}
-            <PageLayout className={clsx("gap-8", isAgent && "min-h-0 !px-14 !pb-0")}>
+            <PageLayout className={clsx("gap-8", isAgent && "min-h-0 !pl-[4.5rem] !pr-14 !pb-0")}>
                 <AppDetailsSection />
 
                 {/* An agent's overview is its own surface. Charts move into that layout's usage

@@ -146,7 +146,7 @@ const StripHome: React.FC = () => {
                 className={
                     firstRun
                         ? "mx-auto flex w-full min-h-0 max-w-[1040px] flex-1 flex-col overflow-y-auto px-6 pb-20 pt-14"
-                        : "flex min-h-0 w-full flex-1 gap-10 overflow-hidden px-10 pb-6 pt-8"
+                        : "flex min-h-0 w-full flex-1 gap-10 overflow-hidden pb-6 pl-14 pr-10 pt-8"
                 }
             >
                 <div
@@ -154,7 +154,7 @@ const StripHome: React.FC = () => {
                         firstRun
                             ? "flex w-full flex-col"
                             : // `min-w-0` or a wide table would push the column past its share.
-                              "box-border flex min-w-0 flex-1 flex-col gap-14 overflow-y-auto pr-1"
+                              "box-border flex min-w-0 flex-1 flex-col gap-14 overflow-y-auto pr-4"
                     }
                 >
                     <div

@@ -74,7 +74,7 @@ const AgentOverview = ({appId, agentName}: Props) => {
         // frame's height and scrolls on its own, so reading a long session list never carries the
         // configuration rail off screen with it.
         <div className="flex min-h-0 w-full flex-1 flex-col items-start gap-10 overflow-y-auto lg:flex-row lg:overflow-hidden">
-            <div className="flex w-full min-w-0 flex-col gap-6 lg:h-full lg:flex-1 lg:overflow-y-auto lg:pr-1">
+            <div className="flex w-full min-w-0 flex-col gap-6 lg:h-full lg:flex-1 lg:overflow-y-auto lg:pr-4">
                 <RichChatInput
                     // The column scrolls, so every child of it is shrinkable by default and this
                     // one collapsed to a hairline under the title once the lists overflowed.
