@@ -56,7 +56,11 @@ interface UpcomingTrigger {
     tooltip: string
 }
 
-const NextTriggersSection = () => {
+/**
+ * @param agentId Scope to one agent's triggers. On that agent's own page the binding is the
+ * premise, so rows drop the agent name and lead with the cadence instead.
+ */
+const NextTriggersSection = ({agentId}: {agentId?: string} = {}) => {
     const {schedules, isLoading: schedulesLoading} = useTriggerSchedules()
     const {subscriptions, isLoading: subscriptionsLoading} = useTriggerSubscriptions()
 
@@ -68,12 +72,19 @@ const NextTriggersSection = () => {
 
     const rows = useMemo<UpcomingTrigger[]>(() => {
         const describeAgent = (references: unknown) => {
-            const agentId = boundAgentId(references as never)
-            return (agentId && agentNames.get(agentId)) || "Unassigned agent"
+            const boundId = boundAgentId(references as never)
+            return (boundId && agentNames.get(boundId)) || "Unassigned agent"
         }
+        const isInScope = (references: unknown) =>
+            !agentId || boundAgentId(references as never) === agentId
 
         const scheduled = schedules
-            .filter((schedule) => schedule.flags?.is_active !== false && !schedule.deleted_at)
+            .filter(
+                (schedule) =>
+                    schedule.flags?.is_active !== false &&
+                    !schedule.deleted_at &&
+                    isInScope(schedule.data?.references),
+            )
             .map((schedule, index) => {
                 const expression = schedule.data?.schedule ?? ""
                 const [next] = nextCronRuns(expression, 1)
@@ -83,7 +94,7 @@ const NextTriggersSection = () => {
                     id: schedule.id ?? `schedule-${index}`,
                     // An unnamed schedule reads as its cadence, never as "5 * * * *".
                     name: schedule.name || cadence,
-                    subtitle: schedule.name ? `${agent} · ${cadence}` : agent,
+                    subtitle: agentId ? cadence : schedule.name ? `${agent} · ${cadence}` : agent,
                     detail: next ? formatNextRun(next) : "—",
                     at: next ?? null,
                     tooltip: cadence,
@@ -91,14 +102,22 @@ const NextTriggersSection = () => {
             })
 
         const evented = subscriptions
-            .filter((subscription) => subscription.flags?.is_active !== false)
+            .filter(
+                (subscription) =>
+                    subscription.flags?.is_active !== false &&
+                    isInScope(subscription.data?.references),
+            )
             .map((subscription, index) => {
                 const eventKey = subscription.data?.event_key ?? ""
                 const agent = describeAgent(subscription.data?.references)
                 return {
                     id: subscription.id ?? `subscription-${index}`,
                     name: subscription.name || eventKey || "Event trigger",
-                    subtitle: eventKey && subscription.name ? `${agent} · ${eventKey}` : agent,
+                    subtitle: agentId
+                        ? eventKey || "Event trigger"
+                        : eventKey && subscription.name
+                          ? `${agent} · ${eventKey}`
+                          : agent,
                     detail: "on event",
                     at: null,
                     tooltip: eventKey ? `Fires on ${eventKey}` : "Fires when its event arrives",
@@ -114,7 +133,7 @@ const NextTriggersSection = () => {
                 return 0
             })
             .slice(0, LIST_SIZE)
-    }, [schedules, subscriptions, agentNames])
+    }, [schedules, subscriptions, agentNames, agentId])
 
     const isLoading = schedulesLoading || subscriptionsLoading
 
@@ -126,7 +145,9 @@ const NextTriggersSection = () => {
                 </div>
             ) : rows.length === 0 ? (
                 <p className="m-0 px-2 py-3 text-xs text-colorTextTertiary">
-                    Nothing scheduled. Give an agent a trigger and its next run shows up here.
+                    {agentId
+                        ? "No triggers bound to this agent yet."
+                        : "Nothing scheduled. Give an agent a trigger and its next run shows up here."}
                 </p>
             ) : (
                 rows.map((row) => (

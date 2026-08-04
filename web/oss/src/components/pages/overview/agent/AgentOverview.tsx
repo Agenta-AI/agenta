@@ -4,6 +4,7 @@ import {RichChatInput} from "@agenta/ui/rich-chat-input"
 import {useSetAtom} from "jotai"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
+import NextTriggersSection from "@/oss/components/pages/agent-home/components/NextTriggersSection"
 import UsageSummary from "@/oss/components/pages/agent-home/components/UsageSummary"
 import SessionListCard from "@/oss/components/pages/sessions/components/SessionListCard"
 import {PanelScroll, PanelSurface} from "@/oss/components/PanelSection"
@@ -114,6 +115,10 @@ const AgentOverview = ({appId, agentName}: Props) => {
                         <AgentConfigurationCard appId={appId} />
 
                         <AgentFilesCard appId={appId} />
+
+                        {/* Scoped to this agent. Automation RUNS below say what already happened;
+                            an agent whose schedule quietly stopped looks identical there. */}
+                        <NextTriggersSection agentId={appId} />
 
                         <UsageSummary variant="strip" />
                     </PanelScroll>
