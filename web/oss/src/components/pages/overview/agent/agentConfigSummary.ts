@@ -13,6 +13,8 @@ export interface AgentConfigSummary {
     harness: string | null
     /** Word count of AGENTS.md, so the row can say how much instruction there is. */
     instructionWords: number | null
+    /** The brief itself, flattened to one line — enough for a two-line preview under the row. */
+    instructionPreview: string | null
     tools: number
     mcps: number
     skills: number
@@ -52,6 +54,9 @@ export function agentConfigSummary(parameters: unknown): AgentConfigSummary {
         harness: prettifyKind(str(nested(agent, "harness")?.kind)),
         // Whitespace-split rather than a token count: this is "how long is the brief", not billing.
         instructionWords: instructions ? instructions.split(/\s+/).filter(Boolean).length : null,
+        // Newlines collapse: the preview is clamped to two lines by CSS, and a markdown list would
+        // otherwise spend both of them on one bullet.
+        instructionPreview: instructions ? instructions.replace(/\s+/g, " ").trim() : null,
         tools: count(agent.tools),
         mcps: count(agent.mcps),
         skills: count(agent.skills),

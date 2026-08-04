@@ -1,6 +1,8 @@
-import {useMemo} from "react"
+import {useMemo, useState} from "react"
 
+import {HeightCollapse} from "@agenta/ui"
 import {
+    CaretDown,
     CaretRight,
     CpuIcon,
     FileTextIcon,
@@ -30,6 +32,7 @@ const NONE = "None"
  */
 const AgentConfigurationCard = ({appId}: {appId: string}) => {
     const {goToPlayground} = usePlaygroundNavigation()
+    const [instructionsOpen, setInstructionsOpen] = useState(false)
     // Configuration lives on a revision, not on the artifact — reading the artifact gave a
     // workflow with no parameters, so every row said "Not set".
     const revisionAtom = useMemo(() => agentLatestRevisionAtomFamily(appId), [appId])
@@ -38,6 +41,8 @@ const AgentConfigurationCard = ({appId}: {appId: string}) => {
         () => agentConfigSummary(revision.data?.data?.parameters),
         [revision.data],
     )
+
+    const preview = summary.instructionPreview
 
     // Mirrors the playground's config sections — same order, same icons, same "label left, current
     // value right, chevron in" shape — so the overview reads as a view of that panel rather than a
@@ -106,25 +111,85 @@ const AgentConfigurationCard = ({appId}: {appId: string}) => {
 
             {revision.isPending
                 ? null
-                : rows.map((row) => (
-                      <button
-                          key={row.label}
-                          type="button"
-                          onClick={() => goToPlayground(undefined, {appId})}
-                          className="group box-border flex w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-2 text-left last:border-b-0 hover:bg-colorFillQuaternary"
-                      >
-                          <span className="shrink-0 text-xs text-colorTextSecondary">
-                              {row.label}
-                          </span>
-                          <span className="ml-auto min-w-0 truncate text-xs text-colorText">
-                              {row.value}
-                          </span>
-                          <CaretRight
-                              size={12}
-                              className="shrink-0 text-colorTextQuaternary opacity-0 group-hover:opacity-100"
-                          />
-                      </button>
-                  ))}
+                : rows.map((row) => {
+                      // Instructions is the one row whose value can't be summarised in a phrase —
+                      // "28 words" says how much, never what. It discloses in place; every other
+                      // row's value IS the whole answer, so opening one would only cost a click.
+                      const expandable = row.key === "instructions" && Boolean(preview)
+                      const isOpen = expandable && instructionsOpen
+
+                      return (
+                          <div
+                              key={row.key}
+                              className="border-0 border-b border-solid border-colorBorderSecondary last:border-b-0"
+                          >
+                              <button
+                                  type="button"
+                                  aria-expanded={expandable ? isOpen : undefined}
+                                  onClick={() =>
+                                      expandable
+                                          ? setInstructionsOpen((wasOpen) => !wasOpen)
+                                          : goToPlayground(undefined, {appId})
+                                  }
+                                  className="group box-border flex w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-2 py-3 text-left hover:bg-colorFillQuaternary"
+                              >
+                                  <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-colorFillQuaternary text-colorTextSecondary">
+                                      {row.icon}
+                                  </span>
+                                  <span className="shrink-0 text-sm font-medium text-colorText">
+                                      {row.label}
+                                  </span>
+                                  <span className="ml-auto min-w-0 truncate text-xs text-colorTextSecondary">
+                                      {row.value}
+                                  </span>
+                                  {expandable ? (
+                                      <CaretDown
+                                          size={14}
+                                          className={`shrink-0 text-colorTextTertiary transition-transform ${
+                                              isOpen ? "rotate-180" : ""
+                                          }`}
+                                      />
+                                  ) : (
+                                      <CaretRight
+                                          size={14}
+                                          className="shrink-0 text-colorTextTertiary"
+                                      />
+                                  )}
+                              </button>
+
+                              <HeightCollapse open={Boolean(isOpen)}>
+                                  <button
+                                      type="button"
+                                      onClick={() => goToPlayground(undefined, {appId})}
+                                      className="group box-border flex w-full cursor-pointer items-start gap-3 border-0 bg-transparent px-2 pb-3 pl-11 text-left"
+                                  >
+                                      <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-colorFillQuaternary text-colorSuccess">
+                                          <FileTextIcon size={15} />
+                                      </span>
+                                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                          <span className="flex items-baseline gap-2">
+                                              <span className="font-mono text-xs text-colorText">
+                                                  AGENTS.md
+                                              </span>
+                                              <span className="text-[11px] text-colorTextTertiary">
+                                                  Markdown · {summary.instructionWords} words
+                                              </span>
+                                          </span>
+                                          {/* Two lines: enough to recognise the brief, not enough
+                                              to become a reader. */}
+                                          <span className="line-clamp-2 text-xs text-colorTextSecondary">
+                                              {preview}
+                                          </span>
+                                      </span>
+                                      <CaretRight
+                                          size={14}
+                                          className="mt-1 shrink-0 text-colorTextTertiary"
+                                      />
+                                  </button>
+                              </HeightCollapse>
+                          </div>
+                      )
+                  })}
         </section>
     )
 }

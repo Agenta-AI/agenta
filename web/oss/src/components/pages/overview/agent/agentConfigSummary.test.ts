@@ -22,6 +22,7 @@ describe("agentConfigSummary", () => {
             model: "gpt-5.6-luna",
             harness: "Pi core",
             instructionWords: 10,
+            instructionPreview: "You are a friendly agent. - Greet the user warmly.",
             tools: 2,
             mcps: 0,
             skills: 0,
@@ -53,6 +54,15 @@ describe("agentConfigSummary", () => {
         expect(
             agentConfigSummary({agent: {instructions: {agents_md: "   "}}}).instructionWords,
         ).toBeNull()
+    })
+
+    it("flattens the brief for a two-line preview", () => {
+        // A markdown list would otherwise spend both preview lines on its first bullet.
+        expect(
+            agentConfigSummary({agent: {instructions: {agents_md: "Title\n\n- one\n- two"}}})
+                .instructionPreview,
+        ).toBe("Title - one - two")
+        expect(agentConfigSummary({}).instructionPreview).toBeNull()
     })
 
     it("does not invent friendly names for kinds it doesn't know", () => {
