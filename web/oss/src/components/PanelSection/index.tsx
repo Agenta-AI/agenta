@@ -54,12 +54,17 @@ export const PanelSection = ({
     const isRail = variant === "rail"
     return (
         <section className={`flex flex-col ${minHeightClassName ?? ""}`}>
+            {/* Only the rail's headers pin, and only they carry a background. A bare section has
+                no surface of its own to match — painting one drew a bar in a shade the page never
+                uses — and the reference doesn't pin its main-column label either. */}
             <div
                 className={`flex shrink-0 items-center justify-between gap-2 ${
                     isRail
-                        ? "border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer px-4 py-3"
-                        : "bg-colorBgLayout px-2 pb-2 pt-1"
-                } ${sticky ? "sticky top-0 z-10" : ""}`}
+                        ? `border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer px-4 py-3 ${
+                              sticky ? "sticky top-0 z-10" : ""
+                          }`
+                        : "px-2 pb-2 pt-1"
+                }`}
             >
                 <div className="flex min-w-0 items-center gap-2">
                     <h3
