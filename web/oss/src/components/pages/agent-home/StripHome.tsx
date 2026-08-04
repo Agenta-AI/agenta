@@ -3,12 +3,13 @@ import {useCallback, useEffect, useRef, useState} from "react"
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
 import {PageLayout} from "@agenta/ui"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {ArrowLeftIcon, PlusIcon} from "@phosphor-icons/react"
-import {App, Button, Typography} from "antd"
+import {ArrowLeftIcon} from "@phosphor-icons/react"
+import {App, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
+import NewAgentButton from "@/oss/components/NewAgentButton"
 import NextTriggersSection from "@/oss/components/NextTriggers"
 import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/pages/agents/store"
 import {PanelScroll, PanelSurface} from "@/oss/components/PanelSection"
@@ -203,15 +204,7 @@ const StripHome: React.FC = () => {
                                     {HERO.subtitle}
                                 </Typography.Text>
                             ) : null}
-                            {!firstRun ? (
-                                <Button
-                                    type="primary"
-                                    icon={<PlusIcon size={14} />}
-                                    onClick={() => void router.push(`${baseAppURL}?new=1`)}
-                                >
-                                    New agent
-                                </Button>
-                            ) : null}
+                            {!firstRun ? <NewAgentButton /> : null}
                         </div>
 
                         {/* Chip docks into this gap (bottom-full), so it can only tighten so far.

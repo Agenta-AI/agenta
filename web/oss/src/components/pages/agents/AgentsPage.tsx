@@ -4,12 +4,12 @@ import {appTemplatesQueryAtom, createEphemeralAppFromTemplate} from "@agenta/ent
 import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {PageLayout} from "@agenta/ui"
-import {PlusIcon} from "@phosphor-icons/react"
-import {Button, Input, message} from "antd"
+import {Input, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
+import NewAgentButton from "@/oss/components/NewAgentButton"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
 
@@ -87,9 +87,7 @@ export default function AgentsPage() {
     return (
         <PageLayout className="grow min-h-0" title="Agents">
             <div className="flex items-center gap-3">
-                <Button type="primary" icon={<PlusIcon size={14} />} onClick={handleCreate}>
-                    New agent
-                </Button>
+                <NewAgentButton />
                 <Input
                     allowClear
                     value={searchTerm}
