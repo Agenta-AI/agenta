@@ -359,6 +359,16 @@ class CallbackToolSpec(ToolSpecBase):
         validation_alias=AliasChoices("timeout_ms", "timeoutMs"),
         serialization_alias="timeoutMs",
     )
+    # Top-level argument names the model may write but the request must NOT carry. The runner
+    # deletes them from the model's arguments before it builds either request, so the field
+    # reaches the human (the recorded call keeps it) and never reaches the API. This is how the
+    # ephemeral per-call ``description`` rides a builder tool call without any endpoint schema
+    # change. Executor-private, like ``context_bindings``: the child harness never sees it.
+    ephemeral_args: Optional[List[str]] = Field(
+        default=None,
+        validation_alias=AliasChoices("ephemeral_args", "ephemeralArgs"),
+        serialization_alias="ephemeralArgs",
+    )
 
     @model_validator(mode="after")
     def _check_call_target(self) -> "CallbackToolSpec":

@@ -83,7 +83,10 @@ export function deepSet(
  * way `deepSet` does (no empty segments, no prototype-polluting keys), so this can never reach
  * through the prototype chain. A path whose parent is missing or not a plain object is a no-op.
  */
-export function deepDelete(target: Record<string, unknown>, path: string): void {
+export function deepDelete(
+  target: Record<string, unknown>,
+  path: string,
+): void {
   const parts = path.split(".");
   for (const part of parts) {
     if (!part) throw new Error(`invalid empty segment in path '${path}'`);
@@ -180,18 +183,26 @@ export function pathParamNames(path: unknown): string[] {
   return names;
 }
 
-function substitutePathParams(path: unknown, params: Record<string, unknown>): string {
+function substitutePathParams(
+  path: unknown,
+  params: Record<string, unknown>,
+): string {
   if (typeof path !== "string") return String(path);
-  return path.replace(/\{([A-Za-z_][A-Za-z0-9_.-]*)\}/g, (_match, name: string) => {
-    const value = readParam(params, name);
-    if (value === undefined || value === null) {
-      throw new Error(`direct-call path parameter '{${name}}' is missing`);
-    }
-    if (!["string", "number", "boolean"].includes(typeof value)) {
-      throw new Error(`direct-call path parameter '{${name}}' must be scalar`);
-    }
-    return encodeURIComponent(String(value));
-  });
+  return path.replace(
+    /\{([A-Za-z_][A-Za-z0-9_.-]*)\}/g,
+    (_match, name: string) => {
+      const value = readParam(params, name);
+      if (value === undefined || value === null) {
+        throw new Error(`direct-call path parameter '{${name}}' is missing`);
+      }
+      if (!["string", "number", "boolean"].includes(typeof value)) {
+        throw new Error(
+          `direct-call path parameter '{${name}}' must be scalar`,
+        );
+      }
+      return encodeURIComponent(String(value));
+    },
+  );
 }
 
 /**
@@ -206,9 +217,9 @@ function substitutePathParams(path: unknown, params: Record<string, unknown>): s
  *     retarget or override a fixed field.
  *  3. `call.context` — the run-context binding (`{ bodyPath: "$ctx.<key>" }`), filled LAST so a
  *     bound field always wins over both the model's args and the static `body`. Each token resolves
- *     against the run's `runContext` (delivered on `/run`); a token that does not resolve is left
- *     unset (the field is simply absent), and the model never sees or sets a bound field. This is
- *     how a self-targeting tool gets its own trace/variant server-side.
+ *     against the run's `runContext` (delivered on `/run`); a token that does not resolve THROWS
+ *     (fail closed; see applyContextBindings), and the model never sees or sets a bound field.
+ *     This is how a self-targeting tool gets its own trace/variant server-side.
  */
 export function assembleBody(
   call: DirectCall,
@@ -246,6 +257,40 @@ export function assembleBody(
   return body;
 }
 
+/**
+ * Remove the model-authored arguments that exist for the human, not for the endpoint.
+ *
+ * A builder tool call may carry an ephemeral `description`: one or two sentences saying what the
+ * call does and why (R12). The frontend shows it beside the call, so it must survive in the
+ * RECORDED call. It must never reach the API, because no endpoint has a field for it and an
+ * ephemeral note must not become part of the audit trail by accident.
+ *
+ * So the strip happens here, at dispatch, and not earlier. Both dispatch modes call this before
+ * they build a request: the direct call before `assembleBody`, and the gateway call before it
+ * posts to `/tools/call`. Stripping before `args_into` matters — with `args_into` set, every model
+ * argument is deep-set at that path, so a description left in place would land INSIDE the payload
+ * object (e.g. `schedule.description`) and silently overwrite a real field.
+ *
+ * Only TOP-LEVEL names are removed. The list is a closed catalog value, never model input, but
+ * keeping it top-level-only means a nested field with the same name is always safe.
+ *
+ * Returns `args` unchanged when there is nothing to strip, so the common path allocates nothing.
+ */
+export function stripEphemeralArgs(
+  args: unknown,
+  ephemeralArgs: string[] | undefined,
+): unknown {
+  if (!ephemeralArgs || ephemeralArgs.length === 0) return args;
+  if (!isPlainObject(args)) return args;
+  const present = ephemeralArgs.filter((name) =>
+    Object.prototype.hasOwnProperty.call(args, name),
+  );
+  if (present.length === 0) return args;
+  const stripped = { ...(args as Record<string, unknown>) };
+  for (const name of present) delete stripped[name];
+  return stripped;
+}
+
 export function applyContextBindings(
   args: unknown,
   bindings: Record<string, string>,
@@ -258,7 +303,9 @@ export function applyContextBindings(
     deepDelete(body, argPath);
     const value = resolveCtxToken(runContext, token);
     if (value === undefined) {
-      throw new Error(`missing run-context value for tool binding '${argPath}'`);
+      throw new Error(
+        `missing run-context value for tool binding '${argPath}'`,
+      );
     }
     deepSet(body, argPath, value);
   }

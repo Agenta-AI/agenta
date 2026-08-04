@@ -74,6 +74,31 @@ export const resolveToolDisplay = (raw: string): ToolDisplay => {
     }
 }
 
+/** Longest call description we render; the catalog caps the model at the same number. */
+export const CALL_DESCRIPTION_MAX_LENGTH = 500
+
+export interface CallDescription {
+    text: string
+    /** True when the text was cut — the caller must show that it was. */
+    truncated: boolean
+}
+
+/**
+ * The agent's own note about a builder tool call (R12), read from the call's arguments.
+ *
+ * It rides in `input.description` because the runner strips it only at dispatch, so the recorded
+ * call keeps it on both the live and the replay path. This is model text, never a fact.
+ */
+export const extractCallDescription = (input: unknown): CallDescription | null => {
+    if (!input || typeof input !== "object" || Array.isArray(input)) return null
+    const raw = (input as {description?: unknown}).description
+    if (typeof raw !== "string") return null
+    const text = raw.trim()
+    if (!text) return null
+    if (text.length <= CALL_DESCRIPTION_MAX_LENGTH) return {text, truncated: false}
+    return {text: text.slice(0, CALL_DESCRIPTION_MAX_LENGTH), truncated: true}
+}
+
 /** Wire name of a tool part. `dynamic-tool` carries it on `toolName`; typed parts encode it as
  * `tool-<name>`. */
 export const partToolName = (part: ToolUIPart): string => {
