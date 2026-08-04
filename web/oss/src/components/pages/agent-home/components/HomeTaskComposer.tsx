@@ -15,16 +15,30 @@ import {agentsWorkflowsAtom} from "@/oss/components/pages/agents/store"
  * it always is — the send affordance is the one the rest of the app teaches, and a bespoke "Start"
  * button beside it would be a second way to do the same thing.
  *
- * Creating an agent lives in the picker's footer: it happens once, unlike starting a task.
+ * "New agent" in the picker is a MODE, not an action: it says the task you're about to describe
+ * belongs to an agent that doesn't exist yet, and send creates it from what you typed — the same
+ * flow onboarding runs. Creating one the moment you click it produced an unnamed agent and sent
+ * nothing, which read as broken.
  */
-const HomeTaskComposer = ({onCreateAgent}: {onCreateAgent: () => void}) => {
+const NEW_AGENT = "__new_agent__"
+
+const HomeTaskComposer = ({
+    onCreateAgent,
+    creating = false,
+}: {
+    /** Create an agent from this description and open it, seeded — the onboarding flow. */
+    onCreateAgent: (markdown: string) => void
+    creating?: boolean
+}) => {
     const composerRef = useRef<RichChatInputHandle>(null)
     const agents = useAtomValue(agentsWorkflowsAtom)
     const startSession = useStartAgentSession()
     const [agentId, setAgentId] = useState<string | null>(null)
+    const [pickerOpen, setPickerOpen] = useState(false)
 
     // Default to the most recently touched agent — the one you're most likely to want next.
-    const effectiveAgentId = agentId ?? agents[0]?.workflowId ?? null
+    const effectiveAgentId = agentId ?? agents[0]?.workflowId ?? NEW_AGENT
+    const creatingNew = effectiveAgentId === NEW_AGENT
 
     const options = useMemo(
         () => agents.map((agent) => ({value: agent.workflowId, label: agent.name})),
@@ -33,27 +47,42 @@ const HomeTaskComposer = ({onCreateAgent}: {onCreateAgent: () => void}) => {
 
     const handleSubmit = useCallback(
         (markdown: string) => {
-            if (!effectiveAgentId) return
+            // Creating from an empty description is what made the old button feel broken: it
+            // produced an unnamed agent and sent nothing.
+            if (creatingNew) {
+                if (markdown.trim()) onCreateAgent(markdown)
+                return
+            }
             startSession({appId: effectiveAgentId, message: markdown})
         },
-        [effectiveAgentId, startSession],
+        [creatingNew, effectiveAgentId, onCreateAgent, startSession],
     )
 
     return (
         <RichChatInput
             ref={composerRef}
             onSubmit={handleSubmit}
-            placeholder="Describe the task, or start the conversation…"
             size="comfortable"
             minHeightClassName="min-h-24"
             textSizeClassName="text-sm"
-            sendDisabled={!effectiveAgentId}
-            sendDisabledReason="Pick an agent first"
+            sendDisabled={creating}
+            sendDisabledReason={creating ? "Creating your agent…" : undefined}
+            placeholder={
+                creatingNew
+                    ? "Describe what the new agent should do…"
+                    : "Describe the task, or start the conversation…"
+            }
             prefix={
                 <Select
                     value={effectiveAgentId}
                     onChange={setAgentId}
-                    options={options}
+                    open={pickerOpen}
+                    onOpenChange={setPickerOpen}
+                    options={
+                        creatingNew
+                            ? [...options, {value: NEW_AGENT, label: "New agent (unsaved)"}]
+                            : options
+                    }
                     placeholder="Select an agent"
                     variant="borderless"
                     className="min-w-40"
@@ -64,7 +93,10 @@ const HomeTaskComposer = ({onCreateAgent}: {onCreateAgent: () => void}) => {
                             <Divider className="my-1" />
                             <button
                                 type="button"
-                                onClick={onCreateAgent}
+                                onClick={() => {
+                                    setAgentId(NEW_AGENT)
+                                    setPickerOpen(false)
+                                }}
                                 className="flex w-full cursor-pointer items-center gap-2 border-0 bg-colorFillQuaternary px-3 py-2 text-xs text-colorPrimary"
                             >
                                 <PlusIcon size={14} />

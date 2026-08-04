@@ -139,7 +139,10 @@ const StripHome: React.FC = () => {
                                 loading={loading}
                             />
                         ) : (
-                            <HomeTaskComposer onCreateAgent={() => void handleCreate("")} />
+                            <HomeTaskComposer
+                                onCreateAgent={(markdown) => void handleCreate(markdown)}
+                                creating={loading}
+                            />
                         )}
                     </div>
                 </div>
