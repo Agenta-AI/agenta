@@ -94,7 +94,14 @@ const NextTriggersSection = ({agentId}: {agentId?: string} = {}) => {
                     id: schedule.id ?? `schedule-${index}`,
                     // An unnamed schedule reads as its cadence, never as "5 * * * *".
                     name: schedule.name || cadence,
-                    subtitle: agentId ? cadence : schedule.name ? `${agent} · ${cadence}` : agent,
+                    // Scoped to one agent, an unnamed schedule's title already IS the cadence.
+                    subtitle: agentId
+                        ? schedule.name
+                            ? cadence
+                            : ""
+                        : schedule.name
+                          ? `${agent} · ${cadence}`
+                          : agent,
                     detail: next ? formatNextRun(next) : "—",
                     at: next ?? null,
                     tooltip: cadence,
@@ -114,7 +121,9 @@ const NextTriggersSection = ({agentId}: {agentId?: string} = {}) => {
                     id: subscription.id ?? `subscription-${index}`,
                     name: subscription.name || eventKey || "Event trigger",
                     subtitle: agentId
-                        ? eventKey || "Event trigger"
+                        ? subscription.name
+                            ? eventKey
+                            : ""
                         : eventKey && subscription.name
                           ? `${agent} · ${eventKey}`
                           : agent,
@@ -160,9 +169,11 @@ const NextTriggersSection = ({agentId}: {agentId?: string} = {}) => {
                             />
                             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                                 <span className="truncate text-sm text-colorText">{row.name}</span>
-                                <span className="truncate text-[13px] text-colorTextSecondary">
-                                    {row.subtitle}
-                                </span>
+                                {row.subtitle ? (
+                                    <span className="truncate text-[13px] text-colorTextSecondary">
+                                        {row.subtitle}
+                                    </span>
+                                ) : null}
                             </span>
                             <span className="mt-0.5 shrink-0 text-xs text-colorTextSecondary">
                                 {row.detail}
