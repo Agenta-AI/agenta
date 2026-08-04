@@ -1,6 +1,7 @@
 import {useMemo, useState} from "react"
 
 import {formatNumber} from "@agenta/shared/utils"
+import {HeightCollapse} from "@agenta/ui"
 import {CaretDown, CaretUp, ChartLineIcon} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {useAtom} from "jotai"
@@ -94,11 +95,11 @@ const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) =>
                     ))}
                 </div>
 
-                {expanded ? (
-                    // Stacked, not gridded: the grid's breakpoints read the viewport, and this
-                    // column is 340px on any of them.
+                {/* Stacked, not gridded: the grid's breakpoints read the viewport, and this
+                    column is 340px on any of them. */}
+                <HeightCollapse open={expanded}>
                     <AnalyticsDashboard layout="stack" showTimeRangeSelector={false} />
-                ) : null}
+                </HeightCollapse>
             </PanelSection>
         )
     }

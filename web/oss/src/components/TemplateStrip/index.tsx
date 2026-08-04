@@ -1,5 +1,6 @@
 import {useMemo, useState, type ButtonHTMLAttributes, type ReactNode} from "react"
 
+import {HeightCollapse} from "@agenta/ui"
 import {CaretDown, DotsThree, EyeSlash} from "@phosphor-icons/react"
 import {Dropdown} from "antd"
 import {useAtom} from "jotai"
@@ -200,7 +201,7 @@ const TemplateStrip = ({
                     </Dropdown>
                 }
             >
-                {(showAllRows ? filtered : filtered.slice(0, LIST_SIZE)).map((template) => (
+                {filtered.slice(0, LIST_SIZE).map((template) => (
                     <StripRow
                         key={template.key}
                         template={template}
@@ -208,6 +209,18 @@ const TemplateStrip = ({
                         onPick={onPick}
                     />
                 ))}
+                {/* The app's one collapse primitive, so this unfolds the way the tool gutter and
+                    the accordion sections do rather than snapping to its new height. */}
+                <HeightCollapse open={showAllRows} contentClassName="flex flex-col gap-0.5">
+                    {filtered.slice(LIST_SIZE).map((template) => (
+                        <StripRow
+                            key={template.key}
+                            template={template}
+                            selected={template.key === selectedTemplateKey}
+                            onPick={onPick}
+                        />
+                    ))}
+                </HeightCollapse>
             </PanelSection>
         )
     }
