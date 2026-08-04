@@ -108,7 +108,7 @@
         "next": "15.5.21",
         "papaparse": "^5.5.3",
         "pdfjs-dist": "^4.10.38",
-        "postcss": "^8.5.10",
+        "postcss": "^8.5.23",
         "posthog-js": "^1.223.3",
         "prismjs": "^1.30.0",
         "rc-virtual-list": "^3.19.2",
