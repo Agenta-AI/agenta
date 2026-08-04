@@ -256,6 +256,27 @@ CELLS = {
             "slug": None,
         },  # slug filled from --custom-slug
     },
+    # P3: the same custom OpenAI-compatible provider as P2, but on DAYTONA. It exists because
+    # v0.108.1 validates a credentialed connection's endpoint far more strictly on a remote
+    # sandbox than it used to: the host must be plain HTTPS on the default port with a real
+    # fully-qualified name, since that host is what the credential's Daytona Secret is pinned to
+    # (exactSecretHost, daytona-secret-plan.ts). A self-hosted proxy on a non-default port — an
+    # ordinary setup — is now refused outright where it worked in v0.108.0.
+    #
+    # P2 is local-only, and a local sandbox never builds a secret plan, so nothing in the gate
+    # could see that rejection. This cell is the one that can: if the deployment's custom endpoint
+    # carries a port or a non-public hostname, `chat` fails here immediately with the validator's
+    # message, which is exactly the signal a self-hoster would hit.
+    "P3": {
+        "harness": "pi_core",
+        "sandbox": "daytona",
+        "model": "deepseek/deepseek-v4-flash",
+        "provider": None,
+        "connection": {
+            "mode": "agenta",
+            "slug": None,
+        },  # slug filled from --custom-slug
+    },
 }
 
 # NOTE: `code` tools are NOT usable on the product path — the sidecar rejects them
@@ -2184,24 +2205,29 @@ def main() -> int:
 
     cells = list(CELLS) if args.all else (args.cell or ["C3"])
     journeys = args.only or list(JOURNEYS)
-    if "P2" in cells and not args.custom_slug:
+    if ("P2" in cells or "P3" in cells) and not args.custom_slug:
         # Fail fast, before creating a run directory or spending any journeys: P2 (OpenRouter as
         # a custom OpenAI-compatible provider) has no vault slug until --custom-slug is set, so
         # every P2 journey would otherwise just fail downstream and waste the rest of the matrix.
         raise SystemExit(
             "Cell P2 requires --custom-slug <vault slug of the custom OpenAI-compatible "
-            "provider>. Pass it explicitly, or drop P2 with --cell (omit --all)."
+            "provider>. Pass it explicitly, or drop P2/P3 with --cell (omit --all)."
         )
     if args.custom_slug:
-        CELLS["P2"]["connection"]["slug"] = args.custom_slug
-        # Send the FULL custom model key, not the bare model id: a bare id that also exists
-        # in the shared catalog gets its provider inferred (F-017) before the named custom
-        # connection can normalize, and the (inferred-provider, custom) pair check then
-        # rejects the run. The `<slug>/custom/<model>` key is opaque to the catalog, matches
-        # the secret's model_keys, and resolves to the `openai` family as designed.
-        p2_model = CELLS["P2"]["model"]
-        if not p2_model.startswith(f"{args.custom_slug}/"):
-            CELLS["P2"]["model"] = f"{args.custom_slug}/custom/{p2_model}"
+        # Both custom-provider cells take the same slug and the same model-key rewrite; P3 is
+        # P2 on Daytona, so keeping them in one loop stops the two drifting apart.
+        for custom_cell in ("P2", "P3"):
+            CELLS[custom_cell]["connection"]["slug"] = args.custom_slug
+            # Send the FULL custom model key, not the bare model id: a bare id that also exists
+            # in the shared catalog gets its provider inferred (F-017) before the named custom
+            # connection can normalize, and the (inferred-provider, custom) pair check then
+            # rejects the run. The `<slug>/custom/<model>` key is opaque to the catalog, matches
+            # the secret's model_keys, and resolves to the `openai` family as designed.
+            custom_model = CELLS[custom_cell]["model"]
+            if not custom_model.startswith(f"{args.custom_slug}/"):
+                CELLS[custom_cell]["model"] = (
+                    f"{args.custom_slug}/custom/{custom_model}"
+                )
     if args.mcp_url:
         global MCP_URL
         MCP_URL = args.mcp_url
