@@ -1,15 +1,21 @@
 # Status
 
-Updated: 2026-08-04, by team-lead.
+Updated: 2026-08-04 evening, by team-lead.
 
 ## Where we are
 
-Phase 1 (spikes). The planning workspace is being committed and the draft PR opened.
-Both spike teammates are running in worktrees:
+Phase 1 exit review. Both spikes are complete and green:
 
-- engine-spike: prototyping the change-set engine (task #2).
-- runner-spike: value_from proof, tools-discovery verdict, lifecycle characterization
-  tests (task #3).
+- engine-spike: the pure engine works, 120 tests, legacy parity proven against the real
+  service code. Report: `spikes/engine-spike.md`.
+- runner-spike: value_from proven end to end (34 tests), the tools-discovery verdict is
+  in (Pi and Claude are blocked by our own delivery, not by the harness; Codex needs a
+  session reopen), and 15 characterization tests pin today's lifecycle behavior.
+  Report: `spikes/runner-spike.md`.
+
+The consolidated decisions are in `decisions.md`. Seven product calls wait on Mahmoud
+(listed there). A Codex design review of the finalized design is running. Slices start
+when it returns. Draft PR: https://github.com/Agenta-AI/agenta/pull/5733.
 
 ## Decisions taken (4 August review with Mahmoud)
 
