@@ -5,6 +5,7 @@ import {RichChatInput} from "@agenta/ui/rich-chat-input"
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
 import UsageSummary from "@/oss/components/pages/agent-home/components/UsageSummary"
 import SessionListCard from "@/oss/components/pages/sessions/components/SessionListCard"
+import {PanelSurface} from "@/oss/components/PanelSection"
 import useURL from "@/oss/hooks/useURL"
 
 import AgentConfigurationCard from "./AgentConfigurationCard"
@@ -62,35 +63,42 @@ const AgentOverview = ({appId, agentName}: Props) => {
                     }
                 />
 
-                <SessionListCard
-                    withPinned
-                    agentId={appId}
-                    limit={8}
-                    title="Sessions"
-                    emptyText="Conversations with this agent will show up here."
-                    viewAllHref={sessionsHref}
-                />
+                {/* One sheet, not a stack of outlined cards: the sections separate themselves with
+                    their header bands. The composer stays outside it — it is an input, and inputs
+                    keep their own border. */}
+                <PanelSurface>
+                    <SessionListCard
+                        withPinned
+                        agentId={appId}
+                        limit={8}
+                        title="Sessions"
+                        emptyText="Conversations with this agent will show up here."
+                        viewAllHref={sessionsHref}
+                    />
 
-                {/* Co-equal with Sessions, not a filter of it: an automation run is one the user
-                    configured but did not start. A toggle would hide one of the two behind a
-                    click, which ranks them. */}
-                <SessionListCard
-                    agentId={appId}
-                    origin="trigger"
-                    title="Automation runs"
-                    emptyText="Runs from automations bound to this agent will show up here."
-                    limit={5}
-                    minHeightClassName="min-h-[100px]"
-                    viewAllHref={sessionsHref}
-                />
+                    {/* Co-equal with Sessions, not a filter of it: an automation run is one the
+                        user configured but did not start. A toggle would hide one of the two
+                        behind a click, which ranks them. */}
+                    <SessionListCard
+                        agentId={appId}
+                        origin="trigger"
+                        title="Automation runs"
+                        emptyText="Runs from automations bound to this agent will show up here."
+                        limit={5}
+                        minHeightClassName="min-h-[100px]"
+                        viewAllHref={sessionsHref}
+                    />
+                </PanelSurface>
             </div>
 
             <div className="flex w-full shrink-0 grow-0 flex-col gap-6 lg:w-1/3 lg:min-w-[340px] lg:max-w-[520px]">
-                <AgentConfigurationCard appId={appId} />
+                <PanelSurface>
+                    <AgentConfigurationCard appId={appId} />
 
-                <AgentFilesCard appId={appId} />
+                    <AgentFilesCard appId={appId} />
 
-                <UsageSummary variant="strip" />
+                    <UsageSummary variant="strip" />
+                </PanelSurface>
             </div>
         </div>
     )

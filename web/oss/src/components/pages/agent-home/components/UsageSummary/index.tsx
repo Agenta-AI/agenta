@@ -6,8 +6,8 @@ import {Button} from "antd"
 import {useAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {RAIL_CARD_CLASS} from "@/oss/assets/railCard"
 import Sort from "@/oss/components/Filters/Sort"
+import {PanelSection} from "@/oss/components/PanelSection"
 import {useObservabilityDashboard} from "@/oss/state/observability"
 import {observabilityDashboardTimeRangeAtom} from "@/oss/state/observability/dashboard"
 
@@ -58,57 +58,50 @@ const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) =>
         return (
             // The rail's flex item here is this section, not the card inside it, so it carries
             // the no-shrink itself.
-            <section className="flex shrink-0 flex-col gap-3">
-                <div className={`flex flex-col gap-3 ${RAIL_CARD_CLASS}`}>
-                    <div className="flex items-center gap-2">
-                        <ChartLineIcon size={15} className="text-[var(--ag-colorTextSecondary)]" />
-                        <span className="text-xs font-medium text-[var(--ag-colorText)]">
-                            Usage
-                        </span>
-                        <Sort
-                            type="text"
-                            onSortApply={setTimeRange}
-                            defaultSortValue={timeRange.label || "1 month"}
-                            exclude={["all time"]}
-                            ariaLabel="Usage date range"
-                        />
-                        <button
-                            type="button"
-                            onClick={() => setExpanded((prev) => !prev)}
-                            className="ml-auto inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)]"
-                        >
-                            {expanded ? "Collapse" : "Expand"}
-                            {expanded ? (
-                                <CaretUp
-                                    size={14}
-                                    className="text-[var(--ag-colorTextQuaternary)]"
-                                />
-                            ) : (
-                                <CaretDown
-                                    size={14}
-                                    className="text-[var(--ag-colorTextQuaternary)]"
-                                />
-                            )}
-                        </button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                        {stats.map((stat) => (
-                            <div key={stat.label} className="flex flex-col gap-0.5">
-                                <span className="text-[11px] text-[var(--ag-colorTextSecondary)]">
-                                    {stat.label}
-                                </span>
-                                <span className="text-xs font-semibold text-[var(--ag-colorText)]">
-                                    {stat.value}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
+            <PanelSection
+                title="Usage"
+                bodyClassName="flex flex-col gap-3 px-4 py-3"
+                titleExtra={
+                    <Sort
+                        type="text"
+                        onSortApply={setTimeRange}
+                        defaultSortValue={timeRange.label || "1 month"}
+                        exclude={["all time"]}
+                        ariaLabel="Usage date range"
+                    />
+                }
+                extra={
+                    <button
+                        type="button"
+                        onClick={() => setExpanded((prev) => !prev)}
+                        className="inline-flex shrink-0 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)]"
+                    >
+                        {expanded ? "Collapse" : "Expand"}
+                        {expanded ? (
+                            <CaretUp size={14} className="text-[var(--ag-colorTextQuaternary)]" />
+                        ) : (
+                            <CaretDown size={14} className="text-[var(--ag-colorTextQuaternary)]" />
+                        )}
+                    </button>
+                }
+            >
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                    {stats.map((stat) => (
+                        <div key={stat.label} className="flex flex-col gap-0.5">
+                            <span className="text-[11px] text-[var(--ag-colorTextSecondary)]">
+                                {stat.label}
+                            </span>
+                            <span className="text-xs font-semibold text-[var(--ag-colorText)]">
+                                {stat.value}
+                            </span>
+                        </div>
+                    ))}
                 </div>
 
                 {expanded ? (
                     <AnalyticsDashboard layout="grid-4" showTimeRangeSelector={false} />
                 ) : null}
-            </section>
+            </PanelSection>
         )
     }
 

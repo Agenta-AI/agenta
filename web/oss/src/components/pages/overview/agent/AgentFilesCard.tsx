@@ -5,11 +5,11 @@ import {FileIcon, FolderIcon} from "@phosphor-icons/react"
 import {Skeleton, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 
-import {RAIL_CARD_CLASS} from "@/oss/assets/railCard"
 import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
 import {agentMountQueryFamily} from "@/oss/components/Drives/agentDrive"
 import {FilesDrawer} from "@/oss/components/Drives/FilesDrawer"
 import {AGENT_FILES_DIR, useSessionDrive} from "@/oss/components/Drives/useSessionDrive"
+import {PanelSection} from "@/oss/components/PanelSection"
 
 /** Enough to show what the agent is carrying without turning the card into an explorer. */
 const LIMIT = 6
@@ -52,19 +52,18 @@ const AgentFilesCard = ({appId}: {appId: string}) => {
     const isPending = mounts.isPending || (Boolean(mountId) && files.isPending)
 
     return (
-        <section className={`flex flex-col ${RAIL_CARD_CLASS}`}>
-            {/* Session-card header grammar: the count alone gave no way to reach files past the six shown. */}
-            <div className="mb-1 flex items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2">
-                    <h3 className="m-0 text-xs font-medium text-colorText">Files</h3>
-                    {total ? (
-                        <span className="shrink-0 text-xs text-colorTextTertiary">
-                            {total}
-                            {files.data?.totalCapped ? "+" : ""} file{total === 1 ? "" : "s"}
-                        </span>
-                    ) : null}
-                </div>
-                {mountId ? (
+        <PanelSection
+            title="Files"
+            titleExtra={
+                total ? (
+                    <span className="shrink-0 text-xs text-colorTextTertiary">
+                        {total}
+                        {files.data?.totalCapped ? "+" : ""} file{total === 1 ? "" : "s"}
+                    </span>
+                ) : null
+            }
+            extra={
+                mountId ? (
                     <button
                         type="button"
                         onClick={() => {
@@ -76,9 +75,9 @@ const AgentFilesCard = ({appId}: {appId: string}) => {
                     >
                         View all
                     </button>
-                ) : null}
-            </div>
-
+                ) : null
+            }
+        >
             {isPending ? (
                 <Skeleton active paragraph={{rows: 3}} title={false} />
             ) : rows.length === 0 ? (
@@ -145,7 +144,7 @@ const AgentFilesCard = ({appId}: {appId: string}) => {
                 initialPath={openPath}
                 driveIds={mountId ? [{key: "mount", label: "Drive ID", value: mountId}] : undefined}
             />
-        </section>
+        </PanelSection>
     )
 }
 

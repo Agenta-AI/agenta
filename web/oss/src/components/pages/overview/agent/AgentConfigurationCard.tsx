@@ -13,7 +13,7 @@ import {
 import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 
-import {RAIL_CARD_CLASS} from "@/oss/assets/railCard"
+import {PanelSection} from "@/oss/components/PanelSection"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 
 import {agentConfigSummary} from "./agentConfigSummary"
@@ -115,9 +115,10 @@ const AgentConfigurationCard = ({appId}: {appId: string}) => {
     ]
 
     return (
-        <section className={`flex flex-col ${RAIL_CARD_CLASS}`}>
-            <div className="mb-1 flex items-center justify-between gap-2">
-                <h3 className="m-0 text-xs font-medium text-colorText">Configuration</h3>
+        <PanelSection
+            title="Configuration"
+            bodyClassName="flex flex-col px-4 pb-2"
+            extra={
                 <button
                     type="button"
                     onClick={open}
@@ -125,8 +126,8 @@ const AgentConfigurationCard = ({appId}: {appId: string}) => {
                 >
                     Edit
                 </button>
-            </div>
-
+            }
+        >
             {revision.isPending ? (
                 <Skeleton active paragraph={{rows: 5}} title={false} />
             ) : (
@@ -134,6 +135,7 @@ const AgentConfigurationCard = ({appId}: {appId: string}) => {
                     <ConfigAccordionSection
                         key={row.key}
                         size="compact"
+                        headerBand="-mx-4 px-4"
                         icon={row.icon}
                         title={row.title}
                         summary={row.summary}
@@ -154,7 +156,7 @@ const AgentConfigurationCard = ({appId}: {appId: string}) => {
                     </ConfigAccordionSection>
                 ))
             )}
-        </section>
+        </PanelSection>
     )
 }
 

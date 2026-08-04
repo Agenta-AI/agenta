@@ -7,6 +7,7 @@ import {App, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/pages/agents/store"
+import {PanelSurface} from "@/oss/components/PanelSection"
 import TemplateStrip from "@/oss/components/TemplateStrip"
 import {buildCodingAgentClipboard} from "@/oss/components/TemplateStrip/assets/codingAgentClipboard"
 import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
@@ -230,9 +231,13 @@ const StripHome: React.FC = () => {
                     above the ceiling the extra width only pads the gap between them. */}
                 {!firstRun ? (
                     <div className="box-border flex w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col gap-6 overflow-y-auto pr-1">
-                        <HomeSessionsSection limit={10} />
-                        <HomeAutomationsSection />
-                        <UsageSummary variant="strip" />
+                        {/* One sheet: the sections' header bands separate them, and each band
+                            pins in turn as the rail scrolls. */}
+                        <PanelSurface>
+                            <HomeSessionsSection limit={10} />
+                            <HomeAutomationsSection />
+                            <UsageSummary variant="strip" />
+                        </PanelSurface>
                     </div>
                 ) : null}
             </div>
