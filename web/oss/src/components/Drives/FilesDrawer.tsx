@@ -9,7 +9,7 @@
  * The heavy body is `next/dynamic`-imported so the tree/renderer/pdfjs graph loads only when the
  * drawer opens (`destroyOnClose` unmounts it again).
  */
-import {useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {type MountFile} from "@agenta/entities/session"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
@@ -18,6 +18,9 @@ import dynamic from "next/dynamic"
 import {type DriveId, type DriveScope} from "./DriveExplorer"
 import {DriveExplorerSkeleton} from "./DriveExplorerSkeleton"
 import {type DroppedFile} from "./dropEntries"
+import {DriveEditGuardModal} from "./editMode/components/DriveEditGuardModal"
+import {type NavigationIntent} from "./editMode/state"
+import {useDriveEditGuard} from "./editMode/useDriveEditController"
 import {type SessionDriveData} from "./useSessionDrive"
 
 // Normal vs. expanded drawer width — the header's expand toggle flips between them, mirroring the
@@ -87,41 +90,68 @@ export function FilesDrawer({
     // Expanded (near-full) width, toggled from the drawer header. Reset on close so every open starts
     // at the normal width.
     const [expanded, setExpanded] = useState(false)
+    const [heldDrive, setHeldDrive] = useState(drive)
     useEffect(() => {
         if (!open) setExpanded(false)
     }, [open])
-    const driveGeneration = useDriveGeneration(drive.mount?.id)
+    const navigationRunner = useRef<((intent: NavigationIntent) => void) | null>(null)
+    const registerNavigationRunner = useCallback(
+        (runner: ((intent: NavigationIntent) => void) | null) => {
+            navigationRunner.current = runner
+        },
+        [],
+    )
+    const runNavigation = useCallback((intent: NavigationIntent) => {
+        navigationRunner.current?.(intent)
+    }, [])
+    const editGuard = useDriveEditGuard({
+        active: open,
+        initialPath,
+        driveKey: drive.mount?.id ?? "",
+        heldDriveKey: heldDrive.mount?.id ?? "",
+        onClose,
+        runNavigation,
+    })
+    useEffect(() => {
+        if (!editGuard.holdDrive) setHeldDrive(drive)
+    }, [drive, editGuard.holdDrive])
+    const displayedDrive = editGuard.holdDrive ? heldDrive : drive
+    const driveGeneration = useDriveGeneration(displayedDrive.mount?.id)
 
     return (
-        <EnhancedDrawer
-            rootClassName="ag-drawer-elevated"
-            open={open}
-            onClose={onClose}
-            placement="right"
-            // Two-pane (tree + preview) needs the room; expand for near-full width.
-            width={expanded ? EXPANDED_WIDTH : NORMAL_WIDTH}
-            destroyOnClose
-            closeOnLayoutClick={false}
-            // Headerless: DriveExplorer renders the one header (with its own close button).
-            closable={false}
-            title={null}
-            styles={{
-                body: {padding: 0, display: "flex", flexDirection: "column", minHeight: 0},
-            }}
-        >
-            <DriveExplorer
-                key={driveGeneration}
-                drive={drive}
-                explicitFiles={explicitFiles}
-                scope={scope}
-                initialPath={initialPath}
-                onClose={onClose}
-                driveIds={driveIds}
-                expanded={expanded}
-                onToggleExpand={() => setExpanded((v) => !v)}
-                stagedFiles={stagedFiles}
-                onStagedChange={onStagedChange}
-            />
-        </EnhancedDrawer>
+        <>
+            <EnhancedDrawer
+                rootClassName="ag-drawer-elevated"
+                open={open}
+                onClose={editGuard.onClose}
+                placement="right"
+                // Two-pane (tree + preview) needs the room; expand for near-full width.
+                width={expanded ? EXPANDED_WIDTH : NORMAL_WIDTH}
+                destroyOnClose
+                closeOnLayoutClick={false}
+                // Headerless: DriveExplorer renders the one header (with its own close button).
+                closable={false}
+                title={null}
+                styles={{
+                    body: {padding: 0, display: "flex", flexDirection: "column", minHeight: 0},
+                }}
+            >
+                <DriveExplorer
+                    key={driveGeneration}
+                    drive={displayedDrive}
+                    explicitFiles={explicitFiles}
+                    scope={scope}
+                    initialPath={editGuard.initialPath}
+                    onClose={editGuard.onClose}
+                    driveIds={driveIds}
+                    expanded={expanded}
+                    onToggleExpand={() => setExpanded((v) => !v)}
+                    stagedFiles={stagedFiles}
+                    onStagedChange={onStagedChange}
+                    registerEditNavigationRunner={registerNavigationRunner}
+                />
+            </EnhancedDrawer>
+            <DriveEditGuardModal {...editGuard.modal} />
+        </>
     )
 }

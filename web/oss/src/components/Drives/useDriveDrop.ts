@@ -91,6 +91,14 @@ export function useDriveDrop({
         }
     }, [enabled, clearSpring])
 
+    useEffect(() => {
+        if (enabled) return
+        depth.current = 0
+        clearSpring()
+        setDragging(false)
+        setHoverPath(null)
+    }, [clearSpring, enabled])
+
     const startSpring = useCallback(
         (path: string) => {
             if (springPath.current === path) return // already counting down on this folder
@@ -110,19 +118,19 @@ export function useDriveDrop({
             // Folder targets stop propagation, so the container's onDragEnter only fires over empty
             // space — which is how the hover clears when you move off a folder.
             onDragEnter: (e: React.DragEvent) => {
-                if (!isFileDrag(e)) return
+                if (!enabled || !isFileDrag(e)) return
                 e.preventDefault()
                 e.stopPropagation()
                 setHoverPath(path)
                 startSpring(path)
             },
             onDragOver: (e: React.DragEvent) => {
-                if (!isFileDrag(e)) return
+                if (!enabled || !isFileDrag(e)) return
                 e.preventDefault()
                 e.stopPropagation()
             },
             onDrop: (e: React.DragEvent) => {
-                if (!isFileDrag(e)) return
+                if (!enabled || !isFileDrag(e)) return
                 e.preventDefault()
                 e.stopPropagation()
                 void readDroppedFiles(e.dataTransfer).then((files) => {
@@ -132,21 +140,21 @@ export function useDriveDrop({
                 clearSpring()
             },
         }),
-        [onUpload, startSpring, clearSpring],
+        [enabled, onUpload, startSpring, clearSpring],
     )
 
     const containerDropProps = useCallback(
         (currentFolder: string) => ({
             onDragEnter: (e: React.DragEvent) => {
-                if (!isFileDrag(e)) return
+                if (!enabled || !isFileDrag(e)) return
                 setHoverPath(null)
                 clearSpring()
             },
             onDragOver: (e: React.DragEvent) => {
-                if (isFileDrag(e)) e.preventDefault()
+                if (enabled && isFileDrag(e)) e.preventDefault()
             },
             onDrop: (e: React.DragEvent) => {
-                if (!isFileDrag(e)) return
+                if (!enabled || !isFileDrag(e)) return
                 e.preventDefault()
                 void readDroppedFiles(e.dataTransfer).then((files) => {
                     if (files.length) onUpload(files, currentFolder)
@@ -155,7 +163,7 @@ export function useDriveDrop({
                 clearSpring()
             },
         }),
-        [onUpload, clearSpring],
+        [enabled, onUpload, clearSpring],
     )
 
     return {dragging, hoverPath, folderDropProps, containerDropProps}

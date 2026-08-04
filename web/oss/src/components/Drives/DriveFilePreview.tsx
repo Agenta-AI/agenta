@@ -4,11 +4,14 @@ import {type Mount} from "@agenta/entities/session"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {Info} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
+import {useAtomValue} from "jotai"
 import {AnimatePresence, motion} from "motion/react"
 
 import {DriveBreadcrumb} from "./DriveBreadcrumb"
 import {DriveFileContentViewer, DriveFileDownloadButton} from "./DriveFileContentViewer"
 import {META_REVEAL} from "./driveMotion"
+import {DriveFileEditor} from "./editMode/components/DriveFileEditor"
+import {driveEditBufferAtom} from "./editMode/state"
 import {DriveFileMetaList} from "./fileMeta"
 import {OriginTag} from "./OriginTag"
 import {fileOrigin} from "./useSessionDrive"
@@ -50,6 +53,13 @@ export const DriveFilePreview = ({
     const name = shown.split("/").pop() ?? shown
     const [metaExpanded, setMetaExpanded] = useState(false)
     const metaOpen = hideHeader ? Boolean(detailsOpen) : metaExpanded
+    const editBuffer = useAtomValue(driveEditBufferAtom)
+    const editingThisFile = Boolean(
+        editBuffer &&
+        editBuffer.targetMountId === mount?.id &&
+        editBuffer.targetPath === path &&
+        editBuffer.displayPath === shown,
+    )
 
     return (
         // h-full pins the preview to the content pane's height so the header stays put and only the
@@ -135,13 +145,17 @@ export const DriveFilePreview = ({
             )}
 
             <div className="flex min-h-0 flex-1 flex-col p-4 pt-3">
-                <DriveFileContentViewer
-                    mount={mount}
-                    path={path}
-                    size={size}
-                    displayPath={shown}
-                    onNavigate={onSelect}
-                />
+                {editingThisFile ? (
+                    <DriveFileEditor />
+                ) : (
+                    <DriveFileContentViewer
+                        mount={mount}
+                        path={path}
+                        size={size}
+                        displayPath={shown}
+                        onNavigate={onSelect}
+                    />
+                )}
             </div>
         </div>
     )

@@ -7,6 +7,7 @@ import {
     DownloadSimple,
     GitBranch,
     Info,
+    PencilSimple,
     UploadSimple,
     WarningCircle,
     X,
@@ -18,6 +19,7 @@ import {DriveFileDownloadButton} from "./DriveFileContentViewer"
 import {DriveRetryButton} from "./DriveFileRow"
 import {humanSize} from "./driveTree"
 import {type DriveId} from "./driveTypes"
+import {type DriveEditAvailability} from "./editMode/model"
 import {fileOrigin} from "./useSessionDrive"
 
 /**
@@ -54,6 +56,7 @@ export const DriveHeader = ({
     onUpload,
     stagedCount = 0,
     onUploadStaged,
+    edit,
 }: {
     selectedPath: string | null
     isFolder: boolean
@@ -93,6 +96,17 @@ export const DriveHeader = ({
     partialErrored?: boolean
     onRetry?: () => void
     retrying?: boolean
+    edit?: {
+        availability: DriveEditAvailability
+        editing: boolean
+        dirty: boolean
+        saving: boolean
+        justSaved: boolean
+        statusText: string
+        onEdit: () => void
+        onCancel: () => void
+        onSave: () => void
+    }
 }) => {
     const atRoot = !selectedPath
     // A file always has details (size/modified); a folder only when it's a repo. Nothing selected
@@ -164,6 +178,15 @@ export const DriveHeader = ({
                         {fileOrigin(selectedPath) === "agent" ? "Agent" : "Session"}
                     </Tag>
                 ) : null}
+                {edit?.dirty ? (
+                    <Tag color="warning" className="m-0 shrink-0 text-[10px] font-normal">
+                        Unsaved
+                    </Tag>
+                ) : edit?.justSaved ? (
+                    <Tag color="success" className="m-0 shrink-0 text-[10px] font-normal">
+                        Saved
+                    </Tag>
+                ) : null}
             </div>
             {/* A mount failed but the drive still browses — a compact warning + retry that lives in
                 the header's existing slack (never a new row). Tooltip carries the full message so the
@@ -180,7 +203,7 @@ export const DriveHeader = ({
                     </span>
                 </Tooltip>
             ) : null}
-            <div className="flex shrink-0 items-center gap-1">
+            <div className={`${edit?.editing ? "hidden" : "flex"} shrink-0 items-center gap-1`}>
                 {/* ONE upload button, context-dependent: with files staged it commits them into this
                     folder (primary-tinted); otherwise it opens the file picker (neutral). */}
                 {stagedCount > 0 && onUploadStaged ? (
@@ -240,6 +263,25 @@ export const DriveHeader = ({
                         />
                     </Tooltip>
                 ) : null}
+                {edit?.availability === "enabled" ? (
+                    <Button size="small" icon={<PencilSimple size={14} />} onClick={edit.onEdit}>
+                        Edit
+                    </Button>
+                ) : edit && edit.availability !== "unavailable" ? (
+                    <Tooltip
+                        title={
+                            edit.availability === "too-large"
+                                ? "Files larger than 1.5 MB can’t be edited"
+                                : edit.availability === "loading"
+                                  ? "File content is still loading"
+                                  : "This file couldn’t be read"
+                        }
+                    >
+                        <Button size="small" icon={<PencilSimple size={14} />} disabled>
+                            Edit
+                        </Button>
+                    </Tooltip>
+                ) : null}
                 {!isFolder && selectedPath ? (
                     <DriveFileDownloadButton mount={downloadMount} path={downloadPath} />
                 ) : null}
@@ -262,6 +304,26 @@ export const DriveHeader = ({
                     />
                 </Dropdown>
             </div>
+            {edit?.editing ? (
+                <div className="flex shrink-0 items-center gap-1">
+                    <Button size="small" disabled={edit.saving} onClick={edit.onCancel}>
+                        Cancel
+                    </Button>
+                    <Button
+                        size="small"
+                        type="primary"
+                        disabled={!edit.dirty}
+                        loading={edit.saving}
+                        onClick={edit.onSave}
+                        aria-keyshortcuts="Control+S Meta+S"
+                    >
+                        {edit.saving ? "Saving" : "Save"}
+                    </Button>
+                </div>
+            ) : null}
+            <span className="sr-only" aria-live="polite">
+                {edit?.statusText ?? ""}
+            </span>
         </div>
     )
 }

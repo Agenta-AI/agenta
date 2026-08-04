@@ -12,3 +12,26 @@ barrel does not export it beside the other mount reads
 The implementation also exports `queryMountDir` from `@agenta/entities/session`. This keeps the
 pre-write check on the existing validated Fern boundary instead of duplicating the request in the
 app layer or importing an unexported package-internal path.
+
+## A drive swap must preserve the old explorer when the user keeps editing
+
+The plan says a drive swap should remount `DriveExplorer` and show the guard above that boundary.
+After that remount, however, **Keep editing** has no valid editor surface: the new drive cannot
+resolve the old buffer's mount and path, and the mismatch effect would reopen the same guard.
+
+`FilesDrawer` therefore holds the last displayed drive while the dirty-buffer guard is unresolved
+(`web/oss/src/components/Drives/FilesDrawer.tsx:107-119`). Discarding, cancelling, closing, or a
+successful save clears the buffer and releases the incoming drive; keeping the edit leaves the old
+explorer mounted. The one-shot drive-swap intent is owned by `useDriveEditGuard`
+(`web/oss/src/components/Drives/editMode/useDriveEditController.ts:385-420`).
+
+## Edit availability also waits for the parent listing
+
+The plan derives Edit availability only from the loaded content and reads `baseMtime` with
+`queryClient.getQueryData` on click. Content can finish before the independent directory listing,
+which would open a buffer with an accidental null baseline and silently disable the mtime check.
+
+The controller now subscribes to the existing `mountDirQueryFamily` and keeps Edit loading until
+that listing resolves (`web/oss/src/components/Drives/editMode/useDriveEditController.ts:122-147`).
+A genuinely omitted `mtime` still uses the plan's documented null-baseline degradation; a listing
+that simply has not arrived no longer does.

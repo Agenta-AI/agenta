@@ -28,6 +28,7 @@ export function DriveTreeList({
     firstEverPaths,
     shownExpanded,
     selectedPath,
+    dirtyPath,
     showOrigin,
     isDirLoading,
     scrollXFor,
@@ -52,6 +53,7 @@ export function DriveTreeList({
     firstEverPaths: ReadonlySet<string>
     shownExpanded: Set<string>
     selectedPath: string | null
+    dirtyPath: string | null
     showOrigin: boolean
     isDirLoading: (path: string) => boolean
     scrollXFor: (parent: string) => number
@@ -132,6 +134,7 @@ export function DriveTreeList({
                                         depth={depth}
                                         isOpen={shownExpanded.has(node.path)}
                                         selected={node.path === selectedPath}
+                                        dirty={node.path === dirtyPath}
                                         loading={
                                             node.isFolder &&
                                             shownExpanded.has(node.path) &&

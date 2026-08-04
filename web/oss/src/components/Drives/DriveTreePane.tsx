@@ -15,6 +15,7 @@ export function DriveTreePane({
     treeScrollRef,
     onTreeKeyDown,
     treeDropProps,
+    interactive = true,
     rows,
     children,
 }: {
@@ -23,6 +24,7 @@ export function DriveTreePane({
     onTreeKeyDown: (e: KeyboardEvent<HTMLDivElement>) => void
     /** Drop-to-upload handlers for the tree's scroll container — absent = uploads disabled here. */
     treeDropProps?: ReturnType<DriveDrop["containerDropProps"]>
+    interactive?: boolean
     /** The tree's virtualized rows (see DriveTreeList) — a slot, so this module stays pure geometry. */
     rows: ReactNode
     /** The content pane: the folder grid or the file preview. */
@@ -60,12 +62,13 @@ export function DriveTreePane({
                 >
                     <div
                         ref={treeScrollRef}
+                        inert={interactive ? undefined : true}
                         // Vertical scroll is native; horizontal is intercepted (treeScrollRef)
                         // and routed to the hovered row's FOLDER GROUP (transform), so siblings
                         // scroll together. `overscroll-contain` stops rubber-band chaining.
                         className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
-                        onKeyDown={onTreeKeyDown}
-                        {...(treeDropProps ?? {})}
+                        onKeyDown={interactive ? onTreeKeyDown : undefined}
+                        {...(interactive ? (treeDropProps ?? {}) : {})}
                     >
                         {rows}
                     </div>
@@ -77,12 +80,13 @@ export function DriveTreePane({
             {treeVisible ? (
                 <div
                     role="separator"
+                    inert={interactive ? undefined : true}
                     aria-orientation="vertical"
                     aria-label="Resize file tree"
-                    onPointerDown={onTreeHandleDown}
-                    onPointerMove={onTreeHandleMove}
-                    onPointerUp={onTreeHandleUp}
-                    className="group relative z-10 -mx-1 w-2 shrink-0 cursor-col-resize touch-none"
+                    onPointerDown={interactive ? onTreeHandleDown : undefined}
+                    onPointerMove={interactive ? onTreeHandleMove : undefined}
+                    onPointerUp={interactive ? onTreeHandleUp : undefined}
+                    className={`group relative z-10 -mx-1 w-2 shrink-0 touch-none ${interactive ? "cursor-col-resize" : "pointer-events-none"}`}
                 >
                     <div
                         className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${treeDragging ? "bg-colorPrimary" : "bg-transparent group-hover:bg-colorPrimary"}`}

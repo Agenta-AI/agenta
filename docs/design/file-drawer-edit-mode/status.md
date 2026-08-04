@@ -160,6 +160,24 @@ turns out badly in QA.
 - **Do not push, do not open a PR, do not merge from this worktree.** The orchestrator does that.
 - Never touch `/home/mahmoud/code/agenta-2`. A release is running there.
 
+## Implementation checkpoint — 2026-08-04
+
+Build-order steps 1–10 and 12 are implemented. The Fern multipart write boundary, Jotai buffer
+state machine, conflict-safe save path, SharedEditor surface, drawer/header/tree wiring, guarded
+navigation, markdown preview, session warning, and focused unit tests are complete.
+
+Validation from `web/oss`:
+
+- `npx vitest run src/components/Drives` — 4 files passed, 70 tests passed
+- `npx tsc --noEmit` — passed with no errors
+- `pnpm lint-fix` from `web` — passed; the existing React Compiler warnings remain in
+  `VirtualTileGrid.tsx` and `useDriveTreeViewport.ts`
+- semantic-token audit — no new raw colors, inline styles, CSS-in-JS, or replacement editor
+
+Live backend verification and browser QA remain unrun because this worktree has no local stack or
+browser. The five-extension byte round-trip, both themes, caret placement, and every interactive
+guard route remain in the live QA checklist below.
+
 ## Live QA to run before calling it done
 
 From `CONTEXT.md`: edit and save `.txt`, `.csv`, `.md`, `.env`, and `.json`. For each, confirm the

@@ -35,6 +35,10 @@ import {DriveTreePane} from "./DriveTreePane"
 import {looksLikeFilePath} from "./driveTreeView"
 import {type DriveId, type DriveScope} from "./driveTypes"
 import {type DroppedFile} from "./dropEntries"
+import {DriveEditBanner} from "./editMode/components/DriveEditBanner"
+import {DriveEditBar} from "./editMode/components/DriveEditBar"
+import {driveEditFacetsAtom, type NavigationIntent} from "./editMode/state"
+import {useDriveEditController} from "./editMode/useDriveEditController"
 import {FolderView} from "./FolderView"
 import {useDriveDownloadAll} from "./useDriveDownloadAll"
 import {useDriveFilters} from "./useDriveFilters"
@@ -66,6 +70,7 @@ export function DriveExplorer({
     onToggleExpand,
     stagedFiles,
     onStagedChange,
+    registerEditNavigationRunner,
 }: {
     drive: SessionDriveData
     /** Render this flat list instead of the mount's lazy-loaded tree — the local-file mode used to
@@ -86,6 +91,7 @@ export function DriveExplorer({
      * and clicks "Upload here" — shown as ghost tiles in the grid. The host owns the list. */
     stagedFiles?: DroppedFile[]
     onStagedChange?: (files: DroppedFile[]) => void
+    registerEditNavigationRunner?: (runner: ((intent: NavigationIntent) => void) | null) => void
 }) {
     const rootLabel = driveRootLabel(drive.mount)
     const {
@@ -109,6 +115,7 @@ export function DriveExplorer({
     const download = useDriveItemDownload(drive)
     const copyText = useCopyText()
     const projectId = useAtomValue(projectIdAtom)
+    const editFacets = useAtomValue(driveEditFacetsAtom)
     // Chrome mode renders the single header + toolbar (the drawer hosts always pass onClose).
     const chrome = onClose != null
     // Details toggle, lifted so the ONE header owns it (file meta OR repo facts, per selection).
@@ -134,7 +141,14 @@ export function DriveExplorer({
         removeStaged,
         retryUpload,
         dismissUpload,
-    } = useDriveUploads({drive, explicitFiles, select, stagedFiles, onStagedChange})
+    } = useDriveUploads({
+        drive,
+        explicitFiles,
+        select,
+        enabled: !editFacets.editing,
+        stagedFiles,
+        onStagedChange,
+    })
 
     const {
         lazyTree,
@@ -196,6 +210,21 @@ export function DriveExplorer({
         selectedIsFolder && selectedPath
             ? (selectedNode?.itemCount ?? selectedNode?.children.length ?? null)
             : null
+
+    const edit = useDriveEditController({
+        driveKey: drive.mount?.id ?? "",
+        resolveMountPath: drive.resolveMount,
+        selectedPath,
+        selectedIsFolder,
+        selectedSize: selectedFileSize ?? null,
+        scope,
+        canEditMountFiles: canUpload,
+        includeGitignored: showGitignored,
+        select,
+        close: onClose ?? (() => undefined),
+        registerNavigationRunner: registerEditNavigationRunner,
+    })
+    const uploadsEnabled = canUpload && !edit.editing
 
     const {onMeasureContent, scrollXFor, attachTreeWheel} = useTreeGroupScroll({
         deferredSearch,
@@ -266,8 +295,8 @@ export function DriveExplorer({
                     // tile on open. With the tree shown, the tree owns focus, so don't.
                     autoFocus={!treeVisible}
                     anticipateShift={treeShift}
-                    onSelect={select}
-                    drop={canUpload ? drop : undefined}
+                    onSelect={edit.select}
+                    drop={uploadsEnabled ? drop : undefined}
                     // Uploads are injected into the tree under their folder; decorate the matching node.
                     pendingUploadByPath={pendingUploadByPath}
                     onRetryUpload={retryUpload}
@@ -288,15 +317,16 @@ export function DriveExplorer({
                     size={selected?.size ?? undefined}
                     hideHeader={chrome}
                     detailsOpen={detailsOpen}
-                    onSelect={select}
+                    onSelect={edit.select}
                 />
             )
         body = (
             <DriveTreePane
                 pane={pane}
+                interactive={!edit.editing}
                 treeScrollRef={treeScrollRef}
                 onTreeKeyDown={onTreeKeyDown}
-                treeDropProps={canUpload ? drop.containerDropProps(currentFolder) : undefined}
+                treeDropProps={uploadsEnabled ? drop.containerDropProps(currentFolder) : undefined}
                 rows={
                     <DriveTreeList
                         flatRows={flatRows}
@@ -307,17 +337,18 @@ export function DriveExplorer({
                         firstEverPaths={firstEverPaths}
                         shownExpanded={shownExpanded}
                         selectedPath={selectedPath}
+                        dirtyPath={edit.dirtyPath}
                         showOrigin={showOrigin}
                         isDirLoading={isDirLoading}
                         scrollXFor={scrollXFor}
                         onMeasureContent={onMeasureContent}
-                        canUpload={canUpload}
+                        canUpload={uploadsEnabled}
                         drop={drop}
                         pendingUploadByPath={pendingUploadByPath}
                         onRetryUpload={retryUpload}
                         onDismissUpload={dismissUpload}
                         setExpanded={setExpanded}
-                        select={select}
+                        select={edit.select}
                         copyPath={copyPath}
                         download={download}
                     />
@@ -346,7 +377,7 @@ export function DriveExplorer({
                         isRepo={headerRepo.isRepo}
                         detailsOpen={detailsOpen}
                         onToggleDetails={() => setDetailsOpen((v) => !v)}
-                        onNavigate={select}
+                        onNavigate={edit.select}
                         onClose={onClose}
                         copyText={copyText}
                         ids={driveIds ?? []}
@@ -368,6 +399,17 @@ export function DriveExplorer({
                         onUpload={canUpload ? () => uploadInputRef.current?.click() : undefined}
                         stagedCount={staged.length}
                         onUploadStaged={commitStaged}
+                        edit={{
+                            availability: edit.availability,
+                            editing: edit.editing,
+                            dirty: edit.dirty,
+                            saving: edit.saving,
+                            justSaved: edit.justSaved,
+                            statusText: edit.statusText,
+                            onEdit: edit.onEdit,
+                            onCancel: edit.onCancel,
+                            onSave: edit.onSave,
+                        }}
                     />
                     <input
                         ref={uploadInputRef}
@@ -390,21 +432,30 @@ export function DriveExplorer({
                     {/* Pending uploads render as tiles in the grid + a pinned group in the tree (both
                         drawer-global), so no separate header banner here — a banner that mounts/unmounts
                         shoved the toolbar + panes on every upload state change. */}
-                    <DriveToolbar
-                        search={search}
-                        setSearch={setSearch}
-                        searchActive={searchActive}
-                        showTree={showTree}
-                        treeVisible={treeVisible}
-                        toggleTree={toggleTree}
-                        showOrigin={showOrigin}
-                        originFilter={originFilter}
-                        setOriginFilter={setOriginFilter}
-                        showHidden={showHidden}
-                        setShowHidden={setShowHidden}
-                        inGitScope={inGitScope}
-                        showGitignored={showGitignored}
-                        setShowGitignored={setShowGitignored}
+                    {edit.editing ? (
+                        <DriveEditBar />
+                    ) : (
+                        <DriveToolbar
+                            search={search}
+                            setSearch={setSearch}
+                            searchActive={searchActive}
+                            showTree={showTree}
+                            treeVisible={treeVisible}
+                            toggleTree={toggleTree}
+                            showOrigin={showOrigin}
+                            originFilter={originFilter}
+                            setOriginFilter={setOriginFilter}
+                            showHidden={showHidden}
+                            setShowHidden={setShowHidden}
+                            inGitScope={inGitScope}
+                            showGitignored={showGitignored}
+                            setShowGitignored={setShowGitignored}
+                        />
+                    )}
+                    <DriveEditBanner
+                        onRetry={edit.onRetry}
+                        onReload={edit.onReload}
+                        onOverwrite={edit.onOverwrite}
                     />
                     <div className="flex min-h-0 flex-1 flex-col">{body}</div>
                 </div>

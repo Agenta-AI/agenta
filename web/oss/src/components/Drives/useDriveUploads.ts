@@ -31,6 +31,7 @@ export function useDriveUploads({
     drive,
     explicitFiles,
     select,
+    enabled = true,
     stagedFiles,
     onStagedChange,
 }: {
@@ -39,6 +40,7 @@ export function useDriveUploads({
     explicitFiles?: MountFile[]
     /** The explorer's selection callback — a drop springs-loads into the hovered folder. */
     select: (path: string | null) => void
+    enabled?: boolean
     stagedFiles?: DroppedFile[]
     onStagedChange?: (files: DroppedFile[]) => void
 }) {
@@ -87,8 +89,8 @@ export function useDriveUploads({
     // Drag-and-drop uploads: highlight + spring-load into folders, drop to upload. Disabled in the
     // local-file preview (no mount to write to).
     const drop = useDriveDrop({
-        enabled: canUpload,
-        onUpload: canUpload ? uploadIntoFolder : () => {},
+        enabled: canUpload && enabled,
+        onUpload: canUpload && enabled ? uploadIntoFolder : () => {},
         onNavigate: select,
     })
 

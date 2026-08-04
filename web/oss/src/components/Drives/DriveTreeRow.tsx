@@ -17,6 +17,7 @@ export const TreeRow = ({
     depth,
     isOpen,
     selected,
+    dirty,
     showOrigin,
     parent,
     scrollX,
@@ -32,6 +33,7 @@ export const TreeRow = ({
     depth: number
     isOpen: boolean
     selected: boolean
+    dirty?: boolean
     /** This folder is expanded and its children are still being fetched — swap the caret for a spinner. */
     loading?: boolean
     /** Tag top-level nodes with their origin (agent-files vs session) — only when mixed. */
@@ -141,6 +143,12 @@ export const TreeRow = ({
                         <span className="shrink-0 text-[11px] text-colorTextQuaternary">
                             {humanSize(node.size)}
                         </span>
+                    ) : null}
+                    {dirty ? (
+                        <span
+                            aria-label="Unsaved changes"
+                            className="h-1.5 w-1.5 shrink-0 rounded-full bg-colorWarning"
+                        />
                     ) : null}
                     {/* In-flight upload status, trailing the name — the row is otherwise a normal file row. */}
                     {pending && !pending.error && pending.percent < 100 ? (
