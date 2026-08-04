@@ -94,6 +94,7 @@ export {
     latestMountFilesQueryKey,
     mountDirQueryKey,
     mountFileContentQueryKey,
+    invalidateMountListings,
 } from "./state/mounts"
 export {
     detectFileActivity,

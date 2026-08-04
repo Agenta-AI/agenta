@@ -3,7 +3,7 @@ import type {CodeLanguage} from "@agenta/ui/editor"
 
 import {driveCodeLanguage, resolveDriveFileKind, TEXT_CAP, type DriveFileKind} from "../driveKinds"
 
-export const EDIT_KINDS = new Set<DriveFileKind>([
+export const EDIT_KINDS: ReadonlySet<DriveFileKind> = new Set([
     "markdown",
     "text",
     "code",
@@ -16,34 +16,41 @@ export type DriveEditAvailability =
     | "enabled"
     | "loading"
     | "unreadable"
+    | "listing-unavailable"
     | "too-large"
     | "unavailable"
 
 export interface DriveEditAvailabilityInput {
     kind: DriveFileKind
     listingSize: number | null
-    contentLength: number | null
+    contentByteLength: number | null
     isPending: boolean
+    isFetching: boolean
     canEdit: boolean
 }
 
 export function driveEditAvailability({
     kind,
     listingSize,
-    contentLength,
+    contentByteLength,
     isPending,
+    isFetching,
     canEdit,
 }: DriveEditAvailabilityInput): DriveEditAvailability {
     if (!canEdit || !EDIT_KINDS.has(kind)) return "unavailable"
     if (listingSize != null && listingSize > TEXT_CAP) return "too-large"
-    if (isPending) return "loading"
-    if (contentLength == null) return "unreadable"
-    if (contentLength > TEXT_CAP) return "too-large"
+    if (isPending || isFetching) return "loading"
+    if (contentByteLength == null) return "unreadable"
+    if (contentByteLength > TEXT_CAP) return "too-large"
     return "enabled"
 }
 
-export function driveEditBufferMode(path: string): "markdown" | "code" {
-    return resolveDriveFileKind(path) === "markdown" ? "markdown" : "code"
+export function supportsMarkdownPreview(path: string): boolean {
+    return resolveDriveFileKind(path) === "markdown"
+}
+
+export function utf8ByteLength(content: string): number {
+    return new TextEncoder().encode(content).length
 }
 
 export function driveEditorLanguage(path: string): CodeLanguage {
@@ -83,6 +90,9 @@ export function conflictFromListing(
     const entry = listing.find((file) => file.path === path)
     if (!entry) return {reason: "missing", theirMtime: null}
     const theirMtime = entry.mtime ?? null
-    if (baseMtime == null || theirMtime == null || baseMtime === theirMtime) return null
+    if (baseMtime == null) {
+        return theirMtime == null ? null : {reason: "changed", theirMtime}
+    }
+    if (theirMtime == null || baseMtime === theirMtime) return null
     return {reason: "changed", theirMtime}
 }

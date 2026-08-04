@@ -11,7 +11,12 @@ import {DriveBreadcrumb} from "./DriveBreadcrumb"
 import {DriveFileContentViewer, DriveFileDownloadButton} from "./DriveFileContentViewer"
 import {META_REVEAL} from "./driveMotion"
 import {DriveFileEditor} from "./editMode/components/DriveFileEditor"
-import {driveEditBufferAtom} from "./editMode/state"
+import {
+    driveEditDisplayPathAtomFamily,
+    driveEditingAtomFamily,
+    driveEditTargetMountAtomFamily,
+    driveEditTargetPathAtomFamily,
+} from "./editMode/state"
 import {DriveFileMetaList} from "./fileMeta"
 import {OriginTag} from "./OriginTag"
 import {fileOrigin} from "./useSessionDrive"
@@ -21,6 +26,7 @@ import {fileOrigin} from "./useSessionDrive"
  * view, so the file info never scrolls away with the content. */
 export const DriveFilePreview = ({
     mount,
+    driveKey,
     path,
     displayPath,
     rootLabel,
@@ -32,6 +38,7 @@ export const DriveFilePreview = ({
     onSelect,
 }: {
     mount: Mount | null
+    driveKey: string
     /** Path relative to `mount` — used for reading (content/meta/download). */
     path: string
     /** Path as shown to the user (with the `agent-files/` prefix) — used for the breadcrumb + name.
@@ -53,12 +60,15 @@ export const DriveFilePreview = ({
     const name = shown.split("/").pop() ?? shown
     const [metaExpanded, setMetaExpanded] = useState(false)
     const metaOpen = hideHeader ? Boolean(detailsOpen) : metaExpanded
-    const editBuffer = useAtomValue(driveEditBufferAtom)
+    const editing = useAtomValue(driveEditingAtomFamily(driveKey))
+    const editTargetMount = useAtomValue(driveEditTargetMountAtomFamily(driveKey))
+    const editTargetPath = useAtomValue(driveEditTargetPathAtomFamily(driveKey))
+    const editDisplayPath = useAtomValue(driveEditDisplayPathAtomFamily(driveKey))
     const editingThisFile = Boolean(
-        editBuffer &&
-        editBuffer.targetMountId === mount?.id &&
-        editBuffer.targetPath === path &&
-        editBuffer.displayPath === shown,
+        editing &&
+        editTargetMount === mount?.id &&
+        editTargetPath === path &&
+        editDisplayPath === shown,
     )
 
     return (
@@ -146,7 +156,7 @@ export const DriveFilePreview = ({
 
             <div className="flex min-h-0 flex-1 flex-col p-4 pt-3">
                 {editingThisFile ? (
-                    <DriveFileEditor />
+                    <DriveFileEditor driveKey={driveKey} />
                 ) : (
                     <DriveFileContentViewer
                         mount={mount}

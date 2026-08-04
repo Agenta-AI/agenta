@@ -64,7 +64,7 @@ export function useDriveObjectUrl(
 export function useDriveFileText(
     mount: Mount | null,
     path: string,
-): {data: string | undefined; isPending: boolean} {
+): {data: string | undefined; isPending: boolean; isFetching: boolean} {
     const local = useLocalFile(path)
     const mountQuery = useAtomValue(mountFileContentQueryFamily({mountId: mount?.id ?? "", path}))
     const [text, setText] = useState<string | undefined>(undefined)
@@ -79,8 +79,12 @@ export function useDriveFileText(
             cancelled = true
         }
     }, [local])
-    if (local) return {data: text, isPending: text === undefined}
-    return {data: mountQuery.data as string | undefined, isPending: mountQuery.isPending}
+    if (local) return {data: text, isPending: text === undefined, isFetching: text === undefined}
+    return {
+        data: mountQuery.data as string | undefined,
+        isPending: mountQuery.isPending,
+        isFetching: mountQuery.isFetching,
+    }
 }
 
 /** Download action: saves the local blob directly, or routes to the mount download. */

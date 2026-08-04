@@ -35,3 +35,17 @@ The controller now subscribes to the existing `mountDirQueryFamily` and keeps Ed
 that listing resolves (`web/oss/src/components/Drives/editMode/useDriveEditController.ts:122-147`).
 A genuinely omitted `mtime` still uses the plan's documented null-baseline degradation; a listing
 that simply has not arrived no longer does.
+
+## A small edit-open snapshot race remains
+
+Edit is disabled while either the file-content query or its parent-listing query is fetching. This
+closes the observed stale-content/new-mtime window, but the two queries still settle independently.
+A write that lands after both fetches settle and before the buffer opens can still produce a mixed
+snapshot. A fully coherent open would require the deferred listing -> content -> listing retry loop.
+
+## Listing invalidation remains project-wide
+
+`invalidateMountListings` now lives beside the canonical mount query keys in the non-React session
+state module, so saves no longer import the upload hook dependency graph. Its behavior is unchanged:
+it invalidates all active mount-listing roots in the project, not only the mount that was written.
+Narrowing those keys is deferred because this pass must preserve the existing upload behavior.

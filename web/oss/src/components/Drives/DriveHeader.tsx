@@ -17,6 +17,7 @@ import {Button, Dropdown, type MenuProps, Tag, Tooltip} from "antd"
 import {DriveBreadcrumb} from "./DriveBreadcrumb"
 import {DriveFileDownloadButton} from "./DriveFileContentViewer"
 import {DriveRetryButton} from "./DriveFileRow"
+import {TEXT_CAP} from "./driveKinds"
 import {humanSize} from "./driveTree"
 import {type DriveId} from "./driveTypes"
 import {type DriveEditAvailability} from "./editMode/model"
@@ -28,7 +29,8 @@ const EDIT_DISABLED_REASON: Record<DriveEditAvailability, string> = {
     enabled: "",
     loading: "File content is still loading",
     unreadable: "This file couldn’t be read",
-    "too-large": "Files larger than 1.5 MB can’t be edited",
+    "listing-unavailable": "This file’s change status couldn’t be verified",
+    "too-large": `Files larger than ${humanSize(TEXT_CAP)} can’t be edited`,
     unavailable: "",
 }
 

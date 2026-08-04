@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {type Mount} from "@agenta/entities/session"
-import {type QueryClient} from "@tanstack/react-query"
+import {invalidateMountListings, type Mount} from "@agenta/entities/session"
 import {useAtomValue} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
@@ -64,16 +63,6 @@ export interface MountUpload {
     upload: (files: DroppedFile[], target: MountUploadTarget) => void
     retry: (id: string) => void
     dismiss: (id: string) => void
-}
-
-export function invalidateMountListings(
-    queryClient: QueryClient,
-    projectId: string | null | undefined,
-): void {
-    if (!projectId) return
-    for (const root of ["files", "files-latest", "files-root", "files-dir"]) {
-        void queryClient.invalidateQueries({queryKey: ["mounts", root, projectId]})
-    }
 }
 
 export function useMountUpload(): MountUpload {

@@ -1,28 +1,35 @@
 import {Alert, Button} from "antd"
 import {useAtomValue} from "jotai"
 
-import {driveEditBufferAtom} from "../state"
+import {driveEditDisplayPathAtomFamily, driveEditIssueAtomFamily} from "../state"
+
+const punctuate = (message: string) => {
+    const trimmed = message.trim().replace(/\.{2,}$/, ".")
+    return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`
+}
 
 export function DriveEditBanner({
+    driveKey,
     onRetry,
     onReload,
     onOverwrite,
 }: {
+    driveKey: string
     onRetry: () => void
     onReload: () => void
     onOverwrite: () => void
 }) {
-    const buffer = useAtomValue(driveEditBufferAtom)
-    const issue = buffer?.issue
+    const issue = useAtomValue(driveEditIssueAtomFamily(driveKey))
+    const displayPath = useAtomValue(driveEditDisplayPathAtomFamily(driveKey))
 
-    if (!buffer || !issue) return null
+    if (!issue) return null
 
     if (issue.kind === "error") {
         return (
             <Alert
                 showIcon
                 type="error"
-                message={`${issue.message}. Your changes are still here.`}
+                message={`Couldn’t save this file. ${punctuate(issue.message)} Your changes are still here.`}
                 action={
                     <Button size="small" onClick={onRetry}>
                         Try again
@@ -35,8 +42,8 @@ export function DriveEditBanner({
 
     const message =
         issue.reason === "missing"
-            ? `${buffer.displayPath} was deleted while you were editing. Overwriting will recreate it.`
-            : `${buffer.displayPath} changed while you were editing. Overwriting will replace that version.`
+            ? `${displayPath} was deleted while you were editing. Overwriting will recreate it.`
+            : `${displayPath} changed while you were editing. Overwriting will replace that version.`
 
     return (
         <Alert
@@ -45,9 +52,11 @@ export function DriveEditBanner({
             message={message}
             action={
                 <div className="flex items-center gap-2">
-                    <Button size="small" onClick={onReload}>
-                        Reload from disk
-                    </Button>
+                    {issue.reason === "missing" ? null : (
+                        <Button size="small" onClick={onReload}>
+                            Reload from disk
+                        </Button>
+                    )}
                     <Button size="small" type="primary" onClick={onOverwrite}>
                         Overwrite
                     </Button>

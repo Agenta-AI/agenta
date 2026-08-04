@@ -15,7 +15,7 @@
  * keyboard nav ({@link useDriveTreeKeyboard}), selection reveal ({@link useDriveTreeReveal}) and
  * "Download all" ({@link useDriveDownloadAll}).
  */
-import {type ReactNode, useCallback, useState} from "react"
+import {type ReactNode, useCallback, useRef, useState} from "react"
 
 import {type MountFile} from "@agenta/entities/session"
 import {useAtomValue} from "jotai"
@@ -37,7 +37,7 @@ import {type DriveId, type DriveScope} from "./driveTypes"
 import {type DroppedFile} from "./dropEntries"
 import {DriveEditBanner} from "./editMode/components/DriveEditBanner"
 import {DriveEditBar} from "./editMode/components/DriveEditBar"
-import {driveEditFacetsAtom, type NavigationIntent} from "./editMode/state"
+import {driveEditingAtomFamily, type NavigationIntent} from "./editMode/state"
 import {useDriveEditController} from "./editMode/useDriveEditController"
 import {FolderView} from "./FolderView"
 import {useDriveDownloadAll} from "./useDriveDownloadAll"
@@ -115,7 +115,9 @@ export function DriveExplorer({
     const download = useDriveItemDownload(drive)
     const copyText = useCopyText()
     const projectId = useAtomValue(projectIdAtom)
-    const editFacets = useAtomValue(driveEditFacetsAtom)
+    const driveKey = drive.mount?.id ?? ""
+    const editing = useAtomValue(driveEditingAtomFamily(driveKey))
+    const rootRef = useRef<HTMLDivElement>(null)
     // Chrome mode renders the single header + toolbar (the drawer hosts always pass onClose).
     const chrome = onClose != null
     // Details toggle, lifted so the ONE header owns it (file meta OR repo facts, per selection).
@@ -145,7 +147,7 @@ export function DriveExplorer({
         drive,
         explicitFiles,
         select,
-        enabled: !editFacets.editing,
+        enabled: !editing,
         stagedFiles,
         onStagedChange,
     })
@@ -212,7 +214,7 @@ export function DriveExplorer({
             : null
 
     const edit = useDriveEditController({
-        driveKey: drive.mount?.id ?? "",
+        driveKey,
         resolveMountPath: drive.resolveMount,
         selectedPath,
         selectedIsFolder,
@@ -222,6 +224,7 @@ export function DriveExplorer({
         includeGitignored: showGitignored,
         select,
         close: onClose ?? (() => undefined),
+        rootRef,
         registerNavigationRunner: registerEditNavigationRunner,
     })
     const uploadsEnabled = canUpload && !edit.editing
@@ -309,6 +312,7 @@ export function DriveExplorer({
                     // Preview reads from the file's own mount (cwd or the nested agent-files mount),
                     // but the breadcrumb/name show the presented path (agent-files/ prefix).
                     mount={drive.resolveMount(selectedPath)?.mount ?? drive.mount}
+                    driveKey={driveKey}
                     path={drive.resolveMount(selectedPath)?.path ?? selectedPath}
                     displayPath={selectedPath}
                     showOrigin={showOrigin}
@@ -364,7 +368,7 @@ export function DriveExplorer({
         <>
             {lazyTree.subscribers}
             {onClose ? (
-                <div className="flex h-full min-h-0 w-full flex-col">
+                <div ref={rootRef} className="flex h-full min-h-0 w-full flex-col">
                     <DriveHeader
                         selectedPath={selectedPath}
                         isFolder={selectedIsFolder}
@@ -423,7 +427,7 @@ export function DriveExplorer({
                         drawer-global), so no separate header banner here — a banner that mounts/unmounts
                         shoved the toolbar + panes on every upload state change. */}
                     {edit.editing ? (
-                        <DriveEditBar />
+                        <DriveEditBar driveKey={driveKey} />
                     ) : (
                         <DriveToolbar
                             search={search}
@@ -443,6 +447,7 @@ export function DriveExplorer({
                         />
                     )}
                     <DriveEditBanner
+                        driveKey={driveKey}
                         onRetry={edit.onSave}
                         onReload={edit.onReload}
                         onOverwrite={edit.onOverwrite}

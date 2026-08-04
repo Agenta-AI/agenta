@@ -6,31 +6,31 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import Markdown from "@/oss/components/AgentChatSlice/assets/markdown"
 
-import {driveEditBufferAtom, markTeardownWarnedAtom, setEditDraftAtom} from "../state"
+import {ownedEditBufferAtomFamily, setEditDraftAtom, showTeardownNoticeAtom} from "../state"
 
-export function DriveFileEditor() {
-    const buffer = useAtomValue(driveEditBufferAtom)
+export function DriveFileEditor({driveKey}: {driveKey: string}) {
+    const buffer = useAtomValue(ownedEditBufferAtomFamily(driveKey))
     const setDraft = useSetAtom(setEditDraftAtom)
-    const markTeardownWarned = useSetAtom(markTeardownWarnedAtom)
+    const showTeardownNotice = useSetAtom(showTeardownNoticeAtom)
     const handleChange = useCallback(
         (draft: string) => {
-            setDraft(draft)
+            setDraft({driveKey, draft})
             if (
                 buffer?.scope === "session" &&
-                !buffer.teardownWarned &&
+                !buffer.showTeardownNotice &&
                 draft !== buffer.original
             ) {
-                markTeardownWarned()
+                showTeardownNotice(driveKey)
             }
         },
-        [buffer, markTeardownWarned, setDraft],
+        [buffer, driveKey, setDraft, showTeardownNotice],
     )
 
     if (!buffer) return null
 
-    const saving = buffer.saveStatus === "saving"
+    const disabled = buffer.saveStatus === "saving" || buffer.reloading
     const editorId = `drive-edit-${buffer.bufferId}`
-    const previewing = buffer.mode === "markdown" && buffer.editorView === "preview"
+    const previewing = buffer.supportsMarkdownPreview && buffer.editorView === "preview"
 
     return (
         <div
@@ -39,18 +39,19 @@ export function DriveFileEditor() {
         >
             <EditorProvider
                 codeOnly
+                useNativeCodeNodes
                 language={buffer.language}
                 enableTokens={false}
                 showToolbar={false}
-                disabled={saving}
+                disabled={disabled}
                 id={editorId}
                 className="!h-full !min-h-0 !rounded-none"
             >
                 <SharedEditor
                     id={editorId}
                     editorType="borderless"
-                    state={saving ? "readOnly" : "filled"}
-                    disabled={saving}
+                    state={disabled ? "readOnly" : "filled"}
+                    disabled={disabled}
                     initialValue={buffer.original}
                     value={buffer.draft}
                     handleChange={handleChange}
@@ -59,6 +60,7 @@ export function DriveFileEditor() {
                     autoFocus
                     editorProps={{
                         codeOnly: true,
+                        useNativeCodeNodes: true,
                         language: buffer.language,
                         noProvider: true,
                         showToolbar: false,

@@ -10,6 +10,7 @@
  * never render-critical.
  */
 import {projectIdAtom} from "@agenta/shared/state"
+import type {QueryClient} from "@tanstack/react-query"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
@@ -45,6 +46,16 @@ export const mountDirQueryKey = (
     path: string,
     includeGitignored = false,
 ) => ["mounts", "files-dir", projectId, mountId, path, includeGitignored] as const
+
+export function invalidateMountListings(
+    queryClient: QueryClient,
+    projectId: string | null | undefined,
+): void {
+    if (!projectId) return
+    for (const root of ["files", "files-latest", "files-root", "files-dir"]) {
+        void queryClient.invalidateQueries({queryKey: ["mounts", root, projectId]})
+    }
+}
 
 /** The mounts (drives) bound to one session. */
 export const sessionMountsQueryFamily = atomFamily((sessionId: string) =>

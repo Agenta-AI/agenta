@@ -3,18 +3,23 @@ import {describe, expect, it} from "vitest"
 
 import {
     driveEditBufferAtom,
-    driveEditFacetsAtom,
+    driveEditDirtyAtomFamily,
+    driveEditingAtomFamily,
+    driveEditIssueAtomFamily,
+    driveEditPendingNavigationAtomFamily,
+    editReloadFailedAtom,
     editSaveFailedAtom,
     editSaveSucceededAtom,
     markEditConflictAtom,
-    markTeardownWarnedAtom,
+    markNavigationBlockedWhileSavingAtom,
     openEditBufferAtom,
-    overwriteNextSaveAtom,
     replaceBufferFromRemoteAtom,
     requestNavigationAtom,
     resolveNavigationAtom,
     setEditDraftAtom,
     setEditorViewAtom,
+    showTeardownNoticeAtom,
+    startEditReloadAtom,
     startEditSaveAtom,
     type DriveEditBuffer,
     type NavigationIntent,
@@ -30,7 +35,8 @@ const baseInput: OpenDriveEditBufferInput = {
     scope: "app",
     original: "original\n",
     baseMtime: 100,
-    mode: "code",
+    includeGitignored: false,
+    supportsMarkdownPreview: false,
     language: "code",
 }
 
@@ -42,107 +48,115 @@ const open = (
     return store.get(driveEditBufferAtom)!
 }
 
-const makeDirty = (store: ReturnType<typeof createStore>) => {
-    store.set(setEditDraftAtom, "changed\n")
+const setDraft = (store: ReturnType<typeof createStore>, draft: string, driveKey = "drive-a") => {
+    store.set(setEditDraftAtom, {driveKey, draft})
 }
 
+const request = (
+    store: ReturnType<typeof createStore>,
+    intent: NavigationIntent,
+    driveKey = "drive-a",
+) => store.set(requestNavigationAtom, {driveKey, intent})
+
 describe("drive edit state", () => {
-    it("opens clean, becomes dirty after an edit, and becomes clean after restoring the original", () => {
+    it("scopes editing and dirty selectors to the owning drive", () => {
         const store = createStore()
         open(store)
 
-        expect(store.get(driveEditBufferAtom)?.draft).toBe("original\n")
-        expect(store.get(driveEditFacetsAtom)).toMatchObject({
-            editing: true,
-            dirty: false,
-            saving: false,
-            guardOpen: false,
-        })
-
-        store.set(setEditDraftAtom, "changed\n")
-        expect(store.get(driveEditFacetsAtom).dirty).toBe(true)
-
-        store.set(setEditDraftAtom, "original\n")
-        expect(store.get(driveEditFacetsAtom).dirty).toBe(false)
+        expect(store.get(driveEditingAtomFamily("drive-a"))).toBe(true)
+        expect(store.get(driveEditingAtomFamily("drive-b"))).toBe(false)
+        setDraft(store, "changed\n")
+        expect(store.get(driveEditDirtyAtomFamily("drive-a"))).toBe(true)
+        expect(store.get(driveEditDirtyAtomFamily("drive-b"))).toBe(false)
+        expect(store.get(driveEditIssueAtomFamily("drive-b"))).toBeNull()
     })
 
-    it("updates the editor view without changing another facet", () => {
+    it("opens clean, becomes dirty, and becomes clean after restoring the original", () => {
         const store = createStore()
-        open(store, {mode: "markdown"})
+        open(store)
 
-        store.set(setEditorViewAtom, "preview")
+        expect(store.get(driveEditDirtyAtomFamily("drive-a"))).toBe(false)
+        setDraft(store, "changed\n")
+        expect(store.get(driveEditDirtyAtomFamily("drive-a"))).toBe(true)
+        setDraft(store, "original\n")
+        expect(store.get(driveEditDirtyAtomFamily("drive-a"))).toBe(false)
+    })
 
-        expect(store.get(driveEditFacetsAtom)).toMatchObject({
-            editing: true,
-            dirty: false,
-            mode: "markdown",
+    it("updates the editor view without changing the buffer contents", () => {
+        const store = createStore()
+        open(store, {supportsMarkdownPreview: true})
+
+        store.set(setEditorViewAtom, {driveKey: "drive-a", editorView: "preview"})
+
+        expect(store.get(driveEditBufferAtom)).toMatchObject({
+            original: "original\n",
+            draft: "original\n",
             editorView: "preview",
         })
     })
 
-    it("runs clean navigation immediately and clears the buffer", () => {
+    it("runs clean navigation immediately even when an old issue exists", () => {
         const store = createStore()
-        open(store)
+        const buffer = open(store)
+        store.set(driveEditBufferAtom, {
+            ...buffer,
+            issue: {kind: "error", message: "old failure"},
+        })
         const intent: NavigationIntent = {kind: "select", path: "other.txt"}
 
-        expect(store.set(requestNavigationAtom, intent)).toEqual(intent)
+        expect(request(store, intent)).toEqual(intent)
         expect(store.get(driveEditBufferAtom)).toBeNull()
     })
 
     it("guards dirty navigation and records the pending intent", () => {
         const store = createStore()
         open(store)
-        makeDirty(store)
+        setDraft(store, "changed\n")
         const intent: NavigationIntent = {kind: "close"}
 
-        expect(store.set(requestNavigationAtom, intent)).toBeNull()
-        expect(store.get(driveEditBufferAtom)?.pendingNavigation).toEqual(intent)
-        expect(store.get(driveEditFacetsAtom).guardOpen).toBe(true)
+        expect(request(store, intent)).toBeNull()
+        expect(store.get(driveEditPendingNavigationAtomFamily("drive-a"))).toEqual(intent)
     })
 
-    it("guards navigation when an issue exists even if the draft is clean", () => {
+    it("lets a foreign drive navigate without mutating the owned buffer", () => {
         const store = createStore()
         open(store)
-        store.set(startEditSaveAtom, "request-a")
-        store.set(editSaveFailedAtom, {requestId: "request-a", message: "rejected"})
+        setDraft(store, "changed\n")
+        const before = store.get(driveEditBufferAtom)
+        const intent: NavigationIntent = {kind: "close"}
 
-        expect(store.set(requestNavigationAtom, {kind: "cancel"})).toBeNull()
-        expect(store.get(driveEditBufferAtom)?.pendingNavigation).toEqual({kind: "cancel"})
+        expect(request(store, intent, "drive-b")).toEqual(intent)
+        expect(store.get(driveEditBufferAtom)).toEqual(before)
     })
 
-    it("keeps the buffer and only clears pending navigation", () => {
+    it("keeps or discards guarded navigation", () => {
         const store = createStore()
         open(store)
-        makeDirty(store)
-        store.set(requestNavigationAtom, {kind: "close"})
-        const before = store.get(driveEditBufferAtom)!
+        setDraft(store, "changed\n")
+        request(store, {kind: "close"})
+        const before = store.get(driveEditBufferAtom)
 
-        expect(store.set(resolveNavigationAtom, "keep")).toBeNull()
+        expect(
+            store.set(resolveNavigationAtom, {driveKey: "drive-a", resolution: "keep"}),
+        ).toBeNull()
         expect(store.get(driveEditBufferAtom)).toEqual({...before, pendingNavigation: null})
-    })
 
-    it.each<NavigationIntent>([
-        {kind: "close"},
-        {kind: "cancel"},
-        {kind: "select", path: "other.txt"},
-    ])("discards the buffer before running $kind navigation", (intent) => {
-        const store = createStore()
-        open(store)
-        makeDirty(store)
-        store.set(requestNavigationAtom, intent)
-
-        expect(store.set(resolveNavigationAtom, "discard")).toEqual(intent)
+        request(store, {kind: "close"})
+        expect(
+            store.set(resolveNavigationAtom, {driveKey: "drive-a", resolution: "discard"}),
+        ).toEqual({kind: "close"})
         expect(store.get(driveEditBufferAtom)).toBeNull()
     })
 
-    it("keeps the buffer open when discarding into a reload", () => {
+    it("keeps the buffer when discard resolves to reload", () => {
         const store = createStore()
         open(store)
-        makeDirty(store)
-        const intent: NavigationIntent = {kind: "reload"}
-        store.set(requestNavigationAtom, intent)
+        setDraft(store, "changed\n")
+        request(store, {kind: "reload"})
 
-        expect(store.set(resolveNavigationAtom, "discard")).toEqual(intent)
+        expect(
+            store.set(resolveNavigationAtom, {driveKey: "drive-a", resolution: "discard"}),
+        ).toEqual({kind: "reload"})
         expect(store.get(driveEditBufferAtom)).toMatchObject({
             bufferId: "buffer-a",
             draft: "changed\n",
@@ -150,95 +164,73 @@ describe("drive edit state", () => {
         })
     })
 
-    it("ignores draft changes while saving", () => {
+    it("queues a clean reload without opening a discard path for other navigation", () => {
         const store = createStore()
         open(store)
-        makeDirty(store)
-        const before = store.get(driveEditBufferAtom)
-        store.set(startEditSaveAtom, "request-a")
 
-        store.set(setEditDraftAtom, "typed during save")
-
-        expect(store.get(driveEditBufferAtom)?.draft).toBe(before?.draft)
+        expect(request(store, {kind: "reload"})).toBeNull()
+        expect(store.get(driveEditBufferAtom)).toMatchObject({
+            bufferId: "buffer-a",
+            pendingNavigation: {kind: "reload"},
+        })
     })
 
-    it("ignores stale success, failure, and conflict completions", () => {
+    it("ignores draft changes while saving or reloading", () => {
         const store = createStore()
         open(store)
-        makeDirty(store)
+        setDraft(store, "changed\n")
+        store.set(startEditSaveAtom, "save-a")
+        setDraft(store, "typed during save")
+        expect(store.get(driveEditBufferAtom)?.draft).toBe("changed\n")
+
+        store.set(editSaveFailedAtom, {requestId: "save-a", message: "failed"})
+        store.set(startEditReloadAtom, "reload-a")
+        setDraft(store, "typed during reload")
+        expect(store.get(driveEditBufferAtom)?.draft).toBe("changed\n")
+    })
+
+    it("ignores stale save completions", () => {
+        const store = createStore()
+        open(store)
+        setDraft(store, "changed\n")
         store.set(startEditSaveAtom, "current-request")
         const before = store.get(driveEditBufferAtom)
 
         store.set(editSaveSucceededAtom, "stale-request")
-        expect(store.get(driveEditBufferAtom)).toEqual(before)
         store.set(editSaveFailedAtom, {requestId: "stale-request", message: "stale"})
-        expect(store.get(driveEditBufferAtom)).toEqual(before)
         store.set(markEditConflictAtom, {
             requestId: "stale-request",
             reason: "changed",
             theirMtime: 200,
         })
+
         expect(store.get(driveEditBufferAtom)).toEqual(before)
     })
 
-    it("ignores completions after the buffer was replaced", () => {
-        const store = createStore()
-        open(store)
-        makeDirty(store)
-        store.set(startEditSaveAtom, "request-a")
-        store.set(driveEditBufferAtom, null)
-        open(store, {
-            bufferId: "buffer-b",
-            targetPath: "other.txt",
-            displayPath: "other.txt",
-            original: "other",
-        })
-        const replacement = store.get(driveEditBufferAtom)
+    it("exits on success and preserves the exact draft on failure", () => {
+        const successfulStore = createStore()
+        open(successfulStore)
+        setDraft(successfulStore, "changed\n")
+        successfulStore.set(startEditSaveAtom, "save-a")
+        successfulStore.set(editSaveSucceededAtom, "save-a")
+        expect(successfulStore.get(driveEditBufferAtom)).toBeNull()
 
-        store.set(editSaveSucceededAtom, "request-a")
-        store.set(editSaveFailedAtom, {requestId: "request-a", message: "late"})
-        store.set(markEditConflictAtom, {
-            requestId: "request-a",
-            reason: "missing",
-            theirMtime: null,
-        })
-
-        expect(store.get(driveEditBufferAtom)).toEqual(replacement)
-    })
-
-    it("exits edit mode after the current save succeeds", () => {
-        const store = createStore()
-        open(store)
-        makeDirty(store)
-        store.set(startEditSaveAtom, "request-a")
-
-        store.set(editSaveSucceededAtom, "request-a")
-
-        expect(store.get(driveEditBufferAtom)).toBeNull()
-        expect(store.get(driveEditFacetsAtom).editing).toBe(false)
-    })
-
-    it("preserves the exact draft after the current save fails", () => {
-        const store = createStore()
-        open(store)
-        store.set(setEditDraftAtom, "changed\nwith trailing newline\n")
-        const draft = store.get(driveEditBufferAtom)?.draft
-        store.set(startEditSaveAtom, "request-a")
-
-        store.set(editSaveFailedAtom, {requestId: "request-a", message: "mount rejected"})
-
-        expect(store.get(driveEditBufferAtom)).toMatchObject({
-            draft,
+        const failedStore = createStore()
+        open(failedStore)
+        setDraft(failedStore, "changed\nwith trailing newline\n")
+        failedStore.set(startEditSaveAtom, "save-b")
+        failedStore.set(editSaveFailedAtom, {requestId: "save-b", message: "mount rejected"})
+        expect(failedStore.get(driveEditBufferAtom)).toMatchObject({
+            draft: "changed\nwith trailing newline\n",
             saveStatus: "idle",
             inflightRequestId: null,
             issue: {kind: "error", message: "mount rejected"},
         })
     })
 
-    it("uses one issue slot when conflict and error actions replace each other", () => {
+    it("keeps one issue slot when conflict and error actions replace each other", () => {
         const store = createStore()
         const buffer = open(store)
-
         store.set(driveEditBufferAtom, {
             ...buffer,
             saveStatus: "saving",
@@ -268,76 +260,67 @@ describe("drive edit state", () => {
         })
     })
 
-    it("arms one overwrite and clears the flag when the next save starts", () => {
-        const store = createStore()
-        const buffer = open(store)
-        store.set(driveEditBufferAtom, {
-            ...buffer,
-            issue: {kind: "conflict", reason: "changed", theirMtime: 200},
-        })
-
-        store.set(overwriteNextSaveAtom)
-        expect(store.get(driveEditBufferAtom)).toMatchObject({
-            issue: null,
-            skipConflictCheckOnce: true,
-        })
-
-        store.set(startEditSaveAtom, "overwrite-request")
-        expect(store.get(driveEditBufferAtom)).toMatchObject({
-            saveStatus: "saving",
-            inflightRequestId: "overwrite-request",
-            skipConflictCheckOnce: false,
-        })
-    })
-
-    it("replaces the baseline from remote and leaves a clean buffer open", () => {
+    it("adopts only the matching reload and preserves the refreshed baseline", () => {
         const store = createStore()
         open(store)
-        makeDirty(store)
-        store.set(startEditSaveAtom, "request-a")
-        store.set(editSaveFailedAtom, {requestId: "request-a", message: "rejected"})
+        setDraft(store, "changed\n")
+        store.set(startEditReloadAtom, "reload-a")
 
-        store.set(replaceBufferFromRemoteAtom, {content: "remote\n", mtime: 300})
+        store.set(replaceBufferFromRemoteAtom, {
+            requestId: "stale-reload",
+            content: "stale\n",
+            mtime: 200,
+        })
+        expect(store.get(driveEditBufferAtom)?.draft).toBe("changed\n")
 
+        store.set(replaceBufferFromRemoteAtom, {
+            requestId: "reload-a",
+            content: "remote\n",
+            mtime: 300,
+        })
         expect(store.get(driveEditBufferAtom)).toMatchObject({
             original: "remote\n",
             draft: "remote\n",
             baseMtime: 300,
+            reloading: false,
             issue: null,
         })
-        expect(store.get(driveEditFacetsAtom)).toMatchObject({editing: true, dirty: false})
+        expect(store.get(driveEditDirtyAtomFamily("drive-a"))).toBe(false)
     })
 
-    it("keeps exactly one buffer until guarded selection is discarded", () => {
+    it("records reload failure without manufacturing a save request", () => {
         const store = createStore()
         open(store)
-        makeDirty(store)
-        const intent: NavigationIntent = {kind: "select", path: "second.txt"}
-        store.set(requestNavigationAtom, intent)
+        store.set(startEditReloadAtom, "reload-a")
 
-        store.set(openEditBufferAtom, {
-            ...baseInput,
-            bufferId: "buffer-b",
-            targetPath: "second.txt",
-            displayPath: "second.txt",
-        })
+        store.set(editReloadFailedAtom, {requestId: "reload-a", message: "reload failed"})
+
         expect(store.get(driveEditBufferAtom)).toMatchObject({
-            bufferId: "buffer-a",
-            pendingNavigation: intent,
+            saveStatus: "idle",
+            inflightRequestId: null,
+            reloading: false,
+            inflightReloadRequestId: null,
+            issue: {kind: "error", message: "reload failed"},
         })
-
-        expect(store.set(resolveNavigationAtom, "discard")).toEqual(intent)
-        expect(store.get(driveEditBufferAtom)).toBeNull()
     })
 
-    it("marks the teardown warning and closes explicitly", () => {
+    it("records a blocked navigation attempt while saving", () => {
+        const store = createStore()
+        open(store)
+        setDraft(store, "changed")
+        store.set(startEditSaveAtom, "save-a")
+
+        store.set(markNavigationBlockedWhileSavingAtom, "drive-a")
+
+        expect(store.get(driveEditBufferAtom)?.navigationBlockedWhileSaving).toBe(true)
+    })
+
+    it("shows the teardown notice with an honest field name", () => {
         const store = createStore()
         open(store, {scope: "session"})
 
-        store.set(markTeardownWarnedAtom)
-        expect(store.get(driveEditBufferAtom)?.teardownWarned).toBe(true)
+        store.set(showTeardownNoticeAtom, "drive-a")
 
-        store.set(driveEditBufferAtom, null)
-        expect(store.get(driveEditBufferAtom)).toBeNull()
+        expect(store.get(driveEditBufferAtom)?.showTeardownNotice).toBe(true)
     })
 })

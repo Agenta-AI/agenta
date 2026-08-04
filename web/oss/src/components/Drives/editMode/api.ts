@@ -1,13 +1,13 @@
 import {
     mountDirQueryKey,
     mountFileContentQueryKey,
+    invalidateMountListings,
     queryMountDir,
     writeMountFile,
 } from "@agenta/entities/session"
 import type {QueryClient} from "@tanstack/react-query"
 
 import {parentOf} from "../driveTreeView"
-import {invalidateMountListings} from "../useMountUpload"
 
 import {conflictFromListing, type DriveEditConflict} from "./model"
 
@@ -20,7 +20,6 @@ export interface SaveDriveFileInput {
     baseMtime: number | null
     includeGitignored: boolean
     skipConflictCheck: boolean
-    signal?: AbortSignal
 }
 
 export type SaveDriveFileResult =
@@ -51,7 +50,6 @@ export async function saveDriveFile(
         baseMtime,
         includeGitignored,
         skipConflictCheck,
-        signal,
     } = input
 
     if (!skipConflictCheck) {
@@ -65,7 +63,7 @@ export async function saveDriveFile(
                     path: directory,
                     withCounts: true,
                     includeGitignored,
-                    abortSignal: signal ?? querySignal,
+                    abortSignal: querySignal,
                 }),
             staleTime: 0,
         })
@@ -81,7 +79,6 @@ export async function saveDriveFile(
         mountId: targetMountId,
         path: targetPath,
         content: draft,
-        signal,
     })
     if (!written.ok) return {kind: "error", message: written.message}
 

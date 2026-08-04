@@ -25,7 +25,6 @@ export function DriveEditGuardModal({
             okText="Discard"
             closable={false}
             maskClosable={false}
-            cancelButtonProps={{disabled: saving}}
             okButtonProps={{disabled: saving}}
             width={440}
         >

@@ -66,7 +66,7 @@ export function DriveTreePane({
                         // Vertical scroll is native; horizontal is intercepted (treeScrollRef)
                         // and routed to the hovered row's FOLDER GROUP (transform), so siblings
                         // scroll together. `overscroll-contain` stops rubber-band chaining.
-                        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
+                        className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain transition-opacity ${interactive ? "" : "pointer-events-none opacity-50"}`}
                         onKeyDown={interactive ? onTreeKeyDown : undefined}
                         {...(interactive ? (treeDropProps ?? {}) : {})}
                     >

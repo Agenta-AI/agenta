@@ -1,5 +1,6 @@
 import type {CodeLanguage} from "@agenta/ui/editor"
 import {atom} from "jotai"
+import {atomFamily, selectAtom} from "jotai/utils"
 
 import type {DriveScope} from "../driveTypes"
 
@@ -25,15 +26,18 @@ export interface DriveEditBuffer {
     original: string
     draft: string
     baseMtime: number | null
-    mode: "markdown" | "code"
+    includeGitignored: boolean
+    supportsMarkdownPreview: boolean
     language: CodeLanguage
     editorView: "source" | "preview"
     saveStatus: "idle" | "saving"
     inflightRequestId: string | null
+    reloading: boolean
+    inflightReloadRequestId: string | null
     issue: EditIssue | null
     pendingNavigation: NavigationIntent | null
-    skipConflictCheckOnce: boolean
-    teardownWarned: boolean
+    navigationBlockedWhileSaving: boolean
+    showTeardownNotice: boolean
 }
 
 export type OpenDriveEditBufferInput = Pick<
@@ -46,35 +50,83 @@ export type OpenDriveEditBufferInput = Pick<
     | "scope"
     | "original"
     | "baseMtime"
-    | "mode"
+    | "includeGitignored"
+    | "supportsMarkdownPreview"
     | "language"
 >
 
-export interface DriveEditFacets {
-    editing: boolean
-    dirty: boolean
-    saving: boolean
-    mode: "markdown" | "code"
-    editorView: "source" | "preview"
-    issue: EditIssue | null
-    guardOpen: boolean
-}
-
 export const driveEditBufferAtom = atom<DriveEditBuffer | null>(null)
 
-export const driveEditFacetsAtom = atom<DriveEditFacets>((get) => {
-    const buffer = get(driveEditBufferAtom)
+export const ownedEditBufferAtomFamily = atomFamily((driveKey: string) =>
+    selectAtom(
+        driveEditBufferAtom,
+        (buffer) => (buffer?.driveKey === driveKey ? buffer : null),
+        Object.is,
+    ),
+)
 
-    return {
-        editing: buffer !== null,
-        dirty: buffer ? isEditDirty(buffer.original, buffer.draft) : false,
-        saving: buffer?.saveStatus === "saving",
-        mode: buffer?.mode ?? "code",
-        editorView: buffer?.editorView ?? "source",
-        issue: buffer?.issue ?? null,
-        guardOpen: Boolean(buffer?.pendingNavigation),
-    }
-})
+export const driveEditingAtomFamily = atomFamily((driveKey: string) =>
+    selectAtom(ownedEditBufferAtomFamily(driveKey), (buffer) => buffer !== null),
+)
+export const driveEditBufferIdAtomFamily = atomFamily((driveKey: string) =>
+    selectAtom(ownedEditBufferAtomFamily(driveKey), (buffer) => buffer?.bufferId ?? null),
+)
+export const driveEditDirtyAtomFamily = atomFamily((driveKey: string) =>
+    selectAtom(ownedEditBufferAtomFamily(driveKey), (buffer) =>
+        buffer ? isEditDirty(buffer.original, buffer.draft) : false,
+    ),
+)
+export const driveEditSavingAtomFamily = atomFamily((driveKey: string) =>
+    selectAtom(ownedEditBufferAtomFamily(driveKey), (buffer) => buffer?.saveStatus === "saving"),
+)
+export const driveEditIssueAtomFamily = atomFamily((driveKey: string) =>
+    selectAtom(ownedEditBufferAtomFamily(driveKey), (buffer) => buffer?.issue ?? null, Object.is),
+)
+export const driveEditDirtyPathAtomFamily = atomFamily((driveKey: string) =>
+    selectAtom(ownedEditBufferAtomFamily(driveKey), (buffer) =>
+        buffer && isEditDirty(buffer.original, buffer.draft) ? buffer.displayPath : null,
+    ),
+)
+export const driveEditPendingNavigationAtomFamily = atomFamily((driveKey: string) =>
+    selectAtom(
+        ownedEditBufferAtomFamily(driveKey),
+        (buffer) => buffer?.pendingNavigation ?? null,
+        Object.is,
+    ),
+)
+export const driveEditDisplayPathAtomFamily = atomFamily((driveKey: string) =>
+    selectAtom(ownedEditBufferAtomFamily(driveKey), (buffer) => buffer?.displayPath ?? ""),
+)
+export const driveEditTargetMountAtomFamily = atomFamily((driveKey: string) =>
+    selectAtom(ownedEditBufferAtomFamily(driveKey), (buffer) => buffer?.targetMountId ?? ""),
+)
+export const driveEditTargetPathAtomFamily = atomFamily((driveKey: string) =>
+    selectAtom(ownedEditBufferAtomFamily(driveKey), (buffer) => buffer?.targetPath ?? ""),
+)
+export const driveEditNavigationBlockedAtomFamily = atomFamily((driveKey: string) =>
+    selectAtom(
+        ownedEditBufferAtomFamily(driveKey),
+        (buffer) => buffer?.navigationBlockedWhileSaving ?? false,
+    ),
+)
+export const driveEditPreviewCapabilityAtomFamily = atomFamily((driveKey: string) =>
+    selectAtom(
+        ownedEditBufferAtomFamily(driveKey),
+        (buffer) => buffer?.supportsMarkdownPreview ?? false,
+    ),
+)
+export const driveEditorViewAtomFamily = atomFamily((driveKey: string) =>
+    selectAtom(ownedEditBufferAtomFamily(driveKey), (buffer) => buffer?.editorView ?? "source"),
+)
+export const driveEditorLanguageAtomFamily = atomFamily((driveKey: string) =>
+    selectAtom(ownedEditBufferAtomFamily(driveKey), (buffer) => buffer?.language ?? "code"),
+)
+export const driveEditTeardownNoticeAtomFamily = atomFamily((driveKey: string) =>
+    selectAtom(
+        ownedEditBufferAtomFamily(driveKey),
+        (buffer) => buffer?.showTeardownNotice ?? false,
+    ),
+)
 
 export const openEditBufferAtom = atom(null, (get, set, input: OpenDriveEditBufferInput) => {
     if (get(driveEditBufferAtom)) return
@@ -85,61 +137,75 @@ export const openEditBufferAtom = atom(null, (get, set, input: OpenDriveEditBuff
         editorView: "source",
         saveStatus: "idle",
         inflightRequestId: null,
+        reloading: false,
+        inflightReloadRequestId: null,
         issue: null,
         pendingNavigation: null,
-        skipConflictCheckOnce: false,
-        teardownWarned: false,
+        navigationBlockedWhileSaving: false,
+        showTeardownNotice: false,
     })
 })
 
-export const setEditDraftAtom = atom(null, (get, set, draft: string) => {
+export const setEditDraftAtom = atom(null, (get, set, input: {driveKey: string; draft: string}) => {
     const buffer = get(driveEditBufferAtom)
-    if (!buffer || buffer.saveStatus === "saving") return
+    if (
+        !buffer ||
+        buffer.driveKey !== input.driveKey ||
+        buffer.saveStatus === "saving" ||
+        buffer.reloading
+    ) {
+        return
+    }
 
-    set(driveEditBufferAtom, {...buffer, draft})
+    set(driveEditBufferAtom, {...buffer, draft: input.draft})
 })
 
 export const setEditorViewAtom = atom(
     null,
-    (get, set, editorView: DriveEditBuffer["editorView"]) => {
+    (get, set, input: {driveKey: string; editorView: DriveEditBuffer["editorView"]}) => {
         const buffer = get(driveEditBufferAtom)
-        if (!buffer) return
+        if (!buffer || buffer.driveKey !== input.driveKey) return
 
-        set(driveEditBufferAtom, {...buffer, editorView})
+        set(driveEditBufferAtom, {...buffer, editorView: input.editorView})
     },
 )
 
-/** Returns the intent to run now, or null when the guard took over. */
-export const requestNavigationAtom = atom(null, (get, set, intent: NavigationIntent) => {
-    const buffer = get(driveEditBufferAtom)
-    if (!buffer) return intent
+export const requestNavigationAtom = atom(
+    null,
+    (get, set, input: {driveKey: string; intent: NavigationIntent}) => {
+        const buffer = get(driveEditBufferAtom)
+        if (!buffer || buffer.driveKey !== input.driveKey) return input.intent
 
-    if (isEditDirty(buffer.original, buffer.draft) || buffer.issue) {
-        set(driveEditBufferAtom, {...buffer, pendingNavigation: intent})
-        return null
-    }
+        if (isEditDirty(buffer.original, buffer.draft) || input.intent.kind === "reload") {
+            set(driveEditBufferAtom, {...buffer, pendingNavigation: input.intent})
+            return null
+        }
 
-    set(driveEditBufferAtom, null)
-    return intent
-})
-
-export const resolveNavigationAtom = atom(null, (get, set, resolution: "keep" | "discard") => {
-    const buffer = get(driveEditBufferAtom)
-    const intent = buffer?.pendingNavigation ?? null
-    if (!buffer || !intent) return null
-
-    if (resolution === "keep") {
-        set(driveEditBufferAtom, {...buffer, pendingNavigation: null})
-        return null
-    }
-
-    if (intent.kind === "reload") {
-        set(driveEditBufferAtom, {...buffer, pendingNavigation: null})
-    } else {
         set(driveEditBufferAtom, null)
-    }
-    return intent
-})
+        return input.intent
+    },
+)
+
+export const resolveNavigationAtom = atom(
+    null,
+    (get, set, input: {driveKey: string; resolution: "keep" | "discard"}) => {
+        const buffer = get(driveEditBufferAtom)
+        const intent = buffer?.driveKey === input.driveKey ? buffer.pendingNavigation : null
+        if (!buffer || !intent) return null
+
+        if (input.resolution === "keep") {
+            set(driveEditBufferAtom, {...buffer, pendingNavigation: null})
+            return null
+        }
+
+        if (intent.kind === "reload") {
+            set(driveEditBufferAtom, {...buffer, pendingNavigation: null})
+        } else {
+            set(driveEditBufferAtom, null)
+        }
+        return intent
+    },
+)
 
 export const startEditSaveAtom = atom(null, (get, set, requestId: string) => {
     const buffer = get(driveEditBufferAtom)
@@ -150,7 +216,7 @@ export const startEditSaveAtom = atom(null, (get, set, requestId: string) => {
         saveStatus: "saving",
         inflightRequestId: requestId,
         issue: null,
-        skipConflictCheckOnce: false,
+        navigationBlockedWhileSaving: false,
     })
 })
 
@@ -172,6 +238,7 @@ export const editSaveFailedAtom = atom(
             saveStatus: "idle",
             inflightRequestId: null,
             issue: {kind: "error", message: input.message},
+            navigationBlockedWhileSaving: false,
         })
     },
 )
@@ -199,22 +266,49 @@ export const markEditConflictAtom = atom(
                 reason: input.reason,
                 theirMtime: input.theirMtime,
             },
+            navigationBlockedWhileSaving: false,
         })
     },
 )
 
-export const overwriteNextSaveAtom = atom(null, (get, set) => {
+export const setEditIssueAtom = atom(
+    null,
+    (get, set, input: {driveKey: string; issue: EditIssue | null}) => {
+        const buffer = get(driveEditBufferAtom)
+        if (!buffer || buffer.driveKey !== input.driveKey) return
+        set(driveEditBufferAtom, {...buffer, issue: input.issue})
+    },
+)
+
+export const startEditReloadAtom = atom(null, (get, set, requestId: string) => {
     const buffer = get(driveEditBufferAtom)
     if (!buffer) return
-
-    set(driveEditBufferAtom, {...buffer, issue: null, skipConflictCheckOnce: true})
+    set(driveEditBufferAtom, {
+        ...buffer,
+        reloading: true,
+        inflightReloadRequestId: requestId,
+    })
 })
+
+export const editReloadFailedAtom = atom(
+    null,
+    (get, set, input: {requestId: string; message: string}) => {
+        const buffer = get(driveEditBufferAtom)
+        if (!buffer || buffer.inflightReloadRequestId !== input.requestId) return
+        set(driveEditBufferAtom, {
+            ...buffer,
+            reloading: false,
+            inflightReloadRequestId: null,
+            issue: {kind: "error", message: input.message},
+        })
+    },
+)
 
 export const replaceBufferFromRemoteAtom = atom(
     null,
-    (get, set, input: {content: string; mtime: number | null}) => {
+    (get, set, input: {requestId: string; content: string; mtime: number | null}) => {
         const buffer = get(driveEditBufferAtom)
-        if (!buffer) return
+        if (!buffer || buffer.inflightReloadRequestId !== input.requestId) return
 
         set(driveEditBufferAtom, {
             ...buffer,
@@ -223,15 +317,30 @@ export const replaceBufferFromRemoteAtom = atom(
             baseMtime: input.mtime,
             saveStatus: "idle",
             inflightRequestId: null,
+            reloading: false,
+            inflightReloadRequestId: null,
             issue: null,
-            skipConflictCheckOnce: false,
+            navigationBlockedWhileSaving: false,
         })
     },
 )
 
-export const markTeardownWarnedAtom = atom(null, (get, set) => {
+export const markNavigationBlockedWhileSavingAtom = atom(null, (get, set, driveKey: string) => {
     const buffer = get(driveEditBufferAtom)
-    if (!buffer) return
+    if (
+        !buffer ||
+        buffer.driveKey !== driveKey ||
+        buffer.saveStatus !== "saving" ||
+        buffer.navigationBlockedWhileSaving
+    ) {
+        return
+    }
+    set(driveEditBufferAtom, {...buffer, navigationBlockedWhileSaving: true})
+})
 
-    set(driveEditBufferAtom, {...buffer, teardownWarned: true})
+export const showTeardownNoticeAtom = atom(null, (get, set, driveKey: string) => {
+    const buffer = get(driveEditBufferAtom)
+    if (!buffer || buffer.driveKey !== driveKey || buffer.showTeardownNotice) return
+
+    set(driveEditBufferAtom, {...buffer, showTeardownNotice: true})
 })

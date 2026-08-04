@@ -12,8 +12,10 @@ import {afterAll, afterEach, beforeAll, describe, expect, it, vi} from "vitest"
 import {saveDriveFile, type SaveDriveFileDependencies} from "./api"
 import {
     driveEditBufferAtom,
+    editSaveFailedAtom,
     editSaveSucceededAtom,
     openEditBufferAtom,
+    requestNavigationAtom,
     setEditDraftAtom,
     startEditSaveAtom,
     type NavigationIntent,
@@ -47,7 +49,8 @@ const baseBuffer = {
     scope: "session" as const,
     original: "original",
     baseMtime: 10,
-    mode: "markdown" as const,
+    includeGitignored: false,
+    supportsMarkdownPreview: true,
     language: "code" as const,
 }
 
@@ -55,7 +58,7 @@ const saveDependencies = ({
     listing = [{path: "notes/a.md", size: 8, mtime: 10}],
     size = 7,
 }: {
-    listing?: {path: string; size: number; mtime: number | null}[]
+    listing?: {path: string; size: number; mtime: number | null}[] | null
     size?: number
 } = {}) => {
     const queryDir = vi.fn().mockResolvedValue(listing)
@@ -69,6 +72,54 @@ afterEach(() => {
 })
 
 describe("saveDriveFile", () => {
+    it("fails closed when the directory listing cannot be loaded", async () => {
+        const queryClient = new QueryClient()
+        const {dependencies, writeFile} = saveDependencies({listing: null})
+
+        const result = await saveDriveFile(
+            {
+                queryClient,
+                projectId: "project",
+                targetMountId: "mount-a",
+                targetPath: "notes/a.md",
+                draft: "changed",
+                baseMtime: 10,
+                includeGitignored: false,
+                skipConflictCheck: false,
+            },
+            dependencies,
+        )
+
+        expect(result).toEqual({
+            kind: "error",
+            message: "Couldn’t verify the file before saving",
+        })
+        expect(writeFile).not.toHaveBeenCalled()
+    })
+
+    it("skips the directory fetch for an explicit overwrite", async () => {
+        const queryClient = new QueryClient()
+        const {dependencies, queryDir, writeFile} = saveDependencies()
+
+        const result = await saveDriveFile(
+            {
+                queryClient,
+                projectId: "project",
+                targetMountId: "mount-a",
+                targetPath: "notes/a.md",
+                draft: "changed",
+                baseMtime: 10,
+                includeGitignored: false,
+                skipConflictCheck: true,
+            },
+            dependencies,
+        )
+
+        expect(result.kind).toBe("saved")
+        expect(queryDir).not.toHaveBeenCalled()
+        expect(writeFile).toHaveBeenCalledOnce()
+    })
+
     it("treats a missing listing entry as a conflict", async () => {
         const queryClient = new QueryClient()
         const {dependencies, writeFile} = saveDependencies({listing: []})
@@ -112,6 +163,29 @@ describe("saveDriveFile", () => {
         expect(
             queryClient.getQueryState(mountDirQueryKey("project", "mount-a", "notes", true)),
         ).toBeDefined()
+    })
+
+    it("lets React Query own the pre-write fetch signal", async () => {
+        const queryClient = new QueryClient()
+        const {dependencies, queryDir} = saveDependencies()
+
+        await saveDriveFile(
+            {
+                queryClient,
+                projectId: "project",
+                targetMountId: "mount-a",
+                targetPath: "notes/a.md",
+                draft: "changed",
+                baseMtime: 10,
+                includeGitignored: false,
+                skipConflictCheck: false,
+            },
+            dependencies,
+        )
+
+        expect(queryDir).toHaveBeenCalledWith(
+            expect.objectContaining({abortSignal: expect.any(AbortSignal)}),
+        )
     })
 
     it("uses the resolved agent mount for the fetch, write, and content seed", async () => {
@@ -283,7 +357,7 @@ describe("useDriveEditGuard", () => {
         store.set(projectIdAtom, "project")
         store.set(queryClientAtom, new QueryClient())
         store.set(openEditBufferAtom, baseBuffer)
-        store.set(setEditDraftAtom, "changed")
+        store.set(setEditDraftAtom, {driveKey: "drive-a", draft: "changed"})
         const onClose = vi.fn()
         const guard = mountGuard({initialPath: "notes/a.md", store, onClose})
 
@@ -300,7 +374,7 @@ describe("useDriveEditGuard", () => {
         store.set(projectIdAtom, "project")
         store.set(queryClientAtom, new QueryClient())
         store.set(openEditBufferAtom, baseBuffer)
-        store.set(setEditDraftAtom, "changed")
+        store.set(setEditDraftAtom, {driveKey: "drive-a", draft: "changed"})
         const runNavigation = vi.fn()
         const guard = mountGuard({
             initialPath: "notes/a.md",
@@ -325,7 +399,7 @@ describe("useDriveEditGuard", () => {
         store.set(projectIdAtom, "project")
         store.set(queryClientAtom, new QueryClient())
         store.set(openEditBufferAtom, baseBuffer)
-        store.set(setEditDraftAtom, "changed")
+        store.set(setEditDraftAtom, {driveKey: "drive-a", draft: "changed"})
         const guard = mountGuard({
             initialPath: "notes/a.md",
             store,
@@ -346,7 +420,7 @@ describe("useDriveEditGuard", () => {
         store.set(projectIdAtom, "project")
         store.set(queryClientAtom, new QueryClient())
         store.set(openEditBufferAtom, baseBuffer)
-        store.set(setEditDraftAtom, "changed")
+        store.set(setEditDraftAtom, {driveKey: "drive-a", draft: "changed"})
         const runNavigation = vi.fn()
         const guard = mountGuard({
             initialPath: "notes/new-drive.md",
@@ -361,5 +435,51 @@ describe("useDriveEditGuard", () => {
 
         expect(store.get(driveEditBufferAtom)).toBeNull()
         expect(runNavigation).not.toHaveBeenCalled()
+    })
+
+    it("defers the drive-swap guard while a save is in flight", () => {
+        const store = createStore()
+        store.set(projectIdAtom, "project")
+        store.set(queryClientAtom, new QueryClient())
+        store.set(openEditBufferAtom, baseBuffer)
+        store.set(setEditDraftAtom, {driveKey: "drive-a", draft: "changed"})
+        store.set(startEditSaveAtom, "save-a")
+        const guard = mountGuard({
+            initialPath: "notes/new-drive.md",
+            store,
+            onClose: vi.fn(),
+            driveKey: "drive-b",
+            heldDriveKey: "drive-a",
+        })
+
+        expect(guard.get().holdDrive).toBe(true)
+        expect(guard.get().modal.open).toBe(false)
+
+        act(() => store.set(editSaveFailedAtom, {requestId: "save-a", message: "write failed"}))
+        expect(guard.get().modal.open).toBe(true)
+    })
+
+    it("allows Keep editing to dismiss an existing guard during a save", () => {
+        const store = createStore()
+        store.set(projectIdAtom, "project")
+        store.set(queryClientAtom, new QueryClient())
+        store.set(openEditBufferAtom, baseBuffer)
+        store.set(setEditDraftAtom, {driveKey: "drive-a", draft: "changed"})
+        store.set(requestNavigationAtom, {
+            driveKey: "drive-a",
+            intent: {kind: "close"},
+        })
+        store.set(startEditSaveAtom, "save-a")
+        const guard = mountGuard({
+            initialPath: "notes/a.md",
+            store,
+            onClose: vi.fn(),
+        })
+
+        expect(guard.get().modal.saving).toBe(true)
+        act(() => guard.get().modal.onKeep())
+
+        expect(store.get(driveEditBufferAtom)?.pendingNavigation).toBeNull()
+        expect(guard.get().modal.open).toBe(false)
     })
 })
