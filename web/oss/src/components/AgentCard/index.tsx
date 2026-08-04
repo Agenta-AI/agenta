@@ -151,8 +151,12 @@ const AgentCard = ({
             onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") open()
             }}
-            className={`group box-border flex cursor-pointer flex-col rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated transition-colors hover:border-colorBorder ${
-                isGrid ? "relative h-full gap-2 p-4 pt-7" : "gap-2 p-4"
+            className={`group box-border flex cursor-pointer flex-col transition-colors ${
+                isGrid
+                    ? "relative h-full gap-2 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-4 pt-7 hover:border-colorBorder"
+                    : // No frame in the rail: the section around it is already a card, and a card
+                      // inside a card is the look we just spent the day removing.
+                      "gap-2 rounded-lg p-3 hover:bg-colorFillQuaternary"
             }`}
         >
             {isGrid ? avatar : null}
