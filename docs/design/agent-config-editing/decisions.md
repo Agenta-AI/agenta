@@ -47,9 +47,25 @@ reasoning is in `spikes/engine-spike.md` (D1-D33, O1-O12) and `spikes/runner-spi
 - The characterization tests are the contract for the lifecycle refactor: slices 5-7
   must edit them deliberately.
 
+## Contract phase (team lead, 4 August, after the NO-GO gate)
+
+- The six contracts in `contracts/` are the implementation source of truth. They
+  supersede the matching sections of the two research documents where they differ.
+- Fail-closed defaults adopted from the gate review: every `value_from` import comes
+  from the `imports/` root; unsupported files reject the whole import unless the caller
+  opts into omission; executable permission is caller-declared and default-deny, never
+  derived from file mode bits; frozen approval bytes never ride tool arguments; a cold
+  resume refuses the old approval and raises a new gate.
+- Arbitration: the `value_from` object gains two optional import-policy fields
+  (`on_unsupported`, `allow_executable_files`). The runner consumes and strips them;
+  the engine never sees them. change-set.md §5.1 and workspace-import.md §11
+  cross-reference this.
+- Inline resolution happens only on an explicit allow verdict from the permission
+  plan; a missing authorization for a gated call fails closed.
+
 ## Product calls confirmed by Mahmoud
 
-(Empty. The seven open calls below move here once answered.)
+(Empty. The open calls below move here once answered.)
 
 ## Open product calls (waiting on Mahmoud)
 
@@ -73,4 +89,21 @@ reasoning is in `spikes/engine-spike.md` (D1-D33, O1-O12) and `spikes/runner-spi
    designated subfolder only? Recommended: whole workspace; the approval manifest is
    the control.
 7. **Pi tool removal means hidden (runner Q5).** The tool stays registered but the
-   model cannot see or call it. Recommended: accept.
+   model cannot see or call it. The runner additionally drops the execution binding, so
+   a hidden tool cannot run even if called. Recommended: accept with that invariant.
+8. **Force a gate on every value_from import?** The gate review says always gate; the
+   contracts implement the narrower rule (inline resolution only on an explicit allow
+   verdict). Recommended: keep the narrower rule; it gates by default and respects an
+   explicit allow policy.
+9. **Cold resume after a value_from approval.** The frozen bytes die with the
+   environment. The contract asks again (a second approval prompt) instead of
+   persisting the bytes durably. Recommended: ask again; durable persistence recreates
+   the large-payload storage problem.
+10. **May the agent change its own harness.kind?** It is the most identity-defining
+    field and forces a sandbox rebuild. Recommended: no; human commit only.
+11. **May the agent write parameters outside the agent subtree?** Nothing else lives
+    there today for agent workflows. Recommended: no; scope commits to
+    parameters.agent.
+12. **Store the authored operations for audit?** The RFC promises the diff as a commit
+    artifact; the plan currently drops it. Recommended: store the operations list on
+    the revision commit record; it is small and makes agent commits reviewable.

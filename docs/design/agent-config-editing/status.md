@@ -26,7 +26,14 @@ unspecified; read_config, the editable-scope policy, and the description field n
 real contracts; live tool routes need an applied-generation acknowledgement; the slice
 plan understates dependencies and slices 1, 3, 7 are too big.
 
-Response: the team writes the missing contracts before any slice starts. engine-spike
+Update: all six contracts are written in `contracts/` (change-set, commit-transaction,
+read-config from engine-spike; execution-authorization, workspace-import,
+adapter-matrix from runner-spike). The one cross-contract conflict (the value_from
+schema) is arbitrated and recorded in `decisions.md`. The second gate review runs now.
+Twelve product calls are open for Mahmoud in `decisions.md`.
+
+Original response for the record: the team writes the missing contracts before any
+slice starts. engine-spike
 owns the change-set contract, the commit transaction and response, and the read_config
 contract. runner-spike owns the execution authorization, the workspace import
 boundary, and the corrected adapter matrix. Second gate review after that. Fail-closed
