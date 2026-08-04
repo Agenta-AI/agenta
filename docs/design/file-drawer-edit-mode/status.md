@@ -323,3 +323,25 @@ moved out of the React upload hook into `agenta-entities/session/state/mounts.ts
 
 Still unverified and still owed: manual QA of the caret position under `autoFocus`, the theme
 pass, and the guard-route walkthrough in a live stack.
+
+## Final gate (2026-08-04)
+
+Run from the worktree, against the full branch:
+
+- `cd web/oss && pnpm exec vitest run src/components/Drives` — **6 files, 92 tests, all pass**.
+- `cd web/oss && pnpm exec vitest run` (whole OSS suite) — **31 files, 241 tests, all pass**.
+- `cd web/packages/agenta-entities && pnpm exec vitest run` — **67 files, 939 tests, all pass**
+  (run because this branch touches the session package).
+- `cd web && pnpm type-check` (oss + ee `tsc --noEmit`) — exit 0, no output.
+- `cd web && pnpm lint-fix` — 11/11 turbo tasks successful, 0 errors, no files reformatted.
+  The only warnings are the two pre-existing `react-hooks/incompatible-library` TanStack
+  Virtual warnings in `VirtualTileGrid.tsx` and `useDriveTreeViewport.ts` — neither file is
+  in this branch's diff.
+- antd-migration collision check: `git diff origin/release/v0.109.0...HEAD --
+  web/oss/src/components/Drives/` contains **no** line mentioning `CopyButton`.
+  `FolderView.tsx` is untouched entirely; the `CopyButton size="small"` lines in
+  `DriveFilePreview.tsx:121`, `DriveHeader.tsx:251` and `FolderView.tsx:181` are unchanged.
+- Working tree clean at `65d9821717` + the qa.md commit. `web/oss/test-results/junit.xml` is a
+  tracked vitest artifact that every run rewrites; it was restored rather than committed.
+
+Live QA script for a human: `docs/design/file-drawer-edit-mode/qa.md`.
