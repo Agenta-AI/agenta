@@ -62,7 +62,9 @@ const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) =>
         // was laid out for the full page width — in a narrow column its stats wrapped mid-row and
         // stranded the expand control, which read as a broken grid rather than a compact summary.
         return (
-            <section className="flex flex-col gap-3">
+            // The rail's flex item here is this section, not the card inside it, so it carries
+            // the no-shrink itself.
+            <section className="flex shrink-0 flex-col gap-3">
                 <div className={`flex flex-col gap-3 ${RAIL_CARD_CLASS}`}>
                     <div className="flex items-center gap-2">
                         <ChartLineIcon size={15} className="text-[var(--ag-colorTextSecondary)]" />
