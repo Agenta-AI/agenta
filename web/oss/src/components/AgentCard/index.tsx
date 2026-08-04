@@ -18,11 +18,14 @@ const AVATAR_COLORS = [
     "#a9762a",
 ]
 
-export const agentAvatar = (name: string) => {
+/** Initials come from the NAME, the colour from the ID: two agents can share a name (they often
+ * do — "New agent"), and hashing the name gave them the same avatar, which is the one case the
+ * avatar exists to solve. */
+export const agentAvatar = (name: string, id: string) => {
     const words = name.trim().split(/\s+/).filter(Boolean)
     const initials = (words.length > 1 ? `${words[0][0]}${words[1][0]}` : name.slice(0, 2)) || "?"
     let hash = 0
-    for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
+    for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
     return {initials: initials.toUpperCase(), color: AVATAR_COLORS[hash % AVATAR_COLORS.length]}
 }
 
@@ -45,7 +48,7 @@ const AgentCard = ({
     /** `grid` is the Agents page (a wider cell); `rail` is the home column. */
     variant?: "rail" | "grid"
 }) => {
-    const {initials, color} = agentAvatar(record.name)
+    const {initials, color} = agentAvatar(record.name, record.workflowId)
 
     return (
         <div
@@ -62,15 +65,15 @@ const AgentCard = ({
             <div className="flex items-start gap-3">
                 <span
                     aria-hidden
-                    className="flex size-9 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold text-white"
+                    className="flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
                     style={{background: color}}
                 >
                     {initials}
                 </span>
 
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <div className="flex items-center gap-2">
-                        <span className="min-w-0 truncate text-sm font-semibold text-colorText">
+                        <span className="min-w-0 truncate text-[15px] font-semibold text-colorText">
                             {record.name}
                         </span>
                         {waiting > 0 ? (
@@ -80,12 +83,16 @@ const AgentCard = ({
                                 </span>
                             </Tooltip>
                         ) : null}
+                        {/* Where the mockup puts the session count, which has no API yet. */}
+                        <span className="ml-auto shrink-0 text-xs text-colorTextTertiary">
+                            <AgentActivityCell agentId={record.workflowId} />
+                        </span>
                     </div>
-                    {/* No description field on a workflow row yet, so the meta line carries the
-                        only two facts we actually have. */}
-                    <span className="truncate text-xs text-colorTextTertiary">
-                        <AgentActivityCell agentId={record.workflowId} />
-                    </span>
+                    {record.description ? (
+                        <span className="line-clamp-2 text-[13px] leading-snug text-colorTextSecondary">
+                            {record.description}
+                        </span>
+                    ) : null}
                 </div>
 
                 <Dropdown
@@ -124,7 +131,7 @@ const AgentCard = ({
                     <Button
                         type="text"
                         aria-label="Agent actions"
-                        className="shrink-0"
+                        className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
                         icon={<DotsThreeIcon size={14} />}
                         onClick={(event) => event.stopPropagation()}
                     />
