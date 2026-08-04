@@ -10,8 +10,8 @@
 
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {LabeledField} from "@agenta/ui/components/presentational"
 import {SharedEditor} from "@agenta/ui/shared-editor"
+import {Field} from "@agenta/ui/ui"
 import {Info, Plus, Trash} from "@phosphor-icons/react"
 import {Alert, Button, Input, InputNumber, Modal, Select, Switch, Tooltip, Typography} from "antd"
 import {useAtomValue} from "jotai"
@@ -508,9 +508,9 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
         <div className={className}>
             {/* Response Format */}
             <div className="mb-4">
-                <LabeledField
+                <Field
                     label="Response Format"
-                    description="Choose the format for your evaluation results"
+                    tooltip="Choose the format for your evaluation results"
                 >
                     <Select
                         style={{width: "100%"}}
@@ -524,7 +524,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                             {label: "Categorical (Predefined Options)", value: "categorical"},
                         ]}
                     />
-                </LabeledField>
+                </Field>
             </div>
 
             {/* Boolean info */}
@@ -540,28 +540,22 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
             {/* Continuous fields */}
             {responseFormat === "continuous" && (
                 <div className="mb-4 flex flex-col gap-3">
-                    <LabeledField
-                        label="Minimum"
-                        description="The minimum value for the numeric score range"
-                    >
+                    <Field label="Minimum" tooltip="The minimum value for the numeric score range">
                         <InputNumber
                             style={{width: "100%"}}
                             value={minimum}
                             onChange={handleMinimumChange}
                             disabled={disabled}
                         />
-                    </LabeledField>
-                    <LabeledField
-                        label="Maximum"
-                        description="The maximum value for the numeric score range"
-                    >
+                    </Field>
+                    <Field label="Maximum" tooltip="The maximum value for the numeric score range">
                         <InputNumber
                             style={{width: "100%"}}
                             value={maximum}
                             onChange={handleMaximumChange}
                             disabled={disabled}
                         />
-                    </LabeledField>
+                    </Field>
                 </div>
             )}
 

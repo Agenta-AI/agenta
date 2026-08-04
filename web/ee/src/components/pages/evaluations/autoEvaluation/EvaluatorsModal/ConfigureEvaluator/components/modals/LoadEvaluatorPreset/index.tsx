@@ -1,8 +1,7 @@
 import React, {useMemo} from "react"
 
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import clsx from "clsx"
-
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 
 import {LoadEvaluatorPresetProps} from "./assets/types"
 import LoadEvaluatorPresetContent from "./components/LoadEvaluatorPresetContent"
@@ -41,10 +40,7 @@ const LoadEvaluatorPreset = ({
     return (
         <EnhancedModal
             width={1150}
-            className={clsx(
-                "[&_.ant-modal-content]:h-full [&_.ant-modal-content]:overflow-y-auto",
-                "[&_.ant-modal-body]:h-[600px]",
-            )}
+            className={clsx("h-full overflow-y-auto", '[&_[data-slot="modal-body"]]:h-[600px]')}
             title="Load Preset"
             footer={
                 <LoadEvaluatorPresetFooter

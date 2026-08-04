@@ -14,8 +14,8 @@
  */
 import {useEffect, useRef, useState} from "react"
 
-import {LabeledField} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
+import {Field} from "@agenta/ui/ui"
 import {File as FileIcon, Info, Plus, Trash} from "@phosphor-icons/react"
 import {App, Input, Switch, Tooltip, Typography} from "antd"
 
@@ -263,19 +263,18 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
 
             {/* Right: skill-level fields + the selected file's editor + behaviour toggles. */}
             <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
-                <LabeledField label="Name">
+                <Field label="Name">
                     <Input
                         value={(skill.name as string | undefined) ?? ""}
                         onChange={(e) => set("name", e.target.value)}
                         placeholder="my-skill"
                         disabled={disabled}
                     />
-                </LabeledField>
+                </Field>
 
-                <LabeledField
+                <Field
                     label="Description"
-                    description="The trigger the model matches when deciding to use this skill"
-                    withTooltip
+                    tooltip="The trigger the model matches when deciding to use this skill"
                 >
                     <Input.TextArea
                         value={(skill.description as string | undefined) ?? ""}
@@ -284,13 +283,12 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                         placeholder="When the agent should reach for this skill"
                         disabled={disabled}
                     />
-                </LabeledField>
+                </Field>
 
                 {showSkill ? (
-                    <LabeledField
+                    <Field
                         label="SKILL.md"
-                        description="The Markdown body the harness reads, written after the composed frontmatter"
-                        withTooltip
+                        tooltip="The Markdown body the harness reads, written after the composed frontmatter"
                     >
                         <MarkdownEditor
                             value={(skill.body as string | undefined) ?? ""}
@@ -307,7 +305,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                             // editor is a larger cross-package layout change (LabeledField in @agenta/ui).
                             maxHeight="60vh"
                         />
-                    </LabeledField>
+                    </Field>
                 ) : (
                     <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-2">

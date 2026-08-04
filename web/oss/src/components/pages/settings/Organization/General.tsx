@@ -1,12 +1,12 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {InitialsAvatar} from "@agenta/ui"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {ArrowsLeftRight, Trash} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {App, Button, Form, Input, Select, Typography} from "antd"
 import clsx from "clsx"
 
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
 import type {OrgDetails} from "@/oss/lib/Types"
 import {

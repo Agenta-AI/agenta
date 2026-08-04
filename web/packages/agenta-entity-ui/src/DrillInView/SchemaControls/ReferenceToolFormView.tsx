@@ -200,7 +200,7 @@ export function ReferenceToolFormView({value, onChange, disabled}: ReferenceTool
                     <RailField label="Exposed as" align="center">
                         <div className="flex w-fit max-w-full items-center gap-1 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] py-0.5 pl-2.5 pr-1 font-mono text-xs text-[var(--ag-colorText)]">
                             <span className="truncate">{slug}</span>
-                            <CopyButton text={slug} buttonText={null} icon type="text" />
+                            <CopyButton text={slug} buttonText={null} icon variant="ghost" />
                         </div>
                     </RailField>
 

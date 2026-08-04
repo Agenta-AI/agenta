@@ -20,11 +20,13 @@
 
 import React from "react"
 
-import {Button, Spin, Progress} from "antd"
 import {Download} from "lucide-react"
 
 import type {EntityListCounts} from "../../InfiniteVirtualTable/paginated"
 import {cn, flexLayouts, gapClasses, linkColors, textColors} from "../../utils/styles"
+import {Button, type ButtonProps} from "../ui/button"
+import {Progress} from "../ui/progress"
+import {Spinner} from "../ui/spinner"
 
 // ============================================================================
 // TYPES
@@ -79,7 +81,7 @@ export interface LoadAllButtonProps {
      * Button size
      * @default "small"
      */
-    size?: "small" | "middle" | "large"
+    size?: ButtonProps["size"]
 
     /**
      * Additional CSS class
@@ -109,7 +111,7 @@ export function LoadAllButton({
     loadingLabel = "Loading all...",
     totalCount: totalCountProp,
     loadedCount: loadedCountProp,
-    size = "small",
+    size = "sm",
     className = "",
     block = false,
 }: LoadAllButtonProps) {
@@ -138,13 +140,13 @@ export function LoadAllButton({
     return (
         <div className={cn(flexLayouts.rowCenter, gapClasses.sm, className)}>
             <Button
-                type="text"
+                variant="ghost"
                 size={size}
-                block={block}
+                className={cn(block && "w-full")}
                 onClick={handleClick}
                 disabled={isLoading || !hasMore}
-                icon={isLoading ? <Spin size="small" /> : <Download className="w-3 h-3" />}
             >
+                {isLoading ? <Spinner size="small" /> : <Download className="w-3 h-3" />}
                 {isLoading ? loadingLabel : label}
             </Button>
 
@@ -207,7 +209,7 @@ export function LoadAllInline({
         <span className={className}>
             {isLoading ? (
                 <span className={cn(textColors.tertiary, flexLayouts.rowCenter, gapClasses.xs)}>
-                    <Spin size="small" />
+                    <Spinner size="small" />
                     Loading...
                 </span>
             ) : (

@@ -2,8 +2,9 @@ import {useEffect, useState, type ReactNode} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {Stop} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
 
+import {Button} from "../../components/ui/button"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../components/ui/tooltip"
 import {$isBlankMessage, submitEditorAsMarkdown} from "../assets/submit"
 import {ComposerSendButton} from "../ComposerSendButton"
 
@@ -68,18 +69,14 @@ export function SendButton({
                     }}
                 />
                 <Button
-                    type="text"
-                    shape="circle"
+                    size="icon"
+                    variant="ghost"
+                    className="rounded-control-round"
                     aria-label="Stop"
-                    icon={
-                        <Stop
-                            size={13}
-                            weight="fill"
-                            className="text-[var(--ag-colorTextSecondary)]"
-                        />
-                    }
                     onClick={onStop}
-                />
+                >
+                    <Stop size={13} weight="fill" className="text-[var(--ag-colorTextSecondary)]" />
+                </Button>
             </span>
         )
     }
@@ -88,9 +85,15 @@ export function SendButton({
     const button = <ComposerSendButton onClick={handleClick} disabled={sendDisabled} />
     if (!sendDisabled || !disabledReason) return button
 
+    // The span keeps the tooltip reachable: a disabled button emits no pointer events.
     return (
-        <Tooltip title={disabledReason}>
-            <span className="inline-flex">{button}</span>
-        </Tooltip>
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span className="inline-flex">{button}</span>
+                </TooltipTrigger>
+                <TooltipContent>{disabledReason}</TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     )
 }

@@ -1,4 +1,4 @@
-import {DraftTag} from "@agenta/ui/components"
+import {Tag as AgentaTag} from "@agenta/ui/components"
 import {Dropdown, Space, Tag, Typography} from "antd"
 import type {MenuProps} from "antd"
 
@@ -52,14 +52,14 @@ const VariantDetails = ({
 
             {hasChanges ? (
                 hideDiscard ? (
-                    <DraftTag />
+                    <AgentaTag draft />
                 ) : (
                     <Dropdown
                         trigger={["click"]}
                         menu={{items: draftMenuItems, onClick: onDraftMenuClick}}
                         placement="bottomLeft"
                     >
-                        <DraftTag className="cursor-pointer" />
+                        <AgentaTag draft className="cursor-pointer" />
                     </Dropdown>
                 )
             ) : (
