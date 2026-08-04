@@ -8,10 +8,12 @@ File paths follow the existing observability feature so the new page reads as a 
 it, not a new pattern. Every request and response shape referenced here is specified in
 data-contract.md and verified in capability-review.md.
 
-## Phase 0: backend prerequisites
+## Phase 0: backend fixes (v2 — does not gate v1)
 
-Two backend items gate a trustworthy v1. Neither is frontend work; list and track them before
-the page ships behind its flag.
+Two backend items would make the v1 page more trustworthy, but by decision of the requester they
+are **v2**, not v1 blockers (see scope.md). v1 ships against today's endpoint without them,
+accepting the limits each describes below. Neither is frontend work; list and track them for the
+v2 backend track.
 
 - **Make a killed or rejected query say so.** Today a statement-timeout, a rejected filter, a
   malformed window, and a genuinely empty window all return `{"count": 0, "buckets": []}` with

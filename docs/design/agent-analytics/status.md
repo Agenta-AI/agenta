@@ -9,13 +9,14 @@ written. The workspace holds the plan; implementation has not started, and no br
 
 ## Locked decisions
 
-1. Frontend-first scope, with two backend prerequisites (Phase 0 in plan.md). Charts: Runs,
-   Latency, Cost (coverage-gated total), Tokens (coverage-gated split), and runs per harness /
-   configured model / agent. No Costs prompt/completion split chart; `gen_ai.usage.cost` is a
-   total only. Plus the Agents / Harness / configured-Model filters and the time-range control;
-   harness and configured model are both breakdown charts and filters (decision 3). The two
-   Phase 0 items: make a killed or rejected query distinguishable from an empty one, and
-   investigate the cost / token-split coverage collapse.
+1. Frontend-first scope. The two backend items (Phase 0 in plan.md) are **v2, not v1 blockers**
+   (requester decision, see scope.md); v1 ships against today's endpoint without them. Charts:
+   Runs, Latency, Cost (coverage-gated total), Tokens (coverage-gated split), and runs per
+   harness / configured model / agent. No Costs prompt/completion split chart; `gen_ai.usage.cost`
+   is a total only. Plus the Agents / Harness / configured-Model filters and the time-range
+   control; harness and configured model are both breakdown charts and filters (decision 3). The
+   two deferred Phase 0 items: make a killed or rejected query distinguishable from an empty one,
+   and investigate the cost / token-split coverage collapse.
 2. A net-new page at project scope, named Analytics. The default query aggregates every project
    agent; the Agents filter narrows the set.
 3. An **agent** is an application/workflow artifact. The Agents multi-select lists the project's
@@ -42,8 +43,8 @@ atoms). This feature reuses that spine. The data-layer work: pass explicit metri
 total cost (`gen_ai.usage.cost`) and the token split, read the duration min/max/p95 the current
 mapper drops, read the category `freq` breakdowns, and add the status-filtered failed-run query.
 The endpoint returns the latency, run-count, and breakdown fields directly. Cost and the token
-split stay coverage-gated, because their populated paths collapsed in mid-July — which is why
-the scope carries two backend prerequisites (Phase 0) rather than none.
+split stay coverage-gated, because their populated paths collapsed in mid-July — which is why the
+scope carries two backend items (Phase 0), now deferred to v2 rather than gating v1.
 
 ## Resolved by code verification
 
@@ -76,7 +77,7 @@ the scope carries two backend prerequisites (Phase 0) rather than none.
 
 The Tools chart, the Models chart, the Models filter, and per-model cost. They split into two
 sub-phases, because the two deferred-view enablers (span-focus wiring and a group-by dimension —
-distinct from the two Phase 0 blockers) are not co-equal gates:
+distinct from the two Phase 0 backend items) are not co-equal gates:
 
 - **5a, Tools and Models-share**: needs span-focus wiring only (thread `focus` into
   `build_base_cte`, make `WHERE parent_id IS NULL` conditional). No group-by, because a
