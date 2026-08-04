@@ -11,7 +11,7 @@ import {
     templateCategories,
     type AgentTemplate,
 } from "@/oss/components/pages/agent-home/assets/templates"
-import {PanelSection} from "@/oss/components/PanelSection"
+import {PANEL_ACTION_CLASS, PanelSection} from "@/oss/components/PanelSection"
 
 import {STRIP_COPY} from "./assets/constants"
 import {PAGE_SIZE} from "./assets/pagerMath"
@@ -165,7 +165,7 @@ const TemplateStrip = ({
                         <button
                             type="button"
                             onClick={() => setShowAllRows((wasOpen) => !wasOpen)}
-                            className="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-xs text-colorPrimary"
+                            className={PANEL_ACTION_CLASS}
                         >
                             {showAllRows ? "Show fewer" : `View all ${filtered.length}`}
                         </button>

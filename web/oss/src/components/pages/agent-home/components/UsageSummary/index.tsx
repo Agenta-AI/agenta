@@ -7,7 +7,7 @@ import {useAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import Sort from "@/oss/components/Filters/Sort"
-import {PanelSection} from "@/oss/components/PanelSection"
+import {PANEL_ACTION_CLASS, PanelSection} from "@/oss/components/PanelSection"
 import {useObservabilityDashboard} from "@/oss/state/observability"
 import {observabilityDashboardTimeRangeAtom} from "@/oss/state/observability/dashboard"
 
@@ -74,14 +74,10 @@ const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) =>
                     <button
                         type="button"
                         onClick={() => setExpanded((prev) => !prev)}
-                        className="inline-flex shrink-0 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)]"
+                        className={PANEL_ACTION_CLASS}
                     >
                         {expanded ? "Collapse" : "Expand"}
-                        {expanded ? (
-                            <CaretUp size={14} className="text-[var(--ag-colorTextQuaternary)]" />
-                        ) : (
-                            <CaretDown size={14} className="text-[var(--ag-colorTextQuaternary)]" />
-                        )}
+                        {expanded ? <CaretUp size={14} /> : <CaretDown size={14} />}
                     </button>
                 }
             >

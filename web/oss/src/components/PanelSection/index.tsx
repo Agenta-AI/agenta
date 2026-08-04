@@ -40,6 +40,16 @@ export const PanelScroll = ({children}: {children: ReactNode}) => (
     <div className="min-h-0 shrink overflow-y-auto">{children}</div>
 )
 
+/**
+ * The one style for a section header's action — "View all", "Expand", "+ New agent".
+ *
+ * They had drifted into three treatments (accent link, accent link with a leading plus, muted text
+ * with a caret), which read as three different kinds of action sitting in identical headers. A
+ * header action is always secondary to the section's rows: muted at rest, full-strength on hover.
+ */
+export const PANEL_ACTION_CLASS =
+    "inline-flex shrink-0 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs !text-colorTextSecondary transition-colors hover:!text-colorText"
+
 export const PanelSection = ({
     title,
     titleExtra,

@@ -12,7 +12,7 @@ import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionO
 import {useOpenAgentSession} from "@/oss/components/AgentChatSlice/hooks/useOpenAgentSession"
 import {useSessionActions} from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
 import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
-import {PanelSection} from "@/oss/components/PanelSection"
+import {PANEL_ACTION_CLASS, PanelSection} from "@/oss/components/PanelSection"
 import useURL from "@/oss/hooks/useURL"
 import {projectIdAtom} from "@/oss/state/project"
 
@@ -330,7 +330,7 @@ const SessionListCard = ({
                 ) : null
             }
             extra={
-                <Link href={scopedHref} onClick={handleViewAll} className="shrink-0 text-xs">
+                <Link href={scopedHref} onClick={handleViewAll} className={PANEL_ACTION_CLASS}>
                     View all
                 </Link>
             }

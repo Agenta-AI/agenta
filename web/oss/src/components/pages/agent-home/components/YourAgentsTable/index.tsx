@@ -19,7 +19,7 @@ import {
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
-import {PanelSection} from "@/oss/components/PanelSection"
+import {PANEL_ACTION_CLASS, PanelSection} from "@/oss/components/PanelSection"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
 
@@ -151,7 +151,7 @@ const YourAgentsTable = ({forceEmpty = false, variant = "table"}: YourAgentsTabl
                     <button
                         type="button"
                         onClick={() => router.push(`${baseAppURL}?new=1`)}
-                        className="inline-flex shrink-0 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs text-colorPrimary"
+                        className={PANEL_ACTION_CLASS}
                     >
                         <PlusIcon size={14} />
                         New agent
