@@ -13,7 +13,7 @@ import {
 import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 
-import {PanelSection} from "@/oss/components/PanelSection"
+import {PANEL_ACTION_CLASS, PanelSection} from "@/oss/components/PanelSection"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 
 import {agentConfigSummary} from "./agentConfigSummary"
@@ -119,11 +119,7 @@ const AgentConfigurationCard = ({appId}: {appId: string}) => {
             title="Configuration"
             bodyClassName="flex flex-col px-4 pb-3"
             extra={
-                <button
-                    type="button"
-                    onClick={open}
-                    className="cursor-pointer border-0 bg-transparent p-0 text-xs text-colorPrimary"
-                >
+                <button type="button" onClick={open} className={PANEL_ACTION_CLASS}>
                     Edit
                 </button>
             }
@@ -144,7 +140,9 @@ const AgentConfigurationCard = ({appId}: {appId: string}) => {
                         // expanding row omits it.
                         onOpen={row.expands ? undefined : open}
                         defaultOpen={false}
-                        noDivider={index === rows.length - 1}
+                        // No row rules anywhere in this rail: a line inside a section competes
+                        // with the line that ends it. Rows separate by spacing.
+                        noDivider
                     >
                         {row.expands ? (
                             <InstructionsFileRow

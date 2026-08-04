@@ -9,7 +9,7 @@ import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
 import {agentMountQueryFamily} from "@/oss/components/Drives/agentDrive"
 import {FilesDrawer} from "@/oss/components/Drives/FilesDrawer"
 import {AGENT_FILES_DIR, useSessionDrive} from "@/oss/components/Drives/useSessionDrive"
-import {PanelSection} from "@/oss/components/PanelSection"
+import {PANEL_ACTION_CLASS, PanelSection} from "@/oss/components/PanelSection"
 
 /** Enough to show what the agent is carrying without turning the card into an explorer. */
 const LIMIT = 6
@@ -71,7 +71,7 @@ const AgentFilesCard = ({appId}: {appId: string}) => {
                             setOpenPath(null)
                             setOpen(true)
                         }}
-                        className="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-xs text-colorPrimary"
+                        className={PANEL_ACTION_CLASS}
                     >
                         View all
                     </button>
