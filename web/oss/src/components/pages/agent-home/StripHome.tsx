@@ -233,7 +233,7 @@ const StripHome: React.FC = () => {
                     <div className="box-border flex w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col gap-6 overflow-y-auto pr-1">
                         {/* One sheet: the sections' header bands separate them, and each band
                             pins in turn as the rail scrolls. */}
-                        <PanelSurface>
+                        <PanelSurface className="shrink-0 grow">
                             <HomeSessionsSection limit={10} />
                             <HomeAutomationsSection />
                             <UsageSummary variant="strip" />

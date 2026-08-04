@@ -11,6 +11,7 @@ import {ErrorBoundary} from "react-error-boundary"
 
 import {currentAppAtom} from "@/oss/state/app"
 import {appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
+import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {getProjectValues, useProjectData} from "@/oss/state/project"
 import {
@@ -97,7 +98,9 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
             isAgentTemplates ||
             isAgents ||
             isSessions ||
-            isAppsHome,
+            isAppsHome ||
+            // Asked for by the page — see `layoutFullHeightRequestAtom`.
+            get(layoutFullHeightRequestAtom),
     }
 })
 

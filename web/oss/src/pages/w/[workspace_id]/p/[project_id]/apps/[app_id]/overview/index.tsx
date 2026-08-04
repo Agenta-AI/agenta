@@ -4,6 +4,7 @@ import {PageLayout} from "@agenta/ui"
 import {MoreOutlined} from "@ant-design/icons"
 import {Copy, PencilSimple, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Space, Typography} from "antd"
+import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -159,7 +160,10 @@ const OverviewContent = () => {
     return (
         <>
             <WorkflowPageTitle title="Overview" />
-            <PageLayout className="gap-8">
+            {/* The agent branch runs inside the layout's bounded frame (it asks for it), so the
+                page column must be allowed to shrink or its children can't take a definite
+                height and the per-column scrolls collapse back into one page scroll. */}
+            <PageLayout className={clsx("gap-8", isAgent && "min-h-0")}>
                 <AppDetailsSection />
 
                 {/* An agent's overview is its own surface. Charts move into that layout's usage
