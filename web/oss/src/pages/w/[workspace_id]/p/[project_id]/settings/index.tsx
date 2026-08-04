@@ -53,6 +53,11 @@ const Organization = dynamic(() => import("@/oss/components/pages/settings/Organ
     ssr: false,
 })
 
+const OrganizationGeneral = dynamic(
+    () => import("@/oss/components/pages/settings/Organization/General"),
+    {ssr: false},
+)
+
 const DeleteAccount = dynamic(
     () => import("@/oss/components/pages/settings/Account/DeleteAccount"),
     {ssr: false},
@@ -61,6 +66,11 @@ const DeleteAccount = dynamic(
 const Webhooks = dynamic(() => import("@/oss/components/pages/settings/Webhooks/Webhooks"), {
     ssr: false,
 })
+
+const FeatureFlags = dynamic(
+    () => import("@/oss/components/pages/settings/FeatureFlags/FeatureFlags"),
+    {ssr: false},
+)
 
 interface SettingsProps {
     AuditLogComponent?: React.ComponentType
@@ -108,31 +118,39 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
 
     const isDemoOrg = selectedOrg?.flags?.is_demo ?? false
 
+    const buildOrganizationTitle = useCallback(
+        (label: string) => (
+            <div className="flex items-center gap-2">
+                <span>{label}</span>
+                <Tooltip title={isOrgIdCopied ? "Copied!" : "Click to copy organization ID"}>
+                    <Tag
+                        className="cursor-pointer flex items-center gap-1"
+                        onClick={handleCopyOrgId}
+                    >
+                        <Link size={14} weight="bold" />
+                        <span>Organization ID</span>
+                    </Tag>
+                </Tooltip>
+                {isDemoOrg && <Tag className="bg-[var(--ag-c-0517290F)] m-0 font-normal">demo</Tag>}
+            </div>
+        ),
+        [handleCopyOrgId, isDemoOrg, isOrgIdCopied],
+    )
+
     const {content, title} = useMemo(() => {
         switch (resolvedTab) {
+            case "organizationGeneral":
+                return {
+                    content: <OrganizationGeneral />,
+                    title: buildOrganizationTitle(
+                        getSettingsTabLabel("organizationGeneral", settingsAccess),
+                    ),
+                }
             case "organization":
                 return {
                     content: <Organization />,
-                    title: (
-                        <div className="flex items-center gap-2">
-                            <span>{getSettingsTabLabel("organization", settingsAccess)}</span>
-                            <Tooltip
-                                title={isOrgIdCopied ? "Copied!" : "Click to copy organization ID"}
-                            >
-                                <Tag
-                                    className="cursor-pointer flex items-center gap-1"
-                                    onClick={handleCopyOrgId}
-                                >
-                                    <Link size={14} weight="bold" />
-                                    <span>Organization ID</span>
-                                </Tag>
-                            </Tooltip>
-                            {isDemoOrg && (
-                                <Tag className="bg-[var(--ag-c-0517290F)] m-0 font-normal">
-                                    demo
-                                </Tag>
-                            )}
-                        </div>
+                    title: buildOrganizationTitle(
+                        getSettingsTabLabel("organization", settingsAccess),
                     ),
                 }
             case "llms":
@@ -173,13 +191,18 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                     content: <DeleteAccount />,
                     title: getSettingsTabLabel("account", settingsAccess),
                 }
+            case "featureFlags":
+                return {
+                    content: <FeatureFlags />,
+                    title: getSettingsTabLabel("featureFlags", settingsAccess),
+                }
             default:
                 return {
                     content: <WorkspaceManage />,
                     title: getSettingsTabLabel("workspace", settingsAccess),
                 }
         }
-    }, [resolvedTab, isOrgIdCopied, handleCopyOrgId, isDemoOrg, settingsAccess, AuditLogComponent])
+    }, [resolvedTab, buildOrganizationTitle, settingsAccess, AuditLogComponent])
 
     return (
         <PageLayout

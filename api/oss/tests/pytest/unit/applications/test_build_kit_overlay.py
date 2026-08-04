@@ -5,7 +5,6 @@ from uuid import uuid4
 import pytest
 
 from agenta.sdk.agents.adapters.agenta_builtins import (
-    AGENTA_FORCED_TOOLS,
     BUILD_AN_AGENT_SLUG,
     GETTING_STARTED_WITH_AGENTA_SLUG,
 )
@@ -65,14 +64,11 @@ def _embed_slug(entry: dict) -> str | None:
     return workflow.get("slug")
 
 
-def test_agent_template_overlay_tools_list_is_pinned_with_builtin_grants_first():
-    """Pin the exact overlay tools list: builtin grants, then platform ops, then embeds.
+def test_agent_template_overlay_tools_list_is_pinned():
+    """Pin the exact overlay tools list: platform ops, then embeds.
 
-    The leading builtin grants (``{"type": "builtin", "name": "read"/"bash"}`` from
-    ``AGENTA_FORCED_TOOLS``) are load-bearing: any custom tool on the wire flips Pi's
-    builtin gating from "Pi defaults" to granted-only, so without an explicit ``read``
-    grant the playbook skill is announced but unloadable (live-QA finding 2026-07-05).
-    ``bash`` keeps skill helper scripts runnable.
+    The overlay no longer injects built-in grants: the runner activates every built-in on every
+    Pi run, so the playbook skill loads and its helper scripts run without one.
     """
     overlay = build_agent_template_overlay()
 
@@ -82,10 +78,7 @@ def test_agent_template_overlay_tools_list_is_pinned_with_builtin_grants_first()
     )
     request_input = catalog.retrieve_revision(slug=REQUEST_INPUT_WORKFLOW_SLUG)
 
-    assert AGENTA_FORCED_TOOLS == ["read", "bash"]
     assert overlay["tools"] == [
-        {"type": "builtin", "name": "read"},
-        {"type": "builtin", "name": "bash"},
         *[{"type": "platform", "op": op_name} for op_name in DEFAULT_BUILD_KIT_OPS],
         {
             "@ag.embed": {

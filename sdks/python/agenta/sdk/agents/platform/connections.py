@@ -37,6 +37,7 @@ from ..connections import (
     RuntimeAuthContext,
     UnsupportedConnectionModeError,
 )
+from ..model_catalog import model_input_modalities
 from .connection import PlatformConnection
 
 log = get_module_logger(__name__)
@@ -498,11 +499,16 @@ def _resolve_from_secrets(
     if inferred:
         model = model.model_copy(update={"provider": inferred})
     if connection.mode == "self_managed":
+        provider = model.provider or ""
         return ResolvedConnection(
-            provider=model.provider or "",
+            provider=provider,
             model=model.model,
             credential_mode="runtime_provided",
             env={},
+            # A miss means workspace-only downstream; do not guess.
+            input_modalities=model_input_modalities(
+                harness, model.model, provider=provider or None
+            ),
         )
     if connection.mode != "agenta":
         raise UnsupportedConnectionModeError(mode=str(connection.mode))
@@ -524,13 +530,18 @@ def _resolve_from_secrets(
     ):
         raise chosen.endpoint_resolution_error()
     env = chosen.resolved_env(provider)
+    resolved_model = chosen.selected_model_id(model)
     return ResolvedConnection(
         provider=provider,
-        model=chosen.selected_model_id(model),
+        model=resolved_model,
         deployment=chosen.deployment,
         credential_mode="env" if env else "runtime_provided",
         env=env,
         endpoint=chosen.endpoint,
+        # A miss means workspace-only downstream; do not guess.
+        input_modalities=model_input_modalities(
+            harness, resolved_model, provider=provider
+        ),
     )
 
 

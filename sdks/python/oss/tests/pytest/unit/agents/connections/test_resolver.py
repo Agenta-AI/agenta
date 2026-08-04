@@ -37,6 +37,18 @@ async def test_env_resolver_returns_only_the_requested_provider_var():
     assert resolved.env == {"OPENAI_API_KEY": "sk-openai"}
     assert resolved.model == "gpt-5.5"
     assert resolved.provider == "openai"
+    assert resolved.input_modalities == ["text", "image"]
+
+
+async def test_env_resolver_catalog_miss_leaves_modalities_unknown():
+    resolver = EnvConnectionResolver(env={"OPENAI_API_KEY": "sk-openai"})
+    resolved = await resolver.resolve(
+        model=ModelRef(provider="openai", model="workspace-only-model"),
+        context=_CTX,
+    )
+
+    assert resolved.input_modalities is None
+    assert "modelCapabilities" not in resolved.to_wire()
 
 
 async def test_env_resolver_reads_the_live_process_env(monkeypatch):

@@ -6,12 +6,8 @@ import {
     useTestcaseDrawerNavigation,
     type TestcaseDrawerContentRenderProps,
 } from "@agenta/entity-ui/testcase"
+import {useInfiniteTablePagination, type InfiniteTableStore} from "@agenta/ui/table"
 import {useAtomValue, useSetAtom} from "jotai"
-
-import {
-    useInfiniteTablePagination,
-    type InfiniteTableStore,
-} from "@/oss/components/InfiniteVirtualTable"
 
 import {scenarioStepsQueryFamily} from "../../atoms/scenarioSteps"
 import {

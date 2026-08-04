@@ -26,10 +26,12 @@ const titleFont =
 ---
 
 <header
+  class="ag-sechead"
   style={`display:flex;flex-direction:column;gap:8px;align-items:${align === "center" ? "center" : "flex-start"};text-align:${align};max-width:${width};`}
 >
   {badge && <Badge variant={dark ? "dark" : "default"}>{badge}</Badge>}
   <h2
+    class={size === "xl" ? "ag-sectitle ag-sectitle-xl" : "ag-sectitle"}
     style={`margin:0;font:${titleFont};color:${dark ? "#FFFFFF" : "var(--text-heading)"};text-wrap:pretty;`}
   >
     {title}

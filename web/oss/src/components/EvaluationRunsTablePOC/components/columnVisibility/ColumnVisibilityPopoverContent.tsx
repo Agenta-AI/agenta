@@ -1,15 +1,14 @@
 import {useCallback, useMemo} from "react"
 
+import {
+    ColumnVisibilityPopoverContentBase,
+    type ColumnVisibilityState,
+    type ColumnTreeNode,
+    type ColumnVisibilityNodeMeta,
+} from "@agenta/ui/table"
 import {Typography} from "antd"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
-import {
-    type ColumnVisibilityState,
-    type ColumnTreeNode,
-} from "@/oss/components/InfiniteVirtualTable"
-import ColumnVisibilityPopoverContentBase, {
-    type ColumnVisibilityNodeMeta,
-} from "@/oss/components/InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent"
 import {
     getEvaluatorMetricBlueprintAtom,
     type EvaluatorMetricGroupBlueprint,

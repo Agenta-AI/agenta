@@ -70,6 +70,40 @@ redeploy_service_if_exists() {
     fi
 }
 
+# Redeploying a managed service stops the running container first; if Railway
+# is slow to start the replacement, its private-network DNS name disappears and
+# every dependent boots into gaierror (#5673). Never proceed past a Postgres
+# redeploy until Railway reports the deployment ACTIVE again.
+wait_for_service_active() {
+    local service="$1"
+    local attempts="${RAILWAY_SERVICE_ACTIVE_ATTEMPTS:-30}"
+    local delay="${RAILWAY_SERVICE_ACTIVE_DELAY:-10}"
+    local attempt status
+
+    for ((attempt = 1; attempt <= attempts; attempt++)); do
+        status="$(railway_call status --json 2>/dev/null \
+            | jq -r --arg env "$ENV_NAME" --arg svc "$service" \
+                '.environments.edges[].node | select(.name == $env)
+                 | .serviceInstances.edges[].node | select(.serviceName == $svc)
+                 | .latestDeployment.status // "NONE"' 2>/dev/null | head -n 1)"
+        case "$status" in
+            SUCCESS)
+                return 0
+                ;;
+            FAILED|CRASHED)
+                printf "Service '%s' deployment reached terminal status %s after redeploy.\n" \
+                    "$service" "$status" >&2
+                return 1
+                ;;
+        esac
+        sleep "$delay"
+    done
+
+    printf "Service '%s' did not become ACTIVE within %ss after redeploy; aborting early instead of cascading DNS failures.\n" \
+        "$service" "$((attempts * delay))" >&2
+    return 1
+}
+
 run_alembic_with_retries() {
     local attempt=1
 
@@ -85,6 +119,7 @@ run_alembic_with_retries() {
 
         printf "Alembic failed on attempt %s/%s, retrying after infra redeploy\n" "$attempt" "$ALEMBIC_MAX_ATTEMPTS"
         redeploy_service_if_exists "$POSTGRES_SERVICE"
+        wait_for_service_active "$POSTGRES_SERVICE" || return 1
         sleep "$INFRA_SETTLE_SECONDS"
         attempt=$((attempt + 1))
     done
@@ -153,6 +188,7 @@ render_runner_wrapper() {
     cat > "$dir/Dockerfile" <<EOF
 FROM ${AGENTA_RUNNER_IMAGE}
 
+ENV AGENTA_RUNNER_HOST=0.0.0.0
 ENV AGENTA_RUNNER_PORT=8765
 
 CMD ["node_modules/.bin/tsx", "src/server.ts"]
@@ -242,6 +278,7 @@ sleep "${RAILWAY_POST_BOOTSTRAP_SLEEP:-5}"
 # Ensure infra picks up freshly configured credentials before migrations.
 railway_call link --project "$PROJECT_NAME" --environment "$ENV_NAME" --json >/dev/null
 redeploy_service_if_exists "$POSTGRES_SERVICE"
+wait_for_service_active "$POSTGRES_SERVICE"
 if railway_call service "$REDIS_SERVICE" >/dev/null 2>&1; then
     railway_call up "$TMP_DIR/redis" --path-as-root --service "$REDIS_SERVICE" --detach
 fi

@@ -938,7 +938,7 @@ export const testset = {
 
 ```typescript
 import {testset} from "@/state/entities/testset"
-import {useInfiniteTablePagination} from "@/components/InfiniteVirtualTable"
+import {useInfiniteTablePagination} from "@agenta/ui/table"
 
 const TestsetsTable = () => {
   // Use the paginated store with the table hook

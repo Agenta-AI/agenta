@@ -10,11 +10,21 @@
 
 /** One piece of a message. `text` is all the playground sends today; the rest is plumbed. */
 export interface ContentBlock {
-  type: "text" | "image" | "resource" | "tool_call" | "tool_result" | string;
+  type:
+    | "text"
+    | "image"
+    | "resource"
+    | "attachment"
+    | "tool_call"
+    | "tool_result"
+    | string;
   text?: string;
   data?: string;
   mimeType?: string;
   uri?: string;
+  attachmentId?: string;
+  filename?: string;
+  size?: number;
   // Tool-turn carriers, used for structured-message continuation (cross-turn HITL): a
   // resolved tool call replays as a `tool_call` block plus a `tool_result` block so the
   // model resumes from the result instead of re-asking. The `/messages` egress folds the
@@ -28,8 +38,19 @@ export interface ContentBlock {
 
 export interface ChatMessage {
   role: string;
-  /** A plain string, or ACP-style content blocks (text/image/resource). */
+  /** A plain string, or ACP-style content blocks (text/image/resource/attachment). */
   content: string | ContentBlock[];
+}
+
+export interface AttachmentRef {
+  attachmentId: string;
+  /**
+   * Delivery never trusts wire display fields and re-reads them from the attachment API. Transcript
+   * replay may render the record-sourced fields the runner previously persisted for a warm turn.
+   */
+  filename?: string;
+  mediaType?: string;
+  size?: number;
 }
 
 /**
@@ -323,7 +344,7 @@ export type RenderHint =
   | { kind: "elicitation" };
 
 export type AgentEvent =
-  | { type: "message"; text: string }
+  | { type: "message"; text: string; attachments?: AttachmentRef[] }
   | { type: "thought"; text: string }
   | { type: "message_start"; id: string }
   | { type: "message_delta"; id: string; delta: string }
@@ -378,6 +399,14 @@ export type AgentEvent =
   | { type: "data"; name: string; data: unknown; transient?: boolean }
   | { type: "file"; url: string; mediaType: string }
   | {
+      type: "attachment_delivery";
+      attachmentId: string;
+      outcome: "native" | "workspace_only" | "failed";
+      /** Stable string code, never a display string. */
+      reasonCode: string;
+      workingPath?: string;
+    }
+  | {
       type: "usage";
       input?: number;
       output?: number;
@@ -430,6 +459,13 @@ export interface AgentRunRequest {
   appendSystemPrompt?: string;
   /** Model id ("gpt-5.5") or "provider/id" ("openai-codex/gpt-5.5"). */
   model?: string;
+  /** Resolved model input modalities. Omitted when the resolver cannot determine them. */
+  modelCapabilities?: { inputModalities?: string[] };
+  /**
+   * Codex only: ACP session mode override ("agent" | "read-only" | "agent-full-access"). Absent
+   * means the Codex default (agent-full-access). Ignored by non-Codex harnesses.
+   */
+  harnessMode?: string;
   /**
    * Provider family for the run, e.g. "openai" | "anthropic" | <custom-slug>. Non-secret.
    * Present only when the config carries a structured model ref. See the provider-model-auth
@@ -465,7 +501,7 @@ export interface AgentRunRequest {
   credentialMode?: string;
   /** The conversation so far; the runner picks the latest turn and replays the rest. */
   messages?: ChatMessage[];
-  /** Built-in tools to enable. */
+  /** Deprecated: accepted and ignored. Pi activates every built-in tool on every run. */
   tools?: string[];
   /**
    * Resolved inline skill packages. Each rode the wire as concrete content (references
@@ -581,7 +617,101 @@ export function messageText(
     .join("");
 }
 
-/** The latest user turn: the last user message's text (the wire carries no standalone prompt). */
+export interface CurrentUserTurn {
+  /** The tail message when it is a user turn, else null. Never an earlier message. */
+  message: ChatMessage | null;
+  text: string;
+  attachments: AttachmentRef[];
+  /** The tail carries a legacy inline image block rather than an attachment reference. */
+  hasInlineMedia: boolean;
+  /** A genuinely new user turn: role user, carrying no tool envelope. */
+  isFresh: boolean;
+  carriesToolEnvelope: boolean;
+}
+
+function carriesToolEnvelope(content: ChatMessage["content"]): boolean {
+  return (
+    Array.isArray(content) &&
+    content.some(
+      (block) => block?.type === "tool_call" || block?.type === "tool_result",
+    )
+  );
+}
+
+/** Read only the tail message when it is a user turn. */
+export function currentUserTurn(request: AgentRunRequest): CurrentUserTurn {
+  const messages = request.messages ?? [];
+  const tail = messages[messages.length - 1];
+  if (!tail || tail.role !== "user") {
+    return {
+      message: null,
+      text: "",
+      attachments: [],
+      hasInlineMedia: false,
+      isFresh: false,
+      carriesToolEnvelope: false,
+    };
+  }
+
+  const attachments: AttachmentRef[] = [];
+  let hasInlineMedia = false;
+  if (Array.isArray(tail.content)) {
+    for (const block of tail.content) {
+      hasInlineMedia ||= isLegacyInlineImageBlock(block);
+      const attachmentBlock = block as ContentBlock & {
+        attachmentId?: unknown;
+        filename?: unknown;
+        size?: unknown;
+      };
+      if (
+        attachmentBlock?.type !== "attachment" ||
+        typeof attachmentBlock.attachmentId !== "string"
+      ) {
+        continue;
+      }
+      attachments.push({
+        attachmentId: attachmentBlock.attachmentId,
+        ...(typeof attachmentBlock.filename === "string"
+          ? { filename: attachmentBlock.filename }
+          : {}),
+        ...(typeof block.mimeType === "string"
+          ? { mediaType: block.mimeType }
+          : {}),
+        ...(typeof attachmentBlock.size === "number"
+          ? { size: attachmentBlock.size }
+          : {}),
+      });
+    }
+  }
+
+  const toolEnvelope = carriesToolEnvelope(tail.content);
+  return {
+    message: tail,
+    text: messageText(tail.content),
+    attachments,
+    hasInlineMedia,
+    isFresh: !toolEnvelope,
+    carriesToolEnvelope: toolEnvelope,
+  };
+}
+
+/**
+ * True when the turn carries something the person actually sent: text, an attachment, or inline
+ * media. The single admission rule for "new user content", so callers that decide freshness,
+ * boundaries, or persistence cannot drift apart on an attachment-only or image-only turn.
+ */
+export function userTurnCarriesContent(turn: CurrentUserTurn): boolean {
+  return (
+    turn.text.trim() !== "" ||
+    turn.attachments.length > 0 ||
+    turn.hasInlineMedia
+  );
+}
+
+/**
+ * Approval-resume fallback: scan backward for the most recent non-empty user text. Use
+ * currentUserTurn for the current turn.
+ */
 export function resolvePromptText(request: AgentRunRequest): string {
   const messages = request.messages ?? [];
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -601,4 +731,19 @@ export function resolveRunSessionId(
   return request.sessionId && request.sessionId.trim()
     ? request.sessionId
     : fallback;
+}
+
+/**
+ * Recognize the legacy inline-image shapes still sent by the playground. Keep this shape
+ * predicate at the protocol boundary so current-turn admission and ACP image extraction cannot
+ * drift apart.
+ */
+export function isLegacyInlineImageBlock(
+  block: ContentBlock | null | undefined,
+): block is ContentBlock & { type: "image" } {
+  return (
+    block?.type === "image" &&
+    ((typeof block.uri === "string" && block.uri.startsWith("data:")) ||
+      (typeof block.data === "string" && block.data.length > 0))
+  );
 }

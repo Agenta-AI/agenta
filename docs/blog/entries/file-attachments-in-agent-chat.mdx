@@ -1,0 +1,70 @@
+---
+title: "File Attachments in Agent Chat"
+slug: file-attachments-in-agent-chat
+date: 2026-08-02
+tags: [v0.107.0]
+description: "Attach files and images to agent chat by pasting, dragging and dropping, or uploading a whole folder. Plus simpler built-in tool permissions for Pi agents and better-equipped sandboxes."
+---
+
+<Summary>
+
+{/* TODO(Mahmoud): add a short screenshot or video showing a file being attached to an agent chat message (paste, drag and drop, or the attach button) */}
+
+You can now attach files and images directly to an agent chat message. Paste from your clipboard, drag and drop, click the attach button, or drop a whole folder and Agenta uploads its contents one file at a time.
+
+Attachments belong to the session. Open the Files drawer to see everything that has been added, and the agent can read the same files inside its sandbox.
+
+**Also in this release:**
+
+- Pi's seven built-in tools (read, bash, edit, write, grep, find, ls) are always available now. Control them from the permissions panel instead of the agent configuration.
+- Agent sandboxes ship with more shell tools out of the box: ripgrep, fd, jq, unzip, zip, tree, file, process tools, and a python alias for python3.
+
+**Bug fixes:**
+
+- Approving a tool call no longer evicts a warm agent session, so resuming after an approval is fast again.
+- Denying a tool call now reliably ends the turn.
+- A resolved approval no longer reappears after you reload the page.
+- The session Files drawer now reliably shows that session's own files.
+
+</Summary>
+
+{/* truncate */}
+
+{/* TODO(Mahmoud): add a short screenshot or video showing a file being attached to an agent chat message (paste, drag and drop, or the attach button) */}
+
+Agent chat now takes files and images as attachments, not just text. Give the agent a spreadsheet, a screenshot, or a whole folder of reference material, and it can read them while it works.
+
+## How it works
+
+You can attach a file four ways: paste it from your clipboard, drag it in, click the attach button, or drop a whole folder. When you drop a folder, Agenta uploads its contents one file at a time.
+
+Attachments belong to the session that created them. Open the session's Files drawer to see everything you and the agent have added, and the agent can read those same files from inside its sandbox.
+
+Large files upload in chunks, so a slow connection does not sink the whole upload. If a file is too big, you get a clear message instead of a failed request.
+
+See [Files and knowledge](/concepts/files-and-knowledge) for how session files and agent files differ.
+
+## Simpler built-in tools for Pi agents
+
+Pi agents have always had seven built-in tools: read, bash, edit, write, grep, find, and ls. Until now, you managed them like any other tool, listed as entries in the agent's configuration and in the template.
+
+These tools are now always available. They no longer appear in the agent configuration or the template, so there is one less thing to set up when you build an agent.
+
+Control moves to the permissions panel instead. Every agent has a default policy (reads are allowed out of the box), plus allow, ask, and deny rule lists you can edit. These rules work the same way across harnesses, not only Pi.
+
+If an existing agent's configuration still lists built-in tools from before this change, it keeps working. Agenta just ignores those entries now.
+
+See [Permissions](/concepts/permissions) for how the default policy and rule lists work.
+
+## Better-equipped sandboxes
+
+Agent sandboxes now ship with more everyday shell tools out of the box: ripgrep, fd, jq, unzip, zip, tree, file, process tools, and a python alias for python3. An agent that reaches for one of these no longer needs you to install it first.
+
+See [Customize the agent runtime](/self-host/agent-execution/customize-the-agent-runtime) for the full list of what sandboxes ship with.
+
+## Bug fixes
+
+- Approving a tool call no longer evicts a warm agent session, so resuming after an approval is fast again.
+- Denying a tool call now reliably ends the turn.
+- A resolved approval no longer reappears after you reload the page.
+- The session Files drawer now reliably shows that session's own files.

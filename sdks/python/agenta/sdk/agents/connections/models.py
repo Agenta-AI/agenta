@@ -16,7 +16,7 @@ imports the ``.mcp`` / ``.skills`` / ``.tools`` subsystems), so keep it dependen
 
 from __future__ import annotations
 
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_serializer, model_validator
@@ -181,6 +181,7 @@ class ResolvedConnection(BaseModel):
         default_factory=dict, repr=False
     )  # the ONLY secret channel
     endpoint: Optional[Endpoint] = None  # NON-secret connection config only
+    input_modalities: Optional[List[str]] = None
 
     @field_serializer("env", when_used="always")
     def _mask_env(self, env: Dict[str, str]) -> Dict[str, str]:
@@ -204,6 +205,8 @@ class ResolvedConnection(BaseModel):
             endpoint_wire = self.endpoint.to_wire()
             if endpoint_wire:
                 wire["endpoint"] = endpoint_wire
+        if self.input_modalities is not None:
+            wire["modelCapabilities"] = {"inputModalities": list(self.input_modalities)}
         return wire
 
 

@@ -12,8 +12,10 @@ the service-side derivation (prefix, bucket, policy scope, XML parsing, master-k
 """
 
 from typing import Dict, Optional
+from urllib.parse import parse_qs
 from uuid import uuid4, uuid5, NAMESPACE_DNS
 
+import jwt
 import pytest
 
 from oss.src.core.mounts.dtos import Mount, MountCreate
@@ -409,7 +411,6 @@ class TestStsBackendFork:
         )
         assert cap.url == "http://minio:9000/"
         assert "Action=GetFederationToken" in cap.data
-        assert "DurationSeconds=900" in cap.data
 
     async def test_seaweedfs_uses_web_identity_against_endpoint(self, monkeypatch):
         import oss.src.core.store.storage as storage_mod
@@ -436,3 +437,148 @@ class TestStsBackendFork:
         assert "Action=AssumeRoleWithWebIdentity" in cap.data
         assert "WebIdentityToken=" in cap.data
         assert "Authorization" not in (cap.headers or {})
+
+
+# ---------------------------------------------------------------------------
+# Credential lifetime: STS duration clamps + web-identity token lifetime
+# ---------------------------------------------------------------------------
+
+
+def _seaweedfs_store():
+    from oss.src.core.store.storage import ObjectStore
+
+    return ObjectStore(
+        endpoint_url="http://seaweedfs:8333",
+        access_key=_MASTER_KEY,
+        secret_key=_MASTER_SECRET,
+        signing_key="dummy-signing-key",
+    )
+
+
+def _remote_s3_store():
+    from oss.src.core.store.storage import ObjectStore
+
+    return ObjectStore(
+        endpoint_url="https://s3.eu-central-1.amazonaws.com",
+        sts_endpoint_url="https://sts.eu-central-1.amazonaws.com",
+        access_key=_MASTER_KEY,
+        secret_key=_MASTER_SECRET,
+        region="eu-central-1",
+    )
+
+
+async def _capture_sign(
+    monkeypatch, *, store, duration_seconds: int, xml: str = _STS_XML
+):
+    """Sign against a captured POST; returns the request body fields as parsed form data."""
+    import oss.src.core.store.storage as storage_mod
+
+    cap = _CapturingPost(xml)
+    monkeypatch.setattr(storage_mod.aiohttp, "ClientSession", lambda: cap)
+    await store.sign_temp_credentials(
+        bucket=_BUCKET, prefix="mounts/p/m", duration_seconds=duration_seconds
+    )
+    return parse_qs(cap.data)
+
+
+def _token_lifetime_seconds(token: str) -> int:
+    claims = jwt.decode(token, options={"verify_signature": False})
+    return claims["exp"] - claims["iat"]
+
+
+@pytest.mark.asyncio
+class TestStsDurations:
+    @pytest.mark.parametrize(
+        "ttl, expected_duration, expected_token_lifetime",
+        [
+            # The requested hour, honestly: the token no longer caps the session at 15 minutes.
+            (3600, 3600, 3600),
+            # Sub-900 is a hard SeaweedFS request error, so DurationSeconds is floored and the
+            # short lifetime is delivered through the token expiry, which has no floor.
+            (120, 900, 120),
+            # Both capped at SeaweedFS's 12h maxSessionLength.
+            (90000, 43200, 43200),
+        ],
+    )
+    async def test_seaweedfs_clamps_duration_and_matches_token_lifetime(
+        self, monkeypatch, ttl, expected_duration, expected_token_lifetime
+    ):
+        fields = await _capture_sign(
+            monkeypatch, store=_seaweedfs_store(), duration_seconds=ttl
+        )
+
+        assert fields["Action"] == ["AssumeRoleWithWebIdentity"]
+        assert fields["DurationSeconds"] == [str(expected_duration)]
+        assert (
+            _token_lifetime_seconds(fields["WebIdentityToken"][0])
+            == expected_token_lifetime
+        )
+
+    @pytest.mark.parametrize(
+        "ttl, expected_duration",
+        [(60, 900), (3600, 3600), (200000, 129600)],
+    )
+    async def test_federation_token_duration_clamped_to_aws_range(
+        self, monkeypatch, ttl, expected_duration
+    ):
+        fields = await _capture_sign(
+            monkeypatch, store=_remote_s3_store(), duration_seconds=ttl
+        )
+
+        assert fields["Action"] == ["GetFederationToken"]
+        assert fields["DurationSeconds"] == [str(expected_duration)]
+
+
+_STS_XML_NO_EXPIRATION = _STS_XML.replace(
+    "<Expiration>2026-06-30T08:00:00Z</Expiration>", ""
+)
+
+_STS_XML_BAD_EXPIRATION = _STS_XML.replace(
+    "<Expiration>2026-06-30T08:00:00Z</Expiration>",
+    "<Expiration>not-a-date</Expiration>",
+)
+
+
+@pytest.mark.asyncio
+class TestStsExpiryFailsClosed:
+    @pytest.mark.parametrize("xml", [_STS_XML_NO_EXPIRATION, _STS_XML_BAD_EXPIRATION])
+    @pytest.mark.parametrize("store_factory", [_seaweedfs_store, _remote_s3_store])
+    async def test_sign_refuses_credentials_without_a_usable_expiry(
+        self, monkeypatch, store_factory, xml
+    ):
+        # The runner reads a missing expiry as "never expires", so an unusable one must not
+        # reach it as a signed credential.
+        with pytest.raises(MountStorageUnavailable):
+            await _capture_sign(
+                monkeypatch,
+                store=store_factory(),
+                duration_seconds=3600,
+                xml=xml,
+            )
+
+
+# ---------------------------------------------------------------------------
+# TTL configuration (env)
+# ---------------------------------------------------------------------------
+
+
+class TestMountsCredentialsTtlConfig:
+    @pytest.mark.parametrize(
+        "value, expected",
+        [
+            (None, 3600),
+            ("120", 120),
+            # An unset compose passthrough delivers an empty string, not an absent variable.
+            ("", 3600),
+        ],
+    )
+    def test_credentials_ttl_reads_the_env_at_instantiation(
+        self, monkeypatch, value, expected
+    ):
+        from oss.src.utils.env import MountsConfig
+
+        if value is None:
+            monkeypatch.delenv("AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS", raising=False)
+        else:
+            monkeypatch.setenv("AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS", value)
+        assert MountsConfig().credentials_ttl_seconds == expected

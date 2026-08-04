@@ -19,7 +19,7 @@ import {atomWithStorage} from "jotai/utils"
 
 import type {ConfigItemView} from "../ConfigItemDrawer"
 import {CollapsibleProviderGroup, SubSectionHeader} from "../sectionGroups"
-import {parseGatewayTool} from "../toolUtils"
+import {isHarnessBuiltinTool, parseGatewayTool} from "../toolUtils"
 
 import {describeTool, isFunctionTool} from "./itemDescriptors"
 import {ITEM_KINDS} from "./itemKinds"
@@ -281,39 +281,45 @@ export function ToolManagementList({
 }: ToolManagementListProps) {
     // Partition by kind, preserving each tool's original index (edit/remove address the flat array).
     // Uses only the tool object — no catalog needed here.
-    const {gatewayGroups, gatewayCount, references, definitions, builtins} = useMemo(() => {
-        const references: IndexedTool[] = []
-        const definitions: IndexedTool[] = []
-        const builtins: IndexedTool[] = []
-        const groups = new Map<string, ToolProviderGroup>()
-        tools.forEach((item, index) => {
-            const t = (item ?? {}) as Record<string, unknown>
-            if (t.type === "reference") {
-                references.push({item, index})
-                return
-            }
-            const gw = parseGatewayTool(item)
-            if (gw) {
-                let group = groups.get(gw.integration)
-                if (!group) {
-                    group = {key: gw.integration, items: []}
-                    groups.set(gw.integration, group)
+    const {gatewayGroups, gatewayCount, references, definitions, builtins, visibleCount} =
+        useMemo(() => {
+            const references: IndexedTool[] = []
+            const definitions: IndexedTool[] = []
+            const builtins: IndexedTool[] = []
+            const groups = new Map<string, ToolProviderGroup>()
+            tools.forEach((item, index) => {
+                // Legacy harness built-ins are inert: they render nowhere.
+                if (isHarnessBuiltinTool(item)) return
+                const t = (item ?? {}) as Record<string, unknown>
+                if (t.type === "reference") {
+                    references.push({item, index})
+                    return
                 }
-                group.items.push({item, index})
-                return
-            }
-            if (!isFunctionTool(item)) {
-                builtins.push({item, index})
-                return
-            }
-            definitions.push({item, index})
-        })
-        const gatewayGroups = [...groups.values()]
-        const gatewayCount = gatewayGroups.reduce((n, g) => n + g.items.length, 0)
-        return {gatewayGroups, gatewayCount, references, definitions, builtins}
-    }, [tools])
+                const gw = parseGatewayTool(item)
+                if (gw) {
+                    let group = groups.get(gw.integration)
+                    if (!group) {
+                        group = {key: gw.integration, items: []}
+                        groups.set(gw.integration, group)
+                    }
+                    group.items.push({item, index})
+                    return
+                }
+                if (!isFunctionTool(item)) {
+                    builtins.push({item, index})
+                    return
+                }
+                definitions.push({item, index})
+            })
+            const gatewayGroups = [...groups.values()]
+            const gatewayCount = gatewayGroups.reduce((n, g) => n + g.items.length, 0)
+            const visibleCount =
+                gatewayCount + references.length + definitions.length + builtins.length
+            return {gatewayGroups, gatewayCount, references, definitions, builtins, visibleCount}
+        }, [tools])
 
-    if (tools.length === 0) {
+    // A config carrying only legacy built-in entries renders as empty, so it gets the empty state.
+    if (visibleCount === 0) {
         if (disabled) return null
         return (
             <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">

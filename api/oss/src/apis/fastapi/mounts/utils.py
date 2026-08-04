@@ -21,6 +21,27 @@ from oss.src.core.mounts.service import MountsService
 # Regular-file mode for archive members (owner rw, group/other r).
 _ARCHIVE_FILE_MODE = S_IFREG | 0o644
 
+# OpenAPI declarations for the routes below that return raw bytes rather than JSON. Without them
+# FastAPI advertises `application/json`, and the generated clients then parse the body as JSON and
+# corrupt the payload. A route must also declare a `response_class` with no media type, or FastAPI
+# keeps its default `application/json` entry alongside these.
+ZIP_RESPONSE = {
+    200: {
+        "content": {
+            "application/zip": {"schema": {"type": "string", "format": "binary"}}
+        }
+    }
+}
+BINARY_RESPONSE = {
+    200: {
+        "content": {
+            "application/octet-stream": {
+                "schema": {"type": "string", "format": "binary"}
+            }
+        }
+    }
+}
+
 
 def _content_disposition_attachment(filename: str) -> str:
     """Build a safe `Content-Disposition: attachment` header value (RFC 6266).

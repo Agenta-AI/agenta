@@ -34,7 +34,7 @@ interface CompareRunsMenuProps {
 interface CandidateRun {
     id: string
     name: string
-    status?: string
+    status?: string | null
     description?: string | null
     createdAt?: string
     testsetNames: string[]

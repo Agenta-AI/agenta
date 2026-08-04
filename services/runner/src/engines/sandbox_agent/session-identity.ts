@@ -1,12 +1,17 @@
 import { createHash } from "node:crypto";
 
 import {
+  currentUserTurn,
+  isLegacyInlineImageBlock,
   type AgentRunRequest,
   type ChatMessage,
   type ContentBlock,
   messageText,
+  resolvePromptText,
+  userTurnCarriesContent,
 } from "../../protocol.ts";
 import { approvalDecisionOf } from "../../responder.ts";
+import { resolveCodexMode } from "./codex-mode.ts";
 import type { TeardownReason } from "./teardown.ts";
 import { loadRunnerConfig } from "../../config/runner-config.ts";
 
@@ -145,15 +150,21 @@ export function configFingerprint(request: AgentRunRequest): string {
     harness: request.harness ?? null,
     sandbox: request.sandbox ?? null,
     model: request.model ?? null,
+    // Harness mode is applied once, at session acquire (codex-mode.ts). Normalize Codex defaults
+    // and ignore the field for other harnesses so only effective mode changes evict warm sessions.
+    harnessMode:
+      request.harness === "codex"
+        ? resolveCodexMode(request.harnessMode)
+        : null,
     provider: request.provider ?? null,
     connection: request.connection ?? null,
     deployment: request.deployment ?? null,
     endpoint: request.endpoint ?? null,
+    modelCapabilities: request.modelCapabilities ?? null,
     credentialMode: request.credentialMode ?? null,
     agentsMd: request.agentsMd ?? null,
     systemPrompt: request.systemPrompt ?? null,
     appendSystemPrompt: request.appendSystemPrompt ?? null,
-    tools: request.tools ?? null,
     skills: request.skills ?? null,
     customTools: request.customTools ?? null,
     mcpServers: request.mcpServers ?? null,
@@ -193,6 +204,28 @@ function collectToolCallIds(
 }
 
 /**
+ * One stable digest per legacy inline-media block: its media type plus a hash of the payload,
+ * so the fingerprint stays short whatever the image weighs.
+ */
+function inlineMediaDigests(
+  content: string | ContentBlock[] | undefined,
+): string[] {
+  if (!Array.isArray(content)) return [];
+  const digests: string[] = [];
+  for (const block of content) {
+    if (!isLegacyInlineImageBlock(block)) continue;
+    const payload =
+      typeof block.uri === "string" && block.uri.startsWith("data:")
+        ? block.uri
+        : String(block.data ?? "");
+    const mediaType =
+      typeof block.mimeType === "string" ? block.mimeType : "";
+    digests.push(sha256(`${mediaType}\n${payload}`));
+  }
+  return digests;
+}
+
+/**
  * A hash over the conversation the server received (the FE's pruned array): the ordered user
  * message texts, the ordered tool-call ids across every message, and the user-message count.
  * Assistant TEXT is deliberately ignored, so a live session that has already answered a plain
@@ -211,6 +244,8 @@ function collectToolCallIds(
  */
 export function historyFingerprint(messages: readonly ChatMessage[]): string {
   const userTexts: string[] = [];
+  const userAttachmentIds: string[][] = [];
+  const userInlineMedia: string[][] = [];
   const toolCallIds: string[] = [];
   const seenIds = new Set<string>();
   let promptCount = 0;
@@ -218,10 +253,28 @@ export function historyFingerprint(messages: readonly ChatMessage[]): string {
     if (message.role === "user") {
       promptCount += 1;
       userTexts.push(messageText(message.content));
+      userAttachmentIds.push(
+        currentUserTurn({ messages: [message] }).attachments.map(
+          (attachment) => attachment.attachmentId,
+        ),
+      );
+      // A legacy inline image carries no reference id, so hash its content: two histories that
+      // differ only in the image bytes must not share one warm harness.
+      userInlineMedia.push(inlineMediaDigests(message.content));
     }
     collectToolCallIds(message.content, toolCallIds, seenIds);
   }
-  return sha256(canonicalJson({ userTexts, toolCallIds, promptCount }));
+  // Attachment ids change every canonical hash once; deploys already cold-start parked
+  // sessions because the pool is process-local.
+  return sha256(
+    canonicalJson({
+      userTexts,
+      userAttachmentIds,
+      userInlineMedia,
+      toolCallIds,
+      promptCount,
+    }),
+  );
 }
 
 /**
@@ -259,6 +312,36 @@ export function priorConversation(request: AgentRunRequest): ChatMessage[] {
   const messages = request.messages ?? [];
   if (messages.length && messages[messages.length - 1].role === "user") {
     return messages.slice(0, -1);
+  }
+  return messages.slice();
+}
+
+/**
+ * True when the request ASSERTED a transcript beyond its own turn: its prior conversation (see
+ * `priorConversation`) still holds a user message. A last-message-only client never does (its
+ * prior conversation is empty), and neither does turn one of any conversation, which carries a
+ * single user message however the client sends history.
+ *
+ * A park records this so the resume knows how much of the incoming transcript the parked
+ * fingerprint can legitimately be compared against: a park whose request carried only the
+ * trailing user turn can only vouch for that turn and the tool calls it produced — see
+ * `historyTailFromLastUserTurn`.
+ */
+export function assertsPriorConversation(request: AgentRunRequest): boolean {
+  return priorConversation(request).some((message) => message.role === "user");
+}
+
+/**
+ * The tail of a conversation from its LAST user message onward (inclusive); the whole array when
+ * it holds no user message. This is exactly the span a minimal park's fingerprint covers: the
+ * one user turn its request carried plus that turn's own tool calls. Everything earlier is
+ * history the park never saw and therefore cannot check.
+ */
+export function historyTailFromLastUserTurn(
+  messages: readonly ChatMessage[],
+): ChatMessage[] {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === "user") return messages.slice(i);
   }
   return messages.slice();
 }
@@ -305,22 +388,51 @@ export function carriesMinimalHistory(request: AgentRunRequest): boolean {
 }
 
 /**
- * True when the request's tail is a fresh user message with text and NOT an approval envelope.
+ * True when the request is an OUT-OF-BAND approval reply: it carries an approval envelope and no
+ * prompt text. That is what a caller answering from the durable interaction row alone sends
+ * (an inbox, a webhook, a CLI) — the parked tool call plus its `{approved}` result, nothing else.
+ *
+ * "No prompt text" means exactly what `resolvePromptText` reads and nothing more: `text` blocks on
+ * a `role: "user"` message. Text carried any other way (a non-`text` block type, another role)
+ * does not disqualify a request here — deliberately, because this predicate decides whether the
+ * run has a prompt to SEND, and `resolvePromptText` is what produces that prompt. The two must
+ * agree; a stricter check here would classify a request as having a prompt the run then omits.
+ *
+ * Such a request is the mirror image of `carriesMinimalHistory`: it asserts no conversation, so
+ * the prior turns come from the durable record log and there is no history for the keep-alive
+ * check to compare. It also has no prompt to send, which is why `buildRunPlan` must not reject it
+ * for having none. A playground approval reply carries the full transcript (its user turns
+ * included) and is therefore NOT this shape.
+ */
+export function carriesApprovalReplyOnly(request: AgentRunRequest): boolean {
+  if (resolvePromptText(request)) return false;
+  // The reply must be the request's terminal tool envelope, not merely present somewhere: a
+  // history whose newest envelope is an unresolved call is a stalled conversation, and reading
+  // it as an approval reply would let it through the empty-prompt rejection.
+  const messages = request.messages ?? [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const content = messages[i]?.content;
+    if (!Array.isArray(content)) continue;
+    const envelope = content.filter(
+      (block) => block?.type === "tool_call" || block?.type === "tool_result",
+    );
+    if (envelope.length === 0) continue;
+    return envelope.some(
+      (block) =>
+        block.type === "tool_result" && approvalDecisionOf(block) !== undefined,
+    );
+  }
+  return false;
+}
+
+/**
+ * True when the request's tail is a fresh user message with content and NOT an approval envelope.
  * A continuation only takes the live path for a plain new user turn; an approval reply (a
  * trailing tool-role message, or a user turn carrying a tool_result) stays cold here.
  */
 export function tailIsFreshUserMessage(request: AgentRunRequest): boolean {
-  const messages = request.messages ?? [];
-  const tail = messages[messages.length - 1];
-  if (!tail || tail.role !== "user") return false;
-  if (!messageText(tail.content).trim()) return false;
-  if (Array.isArray(tail.content)) {
-    const carriesToolTurn = tail.content.some(
-      (block) => block?.type === "tool_result" || block?.type === "tool_call",
-    );
-    if (carriesToolTurn) return false;
-  }
-  return true;
+  const turn = currentUserTurn(request);
+  return turn.isFresh && userTurnCarriesContent(turn);
 }
 
 /**
@@ -340,38 +452,82 @@ export function tailIsFreshUserMessage(request: AgentRunRequest): boolean {
 export interface CredentialEpoch {
   /** sha256 over canonical(secrets). In-memory only; never surfaced. */
   secretsHash: string;
-  /** Mount credential expiry as epoch millis, or undefined when the sign response had none. */
+  /**
+   * Parked epochs only: the environment's installed-mount lease as epoch millis, or undefined when
+   * it has no mounts. Incoming epochs never carry one.
+   */
   mountExpiresAtMs?: number;
 }
 
+/**
+ * A signed mount's `expiresAt` (ISO 8601, as it rides the sign response) as epoch millis, or
+ * undefined when absent or unparsable. The one conversion both the credential epoch and the
+ * installed-mount lease go through, so they can never disagree about what an expiry means.
+ */
+export function mountExpiryMs(
+  expiresAt: string | undefined,
+): number | undefined {
+  const parsed = expiresAt ? Date.parse(expiresAt) : NaN;
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+/**
+ * The epoch an INCOMING request carries: just the secret material. An incoming request has no
+ * mount lease of its own to contribute; a parked epoch's `mountExpiresAtMs` is stamped from the
+ * environment's installed mounts at park time (see `installedMountLease`).
+ */
 export function computeCredentialEpoch(
   request: AgentRunRequest,
-  mountExpiresAt?: string,
 ): CredentialEpoch {
   const material = canonicalJson({
     secrets: request.secrets ?? {},
   });
-  const parsed = mountExpiresAt ? Date.parse(mountExpiresAt) : NaN;
-  return {
-    secretsHash: sha256(material),
-    mountExpiresAtMs: Number.isFinite(parsed) ? parsed : undefined,
-  };
+  return { secretsHash: sha256(material) };
+}
+
+/**
+ * Expiry (epoch millis) of the credentials actually installed in each of an environment's running
+ * geesefs daemons. Per mount kind, because a remount replaces one mount's credentials and must not
+ * inherit the other's.
+ */
+export interface InstalledMountExpiries {
+  cwd?: number;
+  agent?: number;
+}
+
+/** The environment's credential lease: the earliest expiry among its installed mounts. */
+export function installedMountLease(
+  expiries: InstalledMountExpiries,
+): number | undefined {
+  const values = Object.values(expiries).filter(
+    (v): v is number => typeof v === "number",
+  );
+  return values.length ? Math.min(...values) : undefined;
+}
+
+/**
+ * Whether a lease is spent as of `asOfMs`: an undefined lease imposes no bound, and a lease landing
+ * exactly on `asOfMs` counts as spent. The one place the lease comparison lives, so "already dead"
+ * and "dead before the turn ends" can never drift apart.
+ */
+export function leaseExpiresBy(
+  leaseMs: number | undefined,
+  asOfMs: number,
+): boolean {
+  return leaseMs !== undefined && leaseMs <= asOfMs;
 }
 
 /**
  * Whether a parked session's MOUNT credentials have already expired, ignoring the secret material
- * hash entirely. This answers only "can the parked environment still write its durable cwd?".
- *
- * The approval-resume path uses this instead of `credentialEpochValid`: a resume must NOT require
- * the resume request's re-minted credentials to MATCH the parked ones (a fresh /run mints fresh
- * short-lived material every time, so they practically never match), but an expired mount means
- * the parked cwd can no longer be written, so it must still evict to cold.
+ * hash entirely. The approval-resume path uses this instead of `credentialEpochValid`: a resume
+ * must NOT require the resume request's re-minted credentials to MATCH the parked ones, but an
+ * expired mount means the parked cwd can no longer be written, so it must still evict to cold.
  */
 export function mountCredentialsExpired(
   epoch: CredentialEpoch,
   now = Date.now(),
 ): boolean {
-  return epoch.mountExpiresAtMs !== undefined && now >= epoch.mountExpiresAtMs;
+  return leaseExpiresBy(epoch.mountExpiresAtMs, now);
 }
 
 /**
@@ -388,6 +544,25 @@ export function credentialEpochMismatch(
   if (mountCredentialsExpired(parked, now)) return "credentials-expired";
   if (parked.secretsHash !== incoming.secretsHash) return "credentials-rotated";
   return undefined;
+}
+
+/**
+ * A fixed allowance for clock differences between the API, the store, and the runner, plus the
+ * seconds a cold rebuild spends mounting before the turn starts. Not operator-tunable: it protects
+ * an invariant, and a third time knob would only invite mis-setting it.
+ */
+export const MOUNT_LEASE_SKEW_MS = 60_000;
+
+/**
+ * Whether the parked mount credentials expire by `requiredValidThroughMs`, i.e. the lease cannot
+ * cover a full worst-case turn. Distinct from `mountCredentialsExpired`, which asks only whether
+ * the lease is already dead.
+ */
+export function mountCredentialsExpireBy(
+  epoch: CredentialEpoch,
+  requiredValidThroughMs: number,
+): boolean {
+  return leaseExpiresBy(epoch.mountExpiresAtMs, requiredValidThroughMs);
 }
 
 /**

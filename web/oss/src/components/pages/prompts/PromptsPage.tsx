@@ -22,6 +22,7 @@ import {timeout} from "@/oss/components/pages/app-management/assets/helpers"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
+import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {waitForAppToStart} from "@/oss/services/api"
@@ -69,6 +70,7 @@ const PromptsPage = () => {
     const {projectId} = useProjectData()
     const router = useRouter()
     const {baseAppURL} = useURL()
+    const {goToPlayground} = usePlaygroundNavigation()
     const statusData = useAtomValue(appCreationStatusAtom)
     const setStatusData = useSetAtom(appCreationStatusAtom)
     const resetAppCreation = useSetAtom(resetAppCreationAtom)
@@ -253,7 +255,8 @@ const PromptsPage = () => {
             return
         }
 
-        handleOpenAppOverview(record.workflowId)
+        // Primary click opens the prompt in the playground (its main surface), not overview.
+        goToPlayground(undefined, {appId: record.workflowId})
     }
 
     const handleBreadcrumbFolderChange = (folderId: string | null) => {

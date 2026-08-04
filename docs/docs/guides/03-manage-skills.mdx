@@ -1,0 +1,93 @@
+---
+title: "Manage skills"
+sidebar_label: "Manage skills"
+description: "Create an Agenta skill or upload a skill folder or archive. Write a clear description so the agent knows when to use it."
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+A skill is a short handbook the agent loads when it needs it. Add one by writing it in the `New skill` dialog or uploading an existing skill. To learn how agents load skills, see [Skills](/concepts/skills).
+
+## Open the New skill dialog
+
+1. In the playground, set **Playground mode** to `Build`.
+2. In the **Configuration** column, find **Skills**.
+3. Click `Add skill`.
+
+The `New skill` form opens.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/skills-new-skill-dialog.png")}
+  alt="The New skill dialog, with the Files column and drop target on the left and the Name, Description, and SKILL.md fields on the right"
+  loading="lazy"
+/>
+
+## Write a skill in the New skill dialog
+
+To create a skill, fill in three fields:
+
+| Field | What to put in it |
+|---|---|
+| `Name` | Lowercase words joined by hyphens, such as `refund-request`. |
+| `Description` | When the agent should reach for this skill. See the next section. |
+| `SKILL.md` | The steps the agent follows. Imperative, numbered where order matters. |
+
+Here is a complete example:
+
+```markdown
+# Handling a refund request
+
+1. Look up the account in the billing app and read the plan and the start date.
+2. A refund is in scope when the request is within 30 days of the last charge and
+   the account has had no prior refund.
+3. Up to $200 you can decide. Above that, draft the reply and tell me it needs
+   Dana's sign-off before it goes out.
+4. Reply in the customer's own language. Lead with the decision, then the reason,
+   then the date the money lands.
+```
+
+Click `Create`, then `Commit` in the **Configuration** header to make the skill part of a version.
+
+### Write the description
+
+The agent reads the description before it loads the skill. Describe situations it can recognize, not just the subject.
+
+A description that tells the agent when to use the skill:
+
+> Use when a customer asks for a refund, a credit, or to cancel mid-term. Covers the eligibility check, the amount you can approve without a manager, and how to word the reply.
+
+A description that names only the subject:
+
+> Our refund policy.
+
+The second description gives the agent no situation to match, so it may not load the skill.
+
+Keep the description to one or two sentences. It is sent on every turn, while the body loads only when the skill fires.
+
+## Upload a skill
+
+Drop a skill folder or archive on `Drag a skill folder, .zip, or .skill here`, or click `Browse files`. Agenta uses a shared skill format, so you can also upload skills written for other tools.
+
+The dialog fills itself in from what you dropped:
+
+- `Name` and `Description` come from the YAML frontmatter at the top of `SKILL.md`.
+- Everything after the frontmatter becomes the `SKILL.md` body.
+- Any files sitting beside `SKILL.md` come in as supporting files, keeping their relative paths.
+
+The `SKILL.md` body is plain text, so you can review it before you click `Create`. Then click `Commit` in the **Configuration** header to make the skill part of a version.
+
+If you have the text but not the folder, paste a whole `SKILL.md`, frontmatter included, anywhere in the dialog. It fills the same fields.
+
+## The two settings: Hide from prompt and Allow executable files
+
+| Toggle | Effect |
+|---|---|
+| `Hide from prompt` | The skill is not listed to the agent, so it never picks the skill on its own. It runs only when invoked by name. |
+| `Allow executable files` | Bundled files may be executed. The sandbox policy in **Advanced** must also allow execution. |
+
+## Next
+
+- [Write your agent's instructions](/guides/write-your-agents-instructions) covers the other place text goes, the one that is loaded every turn.

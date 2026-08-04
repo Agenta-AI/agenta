@@ -1,16 +1,17 @@
 import pytest
+from starlette.routing import Route
 
 from oss.src.middlewares.prefix import ApiPrefixStripMiddleware
 
 
 def _scope(path: str, raw_path: bytes | None = None) -> dict:
-    scope = {"type": "http", "path": path}
+    scope = {"type": "http", "method": "GET", "path": path}
     if raw_path is not None:
         scope["raw_path"] = raw_path
     return scope
 
 
-async def _run(scope: dict) -> dict:
+async def _run(scope: dict, routes=None) -> dict:
     captured: dict = {}
 
     async def app(inner_scope, receive, send):
@@ -22,7 +23,7 @@ async def _run(scope: dict) -> dict:
     async def send(message):
         pass
 
-    await ApiPrefixStripMiddleware(app)(scope, receive, send)
+    await ApiPrefixStripMiddleware(app, routes=routes)(scope, receive, send)
     return captured["scope"]
 
 
@@ -62,3 +63,25 @@ async def test_path_that_merely_starts_with_api_word_is_untouched():
     # `/apiary` must not be mistaken for a prefixed `/api` path.
     scope = await _run(_scope("/apiary/thing"))
     assert scope["path"] == "/apiary/thing"
+
+
+@pytest.mark.asyncio
+async def test_percent_encoded_prefix_keeps_raw_path_in_sync():
+    # The ASGI server decodes `path` (so `/%61pi/...` already reads as `/api/...`), but
+    # `raw_path` keeps the literal percent-encoded bytes, which never match a literal `b"/api"`
+    # prefix check. `raw_path` must not go stale relative to the now-stripped `path`.
+    scope = await _run(_scope("/api/sessions/streams/", b"/%61pi/sessions/streams/"))
+    assert scope["path"] == "/sessions/streams/"
+    assert scope["raw_path"] == b"/sessions/streams/"
+
+
+@pytest.mark.asyncio
+async def test_alternate_slash_form_preserves_non_ascii_raw_path():
+    # The route table only knows the slashed form here, so the middleware resolves to it; the
+    # non-ASCII byte must survive that (a plain ascii-encode("ignore") would silently drop it).
+    def routes():
+        return [Route("/café/", lambda r: None, methods=["GET"])]
+
+    scope = await _run(_scope("/café", "/café".encode("utf-8")), routes=routes)
+    assert scope["path"] == "/café/"
+    assert scope["raw_path"] == "/café/".encode("utf-8")

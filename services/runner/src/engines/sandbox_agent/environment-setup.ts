@@ -2,23 +2,22 @@ import { rmSync } from "node:fs";
 
 import { apiBase } from "../../apiBase.ts";
 
-import {
-  resolveRunSessionId,
-  type AgentRunRequest,
-} from "../../protocol.ts";
+import { resolveRunSessionId, type AgentRunRequest } from "../../protocol.ts";
 import { type ClientToolOutcome } from "../../responder.ts";
 import type { ClientToolRelay } from "../../tools/client-tool-relay.ts";
-import {
-  agentMountPath,
-  signAgentMountCredentials,
-} from "./agent-mount.ts";
+import type {
+  ExecutableToolGate,
+  ExecutableToolVerdict,
+} from "../../tools/executable-tool-gate.ts";
+import { agentMountPath, signAgentMountCredentials } from "./agent-mount.ts";
 import { createToolCallCorrelationIndex } from "./client-tools.ts";
+import {
+  configureCodexHome,
+  configureDaytonaCodexEnv,
+} from "./codex-assets.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./daemon.ts";
 import { conciseError } from "./errors.ts";
-import {
-  signSessionMountCredentials,
-  type MountCredentials,
-} from "./mount.ts";
+import { signSessionMountCredentials, type MountCredentials } from "./mount.ts";
 import {
   buildPiExtensionEnv,
   configurePiSessionWorkspace,
@@ -196,7 +195,6 @@ export async function prepareEnvironmentSetup(
         usageOutPath: plan.usageOutPath,
         otlpAuthFilePath,
         builtinGatingActive: plan.builtinGatingActive,
-        builtinGrants: plan.builtinGrants,
         // The materialized skill names (author + forced `_agenta.*`) so Pi's own agent span
         // records which skills loaded; local Pi self-instruments, so the runner's sandbox-agent
         // otel has no span to stamp here.
@@ -208,6 +206,12 @@ export async function prepareEnvironmentSetup(
   // regardless of provider.
   if (piSessionDir) piExtEnv.PI_CODING_AGENT_SESSION_DIR = piSessionDir;
   configurePiSkillSnapshot(piSkillSnapshot, piExtEnv);
+  // Managed Daytona Codex: CODEX_HOME stays on the durable cwd (native resume rides its sessions/
+  // rollouts) while CODEX_SQLITE_HOME points in-VM, off the mount (D-002 final ruling). Set here
+  // because the Daytona daemon env is fixed at sandbox creation and is built from piExtEnv. Managed
+  // auth is file-free (env_key provider; no auth.json anywhere). Non-Daytona / non-codex runs are
+  // no-ops; local Codex uses configureCodexHome below instead.
+  configureDaytonaCodexEnv(plan, piExtEnv);
   Object.assign(env, piExtEnv); // local daemon inherits it; daytona gets it via envVars
   logger(
     `tools=${plan.toolSpecs.length} executableTools=${plan.executableToolSpecs.length} ` +
@@ -255,6 +259,11 @@ export async function prepareEnvironmentSetup(
     log: logger,
   });
   let runAgentDir = localPiAssets.dir;
+  // Local managed Codex authenticates from `<cwd>/.codex/auth.json`; point CODEX_HOME at that
+  // directory now (a path only, safe before the durable cwd mount), and point CODEX_SQLITE_HOME
+  // at a local off-mount directory. The auth.json file itself is written after the mount, right
+  // after prepareWorkspace (see environment.ts). Non-Codex runs and Daytona are no-ops.
+  const codexSqliteHome = configureCodexHome(plan, env);
   // Fail closed (Decision 6): a local managed custom run whose models.json could not be written
   // must stop rather than run on a default provider. Recorded here (the write ran above) and
   // thrown inside the try below, like the permission-extension gate.
@@ -305,8 +314,19 @@ export async function prepareEnvironmentSetup(
         : Promise.resolve("deny" as ClientToolOutcome),
     onPause: (req) => clientToolRelayRef.current?.onPause?.(req),
   };
+  const executableToolGateRef: { current?: ExecutableToolGate } = {};
+  const deferredExecutableToolGate: ExecutableToolGate = {
+    onExecutableTool: (req) =>
+      executableToolGateRef.current
+        ? executableToolGateRef.current.onExecutableTool(req)
+        : Promise.resolve({
+            kind: "deny",
+            reason: `Tool '${req.toolName}' was denied by policy.`,
+          } satisfies ExecutableToolVerdict),
+    onPause: () => executableToolGateRef.current?.onPause?.(),
+  };
 
-  // Aborts any in-flight loopback `tools/call` (a paused Claude client tool) on pause/teardown,
+  // Aborts any in-flight loopback `tools/call` on pause/teardown,
   // so its handler is torn down deterministically and cannot write a result after the turn ends.
   const mcpAbort = new AbortController();
 
@@ -322,9 +342,11 @@ export async function prepareEnvironmentSetup(
     strictModel,
     toolCallIndex: createToolCallCorrelationIndex(),
     clientToolRelayRef,
+    executableToolGateRef,
     mcpAbort,
     runAgentDir,
     otlpAuthFilePath,
+    codexSqliteHome,
     mountCreds,
     agentMountCreds,
     mountProjectId: mountCreds?.projectId,
@@ -335,6 +357,7 @@ export async function prepareEnvironmentSetup(
     sessionDestroyRequested: false,
     mountedCwd: undefined,
     agentMountedPath: undefined,
+    installedMountExpiries: {},
     durableCwdSafeToDelete: true,
     // Local runs get a plain rmSync cleanup for the throwaway cwd; Daytona has none on this host.
     workspace: plan.isDaytona
@@ -367,6 +390,7 @@ export async function prepareEnvironmentSetup(
     artifactId,
     binaryPath,
     deferredClientToolRelay,
+    deferredExecutableToolGate,
     env,
     environment,
     localBuiltinGatingUnenforceable,

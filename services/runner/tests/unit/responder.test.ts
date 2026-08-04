@@ -87,6 +87,38 @@ describe("approvedCallKey", () => {
     );
   });
 
+  it("unwraps the codex MCP {server,tool,arguments} envelope so a resume matches the gate", () => {
+    // The traced tool_call event carries codex-acp's wrapper; the runner-side gate keys on the
+    // bare `tools/call` arguments. Both must hash to the same key or the cross-turn approval
+    // re-parks (live-QA bug 2026-07-24).
+    assert.equal(
+      approvedCallKey("list_connections", {
+        server: "agenta-tools",
+        tool: "list_connections",
+        arguments: {},
+      }),
+      approvedCallKey("list_connections", {}),
+    );
+    assert.equal(
+      approvedCallKey("search", {
+        server: "agenta-tools",
+        tool: "search",
+        arguments: { query: "x" },
+      }),
+      approvedCallKey("search", { query: "x" }),
+    );
+    // A real tool whose own args merely resemble the wrapper (extra key, or non-object arguments)
+    // is NOT unwrapped.
+    assert.notEqual(
+      approvedCallKey("t", { server: "s", tool: "t", arguments: {}, extra: 1 }),
+      approvedCallKey("t", {}),
+    );
+    assert.notEqual(
+      approvedCallKey("t", { server: "s", tool: "t", arguments: "str" }),
+      approvedCallKey("t", "str"),
+    );
+  });
+
   it("normalizes absent args to {} so a no-arg tool resumes", () => {
     assert.ok(approvedCallKey("edit", {}));
     assert.equal(

@@ -2,11 +2,10 @@ import type {Key} from "react"
 
 import {LastInputMessageCell, SmartCellContent} from "@agenta/ui/cell-renderers"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {ColumnVisibilityMenuTrigger} from "@agenta/ui/table"
+import {ColumnVisibilityMenuTrigger, type ExtendedColumn} from "@agenta/ui/table"
 import {Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 
-import type {ExtendedColumnType} from "@/oss/components/InfiniteVirtualTable"
 import {sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {
@@ -33,7 +32,7 @@ interface ObservabilityColumnsProps {
 export type TraceRow = TraceSpanNode & {key: Key; [key: string]: unknown}
 
 // antd column extended with props consumed by the InfiniteVirtualTable layer.
-type ObservabilityColumn = ExtendedColumnType<TraceRow>
+type ObservabilityColumn = ExtendedColumn<TraceRow>
 
 const collectDefaultHiddenColumnKeys = <T,>(columns: ColumnsType<T>): string[] => {
     const hiddenKeys = new Set<string>()

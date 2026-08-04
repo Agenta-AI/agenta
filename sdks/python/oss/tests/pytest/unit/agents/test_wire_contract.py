@@ -21,11 +21,15 @@ import pytest
 
 from agenta.sdk.agents import (
     AgentaAgentTemplate,
+    AgentTemplate,
     ClaudeAgentTemplate,
+    CodexAgentTemplate,
+    ContentBlock,
     Endpoint,
     HarnessKind,
     Message,
     PiAgentTemplate,
+    PiHarness,
     ResolvedConnection,
     RunContext,
     RunContextReference,
@@ -33,8 +37,10 @@ from agenta.sdk.agents import (
     RunContextTrace,
     RunContextWorkflow,
     SandboxPermission,
+    SessionConfig,
     SkillTemplate,
     ToolCallback,
+    ToolResolver,
     TraceContext,
 )
 from agenta.sdk.agents.utils.wire import (
@@ -42,6 +48,8 @@ from agenta.sdk.agents.utils.wire import (
     result_from_wire,
     sanitize_runner_error,
 )
+from agenta.sdk.agents.pi_builtins import PI_BUILTIN_TOOL_NAMES
+from agenta.sdk.utils.types import build_agent_v0_default
 
 # The full set of top-level keys ``request_to_wire`` may emit. The TS ``AgentRunRequest``
 # interface must declare a superset of these. Adding a key here without adding it to
@@ -52,6 +60,8 @@ KNOWN_REQUEST_KEYS = {
     "sessionId",
     "agentsMd",
     "model",
+    "harnessMode",
+    "modelCapabilities",
     "provider",
     "connection",
     "deployment",
@@ -122,7 +132,6 @@ def _pi_payload():
     config = PiAgentTemplate(
         agents_md="You are a helpful assistant.",
         model="openai-codex/gpt-5.5",
-        builtin_tools=["read", "write"],
         custom_tools=[dict(_CUSTOM_TOOL), dict(_DIRECT_CALL_TOOL)],
         tool_callback=_CALLBACK,
         skills=[dict(_SKILL)],
@@ -190,11 +199,27 @@ def _claude_payload():
     )
 
 
+def _codex_payload():
+    config = CodexAgentTemplate(
+        agents_md="You are a helpful assistant.",
+        model="gpt-5.6-luna",
+    )
+    return request_to_wire(
+        harness=HarnessKind.CODEX,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+        secrets={"OPENAI_API_KEY": "sk-openai"},
+        trace=None,
+        run_context=RunContext(run=RunContextRun(kind="test")),
+        session_id=None,
+    )
+
+
 def _agenta_payload():
     config = AgentaAgentTemplate(
         agents_md="Agenta preamble + project rules.",
         model="gpt-5.5",
-        builtin_tools=["read", "bash"],
         custom_tools=[dict(_CUSTOM_TOOL)],
         tool_callback=_CALLBACK,
         append_system="You are an Agenta agent.",
@@ -208,12 +233,46 @@ def _agenta_payload():
     )
 
 
+def _attachment_payload():
+    config = PiAgentTemplate(
+        agents_md="Use the attached file.",
+        model="anthropic/claude-sonnet-4-6",
+        resolved_connection=ResolvedConnection(
+            provider="anthropic",
+            model="claude-sonnet-4-6",
+            credential_mode="runtime_provided",
+            input_modalities=["text", "image"],
+        ),
+    )
+    return request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=config,
+        messages=[
+            Message(
+                role="user",
+                content=[
+                    ContentBlock(
+                        type="attachment",
+                        attachment_id="019c471b-5b91-71d2-9d4b-5486013e6e9b",
+                        filename="photo.png",
+                        mime_type="image/png",
+                        size=482113,
+                    ),
+                    ContentBlock(type="text", text="Describe this image."),
+                ],
+            )
+        ],
+        session_id="sess-attachment",
+    )
+
+
 def test_request_to_wire_agenta_carries_skills_and_pi_shape():
     payload = _agenta_payload()
     assert set(payload) <= KNOWN_REQUEST_KEYS
     # Agenta is a Pi config: same tool shape and shared permission plan, plus prompt overrides.
     assert payload["permissions"] == {"default": "allow_reads"}
-    assert payload["tools"] == ["read", "bash"]
+    assert payload["tools"] == list(PI_BUILTIN_TOOL_NAMES)
     assert payload["appendSystemPrompt"] == "You are an Agenta agent."
     # ...plus the resolved inline skill packages, on their own seam (not in `wire_tools`).
     assert payload["skills"][0]["name"] == "release-notes"
@@ -307,6 +366,54 @@ def test_request_to_wire_pi_matches_golden(golden):
     }
     # Pi renders no harness files, so the generic `harnessFiles` key is absent.
     assert "harnessFiles" not in payload
+
+
+def test_request_to_wire_attachment_matches_golden(golden):
+    payload = _attachment_payload()
+    assert payload == golden("run_request.attachment.json")
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert payload["modelCapabilities"] == {"inputModalities": ["text", "image"]}
+    assert payload["messages"][0]["content"][0] == {
+        "type": "attachment",
+        "attachmentId": "019c471b-5b91-71d2-9d4b-5486013e6e9b",
+        "filename": "photo.png",
+        "mimeType": "image/png",
+        "size": 482113,
+    }
+
+
+async def test_default_template_carries_no_tool_entries_and_still_names_every_builtin_on_the_wire(
+    make_env,
+):
+    """Two guarantees at once, both of which a future edit could silently break.
+
+    The shipped default template carries NO tool entries: built-ins are activated by the
+    runner, never configured. And the wire's deprecated ``tools`` field still names every
+    built-in, so an older runner that reads it as a grant list activates the same set instead
+    of the empty list that caused issue #5590. This starts from the SHIPPED default rather than
+    a hand-written template, and it runs the real chain (template parse, tool resolution, the Pi
+    harness adapter, the wire serializer).
+    """
+    assert build_agent_v0_default()["tools"] == []
+
+    template = AgentTemplate.from_params({"agent": build_agent_v0_default()})
+    resolved = await ToolResolver().resolve(template.tools)
+    harness = PiHarness(make_env(supported=[HarnessKind.PI]))
+    config = harness._to_harness_config(
+        SessionConfig(
+            agent=template,
+            tool_specs=resolved.tool_specs,
+        )
+    )
+
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+
+    assert payload["tools"] == list(PI_BUILTIN_TOOL_NAMES)
 
 
 def test_request_to_wire_omits_run_context_when_none():
@@ -433,6 +540,128 @@ def test_request_to_wire_claude_matches_golden(golden):
     ]
 
 
+def test_request_to_wire_codex_matches_golden(golden):
+    payload = _codex_payload()
+    assert payload == golden("run_request.codex.json")
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert payload["harness"] == "codex"
+    assert payload["tools"] == []  # Codex has no Pi built-ins
+    assert payload["model"] == "gpt-5.6-luna"
+    assert "harnessMode" not in payload
+    assert payload["permissions"] == {"default": "allow_reads"}
+    assert "permissionPolicy" not in payload
+    assert "systemPrompt" not in payload  # Codex exposes no prompt overrides
+    assert "appendSystemPrompt" not in payload
+    # A managed codex run (this default, unresolved => managed) renders config.toml carrying the
+    # file-free auth provider block (env_key OPENAI_API_KEY), even with no authored options. The
+    # secret never appears in the file; it rides `secrets` (D-002 final ruling).
+    assert payload["harnessFiles"] == [
+        {
+            "path": ".codex/config.toml",
+            "content": (
+                'model_provider = "agenta-openai"\n'
+                "\n[model_providers.agenta-openai]\n"
+                'name = "Agenta OpenAI"\n'
+                'env_key = "OPENAI_API_KEY"\n'
+            ),
+        }
+    ]
+    assert payload["secrets"] == {"OPENAI_API_KEY": "sk-openai"}
+    assert payload["context"] is None
+    assert payload["telemetry"] is None
+    assert "trace" not in payload
+
+
+def test_request_to_wire_codex_renders_config_toml_from_authored_options():
+    # The Milestone 1 authoring schema does not yet carry these keys. That support lands in the
+    # permissions milestone, so this test drives the pass-through directly to pin the rendering.
+    # No resolved connection is threaded here, so the run defaults to MANAGED (file-free auth): the
+    # config gains the `model_provider` pointer + the custom provider table (env_key OPENAI_API_KEY)
+    # around the authored scalars (D-002 final ruling).
+    config = CodexAgentTemplate(
+        harness_permissions={
+            "approval_policy": "untrusted",
+            "sandbox_mode": "read-only",
+        }
+    )
+    payload = request_to_wire(
+        harness=HarnessKind.CODEX,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+
+    assert payload["harnessFiles"] == [
+        {
+            "path": ".codex/config.toml",
+            "content": (
+                'model_provider = "agenta-openai"\n'
+                'approval_policy = "untrusted"\n'
+                'sandbox_mode = "read-only"\n'
+                "\n[model_providers.agenta-openai]\n"
+                'name = "Agenta OpenAI"\n'
+                'env_key = "OPENAI_API_KEY"\n'
+            ),
+        }
+    ]
+
+
+def test_request_to_wire_codex_managed_is_file_free_provider_block():
+    # A managed codex run (unresolved connection => managed) with nothing else authored still writes
+    # config.toml carrying ONLY the file-free auth provider block. No credential appears in the file.
+    config = CodexAgentTemplate(model="gpt-5.6-luna")
+    payload = request_to_wire(
+        harness=HarnessKind.CODEX,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+        secrets={"OPENAI_API_KEY": "sk-openai"},
+    )
+    assert payload["harnessFiles"] == [
+        {
+            "path": ".codex/config.toml",
+            "content": (
+                'model_provider = "agenta-openai"\n'
+                "\n[model_providers.agenta-openai]\n"
+                'name = "Agenta OpenAI"\n'
+                'env_key = "OPENAI_API_KEY"\n'
+            ),
+        }
+    ]
+    # The secret rides the `secrets` wire field, never the file.
+    assert "sk-openai" not in payload["harnessFiles"][0]["content"]
+
+
+def test_request_to_wire_codex_subscription_renders_no_provider_block():
+    # A subscription codex run (resolved credential_mode runtime_provided) uses the built-in provider
+    # + its mounted OAuth login, so NO provider block is rendered. With nothing else authored, the
+    # run stays fileless (byte-identical to before).
+    from agenta.sdk.agents.connections.models import Connection, ResolvedConnection
+    from agenta.sdk.agents.dtos import ModelRef
+
+    config = CodexAgentTemplate(
+        model="gpt-5.6-luna",
+        model_ref=ModelRef(
+            model="gpt-5.6-luna",
+            provider="openai",
+            connection=Connection(mode="self_managed", slug=None),
+        ),
+        resolved_connection=ResolvedConnection(
+            provider="openai",
+            model="gpt-5.6-luna",
+            credential_mode="runtime_provided",
+            env={},
+        ),
+    )
+    payload = request_to_wire(
+        harness=HarnessKind.CODEX,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+    assert "harnessFiles" not in payload
+
+
 def test_author_permission_rules_exclude_mcp_from_wire_but_keep_settings():
     config = ClaudeAgentTemplate(
         harness_permissions={
@@ -483,8 +712,10 @@ def test_request_to_wire_has_no_prompt_key():
 def test_request_to_wire_emits_only_known_keys():
     pi = _pi_payload()
     claude = _claude_payload()
+    codex = _codex_payload()
     assert set(pi) <= KNOWN_REQUEST_KEYS
     assert set(claude) <= KNOWN_REQUEST_KEYS
+    assert set(codex) <= KNOWN_REQUEST_KEYS
     # The Pi case must actually exercise the prompt-override keys, otherwise this guard would
     # silently stop covering them.
     assert {"systemPrompt", "appendSystemPrompt"} <= set(pi)

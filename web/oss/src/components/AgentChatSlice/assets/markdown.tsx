@@ -167,9 +167,46 @@ const CodeBlock = ({
 /** Unwrap the markdown `<pre>` — the highlighted block owns its own container. */
 const PreUnwrap = ({children}: {children?: ReactNode}) => <>{children}</>
 
+/** A link target that must stay a plain external link: any `scheme:` URL (http, https, mailto, tel,
+ * data, …), a protocol-relative `//host`, or an in-page `#fragment`. Everything else is a RELATIVE
+ * path, which might name a file in this conversation's drive. */
+const isExternalHref = (href?: string): boolean =>
+    !href || /^([a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)
+
+/** Only real anchor attributes — XMarkdown/html-react-parser also pass internal props (`domNode`,
+ * `node`, `streamStatus`, …) that would leak onto the DOM element, so we never spread. */
+interface AnchorProps {
+    href?: string
+    title?: string
+    className?: string
+    children?: ReactNode
+}
+
+/** Plain link, opened in a new tab. Also the fallback whenever a relative href isn't a drive file. */
+const ExternalLink = ({href, title, className, children}: AnchorProps) => (
+    <a href={href} title={title} className={className} target="_blank" rel="noopener noreferrer">
+        {children}
+    </a>
+)
+
+/** A relative href may NAME a drive file — resolve it through the same resolver the inline-code path
+ * uses ({@link InlineCode}), so a markdown link and a code-span mention of the same file behave
+ * identically (issue #5481: nested / `NN-name/` paths get emitted as links and bypassed it). */
+const DriveLink = ({href, ...rest}: AnchorProps) => {
+    const sessionId = useDriveSessionId()
+    const link = useAtomValue(chatFileLinkAtomFamily(sessionId ?? ""))
+    const fallback = <ExternalLink href={href} {...rest} />
+    if (link && href) return <>{link.renderCode(href, fallback)}</>
+    return fallback
+}
+
+/** Split so an ordinary URL costs nothing: only a relative href subscribes to the drive resolver. */
+const Anchor = (props: AnchorProps) =>
+    isExternalHref(props.href) ? <ExternalLink {...props} /> : <DriveLink {...props} />
+
 /** Stable `components` map: a fresh object literal per render churns XMarkdown's prop identity, and
  * this renderer re-renders on every throttled streaming token — so hoist it to a module constant. */
-const MD_COMPONENTS = {code: CodeBlock, pre: PreUnwrap}
+const MD_COMPONENTS = {code: CodeBlock, pre: PreUnwrap, a: Anchor}
 
 /** Shared markdown renderer for the slice — used by message bubbles and the composer live
  * preview, so both render identically. `className` appends to `MD_CLASS` so callers can tweak
@@ -179,22 +216,13 @@ const MD_COMPONENTS = {code: CodeBlock, pre: PreUnwrap}
  * (the streaming one), its already-settled parts — a reasoning block, text before a tool call —
  * keep the same `content` string, so this skips re-parsing + re-running Prism on them each token.
  * (Settled messages don't re-render at all; the stable-`onRewind` fix handles those.) */
-// Anchor component ensures all markdown-rendered links open in a new tab safely.
-// Only forward real anchor attributes — XMarkdown/html-react-parser also pass internal
-// props (`domNode`, `node`, `streamStatus`, …) that would leak onto the DOM element.
-const Anchor = ({href, children, title, className}: any) => (
-    <a href={href} title={title} className={className} target="_blank" rel="noopener noreferrer">
-        {children}
-    </a>
-)
-
 const Markdown = ({content, className}: {content: string; className?: string}) => (
     <XMarkdown
         className={className ? `${MD_CLASS} ${className}` : MD_CLASS}
         content={content}
         config={LATEX_CONFIG}
         dompurifyConfig={DOMPURIFY_CONFIG}
-        components={{...MD_COMPONENTS, a: Anchor}}
+        components={MD_COMPONENTS}
     />
 )
 

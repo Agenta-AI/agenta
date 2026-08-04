@@ -23,7 +23,7 @@ bottom.
 - Package vs app placement, `@agenta/*` packages, package unit tests: the
   `agenta-package-practices` skill.
 - Testing: [docs/designs/testing/README.md](docs/designs/testing/README.md).
-- Docs writing: the Diátaxis framework digest at `agents/docs/diataxis/`, and the
+- Docs writing: the Diátaxis framework digest at `.agents/docs/diataxis/`, and the
   `write-docs` skill for Agenta style, voice, and structure.
 
 ## Branching and PRs with GitButler

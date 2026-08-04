@@ -83,6 +83,31 @@ describe("exportMatchingTraces", () => {
         expect(flushed.flat().map((r) => r.span_id)).toEqual(["s1", "s2", "s3"])
     })
 
+    it("passes rows with no identity through undeduped", async () => {
+        // The schema makes trace_id/span_id required, so this is unreachable
+        // from the tracing API — but dedup must never collapse rows it cannot
+        // prove are repeats, or an export silently loses them.
+        const flushed: FakeSpan[][] = []
+        const anonymous = (name: string) =>
+            ({trace_id: "", span_id: "", name}) as unknown as FakeSpan
+        const result = await exportMatchingTraces<FakeSpan>({
+            fetchPage: pagesFetcher([
+                {
+                    rows: [anonymous("a"), anonymous("b"), anonymous("c")],
+                    nextCursor: null,
+                },
+            ]),
+            flushBatch: async (batch) => {
+                flushed.push(batch)
+            },
+            batchSize: 10,
+            pageDelayMs: 0,
+        })
+
+        expect(result.rowCount).toBe(3)
+        expect(flushed.flat().map((r) => r.name)).toEqual(["a", "b", "c"])
+    })
+
     it("reports rowCount=0 and stoppedBy=done when no traces match", async () => {
         const result = await exportMatchingTraces<FakeSpan>({
             fetchPage: pagesFetcher([{rows: [], nextCursor: null}]),

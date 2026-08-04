@@ -27,6 +27,13 @@ describe("getScheduleMessage", () => {
         )
     })
 
+    // The bound agent may be unresolved (schema selectors report "completion" until it
+    // loads) or the mapping written by the API — the payload's own shape decides.
+    it("reads a messages payload even when the schema says completion", () => {
+        const json = JSON.stringify({messages: [{role: "user", content: "publish an article"}]})
+        expect(getScheduleMessage(json, false, "message")).toBe("publish an article")
+    })
+
     it("returns empty string when absent or unparseable", () => {
         expect(getScheduleMessage("{}", true, "messages")).toBe("")
         expect(getScheduleMessage("{}", false, "query")).toBe("")
@@ -96,6 +103,15 @@ describe("setScheduleMessage", () => {
         expect(JSON.parse(setScheduleMessage(json, "new", false, "query"))).toEqual({
             query: "new",
             context: "keep me",
+        })
+    })
+
+    // Must mirror the getter, or editing a messages payload under a completion schema
+    // would strand the original and add a stray `message` key.
+    it("writes back into messages when that is where the getter read from", () => {
+        const json = JSON.stringify({messages: [{role: "user", content: "old"}]})
+        expect(JSON.parse(setScheduleMessage(json, "new", false, "message"))).toEqual({
+            messages: [{role: "user", content: "new"}],
         })
     })
 

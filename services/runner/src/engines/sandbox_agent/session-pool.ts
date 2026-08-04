@@ -32,6 +32,13 @@ export interface LiveSession<E = unknown> {
   environment: E;
   configFingerprint: string;
   historyFingerprint: string;
+  /**
+   * Whether the request this session parked from asserted a transcript beyond its own turn. A
+   * park can only vouch for what its request carried, so a false here tells the resume to compare
+   * the fingerprint against the incoming transcript's trailing user turn instead of all of it.
+   * Unset means "assume it did", which can only cost a cold restart.
+   */
+  historyAsserted: boolean;
   credentialEpoch: CredentialEpoch;
   state: SessionState;
   lastUsed: number;
@@ -48,6 +55,8 @@ export interface ParkInput<E> {
   environment: E;
   configFingerprint: string;
   historyFingerprint: string;
+  /** See `LiveSession.historyAsserted`. Omitted defaults to the strictest resume check. */
+  historyAsserted?: boolean;
   credentialEpoch: CredentialEpoch;
   teardown: (reason: TeardownReason) => Promise<void>;
 }
@@ -149,6 +158,8 @@ export class SessionPool<E = unknown> {
     update: {
       configFingerprint: string;
       historyFingerprint: string;
+      /** See `LiveSession.historyAsserted`. Omitted defaults to the strictest resume check. */
+      historyAsserted?: boolean;
       credentialEpoch: CredentialEpoch;
     },
     ttlMs: number,
@@ -173,6 +184,7 @@ export class SessionPool<E = unknown> {
     this.clearTimer(session);
     session.configFingerprint = update.configFingerprint;
     session.historyFingerprint = update.historyFingerprint;
+    session.historyAsserted = update.historyAsserted ?? true;
     session.credentialEpoch = update.credentialEpoch;
     session.state = state;
     session.lastUsed = Date.now();
@@ -218,6 +230,7 @@ export class SessionPool<E = unknown> {
       environment: input.environment,
       configFingerprint: input.configFingerprint,
       historyFingerprint: input.historyFingerprint,
+      historyAsserted: input.historyAsserted ?? true,
       credentialEpoch: input.credentialEpoch,
       state,
       lastUsed: Date.now(),

@@ -504,9 +504,45 @@ class SessionsRecordsConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class SessionAttachmentsConfig(BaseModel):
+    max_image_bytes: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_MAX_IMAGE_BYTES") or 10_485_760
+    )
+    max_audio_bytes: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_MAX_AUDIO_BYTES") or 15_728_640
+    )
+    max_document_bytes: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_MAX_DOCUMENT_BYTES") or 10_485_760
+    )
+    max_other_bytes: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_MAX_OTHER_BYTES") or 10_485_760
+    )
+    max_per_session_count: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_MAX_PER_SESSION_COUNT") or 1000
+    )
+    max_per_session_bytes: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_MAX_PER_SESSION_BYTES") or 268_435_456
+    )
+    max_pending_per_session: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_MAX_PENDING_PER_SESSION") or 20
+    )
+    pending_ttl_seconds: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_PENDING_TTL_SECONDS") or 900
+    )
+    unreferenced_ttl_seconds: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_UNREFERENCED_TTL_SECONDS") or 86_400
+    )
+    sweep_interval_seconds: int = int(
+        os.getenv("AGENTA_ATTACHMENTS_SWEEP_INTERVAL_SECONDS") or 3_600
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class SessionsConfig(BaseModel):
     """Agenta sessions sub-namespace."""
 
+    attachments: SessionAttachmentsConfig = SessionAttachmentsConfig()
     records: SessionsRecordsConfig = SessionsRecordsConfig()
 
     model_config = ConfigDict(extra="ignore")
@@ -1151,6 +1187,15 @@ class StoreConfig(BaseModel):
 
 class MountsConfig(BaseModel):
     """Mounts-domain config. Store credentials live in StoreConfig."""
+
+    # Lifetime of signed mount credentials, in seconds. The store backends clamp it to their
+    # own STS bounds.
+    credentials_ttl_seconds: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env("AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS")
+            or 3600
+        )
+    )
 
     model_config = ConfigDict(extra="ignore")
 

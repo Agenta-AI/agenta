@@ -7,7 +7,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/session-keepalive-dispatch.test.ts)
  */
-import { describe, it } from "vitest";
+import { describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 
 import type {
@@ -24,9 +24,16 @@ import {
   type KeepaliveEngine,
 } from "../../src/server.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
-import type { KeepaliveConfig } from "../../src/engines/sandbox_agent/session-identity.ts";
+import {
+  mountExpiryMs,
+  MOUNT_LEASE_SKEW_MS,
+  type InstalledMountExpiries,
+  type KeepaliveConfig,
+} from "../../src/engines/sandbox_agent/session-identity.ts";
+import { TOTAL_DEADLINE_ENV } from "../../src/engines/sandbox_agent/run-limits.ts";
 import type { MountCredentials } from "../../src/engines/sandbox_agent/mount.ts";
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
+import { captureStderr } from "../utils/capture-stderr.ts";
 
 function flush(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
@@ -36,6 +43,11 @@ interface EngineOptions {
   mountProjectId?: string | null; // null => the signed mount carries no project id
   signReturnsNull?: boolean; // resolveKeepaliveMount resolves null (no mount at all)
   mountExpiresAt?: string;
+  /** Per-sign expiry (by 0-based `resolveKeepaliveMount` call index), else `mountExpiresAt`. A
+   *  warm dispatch signs credentials no running daemon ever receives, so the two diverge. */
+  mountExpiresAtSequence?: Array<string | undefined>;
+  /** The agent mount's installed expiry, stamped beside the session cwd's at acquire. */
+  agentMountExpiresAt?: string;
   /** Per-call runTurn results (by 0-based call index); default ok/complete. */
   turnResults?: AgentRunResult[];
   /** Per-call emitted tool-call ids the fake runTurn records on the env (by call index). */
@@ -54,6 +66,8 @@ interface FakeEnv {
   parkedApprovals: Map<string, unknown>;
   approvalGateCount: number;
   nonParkablePauseCount: number;
+  /** Stamped at acquire from the credentials this env "mounted", as the real helpers do. */
+  installedMountExpiries: InstalledMountExpiries;
   clearTurn: () => void;
   /** Replaceable body so a test can slow the teardown down; `destroy` stays a stable closure. */
   destroyImpl: () => Promise<void>;
@@ -84,6 +98,7 @@ function makeEngine(options: EngineOptions = {}) {
       parkedApprovals: new Map(),
       approvalGateCount: 0,
       nonParkablePauseCount: 0,
+      installedMountExpiries: {},
       clearTurn: () => {
         env.turnsCleared += 1;
       },
@@ -97,13 +112,15 @@ function makeEngine(options: EngineOptions = {}) {
     return env;
   };
 
-  const signedMount = (): MountCredentials => ({
+  const signedMount = (
+    expiresAt: string | undefined = options.mountExpiresAt,
+  ): MountCredentials => ({
     region: "us-east-1",
     bucket: "b",
     prefix: "mounts/proj/mount",
     accessKey: "AK",
     secretKey: "SK",
-    expiresAt: options.mountExpiresAt,
+    expiresAt,
     projectId:
       options.mountProjectId === null
         ? undefined
@@ -131,13 +148,22 @@ function makeEngine(options: EngineOptions = {}) {
 
   const engine: KeepaliveEngine = {
     async resolveKeepaliveMount(_request) {
+      const idx = calls.resolveMount;
       calls.resolveMount += 1;
       if (options.signReturnsNull) return null;
-      return signedMount();
+      return signedMount(
+        options.mountExpiresAtSequence?.[idx] ?? options.mountExpiresAt,
+      );
     },
-    async acquireEnvironment(_request, _signal, _presigned) {
+    async acquireEnvironment(_request, _signal, presigned) {
       calls.acquire += 1;
       const env = makeEnv();
+      // The real mount helpers stamp the expiry of the credentials the daemon received; a
+      // mount-less acquire leaves the entry unset (no lease at all).
+      const cwd = mountExpiryMs(presigned?.expiresAt);
+      if (cwd !== undefined) env.installedMountExpiries.cwd = cwd;
+      const agent = mountExpiryMs(options.agentMountExpiresAt);
+      if (agent !== undefined) env.installedMountExpiries.agent = agent;
       calls.acquiredEnvs.push(env);
       return { ok: true, env: env as unknown as SessionEnvironment };
     },
@@ -579,6 +605,11 @@ describe("runWithKeepalive: never-park rules", () => {
       ctx.pool.get("proj-rc:s1"),
       "the pool key scope is the run-context project id",
     );
+    assert.equal(
+      ctx.pool.get("proj-rc:s1")!.credentialEpoch.mountExpiresAtMs,
+      undefined,
+      "no installed mount means no lease, and no lease bounds nothing",
+    );
   });
 
   it("a mount without a project id => never parks; the presigned creds are threaded (single sign)", async () => {
@@ -834,5 +865,198 @@ describe("runWithKeepalive: races and failures", () => {
       true,
       "the old env's destroy completed BEFORE the cold acquire started",
     );
+  });
+});
+
+// --- The installed mount lease ---------------------------------------------- //
+//
+// A parked environment runs on the credentials its geesefs daemons were handed at mount time, not
+// on the ones each dispatch signs to compute the pool key. These cases pin that the pool parks the
+// installed lease and evicts to a cold rebuild before a worst-case turn could outlive it.
+
+const KEY = "proj-1:s1";
+const T0 = Date.UTC(2026, 0, 1, 12, 0, 0);
+const TURN_BUDGET_MS = 30_000;
+/** The window a lease must cover for a warm turn: the turn budget plus the fixed skew. */
+const REQUIRED_WINDOW_MS = TURN_BUDGET_MS + MOUNT_LEASE_SKEW_MS;
+
+const iso = (epochMs: number): string => new Date(epochMs).toISOString();
+
+/** Run `fn` with a short turn budget and a frozen clock (Date only: pool timers stay real). */
+async function withLeaseWindow(fn: () => Promise<void>): Promise<void> {
+  const previousBudget = process.env[TOTAL_DEADLINE_ENV];
+  process.env[TOTAL_DEADLINE_ENV] = String(TURN_BUDGET_MS);
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(T0);
+  try {
+    await fn();
+  } finally {
+    vi.useRealTimers();
+    if (previousBudget === undefined) delete process.env[TOTAL_DEADLINE_ENV];
+    else process.env[TOTAL_DEADLINE_ENV] = previousBudget;
+  }
+}
+
+// A third plain turn: its prior conversation is turn 2's full message list.
+function turn3(sessionId = "s1"): AgentRunRequest {
+  return {
+    harness: "claude",
+    model: "m1",
+    sessionId,
+    ...auth,
+    messages: [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi" },
+      { role: "user", content: "more" },
+      { role: "assistant", content: "sure" },
+      { role: "user", content: "even more" },
+    ],
+  };
+}
+
+describe("runWithKeepalive: the installed mount lease governs reuse", () => {
+  it("a warm repark carries the INSTALLED lease, not the dispatch's fresh sign", async () => {
+    await withLeaseWindow(async () => {
+      const installed = T0 + 600_000; // the credentials the daemons actually hold
+      const { engine, calls } = makeEngine({
+        // Turn 2 signs far-future credentials that never reach a running mount.
+        mountExpiresAtSequence: [
+          iso(installed),
+          iso(T0 + 10 * 3_600_000),
+          iso(T0 + 10 * 3_600_000),
+        ],
+      });
+      const ctx = makeCtx(engine);
+
+      await runWithKeepalive(turn1(), undefined, undefined, ctx);
+      vi.setSystemTime(T0 + 5_000);
+      await runWithKeepalive(turn2(), undefined, undefined, ctx);
+      assert.equal(calls.acquire, 1, "turn 2 continues warm");
+      assert.equal(
+        ctx.pool.get(KEY)!.credentialEpoch.mountExpiresAtMs,
+        installed,
+        "the repark carried the installed lease, not the fresh sign",
+      );
+
+      // Turn 3 starts close enough to the installed expiry that a worst-case turn would outlive it.
+      vi.setSystemTime(installed - REQUIRED_WINDOW_MS + 1_000);
+      await runWithKeepalive(turn3(), undefined, undefined, ctx);
+      await flush();
+      assert.equal(
+        calls.acquire,
+        2,
+        "the expiring lease forced a cold rebuild",
+      );
+      assert.equal(calls.acquiredEnvs[0].destroyed, 1);
+    });
+  });
+
+  it("the lease is the MINIMUM of the installed mounts (evicts on the earlier one)", async () => {
+    await withLeaseWindow(async () => {
+      const cwdExpiry = T0 + 600_000;
+      const agentExpiry = T0 + 3_600_000;
+      const { engine, calls } = makeEngine({
+        mountExpiresAtSequence: [iso(cwdExpiry), iso(T0 + 10 * 3_600_000)],
+        agentMountExpiresAt: iso(agentExpiry),
+      });
+      const ctx = makeCtx(engine);
+
+      await runWithKeepalive(turn1(), undefined, undefined, ctx);
+      assert.equal(
+        ctx.pool.get(KEY)!.credentialEpoch.mountExpiresAtMs,
+        cwdExpiry,
+        "the parked lease is the earlier of the two mounts",
+      );
+
+      // Inside the earlier mount's window, still far from the later one's.
+      vi.setSystemTime(cwdExpiry - REQUIRED_WINDOW_MS + 1_000);
+      await runWithKeepalive(turn2(), undefined, undefined, ctx);
+      await flush();
+      assert.equal(calls.acquire, 2, "evicted on the earlier mount's expiry");
+    });
+  });
+
+  const boundaryCases = [
+    {
+      name: "a lease exactly at the required-validity edge evicts as expiring",
+      lease: (required: number) => required,
+      coldAcquires: 2,
+      reason: "credentials-expiring",
+    },
+    {
+      name: "a lease one millisecond beyond the edge continues warm",
+      lease: (required: number) => required + 1,
+      coldAcquires: 1,
+      reason: undefined,
+    },
+    {
+      name: "a lease already in the past still evicts as expired",
+      lease: () => T0 - 1,
+      coldAcquires: 2,
+      reason: "credentials-expired",
+    },
+  ];
+
+  for (const boundary of boundaryCases) {
+    it(boundary.name, async () => {
+      await withLeaseWindow(async () => {
+        const secondDispatchAt = T0 + 1_000;
+        const required = secondDispatchAt + REQUIRED_WINDOW_MS;
+        const { engine, calls } = makeEngine({
+          mountExpiresAtSequence: [
+            iso(boundary.lease(required)),
+            iso(T0 + 10 * 3_600_000),
+          ],
+        });
+        const ctx = makeCtx(engine);
+        const cap = captureStderr();
+        try {
+          await runWithKeepalive(turn1(), undefined, undefined, ctx);
+          vi.setSystemTime(secondDispatchAt);
+          await runWithKeepalive(turn2(), undefined, undefined, ctx);
+          await flush();
+        } finally {
+          cap.restore();
+        }
+        assert.equal(calls.acquire, boundary.coldAcquires);
+        if (boundary.reason) {
+          assert.ok(
+            cap.lines.some((line) =>
+              line.includes(`mismatch (${boundary.reason}) key=${KEY}`),
+            ),
+            `expected a ${boundary.reason} mismatch, got: ${cap.lines.join("")}`,
+          );
+        }
+      });
+    });
+  }
+
+  it("warns once per acquisition when even a fresh lease cannot cover a turn", async () => {
+    await withLeaseWindow(async () => {
+      const { engine } = makeEngine({
+        // Shorter than the turn budget plus skew: every dispatch will rebuild cold.
+        mountExpiresAtSequence: [iso(T0 + 45_000)],
+      });
+      const ctx = makeCtx(engine);
+      const cap = captureStderr();
+      let result: AgentRunResult;
+      try {
+        result = await runWithKeepalive(turn1(), undefined, undefined, ctx);
+      } finally {
+        cap.restore();
+      }
+      assert.equal(
+        result.ok,
+        true,
+        "a short lease warns, it never fails the turn",
+      );
+      const warnings = cap.lines.filter((line) => line.includes("lease-short"));
+      assert.equal(warnings.length, 1, "exactly one warning per acquisition");
+      assert.ok(
+        warnings[0].includes("AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS") &&
+          warnings[0].includes(`${TOTAL_DEADLINE_ENV}=${TURN_BUDGET_MS}ms`),
+        `the warning names both knobs: ${warnings[0]}`,
+      );
+    });
   });
 });

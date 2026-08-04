@@ -29,7 +29,7 @@
     },
     "dependencies": {
         "@tanstack/query-persist-client-core": "5.100.9",
-        "axios": "1.16.0",
+        "axios": "1.18.0",
         "dayjs": "^1.11.20",
         "idb-keyval": "^6.3.0",
         "json5": "^2.2.3",

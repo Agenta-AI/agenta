@@ -9,10 +9,14 @@ export type SettingsTabKey =
     | "webhooks"
     | "workspace"
     | "projects"
+    | "organizationGeneral"
     | "organization"
     | "auditLog"
     | "billing"
     | "account"
+    | "featureFlags"
+
+export type SettingsScopeKey = "project" | "organization" | "personal"
 
 export interface SettingsAccess {
     billingEnabled: boolean
@@ -26,26 +30,36 @@ export interface SettingsAccess {
 
 export interface SettingsTabDefinition {
     key: SettingsTabKey
+    scope: SettingsScopeKey
     showInSidebar?: boolean
     getLabel?: (access: SettingsAccess) => string
 }
 
 export const SETTINGS_TABS: SettingsTabDefinition[] = [
-    {key: "apiKeys"},
-    {key: "secrets"},
-    {key: "llms"},
-    {key: "tools"},
-    {key: "triggers"},
-    {key: "webhooks"},
-    {key: "workspace"},
-    {key: "projects", showInSidebar: false},
-    {key: "organization"},
-    {key: "auditLog"},
+    {key: "apiKeys", scope: "project"},
+    {key: "secrets", scope: "project"},
+    {key: "llms", scope: "project"},
+    {key: "tools", scope: "project"},
+    {key: "triggers", scope: "project"},
+    {key: "webhooks", scope: "project"},
+    {key: "organizationGeneral", scope: "organization"},
+    {key: "workspace", scope: "organization"},
+    {key: "projects", scope: "organization"},
+    {key: "organization", scope: "organization"},
+    {key: "auditLog", scope: "organization"},
     {
         key: "billing",
+        scope: "organization",
         getLabel: ({billingEnabled}) => (billingEnabled ? "Usage & Billing" : "Usage"),
     },
-    {key: "account"},
+    {key: "account", scope: "personal"},
+    {key: "featureFlags", scope: "personal"},
+]
+
+export const SETTINGS_SCOPES: {key: SettingsScopeKey; title: string}[] = [
+    {key: "project", title: "Project"},
+    {key: "organization", title: "Organization"},
+    {key: "personal", title: "Personal"},
 ]
 
 const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
@@ -57,9 +71,11 @@ const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     webhooks: "Webhooks",
     workspace: "Members",
     projects: "Projects",
+    organizationGeneral: "General",
     organization: "Access & Security",
     auditLog: "Audit Log",
     account: "Account",
+    featureFlags: "Feature flags",
 }
 
 export const isSettingsTabKey = (value: string | null | undefined): value is SettingsTabKey =>
@@ -79,6 +95,8 @@ export const isSettingsTabVisible = (key: SettingsTabKey, access: SettingsAccess
             return access.canShowTools
         case "triggers":
             return access.canShowTriggers
+        case "organizationGeneral":
+            return access.isOwner
         case "organization":
             return access.isEE && access.isOwner
         case "auditLog":

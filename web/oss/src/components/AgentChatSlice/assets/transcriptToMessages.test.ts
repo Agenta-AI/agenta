@@ -285,6 +285,109 @@ describe("transcriptToMessages approval hydration", () => {
     })
 })
 
+/**
+ * Cold approval resume: the harness re-raises the approved call under a NEW toolCallId, so the
+ * response's `toolCallId` no longer matches the gated part. Only the interaction id still does.
+ */
+describe("transcriptToMessages cold approval resume (re-raised tool call id)", () => {
+    const pausedTurn = (): SessionRecord[] => [
+        record("r-user", {type: "message", text: "delete the file"}, "user"),
+        record("r-call-old", {
+            type: "tool_call",
+            id: "tool-old",
+            name: "bash",
+            input: {command: "rm x"},
+        }),
+        record("r-req", {
+            type: "interaction_request",
+            id: "approval-1",
+            kind: "user_approval",
+            payload: {toolCallId: "tool-old"},
+        }),
+        record("r-done-paused", {type: "done", stopReason: "paused"}),
+        record("r-call-new", {
+            type: "tool_call",
+            id: "tool-new",
+            name: "bash",
+            input: {command: "rm x"},
+        }),
+    ]
+
+    const response = (approved: boolean): SessionRecord =>
+        record("r-resp", {
+            type: "interaction_response",
+            id: "approval-1",
+            kind: "user_approval",
+            payload: {toolCallId: "tool-new", approved},
+        })
+
+    const errorResult = (): SessionRecord =>
+        record("r-result", {
+            type: "tool_result",
+            id: "tool-new",
+            output: "boom",
+            isError: true,
+        })
+
+    const toolParts = (records: SessionRecord[]): Record<string, unknown>[] => {
+        const messages = transcriptToMessages(records)
+        expect(messages).not.toBeNull()
+        return (messages ?? [])
+            .flatMap((message) => message.parts as unknown as Record<string, unknown>[])
+            .filter((part) => "toolCallId" in part)
+    }
+
+    it("settles the gated part when the response arrives before the re-raised result", () => {
+        const parts = toolParts([
+            ...pausedTurn(),
+            response(true),
+            errorResult(),
+            record("r-done", {type: "done"}),
+        ])
+
+        expect(parts).toHaveLength(1)
+        expect(parts[0]).toMatchObject({
+            state: "output-error",
+            errorText: "boom",
+            approval: {id: "approval-1", approved: true},
+        })
+        expect(parts.filter((part) => part.state === "approval-requested")).toEqual([])
+    })
+
+    it("settles the gated part when the re-raised result arrives before the response", () => {
+        const parts = toolParts([
+            ...pausedTurn(),
+            errorResult(),
+            response(true),
+            record("r-done", {type: "done"}),
+        ])
+
+        expect(parts).toHaveLength(1)
+        expect(parts[0]).toMatchObject({
+            state: "output-error",
+            errorText: "boom",
+            approval: {id: "approval-1", approved: true},
+        })
+        expect(parts.filter((part) => part.state === "approval-requested")).toEqual([])
+    })
+
+    it("resolves a denied re-raised call to output-denied", () => {
+        const parts = toolParts([
+            ...pausedTurn(),
+            response(false),
+            record("r-result", {type: "tool_result", id: "tool-new", denied: true}),
+            record("r-done", {type: "done"}),
+        ])
+
+        expect(parts).toHaveLength(1)
+        expect(parts[0]).toMatchObject({
+            state: "output-denied",
+            approval: {id: "approval-1", approved: false},
+        })
+        expect(parts.filter((part) => part.state === "approval-requested")).toEqual([])
+    })
+})
+
 describe("transcriptToMessages paused end-marker", () => {
     it("flags the message whose turn ended paused (done.stopReason)", () => {
         const messages = transcriptToMessages([
@@ -302,5 +405,111 @@ describe("transcriptToMessages paused end-marker", () => {
         ])
         expect(messages).not.toBeNull()
         expect((messages?.[0].metadata as {paused?: boolean} | undefined)?.paused).toBeUndefined()
+    })
+})
+
+/**
+ * Regression guard for issue #5530. The adoption guard must not go back to comparing message
+ * counts: a turn grows IN PLACE here, so the count is identical before and after it completes.
+ * If a mapper change ever makes these counts differ, revisit `shouldAdoptServerTranscript` —
+ * do not "simplify" it back to a count comparison on the strength of that change.
+ */
+describe("transcriptToMessages turn growth is invisible to a message count", () => {
+    const midTurn = (): SessionRecord[] => [
+        ...approvalRecords(),
+        record("record-done-paused", {type: "done", stopReason: "paused"}),
+    ]
+
+    const completed = (): SessionRecord[] => [
+        ...midTurn(),
+        record("record-response", {
+            type: "interaction_response",
+            id: "approval-1",
+            kind: "user_approval",
+            payload: {toolCallId: "tool-1", approved: true},
+        }),
+        record("record-result", {
+            type: "tool_result",
+            id: "tool-1",
+            output: {stdout: "a.txt\nb.txt"},
+        }),
+        record("record-answer", {type: "message", text: "There are two files."}),
+        record("record-done", {type: "done"}),
+    ]
+
+    it("renders the same number of messages before and after the turn finishes", () => {
+        const partial = transcriptToMessages(midTurn())
+        const full = transcriptToMessages(completed())
+
+        expect(partial).toHaveLength(1)
+        expect(full).toHaveLength(1)
+        // Same messages, far more content — and far more records behind it.
+        expect(completed().length).toBeGreaterThan(midTurn().length)
+    })
+
+    it("carries strictly more content in the completed turn", () => {
+        const partial = transcriptToMessages(midTurn())
+        const full = transcriptToMessages(completed())
+
+        expect(full?.[0].parts.length).toBeGreaterThan(partial?.[0].parts.length ?? 0)
+    })
+})
+
+describe("transcriptToMessages attachments", () => {
+    it("rebuilds user attachment references as file parts with filenames", () => {
+        const messages = transcriptToMessages([
+            record(
+                "record-user",
+                {
+                    type: "message",
+                    text: "Inspect this",
+                    attachments: [
+                        {
+                            attachmentId: "019c1e0a-f911-7000-8000-000000000001",
+                            filename: "diagram.png",
+                            mediaType: "image/png",
+                            size: 42,
+                        },
+                    ],
+                },
+                "user",
+            ),
+        ])
+
+        expect(messages?.[0]).toMatchObject({
+            role: "user",
+            parts: [
+                {type: "text", text: "Inspect this"},
+                {
+                    type: "file",
+                    filename: "diagram.png",
+                    mediaType: "image/png",
+                    providerMetadata: {
+                        agenta: {attachmentId: "019c1e0a-f911-7000-8000-000000000001", size: 42},
+                    },
+                },
+            ],
+        })
+        expect((messages?.[0].parts[1] as {url: string}).url).toContain(
+            "/sessions/attachments/019c1e0a-f911-7000-8000-000000000001/content?session_id=session-1",
+        )
+    })
+
+    it("ignores an attachment delivery record instead of rendering a part", () => {
+        const delivery = record("record-delivery", {
+            type: "attachment_delivery",
+            attachmentId: "019c1e0a-f911-7000-8000-000000000001",
+            outcome: "workspace_only",
+            reasonCode: "model_modality_unknown",
+            workingPath: "attachments/019c1e0a-f911-7000-8000-000000000001/archive.zip",
+        })
+
+        expect(transcriptToMessages([delivery])).toBeNull()
+        expect(
+            transcriptToMessages([
+                record("record-text", {type: "message", text: "Done."}),
+                delivery,
+            ])?.[0].parts,
+        ).toEqual([{type: "text", text: "Done."}])
     })
 })

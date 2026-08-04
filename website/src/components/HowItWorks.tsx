@@ -80,6 +80,7 @@ function GreenCheck() {
 function ToolRow({ label, meta }: { label: string; meta: string }) {
   return (
     <div
+      className="hiw-toolrow"
       style={{
         display: "flex",
         alignItems: "center",
@@ -92,6 +93,7 @@ function ToolRow({ label, meta }: { label: string; meta: string }) {
     >
       <GreenCheck />
       <span
+        className="hiw-toolrow-label"
         style={{
           font: "var(--app-text-mono)",
           fontSize: 12,
@@ -101,6 +103,7 @@ function ToolRow({ label, meta }: { label: string; meta: string }) {
         {label}
       </span>
       <span
+        className="hiw-toolrow-meta"
         style={{
           marginLeft: "auto",
           font: `400 12px/1 ${GEIST}`,
@@ -278,11 +281,20 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
                 Agent scheduled
               </span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                flexWrap: "wrap",
+              }}
+            >
               <span
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
+                  flexShrink: 0,
+                  whiteSpace: "nowrap",
                   height: 24,
                   padding: "0 12px",
                   borderRadius: 999,

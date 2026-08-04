@@ -54,7 +54,10 @@ export {
 // Per-harness capability map from the `/inspect` response `meta` (agent playground picker).
 export {
     harnessCapabilitiesAtomFamily,
+    harnessCatalogFailedAtom,
+    retryHarnessCatalogAtom,
     contextWindowForModel,
+    modalitiesForModel,
     type HarnessCapabilities,
     type HarnessCapabilitiesMap,
     type ModelCatalogEntry,

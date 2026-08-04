@@ -122,6 +122,10 @@ export type {TableExportColumnContext} from "./hooks/useTableExport"
 
 // Alias for backward compatibility
 export {default as ColumnVisibilityPopoverContentBase} from "./components/columnVisibility/ColumnVisibilityPopoverContent"
+export type {
+    ColumnVisibilityNodeMeta,
+    ColumnVisibilityNodeMetaResolver,
+} from "./components/columnVisibility/ColumnVisibilityPopoverContent"
 
 // NOTE: Internal atoms (columnWidths, columnHiddenKeys) are NOT exported.
 // They are implementation details used internally by the table components.

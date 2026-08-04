@@ -1,10 +1,9 @@
 {
     "extends": "../oss/tsconfig.json",
     "compilerOptions": {
-        "baseUrl": "..",
         "paths": {
-            "@/oss/*": ["./ee/src/*", "./oss/src/*"],
-            "@/agenta-oss-common/*": ["./ee/src/*", "./oss/src/*"]
+            "@/oss/*": ["./src/*", "../oss/src/*"],
+            "@/agenta-oss-common/*": ["./src/*", "../oss/src/*"]
         }
     },
     "include": ["next-env.d.ts", "**/*.d.ts", "**/*.ts", "**/*.tsx"],
