@@ -178,8 +178,10 @@ def _agent_client(*, text: str = "hello world") -> TestClient:
     return TestClient(app)
 
 
-def _post_agent(client, *, headers=None, flags=None):
+def _post_agent(client, *, headers=None, flags=None, parameters=None):
     body: dict = {"data": {"inputs": {"messages": [{"role": "user", "content": "hi"}]}}}
+    if parameters is not None:
+        body["data"]["parameters"] = parameters
     if flags is not None:
         body["flags"] = flags
     with _offline_tracing():
@@ -254,6 +256,26 @@ def test_agent_v0_body_trim_flag_wins_over_transcript_header():
     )
     assert resp.status_code == 200
     assert resp.json()["data"]["outputs"]["messages"][0]["content"] == "hi"
+
+
+def test_agent_v0_invalid_self_managed_connection_returns_422():
+    resp = _post_agent(
+        _agent_client(),
+        parameters={
+            "agent": {
+                "llm": {
+                    "provider": "openai",
+                    "model": "gpt-5.5",
+                    "connection": {"mode": "self_managed", "slug": "unused"},
+                }
+            }
+        },
+    )
+
+    assert resp.status_code == 422
+    status = resp.json()["status"]
+    assert status["type"].endswith("#v0:agent:invalid-template")
+    assert "self_managed' must not carry a 'slug'" in status["message"]
 
 
 # llm_v0: batch-only. json/absent Accept OK; stream Accept -> 406 (symmetry).
