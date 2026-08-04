@@ -7,6 +7,7 @@ import {useAtomValue} from "jotai"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
 import {agentsWorkflowsAtom} from "@/oss/components/pages/agents/store"
+import {COMPOSER_SURFACE_CLASS} from "@/oss/components/PanelSection"
 
 /**
  * Home's primary action: describe a task, pick the agent to run it, send.
@@ -46,6 +47,7 @@ const HomeTaskComposer = () => {
     return (
         <RichChatInput
             ref={composerRef}
+            className={COMPOSER_SURFACE_CLASS}
             onSubmit={handleSubmit}
             size="comfortable"
             minHeightClassName="min-h-24"

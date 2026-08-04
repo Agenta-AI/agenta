@@ -41,6 +41,21 @@ export const PanelScroll = ({children}: {children: ReactNode}) => (
 )
 
 /**
+ * The composer's surface on these two pages.
+ *
+ * A transparent box with a hairline reads as an outline, not as somewhere to type — the reference
+ * fills its editor instead, which is most of why that page's composer looks like the page's
+ * subject. A fill token rather than an opaque surface: it lifts off the page in dark and settles
+ * into it in light, where an opaque "elevated" would be the page colour exactly.
+ *
+ * `!bg-` because the primitive sets its own background and Tailwind orders by rule, not by the
+ * order classes appear in the attribute.
+ */
+// Tertiary, not quaternary: 0.04 over the page is barely a shade, and quaternary is
+// already what a row hover uses.
+export const COMPOSER_SURFACE_CLASS = "!bg-colorFillTertiary"
+
+/**
  * The one style for a section header's action — "View all", "Expand", "+ New agent".
  *
  * They had drifted into three treatments (accent link, accent link with a leading plus, muted text
