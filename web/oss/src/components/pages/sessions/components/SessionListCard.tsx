@@ -7,17 +7,19 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 import Link from "next/link"
 
-import {RAIL_CARD_CLASS} from "@/oss/assets/railCard"
 import {ROW_VARIANTS, SESSION_SPRING} from "@/oss/components/AgentChatSlice/assets/sessionMotion"
 import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionOpenTarget"
 import {useOpenAgentSession} from "@/oss/components/AgentChatSlice/hooks/useOpenAgentSession"
 import {useSessionActions} from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
 import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
+import {PanelSection} from "@/oss/components/PanelSection"
 import useURL from "@/oss/hooks/useURL"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {sessionPreviewText} from "../assets/sessionPreview"
 import {pendingGateLabel, sessionRowStatus} from "../assets/sessionRowStatus"
+import {sessionRowTitle} from "../assets/sessionRowTitle"
+import {sessionTriggerName} from "../assets/sessionTrigger"
 import {applySessionScopeAtom} from "../state/filters"
 import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "../state/pins"
 import {
@@ -43,6 +45,9 @@ interface Props {
      * Keep it close to the empty state's natural height; a floor far above the content turns
      * into a visible void, which reads as a rendering failure rather than an empty list. */
     minHeightClassName?: string
+    /** Where the header links go. Defaults to the project sessions page, which needs the agent
+     * handed over as a filter; an agent-scoped page carries that in its own route instead. */
+    viewAllHref?: string
 }
 
 /**
@@ -60,6 +65,7 @@ const SessionListCard = ({
     limit = 7,
     withPinned = false,
     minHeightClassName,
+    viewAllHref,
 }: Props) => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
@@ -147,17 +153,28 @@ const SessionListCard = ({
     )
 
     // Every link out of this card lands on the set the card was showing, not on a default list.
+    // A route-scoped destination already owns the agent, so handing it over as a filter too would
+    // leave the project page holding an agent the user never picked.
+    const scopedHref = viewAllHref ?? `${projectURL}/sessions`
+    const linkScope = useMemo(
+        () => ({agentId: viewAllHref ? null : agentId, origin}),
+        [agentId, origin, viewAllHref],
+    )
     const handleViewAll = useCallback(() => {
-        applyScope({agentId, origin})
-    }, [agentId, applyScope, origin])
+        applyScope(linkScope)
+    }, [applyScope, linkScope])
     const handleWaitingClick = useCallback(() => {
-        applyScope({agentId, origin, status: "waiting"})
-    }, [agentId, applyScope, origin])
+        applyScope({...linkScope, status: "waiting"})
+    }, [applyScope, linkScope])
 
     const renderRow = (row: SessionStream, pinned: boolean) => {
         const pending = pendingBySession?.get(row.session_id)
         const status = sessionRowStatus(row, pending?.count)
-        const preview = sessionPreviewText(row)
+        const {title, subtitle} = sessionRowTitle(
+            row.name,
+            sessionPreviewText(row),
+            sessionTriggerName(row),
+        )
         const target = sessionOpenTarget(row)
         const activity = row.updated_at ?? row.created_at
         const actionTarget = {
@@ -198,7 +215,7 @@ const SessionListCard = ({
                                 />
                             </Tooltip>
                             <span className="min-w-0 flex-1 truncate text-xs text-colorText">
-                                {row.name?.trim() || "Untitled session"}
+                                {title}
                             </span>
                             {/* Inside a "Waiting on you" group the urgency is already stated, so the
                             chip spends itself on WHAT is being asked and stays visually quiet —
@@ -238,10 +255,11 @@ const SessionListCard = ({
                             </Tooltip>
                         </span>
                         {/* What actually happened, so deciding whether to reopen a session
-                            doesn't mean opening it. Indented past the status dot. */}
-                        {preview ? (
+                            doesn't mean opening it. Indented past the status dot. Absent when the
+                            title is already the message. */}
+                        {subtitle ? (
                             <span className="min-w-0 truncate pl-4 text-[11px] text-colorTextTertiary">
-                                {preview}
+                                {subtitle}
                             </span>
                         ) : null}
                     </button>
@@ -265,38 +283,30 @@ const SessionListCard = ({
     )
 
     return (
-        // `pt-0` hands the card's top padding to the sticky header below (Tailwind emits `pt-*`
-        // after `py-*`, so it wins); without that the header would stick flush to the rail's edge.
-        <section className={`flex flex-col ${RAIL_CARD_CLASS} pt-0 ${minHeightClassName ?? ""}`}>
-            {/* Sticky within its own card, so scrolling a long list never leaves you looking at
-                rows that don't say which list they belong to. The card's top padding moved onto
-                this element (`pt-3` here, `pt-0` on the section) so the spacing above the title
-                is identical stuck or unstuck, and the opaque background is what the rows pass
-                behind. The section must NOT get `overflow-hidden` to clip its corners against
-                this — that would make it the scroll container and the header would stop
-                sticking at all. */}
-            <div className="sticky top-0 z-10 mb-1 flex items-center justify-between gap-2 bg-colorBgContainer pb-1 pt-3">
-                <div className="flex min-w-0 items-center gap-2">
-                    <h3 className="m-0 text-xs font-medium text-colorText">{title}</h3>
-                    {waitingRowsAll.length > 0 ? (
-                        <Link
-                            href={`${projectURL}/sessions`}
-                            onClick={handleWaitingClick}
-                            className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-[11px] leading-none text-colorWarningText"
-                        >
-                            {waitingRowsAll.length} waiting
-                        </Link>
-                    ) : null}
-                </div>
-                <Link
-                    href={`${projectURL}/sessions`}
-                    onClick={handleViewAll}
-                    className="shrink-0 text-xs"
-                >
+        // The band pins instead of a bordered card's own header — in a scrolling column the
+        // sections then swap their pinned header the way the config panel's regions do.
+        <PanelSection
+            sticky
+            title={title}
+            minHeightClassName={minHeightClassName}
+            bodyClassName="flex grow flex-col px-2 pb-2 pt-1"
+            titleExtra={
+                waitingRowsAll.length > 0 ? (
+                    <Link
+                        href={scopedHref}
+                        onClick={handleWaitingClick}
+                        className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-[11px] leading-none text-colorWarningText"
+                    >
+                        {waitingRowsAll.length} waiting
+                    </Link>
+                ) : null
+            }
+            extra={
+                <Link href={scopedHref} onClick={handleViewAll} className="shrink-0 text-xs">
                     View all
                 </Link>
-            </div>
-
+            }
+        >
             {listQuery.isPending ? (
                 <Skeleton active paragraph={{rows: 4}} title={false} />
             ) : (
@@ -334,7 +344,7 @@ const SessionListCard = ({
                     </div>
                 </MotionConfig>
             )}
-        </section>
+        </PanelSection>
     )
 }
 

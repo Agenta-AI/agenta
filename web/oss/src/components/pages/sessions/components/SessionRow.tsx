@@ -11,6 +11,8 @@ import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
 
 import {sessionPreviewText} from "../assets/sessionPreview"
 import {pendingGateLabel, sessionRowStatus} from "../assets/sessionRowStatus"
+import {sessionRowTitle} from "../assets/sessionRowTitle"
+import {sessionTriggerName} from "../assets/sessionTrigger"
 import type {SessionPending} from "../state/useSessionList"
 
 import SessionAgentLabel from "./SessionAgentLabel"
@@ -29,6 +31,8 @@ interface Props extends SessionRowActions {
     row: SessionStream
     pending: SessionPending | undefined
     pinned: boolean
+    /** Off on an agent-scoped list, where every row names the same agent. */
+    showAgent?: boolean
 }
 
 const SessionRow = ({
@@ -36,6 +40,7 @@ const SessionRow = ({
     menuItems,
     pending,
     pinned,
+    showAgent = true,
     onOpen,
     onTogglePin,
     onRename,
@@ -43,7 +48,10 @@ const SessionRow = ({
     onDelete,
 }: Props) => {
     const status = sessionRowStatus(row, pending?.count)
-    const preview = useMemo(() => sessionPreviewText(row), [row])
+    const {title, subtitle} = useMemo(
+        () => sessionRowTitle(row.name, sessionPreviewText(row), sessionTriggerName(row)),
+        [row],
+    )
     const target = useMemo(() => sessionOpenTarget(row), [row])
     const activity = row.updated_at ?? row.created_at
     const openable = Boolean(target)
@@ -103,12 +111,10 @@ const SessionRow = ({
                 </Tooltip>
 
                 <span className="flex-1 min-w-0 flex flex-col gap-0.5">
-                    <span className="text-xs text-colorText truncate">
-                        {row.name?.trim() || "Untitled session"}
-                    </span>
-                    {preview ? (
+                    <span className="text-xs text-colorText truncate">{title}</span>
+                    {subtitle ? (
                         <span className="truncate text-[11px] text-colorTextTertiary">
-                            {preview}
+                            {subtitle}
                         </span>
                     ) : null}
                 </span>
@@ -124,9 +130,11 @@ const SessionRow = ({
                     </span>
                 ) : null}
 
-                <span className="w-40 shrink-0 truncate">
-                    <SessionAgentLabel appId={target?.appId ?? null} />
-                </span>
+                {showAgent ? (
+                    <span className="w-40 shrink-0 truncate">
+                        <SessionAgentLabel appId={target?.appId ?? null} />
+                    </span>
+                ) : null}
 
                 <span className="w-24 shrink-0 text-xs text-colorTextTertiary text-right">
                     {activity ? timeAgo(Date.parse(activity)) : "—"}
