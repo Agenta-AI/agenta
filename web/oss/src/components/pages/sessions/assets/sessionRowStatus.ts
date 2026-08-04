@@ -44,3 +44,23 @@ export function sessionRowStatus(
     const status = deriveSessionRowStatus(row, pendingCount)
     return {status, ...META[status]}
 }
+
+/**
+ * What a blocked session is actually asking for. The gate poll already carries `kind` and the row
+ * used to throw it away, so a waiting row said only that it was stuck — never whether it wanted a
+ * decision, a message, or a tool run.
+ */
+export function pendingGateLabel(kinds: string[] | undefined): string {
+    if (!kinds?.length) return "Waiting"
+    if (kinds.length > 1) return "Needs you"
+    switch (kinds[0]) {
+        case "user_approval":
+            return "Approve"
+        case "user_input":
+            return "Needs input"
+        case "client_tool":
+            return "Tool call"
+        default:
+            return "Waiting"
+    }
+}

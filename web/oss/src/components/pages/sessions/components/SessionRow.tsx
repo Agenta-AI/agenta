@@ -9,7 +9,8 @@ import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionO
 import type {useSessionActions} from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
 import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
 
-import {sessionRowStatus} from "../assets/sessionRowStatus"
+import {pendingGateLabel, sessionRowStatus} from "../assets/sessionRowStatus"
+import type {SessionPending} from "../state/useSessionList"
 
 import SessionAgentLabel from "./SessionAgentLabel"
 
@@ -25,14 +26,14 @@ interface Props extends SessionRowActions {
     /** Shared menu builder — see `useSessionActions`. */
     menuItems: ReturnType<typeof useSessionActions>["menuItems"]
     row: SessionStream
-    pendingCount: number | undefined
+    pending: SessionPending | undefined
     pinned: boolean
 }
 
 const SessionRow = ({
     row,
     menuItems,
-    pendingCount,
+    pending,
     pinned,
     onOpen,
     onTogglePin,
@@ -40,7 +41,7 @@ const SessionRow = ({
     onArchive,
     onDelete,
 }: Props) => {
-    const status = sessionRowStatus(row, pendingCount)
+    const status = sessionRowStatus(row, pending?.count)
     const target = useMemo(() => sessionOpenTarget(row), [row])
     const activity = row.updated_at ?? row.created_at
     const openable = Boolean(target)
@@ -110,7 +111,7 @@ const SessionRow = ({
                             status.chipClassName,
                         )}
                     >
-                        {status.chipLabel}
+                        {pendingGateLabel(pending?.kinds)}
                     </span>
                 ) : null}
 

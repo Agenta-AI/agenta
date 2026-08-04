@@ -6,6 +6,7 @@ import {Button} from "antd"
 import {useAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import {RAIL_CARD_CLASS} from "@/oss/assets/railCard"
 import Sort from "@/oss/components/Filters/Sort"
 import {useObservabilityDashboard} from "@/oss/state/observability"
 import {observabilityDashboardTimeRangeAtom} from "@/oss/state/observability/dashboard"
@@ -62,7 +63,7 @@ const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) =>
         // stranded the expand control, which read as a broken grid rather than a compact summary.
         return (
             <section className="flex flex-col gap-3">
-                <div className="flex flex-col gap-3 rounded-xl border border-solid border-[var(--ag-strip-card-border)] bg-[var(--ag-strip-card-bg)] px-4 py-4">
+                <div className={`flex flex-col gap-3 ${RAIL_CARD_CLASS}`}>
                     <div className="flex items-center gap-2">
                         <ChartLineIcon size={15} className="text-[var(--ag-colorTextSecondary)]" />
                         <span className="text-xs font-medium text-[var(--ag-colorText)]">
@@ -100,7 +101,7 @@ const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) =>
                                 <span className="text-[11px] text-[var(--ag-colorTextSecondary)]">
                                     {stat.label}
                                 </span>
-                                <span className="text-sm font-semibold text-[var(--ag-colorText)]">
+                                <span className="text-xs font-semibold text-[var(--ag-colorText)]">
                                     {stat.value}
                                 </span>
                             </div>

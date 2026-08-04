@@ -5,7 +5,7 @@
 import type {SessionStream} from "@agenta/entities/session"
 import {describe, expect, it} from "vitest"
 
-import {sessionRowStatus} from "./sessionRowStatus"
+import {pendingGateLabel, sessionRowStatus} from "./sessionRowStatus"
 
 const row = (overrides: Partial<SessionStream> = {}): SessionStream =>
     ({
@@ -47,5 +47,23 @@ describe("sessionRowStatus", () => {
         expect(sessionRowStatus(row({flags: {is_alive: true, is_running: true}})).pulse).toBe(true)
         expect(sessionRowStatus(row({flags: {is_alive: true}})).pulse).toBe(false)
         expect(sessionRowStatus(row()).pulse).toBe(false)
+    })
+})
+
+describe("pendingGateLabel", () => {
+    it("names what the session is asking for", () => {
+        expect(pendingGateLabel(["user_approval"])).toBe("Approve")
+        expect(pendingGateLabel(["user_input"])).toBe("Needs input")
+        expect(pendingGateLabel(["client_tool"])).toBe("Tool call")
+    })
+
+    it("falls back to the generic label when the kind is unknown or absent", () => {
+        expect(pendingGateLabel(undefined)).toBe("Waiting")
+        expect(pendingGateLabel([])).toBe("Waiting")
+        expect(pendingGateLabel(["something_new"])).toBe("Waiting")
+    })
+
+    it("does not claim one action when several are open", () => {
+        expect(pendingGateLabel(["user_approval", "user_input"])).toBe("Needs you")
     })
 })

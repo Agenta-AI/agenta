@@ -34,16 +34,27 @@ export const useActionableInteractions = (projectId: string) =>
         refetchOnWindowFocus: true,
     })
 
-/** `session_id → pending count`; `undefined` until the poll resolves. */
-export const pendingCountBySession = (
+export interface SessionPending {
+    count: number
+    /** Distinct gate kinds still open. Carries what the session is asking for, not just that it
+     * asks — "approve" and "needs input" are different calls to action. */
+    kinds: string[]
+}
+
+/** `session_id → pending gates`; `undefined` until the poll resolves. */
+export const pendingBySessionId = (
     interactions: SessionInteraction[] | null | undefined,
-): Map<string, number> | undefined => {
+): Map<string, SessionPending> | undefined => {
     if (!interactions) return undefined
-    const counts = new Map<string, number>()
+    const bySession = new Map<string, SessionPending>()
     for (const interaction of interactions) {
-        counts.set(interaction.session_id, (counts.get(interaction.session_id) ?? 0) + 1)
+        const entry = bySession.get(interaction.session_id) ?? {count: 0, kinds: []}
+        entry.count += 1
+        if (interaction.kind && !entry.kinds.includes(interaction.kind))
+            entry.kinds.push(interaction.kind)
+        bySession.set(interaction.session_id, entry)
     }
-    return counts
+    return bySession
 }
 
 interface SessionListOptions {

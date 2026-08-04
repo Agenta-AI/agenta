@@ -13,10 +13,7 @@ const SessionAgentLabel = ({appId}: {appId: string | null}) => {
 
     if (!appId) {
         return (
-            <span
-                className="text-xs text-colorTextQuaternary"
-                title="This session has no turns yet"
-            >
+            <span className="text-xs text-colorTextTertiary" title="This session has no turns yet">
                 No agent yet
             </span>
         )

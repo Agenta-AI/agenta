@@ -7,6 +7,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 import Link from "next/link"
 
+import {RAIL_CARD_CLASS} from "@/oss/assets/railCard"
 import {ROW_VARIANTS, SESSION_SPRING} from "@/oss/components/AgentChatSlice/assets/sessionMotion"
 import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionOpenTarget"
 import {useOpenAgentSession} from "@/oss/components/AgentChatSlice/hooks/useOpenAgentSession"
@@ -15,11 +16,11 @@ import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
 import useURL from "@/oss/hooks/useURL"
 import {projectIdAtom} from "@/oss/state/project"
 
-import {sessionRowStatus} from "../assets/sessionRowStatus"
-import {sessionAgentFilterAtom, sessionStatusFilterAtom} from "../state/filters"
+import {pendingGateLabel, sessionRowStatus} from "../assets/sessionRowStatus"
+import {applySessionScopeAtom} from "../state/filters"
 import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "../state/pins"
 import {
-    pendingCountBySession,
+    pendingBySessionId,
     rowsFromPages,
     useActionableInteractions,
     useSessionList,
@@ -62,15 +63,14 @@ const SessionListCard = ({
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
     const togglePin = useSetAtom(toggleSessionPinAtom)
-    const setStatusFilter = useSetAtom(sessionStatusFilterAtom)
-    const setAgentFilter = useSetAtom(sessionAgentFilterAtom)
+    const applyScope = useSetAtom(applySessionScopeAtom)
     const openSession = useOpenAgentSession()
     const actions = useSessionActions()
     const {projectURL} = useURL()
 
     const interactions = useActionableInteractions(projectId)
     const pendingBySession = useMemo(
-        () => pendingCountBySession(interactions.data),
+        () => pendingBySessionId(interactions.data),
         [interactions.data],
     )
 
@@ -134,6 +134,8 @@ const SessionListCard = ({
         .slice(0, Math.max(0, limit - waitingRows.length - pinnedRows.length))
 
     const isEmpty = rows.length === 0 && pinnedRows.length === 0 && waitingRows.length === 0
+    // A lone "Recent" heading over a plain list is noise; it only earns its place as a boundary.
+    const grouped = waitingRows.length > 0 || pinnedRows.length > 0
 
     const handleOpen = useCallback(
         (row: SessionStream) => {
@@ -143,14 +145,17 @@ const SessionListCard = ({
         [openSession],
     )
 
-    // Carry this card's scope onto the sessions page so the badge lands on the same set it counts.
+    // Every link out of this card lands on the set the card was showing, not on a default list.
+    const handleViewAll = useCallback(() => {
+        applyScope({agentId, origin})
+    }, [agentId, applyScope, origin])
     const handleWaitingClick = useCallback(() => {
-        setStatusFilter("waiting")
-        setAgentFilter(agentId ?? null)
-    }, [agentId, setAgentFilter, setStatusFilter])
+        applyScope({agentId, origin, status: "waiting"})
+    }, [agentId, applyScope, origin])
 
     const renderRow = (row: SessionStream, pinned: boolean) => {
-        const status = sessionRowStatus(row, pendingBySession?.get(row.session_id))
+        const pending = pendingBySession?.get(row.session_id)
+        const status = sessionRowStatus(row, pending?.count)
         const target = sessionOpenTarget(row)
         const activity = row.updated_at ?? row.created_at
         const actionTarget = {
@@ -192,11 +197,12 @@ const SessionListCard = ({
                         <span className="min-w-0 flex-1 truncate text-xs text-colorText">
                             {row.name?.trim() || "Untitled session"}
                         </span>
+                        {/* Inside a "Waiting on you" group the urgency is already stated, so the
+                            chip spends itself on WHAT is being asked and stays visually quiet —
+                            the amber lives on the dot and the header badge. */}
                         {status.chipLabel ? (
-                            <span
-                                className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] leading-none ${status.chipClassName}`}
-                            >
-                                {status.chipLabel}
+                            <span className="shrink-0 rounded bg-colorFillSecondary px-1.5 py-0.5 text-[11px] leading-none text-colorTextSecondary">
+                                {pendingGateLabel(pending?.kinds)}
                             </span>
                         ) : null}
                         {/* An agent-scoped card is already one agent's, so naming it on every row
@@ -246,9 +252,7 @@ const SessionListCard = ({
     )
 
     return (
-        <section
-            className={`flex flex-col rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-3 ${minHeightClassName ?? ""}`}
-        >
+        <section className={`flex flex-col ${RAIL_CARD_CLASS} ${minHeightClassName ?? ""}`}>
             <div className="mb-1 flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
                     <h3 className="m-0 text-xs font-medium text-colorText">{title}</h3>
@@ -262,7 +266,11 @@ const SessionListCard = ({
                         </Link>
                     ) : null}
                 </div>
-                <Link href={`${projectURL}/sessions`} className="shrink-0 text-xs">
+                <Link
+                    href={`${projectURL}/sessions`}
+                    onClick={handleViewAll}
+                    className="shrink-0 text-xs"
+                >
                     View all
                 </Link>
             </div>
@@ -285,6 +293,11 @@ const SessionListCard = ({
                                 ? groupHeading("pinned-heading", "Pinned")
                                 : null}
                             {pinnedRows.map((row) => renderRow(row, true))}
+                            {/* Without this the recent rows read as a continuation of "Pinned" —
+                                a labelled group followed by unlabelled rows has no visible end. */}
+                            {grouped && rows.length > 0
+                                ? groupHeading("recent-heading", "Recent")
+                                : null}
                             {rows.map((row) => renderRow(row, false))}
                         </AnimatePresence>
 

@@ -28,7 +28,7 @@ import {
 } from "./state/filters"
 import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "./state/pins"
 import {
-    pendingCountBySession,
+    pendingBySessionId,
     rowsFromPages,
     useActionableInteractions,
     useSessionList,
@@ -56,7 +56,7 @@ const SessionsPage = () => {
 
     const interactions = useActionableInteractions(projectId)
     const pendingBySession = useMemo(
-        () => pendingCountBySession(interactions.data),
+        () => pendingBySessionId(interactions.data),
         [interactions.data],
     )
     const waitingIds = useMemo(
@@ -135,7 +135,7 @@ const SessionsPage = () => {
                 key={row.session_id}
                 row={row}
                 pinned={pinned}
-                pendingCount={pendingBySession?.get(row.session_id)}
+                pending={pendingBySession?.get(row.session_id)}
                 menuItems={sessionActions.menuItems}
                 {...actions}
             />

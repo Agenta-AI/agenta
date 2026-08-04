@@ -266,10 +266,12 @@ const TemplateStrip = ({
                             />
                         ))}
                     </div>
-                    {showPager ? (
+                    {/* Gated on `atEnd`, not on the pager: a card cut off at the container edge
+                        with no fade reads as a clipped layout rather than as more to scroll. */}
+                    {!atEnd ? (
                         <div
                             aria-hidden
-                            className="pointer-events-none absolute bottom-1.5 right-0 top-0 w-9"
+                            className="pointer-events-none absolute bottom-1.5 right-0 top-0 w-16"
                             style={{
                                 background: `linear-gradient(to right, transparent, var(${surfaceColorVar}))`,
                             }}

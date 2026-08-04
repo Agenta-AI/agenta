@@ -15,7 +15,7 @@ const HomeAutomationsSection = () => (
         limit={5}
         // Barely above the empty state's own height: a taller floor on a one-row card leaves a
         // block of dead space that reads as a rendering failure rather than a short list.
-        minHeightClassName="min-h-[120px]"
+        minHeightClassName="min-h-[100px]"
     />
 )
 

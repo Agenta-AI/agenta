@@ -31,3 +31,24 @@ export const resetSessionFiltersAtom = atom(null, (_get, set) => {
     set(sessionShowArchivedAtom, false)
     set(sessionShowTriggeredAtom, false)
 })
+
+export interface SessionScope {
+    agentId?: string | null
+    /** The card's origin restriction — "trigger" for the automations list. */
+    origin?: string | null
+    status?: SessionStatusFilter
+}
+
+/**
+ * Point the sessions page at the same set a card was showing.
+ *
+ * Without this, "View all" under *Automation runs* landed on a list that hides automations by
+ * default — the one thing you were looking at. Filters are reset first so a scope never inherits
+ * whatever was left over from the last visit.
+ */
+export const applySessionScopeAtom = atom(null, (_get, set, scope: SessionScope) => {
+    set(resetSessionFiltersAtom)
+    if (scope.agentId) set(sessionAgentFilterAtom, scope.agentId)
+    if (scope.origin === "trigger") set(sessionShowTriggeredAtom, true)
+    if (scope.status) set(sessionStatusFilterAtom, scope.status)
+})
