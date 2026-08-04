@@ -1,6 +1,23 @@
 # Status
 
-Updated: 2026-08-04 evening, by team-lead.
+Updated: 2026-08-04 night, by team-lead.
+
+## Implementation state
+
+Two slices are landed on stacked lanes and pushed, with the gate-3 contract fixes:
+
+- Lane `agent-config-editing-plan`: all design docs and contracts.
+- Lane `agent-config-editing-s5` (stacked on plan): runner applied-state identity and
+  safe teardown. The approval-stale-config bug is now unrepresentable; a config change
+  stops the sandbox instead of deleting it; a content-identical commit keeps the warm
+  session. 14 files.
+- Lane `agent-config-editing-s4` (stacked on s5): the agent-written description on
+  builder tool calls, stripped before dispatch, shown on the agent chat tool card. 12
+  files.
+
+The qa teammate is verifying all suites in the main tree. Everything else waits on the
+six product calls in `decisions.md` (call 1 gates the engine slice) and a fourth gate
+pass over the corrected contracts.
 
 ## Where we are
 
