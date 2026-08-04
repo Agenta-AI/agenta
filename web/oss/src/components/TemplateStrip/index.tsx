@@ -160,6 +160,17 @@ const TemplateStrip = ({
                 sticky
                 title={STRIP_COPY.label}
                 bodyClassName="flex flex-col px-2 pb-2"
+                extra={
+                    filtered.length > LIST_SIZE ? (
+                        <button
+                            type="button"
+                            onClick={() => setShowAllRows((wasOpen) => !wasOpen)}
+                            className="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-xs text-colorPrimary"
+                        >
+                            {showAllRows ? "Show fewer" : `View all ${filtered.length}`}
+                        </button>
+                    ) : null
+                }
                 titleExtra={
                     <Dropdown
                         trigger={["click"]}
@@ -197,15 +208,6 @@ const TemplateStrip = ({
                         onPick={onPick}
                     />
                 ))}
-                {filtered.length > LIST_SIZE ? (
-                    <button
-                        type="button"
-                        onClick={() => setShowAllRows((wasOpen) => !wasOpen)}
-                        className="cursor-pointer border-0 bg-transparent px-2 py-2 text-left text-xs text-colorPrimary"
-                    >
-                        {showAllRows ? "Show fewer" : `Show all ${filtered.length}`}
-                    </button>
-                ) : null}
             </PanelSection>
         )
     }
