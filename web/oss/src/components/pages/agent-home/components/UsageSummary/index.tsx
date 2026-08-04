@@ -99,7 +99,9 @@ const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) =>
                 </div>
 
                 {expanded ? (
-                    <AnalyticsDashboard layout="grid-4" showTimeRangeSelector={false} />
+                    // Stacked, not gridded: the grid's breakpoints read the viewport, and this
+                    // column is 340px on any of them.
+                    <AnalyticsDashboard layout="stack" showTimeRangeSelector={false} />
                 ) : null}
             </PanelSection>
         )
