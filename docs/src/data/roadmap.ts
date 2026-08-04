@@ -76,9 +76,9 @@ export const shippedFeatures: ShippedFeature[] = [
   },
   {
     id: "work-folder",
-    title: "The Agent Work Folder",
+    title: "Shared Workspace Files",
     description:
-      "Attach files and images to an agent chat by pasting, dragging and dropping, or uploading a whole folder. Everything you add lives in the session's work folder, which the agent reads from inside its sandbox.",
+      "One cloud folder for you, your team, and your agents. Upload images, PDFs, or a whole folder, and each agent keeps its own folder that survives between conversations, so it starts every session already knowing your material.",
     changelogPath: "/docs/changelog/file-attachments-in-agent-chat",
     shippedAt: "2026-08-02",
     labels: [
