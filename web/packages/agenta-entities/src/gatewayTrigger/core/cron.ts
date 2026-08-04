@@ -95,14 +95,43 @@ export function describeCron(expression: string): string {
     if (minute === "0" && hour === "*" && dom === "*" && month === "*" && dow === "*")
         return "Every hour (UTC)"
 
+    // "5 * * * *" — every hour, on the 5th minute. Left undescribed it fell through to the raw
+    // expression, which is what a schedule list shows as its own name.
+    if (/^\d+$/.test(minute) && hour === "*" && dom === "*" && month === "*" && dow === "*")
+        return `Every hour at :${pad(minute)} (UTC)`
+
+    const hourStep = hour.match(/^\*\/(\d+)$/)
+    if (/^\d+$/.test(minute) && hourStep && dom === "*" && month === "*" && dow === "*")
+        return `Every ${hourStep[1]} hours at :${pad(minute)} (UTC)`
+
     const isTime = /^\d+$/.test(minute) && /^\d+$/.test(hour)
     if (isTime && dom === "*" && month === "*") {
         const time = `${pad(hour)}:${pad(minute)} UTC`
         if (dow === "*") return `Every day at ${time}`
         if (/^\d$/.test(dow)) return `Every ${DAY_NAMES[Number(dow)]} at ${time}`
+        // "0 9 * * 1-5" / "0 9 * * 1,3" — a day set, not a single day.
+        if (/^[\d,-]+$/.test(dow)) {
+            const days = expandDayList(dow)
+            if (days.length) return `${days.map((day) => DAY_NAMES[day]).join(", ")} at ${time}`
+        }
     }
 
     return `${expression} (UTC)`
+}
+
+/** Expand a cron day-of-week list/range ("1-5", "1,3") into day indexes. */
+function expandDayList(dow: string): number[] {
+    const days = new Set<number>()
+    for (const part of dow.split(",")) {
+        const range = part.match(/^(\d)-(\d)$/)
+        if (range) {
+            for (let day = Number(range[1]); day <= Number(range[2]); day += 1) days.add(day % 7)
+            continue
+        }
+        if (/^\d$/.test(part)) days.add(Number(part))
+        else return []
+    }
+    return [...days].sort((a, b) => a - b)
 }
 
 function pad(value: string): string {

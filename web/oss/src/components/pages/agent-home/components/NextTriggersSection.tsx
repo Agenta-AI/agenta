@@ -9,7 +9,9 @@ import {
 import {LightningIcon} from "@phosphor-icons/react"
 import {Skeleton, Tooltip} from "antd"
 import dayjs from "dayjs"
+import {useAtomValue} from "jotai"
 
+import {agentsWorkflowsAtom} from "@/oss/components/pages/agents/store"
 import {PanelSection} from "@/oss/components/PanelSection"
 
 const LIST_SIZE = 5
@@ -33,9 +35,21 @@ const formatNextRun = (at: Date) => {
  * event subscriptions have no next time by nature, so they say what they are instead and sort
  * after everything dated.
  */
+/** Schedules and subscriptions both name their agent through the same reference keys. */
+const boundAgentId = (
+    references: Record<string, {id?: string | null} | undefined> | null | undefined,
+) =>
+    references?.application?.id ??
+    references?.application_variant?.id ??
+    references?.application_revision?.id ??
+    null
+
 interface UpcomingTrigger {
     id: string
+    /** What it does. Falls back to the cadence in words, never to a cron expression. */
     name: string
+    /** Which agent runs it, and how often. */
+    subtitle: string
     detail: string
     /** Absent for event subscriptions — they fire when the world does. */
     at: Date | null
@@ -46,30 +60,50 @@ const NextTriggersSection = () => {
     const {schedules, isLoading: schedulesLoading} = useTriggerSchedules()
     const {subscriptions, isLoading: subscriptionsLoading} = useTriggerSubscriptions()
 
+    const agents = useAtomValue(agentsWorkflowsAtom)
+    const agentNames = useMemo(
+        () => new Map(agents.map((agent) => [agent.workflowId, agent.name])),
+        [agents],
+    )
+
     const rows = useMemo<UpcomingTrigger[]>(() => {
+        const describeAgent = (references: unknown) => {
+            const agentId = boundAgentId(references as never)
+            return (agentId && agentNames.get(agentId)) || "Unassigned agent"
+        }
+
         const scheduled = schedules
             .filter((schedule) => schedule.flags?.is_active !== false && !schedule.deleted_at)
             .map((schedule, index) => {
                 const expression = schedule.data?.schedule ?? ""
                 const [next] = nextCronRuns(expression, 1)
+                const cadence = describeCron(expression)
+                const agent = describeAgent(schedule.data?.references)
                 return {
                     id: schedule.id ?? `schedule-${index}`,
-                    name: schedule.name || describeCron(expression) || "Schedule",
+                    // An unnamed schedule reads as its cadence, never as "5 * * * *".
+                    name: schedule.name || cadence,
+                    subtitle: schedule.name ? `${agent} · ${cadence}` : agent,
                     detail: next ? formatNextRun(next) : "—",
                     at: next ?? null,
-                    tooltip: describeCron(expression) || expression,
+                    tooltip: cadence,
                 }
             })
 
         const evented = subscriptions
             .filter((subscription) => subscription.flags?.is_active !== false)
-            .map((subscription, index) => ({
-                id: subscription.id ?? `subscription-${index}`,
-                name: subscription.name || subscription.data?.event_key || "Event trigger",
-                detail: "on event",
-                at: null,
-                tooltip: "Fires when its event arrives",
-            }))
+            .map((subscription, index) => {
+                const eventKey = subscription.data?.event_key ?? ""
+                const agent = describeAgent(subscription.data?.references)
+                return {
+                    id: subscription.id ?? `subscription-${index}`,
+                    name: subscription.name || eventKey || "Event trigger",
+                    subtitle: eventKey && subscription.name ? `${agent} · ${eventKey}` : agent,
+                    detail: "on event",
+                    at: null,
+                    tooltip: eventKey ? `Fires on ${eventKey}` : "Fires when its event arrives",
+                }
+            })
 
         // Dated first and soonest-first; undated (event) triggers keep their own order after them.
         return [...scheduled, ...evented]
@@ -80,7 +114,7 @@ const NextTriggersSection = () => {
                 return 0
             })
             .slice(0, LIST_SIZE)
-    }, [schedules, subscriptions])
+    }, [schedules, subscriptions, agentNames])
 
     const isLoading = schedulesLoading || subscriptionsLoading
 
@@ -97,16 +131,19 @@ const NextTriggersSection = () => {
             ) : (
                 rows.map((row) => (
                     <Tooltip key={row.id} title={row.tooltip} placement="left">
-                        <div className="box-border flex items-center gap-2 rounded-lg px-2 py-2.5">
+                        <div className="box-border flex items-start gap-2 rounded-lg px-2 py-2.5">
                             <LightningIcon
                                 size={16}
-                                className="shrink-0 text-colorTextTertiary"
+                                className="mt-0.5 shrink-0 text-colorTextTertiary"
                                 weight="fill"
                             />
-                            <span className="min-w-0 flex-1 truncate text-sm text-colorText">
-                                {row.name}
+                            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                <span className="truncate text-sm text-colorText">{row.name}</span>
+                                <span className="truncate text-[13px] text-colorTextSecondary">
+                                    {row.subtitle}
+                                </span>
                             </span>
-                            <span className="shrink-0 text-xs text-colorTextSecondary">
+                            <span className="mt-0.5 shrink-0 text-xs text-colorTextSecondary">
                                 {row.detail}
                             </span>
                         </div>
