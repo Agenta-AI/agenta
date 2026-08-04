@@ -118,7 +118,10 @@ const YourAgentsTable = ({forceEmpty = false}: YourAgentsTableProps) => {
 
     const tableProps = useMemo<TableProps<AppWorkflowRow>>(
         () => ({
-            bordered: true,
+            // `bordered` draws an outer box AND a full cell grid — the last outlined thing on this
+            // page once the rail became a sheet. Unbordered leaves the row hairlines, which is the
+            // separation the rest of the page now uses.
+            bordered: false,
             loading: isLoading,
             scroll: {y: AGENT_TABLE_BODY_HEIGHT},
             onRow: (record) => ({
