@@ -12,6 +12,7 @@ import {
     resolveSettingsTab,
 } from "@/oss/components/pages/settings/assets/navigation"
 import {useSettingsAccess} from "@/oss/components/pages/settings/hooks/useSettingsAccess"
+import PageTitle from "@/oss/components/PageTitle"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
@@ -205,16 +206,19 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     }, [resolvedTab, buildOrganizationTitle, settingsAccess, AuditLogComponent])
 
     return (
-        <PageLayout
-            key={settingsKey}
-            title={title}
-            // The Audit Log tab hosts a full-height InfiniteVirtualTable, which
-            // needs a bounded parent so it scrolls internally instead of growing
-            // the page. Other tabs keep PageLayout's default `min-h-full` flow.
-            className={resolvedTab === "auditLog" ? "h-full min-h-0" : undefined}
-        >
-            {content}
-        </PageLayout>
+        <>
+            <PageTitle title="Settings" />
+            <PageLayout
+                key={settingsKey}
+                title={title}
+                // The Audit Log tab hosts a full-height InfiniteVirtualTable, which
+                // needs a bounded parent so it scrolls internally instead of growing
+                // the page. Other tabs keep PageLayout's default `min-h-full` flow.
+                className={resolvedTab === "auditLog" ? "h-full min-h-0" : undefined}
+            >
+                {content}
+            </PageLayout>
+        </>
     )
 }
 

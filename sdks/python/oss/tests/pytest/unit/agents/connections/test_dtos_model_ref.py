@@ -1,9 +1,9 @@
 """``ModelRef`` wiring into the config DTOs (no behavior change for string-only configs).
 
-The Slice-1 contract: a structured ``model`` (dict / ``ModelRef``) populates ``model_ref`` and
-projects ``model`` to its plain string; a plain-string ``model`` leaves ``model_ref`` unset so
-the wire is byte-identical. ``wire_model_ref`` emits the non-secret provider/connection fields
-only for a structured ref.
+A structured ``model`` populates resolver intent and projects to a plain model string. The
+author's connection CHOICE crosses the runner boundary as a bare ``{mode, slug}`` reference,
+because the runner routes on it; what that choice RESOLVED to (route plus credentials) crosses
+only as ``modelConnection``. No credential and no flat provider field ride the wire.
 """
 
 from __future__ import annotations
@@ -58,64 +58,47 @@ def test_explicit_model_ref_is_respected():
     assert config.model_ref.provider == "openai"
 
 
-# ------------------------------------------------------------- wire_model_ref / wire
+# ------------------------------------------------------ resolved model connection wire
 
 
-def test_wire_model_ref_empty_for_string_only_config():
-    config = PiAgentTemplate(model="openai-codex/gpt-5.5")
-    assert config.wire_model_ref() == {}
-
-
-def test_wire_model_ref_emits_provider_and_connection_for_structured():
-    config = PiAgentTemplate(
-        model={
+def test_wire_model_connection_empty_before_resolution():
+    for model in (
+        "openai-codex/gpt-5.5",
+        {"provider": "openai", "model": "gpt-5.5"},
+        {
             "provider": "openai",
             "model": "gpt-5.5",
             "connection": {"mode": "agenta", "slug": "openai-prod"},
-        }
-    )
-    assert config.wire_model_ref() == {
-        "provider": "openai",
-        "connection": {"mode": "agenta", "slug": "openai-prod"},
-    }
-
-
-def test_wire_model_ref_omits_default_connection():
-    config = PiAgentTemplate(
-        model={"provider": "openai", "model": "gpt-5.5"},
-    )
-    # Default connection carries no non-default info, so only the provider rides the wire.
-    assert config.wire_model_ref() == {"provider": "openai"}
-
-
-def test_wire_model_ref_emits_self_managed_connection_without_slug():
-    config = PiAgentTemplate(
-        model={
+        },
+        {
             "provider": "openai",
             "model": "gpt-5.5",
             "connection": {"mode": "self_managed"},
-        }
-    )
-    assert config.wire_model_ref() == {
-        "provider": "openai",
-        "connection": {"mode": "self_managed"},
-    }
+        },
+    ):
+        config = PiAgentTemplate(model=model)
+        assert config.wire_model_connection() == {}
 
 
-def test_string_only_config_wire_has_no_new_keys():
-    # The whole point of Slice 1: a string-only config's payload gains no new keys.
+def test_string_only_config_wire_has_no_model_connection():
     payload = request_to_wire(
         harness=HarnessKind.PI,
         sandbox="local",
         config=PiAgentTemplate(model="openai-codex/gpt-5.5"),
         messages=[Message(role="user", content="hi")],
     )
-    assert "provider" not in payload
-    assert "connection" not in payload
+    assert "modelConnection" not in payload
     assert payload["model"] == "openai-codex/gpt-5.5"
 
 
-def test_structured_config_wire_carries_provider_and_connection():
+def test_named_connection_choice_crosses_the_boundary_without_credentials():
+    """The named connection rides the wire; nothing resolved or secret does.
+
+    The runner needs the author's choice to route a named OpenAI-compatible Pi run through its
+    models.json path, so ``connection`` is part of the contract. The flat ``provider`` and
+    ``secrets`` fields are retired: a provider is only meaningful once resolved, and credentials
+    only ever travel inside ``modelConnection``.
+    """
     payload = request_to_wire(
         harness=HarnessKind.PI,
         sandbox="local",
@@ -129,8 +112,41 @@ def test_structured_config_wire_carries_provider_and_connection():
         messages=[Message(role="user", content="hi")],
     )
     assert payload["model"] == "openai/gpt-5.5"
-    assert payload["provider"] == "openai"
     assert payload["connection"] == {"mode": "agenta", "slug": "openai-prod"}
+    assert "modelConnection" not in payload
+    for removed in ("provider", "secrets"):
+        assert removed not in payload
+
+
+def test_project_default_connection_is_omitted_from_the_wire():
+    """The project default (``agenta``, no slug) says nothing beyond the model, so it is omitted.
+
+    This keeps a plain run's payload byte-identical to a config that never named a connection.
+    """
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(model={"provider": "openai", "model": "gpt-5.5"}),
+        messages=[Message(role="user", content="hi")],
+    )
+    assert "connection" not in payload
+
+
+def test_self_managed_connection_choice_crosses_the_boundary():
+    """``self_managed`` is a real choice (the harness owns its own login), so it rides the wire."""
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(
+            model={
+                "provider": "openai-codex",
+                "model": "gpt-5.5",
+                "connection": {"mode": "self_managed"},
+            }
+        ),
+        messages=[Message(role="user", content="hi")],
+    )
+    assert payload["connection"] == {"mode": "self_managed"}
 
 
 def test_default_connection_equality():

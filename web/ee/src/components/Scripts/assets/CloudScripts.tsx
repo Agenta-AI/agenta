@@ -1,7 +1,6 @@
 import {useEffect} from "react"
 
 import {ChatboxColors, Crisp} from "crisp-sdk-web"
-import Head from "next/head"
 import Script from "next/script"
 
 import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
@@ -43,16 +42,10 @@ const CloudScripts = () => {
     }, [appTheme])
 
     return (
-        <>
-            <Head>
-                <title>Agenta – the open-source workspace for building and running agents</title>
-                <link rel="shortcut icon" href="/assets/favicon.ico" />
-            </Head>
-            <Script
-                src="https://app.termly.io/embed.min.js/8e05e2f3-b396-45dd-bb76-4dfa5ce28e10?autoBlock=on"
-                strategy="afterInteractive"
-            />
-        </>
+        <Script
+            src="https://app.termly.io/embed.min.js/8e05e2f3-b396-45dd-bb76-4dfa5ce28e10?autoBlock=on"
+            strategy="afterInteractive"
+        />
     )
 }
 

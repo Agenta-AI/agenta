@@ -1,10 +1,19 @@
-/** External HTTP MCP conversion and SSRF policy. */
+/** External HTTP MCP conversion, typed credential materialization, and SSRF policy. */
 import { afterEach, beforeEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import { toAcpMcpServers } from "../../src/engines/sandbox_agent.ts";
-import type { McpServerHttp } from "../../src/engines/sandbox_agent/mcp.ts";
+import {
+  validateUserMcpServers,
+  type McpServerHttp,
+} from "../../src/engines/sandbox_agent/mcp.ts";
 import type { McpServerConfig } from "../../src/protocol.ts";
+
+const credential = (name = "Authorization", value = "Bearer secret") => ({
+  binding: { kind: "header" as const, name },
+  value,
+  usage: "opaque_http" as const,
+});
 
 const http = (
   url: string,
@@ -42,11 +51,140 @@ describe("toAcpMcpServers", () => {
     );
   });
 
+  it("combines public headers and secret credential bindings only at the ACP boundary", async () => {
+    const out = await toAcpMcpServers([
+      {
+        name: "linear",
+        connection: {
+          type: "http",
+          url: "https://93.184.216.34:8443/sse",
+          headers: { "X-Client": "agenta" },
+          credentials: [
+            credential("Authorization", "Bearer secret-token-value"),
+          ],
+        },
+        policy: { tools: { mode: "all" } },
+      },
+    ]);
+    const server = out[0] as McpServerHttp;
+    assert.equal(
+      server.url,
+      "https://93.184.216.34:8443/sse",
+      "exact URL and port preserved",
+    );
+    assert.deepEqual(server.headers, [
+      { name: "X-Client", value: "agenta" },
+      { name: "Authorization", value: "Bearer secret-token-value" },
+    ]);
+  });
+
   it("delivers an http server with no secrets as an empty header list", async () => {
     const out = await toAcpMcpServers(http("https://93.184.216.34/sse", {}));
     const server = out[0] as McpServerHttp;
     assert.equal(server.type, "http");
     assert.deepEqual(server.headers, [], "no headers stays empty");
+  });
+
+  it("skips a url-less server and still delivers the valid one", async () => {
+    const out = await toAcpMcpServers([
+      {
+        name: "remote",
+        connection: {
+          type: "http",
+          url: "https://93.184.216.34/mcp",
+          credentials: [credential("X-Api-Key", "k-secret")],
+        },
+        policy: { tools: { mode: "all" } },
+      },
+      // A url-less server was never deliverable and is skipped, not fatal.
+      {
+        name: "no-url",
+        connection: { type: "http" },
+        policy: { tools: { mode: "all" } },
+      } as unknown as McpServerConfig,
+    ]);
+    assert.deepEqual(
+      out.map((server) => server.name),
+      ["remote"],
+    );
+  });
+});
+
+describe("validateUserMcpServers structural validation", () => {
+  const server = (
+    connection: Partial<McpServerConfig["connection"]>,
+  ): McpServerConfig[] => [
+    {
+      name: "s",
+      connection: {
+        type: "http",
+        url: "https://93.184.216.34",
+        ...connection,
+      },
+      policy: { tools: { mode: "all" } },
+    },
+  ];
+
+  it("requires a url", async () => {
+    await assert.rejects(
+      () =>
+        validateUserMcpServers([
+          {
+            name: "no-url",
+            connection: { type: "http" },
+            policy: { tools: { mode: "all" } },
+          } as unknown as McpServerConfig,
+        ]),
+      /requires url/,
+    );
+  });
+
+  it("rejects empty or malformed credentials and headers", async () => {
+    const cases: McpServerConfig[][] = [
+      server({ headers: { "": "x" } }),
+      server({ headers: { X: "" } }),
+      server({ credentials: [credential("", "secret")] }),
+      server({ credentials: [credential("X", "")] }),
+      server({
+        credentials: [
+          { ...credential("X", "secret"), usage: "environment" as never },
+        ],
+      }),
+      server({
+        credentials: [
+          {
+            ...credential("X", "secret"),
+            binding: { kind: "environment" as never, name: "X" },
+          },
+        ],
+      }),
+    ];
+    for (const servers of cases)
+      await assert.rejects(() => validateUserMcpServers(servers));
+  });
+
+  it("rejects duplicate public and secret bindings case-insensitively", async () => {
+    await assert.rejects(
+      () =>
+        validateUserMcpServers(
+          server({
+            headers: { Authorization: "public" },
+            credentials: [credential("authorization", "secret")],
+          }),
+        ),
+      /duplicate HTTP MCP header binding/,
+    );
+  });
+
+  it("accepts a well-formed credentialed server", async () => {
+    await assert.doesNotReject(() =>
+      validateUserMcpServers(
+        server({
+          headers: { "X-Client": "agenta" },
+          credentials: [credential()],
+        }),
+      ),
+    );
   });
 });
 
@@ -120,6 +258,24 @@ describe("toAcpMcpServers SSRF guard (http url scheme/host)", () => {
     const out = await toAcpMcpServers(http("https://93.184.216.34/sse"));
     assert.equal(out.length, 1);
     assert.equal((out[0] as McpServerHttp).url, "https://93.184.216.34/sse");
+  });
+
+  it("guards a credentialed server the same way (typed credentials ride headers)", async () => {
+    await assert.rejects(
+      () =>
+        toAcpMcpServers([
+          {
+            name: "s",
+            connection: {
+              type: "http",
+              url: "https://169.254.169.254/mcp",
+              credentials: [credential()],
+            },
+            policy: { tools: { mode: "all" } },
+          },
+        ]),
+      /internal\/metadata host/,
+    );
   });
 
   it("allowlist opts a host out of the https + internal-host checks", async () => {

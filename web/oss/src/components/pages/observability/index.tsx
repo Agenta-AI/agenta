@@ -5,6 +5,8 @@ import {Chats, TreeStructure} from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import PageTitle from "@/oss/components/PageTitle"
+import WorkflowPageTitle from "@/oss/components/PageTitle/WorkflowPageTitle"
 import {
     onboardingWidgetActivationAtom,
     recordWidgetEventAtom,
@@ -88,23 +90,30 @@ const ObservabilityTabs = () => {
     }, [isCurrentWorkflowEvaluator])
 
     return (
-        <PageLayout
-            title={"Observability"}
-            className="h-full overflow-hidden"
-            headerTabsProps={{
-                items: tabItems,
-                activeKey: activeTab,
-                onChange: (key) => setTabParam(key),
-            }}
-        >
-            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                {activeTab === "traces" ? <ObservabilityTable /> : <SessionsTable />}
-            </div>
-            <SetupTracingModal
-                open={isSetupTracingModalOpen}
-                onCancel={() => setIsSetupTracingModalOpen(false)}
-            />
-        </PageLayout>
+        <>
+            {workflowCtx.workflowId ? (
+                <WorkflowPageTitle title="Observability" />
+            ) : (
+                <PageTitle title="Observability" />
+            )}
+            <PageLayout
+                title={"Observability"}
+                className="h-full overflow-hidden"
+                headerTabsProps={{
+                    items: tabItems,
+                    activeKey: activeTab,
+                    onChange: (key) => setTabParam(key),
+                }}
+            >
+                <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                    {activeTab === "traces" ? <ObservabilityTable /> : <SessionsTable />}
+                </div>
+                <SetupTracingModal
+                    open={isSetupTracingModalOpen}
+                    onCancel={() => setIsSetupTracingModalOpen(false)}
+                />
+            </PageLayout>
+        </>
     )
 }
 

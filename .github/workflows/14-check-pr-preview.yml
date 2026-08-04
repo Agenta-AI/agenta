@@ -34,23 +34,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Resolve the preview mode ONCE per run so setup and deploy always agree,
-  # even if the RAILWAY_PREVIEW_MODE repo variable is flipped mid-run.
-  # 'legacy' = one Railway project per PR (the original path);
-  # 'clone'  = one environment per PR, cloned from the template project
-  #            (issue #5650; see hosting/railway/oss/README.md).
-  mode:
-    if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
-    runs-on: ubuntu-latest
-    outputs:
-      mode: ${{ steps.resolve.outputs.mode }}
-    steps:
-      - name: Resolve RAILWAY_PREVIEW_MODE
-        id: resolve
-        env:
-          MODE: ${{ vars.RAILWAY_PREVIEW_MODE || 'legacy' }}
-        run: echo "mode=${MODE}" >> "$GITHUB_OUTPUT"
-
   build:
     if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
     uses: ./.github/workflows/42-railway-build.yml
@@ -58,17 +41,16 @@ jobs:
       pr_number: ${{ github.event.pull_request.number || inputs.pr_number }}
 
   setup:
-    needs: [build, mode]
-    if: needs.build.result == 'success' && needs.mode.result == 'success'
+    needs: [build]
+    if: needs.build.result == 'success'
     uses: ./.github/workflows/41-railway-setup.yml
     with:
       pr_number: ${{ needs.build.outputs.pr_number }}
       image_tag: ${{ needs.build.outputs.image_tag }}
-      mode: ${{ needs.mode.outputs.mode }}
     secrets: inherit
 
   deploy:
-    needs: [build, setup, mode]
+    needs: [build, setup]
     if: |
       needs.build.result == 'success' &&
       needs.setup.result == 'success'
@@ -76,7 +58,6 @@ jobs:
     with:
       pr_number: ${{ needs.build.outputs.pr_number }}
       image_tag: ${{ needs.build.outputs.image_tag }}
-      mode: ${{ needs.mode.outputs.mode }}
     secrets: inherit
 
   tests:

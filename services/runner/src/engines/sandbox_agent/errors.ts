@@ -17,8 +17,8 @@ const PROVIDER_KEY_LABELS: Record<string, string> = {
  * harness name (`pi_core`/`claude`) is not the provider, so deriving the hint from it mislabels
  * every cross-provider run (e.g. Pi + Anthropic wrongly read "check the project's OpenAI key").
  *
- * `provider` is the resolved provider the runner already knows (`request.provider`, from the
- * resolved connection). When it is absent (un-migrated caller) fall back to the harness default
+ * `provider` is the resolved provider the runner already knows (`request.modelConnection.provider`, from the
+ * resolved connection). When it is absent, fall back to the harness default
  * — Claude is always Anthropic; every other harness defaults to OpenAI, matching the old
  * behavior for that path only.
  */
@@ -29,6 +29,17 @@ function keyHintFor(provider: string | undefined, harness: string): string {
   if (label) return `the project's ${label} key`;
   if (harness === "claude") return "the project's Anthropic key";
   return "the project's OpenAI key";
+}
+
+export interface ConciseErrorOptions {
+  /**
+   * Called only when the error maps to the model-authentication branch. A run that authenticates
+   * from a mounted subscription login rather than a vault key can diagnose the real fault there
+   * (see `describeCodexSubscriptionAuthFault`); returning a string replaces the generic
+   * add-a-key line, which would otherwise send the operator after a key the run never uses.
+   * Lazy so the check (a stat) only runs on the error path it explains.
+   */
+  authFault?: () => string | undefined;
 }
 
 /**
@@ -42,6 +53,7 @@ export function conciseError(
   err: unknown,
   harness: string,
   provider?: string,
+  options: ConciseErrorOptions = {},
 ): string {
   const raw = err instanceof Error ? err.message : String(err);
   const msg = raw.split("\n")[0].trim();
@@ -60,7 +72,10 @@ export function conciseError(
     /authentication required|invalid api key|unauthorized/i.test(raw) ||
     /(?<!\d)401(?!\d)/.test(raw)
   ) {
-    return `${harness}: model authentication failed — add ${keyHint} to the project vault, or log in (OAuth).`;
+    return (
+      options.authFault?.() ??
+      `${harness}: model authentication failed — add ${keyHint} to the project vault, or log in (OAuth).`
+    );
   }
   if (
     /invalid_request_error/i.test(raw) &&
