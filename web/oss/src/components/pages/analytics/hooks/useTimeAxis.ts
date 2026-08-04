@@ -5,9 +5,9 @@ import dayjs from "dayjs"
 import {formatTick} from "@/oss/services/tracing/lib/helpers"
 import type {AgentAnalyticsBucket} from "@/oss/services/tracing/types/agentAnalytics"
 
-// Cap on how many x-axis labels we render, so a dense window (dozens of buckets)
-// stays readable.
-const MAX_TICKS = 7
+// Upper bound on x-axis labels. High enough that a week-long window labels every day,
+// low enough that a long or dense window (and the wider "h:mm a" labels) never crowds.
+const MAX_TICKS = 10
 
 export interface TimeAxis {
     /** Explicit x-axis tick values (raw timestamps), one per distinct label. */
@@ -28,10 +28,23 @@ export const useTimeAxis = (data: AgentAnalyticsBucket[], range: string): TimeAx
     useMemo(() => {
         const tickFormatter = (value: string) => formatTick(value, range)
 
+        // Distinct labels present (days on a multi-day window). Aiming for one tick per
+        // distinct label up to MAX_TICKS stops a fixed budget from dropping an interior
+        // day — e.g. a 7-day window has 8 day-labels, which a budget of 7 would thin.
+        let distinctCount = 0
+        let prevLabel: string | null = null
+        for (const b of data) {
+            const label = tickFormatter(b.timestamp)
+            if (label !== prevLabel) {
+                distinctCount++
+                prevLabel = label
+            }
+        }
+
         const ticks: string[] = []
         let lastLabel: string | null = null
         if (data.length) {
-            const count = Math.min(MAX_TICKS, data.length)
+            const count = Math.min(Math.max(distinctCount, 1), MAX_TICKS, data.length)
             const step = count > 1 ? (data.length - 1) / (count - 1) : 0
             for (let i = 0; i < count; i++) {
                 const bucket = data[Math.round(i * step)]

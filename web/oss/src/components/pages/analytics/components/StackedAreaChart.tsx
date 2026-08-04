@@ -46,7 +46,14 @@ const StackedAreaChart = ({
 
     return (
         <ResponsiveContainer width="100%" height="100%">
-            <ReAreaChart data={data} margin={{top: 5, right: 12, left: -12, bottom: 0}}>
+            {/* Key on the active set: recharts orders a stack by internal item
+                registration, not JSX order, so a toggled-off series re-mounts onto the
+                top of the stack. Remounting the chart re-registers both bands in order. */}
+            <ReAreaChart
+                key={active.map((s) => s.key).join("|")}
+                data={data}
+                margin={{top: 5, right: 12, left: -12, bottom: 0}}
+            >
                 <defs>
                     {active.map((s) => (
                         <linearGradient
@@ -100,15 +107,21 @@ const StackedAreaChart = ({
                     content={(props) => {
                         const items = (props.payload as unknown as TipItem[] | undefined) ?? []
                         if (!props.active || items.length === 0) return null
-                        const total = items.reduce((sum, it) => sum + (Number(it.value) || 0), 0)
+                        // Order rows by the series (legend) order, not the reversed
+                        // stack draw order below.
+                        const byName = new Map(items.map((it) => [String(it.name), it]))
+                        const ordered = active
+                            .map((s) => byName.get(s.label))
+                            .filter((it): it is TipItem => Boolean(it))
+                        const total = ordered.reduce((sum, it) => sum + (Number(it.value) || 0), 0)
                         const rows: TooltipRow[] = [
-                            ...items.map((it) => ({
+                            ...ordered.map((it) => ({
                                 label: String(it.name),
                                 value: valueFormatter(Number(it.value) || 0),
                                 color: it.color,
                             })),
                             // A Total only earns its row when the stack has more than one band.
-                            ...(items.length > 1
+                            ...(ordered.length > 1
                                 ? [{label: "Total", value: valueFormatter(total)}]
                                 : []),
                         ]
@@ -120,7 +133,10 @@ const StackedAreaChart = ({
                         )
                     }}
                 />
-                {active.map((s) => (
+                {/* Reversed so series[0] draws on top: the first Area is the stack's
+                    bottom band, so a zero-height "Failed" no longer paints its stroke at
+                    the running total. */}
+                {[...active].reverse().map((s) => (
                     <Area
                         key={s.key}
                         dataKey={s.key}
