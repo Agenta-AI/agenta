@@ -45,33 +45,43 @@ model-visible in the catalog until `read_config` exists. An agent that can be to
 
 | Slice | Content | Blocked by |
 |---|---|---|
-| S1a | The pure engine and the operation schemas, per `contracts/change-set.md` §12's prototype changes. No catalog exposure. | nothing |
-| S1b | The commit transaction per `contracts/commit-transaction.md`: one transaction, base check, validation, canonical equality over all persisted fields, no-change response. | product calls 1, 2, 12 |
-| S2 | `read_config` per `contracts/read-config.md`, including the editable-scope policy. | product calls 10, 11 for the scope section |
-| S3a | The import codec and workspace readers per `contracts/workspace-import.md`. Pure, both platforms. | nothing |
-| S3b | The single-use execution authorization per `contracts/execution-authorization.md`, wired into the approval gate. | product call 4 |
-| S3c | The approval card: manifest, sizes, digests, diff, executable flags. Minimal frontend. | S3b |
-| S4 | The ephemeral `description` on builder tool-call envelopes, shown on tool cards. | nothing |
-| S5 | Runner safety + applied-state identity (lifecycle migration steps 1-2). | nothing |
+| S1a | The pure engine and the operation schemas, per `contracts/change-set.md` §12's prototype changes. No validation, no catalog exposure. | product call 1 (text normalization decides matching) |
+| S1b | The commit transaction per `contracts/commit-transaction.md`: one transaction, base check, ALL validation including unique names, canonical equality over all persisted fields, no-change response. | product calls 1, 2, 6 |
+| S2 | `read_config` per `contracts/read-config.md`, including the editable-scope policy. | the draft-binding fix; product calls 4, 5 |
+| S3a | The import codec and workspace readers per `contracts/workspace-import.md`, with the descriptor-relative local walk and depth-overflow detection. | the gate-3 import corrections |
+| S3b | The single-use execution authorization per `contracts/execution-authorization.md`, wired into the approval gate. | product call 3; the generation fixes |
+| S3c | The approval card: manifest, sizes, digests, base-bound diff, the two executable grant lines. Minimal frontend. | S3b |
+| S4 | The ephemeral `description` on builder tool-call envelopes, shown on tool cards. | nothing (in progress) |
+| S5 | Runner safety + applied-state identity (lifecycle migration steps 1-2). No live catalog routing. | nothing (in progress) |
 | S6 | Coordinator extraction + shadow routing (steps 3-4). | S5 |
 | S7a | Lifecycle extraction into units (step 5), behavior unchanged. | S6 |
 | S7b | In-place routes for workspace files and model (step 6, first half). | S7a |
-| S7c | Tool-catalog routes with the trusted acknowledgement channel per `contracts/adapter-matrix.md`. | S7a, spike S2 verdicts |
+| S7c0 | Foundation: the ToolCatalogManifest / ToolExecutionPlan split with one shared generation, and per-turn execution-plan wiring (kills the stale run-turn.ts mix). | S7a |
+| S7c | Tool-catalog routes with the untrusted best-effort acknowledgement per `contracts/adapter-matrix.md`. | S7c0, spike S2 verdicts |
 | S7d | MCP reopen with positive native-history verification. | S7a |
 | S7e | Credential and provider reconciliation, including the Daytona creation-identity split (steps 8-9). | S7a |
+
+Accepted risk, recorded: the Daytona import manifest cannot fully prevent a
+content-swap during the read window under an adversarial sandbox. The two-pass check
+detects inconsistency; it is not a snapshot. workspace-import.md §6.5 states the attack
+and a test asserts the limitation so nobody mistakes it for a defense.
 
 QA gates: the qa teammate tests each slice when it lands (unit suites plus live stories
 on the dev stack). A regression blocks the slice until fixed.
 
 ### Rollout and compatibility
 
-- **Deployment order:** API first (it accepts both delta forms), then the SDK catalog
-  (it advertises the new schema), then runner images. Each step is backward-compatible
-  with the previous one.
-- **Kill switch:** one API-side setting disables the ordered delta form and
-  `value_from` acceptance; the catalog reads it and falls back to advertising the
-  legacy schema. The runner needs no switch of its own: without the catalog schema, no
-  model emits the new form.
+- **Deployment order, dark-first:** the API ships support for the new forms disabled
+  ("dark"). The runner ships its `value_from` resolution and stripping, also dark.
+  Only then does the catalog start advertising the new schema. This order exists
+  because plain API-first is NOT backward-compatible for `value_from`: an old runner
+  would forward the unresolved source and the API must reject it.
+- **Kill switch, two enforcement points:** one flag, read by the API and the runner.
+  Off means: the catalog advertises the legacy schema only; the API rejects ordered
+  deltas and any surviving `value_from` with a clear error; the runner refuses to
+  resolve `value_from` before any workspace read. Both enforcement points exist
+  because a stale harness or a replayed call can still emit the new form after the
+  catalog stops advertising it.
 - **Legacy DTO compatibility:** `extra="forbid"` applies to the new operations form
   only. The legacy `set`/`remove` form keeps its current tolerance, so old playbooks
   and stored callers do not start failing.
