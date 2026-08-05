@@ -5,15 +5,22 @@ import {EnhancedModal} from "@agenta/ui/components/modal"
 import {
     ArrowLeft,
     ArrowsLeftRight,
+    CaretRight,
     CaretUpDown,
     Check,
+    Desktop,
     GearSix,
+    Moon,
     Plus,
     SignOut,
+    Sun,
     X,
 } from "@phosphor-icons/react"
-import {Dropdown, Form, Input} from "antd"
+import {Dropdown, Form, Input, Popover} from "antd"
 import clsx from "clsx"
+
+import {THEME_OPTIONS} from "@/oss/components/Layout/assets/themeOptions"
+import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 
 import {useProjectOrgSwitcher} from "../../hooks/useProjectOrgSwitcher"
 
@@ -47,6 +54,61 @@ const Row = ({
         {children}
     </button>
 )
+
+const themeIcon = (mode: ThemeMode) => {
+    switch (mode) {
+        case ThemeMode.Dark:
+            return <Moon size={14} className="shrink-0" />
+        case ThemeMode.System:
+            return <Desktop size={14} className="shrink-0" />
+        default:
+            return <Sun size={14} className="shrink-0" />
+    }
+}
+
+/** Theme switcher as a hover fly-out row for the switcher menu (see also the Preferences tab). */
+const ThemeFlyout = () => {
+    const {themeMode, toggleAppTheme} = useAppTheme()
+    const current = THEME_OPTIONS.find(({mode}) => mode === themeMode) ?? THEME_OPTIONS[0]
+
+    return (
+        <Popover
+            trigger="hover"
+            placement="rightBottom"
+            arrow={false}
+            styles={{
+                root: {zIndex: 2001},
+                container: {padding: 0, background: "transparent", boxShadow: "none"},
+            }}
+            content={
+                <div className="w-[190px] overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] p-1 shadow-md">
+                    {THEME_OPTIONS.map(({mode, label}) => (
+                        <Row
+                            key={mode}
+                            className={ITEM_ROW_CLASS}
+                            onClick={() => toggleAppTheme(mode)}
+                        >
+                            {themeIcon(mode)}
+                            <span className="min-w-0 flex-1 truncate">{label}</span>
+                            {themeMode === mode && (
+                                <Check size={14} className="shrink-0 text-[var(--ag-colorText)]" />
+                            )}
+                        </Row>
+                    ))}
+                </div>
+            }
+        >
+            <button type="button" className={ROW_CLASS}>
+                {themeIcon(themeMode)}
+                <span className="flex-1">Theme</span>
+                <span className="text-[12px] text-[var(--ag-colorTextSecondary)]">
+                    {current.short}
+                </span>
+                <CaretRight size={14} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
+            </button>
+        </Popover>
+    )
+}
 
 const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
     const {
@@ -127,6 +189,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                     <Plus size={14} className="shrink-0" />
                     <span className="flex-1">New project</span>
                 </Row>
+                <ThemeFlyout />
                 <Row
                     className="!text-[var(--ag-colorError)]"
                     onClick={() => {

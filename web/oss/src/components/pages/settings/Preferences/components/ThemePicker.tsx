@@ -1,6 +1,7 @@
 import {Radio} from "antd"
 import clsx from "clsx"
 
+import {THEME_OPTIONS} from "@/oss/components/Layout/assets/themeOptions"
 import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 
 // Fixed colors: the thumbnails depict the themes, so they must not react to the active theme.
@@ -42,23 +43,17 @@ const ThemeThumbnail = ({mode}: {mode: ThemeMode}) => (
     </div>
 )
 
-const THEME_OPTIONS: {value: ThemeMode; label: string}[] = [
-    {value: ThemeMode.Light, label: "Light"},
-    {value: ThemeMode.Dark, label: "Dark"},
-    {value: ThemeMode.System, label: "System"},
-]
-
 const ThemePicker = () => {
     const {themeMode, toggleAppTheme} = useAppTheme()
 
     return (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {THEME_OPTIONS.map(({value, label}) => {
-                const selected = themeMode === value
+            {THEME_OPTIONS.map(({mode, short}) => {
+                const selected = themeMode === mode
                 return (
                     <div
-                        key={value}
-                        onClick={() => toggleAppTheme(value)}
+                        key={mode}
+                        onClick={() => toggleAppTheme(mode)}
                         className={clsx(
                             "flex cursor-pointer flex-col gap-3 rounded-xl border border-solid px-2 py-3 transition-colors",
                             selected
@@ -66,14 +61,14 @@ const ThemePicker = () => {
                                 : "border-colorBorder hover:border-colorPrimaryBorderHover",
                         )}
                     >
-                        <ThemeThumbnail mode={value} />
+                        <ThemeThumbnail mode={mode} />
                         <Radio
                             checked={selected}
-                            onChange={() => toggleAppTheme(value)}
+                            onChange={() => toggleAppTheme(mode)}
                             onClick={(e) => e.stopPropagation()}
                             className="px-1"
                         >
-                            {label}
+                            {short}
                         </Radio>
                     </div>
                 )
