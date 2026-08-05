@@ -502,8 +502,15 @@ describe("the disagreement counters go quiet for the two live routes", () => {
     // answer and not a conservative one — which is what the coordinator already does, so the two
     // now agree.
     //
-    // The total-disagreement assertion is the completion signal for the whole shadow-routing arc:
-    // every route the router can plan now matches the decision the coordinator makes.
+    // The total-disagreement assertion is the completion signal for the shadow-routing arc: every
+    // route the router can plan matches the decision the coordinator makes.
+    //
+    // NOTE ON WHICH PROVIDER THIS EXERCISES. This dispatch runs on the LOCAL provider, whose values
+    // are baked into a frozen daemon environment, so its honest route is a rebuild and the
+    // agreement below is on `rebuild-sandbox`. The Daytona rotation now routes to `apply-live`
+    // under the Q5 ruling, and its agreement arrives with the live credential route — the
+    // coordinator must run the delivery instead of evicting before that agreement can be asserted
+    // here. Until then this test pins the local arm, which is the one that is fully wired.
     const withSecret = (value: string, req: AgentRunRequest): AgentRunRequest => ({
       ...req,
       modelConnection: {
@@ -544,24 +551,34 @@ describe("the disagreement counters go quiet for the two live routes", () => {
     // guard over `LIVE_ACTION_KINDS` cannot catch this: `apply-live` was already a member, so
     // putting a CREDENTIAL on that route widens what may happen live while the guard stays silent.
     // This test is what makes the widening visible.
-    const bounded: CredentialDeliveryCapabilities = {
+    const unbounded: CredentialDeliveryCapabilities = {
       ...daytonaCredentialCapabilities,
-      egressPropagation: { kind: "bounded", withinMs: 2_000 },
+      egressPropagation: { kind: "unbounded" },
     };
 
     // LOCAL: the value is baked into a daemon environment frozen before the daemon starts, and
     // this provider cannot restart a consumer, so nothing short of a rebuild delivers.
-    assert.equal(mechanismForRotation(localCredentialCapabilities), "rebuild-sandbox");
+    assert.equal(
+      mechanismForRotation(localCredentialCapabilities),
+      "rebuild-sandbox",
+    );
 
-    // DAYTONA TODAY: the sandbox holds a stable placeholder and the provider does NOT bound how
-    // long its egress layer takes to apply a rotated value. A restart would hand the new process
-    // the SAME placeholder and deliver nothing, so a restart must NOT be offered here just because
-    // it is more expensive. RULING B: rebuild.
-    assert.equal(mechanismForRotation(daytonaCredentialCapabilities), "rebuild-sandbox");
+    // DAYTONA: the sandbox holds a stable placeholder and the provider states that a rotated value
+    // reaches outbound traffic within seconds, so the rotation is genuinely live — nothing inside
+    // the sandbox changes, because the reference it holds is unchanged. This is Mahmoud's Q5
+    // ruling (option 2), overriding the review's rebuild recommendation on the grounds that
+    // rotating in Agenta revokes nothing anyway and the sandbox never holds the raw key.
+    assert.equal(
+      mechanismForRotation(daytonaCredentialCapabilities),
+      "rotate-in-place",
+    );
 
-    // THE SAME PROVIDER WITH A BOUND: now the rotation is genuinely live. Nothing inside the
-    // sandbox changes, because the reference it holds is unchanged. RULING A: apply-live.
-    assert.equal(mechanismForRotation(bounded), "rotate-in-place");
+    // THE CONSTRAINT THAT SURVIVED THE OVERRIDE, and the reason this arm exists: a provider with
+    // NO propagation signal is still ineligible. The ruling was that Daytona HAS a signal, not
+    // that the signal is optional. Take the bound away and the route must fall back to a rebuild —
+    // never to a restart, which behind a reference would install the same placeholder and deliver
+    // nothing while reporting success.
+    assert.equal(mechanismForRotation(unbounded), "rebuild-sandbox");
   });
 
   it("keeps the STRONGER repair when a rotation and a runtime change collide", () => {
