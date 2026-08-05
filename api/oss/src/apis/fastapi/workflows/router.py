@@ -13,9 +13,11 @@ from oss.src.core.shared.dtos import (
     Reference,
 )
 from oss.src.core.git.utils import build_retrieval_info
+from oss.src.core.git.types import CommitLockTimeout
+from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
 from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.apis.fastapi.workflows.exceptions import handle_workflow_exceptions
-from oss.src.core.workflows.change_set import ChangeSetError
+from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE, ChangeSetError
 from oss.src.core.workflows.read_config import ReadConfigError
 from oss.src.core.workflows.service import (
     RevisionConflictError,
@@ -430,6 +432,20 @@ class WorkflowsRouter:
             self.commit_workflow_revision,
             methods=["POST"],
             operation_id="commit_workflow_revision",
+            status_code=status.HTTP_200_OK,
+            response_model=WorkflowRevisionResponse,
+            response_model_exclude_none=True,
+        )
+
+        # The agent's own commit surface. Same flow, same response, one difference: every
+        # write is confined to `parameters.agent`. It is a separate route because that is
+        # what makes the confinement unforgeable — the model cannot ask for the unscoped
+        # one, since the URL comes from the server-side catalog and it holds no credential.
+        self.router.add_api_route(
+            "/revisions/commit/agent",
+            self.commit_agent_workflow_revision,
+            methods=["POST"],
+            operation_id="commit_agent_workflow_revision",
             status_code=status.HTTP_200_OK,
             response_model=WorkflowRevisionResponse,
             response_model_exclude_none=True,
@@ -1565,6 +1581,8 @@ class WorkflowsRouter:
             warnings=outcome.warnings or None,
         )
 
+    @intercept_exceptions()
+    @handle_workflow_exceptions()
     async def commit_workflow_revision(
         self,
         request: Request,
@@ -1572,6 +1590,46 @@ class WorkflowsRouter:
         workflow_variant_id: Optional[UUID] = None,
         #
         workflow_revision_commit_request: WorkflowRevisionCommitRequest,
+    ) -> WorkflowRevisionResponse:
+        """The human and SDK route: no write scope, the caller owns the whole revision."""
+        return await self._commit_workflow_revision(
+            request=request,
+            workflow_variant_id=workflow_variant_id,
+            workflow_revision_commit_request=workflow_revision_commit_request,
+            scope_policy=None,
+        )
+
+    @intercept_exceptions()
+    @handle_workflow_exceptions()
+    async def commit_agent_workflow_revision(
+        self,
+        request: Request,
+        *,
+        workflow_variant_id: Optional[UUID] = None,
+        #
+        workflow_revision_commit_request: WorkflowRevisionCommitRequest,
+    ) -> WorkflowRevisionResponse:
+        """The agent's own route: every write is confined to `parameters.agent`.
+
+        The confinement is a property of the ROUTE, not of anything in the request, which
+        is what makes it unforgeable: the model never holds the credential, and the URL it
+        reaches comes from the server-side op catalog, so an agent cannot express an
+        unscoped commit (read-config.md 11.2).
+        """
+        return await self._commit_workflow_revision(
+            request=request,
+            workflow_variant_id=workflow_variant_id,
+            workflow_revision_commit_request=workflow_revision_commit_request,
+            scope_policy=AGENT_COMMIT_SCOPE,
+        )
+
+    async def _commit_workflow_revision(
+        self,
+        *,
+        request: Request,
+        workflow_variant_id: Optional[UUID],
+        workflow_revision_commit_request: WorkflowRevisionCommitRequest,
+        scope_policy,
     ) -> WorkflowRevisionResponse:
         if not await check_action_access(  # type: ignore
             user_uid=request.state.user_id,
@@ -1610,6 +1668,25 @@ class WorkflowsRouter:
                 status_code=400,
                 detail="Provide either data or delta for a commit, not both.",
             )
+        # A scoped caller states changes, never a whole configuration: a full replacement
+        # carries every field the scope exists to protect, so it is refused rather than
+        # filtered. The agent's tool only ever sends a delta.
+        if scope_policy is not None and not has_delta:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "full_data_not_committable",
+                    "message": (
+                        "This route commits a change to the configuration, not a whole "
+                        "configuration."
+                    ),
+                    "next_step": (
+                        "Send the change as `delta`, targeting the fields you want to "
+                        "alter."
+                    ),
+                    "retryable": False,
+                },
+            )
         if not has_data and not has_delta:
             current_revision = await self.workflows_service.fetch_workflow_revision(
                 project_id=UUID(request.state.project_id),
@@ -1628,13 +1705,49 @@ class WorkflowsRouter:
                 user_id=UUID(request.state.user_id),
                 #
                 workflow_revision_commit=workflow_revision_commit_request.workflow_revision,
+                #
+                scope_policy=scope_policy,
             )
         except RevisionConflictError as e:
             raise HTTPException(status_code=409, detail=e.to_detail()) from e
         except ChangeSetError as e:
             raise HTTPException(status_code=422, detail=e.to_detail()) from e
+        except NonEmbeddableWorkflowReferenceError as e:
+            # A change-set refusal like any other on this endpoint, so it answers 422 with
+            # a reason code rather than the shared 400 the other workflow routes give
+            # (contract commit-transaction.md 4.1).
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "non_embeddable_reference",
+                    "message": str(e),
+                    "retryable": False,
+                },
+            ) from e
+        except CommitLockTimeout as e:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "commit_lock_timeout",
+                    "message": e.message,
+                    "next_step": "Wait for the commit in flight to finish, then send this commit again.",
+                    "retryable": True,
+                },
+            ) from e
 
         workflow_revision = outcome.revision
+
+        # A commit that reports success with nothing to show for it is a failure the DAO
+        # swallowed. Answering 200 here would tell the caller its change landed.
+        if outcome.status == "committed" and not workflow_revision:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "code": "commit_failed",
+                    "message": "The commit did not produce a revision.",
+                    "retryable": True,
+                },
+            )
 
         # A commit event evicts the warm session, so `no_change` must emit nothing.
         if outcome.status == "committed":

@@ -68,12 +68,12 @@ class FakeWorkflowsService:
         self.delta_calls.append(
             {"project_id": project_id, "commit": workflow_revision_commit}
         )
-        # `_resolve_revision_delta` returns a DeltaResolution: the resolved commit plus
-        # the warnings and the changed flag the commit response carries.
+        # `_resolve_revision_delta` returns a DeltaResolution: the resolved commit, the
+        # head it was built on, and the warnings the commit response carries.
         return SimpleNamespace(
             commit=SimpleNamespace(data=WorkflowRevisionData(**self.delta_data)),
+            head=None,
             warnings=[],
-            changed=True,
         )
 
     async def _prepare_invoke(self, *, project_id, user_id, request):
