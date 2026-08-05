@@ -4,6 +4,9 @@
  * email domain and only the backend knows it. Same endpoint and payload shape
  * the desktop uses (web/oss/src/pages/auth/[[...path]].tsx → /auth/discover).
  */
+import {safeParseWithLogging} from "@agenta/entities/shared"
+import {z} from "zod"
+
 import {getApiUrl} from "../env"
 
 export interface DiscoveredSsoProvider {
@@ -19,16 +22,42 @@ export function formatSsoLabel(slug: string, thirdPartyId: string): string {
     return thirdPartyId.startsWith("sso:") ? thirdPartyId.replace(/^sso:/, "") : slug
 }
 
+/**
+ * The slice of `/auth/discover` this screen uses. Validated at the boundary rather than cast:
+ * a backend shape change would otherwise degrade silently into "no SSO options", which reads to
+ * the user as "my org has no SSO" rather than as a failure.
+ *
+ * Not through the Fern client: `/auth/discover` is EE-only and is not in the generated client,
+ * so there is no resource accessor to call. Regenerating it is the follow-up that would let this
+ * drop the hand-rolled request too.
+ */
+const ssoDiscoverySchema = z.object({
+    methods: z
+        .object({
+            sso: z
+                .object({
+                    providers: z
+                        .array(
+                            z.object({
+                                id: z.string(),
+                                third_party_id: z.string(),
+                                slug: z.string().nullish(),
+                            }),
+                        )
+                        .nullish(),
+                })
+                .nullish(),
+        })
+        .nullish(),
+})
+
 /** Pull the usable SSO providers out of a /auth/discover payload. */
 export function parseDiscoveredSso(payload: unknown): DiscoveredSsoProvider[] {
-    const methods = (payload as {methods?: {sso?: {providers?: unknown}}} | null)?.methods
-    const providers = methods?.sso?.providers
-    if (!Array.isArray(providers)) return []
-    return providers.flatMap((entry) => {
-        const record = entry as {id?: unknown; slug?: unknown; third_party_id?: unknown}
-        // No third_party_id ⇒ nothing to hand SuperTokens; drop it.
-        if (typeof record.id !== "string" || typeof record.third_party_id !== "string") return []
-        const slug = typeof record.slug === "string" ? record.slug : record.third_party_id
+    const parsed = safeParseWithLogging(ssoDiscoverySchema, payload, "[discoverSsoProviders]")
+    const providers = parsed?.methods?.sso?.providers
+    if (!providers) return []
+    return providers.flatMap((record) => {
+        const slug = record.slug ?? record.third_party_id
         return [
             {
                 id: record.id,
