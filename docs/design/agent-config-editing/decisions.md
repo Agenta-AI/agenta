@@ -132,6 +132,23 @@ reasoning is in `spikes/engine-spike.md` (D1-D33, O1-O12) and `spikes/runner-spi
   is recorded in the backlog with its insertion points named, so enabling one
   harness later is a capability flip plus the shelved component, not a redesign.
 
+## Rotation ruling (Mahmoud, 5 August: option 2, rotate in place)
+
+- Context correction that decided it: rotating a key in Agenta revokes nothing;
+  the old key stays valid at the provider until its owner revokes it there. So
+  the propagation window (seconds during which running sandboxes still use the
+  old value) changes real exposure by approximately nothing, and the sandbox
+  never possesses the raw key anyway (placeholder plus egress substitution).
+  Killing a distrusted sandbox is a different, existing action.
+- Shipped behavior: value-only rotation applies live; no restart, no rebuild.
+  The turn holds until the stated propagation bound before acting on the new
+  value. Docs say plainly: the new value applies to sandbox traffic within
+  seconds; to fully kill a compromised key, revoke it at the provider.
+- What survives from the security review: never claim invalidation before
+  propagation completes, and providers with no propagation signal stay on the
+  rebuild route. Daytona declares a bounded propagation; the eligibility stays
+  a capability value.
+
 ## Decisions from Mahmoud's PR review (5 August)
 
 - **Tool-list changes route to session reopen on EVERY harness in v1.** Uniform
