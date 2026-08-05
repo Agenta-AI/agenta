@@ -529,6 +529,41 @@ Two options, in order of preference:
 A reopen that cannot verify history must not report continuity to the user. Silent history loss
 is worse than a slower turn.
 
+#### 6.2.1 What was implemented: option 2, as a REPLAYABILITY condition
+
+**Decided during lifecycle step 6 (lane s7d), and this is the rule the code follows.**
+
+Option 1 is unavailable. The ACP surface exposes no conversation length and no last-message
+identifier, so there is no primitive to read back. A check written against nothing would pass
+always and prove nothing, which is worse than having no check: it would let a reopen claim
+continuity on evidence that does not exist.
+
+So the runner implements option 2, and the condition it tests is REPLAYABILITY rather than
+verification:
+
+| The request | Native history | The reopen |
+|---|---|---|
+| Carries the full transcript | Not load-bearing. The turn replays it, so a session that lost its memory is indistinguishable from one that kept it. | **Allowed.** |
+| Carries only the last message | IS the conversation. Losing it silently truncates the user's context, and nothing can prove a reload restored it. | **Refused.** The caller rebuilds. |
+
+The refusal happens BEFORE the session is closed. A rebuild therefore starts from a live session
+rather than from one the runner already tore down.
+
+`services/runner/src/environment/harness-session-lifecycle.ts` `reopen` implements this, and the
+caller supplies the condition from `carriesMinimalHistory(request)`.
+
+WHY THIS AND NOT A STRICTER RULE. Refusing every unverifiable reopen would refuse every reopen,
+because none is verifiable. The route would be permanently inert, and the uniform tool, MCP,
+prompt and harness-file changes would all keep costing a full sandbox rebuild. The replayability
+condition keeps the route useful for the common case and fails closed for exactly the case where
+history actually matters.
+
+WHEN OPTION 1 BECOMES AVAILABLE. If an adapter ever exposes a conversation length or a
+last-message identifier, option 1 is still the preferred rule and it SUPERSEDES this section for
+that adapter: verify positively, then allow a reopen for a last-message-only request once the
+verification passes. Until then this section is the implemented contract, and option 1 is the
+documented fallback rather than the other way round.
+
 This obligation is not Codex-specific. It applies to every reopen. It is written here because
 Codex is the harness whose only route is reopen.
 
