@@ -1,4 +1,4 @@
-import {useCallback, useMemo, type MouseEvent} from "react"
+import {useCallback, useEffect, useMemo, useState, type MouseEvent} from "react"
 
 import {GithubFilled} from "@ant-design/icons"
 import {
@@ -40,6 +40,12 @@ export const useSidebarBottomSection = ({
     const {projectURL} = useURL()
     const openWidget = useSetAtom(openWidgetAtom)
     const hasProjectURL = Boolean(projectURL)
+    const [version, setVersion] = useState<string>()
+
+    // Lazy-load package.json so its version stays out of the initial bundle.
+    useEffect(() => {
+        import("../../../../package.json").then((pkg) => setVersion(pkg.version))
+    }, [])
 
     const handleOpenWidget = useCallback(
         (e: MouseEvent) => {
@@ -100,6 +106,11 @@ export const useSidebarBottomSection = ({
                 key: "help-docs-link",
                 title: "Help & Docs",
                 icon: <QuestionIcon size={14} />,
+                suffix: version ? (
+                    <span className="text-[9px] leading-none text-colorTextTertiary">
+                        v{version}
+                    </span>
+                ) : undefined,
                 submenu: [
                     {
                         key: "docs",
@@ -139,7 +150,14 @@ export const useSidebarBottomSection = ({
                 ],
             },
         ],
-        [doesSessionExist, handleOpenWidget, handleToggleSupport, isCrispEnabled, isVisible],
+        [
+            doesSessionExist,
+            handleOpenWidget,
+            handleToggleSupport,
+            isCrispEnabled,
+            isVisible,
+            version,
+        ],
     )
 
     return useMemo(

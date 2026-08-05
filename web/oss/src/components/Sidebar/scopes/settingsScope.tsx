@@ -32,6 +32,7 @@ import {settingsTabAtom} from "@/oss/state/settings"
 
 import ProjectOrgSwitcher from "../components/ProjectOrgSwitcher"
 import SidebarBackButton from "../components/SidebarBackButton"
+import SidebarToggleButton from "../components/SidebarToggleButton"
 import type {
     SidebarConfig,
     SidebarScope,
@@ -162,10 +163,11 @@ const SettingsSidebarHeader = ({collapsed, lastPath}: SidebarSlotContext) => (
     <div
         className={[
             "w-full h-[48px] shrink-0 flex items-center mb-1",
-            collapsed ? "justify-center" : "px-1.5",
+            collapsed ? "justify-center" : "justify-between px-1.5",
         ].join(" ")}
     >
         <SidebarBackButton collapsed={collapsed} lastPath={lastPath} />
+        {!collapsed && <SidebarToggleButton />}
     </div>
 )
 
