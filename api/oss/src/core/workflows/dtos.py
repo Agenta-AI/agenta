@@ -340,7 +340,14 @@ class WorkflowRevisionDelta(BaseModel):
 
     The engine enforces the exclusivity and every operation rule; this model only carries
     the shapes.
+
+    ``extra="forbid"`` applies to the delta ENVELOPE, not to the tree inside ``set``: a
+    stray key beside ``set``/``remove``/``operations`` was silently dropped before, which
+    is how a caller could believe it sent something the server never saw. The payload
+    under ``set`` stays free-form, so shipped callers are unaffected.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     set: Optional[Dict[str, Any]] = None
     remove: Optional[List[str]] = None
