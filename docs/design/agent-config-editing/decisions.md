@@ -70,6 +70,19 @@ reasoning is in `spikes/engine-spike.md` (D1-D33, O1-O12) and `spikes/runner-spi
   never normalized. The prose-side friendliness lives in matching (exact first,
   then a normalized retry for prose fields only, per the match-tolerance decision
   above), never in storage. This unblocks slices S1a and S1b.
+- **Decision 2 (5 August): confirmed.** A commit may not create a new duplicate
+  name; a collection the commit touches must end clean; untouched legacy
+  duplicates warn. The engine already implements the three tiers.
+- **Decision 4 (5 August): no.** The agent may not change its own harness.kind.
+  Human commit only in v1. The write-scope allow-list stays fail-closed.
+- **Decision 5 (5 August): no.** Agent commits stay scoped to parameters.agent.
+- **Decision 6 (5 August): yes, store the operations for audit.** Storage: one
+  nullable JSONB column on the workflow revision row, beside the existing message
+  and author fields, holding the operations as authored EXCEPT that every
+  @ag.file marker is replaced by a stub {path, size, digest}, never the bytes.
+  No backfill; old revisions simply have no operations record. S1b implements it.
+- **Decision 3: reformulated after Mahmoud's question; awaiting his pick.** See
+  the open-calls section.
 
 ## Arbitrations after gate 2 (team lead, 4 August)
 
