@@ -11,13 +11,13 @@ true), and every retryable reason code carries a next-step sentence.
 """
 
 import copy
+import typing
 
 import pytest
-
 from oss.src.core.workflows.change_set import (
     AGENT_COMMIT_SCOPE,
-    ChangeSetError,
     PARAMETERS_ONLY,
+    ChangeSetError,
     Reason,
     WarningCode,
     apply_change_set,
@@ -28,7 +28,6 @@ from oss.src.core.workflows.change_set import (
     item_key,
     subtree_scope,
 )
-
 
 # --------------------------------------------------------------------------------------
 # Fixtures
@@ -1379,7 +1378,6 @@ class TestFinalValidation:
 
         def validate(data):
             seen["model"] = data["parameters"]["agent"]["llm"]["model"]
-            return None
 
         apply(
             ops({"operation": "set", "target": AGENT + ["llm", "model"], "value": "z"}),
@@ -1922,7 +1920,7 @@ class TestUniqueNames:
 
 
 class TestErrorSplit:
-    RETRYABLE = [
+    RETRYABLE: typing.ClassVar = [
         (
             Reason.TARGET_NOT_FOUND,
             ops({"operation": "remove", "target": AGENT + ["x"]}),
@@ -1994,7 +1992,7 @@ class TestErrorSplit:
     def test_every_retryable_code_has_a_next_step_sentence(self):
         # Contract 12.3 makes this mandatory, so a missing entry is a contract violation,
         # not a cosmetic gap.
-        from oss.src.core.workflows.change_set import NEXT_STEPS, _NOT_RETRYABLE
+        from oss.src.core.workflows.change_set import _NOT_RETRYABLE, NEXT_STEPS
 
         codes = {
             value
