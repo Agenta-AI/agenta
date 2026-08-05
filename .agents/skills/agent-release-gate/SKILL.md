@@ -61,6 +61,22 @@ location with `AGENTA_QA_RUNS_DIR`). Runs are written to the current working dir
 the skill. `SKIP` is expected where a journey does not apply to a cell (for example `mcp` on any Pi
 cell — user MCP is Claude-only). Any `FAIL` blocks the release until triaged.
 
+**A SKIPped integration test in a security- or concurrency-bearing area is a FAILURE in your
+summary line, not green.** State it as "N passed, M skipped OF WHICH k are untested claims" and
+name the k. A commit-lock race test skipping for want of a reachable Postgres is exactly how a
+one-line syntax error (`SET LOCAL lock_timeout` with a bind parameter, which Postgres rejects
+outright) survived 1911 green tests before a human hit it as his first live action.
+
+**Before a human gets a deployment URL, run `resources/qa_commit_approval.py` too.** It is not
+part of `qa_product.py`'s cell × journey matrix — none of that matrix's journeys drive a live turn
+against a REAL, saved workflow revision (the `commit` journey only exercises the REST API; `chat`,
+`tool`, `approve`/`deny` all run against an inline, unsaved config), so nothing else in the gate
+observes the S3b single-use execution-authorization gate actually firing around a real config
+mutation. This script does: create a real workflow + revision, invoke a live agent turn that calls
+`read_config` then `commit_revision`, expect the pause, approve it in-band, and verify the new
+revision landed with REST fetch-back. Treat a FAIL here as blocking, the same as any other gate
+FAIL.
+
 ## When results lie
 
 The runtime **fails open**: a component can break, get logged, and the turn still succeeds with a
@@ -77,9 +93,34 @@ proves nothing about the durable working directory (LESSONS #16).
   approve, deny, commit, warm, cold1, cold2, mcp) with a one-line meaning for each, the continuity
   tiers and their method, and a table of what each cell needs beyond the three env vars.
 - `resources/LESSONS.md` — the traps. Read before writing or trusting any agent QA test.
-- `resources/qa_product.py` — the gate driver (cells × journeys).
+- `resources/qa_product.py` — the gate driver (cells × journeys). **Currently broken**: two
+  unresolved git merge conflicts sit inside the `CELLS` dict (P2/P3 definitions), a SyntaxError
+  that fails the whole file on import, not just those cells. Needs a human to pick the correct
+  side per cell before this driver runs again; do not resolve it blind.
 - `resources/qa_probe.py` — a one-turn wire probe: `uv run resources/qa_probe.py` confirms the
   product path answers at all before running the full gate.
+- `resources/qa_commit_approval.py` — the mandatory pre-handoff commit-approval round trip (see
+  above). Self-contained; does not import `qa_product.py`, so it still runs while that file is
+  broken.
+- `resources/qa_matrix_lib.py` — shared helpers (session/turn plumbing, workflow/revision REST
+  calls, the multi-round approval loop) for the `matrix_w*.py` adversarial cells below. Import
+  only, no CLI.
+- `resources/matrix_w3.py` — two sessions, disjoint edits, one hits a stale `base_revision_id`
+  and must recover; asserts both edits land in the final head. Guards the optimistic-concurrency
+  base check.
+- `resources/matrix_w4.py` — a pending approval whose base goes stale while it waits (a second
+  session commits first); the EXECUTE-time check must catch it, not just the gate-time check.
+- `resources/matrix_w5.py` — interrupt a running turn (steer) then use the session again. Caught
+  a real bug: the durable mount never gets re-established after a steer, breaking every
+  subsequent turn on that session. Distinct from Mahmoud's own steer repro (that one is a
+  turn-currency/heartbeat bug; this is a mount-lifecycle bug) — keep the two separate when
+  triaging.
+- `resources/matrix_w7.py` — an agent writes a workspace file and commits it via an `@ag.file`
+  marker; asserts the approval manifest carries digest+bytes and the commit lands with the exact
+  bytes. Caught a real bug: the gate approves cleanly but execution then always refuses with
+  `authorization_missing` — no file-marker commit can currently land. Also blocks any test of the
+  stale-approval-regate mechanism (that mechanism is specifically about file-marker
+  authorizations going stale).
 - `resources/qa_longctx.py` — optional long-context / Gmail / concurrent-session probes. Needs
   live Gmail and GitHub Composio connections in the target project; skip it otherwise.
 - `resources/seeds/` — representative green `results.json` files kept as regression-seed references.
