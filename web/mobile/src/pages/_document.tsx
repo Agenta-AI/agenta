@@ -11,6 +11,13 @@ export default function Document() {
     return (
         <Html lang="en" className="antialiased">
             <Head>
+                {/* Own copies under public/, not a reach into the desktop app's /assets: the
+                    mobile image ships standalone and must not 404 its own icon wherever the
+                    desktop is not deployed. The `/m` prefix is written out because basePath is
+                    not applied to a bare href here, same as the __env.js script below. */}
+                <link rel="icon" href="/m/assets/favicon.ico" sizes="any" />
+                <link rel="icon" href="/m/assets/agenta-symbol.svg" type="image/svg+xml" />
+                <link rel="apple-touch-icon" href="/m/assets/agenta-symbol.svg" />
                 <script dangerouslySetInnerHTML={{__html: themeInitScript}} />
             </Head>
             <body>
