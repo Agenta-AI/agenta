@@ -161,7 +161,7 @@ const useSettingsSidebarSections = (): SidebarSection[] => {
 const SettingsSidebarHeader = ({collapsed, lastPath}: SidebarSlotContext) => (
     <div
         className={[
-            "w-full h-[48px] flex items-center border-0 border-b border-solid border-[var(--ag-shell-line)]",
+            "w-full h-[48px] shrink-0 flex items-center mb-1",
             collapsed ? "justify-center" : "px-1.5",
         ].join(" ")}
     >
