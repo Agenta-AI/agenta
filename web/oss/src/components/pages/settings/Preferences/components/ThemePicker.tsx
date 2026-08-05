@@ -47,7 +47,7 @@ const ThemePicker = () => {
     const {themeMode, toggleAppTheme} = useAppTheme()
 
     return (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="flex flex-wrap gap-3">
             {THEME_OPTIONS.map(({mode, short}) => {
                 const selected = themeMode === mode
                 return (
@@ -55,7 +55,7 @@ const ThemePicker = () => {
                         key={mode}
                         onClick={() => toggleAppTheme(mode)}
                         className={clsx(
-                            "flex cursor-pointer flex-col gap-3 rounded-xl border border-solid px-2 py-3 transition-colors",
+                            "flex grow basis-[160px] cursor-pointer flex-col gap-3 rounded-xl border border-solid px-2 py-3 transition-colors",
                             selected
                                 ? "border-colorPrimary"
                                 : "border-colorBorder hover:border-colorPrimaryBorderHover",

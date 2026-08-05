@@ -1,7 +1,7 @@
 import {memo, useMemo} from "react"
 
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {Breadcrumb, Typography} from "antd"
+import {Breadcrumb} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
@@ -9,8 +9,6 @@ import Link from "next/link"
 import {breadcrumbAtom, type BreadcrumbAtom} from "@/oss/lib/atoms/breadcrumb"
 import {getUniquePartOfId, isUuid} from "@/oss/lib/helpers/utils"
 import {useAppState} from "@/oss/state/appState"
-
-import packageJsonData from "../../../../package.json"
 
 import {useStyles, type StyleProps} from "./styles"
 
@@ -104,10 +102,6 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string; appName?: strin
                         )}
                     />
                 </div>
-            </div>
-
-            <div className={clsx(classes.topRightBar, "shrink-0 flex items-center gap-3")}>
-                <Typography.Text>agenta v{packageJsonData.version}</Typography.Text>
             </div>
         </section>
     )
