@@ -26,7 +26,7 @@ const PreviewSkeleton = ({variant}: {variant: PreviewVariant}) => {
 }
 
 const ThemeThumbnail = ({mode}: {mode: ThemeMode}) => (
-    <div className="h-[110px] w-full overflow-hidden rounded-md border border-solid border-colorBorderSecondary">
+    <div className="h-[100px] w-full overflow-hidden rounded-md border border-solid border-colorBorderSecondary">
         {mode === ThemeMode.System ? (
             <div className="flex h-full w-full">
                 <div className="h-full w-1/2 overflow-hidden">

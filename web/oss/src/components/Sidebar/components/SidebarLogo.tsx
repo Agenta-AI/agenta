@@ -44,7 +44,7 @@ const SidebarLogo = ({collapsed}: SidebarLogoProps) => {
         <div
             className={clsx(
                 "flex h-[48px] shrink-0 items-center mb-1",
-                collapsed ? "justify-center" : "justify-between px-3",
+                collapsed ? "justify-center" : "justify-between pl-3 pr-2",
             )}
         >
             {/* unoptimized: SVGs skip /_next/image, which rejects SVG without dangerouslyAllowSVG. */}
