@@ -183,19 +183,24 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
                         <MotionConfig transition={SESSION_SPRING} reducedMotion="user">
                             <AnimatePresence initial={false}>
                                 {pinnedRows.length > 0 ? (
-                                    <motion.p
-                                        key="pinned-heading"
-                                        layout
-                                        variants={ROW_VARIANTS}
-                                        initial="initial"
-                                        animate="animate"
-                                        exit="exit"
-                                        // Opaque, not a fill: a sticky header with an rgba band
-                                        // lets the rows scroll through it.
-                                        className="sticky top-0 z-10 m-0 overflow-hidden rounded bg-colorBgElevated px-3 py-1 text-xs text-colorTextTertiary"
-                                    >
-                                        Pinned {pinnedRows.length}
-                                    </motion.p>
+                                    // The wrapper pins; the motion element animates inside it.
+                                    // Both on one element fight: the browser resolves `sticky`
+                                    // first, then Framer's layout transform displaces it from the
+                                    // position it was just pinned to, and rows scroll above it.
+                                    <div key="pinned-heading" className="sticky top-0 z-10">
+                                        <motion.p
+                                            layout
+                                            variants={ROW_VARIANTS}
+                                            initial="initial"
+                                            animate="animate"
+                                            exit="exit"
+                                            // Opaque, not a fill: an rgba band lets the rows
+                                            // scroll through it.
+                                            className="m-0 overflow-hidden rounded bg-colorBgElevated px-3 py-1 text-xs text-colorTextTertiary"
+                                        >
+                                            Pinned {pinnedRows.length}
+                                        </motion.p>
+                                    </div>
                                 ) : null}
                                 {pinnedRows.map((row) => renderRow(row, true))}
                                 {rows.map((row) => renderRow(row, false))}
