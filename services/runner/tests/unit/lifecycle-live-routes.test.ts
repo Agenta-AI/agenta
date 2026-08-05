@@ -258,19 +258,24 @@ function turn2(overrides: Partial<AgentRunRequest> = {}): AgentRunRequest {
 
 describe("the live-route gate", () => {
   it("declares EXACTLY the authorized kinds, plus the trivial no-op", () => {
-    // DELIBERATE EDIT. `reopen-session` joined the live set: it keeps the sandbox, the daemon,
-    // the mounts and the workspace, recreating only the ACP session, which is what makes the
-    // uniform tool/MCP/prompt/harness-file routes cheaper than a rebuild. It carries its own
-    // refusal (see `reopen`), so being live-APPLICABLE is not the same as always succeeding.
+    // DELIBERATE EDIT. `reopen-session` LEFT the live set. `env.reopenSession` closes over the
+    // session init the environment was BUILT with, so a reopen reinstalls the old MCP list,
+    // prompts and harness files while the turn keeps serving the old tool catalog from
+    // `env.plan`. Applying it would commit the incoming configuration as applied after
+    // installing none of it. It returns when the turn builds both from the incoming request
+    // (adapter-matrix.md section 8, steps 1 and 2).
     //
     // The guard still matters: this list is the single place that says how many routes are live,
-    // and a fifth entry must be a decision, never an accident.
+    // and a fourth entry must be a decision, never an accident.
     assert.deepEqual([...LIVE_ACTION_KINDS].sort(), [
       "apply-live",
       "no-op",
       "refresh-workspace",
-      "reopen-session",
     ]);
+    assert.ok(
+      !LIVE_ACTION_KINDS.has("reopen-session"),
+      "a reopen reinstalls the captured session init; it delivers nothing new",
+    );
     assert.ok(
       !LIVE_ACTION_KINDS.has("restart-runtime"),
       "a runtime restart is not live: it loses everything installed in the daemon",
@@ -305,12 +310,23 @@ describe("the live-route gate", () => {
           [
             { facet: "workspaceFiles", kind: "refresh-workspace", reason: "r" },
             { facet: "model", kind: "apply-live", reason: "r" },
-            { facet: "harnessFiles", kind: "reopen-session", reason: "r" },
           ],
-          ["workspaceFiles", "model", "harnessFiles"],
+          ["workspaceFiles", "model"],
         ),
       ),
       true,
+    );
+  });
+
+  it("refuses a plan carrying a session reopen", () => {
+    assert.equal(
+      isLivelyApplicable(
+        buildPlan(
+          [{ facet: "harnessFiles", kind: "reopen-session", reason: "r" }],
+          ["harnessFiles"],
+        ),
+      ),
+      false,
     );
   });
 });
@@ -940,23 +956,24 @@ describe("route selection matches the facet diff", () => {
       kinds: ["apply-live"],
       live: true,
     });
-    // These three route to a session REOPEN, which is now live-applicable — the sandbox survives
-    // and only the ACP session is recreated. The reopen still refuses at execution time when the
-    // conversation could not be replayed, which is a different question from routing.
+    // These three still ROUTE to a session reopen, and a reopen is no longer live-applicable, so
+    // they rebuild. The routing is the honest part: a reopen is what these facets need. What the
+    // runner cannot yet do is build the session init from the incoming request, so reopening
+    // would reinstall the old one and report the new one as applied.
     assert.deepEqual(routeFor({ systemPrompt: "sp" }), {
       kinds: ["reopen-session"],
-      live: true,
+      live: false,
     });
     assert.deepEqual(
       routeFor({ harnessFiles: [{ path: "a", content: "b" }] as never }),
       {
         kinds: ["reopen-session"],
-        live: true,
+        live: false,
       },
     );
     assert.deepEqual(routeFor({ permissions: { default: "deny" } as never }), {
       kinds: ["reopen-session"],
-      live: true,
+      live: false,
     });
     assert.deepEqual(routeFor({ sandbox: "daytona" }), {
       kinds: ["rebuild-sandbox"],
@@ -966,9 +983,11 @@ describe("route selection matches the facet diff", () => {
 });
 
 describe("reopen: the history condition (adapter-matrix 6.2)", () => {
-  it("a harness-files change now REUSES the sandbox instead of rebuilding", async () => {
-    // The payoff of making reopen live: the uniform tool/MCP/prompt/harness-file routes stop
-    // costing a full sandbox rebuild.
+  it("a harness-files change REBUILDS, and never reaches the applier", async () => {
+    // A harness file may BE a permission file. A reopen writes no files at all, so routing this
+    // through the live gate would leave a tightened permission uninstalled while applied state
+    // reported it as landed. Rebuilding is wasteful and always sound; that is the trade until
+    // the session init is built from the incoming request.
     const { engine, calls } = makeEngine();
     const ctx = makeCtx(engine);
     await runWithKeepalive(turn1, undefined, undefined, ctx);
@@ -978,12 +997,12 @@ describe("reopen: the history condition (adapter-matrix 6.2)", () => {
       undefined,
       ctx,
     );
+    assert.equal(calls.acquire, 2, "a harness-file change rebuilds");
     assert.equal(
-      calls.acquire,
-      1,
-      "the sandbox survives a harness-file change",
+      calls.applied.length,
+      0,
+      "the applier must not see a plan it cannot install",
     );
-    assert.deepEqual(calls.applied[0].actions, ["reopen-session"]);
   });
 
   it("a LAST-MESSAGE-ONLY request still rebuilds, because history cannot be verified", async () => {
