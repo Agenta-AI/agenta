@@ -1,11 +1,30 @@
 # Contract: the workspace import boundary
 
-Status: proposed. This contract answers must-fix item 5 of
-`research/design-gate-review-codex.md`, and product calls 5, 6, and the eighth call in its
-section 5.
+Status: proposed, and **partly superseded by the 5 August consolidation**. This contract
+answers must-fix item 5 of `research/design-gate-review-codex.md`.
 
-This contract defines how the runner reads a folder from its workspace and turns it into a
-skill value. It replaces the behavior in the `skill-codec.ts` prototype. The prototype was
+> **What the consolidation changed.** `change-set.md` is authoritative for all of it.
+>
+> | Was | Is | Where |
+> |---|---|---|
+> | a `value_from` object on an operation, resolving a FOLDER | an inline `{"@ag.file": "<path>"}` marker resolving ONE FILE, in any string position of a value | `change-set.md` 6.1, 6.2 |
+> | the folder-to-skill codec | dropped from v1; the agent authors skill structure itself | `change-set.md` 6.2 |
+> | `on_unsupported`, `on_executable`, `persist_executable_capability` | all removed. `executable` and `allow_executable_files` are ordinary agent-authored fields the approval card shows | `change-set.md` 6.2 |
+> | the import root `imports/` | **`.agenta-imports/`** | `change-set.md` 6.3 |
+> | paths relative to the import root only | relative to the workspace root, or absolute inside the workspace; the runner normalizes both | `change-set.md` 6.3 |
+>
+> **What still stands, unchanged and still needed:** the designated-root argument (section
+> 2.2), path confinement and the descriptor-relative walk (section 3), the symbolic-link
+> refusal, the per-file and aggregate caps (section 4.4), the Daytona manifest reader and its
+> stated residual race (section 6), the digest rules (section 7), and the approval card and
+> its truncation rules (section 8). Read every "folder" in those sections as "the file a
+> marker names", and read every "the import" as "one marker's resolution".
+>
+> Sections 4.2, 4.3, 5.2, and 8.1's `allowExecutableFiles` field are the superseded parts.
+> Rewriting them is runner-spike's, who owns this file.
+
+This contract defines how the runner reads content from its workspace and hands it to a
+commit. It replaces the behavior in the `skill-codec.ts` prototype. The prototype was
 lossy by default and derived policy from filesystem facts. Both are wrong.
 
 ## 1. Principles
@@ -22,11 +41,11 @@ Four rules drive every decision in this document.
 
 ### 2.1 The rule
 
-The runner reads only from a designated import root. The root is `imports/` under the run's
+The runner reads only from a designated import root. The root is `.agenta-imports/` under the run's
 workspace current working directory (`plan.workspace.cwd`).
 
 A `value_from.path` is relative to that root. The path `downloaded-skills/pdf-tools` resolves to
-`<cwd>/imports/downloaded-skills/pdf-tools`.
+`<cwd>/.agenta-imports/downloaded-skills/pdf-tools`.
 
 The runner refuses any path that resolves outside the root. It refuses before it reads.
 
@@ -41,13 +60,13 @@ agent wrote during the run. A prompt-injected agent can point `value_from` at an
 human then sees a manifest of file names and sizes. A human approving a skill does not read a
 manifest as a security boundary. They see a plausible list and they approve.
 
-A designated root moves the control earlier. The agent must first place content in `imports/`.
+A designated root moves the control earlier. The agent must first place content in `.agenta-imports/`.
 That placement is an ordinary file write, which the run's own permission policy already
 governs. The import boundary then only has to enforce one thing: stay inside the root.
 
 ### 2.3 Root behavior
 
-- The runner creates `imports/` during workspace preparation. It creates it empty.
+- The runner creates `.agenta-imports/` during workspace preparation. It creates it empty.
 - The root lives inside the durable workspace, so content placed there survives a warm turn.
 - The runner never deletes user content from the root. Cleaning it is the agent's job.
 - An import path that names the root itself is refused. The caller must name one folder.
@@ -94,8 +113,8 @@ intermediate directory in the path is still resolved normally, and a symbolic li
 followed. So an attacker who replaces an intermediate directory between the walk and the open
 redirects the open outside the import root, and `O_NOFOLLOW` does not fire.
 
-Concretely, the runner walks to `imports/pdf-tools/scripts/` and lists `extract.py`. It then
-opens the path `imports/pdf-tools/scripts/extract.py` with `O_NOFOLLOW`. An attacker replaces
+Concretely, the runner walks to `.agenta-imports/pdf-tools/scripts/` and lists `extract.py`. It then
+opens the path `.agenta-imports/pdf-tools/scripts/extract.py` with `O_NOFOLLOW`. An attacker replaces
 `scripts` with a symbolic link to `/home/user/.ssh` in between. The open resolves through the
 link, reaches `/home/user/.ssh/extract.py`, and succeeds. The final component was not a link, so
 the flag stays silent.
@@ -552,7 +571,7 @@ one.
 
 What actually bounds the Daytona path:
 
-1. **The import root.** An attacker must first place or modify content under `imports/`. The
+1. **The import root.** An attacker must first place or modify content under `.agenta-imports/`. The
    run's own permission policy governs that write. This is the primary control, and it holds
    against the confused agent.
 2. **The human on the approval card.** The card shows the bytes the runner actually read. A
@@ -564,7 +583,7 @@ None of the three stops a well-timed swap by a process that already runs arbitra
 the sandbox. Against that attacker, on Daytona, this contract does not claim protection.
 
 That is an honest position, and it is defensible: an attacker who already runs arbitrary code in
-the sandbox can also write whatever it wants directly into `imports/` and let the import read it
+the sandbox can also write whatever it wants directly into `.agenta-imports/` and let the import read it
 legitimately. The race adds little to what that attacker can already do. What the race does add
 is the ability to defeat the human's review, and the plan must record that as an accepted risk
 rather than a solved problem.
@@ -846,10 +865,10 @@ Every code carries the offending paths, up to 20, and a count of the rest.
 - Traversal, absolute path, backslash, and NUL are refused before any read.
 - A symbolic link at the folder root is refused.
 - A symbolic link inside the folder is refused, even when its target stays inside the workspace.
-- A path outside `imports/` but inside the workspace is refused.
-- A valid folder BELOW `imports/` is accepted. This is the descendant test in section 6.2, and
+- A path outside `.agenta-imports/` but inside the workspace is refused.
+- A valid folder BELOW `.agenta-imports/` is accepted. This is the descendant test in section 6.2, and
   the gate 1 equality test would have failed it. Add it as a regression guard.
-- `imports/` itself is refused, per section 2.3.
+- `.agenta-imports/` itself is refused, per section 2.3.
 
 **TOCTOU, local.**
 - Replace the FINAL component with a symbolic link between the walk and the open. The open must
@@ -1015,9 +1034,9 @@ model-visible catalog schema and repeats that the runner strips the object.
 | Existing item | Change |
 |---|---|
 | `decisions.md` open call 5 | Binary files no longer drop with a warning. They reject by default, with `on_unsupported: "omit"` as the explicit opt-in. |
-| `decisions.md` open call 6 | The reach is the designated `imports/` root, not the whole workspace. |
+| `decisions.md` open call 6 | The reach is the designated `.agenta-imports/` root, not the whole workspace. |
 | `spikes/runner-spike.md`, "Codec gaps" | `allow_executable_files` is no longer derived. Binary and oversized files no longer drop silently. Symbolic links are no longer followed. |
-| `plan.md` | Add the `imports/` root creation to the workspace slice. Add the Daytona reader as its own unit of work. |
+| `plan.md` | Add the `.agenta-imports/` root creation to the workspace slice. Add the Daytona reader as its own unit of work. |
 
 ## 13. Gate 2 resolution
 

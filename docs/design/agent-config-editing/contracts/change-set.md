@@ -1,24 +1,22 @@
 # Contract: the change set
 
-Status: proposed. It answers must-fix item 1 of the design gate review.
-Owner: engine-spike. Date: 4 August 2026.
+Status: **consolidated to the decided state, 5 August 2026.** It supersedes every earlier
+version of this file, `research/change-set-interface-codex.md`, and the matching parts of
+`spikes/engine-spike.md`. Section 19 records what changed and why.
+Owner: engine-spike.
 
-This document is the one authoritative change-set contract. Where it disagrees with
-`research/change-set-interface-codex.md`, `spikes/engine-spike.md`, or `decisions.md`,
-this document wins. Section 12 lists the changes the prototype needs.
+Where this document disagrees with any other document, this one wins.
 
-## 1. Scope
+## 1. Scope and layers
 
 The change set describes a change to one workflow revision's data tree. It is data only.
-It does not say where the base comes from. It does not say what happens after the change.
+It does not say where the base comes from, and it does not say what happens after.
 
-Three layers use it:
-
-| Layer | Owns |
-|---|---|
-| The engine (`apply_change_set`) | Applies the change set to a base tree. Pure. No I/O. |
-| The commit wrapper | The base check, the transaction, the response. See `commit-transaction.md`. |
-| The runner | Turns `value_from` into an inline `value` before the API sees the call. |
+| Layer | Owns | Refuses |
+|---|---|---|
+| The runner | Resolves every `@ag.file` marker into an inline string before the API sees the call. | A path outside the workspace; a missing or unreadable file. |
+| The wrapper | The base check, the scope policy, the derived message, the transaction, the response. | Out-of-scope targets; platform-kind tool entries; a stale base. |
+| The engine (`apply_change_set`) | Applies the change set to a base tree. Pure. No I/O. | Everything in section 12 that is not wrapper-owned; any surviving `@ag.file`. |
 
 The engine never reads a path, never reads a database, and never writes one.
 
@@ -32,61 +30,41 @@ hides it from the model.
   "workflow_revision": {
     "workflow_variant_id": "019c...",
     "base_revision_id": "019c...",
-    "message": "Update the release QA instructions.",
     "delta": { }
-  }
+  },
+  "description": "Adding the pdf-tools skill you asked for."
 }
 ```
 
-- `base_revision_id` is a precondition on the commit. It is not part of the delta.
-  It is required when `delta` uses the ordered form. `commit-transaction.md` section 8
-  defines how a legacy call gets a default.
-- `message` is the persisted commit message.
-- The ephemeral per-call `description` is NOT in this envelope. See `read-config.md`
-  section 12.
+- `base_revision_id` is a precondition on the commit, not a mutation. An ordered delta
+  requires it. The model copies it from the `read_config` response
+  (`read-config.md` section 10.1).
+- **There is no `message` field.** The server derives the commit message from the
+  operations. Section 14.
+- `description` is the ephemeral per-call note (R12). It rides the tool-call envelope, not
+  the revision, and the runner strips it before it builds the request
+  (`read-config.md` section 12).
 
 ### 2.1 What the catalog advertises
 
-The model-visible schema is `_COMMIT_REVISION_INPUT_SCHEMA` in
-`sdks/python/agenta/sdk/agents/platform/op_catalog.py`. It is closed
-(`additionalProperties: false`) at every level. It must advertise exactly this set:
+`_COMMIT_REVISION_INPUT_SCHEMA` in
+`sdks/python/agenta/sdk/agents/platform/op_catalog.py` is closed
+(`additionalProperties: false`) at every level. It advertises exactly this:
 
 | Field | Model-visible | Note |
 |---|---|---|
 | `workflow_revision.workflow_variant_id` | no | Bound from `$ctx.workflow.variant.id` and stripped. |
-| `workflow_revision.base_revision_id` | yes | An ordered delta needs it. The model copies it from the `read_config` response. `read-config.md` section 10.1. |
-| `workflow_revision.message` | yes | |
+| `workflow_revision.base_revision_id` | yes | Copied from the read. |
 | `workflow_revision.delta` | yes | The `oneOf` of section 3. |
-| `value_from.type` | yes | `"workspace"`. On `set`, `add_item`, and `replace_item`. |
-| `value_from.path` | yes | Relative to the import root. A folder for the item verbs, one file for `set`. |
-| `value_from.on_unsupported` | yes | `"reject"` (default) or `"omit"`. Folder source only. Section 5.1.3. |
-| `value_from.on_executable` | yes | `"reject"` (default) or `"import"`. Folder source only. Section 5.1.3. |
-| `value_from.persist_executable_capability` | yes | Boolean, default `false`. Folder source only. It needs `on_executable: "import"`. Section 5.1.3. |
+| `description` | yes | Ephemeral, stripped by the runner before dispatch. |
 
-The union carries two source schemas, one per shape:
+Nothing else is model-visible. `message`, `data`, `flags`, `name`, `tags`, and `meta` are
+all off the model surface.
 
-| Operation member | `value_from` | Fields |
-|---|---|---|
-| `add_item`, `replace_item` | the folder source | `type`, `path`, and the three policy fields |
-| `set` | the file source | `type` and `path` only |
-| `merge`, `remove`, `edit_text`, `remove_item` | none | the member must not offer the field |
-
-Section 5.1 gives the reason for each row. Section 5.1.1 lists the three conditions a
-`set` source must meet, and section 5.1.3 explains why the file source carries no policy
-fields.
-
-The three policy fields must appear here, or the model cannot set them and the defaults
-become the only reachable behavior. The runner strips the whole `value_from` object during
-resolution, so no `value_from` field ever reaches the API.
-
-`allow_executable_files` is no longer a `value_from` field. It is now only the persisted
-`SkillTemplate.allow_executable_files`, and an import sets it only through
-`persist_executable_capability`. `workspace-import.md` section 5.2 owns the four-layer
-split that this follows.
-
-Nothing else is model-visible. `data`, `flags`, `name`, `description`, `tags`, and `meta`
-stay off the model surface. `read-config.md` section 11 defines the second gate, the scope
-policy, which closes the fields a `delta` could otherwise still reach.
+**Why `message` left.** It was optional, and the model volunteered one anyway and still
+corrupted it. Free text was the site of every argument-corruption failure the usability
+spike measured. A derived message is also more accurate than a written one, which serves
+issues #5187 and #5200 better than the model's own words.
 
 ## 3. The delta: two forms, never mixed
 
@@ -114,8 +92,8 @@ policy, which closes the fields a `delta` could otherwise still reach.
 ```
 
 Behavior does not change. `set` deep-merges with the dict-only recursion. Scalars and
-lists replace. `remove` deletes dotted paths. A missing remove path stays a silent no-op.
-The order is `set`, then `remove`.
+lists replace. `remove` deletes dotted paths, and a missing path stays a silent no-op. The
+order is `set`, then `remove`.
 
 ### 3.2 OrderedDelta
 
@@ -163,10 +141,10 @@ A target is a non-empty array of segments.
       {
         "type": "object",
         "additionalProperties": false,
-        "required": ["field", "key"],
+        "required": ["list", "key"],
         "properties": {
-          "field": { "type": "string", "minLength": 1 },
-          "key":   { "type": "string", "minLength": 1 }
+          "list": { "type": "string", "minLength": 1 },
+          "key":  { "type": "string", "minLength": 1 }
         }
       }
     ]
@@ -174,18 +152,23 @@ A target is a non-empty array of segments.
 }
 ```
 
-A string segment addresses an object field. An object segment addresses one named entry
-in the list at `field`. Example:
+A string segment names an object field. An object segment names one entry of a list, and
+**it stands in place of that list's name**:
 
 ```json
-["parameters", "agent", {"field": "skills", "key": "release-qa"}, "body"]
+["parameters", "agent", {"list": "skills", "key": "release-qa"}, "body"]
 ```
 
-### 4.1 Key fields per collection
+**The selector key is `list`, not `field`.** The usability spike measured the selector as
+the cause of 62 percent of all failures, and every one of those was about which list the
+segment replaces. `list` says it. No model in the measurement ever misused `list`, and the
+key-field mistake disappeared.
 
-Only these four collections take a selector segment and item operations.
+### 4.1 Keyed lists
 
-| Collection | Key |
+Only these four lists take a selector and item operations.
+
+| List | Key |
 |---|---|
 | `skills` | `name` |
 | `mcps` | `name` |
@@ -196,216 +179,58 @@ Any other list has no key. A selector on it gives `unkeyed_collection`.
 
 ### 4.2 The canonical tool name
 
-One function, `item_key("tools", entry, allow_legacy_fallback)`. The SDK and the server
-must share one implementation and one golden fixture set.
+One function, `item_key("tools", entry, allow_legacy_fallback)`, shared by the SDK and the
+server with one golden fixture set.
 
 | Tool `type` | Key |
 |---|---|
-| `gateway` | `name`. When `name` is absent and `allow_legacy_fallback` is true: `{integration}__{action}`. |
+| `gateway` | `name`. Absent and reading: the legacy `{integration}__{action}`. |
 | `reference` | `name`, else `slug`. |
 | `platform` | `op`. |
 | `code`, `client`, `builtin` | `name`. |
-| an `@ag.embed` object | none. The entry is not addressable. |
+| an `@ag.embed` object | none. Not addressable. |
 
-`allow_legacy_fallback` is true when the engine READS the tree to find an entry. It is
-false when the engine DERIVES the key of a value the caller supplies. So an old unnamed
-gateway entry stays addressable, and a new one must carry an explicit `name`.
+`allow_legacy_fallback` is true when the engine READS the tree to find an entry, and false
+when it DERIVES the key of a value the caller supplies. So an old unnamed gateway entry
+stays addressable, and a new one must carry an explicit `name`.
 
-An entry with no derivable key is skipped during a search. It never matches, and it never
-collides.
+An entry with no derivable key never matches and never collides.
+
+### 4.3 The wrapper forgives two selector mistakes
+
+Both are unambiguous, so a refusal would teach nothing. The wrapper normalizes the target
+before the engine sees it, and it adds a warning so the correction is visible.
+
+| Mistake | Example | Normalized to |
+|---|---|---|
+| The list name repeated before the selector | `["...","skills",{"list":"skills","key":"x"}]` | `["...",{"list":"skills","key":"x"}]` |
+| The key field in the `list` slot | `["...",{"list":"name","key":"x"}]` inside a known list position | the enclosing list's name |
+
+The first absorbed 12 percent of one model's targets once the teaching left the tool
+description. The second vanished when `field` became `list`, and the normalization stays as
+a belt.
+
+Normalization is the wrapper's job, not the engine's. The engine takes a clean target, so
+its behavior stays exactly describable. Warning code: `target_normalized`.
 
 ## 5. The seven operations
 
-### 5.1 Value sources
+### 5.1 Values
 
-| Operation | `value` | `value_from` | Source shape |
-|---|---|---|---|
-| `set` | yes | yes, restricted | exactly one file. Section 5.1.1. |
-| `merge` | yes | **no** | — |
-| `remove` | no | no | — |
-| `edit_text` | no | no | — |
-| `add_item` | yes | yes | one folder, converted to an item. |
-| `replace_item` | yes | yes | one folder, converted to an item. |
-| `remove_item` | no | no | — |
+| Operation | Needs | May contain `@ag.file` |
+|---|---|---|
+| `set` | `value` | yes, anywhere a string may go |
+| `merge` | `value` (an object) | yes |
+| `remove` | — | — |
+| `edit_text` | `edits` | no. Section 6.4 |
+| `add_item` | `value` | yes |
+| `replace_item` | `value` | yes |
+| `remove_item` | — | — |
 
-The rule follows the approval screen, not the engine. A human approves an import before the
-runner reads the bytes. The human must therefore see a readable change, never a byte count
-and a path.
+There is no `value_from`, and there is no source object on the operation. Section 6
+explains the marker that replaced it and why.
 
-`merge` does not take `value_from` at all. A source materializes a whole object. A deep
-merge of a whole materialized object into an existing object hides which fields survived.
-The result depends on the folder content, and the human who approves the call cannot see
-it.
-
-#### 5.1.1 `set` with `value_from`: three conditions, all required
-
-The team lead decided this on 4 August, in answer to gate 2, new problem 9. The oversized
-instruction file is the founding use case of this project (#5554), so `set` must have a
-path for it.
-
-`set` accepts `value_from` only when all three conditions hold. The runner refuses the
-call before it reads any content if any one of them fails.
-
-**Condition 1: the source resolves to exactly one file.** Never a folder. A folder has no
-single text to show, and the file-manifest presentation belongs to the item verbs. A source
-path that names a directory is `source_invalid`. A source path that matches more than one
-file is `source_invalid`.
-
-**Condition 2: the target's last segment is a string-typed field.** The value replaces one
-long-text field, not a structure. Four target shapes are allowed:
-
-| Field | Target |
-|---|---|
-| the instructions | `["parameters","agent","instructions","agents_md"]` |
-| a skill body | `[...,{"field":"skills","key":K},"body"]` |
-| a skill file's content | `[...,{"field":"skills","key":K},{"field":"files","key":P},"content"]` |
-| a code tool's script | `[...,{"field":"tools","key":N},"script"]` |
-
-The field must already exist and must already hold a string. Parent creation
-(section 5.3) does not apply to a `set` that carries `value_from`: a missing field is
-`target_not_found`, and a non-string field is `target_type_mismatch`. A field that does not
-exist yet has no old text, so it has no honest diff. Use `add_item` for a new skill file.
-
-**Condition 3: the approval shows a unified diff of the old text against the new text, and
-the old text comes from the exact revision the operation names.** The card presents a
-readable change: the target field, the diff, the line counts, and the digest of the exact
-bytes that will be committed. It must not present a byte count alone.
-`workspace-import.md` section 8.4 owns the presentation.
-
-**The old side must come from `base_revision_id`, and from nothing else.** Gate 3, finding
-2 and arbitration ruling 1, corrected this. The gate 2 draft took the old text from the
-configuration the runner holds for the current run. That is wrong, and the error is silent:
-
-- The session runs revision N. The model reads the head, which is N+1, and correctly puts
-  N+1 in `base_revision_id`.
-- The runner renders the diff from its own memory, so the human approves an N-to-new diff.
-- The base check passes, because the base really is the head. The commit replaces N+1.
-- The user approved one change and got another. Nothing reports it.
-
-The base check cannot catch this, because the base is not stale. Only the diff is.
-
-So the rule is exact:
-
-1. The runner fetches the old text from the revision named by `base_revision_id`, at the
-   operation's target path. `read_config` is the natural way to fetch it.
-2. If `base_revision_id` is absent, the call fails. A single-text `set` from a workspace
-   file needs a named base. This is not a new burden: an ordered delta already requires
-   `base_revision_id` (`read-config.md` section 10.1).
-3. **If the runner cannot fetch that revision's text, for any reason, the call fails
-   closed.** It does not fall back to session memory. It does not fall back to the complete
-   new text. It does not fall back to a byte count. It refuses, with
-   `source_diff_base_unavailable`, and it reads no workspace bytes.
-
-Failing closed is the right cost here. A refused call tells the agent to retry, and a retry
-costs one turn. A diff against the wrong base commits the wrong content with a human
-signature on it, and nothing detects it afterwards.
-
-An alternative exists, and this contract does not choose it: the API could accept a digest
-of the approved old value and refuse the commit when the stored value does not match. That
-moves the check to the server and survives a lying runner. It also adds a field to the
-commit envelope and a second failure mode. Revisit it if the runner-side fetch proves
-unreliable.
-
-#### 5.1.2 Folder into `set` stays disallowed
-
-A folder source into a `set` target is refused, and it stays refused. There is no honest
-presentation for it. A folder carries many files, and a `set` target is one field. The card
-would have to either flatten the folder into one value, which the human cannot review, or
-list the files without showing what each one becomes, which is the byte-count-and-path
-approval that condition 3 exists to prevent. The item verbs already carry folders, and they
-carry them with an item identity the card can name.
-
-A value-bearing operation carries exactly one of `value` and `value_from`. Both is
-`invalid_operation`. Neither is `invalid_operation`. A `value_from` on `merge`, `remove`,
-`edit_text`, or `remove_item` is `invalid_operation`, and the schema refuses it first.
-
-The engine refuses `value_from` with `source_invalid`. The runner must resolve it first.
-
-#### 5.1.3 Two source schemas, one per source shape
-
-The folder source, on `add_item` and `replace_item`:
-
-```json
-{
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["type", "path"],
-  "properties": {
-    "type": { "const": "workspace" },
-    "path": { "type": "string", "minLength": 1 },
-    "on_unsupported": { "enum": ["reject", "omit"], "default": "reject" },
-    "on_executable": { "enum": ["reject", "import"], "default": "reject" },
-    "persist_executable_capability": { "type": "boolean", "default": false }
-  }
-}
-```
-
-The file source, on `set`:
-
-```json
-{
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["type", "path"],
-  "properties": {
-    "type": { "const": "workspace" },
-    "path": { "type": "string", "minLength": 1 }
-  }
-}
-```
-
-The three folder-source policy fields, in one line each:
-
-| Field | Meaning |
-|---|---|
-| `on_unsupported` | `"reject"` (default) refuses a folder that holds an unsupported file. `"omit"` imports the rest and lists every omission. |
-| `on_executable` | `"reject"` (default) refuses a folder that holds an executable file. `"import"` imports the folder and records the observed bits. |
-| `persist_executable_capability` | `false` (default) commits `SkillTemplate.allow_executable_files` as false. `true` commits it as true. |
-
-**One constraint binds the last two: `persist_executable_capability: true` needs
-`on_executable: "import"`.** The reverse is allowed. A caller may import the bits without
-granting the runtime capability, which gives a faithful copy of the folder that still
-cannot execute anything. A caller may not grant the runtime capability for bits it never
-permitted itself to read. A violation is `invalid_operation`, and the runner refuses it
-before any workspace read.
-
-The two fields are separate because they are two grants with two owners and two lifetimes.
-`on_executable` is an import grant: the caller and the human approver own it, and it dies
-with the operation. `persist_executable_capability` writes a stored capability that lives
-for the life of the revision. `workspace-import.md` section 5.2 defines the four-layer
-split this follows, and it shows the two as separate lines on the approval card.
-
-The file source carries no policy fields, because none of the three has a meaning for it:
-
-- `on_unsupported` chooses between refusing a folder and omitting some of its files. A
-  single-file source has nothing to omit. An unsupported single file always rejects, with
-  `source_unsupported_content`.
-- `on_executable` grants an import the right to carry executable bits. A `set` writes text
-  into an existing string field. It creates no file entry, so it carries no bit.
-- `persist_executable_capability` writes `SkillTemplate.allow_executable_files`. A `set`
-  never writes a skill template. It writes one long-text field inside an existing one.
-
-The three are import-policy declarations on the folder source. The runner's import
-resolver consumes them. `workspace-import.md` section 4.2 defines `on_unsupported` and its
-default, section 4.3 defines the `omit` opt-in, and section 5.2 defines `on_executable`,
-`persist_executable_capability`, and the constraint between them.
-
-Three points fix their place:
-
-1. **They sit on the source, not on the operation.** One commit can import two folders and
-   give each one a different answer. A field on the operation could not do that. With
-   `value_from` the runner generates the whole value, so the caller has no `value` object
-   to write `persist_executable_capability` into either.
-2. **The engine never sees them.** The runner resolves `value_from` and then strips the
-   whole `value_from` object. It puts a plain inline `value` in place of it. So these
-   fields never reach the API, and the engine surface does not grow. The engine still
-   refuses any `value_from` that survives, with `source_invalid`.
-3. **The model must be able to write them.** This schema is model-facing. With
-   `additionalProperties: false` and no such fields, the defaults would be the only
-   reachable behavior. A skill folder with one binary asset, or with one script, would
-   then be permanently uncommittable.
-
-This resolves the conflict `workspace-import.md` section 11 raises against this section.
+A value-bearing operation must carry `value`. A missing value is `missing_operation_value`.
 
 ### 5.2 The last target segment
 
@@ -415,10 +240,8 @@ This resolves the conflict `workspace-import.md` section 11 raises against this 
 | `add_item` | a string | the list to append to |
 | `replace_item`, `remove_item` | a selector | one named entry |
 
-A wrong tail is `invalid_operation`. This keeps one intent per verb. Without it, `set` on
-a selector would do the work of `replace_item`.
-
-A selector may appear at any earlier position, for every operation.
+A wrong tail is `invalid_target_shape`, which is retryable and carries the correct shape in
+its next step. A selector may appear at any earlier position, for every operation.
 
 ### 5.3 `set`
 
@@ -435,24 +258,10 @@ Replaces the target value exactly. `value: null` writes null; it does not remove
 **Parent creation.** `set` creates missing parents, under strict rules:
 
 1. It creates only plain-string segments, and only as `{}`.
-2. It never creates through a selector. If any segment on the path is a selector, every
-   segment up to and including that selector must already resolve. A missing selector is
-   always `item_not_found` or `target_not_found`.
+2. It never creates through a selector. Every selector on the path must already resolve.
 3. It never creates a list, and never creates a list entry.
-4. An existing parent that is a scalar, a list, or null is `target_type_mismatch`. The
-   engine does not overwrite it with `{}`.
-5. Final validation stays mandatory. Parent creation is a convenience, not a licence to
-   invent fields. The closed agent template rejects an invented path at validation.
-6. Parent creation does not apply when the operation carries `value_from`. That form needs
-   an existing string target, so it has an old text to diff. Section 5.1.1.
-
-Example. With `harness: {"kind": "pi_agenta"}` in the base:
-
-- `set ["parameters","agent","harness","extras","system"] = "..."` creates `extras` as
-  `{}`, then writes `system`. It succeeds.
-- `set ["parameters","agent","nope","x"] = 1` creates `nope` as `{}`, writes `x`, and
-  then fails final validation with `final_validation_failed`.
-- `set ["uri","deeper"] = 1` fails with `target_type_mismatch`, because `uri` is a string.
+4. An existing parent that is a scalar, a list, or null is `target_type_mismatch`.
+5. Final validation stays mandatory. The closed agent template rejects an invented path.
 
 ### 5.4 `merge`
 
@@ -464,10 +273,8 @@ Example. With `harness: {"kind": "pi_agenta"}` in the base:
 }
 ```
 
-Deep-merges an object with today's dict-only recursion. Nested dicts merge. Scalars and
-lists replace. The target must exist and must be an object. `merge` never creates
-parents. A missing target is `target_not_found`. A non-object target is
-`target_type_mismatch`. A non-object `value` is `invalid_operation`.
+Deep-merges an object with the dict-only recursion. Nested dicts merge; scalars and lists
+replace. The target must exist and must be an object. `merge` never creates parents.
 
 ### 5.5 `remove`
 
@@ -475,8 +282,8 @@ parents. A missing target is `target_not_found`. A non-object target is
 { "operation": "remove", "target": ["parameters", "agent", "llm", "extras"] }
 ```
 
-Removes one object field. A missing field is `target_not_found`. This differs from the
-legacy `remove`, which stays a silent no-op.
+Removes one object field. A missing field is `target_not_found`. The legacy `remove` stays
+a silent no-op; this one does not.
 
 ### 5.6 `edit_text`
 
@@ -484,7 +291,7 @@ legacy `remove`, which stays a silent no-op.
 {
   "operation": "edit_text",
   "target": ["parameters", "agent", "instructions", "agents_md"],
-  "match_mode": "exact",
+  "match_mode": "auto",
   "edits": [
     {"old_text": "Run the checks manually.", "new_text": "Run the release-qa skill."}
   ]
@@ -493,7 +300,7 @@ legacy `remove`, which stays a silent no-op.
 
 ```json
 {
-  "match_mode": { "type": "string", "enum": ["exact"], "default": "exact" },
+  "match_mode": { "type": "string", "enum": ["auto", "exact"], "default": "auto" },
   "edits": {
     "type": "array", "minItems": 1, "maxItems": 32,
     "items": {
@@ -508,55 +315,84 @@ legacy `remove`, which stays a silent no-op.
 }
 ```
 
-`match_mode` is optional. The default is `exact`. Only `exact` is valid today. The engine
-dispatches on the value through a table; it must not ignore the field. An unknown mode is
-`invalid_operation`, even if the schema also rejects it. A later mode is then additive.
-
 The target must be a string. Anything else is `target_type_mismatch`.
 
 Rules, in order:
 
-1. `old_text` must not be empty. Empty gives `empty_old_text`.
-2. Matching is exact on the code points. Nothing is normalized. The engine does not apply
-   NFKC or NFC. It does not fold smart quotes, dashes, or special spaces. It does not trim
-   trailing whitespace. It does not fold CRLF to LF. It does not strip a BOM.
-3. `old_text` must occur exactly one time, counted with overlap. See section 5.6.1.
+1. `old_text` must not be empty. Empty is `empty_old_text`.
+2. Each anchor is matched by the tolerance its target's content class allows. Section 5.6.1.
+3. Each anchor must occur exactly once, counted **with overlap**. Section 5.6.2.
 4. Every anchor matches the string as it was before this operation started.
 5. Matches must not overlap. Adjacent matches are legal.
-6. The engine applies the matches from the highest index to the lowest.
-7. The batch must change the string. No change gives `no_change`. One edit that changes
-   nothing is fine, if another edit in the same batch changes something.
+6. The engine applies matches from the highest index to the lowest.
+7. The batch must change the string. No change is `no_change`. One edit that changes
+   nothing is fine if another edit in the same batch changes something.
 8. The batch is atomic. One bad edit leaves the string untouched.
 
-#### 5.6.1 Overlap-aware occurrence counting
+#### 5.6.1 Match tolerance by content class
 
-`str.count` counts without overlap. It reports one occurrence of `"aa"` in `"aaa"`. Two
-start positions exist, so the anchor is ambiguous. The engine must count every start
-position:
+Stored bytes are never normalized (decision 1, option A). The tolerance lives in matching
+only, and it depends on what the text is.
+
+| Content class | Fields | Tolerance |
+|---|---|---|
+| **Prose** | `instructions.agents_md`, a skill `body`, any `description` | exact first; on no exact match, one normalized retry |
+| **Code and data** | a skill file's `content`, a code tool's `script` | exact only |
+
+Prose is written by humans and by models, and a smart quote that arrived through a
+different editor should not block an edit. A script's bytes are its meaning: a normalized
+match there could rewrite a string literal or a shell quote into something that no longer
+runs.
+
+The normalized retry:
+
+- It folds smart quotes to ASCII quotes, Unicode dashes to the ASCII hyphen, and Unicode
+  spaces to the ASCII space.
+- The normalized match must still be **unique**, counted with overlap. Two normalized
+  matches are `text_not_unique`, exactly as two exact matches would be.
+- The write is still byte-exact. The engine replaces the matched span of the ORIGINAL
+  string. It never writes normalized bytes back, and it never touches a byte outside the
+  span.
+- The response reports it: warning code `text_matched_normalized`, naming the operation
+  index and the edit index. The human and the agent both learn that the anchor was not
+  literal.
+
+**Every normalization is one code point to one code point.** This is a deliberate
+constraint, and it is what makes "byte-exact write" true. A length-changing normalization
+(trailing-whitespace trim, run collapsing, CRLF folding) would put the match at an offset
+that does not exist in the original string, and recovering the original offsets needs the
+line-overlay machinery whose corruption risk is the reason this design rejected Pi's
+approach. So:
+
+- Not folded: trailing whitespace, repeated spaces, CRLF against LF, Unicode NFC against
+  NFD. Section 18 records the two of these that may deserve a later answer.
+
+`match_mode` selects the policy: `auto` (the default) applies the table above; `exact`
+forces exact matching on every class. The engine dispatches on the value through a table
+and never ignores the field. An unknown mode is `unknown_operation`.
+
+#### 5.6.2 Overlap-aware occurrence counting
+
+`str.count` counts without overlap and reports one occurrence of `"aa"` in `"aaa"`. Two
+start positions exist, so the anchor is ambiguous. The engine counts every start position:
 
 ```text
-count = 0
-i = 0
-while True:
-    i = text.find(old_text, i)
-    if i < 0: break
+count = 0; i = 0
+while (i = text.find(old_text, i)) >= 0:
     count += 1
     i += 1        # advance by one, not by len(old_text)
 ```
 
-Two or more positions give `text_not_unique` with `match_count`. Zero gives
-`text_not_found`.
+Two or more is `text_not_unique` with `match_count`. Zero is `text_not_found`.
 
-#### 5.6.2 Work limits
-
-The scan costs O(n·m). The engine enforces limits before it scans:
+#### 5.6.3 Work limits
 
 | Limit | Value | Error |
 |---|---|---|
 | target string length | 200 000 code points | `text_too_large` |
-| `old_text` length | 20 000 code points | schema, then `invalid_operation` |
-| edits per operation | 32 | schema, then `invalid_operation` |
-| operations per delta | 64 | schema, then `invalid_delta` |
+| `old_text` length | 20 000 code points | schema, then `invalid_operation_shape` |
+| edits per operation | 32 | schema |
+| operations per delta | 64 | schema |
 
 The string limit matches `SkillFile.content` (`max_length=200_000`).
 
@@ -566,14 +402,18 @@ The string limit matches `SkillFile.content` (`max_length=200_000`).
 {
   "operation": "add_item",
   "target": ["parameters", "agent", "skills"],
-  "value": {"name": "pdf-tools", "description": "Make PDFs.", "body": "..."}
+  "value": {
+    "name": "pdf-tools",
+    "description": "Make PDFs.",
+    "body": {"@ag.file": ".agenta-imports/pdf-tools/SKILL.md"}
+  }
 }
 ```
 
-Appends one entry. The target must resolve to a list. The field name must be a keyed
-collection, or the result is `unkeyed_collection`. The engine derives the key from the
-value with `allow_legacy_fallback=false`. No key gives `item_key_undefined`. An existing
-entry with that key gives `item_already_exists`.
+Appends one entry. The target must resolve to a list, and the list must be keyed
+(section 4.1) or the result is `unkeyed_collection`. The engine derives the key from the
+value with `allow_legacy_fallback=false`; no key is `item_key_undefined`. An existing entry
+with that key is `item_already_exists`.
 
 There is no position field. The new entry goes to the end.
 
@@ -582,37 +422,134 @@ There is no position field. The new entry goes to the end.
 ```json
 {
   "operation": "replace_item",
-  "target": ["parameters", "agent", {"field": "skills", "key": "release-qa"}],
+  "target": ["parameters", "agent", {"list": "skills", "key": "release-qa"}],
   "value": {"name": "release-qa", "description": "...", "body": "..."}
 }
 ```
 
-Replaces one existing entry. A missing entry gives `item_not_found`. The key derived from
-the value must equal the key in the target. A difference gives `invalid_operation`. A
-rename is `remove_item` plus `add_item`.
+Replaces one existing entry. A missing entry is `item_not_found`. The key derived from the
+value must equal the key in the target; a difference is `item_rename_not_allowed`, which is
+retryable and whose next step is "send `remove_item` then `add_item`".
 
 ### 5.9 `remove_item`
 
 ```json
 {
   "operation": "remove_item",
-  "target": ["parameters", "agent", {"field": "tools", "key": "send-slack-message"}]
+  "target": ["parameters", "agent", {"list": "tools", "key": "send-slack-message"}]
 }
 ```
 
-Removes one existing entry. A missing entry gives `item_not_found`.
+Removes one existing entry. A missing entry is `item_not_found`.
 
-## 6. Application
+## 6. The `@ag.file` marker
 
-Operations run in array order. Each operation sees the result of the operations before
-it. The first failing operation aborts the whole change set. The engine returns nothing
-partial. The caller's base tree never changes: the engine deep-copies it first, and
-deep-copies every value it writes.
+### 6.1 The shape
 
-## 7. What the engine returns
+```json
+{"@ag.file": "<path>"}
+```
 
-This replaces D33 in `spikes/engine-spike.md` and settles the contradiction the review
-found. The engine has a warning channel. The engine does not own the response.
+It replaces **any string** inside an operation's `value`. The runner reads the file and
+puts its text there, before the API sees the call.
+
+```json
+{
+  "operation": "add_item",
+  "target": ["parameters", "agent", "skills"],
+  "value": {
+    "name": "pdf-tools",
+    "description": "Make PDFs.",
+    "body": {"@ag.file": ".agenta-imports/pdf-tools/SKILL.md"},
+    "files": [
+      {
+        "path": "scripts/extract.py",
+        "content": {"@ag.file": ".agenta-imports/pdf-tools/scripts/extract.py"},
+        "executable": true
+      }
+    ]
+  }
+}
+```
+
+`@ag.file` joins `@ag.embed` as one marker family: same shape, different lifetime. An embed
+persists in the configuration and re-resolves on every read. A file marker is consumed at
+commit and never persists — the committed revision holds the text.
+
+### 6.2 What it replaced, and why
+
+The earlier design put a `value_from` source object on the operation, which resolved a
+whole FOLDER through a codec into a skill, and carried import-policy fields.
+
+The usability spike measured both. The operation-level source produced the only
+silent-corruption failure mode in the whole study. The marker went 91 for 91 across both
+models. So:
+
+- **There is no folder source and no folder-to-skill codec in v1.** The agent authors the
+  skill structure itself and references each file's content per field. It already knows the
+  structure; it does not need a codec to infer it.
+- **There are no policy fields.** `on_unsupported`, `on_executable`, and
+  `persist_executable_capability` are all gone. Each marker is one file. An unsupported file
+  fails its own marker with a clear reason, and the all-or-nothing commit guarantees that
+  nothing partial ever lands, so there is nothing for an "omit" mode to buy.
+- **`executable` is an ordinary agent-authored field**, on the skill file entry, exactly
+  like `path` and `content`. So is the skill's `allow_executable_files`. The approval card
+  must display both. They are configuration the human reads, not a policy grammar the model
+  must learn.
+
+### 6.3 Paths
+
+The import root is **`.agenta-imports/`** under the run's working directory. A dot-folder
+stays out of shell listings by default, and the Files drawer already hides the `.agenta-*`
+prefix, so a non-technical user never sees a confusing system folder.
+
+A path may be written two ways, and the runner normalizes both:
+
+| Form | Example |
+|---|---|
+| relative to the workspace root | `.agenta-imports/pdf-tools/SKILL.md` |
+| absolute inside the workspace | `/workspace/.agenta-imports/pdf-tools/SKILL.md` |
+
+Only a path that resolves outside the workspace is refused. Agents write absolute paths
+naturally; refusing them fights the model for nothing, and the runner knows its own root on
+each platform.
+
+The runner still confines every resolved path, refuses symbolic links, and reads each file
+once. `workspace-import.md` owns the confinement mechanics.
+
+### 6.4 Where the marker may not appear
+
+- **Not in `edit_text`.** An anchor must be text the model read and copied. A file marker
+  there would anchor against content the model never saw.
+- **Not in a target.** A target is addressing, not content.
+- **Not in a legacy `set` tree.** The legacy form is frozen.
+
+### 6.5 The engine refuses every surviving marker
+
+The engine is pure and never reads a path. If a marker reaches it, the runner did not
+resolve it, and the safe answer is to refuse the whole commit:
+`unresolved_file_marker`, not retryable. Silently storing `{"@ag.file": "..."}` as a
+configuration value would ship a broken agent.
+
+The engine scans the whole value of every operation, at every depth, including inside
+lists.
+
+### 6.6 One commit, many markers
+
+A commit may carry several markers. They are resolved as one set:
+the runner checks the permission verdict, then resolves every marker, then substitutes
+every value, then dispatches. A failure on any one marker fails the whole call before
+anything is sent. `execution-authorization.md` section 3.4 owns the atomic
+verify-and-consume rules, which now cover the SET of markers in one commit rather than a
+set of operation-level sources.
+
+## 7. Application and atomicity
+
+Operations run in array order. Each sees the result of the ones before it. The first
+failing operation aborts everything, and no partial result escapes. The caller's base tree
+never changes: the engine deep-copies it, and deep-copies every value it writes.
+
+## 8. What the engine returns
 
 ```python
 @dataclass(frozen=True)
@@ -626,81 +563,88 @@ class ChangeSetResult:
 apply_change_set(base, delta, scope_policy=None, *, validate=None) -> ChangeSetResult
 ```
 
-`changed` is the engine's own comparison of its input base against its output. It is NOT
-the commit's no-change answer. The commit wrapper compares the canonical persisted form,
-which is a different and larger comparison. See `commit-transaction.md` section 5.
+`changed` is mandatory before ship, not a convenience. A cornered model commits a no-op to
+manufacture success; the usability spike observed it once. `changed=False` lets the wrapper
+answer `no_change` and create no revision. The wrapper's own comparison is larger — it
+covers the canonical persisted record — and `commit-transaction.md` section 5 owns it.
 
-A `Warning` is structured, never a sentence alone:
+A warning is structured:
 
 ```json
 {
-  "code": "wholesale_list_replace",
-  "message": "The delta replaced the whole 'tools' list. Use add_item / remove_item.",
-  "target": ["parameters", "agent", "tools"],
-  "operation_index": 0
+  "code": "text_matched_normalized",
+  "message": "edits[0].old_text matched after normalizing quotes and dashes.",
+  "target": ["parameters", "agent", "instructions", "agents_md"],
+  "operation_index": 1
 }
 ```
 
-### 7.1 Warning codes
-
-| Code | When |
+| Warning code | When |
 |---|---|
-| `wholesale_list_replace` | A `set` or a legacy `set` replaced a whole `tools`, `skills`, or `mcps` list. |
-| `legacy_duplicate_key` | A collection the change set did not touch holds a duplicate key. |
+| `text_matched_normalized` | A prose anchor matched only after the normalized retry. Section 5.6.1. |
+| `target_normalized` | The wrapper corrected a selector mistake. Section 4.3. |
+| `wholesale_list_replace` | A `set` replaced a whole `tools`, `skills`, or `mcps` list. |
+| `legacy_duplicate_key` | An untouched collection holds a duplicate key. Section 9. |
 | `legacy_delta_form` | The delta used the legacy form. |
-| `unaddressable_embed` | A touched collection holds an `@ag.embed` entry that no operation can name. |
+| `unaddressable_embed` | A touched collection holds an `@ag.embed` entry no operation can name. |
 
-## 8. Unique names
+## 9. Unique names
 
-This answers the review's "existing duplicate names" call. The rule protects new
-configurations without making old ones uncommittable.
-
-Definitions:
-
-- A collection is **item-touched** when an `add_item`, `replace_item`, or `remove_item`
-  operation names it.
+- A collection is **item-touched** when an item operation names it.
 - A collection is **branch-touched** when a `set`, `merge`, `remove`, or a legacy `set`
-  writes it or any of its ancestors. A full-data commit branch-touches every collection.
+  writes it or an ancestor. A full-data commit branch-touches everything.
 
-Rules, checked after every operation, in final validation:
+1. An item-touched collection must end with no duplicate key: `duplicate_item_key`.
+2. A branch-touched collection must not GAIN a duplicate. A key whose duplicate count rises
+   is `duplicate_item_key`. A pre-existing duplicate that did not grow only warns.
+3. An untouched collection only warns.
 
-1. An item-touched collection must hold no duplicate key. A duplicate is
-   `duplicate_item_key`. The agent must repair what it edits.
-2. A branch-touched collection must not gain a duplicate. The engine compares the base
-   and the result. A key whose duplicate count rises is `duplicate_item_key`. A duplicate
-   that already existed and did not grow gives the `legacy_duplicate_key` warning.
-3. An untouched collection gives the `legacy_duplicate_key` warning and nothing more.
+Rule 2 keeps every existing configuration committable. Open product call 2 may still change
+rule 1.
 
-The engine already refuses to act when it addresses a duplicated key inside an operation.
-That check stays. It gives `duplicate_item_key` with `match_count`.
-
-Rule 2 keeps every existing configuration committable. A separate cleanup migration can
-repair old duplicates later.
-
-## 9. The scope policy
+## 10. The scope policy
 
 ```python
 ScopePolicy = Callable[[Target], Optional[str]]   # a refusal message, or None
 ```
 
-The engine checks every operation's target before it applies any operation. A refusal is
-a policy answer. It must not depend on how far the change set got. The error names the
+The engine checks every operation's target before it applies any operation. A refusal is a
+policy answer and must not depend on how far the change set got. The error names the
 operation index, and the tree stays untouched.
 
-For the legacy form, the engine builds targets: it walks the `set` tree down to the
-policy's prefix depth, and it splits each `remove` path on the dot.
+For the legacy form the engine builds targets: it walks the `set` tree to the policy's
+prefix depth and splits each `remove` path on the dot.
 
-Two policies exist. `read-config.md` section 11 defines both.
+`read-config.md` section 11 defines the two policies: `PARAMETERS_ONLY` for a run override,
+and `AGENT_COMMIT_SCOPE` for a platform-tool commit. A refusal is `out_of_scope`, 422, not
+retryable.
 
-- `PARAMETERS_ONLY` for a run override: the target must sit under `parameters`.
-- `AGENT_COMMIT_SCOPE` for a platform-tool commit: it also refuses server-owned fields.
+## 11. Platform-kind tool entries are rejected
 
-A refusal is `out_of_scope`, HTTP 422, not retryable.
+An agent's configuration must never contain the playground's injected build kit. Agents
+commit those tools by accident today.
 
-## 10. The error model
+**The wrapper rejects any `tools` entry with `"type": "platform"`**, with a retryable error
+that names the offending entries:
 
-One failure aborts everything. HTTP 422 for a bad change set. HTTP 409 for a stale base;
-see `commit-transaction.md`.
+```json
+{
+  "code": "platform_tool_not_committable",
+  "message": "These are playground tools, not part of your configuration: commit_revision, test_run.",
+  "next_step": "Remove those entries from `tools` and send the commit again.",
+  "entries": ["commit_revision", "test_run"]
+}
+```
+
+Rejection beats silent stripping. The usability spike showed that errors teach and silent
+corrections do not. Two other guards stand with it: `read_config` reads the STORED
+revision, which never contains the injected kit, so reads are clean by construction; and one
+line of the tool description says so up front (section 15).
+
+## 12. The error model
+
+One failure aborts everything. HTTP 422 for a bad change set, 409 for a stale base
+(`commit-transaction.md`).
 
 ```json
 {
@@ -709,10 +653,11 @@ see `commit-transaction.md`.
     "message": "No revision was committed.",
     "operation_index": 1,
     "operation": "edit_text",
-    "target": ["parameters", "agent", {"field": "skills", "key": "release-qa"}, "body"],
+    "target": ["parameters", "agent", {"list": "skills", "key": "release-qa"}, "body"],
     "reason": {
       "code": "text_not_unique",
-      "message": "old_text matched 3 times. Include more surrounding text.",
+      "message": "old_text matched 3 times.",
+      "next_step": "Add more surrounding lines to old_text until it appears once, then send the commit again.",
       "match_count": 3
     },
     "retryable": true
@@ -720,121 +665,237 @@ see `commit-transaction.md`.
 }
 ```
 
-| Reason code | Meaning | Retryable |
-|---|---|---|
-| `target_not_found` | A segment does not exist. | yes |
-| `target_type_mismatch` | A node has the wrong type for the verb. | yes |
-| `item_already_exists` | `add_item` found the key. | yes |
-| `item_not_found` | `replace_item` / `remove_item` did not find the key. | yes |
-| `duplicate_item_key` | Two entries share one key. | yes |
-| `text_not_found` | The anchor does not occur. | yes |
-| `text_not_unique` | The anchor occurs more than one time. | yes |
-| `text_edits_overlap` | Two matches share a character. | yes |
-| `text_too_large` | The target string is above the work limit. | no |
-| `no_change` | The edits produce identical content. | yes |
-| `empty_old_text` | The anchor is empty. | yes |
-| `unkeyed_collection` | The list has no key field. | yes |
-| `item_key_undefined` | The value has no derivable key. | yes |
-| `source_not_found` | The runner could not read the workspace path. | yes |
-| `source_invalid` | The source is unusable, or `value_from` reached the engine. | no |
-| `source_diff_base_unavailable` | A single-text `set` could not read its old text from `base_revision_id`. Runner-owned. Section 5.1.1. | yes |
-| `source_too_large` | The source is above the byte limit. | no |
-| `out_of_scope` | The scope policy refuses the target. | no |
-| `invalid_delta` | Both forms, no form, or an unknown delta field. | no |
-| `invalid_operation` | A shape error. | no |
-| `final_validation_failed` | The finished tree is not a valid configuration. | yes |
-| `non_embeddable_reference` | The result embeds a static workflow that may not be embedded. | yes |
+### 12.1 Retryable errors
 
-`final_validation_failed` carries an `issues` array, so the agent gets every schema
-problem at once.
+The agent can fix these and send again. Each one carries `next_step`.
 
-`non_embeddable_reference` is wrapper-owned, not engine-owned. The commit wrapper raises
-it from the existing `_reject_non_embeddable_workflow_embeds` check. It shares this
-envelope so the agent learns one error vocabulary. `commit-transaction.md` section 4.1
-defines when it runs.
-
-## 11. Final validation
-
-The engine takes a `validate` callable. The callable receives the finished tree. It
-returns a list of issues, or it raises. Either way the engine raises one error with
-`final_validation_failed`.
-
-The commit wrapper supplies the validator. It validates the complete revision data
-against the workflow schema, and the agent template against `AgentTemplateSchema`. It also
-runs the unique-name rules of section 8.
-
-## 12. Changes the prototype needs
-
-The prototype is `api/oss/src/core/workflows/change_set.py` in worktree
-`agent-a2a2adaa5d154d454`. It implements this contract except for the following points.
-
-| # | Change | Where |
-|---|---|---|
-| 1 | Return `ChangeSetResult`, not a bare dict. Compute `changed`. Collect warnings. | `apply_change_set`, `_finish` |
-| 2 | Split `VALUE_BEARING`. `set`, `add_item`, and `replace_item` accept `value_from`; `merge` accepts `value` only. The schema must offer the folder source on the item verbs, the file source on `set`, and nothing on `merge`. | `VALUE_BEARING`, `_operation_value` |
-| 2b | `set` must not create parents when it carries `value_from`, and its target must already hold a string. Sections 5.1.1 and 5.3. | `_apply_operation` |
-| 2c | The folder source carries three policy fields: `on_unsupported`, `on_executable`, and `persist_executable_capability`. `allow_executable_files` is not one of them. Add the constraint check, `persist_executable_capability: true` needs `on_executable: "import"`, as `invalid_operation`. The runner enforces it before any read; the schema states it. Section 5.1.3. | new pydantic source models |
-| 3 | Accept and dispatch `match_mode`. Add a matcher table with one entry, `exact`. | `_apply_operation`, `apply_text_edits` |
-| 4 | Count occurrences with overlap. Replace `str.count` and `str.index`. | `apply_text_edits` |
-| 5 | Create missing plain-string object parents in `set`, under the five rules of 5.3. | `_apply_operation` |
-| 6 | Add the work limits of 5.6.2 and the `text_too_large` code. | `apply_text_edits` |
-| 7 | Add the unique-name rules of section 8 and the warning codes of 7.1. | new module functions |
-| 8 | Add `AGENT_COMMIT_SCOPE`. | scope policies |
-| 9 | Add the `maxItems` limits to the schema, and the pydantic operation models with `extra="forbid"`. | new module |
-
-Everything else in the prototype matches this contract. Its 120 tests stay valid, except
-the two that pin non-overlapping counting and the absence of parent creation.
-
-## 13. Open items
-
-1. **`match_mode` on the wire today.** The catalog schema will advertise a one-value enum.
-   A model may read that as noise. We accept the cost, because adding a second mode later
-   is then not a breaking change.
-2. **Rule 1 of section 8.** It asks an agent to repair a duplicate it did not create,
-   before it can edit that collection. This is a product call. `decisions.md` open call 2
-   covers it.
-3. **Full-data commits.** They branch-touch everything, so rule 2 applies to them. The
-   playground saves this way. We must measure how many existing configurations would gain
-   a warning before we make rule 2 stricter.
-4. **The four allowed `set` targets** (section 5.1.1) are the long-text fields we know
-   today. A later schema can add another one. The list must live in one place, beside the
-   `item_key` table, so the SDK and the server never disagree about it.
-5. **Product call 1, storage normalization.** Gate 2 marks it as blocking engine and
-   transaction work. It changes exact matching, the stored bytes, and canonical equality.
-   Answer it before the engine slice starts.
-6. **Product call 2, unique-name enforcement.** Gate 2 marks it as blocking engine
-   validation. It decides which legacy configurations stay committable. Section 8 holds
-   the recommended rule.
-
-## 14. Gate 2 resolution
-
-Gate 2 marked item 1 RESOLVED. Two later points still touch this file.
-
-| Gate point | Answered in |
+| Code | Meaning |
 |---|---|
-| New problem 9. The approval manifest cannot describe `set` plus `value_from` | Section 5.1.1 defines the constrained form the team lead arbitrated on 4 August: `set` takes `value_from` when the source is one file, the target is one of four known long-text fields, and the approval shows a unified diff. Section 5.1.2 records that a folder into `set` stays disallowed, because it has no honest presentation. `workspace-import.md` section 8 gains the single-text-file mode; runner-spike owns that edit. |
-| New problem 6. The embed check must survive the transaction | Section 10 adds the `non_embeddable_reference` reason code and marks it wrapper-owned. `commit-transaction.md` section 4.1 owns the behavior. |
-| New problem 10. `value_from` conflates import policy with a stored capability | Section 5.1.3 carries the four-layer split the team lead accepted on 4 August. The folder source now holds `on_unsupported`, `on_executable`, and `persist_executable_capability`. The old `allow_executable_files` field is gone from `value_from`; the persisted `SkillTemplate.allow_executable_files` is written only through `persist_executable_capability`. `workspace-import.md` section 5.2 owns the split. |
-| Item 1, product calls 1 and 2 can still change the contract | Section 13 items 5 and 6 record both as blocking, with the section each one would change. |
+| `target_not_found` | A segment does not exist. |
+| `target_type_mismatch` | A node has the wrong type for the verb. |
+| `invalid_target_shape` | The last segment is the wrong kind for the verb. Section 5.2. |
+| `item_already_exists` | `add_item` found the key. |
+| `item_not_found` | `replace_item` / `remove_item` did not find the key. |
+| `item_rename_not_allowed` | `replace_item`'s value carries a different key. |
+| `duplicate_item_key` | Two entries share one key. |
+| `item_key_undefined` | The value has no derivable key. |
+| `unkeyed_collection` | The list has no key field. |
+| `missing_operation_value` | A value-bearing operation carried no `value`. |
+| `invalid_operation_shape` | Any other malformed operation the schema also rejects. |
+| `text_not_found` | The anchor does not occur. |
+| `text_not_unique` | The anchor occurs more than once. |
+| `text_edits_overlap` | Two matches share a character. |
+| `empty_old_text` | The anchor is empty. |
+| `no_change` | The edits produce identical content. |
+| `source_not_found` | The runner could not find the file a marker names. |
+| `source_unsupported` | The file is not readable as text. |
+| `platform_tool_not_committable` | The `tools` list holds a platform-kind entry. Section 11. |
+| `non_embeddable_reference` | The result embeds a static workflow that may not be embedded. Wrapper-owned; `commit-transaction.md` section 4.1. |
+| `final_validation_failed` | The finished tree is not a valid configuration. Carries `issues`. |
 
-Supporting changes: section 2.1 tables and note, section 5.1 table, sections 5.1.1 to
-5.1.3, section 10 reason table, section 12 rows 2, 2b, and 2c, and section 13 item 4.
+### 12.2 Non-retryable refusals
 
-The founding use case is covered again. US-1 and #5554 are the oversized instruction file.
-Section 5.1.1 gives it a path: one workspace file into
-`["parameters","agent","instructions","agents_md"]`, approved as a unified diff.
+Sending the same payload again never helps.
 
-## 15. Gate 3 resolution
-
-Gate 3 marked arbitration ruling 1 "not accepted as written", and finding 2 says why.
-
-| Gate point | Answered in |
+| Code | Meaning |
 |---|---|
-| Finding 2. The single-text approval can show a diff against the running session while the commit replaces a newer head | Section 5.1.1, condition 3. The old text comes from the revision named by `base_revision_id`, and from nothing else. The worked failure is written out, with the reason the base check cannot catch it: the base is not stale, only the diff is. |
-| Ruling 1. If the old value cannot be obtained, fail closed rather than claim a unified-diff approval | Section 5.1.1, condition 3, rule 3. The call refuses with `source_diff_base_unavailable` and reads no workspace bytes. Every earlier fallback is named and forbidden: session memory, the complete new text, and a byte count. |
-| The alternative: the API validates an approved old-value digest | Section 5.1.1 records it, states its cost (a new envelope field and a second failure mode), and does not choose it. |
+| `out_of_scope` | The scope policy refuses the target. |
+| `invalid_delta` | Both forms, no form, or an unknown delta field. |
+| `unknown_operation` | An unknown verb or an unknown `match_mode`. |
+| `unresolved_file_marker` | An `@ag.file` reached the engine. Section 6.5. |
+| `text_too_large` | The target string is above the work limit. |
+| `source_too_large` | The file a marker names is above the byte limit. |
 
-Supporting changes: section 10 adds `source_diff_base_unavailable`, and the cross-reference
-now points at `workspace-import.md` section 8.4, the single-text mode.
+**Why the split matters.** The old model had one `invalid_operation` code marked
+non-retryable. An agent honoring `retryable: false` would dead-end on every rename, because
+a rename arrived as a shape error. Shape errors an agent can correct are now retryable and
+carry the correction; only true refusals are terminal.
 
-The restricted target set and the single-file rule are unchanged. Gate 3 accepted both.
+### 12.3 Every retryable error names the next action
+
+`next_step` is one sentence in the imperative. It is not optional, and it is not a
+restatement of the message.
+
+| Code | `next_step` |
+|---|---|
+| `revision_conflict` (409) | "Call read_config for the new revision, re-anchor your edits to it, and send the commit again with the new base_revision_id." |
+| `item_rename_not_allowed` | "Send remove_item for the old key, then add_item with the new value." |
+| `text_not_found` | "Copy old_text from the configuration you read, character for character." |
+| `text_not_unique` | "Add more surrounding lines to old_text until it appears once, then send the commit again." |
+| `source_not_found` | "Write the file under .agenta-imports/ first, then send the commit again." |
+| `platform_tool_not_committable` | "Remove those entries from `tools` and send the commit again." |
+| `target_not_found` | "Call read_config for that part of the configuration and correct the target." |
+
+### 12.4 Enriched content
+
+Two errors carry the content the agent needs to recover in one turn, instead of forcing an
+extra read:
+
+- **`source_not_found`** lists the folders that DO exist under `.agenta-imports/`, and the
+  files in the folder the path named if that folder exists. A wrong path is nearly always a
+  near miss.
+- **`text_not_found`** returns the nearest lines of the target string: the three lines with
+  the highest similarity to `old_text`, each with its line number. The agent then sees
+  whether its anchor was stale, reformatted, or simply mistyped.
+
+## 13. Final validation
+
+The engine takes a `validate` callable. It receives the finished tree and returns a list of
+issues, or raises. Either way the engine raises one `final_validation_failed` carrying an
+`issues` array, so the agent gets every problem at once.
+
+The wrapper supplies the validator. It validates the revision data against the workflow
+schema and the agent template against `AgentTemplateSchema`, and it runs section 9 and
+section 11.
+
+## 14. The derived commit message
+
+The server writes the commit message from the operations. The model never sends one.
+
+The rule: one clause per operation group, joined with "; ", in operation order.
+
+| Operations | Clause |
+|---|---|
+| n `edit_text` on one field | `edited <field> (n edits)` |
+| `set` on a field | `set <field>` |
+| `merge` on a field | `updated <field>` |
+| `remove` on a field | `removed <field>` |
+| `add_item` on a list | `added <list-singular> <key>` |
+| `replace_item` | `replaced <list-singular> <key>` |
+| `remove_item` | `removed <list-singular> <key>` |
+
+Example: `edited instructions (2 edits); added skill pdf-tools`.
+
+The legacy form keeps a generic message: `updated configuration`.
+
+**The ephemeral `description`, when the model sent one, is appended in parentheses**, so the
+agent's own words survive without being the source of truth:
+
+```text
+edited instructions (2 edits); added skill pdf-tools (Adding the pdf-tools skill you asked for.)
+```
+
+`commit-transaction.md` section 5.2 keeps `message` out of the no-change comparison, so a
+derived message never causes a revision on its own.
+
+## 15. The tool description (normative)
+
+This is the model-facing description of `commit_revision`. It ships as written. It measures
+about 1.5 KB and 400 tokens; the 3.2 KB version scored the same (Haiku 55/55, DeepSeek
+54/55) and cost 11 to 13 percent more per task.
+
+Three conditions in section 4.3, section 12.3, and section 12.4 are part of this decision,
+not separate: the short document works BECAUSE the wrapper normalizes the repeated-list
+mistake, every error names a next step, and the selector key is `list`.
+
+```text
+Commit a change to this agent's own configuration.
+
+Send `workflow_revision` with `base_revision_id` (the `revision_id` you read) and
+`delta`. `delta` holds `operations`; they run in order, and if one fails nothing is
+committed.
+
+TARGET: an array of segments from the configuration root. A string segment names an
+object field. An object segment {"list": L, "key": K} names one entry of list L and
+stands in place of L's name. Keyed lists: skills, mcps, tools (by name), files (by path).
+
+    ["parameters","agent",{"list":"skills","key":"release-qa"},
+     {"list":"files","key":"checklist.md"},"content"]
+
+OPERATIONS:
+- `set` replace one field (needs `value`)
+- `merge` deep-merge an object into one field (needs `value`)
+- `remove` delete one field
+- `edit_text` replace exact substrings in one string field (needs `edits`)
+- `add_item` append to a list; target ends with the list name (needs `value`)
+- `replace_item` replace one entry; target ends with a selector (needs `value`)
+- `remove_item` delete one entry; target ends with a selector
+
+`edits` is a list of {old_text, new_text}. `old_text` must occur exactly once and match
+character for character, line breaks included. Copy it from the configuration you read;
+never retype it from memory.
+
+For a workspace file's content, write {"@ag.file": "<path>"} where the string would go.
+Put the file under `.agenta-imports/` first.
+
+    {"operation":"add_item","target":["parameters","agent","skills"],
+     "value":{"name":"pdf-tools","description":"Make PDFs.",
+              "body":{"@ag.file":".agenta-imports/pdf-tools/SKILL.md"}}}
+
+Your `tools` list must not contain the playground's own tools (commit_revision,
+test_run, read_config). They are not part of your configuration.
+```
+
+Two changes from the measured v3: the import root is named `.agenta-imports/`, and the last
+paragraph is the build-kit line from section 11. Both are additive and neither changes the
+grammar the measurement exercised.
+
+## 16. Notes for adjacent slices
+
+**Tool-list changes reopen the session on every harness in v1.** A commit that changes
+`tools` does not route to a live catalog update, on any harness. The adapter capability
+matrix stays in `adapter-matrix.md` so that flipping one harness to live later is a
+one-line capability change, but v1 is uniform: reopen. Nothing in this contract depends on
+which route runs; it is recorded here because a reader of the commit path will ask.
+
+## 17. Changes the prototype needs
+
+The prototype is `api/oss/src/core/workflows/change_set.py`.
+
+| # | Change |
+|---|---|
+| 1 | Return `ChangeSetResult`; compute `changed`; collect warnings. |
+| 2 | Rename the selector key `field` to `list`. |
+| 3 | Remove all `value_from` handling. Add the `@ag.file` deep scan and `unresolved_file_marker`. |
+| 4 | Count occurrences with overlap. |
+| 5 | Add `match_mode` with a dispatch table, and the per-class tolerance of 5.6.1. |
+| 6 | Create missing plain-string object parents in `set`. |
+| 7 | Split the error codes per section 12; add `next_step` to every retryable one. |
+| 8 | Add the work limits and `text_too_large`. |
+| 9 | Add the unique-name rules and the warning codes. |
+| 10 | Add `AGENT_COMMIT_SCOPE`. |
+
+Wrapper-owned and therefore NOT in the engine slice: the selector normalization (4.3), the
+platform-tool rejection (11), the derived message (14), and the enriched error content
+(12.4), which needs the workspace and the base revision.
+
+## 18. Open items
+
+1. **Whitespace normalization is deliberately narrow** (5.6.1). Only Unicode space
+   characters fold to ASCII space. Trailing-whitespace trimming and CRLF folding are
+   excluded because they change length, and a length-changing normalization breaks the
+   byte-exact write. If prose edits fail often on trailing whitespace, the answer is a
+   length-preserving pre-check that reports the difference, not a folding match.
+2. **Unicode NFC against NFD** is likewise excluded. It is length-changing in the general
+   case. Decision 1 chose exact storage, so a mixed-form field can only be repaired by
+   rewriting it whole.
+3. **Product call 2, unique-name enforcement**, may still change section 9 rule 1.
+4. **Product call 6, storing the authored operations for audit**, would add a field to the
+   commit record and interacts with section 14.
+5. **The four content classes in 5.6.1 are the fields we know today.** A later schema field
+   needs a class. The classification must live in one place, beside the `item_key` table.
+
+## 19. Decision history
+
+What this consolidation changed, and the decision behind each change.
+
+| Change | Decision |
+|---|---|
+| `value_from` replaced by the inline `@ag.file` marker, allowed in any string position | Model-usability spike arbitration, 5 Aug. The operation-level source produced the only silent-corruption failure mode; the marker went 91/91. |
+| The folder source and the folder-to-skill codec are dropped from v1 | Same. The agent authors skill structure itself. |
+| `on_unsupported`, `on_executable`, `persist_executable_capability` all removed; `executable` and `allow_executable_files` are ordinary agent-authored fields the approval card shows | Settled-by-contracts, 5 Aug. One marker is one file, and the all-or-nothing commit makes partial imports impossible. This retires the four-layer split. |
+| Import root is `.agenta-imports/`, not `imports/` | Mahmoud, 5 Aug. Dot-folder hidden by shells; the Files drawer already filters the `.agenta-*` prefix. |
+| Paths may be relative or absolute inside the workspace | Model-usability arbitration, 5 Aug. Agents write absolute paths naturally. |
+| Selector key `field` renamed to `list`; the wrapper normalizes two selector mistakes | Same. The selector caused 62 percent of spike failures. |
+| Match tolerance by content class; storage stays exact bytes | Mahmoud's PR review, 5 Aug, plus decision 1 (option A, 5 Aug). |
+| `message` leaves the model-facing schema; the server derives it; `description` is appended | Superseded the "optional free text" rule after the v3 measurement, 5 Aug. |
+| `invalid_operation` split into retryable shape errors and non-retryable refusals; rename gets its own code | Model-usability arbitration, 5 Aug. An agent honoring `retryable:false` would dead-end on every rename. |
+| Every retryable error carries a next step; `source_not_found` and `text_not_found` carry content | Same. |
+| Platform-kind tool entries rejected on commit | Mahmoud's PR review, 5 Aug. Rejection over silent stripping, because errors teach. |
+| `changed` is mandatory before ship | Same arbitration. A cornered model commits a no-op to manufacture success. |
+| The v3 instruction document is folded in as the normative tool description | Same, with the two named edits. |
+| Tools-route note: v1 reopens sessions uniformly | Mahmoud's PR review, 5 Aug. |
+
+Superseded and no longer authoritative: this file's gate-2 and gate-3 resolution sections,
+the `value_from` arbitration in `decisions.md` under "Contract phase", and
+`workspace-import.md`'s folder-codec and policy-field sections.

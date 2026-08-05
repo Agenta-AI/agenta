@@ -1,7 +1,17 @@
-# Contract: execution authorization for `value_from`
+# Contract: execution authorization for workspace file references
 
 Status: proposed. This contract answers must-fix item 4 and answer section 2 of
 `research/design-gate-review-codex.md`.
+
+> **Renamed by the 5 August consolidation.** The workspace source is no longer a `value_from`
+> object on an operation. It is an inline `{"@ag.file": "<path>"}` marker that may appear in
+> ANY string position of an operation's `value`. `change-set.md` sections 6.1 and 6.6 own the
+> new shape. Read every remaining `value_from` in this file as "one `@ag.file` marker", with
+> one substitution that matters: **a record is keyed per MARKER, not per operation**, because
+> one operation can now carry several. Section 3.4 states the record key and the set rules in
+> full. The security argument, the lifecycle, the fail-closed rules, and the limits are
+> unchanged; only the unit changed. A full rename pass through this file belongs to
+> runner-spike, who owns it.
 
 This contract replaces the tool-call-id cache in `spikes/runner-spike.md`. The cache was not
 safe. This document defines what replaces it.
@@ -50,7 +60,8 @@ memory only.
 | `manifestDigest` | string | SHA-256 over the approval manifest. Section 4 of `workspace-import.md` defines the manifest. |
 | `catalogGeneration` | string | The tool-catalog generation that was live when the runner minted the record. |
 | `sourcePath` | string | The import path the model asked for. It is used for the card and for logs. |
-| `operationIndex` | integer | The index of the operation inside `delta.operations`. One record covers one operation. |
+| `operationIndex` | integer | The index of the operation inside `delta.operations`. |
+| `valuePointer` | string | The JSON Pointer of the `@ag.file` marker inside that operation's `value`, e.g. `/body` or `/files/0/content`. With `operationIndex` it identifies exactly one marker: one record covers one MARKER, not one operation. Section 3.4. |
 | `createdAtMs` | integer | Mint time. |
 | `expiresAtMs` | integer | Hard deadline. Section 6 defines it. |
 | `consumed` | boolean | Single-use flag. Section 3.3 defines the transition. |
@@ -180,7 +191,7 @@ The steps run in this order.
 3. Write the frozen value into the frozen-value store. Get a handle back.
 4. Compute `argsDigest`, `contentDigest`, and `manifestDigest`.
 5. Read the live `catalogGeneration`.
-6. Store the record, keyed on `toolCallId` plus `operationIndex`.
+6. Store the record, keyed on `toolCallId` plus `operationIndex` plus `valuePointer`.
 7. Build the approval card from the manifest.
 
 A resolution failure stops the call before step 3. The model receives the structured error from
@@ -194,7 +205,7 @@ dialog.
 
 The check is:
 
-1. Look up the record by `toolCallId` and `operationIndex`.
+1. Look up the record by `toolCallId`, `operationIndex`, and `valuePointer`.
 2. A missing record fails closed. Section 4 states the one exception.
 3. A `consumed` record fails closed.
 4. An expired record fails closed.
@@ -222,33 +233,53 @@ The runner then substitutes the frozen value into the call body. It replaces `va
 
 ### 3.4 Multi-source commits
 
-One commit may carry up to eight `value_from` operations. Sections 3.1 to 3.3 describe one
-record. This section defines how the runner handles a set of them. The rule is that the set
-behaves as one unit.
+**Renamed by the 5 August consolidation.** The source is no longer a `value_from` object on
+an operation. It is an inline `{"@ag.file": "<path>"}` marker, and it may appear in ANY
+string position of an operation's `value` — so one operation can carry several. See
+`change-set.md` sections 6.1 and 6.6.
+
+Nothing in the logic below changes. Only the unit of the set changes:
+
+| Was | Is |
+|---|---|
+| the set of operations carrying a `value_from` | the set of `@ag.file` markers in the whole commit |
+| one record per operation | one record per MARKER |
+| record key: `toolCallId` + `operationIndex` | record key: `toolCallId` + `operationIndex` + `valuePointer` |
+
+`valuePointer` is the JSON Pointer of the marker inside that operation's `value`, for
+example `/body` or `/files/0/content`. Two markers in one operation are two records, and
+the pointer is what keeps them apart. Without it, a set with two markers in one operation
+could not be verified member by member, and the "no missing member" check below would pass
+with one of the two frozen values substituted.
+
+One commit may carry up to eight markers (section 6.2 limits). Sections 3.1 to 3.3 describe
+one record. This section defines how the runner handles a set of them. The rule is that the
+set behaves as one unit.
 
 #### 3.4.1 Mint: check the policy before any read
 
-The runner must decide the permission verdict for the whole call BEFORE it reads any folder.
+The runner must decide the permission verdict for the whole call BEFORE it reads any file.
 
 The order is fixed:
 
-1. Parse the call. Collect every operation that carries a `value_from`. Record the operation
-   index of each.
+1. Parse the call. Walk every operation's `value` and collect every `@ag.file` marker.
+   Record the operation index and the value pointer of each.
 2. Read the permission plan verdict for the call. A `deny` verdict stops here. The runner returns
    the deny reason. **It performs no workspace read at all.**
 3. Check the per-call and per-turn limits in section 6.2 against the collected count. A breach
    stops here, again before any read.
-4. Resolve the sources in operation order. Mint one record per source.
+4. Resolve the markers in operation order, then in pointer order within an operation. Mint
+   one record per marker.
 
-Step 2 matters on its own. A denied call must not touch the filesystem. Reading a folder for a
-call that will never run leaks the folder's existence and its content into runner memory, and it
+Step 2 matters on its own. A denied call must not touch the filesystem. Reading a file for a
+call that will never run leaks the file's existence and its content into runner memory, and it
 spends the turn's byte budget. Worse, on Daytona it runs a process inside the sandbox for a call
 the policy already refused.
 
-If any source fails to resolve, the whole mint fails. The runner discards every record it minted
-for that call and releases their bytes. It returns the failing operation's index and its
-structured error. A commit is one atomic change, so a partially resolvable commit has no useful
-meaning.
+If any marker fails to resolve, the whole mint fails. The runner discards every record it minted
+for that call and releases their bytes. It returns the failing operation's index, the failing
+value pointer, and its structured error. A commit is one atomic change, so a partially resolvable
+commit has no useful meaning.
 
 The records for one call share one `catalogGeneration`, read once at step 4. They share one
 expiry, computed once. This stops a set from ageing apart.
@@ -257,20 +288,20 @@ expiry, computed once. This stops a set from ageing apart.
 
 The runner verifies the complete set before it consumes any of it.
 
-1. Determine the required set: every operation index in the executed call that carries a
-   `value_from`.
-2. Look up a record for each required index, keyed by `toolCallId` plus `operationIndex`.
+1. Determine the required set: every `{operationIndex, valuePointer}` pair in the executed
+   call that holds an `@ag.file` marker.
+2. Look up a record for each required pair, keyed by `toolCallId` plus that pair.
 3. Run every check in section 3.2 against every record.
 4. Every record must pass. One failure fails the whole call.
 
 Two extra checks apply to the set, and neither is implied by the per-record checks:
 
-- **No missing member.** Every required index must have a record. A call carrying three
-  `value_from` operations with only two records fails closed.
+- **No missing member.** Every required pair must have a record. A call carrying three
+  markers with only two records fails closed.
 - **No extra member.** Every record held for this `toolCallId` must correspond to a required
-  index in the executed call. A record with no matching operation means the executed call is not
-  the approved call. This catches an attacker who removes an operation from an approved
-  multi-operation commit to change what the commit does.
+  pair in the executed call. A record with no matching marker means the executed call is not
+  the approved call. This catches an attacker who removes an operation, or removes one marker
+  from an operation, in an approved multi-marker commit to change what the commit does.
 
 The `argsDigest` check already covers both cases when it passes, because it binds the whole
 argument document. These two checks exist so the runner reports the real reason rather than an
