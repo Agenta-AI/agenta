@@ -170,6 +170,16 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     // Engineering (dev-workflow automation)
     {
         key: "pr-reviewer",
+        example: {
+            prompt: "Pull request opened: “Cache revision lookups”",
+            steps: [
+                "Read the pull request and its diff",
+                "Flagged one risky change in the cache invalidation path",
+                "Left inline comments on the three files it touched",
+            ],
+            reply: "Reviewed — the change looks sound apart from the invalidation path, where a stale entry can survive a revision bump. I've commented inline and summarised on the PR.",
+            status: "Awaiting your review",
+        },
         name: "PR reviewer",
         category: "Engineering",
         initials: "PR",
@@ -258,6 +268,15 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     },
     {
         key: "issue-triage",
+        example: {
+            prompt: "Issue opened: “Playground hangs on large testsets”",
+            steps: [
+                "Read the issue and matched it against the area labels",
+                "Set area:playground and priority:high",
+                "Assigned the owner listed for that area",
+            ],
+            reply: "Labelled area:playground · priority:high and assigned it. It matches two open issues about the same load path — linked them on the thread.",
+        },
         name: "Issue triage",
         category: "Engineering",
         initials: "IT",
@@ -294,6 +313,15 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     },
     {
         key: "ci-failure-triage",
+        example: {
+            prompt: "Workflow run failed on main",
+            steps: [
+                "Pulled the failing workflow run's logs",
+                "Traced the failure to a migration that ran out of order",
+                "Commented on the commit with the cause and the failing step",
+            ],
+            reply: "The run failed in the migration step, not the tests — one migration expects a column the previous one hasn't added yet. I've pinged the commit author with the log excerpt.",
+        },
         name: "CI failure triage",
         category: "Engineering",
         initials: "CI",
@@ -331,6 +359,12 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     },
     {
         key: "code-qa",
+        example: {
+            prompt: "@agent where do we validate API keys?",
+            steps: ["Searched the repo for the validation path", "Read the two files that own it"],
+            reply: "Validation happens in `api/oss/src/utils/auth.py` — the middleware resolves the key, then the router's dependency checks scope per request. Both are cited below.",
+            status: "Answered in thread",
+        },
         name: "Code Q&A",
         category: "Engineering",
         initials: "QA",
@@ -442,6 +476,16 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     },
     {
         key: "support-reply-drafter",
+        example: {
+            prompt: "New ticket: “Can I export a run as CSV?”",
+            steps: [
+                "Read the ticket and the customer's plan",
+                "Found the matching answer in your docs",
+                "Drafted a reply and left it unsent for review",
+            ],
+            reply: "Drafted a reply pointing to the export flow, in your usual tone. It's on the ticket as an internal note — publish it when you're happy.",
+            status: "Awaiting approval",
+        },
         name: "Support reply drafter",
         category: "Support",
         initials: "SR",
