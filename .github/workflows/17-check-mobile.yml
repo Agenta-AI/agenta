@@ -2,6 +2,10 @@ name: "17 - check mobile"
 
 on:
   pull_request:
+    # `ready_for_review` is not a default activity type. Both entry jobs skip while a PR is a
+    # draft, so without it the commits pushed during draft are never checked — marking the PR
+    # ready would leave an unvalidated head.
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'web/mobile/**'
       - 'web/entrypoint.sh'
@@ -124,7 +128,11 @@ jobs:
       contents: read
       packages: write
     name: build-image
-    needs: prepare
+    # Also `typecheck`, not just `prepare`: `web/mobile/next.config.ts` sets
+    # `typescript.ignoreBuildErrors: true`, so the build and the smoke test can both pass while
+    # the dedicated typecheck fails. Without this, a dispatch with `push=true` publishes that
+    # tag and `merge-manifests` can move `latest` onto it.
+    needs: [prepare, typecheck]
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -180,15 +188,22 @@ jobs:
             docker pull "$IMAGE"
           fi
           docker run -d --name mobile-smoke -p 3000:3000 "$IMAGE"
+          # Every request is bounded. A container that accepts the connection but never answers
+          # would otherwise hang until the job timeout, with no diagnostic.
+          CURL_TIMEOUTS="--connect-timeout 5 --max-time 15"
           for i in $(seq 1 30); do
-            if curl -sf http://127.0.0.1:3000/m >/dev/null; then break; fi
+            if curl -sf $CURL_TIMEOUTS http://127.0.0.1:3000/m >/dev/null; then break; fi
             sleep 1
           done
           # Assert the status itself rather than curl's exit code: `-sf` succeeds on a 3xx
           # (the page never rendered) and fails identically on 404 and 500.
           expect_status() {
             local path="$1" want="$2" got
-            got="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:3000${path}")"
+            # `|| true` on purpose: under `set -e` a transport failure here would exit the step
+            # before `docker logs` runs, losing the only evidence of what went wrong. Turn it
+            # into a sentinel status so the mismatch branch reports and dumps the log.
+            got="$(curl -s $CURL_TIMEOUTS -o /dev/null -w '%{http_code}' "http://127.0.0.1:3000${path}" || true)"
+            [ -n "$got" ] || got="no-response"
             if [ "$got" != "$want" ]; then
               echo "::error::expected ${path} to return ${want}, got ${got}"
               docker logs mobile-smoke
