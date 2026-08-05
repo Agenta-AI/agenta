@@ -6,7 +6,6 @@ from redis.asyncio import Redis
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.records.streaming import deserialize_record
-from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -31,8 +30,8 @@ def finished_turns_in_batch(events: List[Any]) -> Dict[str, str]:
 
     A gate row exists only because a turn paused for a human, so a turn whose terminal record
     carries no pause marker is holding no gate — and neither is its session, whose live process
-    is gone. That is the reconciliation trigger. The last finished turn per session wins; the
-    caller re-checks it against the turns ledger anyway.
+    is gone. That is the reconciliation trigger. The last finished turn per session wins, and the
+    caller cancels only that turn's own gates.
     """
     finished: Dict[str, str] = {}
     for msg in events:
@@ -77,7 +76,6 @@ class RecordsWorker(StreamConsumer):
         max_batch_mb: int = 50,
         watch_publisher: Optional[SessionsWatchPublisherInterface] = None,
         interactions_service: Optional[SessionInteractionsService] = None,
-        turns_service: Optional[SessionTurnsService] = None,
     ):
         super().__init__(
             redis_client=redis_client,
@@ -91,10 +89,9 @@ class RecordsWorker(StreamConsumer):
         )
         self.service = service
         self.watch_publisher = watch_publisher
-        # Both required together for gate reconciliation; either absent disables it (minimal
-        # test compositions), which only loses the safety net — never the append.
+        # Absent disables gate reconciliation (minimal test compositions), which only loses the
+        # safety net — never the append.
         self.interactions_service = interactions_service
-        self.turns_service = turns_service
 
     async def reconcile_orphaned_gates(
         self,
@@ -114,30 +111,25 @@ class RecordsWorker(StreamConsumer):
 
         * a terminal record carrying the pause marker is skipped outright — that turn IS the
           live park, and its gate is exactly what the human is being asked to answer;
-        * the finished turn must be the session's LATEST turn. If the ledger already holds a
-          later turn, that turn may be parked right now and this worker can lag arbitrarily far
-          behind the stream, so we defer to the later turn's own terminal record rather than
-          cancel underneath it. Deferring is self-healing: the next turn to finish without
-          pausing sweeps whatever is still stale.
+        * the cancel is scoped to the finished turn's OWN gates. A newer turn carries a
+          different `turn_id`, so no interleaving can put its live park in range — this worker
+          may lag arbitrarily far behind the stream and still never cancel underneath a turn
+          that is parked right now. Prior turns' leftovers are not this sweep's job: the runner
+          clears them at turn start through `/sessions/interactions/cancel-stale`.
 
         The cancel fans out on the watch plane (the service publishes on a non-zero count), so a
         client sitting on a stuck approval drops it without a reload. Best effort throughout — a
         failure here must never re-drive the record append.
         """
-        if self.interactions_service is None or self.turns_service is None:
+        if self.interactions_service is None:
             return
 
         for session_id, turn_id in finished_turns_in_batch(events).items():
             try:
-                latest = await self.turns_service.latest_turn(
-                    project_id=project_id,
-                    session_id=session_id,
-                )
-                if latest is None or str(latest.turn_id) != str(turn_id):
-                    continue
                 cancelled = await self.interactions_service.cancel_session_pending(
                     project_id=project_id,
                     session_id=session_id,
+                    only_turn_id=str(turn_id),
                 )
                 if cancelled:
                     log.info(

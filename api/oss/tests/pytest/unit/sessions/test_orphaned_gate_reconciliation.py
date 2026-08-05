@@ -9,8 +9,11 @@ The records worker is the choke point: it sees every turn's terminal record. Two
 legitimately parked gate alive:
 
   * `stopReason: "paused"` on the terminal record means THAT turn is the live park — skip it;
-  * the finished turn must be the session's LATEST turn, because this worker can lag arbitrarily
-    behind the stream and a later turn may be parked right now.
+  * the cancel is scoped to the finished turn's OWN gates, so a newer turn's park is out of
+    range by construction. This worker can lag arbitrarily far behind the stream without ever
+    cancelling underneath a turn that is parked right now — no ordering, no ledger read, and so
+    no window between checking and cancelling. Prior turns' leftovers belong to the runner's
+    turn-start sweep (`/sessions/interactions/cancel-stale`), not to this one.
 
 Cancelling is deliberately a DIFFERENT terminal status from a user's deny: a deny is
 `resolved` + `data.resolution.verdict == "denied"`; a superseded gate is `cancelled`, which
@@ -26,7 +29,6 @@ from orjson import dumps
 
 from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.core.sessions.records.service import RecordsService
-from oss.src.core.sessions.turns.dtos import SessionTurn
 from oss.src.tasks.asyncio.sessions.records_worker import (
     RecordsWorker,
     finished_turns_in_batch,
@@ -68,33 +70,18 @@ def _done(turn_id, *, paused=False, session_id=SESSION):
     )
 
 
-def _turn(turn_id, turn_index):
-    return SessionTurn(
-        id=uuid4(),
-        project_id=PROJECT,
-        session_id=SESSION,
-        turn_id=turn_id,
-        stream_id=uuid4(),
-        turn_index=turn_index,
-        harness_kind="claude",
-    )
-
-
-def _worker(*, latest_turn=None, interactions=None, turns_wired=True):
-    interactions_service = interactions or AsyncMock()
-    if interactions is None:
-        interactions_service.cancel_session_pending = AsyncMock(return_value=1)
-    turns_service = None
-    if turns_wired:
-        turns_service = AsyncMock()
-        turns_service.latest_turn = AsyncMock(return_value=latest_turn)
+def _worker(*, interactions=None, interactions_wired=True):
+    interactions_service = None
+    if interactions_wired:
+        interactions_service = interactions or AsyncMock()
+        if interactions is None:
+            interactions_service.cancel_session_pending = AsyncMock(return_value=1)
     return RecordsWorker(
         service=RecordsService(records_dao=AsyncMock()),
         redis_client=None,
         stream_name="streams:records",
         consumer_group="worker-records",
         interactions_service=interactions_service,
-        turns_service=turns_service,
     )
 
 
@@ -137,10 +124,10 @@ def test_finished_turns_tolerates_a_null_attributes_record():
 
 
 @pytest.mark.asyncio
-async def test_a_finished_latest_turn_cancels_the_orphaned_gate():
+async def test_a_finished_turn_cancels_the_gate_it_orphaned():
     """The live bug: turn 1 parks a gate, the resume runs as turn 2 and finishes without ever
     binding to the park, so nothing resolves the row. Turn 2's terminal record must clear it."""
-    worker = _worker(latest_turn=_turn(RESUME_TURN, 1))
+    worker = _worker()
 
     await worker.reconcile_orphaned_gates(
         project_id=PROJECT,
@@ -150,6 +137,7 @@ async def test_a_finished_latest_turn_cancels_the_orphaned_gate():
     worker.interactions_service.cancel_session_pending.assert_awaited_once_with(
         project_id=PROJECT,
         session_id=SESSION,
+        only_turn_id=RESUME_TURN,
     )
 
 
@@ -157,7 +145,7 @@ async def test_a_finished_latest_turn_cancels_the_orphaned_gate():
 async def test_a_parked_gate_is_not_cancelled():
     """MUST NOT cancel: the only turn in the batch paused, so its gate is live and awaiting a
     human. This is the regression guard for the whole safety net."""
-    worker = _worker(latest_turn=_turn(GATE_TURN, 0))
+    worker = _worker()
 
     await worker.reconcile_orphaned_gates(
         project_id=PROJECT,
@@ -168,44 +156,32 @@ async def test_a_parked_gate_is_not_cancelled():
 
 
 @pytest.mark.asyncio
-async def test_a_finished_turn_that_is_no_longer_the_latest_defers():
-    """Worker lag: turn 2's terminal record is only being consumed now, and turn 3 already
-    exists — it may be parked this instant. Defer to turn 3's own terminal record rather than
-    cancel a gate underneath it."""
-    worker = _worker(latest_turn=_turn("33333333-3333-4333-8333-333333333333", 2))
+async def test_a_newer_turns_park_is_out_of_range_however_late_this_runs():
+    """Worker lag, which used to be guarded by re-reading the turns ledger — a read that could
+    go stale before the cancel landed, taking a just-parked turn's gate with it. The scope makes
+    the question moot: whatever turn 3 is doing right now, only turn 2's rows are addressed."""
+    worker = _worker()
 
     await worker.reconcile_orphaned_gates(
         project_id=PROJECT,
         events=[_done(RESUME_TURN)],
     )
 
-    worker.interactions_service.cancel_session_pending.assert_not_awaited()
+    _, kwargs = worker.interactions_service.cancel_session_pending.await_args
+    assert kwargs["only_turn_id"] == RESUME_TURN, (
+        "an unscoped cancel takes every pending row in the session, including the gate a "
+        "newer turn parked while this batch was queued"
+    )
 
 
 @pytest.mark.asyncio
-async def test_no_turn_ledger_row_defers():
-    worker = _worker(latest_turn=None)
+async def test_reconciliation_is_disabled_without_the_interactions_service():
+    worker = _worker(interactions_wired=False)
 
     await worker.reconcile_orphaned_gates(
         project_id=PROJECT,
         events=[_done(RESUME_TURN)],
     )
-
-    worker.interactions_service.cancel_session_pending.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_reconciliation_is_disabled_without_both_services():
-    interactions = AsyncMock()
-    interactions.cancel_session_pending = AsyncMock(return_value=1)
-    worker = _worker(interactions=interactions, turns_wired=False)
-
-    await worker.reconcile_orphaned_gates(
-        project_id=PROJECT,
-        events=[_done(RESUME_TURN)],
-    )
-
-    interactions.cancel_session_pending.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -213,7 +189,7 @@ async def test_a_reconciliation_failure_never_propagates():
     """The record append is already committed; a safety-net failure must not re-drive it."""
     interactions = AsyncMock()
     interactions.cancel_session_pending = AsyncMock(side_effect=RuntimeError("db down"))
-    worker = _worker(latest_turn=_turn(RESUME_TURN, 1), interactions=interactions)
+    worker = _worker(interactions=interactions)
 
     await worker.reconcile_orphaned_gates(
         project_id=PROJECT,
@@ -239,14 +215,11 @@ async def test_process_batch_reconciles_after_the_append():
 
     interactions = AsyncMock()
 
-    async def _cancel(*, project_id, session_id):
+    async def _cancel(*, project_id, session_id, only_turn_id):
         journal.append("cancel")
         return 1
 
     interactions.cancel_session_pending = AsyncMock(side_effect=_cancel)
-
-    turns = AsyncMock()
-    turns.latest_turn = AsyncMock(return_value=_turn(RESUME_TURN, 1))
 
     worker = RecordsWorker(
         service=RecordsService(records_dao=records_dao),
@@ -254,7 +227,6 @@ async def test_process_batch_reconciles_after_the_append():
         stream_name="streams:records",
         consumer_group="worker-records",
         interactions_service=interactions,
-        turns_service=turns,
     )
 
     message = {

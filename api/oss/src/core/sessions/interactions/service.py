@@ -101,12 +101,14 @@ class SessionInteractionsService:
         session_id: str,
         except_turn_id: Optional[str] = None,
         except_tokens: Optional[List[str]] = None,
+        only_turn_id: Optional[str] = None,
     ) -> int:
         cancelled = await self.interactions_dao.cancel_session_pending(
             project_id=project_id,
             session_id=session_id,
             except_turn_id=except_turn_id,
             except_tokens=except_tokens,
+            only_turn_id=only_turn_id,
         )
         if cancelled:
             await self._publish_interaction(
