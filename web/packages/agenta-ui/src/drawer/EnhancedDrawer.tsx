@@ -166,11 +166,14 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
 
     const styles = customStyles as DrawerStyles | undefined
 
+    // `HTMLElement` is a browser-only global: guard it so SSR doesn't throw evaluating
+    // `instanceof` before this ever needs a real container.
     const container = useMemo<HTMLElement | undefined>(() => {
         if (getContainer === false) return undefined
         if (typeof getContainer === "function")
             return (getContainer as () => HTMLElement)() ?? undefined
-        if (getContainer instanceof HTMLElement) return getContainer
+        if (typeof HTMLElement !== "undefined" && getContainer instanceof HTMLElement)
+            return getContainer
         return undefined
     }, [getContainer])
 

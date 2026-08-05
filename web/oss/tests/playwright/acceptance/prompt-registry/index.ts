@@ -136,6 +136,9 @@ const promptRegistryTests = () => {
         "should open prompt details from prompt registry",
         {tag: tags},
         async ({page, uiHelpers, apiHelpers}) => {
+            // getApp() may create the app through the UI; that does not fit the 60s default (#5695).
+            test.setTimeout(120000)
+
             let appId = ""
             let revisionId = ""
             let workflowRevisionDrawer: ReturnType<typeof page.locator> | null = null

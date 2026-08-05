@@ -714,17 +714,12 @@ class HarnessAgentTemplate(BaseModel):
     harness: ClassVar[HarnessKind]
 
     agents_md: Optional[str] = None
-    # ``model`` stays the back-compat plain string the adapter hands to the harness.
-    # ``model_ref`` carries the structured ref when one is supplied; it is populated only from
-    # structured input (a dict / a ``ModelRef``), so a plain-string ``model`` leaves it
-    # ``None`` and the wire is unchanged. See :meth:`wire_model_ref`.
+    # ``model`` stays the plain string handed to the harness. ``model_ref`` carries author
+    # intent for resolution; only the resolved connection crosses the runner boundary.
     model: Optional[str] = None
     model_ref: Optional[ModelRef] = None
-    # ``resolved_connection`` carries the least-privilege output of a ``ConnectionResolver``
-    # (threaded down from ``SessionConfig``). It is the authoritative source of the non-secret
-    # provider/model descriptor on the wire when present; unset leaves the wire unchanged (the
-    # golden contract). Its ``env`` is the secret channel and never reaches the wire here (it
-    # rides ``secrets``). See :meth:`wire_resolved_connection`.
+    # ``resolved_connection`` carries the route and typed credential bindings produced by the
+    # resolver. It serializes as one consumer-owned ``modelConnection`` object.
     resolved_connection: Optional[ResolvedConnection] = None
     tool_callback: Optional[ToolCallback] = None
     mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
@@ -819,48 +814,46 @@ class HarnessAgentTemplate(BaseModel):
         """The harness-specific ACP session mode override for the ``/run`` payload."""
         return {}
 
-    def wire_model_ref(self) -> Dict[str, Any]:
-        """The non-secret provider/connection fields for the ``/run`` payload.
+    def wire_connection_ref(self) -> Dict[str, Any]:
+        """The author's connection CHOICE for the ``/run`` payload, not its resolved contents.
 
-        Empty when ``model_ref`` is unset, so a string-only config's payload is byte-identical
-        to before (the golden wire contract). When a structured ref is present this emits only
-        the fields known at config-build time: ``provider`` (when set) and ``connection`` (when
-        it carries non-default info). ``deployment`` / ``endpoint`` / ``credentialMode`` come
-        from a :class:`ResolvedConnection`, which Slice 1 does not yet thread, so they are not
-        emitted here. The plain ``model`` string still rides the wire separately for back-compat.
+        This is the reference the author picked in the config (``self_managed``, or an Agenta
+        connection named by slug). It stays separate from ``modelConnection`` because the two
+        answer different questions: this one is "which connection did the author select", which
+        the runner reads to route a named OpenAI-compatible Pi run through its models.json path
+        (``pi-model-config.ts``); ``modelConnection`` is "what did that connection resolve to",
+        which is credential material.
+
+        Empty when ``model_ref`` is unset, and empty for the project default (``agenta`` with no
+        slug) because that carries no information beyond the model itself, so a default run's
+        payload stays byte-identical.
         """
         if self.model_ref is None:
             return {}
-        out: Dict[str, Any] = {}
-        if self.model_ref.provider:
-            out["provider"] = self.model_ref.provider
         connection = self.model_ref.connection
-        # Two modes only: the project default is ``agenta`` with no slug and carries no info
-        # beyond the model, so it is omitted (byte-identical wire). Emit the connection only when
-        # it is ``self_managed`` or names a slug.
-        is_default = connection.mode == "agenta" and connection.slug is None
-        if not is_default:
-            wire_connection: Dict[str, Any] = {"mode": connection.mode}
-            if connection.slug is not None:
-                wire_connection["slug"] = connection.slug
-            out["connection"] = wire_connection
-        return out
+        if connection.mode == "agenta" and connection.slug is None:
+            return {}
+        wire: Dict[str, Any] = {"mode": connection.mode}
+        if connection.slug is not None:
+            wire["slug"] = connection.slug
+        return {"connection": wire}
 
-    def wire_resolved_connection(self) -> Dict[str, Any]:
-        """The non-secret resolved-connection descriptor for the ``/run`` payload.
+    def wire_model_connection(self) -> Dict[str, Any]:
+        """The resolved model route and credentials, grouped under their consumer.
 
-        Empty when ``resolved_connection`` is unset, so a config without a resolved connection
-        is byte-identical to before (the golden wire contract). When a resolved connection is
-        present this is the AUTHORITATIVE source of the provider/model descriptor: it emits
-        ``provider``, ``model`` (the resolved exact model), ``deployment``, ``credentialMode``,
-        and ``endpoint`` (via :meth:`ResolvedConnection.to_wire`, which NEVER emits ``env``). It
-        is spread AFTER the base ``model`` and after :meth:`wire_model_ref` in
-        ``request_to_wire``, so the resolved ``provider``/``model`` win over the config-build
-        values while ``connection`` (the author's ``{mode, slug}`` intent) is preserved. The
-        secret ``env`` rides the existing ``secrets`` wire field, never here."""
+        ``modelCapabilities`` (resolved input modalities) is hoisted to the top level of the
+        request: the runner's attachment-delivery chain reads ``request.modelCapabilities``,
+        not the connection object.
+        """
         if self.resolved_connection is None:
             return {}
-        return self.resolved_connection.to_wire()
+        connection_wire = self.resolved_connection.to_wire()
+        out: Dict[str, Any] = {"model": self.resolved_connection.model}
+        capabilities = connection_wire.pop("modelCapabilities", None)
+        if capabilities is not None:
+            out["modelCapabilities"] = capabilities
+        out["modelConnection"] = connection_wire
+        return out
 
 
 class PiAgentTemplate(HarnessAgentTemplate):
@@ -878,6 +871,23 @@ class PiAgentTemplate(HarnessAgentTemplate):
     only for changing or extending Pi's base persona."""
 
     harness: ClassVar[HarnessKind] = HarnessKind.PI
+
+    def wire_model_connection(self) -> Dict[str, Any]:
+        """Keep Pi's selector provider-qualified so equal model suffixes cannot misroute.
+
+        ``modelConnection.provider`` describes credential ownership, but Pi routes on the
+        top-level model string. Agenta inherits this behavior; Claude keeps its bare aliases.
+        """
+        wire = super().wire_model_connection()
+        if not wire or self.resolved_connection is None:
+            return wire
+        provider = self.resolved_connection.provider
+        model = self.resolved_connection.model
+        prefix = f"{provider}/" if provider else ""
+        wire["model"] = (
+            model if not prefix or model.startswith(prefix) else f"{prefix}{model}"
+        )
+        return wire
 
     tool_specs: List[ToolSpec] = Field(
         default_factory=list,
@@ -1080,8 +1090,8 @@ class AgentaAgentTemplate(PiAgentTemplate):
 class SessionConfig(BaseModel):
     """Everything one run needs except where it runs.
 
-    ``agent`` is the agent definition. ``secrets`` are provider keys injected as harness
-    env, never written to the agent filesystem. The ``custom_tools`` / ``tool_callback`` pair
+    ``agent`` is the agent definition. Model routing and credentials are carried by
+    ``resolved_connection``. The ``custom_tools`` / ``tool_callback`` pair
     is the resolved tool delivery (Agenta produces it server-side; empty for a bare standalone
     run); built-in tools are not part of it, the runner activates them. The agent config's
     ``sandbox`` field is a
@@ -1091,10 +1101,7 @@ class SessionConfig(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     agent: AgentTemplate
-    secrets: Dict[str, str] = Field(default_factory=dict, repr=False)
-    # ``resolved_connection`` carries the least-privilege output of a ``ConnectionResolver``.
-    # ``secrets`` is the compatibility alias for ``resolved_connection.env`` during the
-    # transition: Slice 1 still ships the credential through ``secrets`` on the wire.
+    # ``resolved_connection`` is the single source of model routing and credentials.
     resolved_connection: Optional[ResolvedConnection] = None
     permission_default: PermissionMode = "allow_reads"
     trace: Optional[TraceContext] = None

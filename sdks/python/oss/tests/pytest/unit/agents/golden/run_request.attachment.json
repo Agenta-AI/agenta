@@ -3,7 +3,7 @@
   "sandbox": "local",
   "sessionId": "sess-attachment",
   "agentsMd": "Use the attached file.",
-  "model": "claude-sonnet-4-6",
+  "model": "anthropic/claude-sonnet-4-6",
   "messages": [
     {
       "role": "user",
@@ -22,7 +22,6 @@
       ]
     }
   ],
-  "secrets": {},
   "context": null,
   "telemetry": null,
   "tools": ["read", "bash", "edit", "write", "grep", "find", "ls"],
@@ -31,13 +30,16 @@
   "permissions": {
     "default": "allow_reads"
   },
-  "provider": "anthropic",
-  "deployment": "direct",
-  "credentialMode": "runtime_provided",
   "modelCapabilities": {
     "inputModalities": [
       "text",
       "image"
     ]
+  },
+  "modelConnection": {
+    "provider": "anthropic",
+    "deployment": "direct",
+    "credentialMode": "runtime_provided",
+    "credentials": []
   }
 }

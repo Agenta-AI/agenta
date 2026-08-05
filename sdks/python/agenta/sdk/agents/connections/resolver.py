@@ -19,7 +19,8 @@ from typing import Any, Dict, Optional
 
 from ..capabilities import PROVIDER_ENV_VARS
 from ..model_catalog import model_input_modalities
-from .errors import UnsupportedProviderError
+from .endpoints import build_resolved_connection
+from .errors import MissingCredentialError, UnsupportedProviderError
 from .models import (
     Endpoint,
     ModelRef,
@@ -46,8 +47,8 @@ class EnvConnectionResolver:
     - ``agenta`` (the default mode, with or without a slug) -> infer the provider (from
       ``ModelRef.provider``, else error), look up its env var, and:
         - present -> ``credential_mode = env`` carrying exactly that one var;
-        - absent  -> ``credential_mode = runtime_provided`` with empty ``env`` (absence is
-          valid; the harness falls back to its own login, matching today's semantics).
+        - absent  -> fail closed. Only an explicit ``self_managed`` connection may let the
+          harness own authentication.
 
     The model passes through unchanged. Offline, no vault, no network.
     """
@@ -64,11 +65,11 @@ class EnvConnectionResolver:
     ) -> ResolvedConnection:
         if model.connection.mode == "self_managed":
             provider = model.provider or ""
-            return ResolvedConnection(
+            return build_resolved_connection(
                 provider=provider,
                 model=model.model,
                 credential_mode="runtime_provided",
-                env={},
+                values={},
                 input_modalities=_input_modalities(
                     context, provider=provider, model=model.model
                 ),
@@ -84,24 +85,18 @@ class EnvConnectionResolver:
         env_var = _PROVIDER_ENV_VARS.get(provider.lower())
         key = self._env.get(env_var) if env_var else None
         if env_var and key:
-            return ResolvedConnection(
+            return build_resolved_connection(
                 provider=provider,
                 model=model.model,
                 credential_mode="env",
-                env={env_var: key},
+                values={env_var: key},
                 input_modalities=_input_modalities(
                     context, provider=provider, model=model.model
                 ),
             )
-        # Absence is valid: inject nothing and let the harness use its own login/OAuth.
-        return ResolvedConnection(
+        raise MissingCredentialError(
             provider=provider,
-            model=model.model,
-            credential_mode="runtime_provided",
-            env={},
-            input_modalities=_input_modalities(
-                context, provider=provider, model=model.model
-            ),
+            slug=model.connection.slug,
         )
 
 
@@ -146,18 +141,34 @@ class StaticConnectionResolver:
         context: RuntimeAuthContext,
     ) -> ResolvedConnection:
         provider = self._provider or model.provider or ""
+        if model.connection.mode == "self_managed":
+            return build_resolved_connection(
+                provider=provider,
+                model=model.model,
+                deployment=self._deployment,
+                credential_mode="runtime_provided",
+                values={},
+                input_modalities=_input_modalities(
+                    context, provider=provider, model=model.model
+                ),
+            )
         env: Dict[str, str] = {}
         if self._api_key:
             env_var = self._env_var or _PROVIDER_ENV_VARS.get(provider.lower())
             if env_var:
                 env[env_var] = self._api_key
         endpoint = Endpoint(base_url=self._base_url) if self._base_url else None
-        return ResolvedConnection(
+        if not env:
+            raise MissingCredentialError(
+                provider=provider,
+                slug=model.connection.slug,
+            )
+        return build_resolved_connection(
             provider=provider,
             model=model.model,
-            deployment=self._deployment,  # type: ignore[arg-type]
-            credential_mode="env" if env else "runtime_provided",
-            env=env,
+            deployment=self._deployment,
+            credential_mode="env",
+            values=env,
             endpoint=endpoint,
             input_modalities=_input_modalities(
                 context, provider=provider, model=model.model

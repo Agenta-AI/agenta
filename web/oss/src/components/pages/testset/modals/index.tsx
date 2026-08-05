@@ -8,8 +8,10 @@ import CreateTestset from "./CreateTestset"
 import CreateTestsetFromApi from "./CreateTestsetFromApi"
 import CreateTestsetFromScratch from "./CreateTestsetFromScratch"
 
+// `.ant-modal-content` was the same node EnhancedModal's className lands on directly (not a
+// descendant); `.ant-modal-close` is now `[data-slot="dialog-close-x"]`.
 const modalClass =
-    "transition-[width] duration-300 ease-[ease] [&_.ant-modal-content]:overflow-hidden [&_.ant-modal-content]:rounded-2xl [&_.ant-modal-content>.ant-modal-close]:top-4"
+    'transition-[width] duration-300 ease-[ease] overflow-hidden rounded-2xl [&_[data-slot="dialog-close-x"]]:!top-4'
 
 interface Props extends ModalProps {
     testsetCreationMode: TestsetCreationMode

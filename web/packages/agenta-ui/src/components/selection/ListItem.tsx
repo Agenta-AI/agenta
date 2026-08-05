@@ -159,7 +159,6 @@ export function ListItem({
     const baseClasses = cn(
         flexLayouts.rowCenter,
         justifyClasses.between,
-        // box-border: preflight is off, so the selected state's 2px rail would widen the row.
         "box-border px-2 py-2 transition-colors rounded-md",
         textColors.secondary,
     )
@@ -170,7 +169,6 @@ export function ListItem({
                 "cursor-pointer",
                 "bg-[var(--ag-rgba-051729-06)] hover:bg-[var(--ag-rgba-051729-08)]",
                 textColors.primary,
-                "border-0 border-r-2 border-solid border-primary",
             )
           : isHovered
             ? cn("cursor-pointer", "bg-[var(--ag-rgba-051729-06)]", textColors.primary)
@@ -192,11 +190,13 @@ export function ListItem({
                 )}
                 {icon && <span className={cn("flex-shrink-0", textColors.tertiary)}>{icon}</span>}
                 <div className="flex-1 min-w-0">
-                    <div className="truncate" title={label}>
+                    <div className="truncate text-field-md" title={label}>
                         {labelNode ?? label}
                     </div>
                     {description && (
-                        <div className={cn(textColors.tertiary, "truncate")}>{description}</div>
+                        <div className={cn(textColors.tertiary, "truncate text-field-md")}>
+                            {description}
+                        </div>
                     )}
                     {footerNode}
                 </div>

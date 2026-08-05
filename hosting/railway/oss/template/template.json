@@ -4,21 +4,29 @@
   "templateEnvironment": "pr-template",
   "notes": {
     "purpose": "Declarative definition of the Railway preview TEMPLATE environment (issue #5650). Per-PR previews are created by cloning this environment; apply.sh converges a live environment to this file and the drift workflow (47) alerts on hand-edits.",
-    "project-todo": "TODO(WP3-project): the rollout step points 'project' at the production preview project once WP3 lands; until then the definition targets the proven spike project.",
+    "project-location": "The template lives in project 'agenta-oss-clone-spike', environment 'pr-template'. CI resolves the same location from the repo variables RAILWAY_TEMPLATE_PROJECT / RAILWAY_TEMPLATE_ENV (falling back to these values), and the preview scripts accept the same names as env vars. Moving the template = converge the new project's environment with apply.sh --project, then update 'project' here and the two repo variables.",
     "variable-classes": "A variable value that contains a ${{...}} Railway reference is PER-ENVIRONMENT-UNIQUE: Railway re-resolves it inside every clone (proven, findings.md Q2). A literal string value is SHARED: byte-identical in the template and every clone. An object {\"secret\": NAME} is a SHARED SECRET: the value is never stored in this file; apply.sh resolves it at apply time from the process environment, from the value already live on a sibling service, or from the declared generator, in that order.",
     "system-variables": "Railway injects RAILWAY_* variables (RAILWAY_ENVIRONMENT*, RAILWAY_PROJECT_*, RAILWAY_SERVICE_*, RAILWAY_PRIVATE_DOMAIN, ...) into every service. The diff ignores any RAILWAY_* name UNLESS it is declared here (declared ones, e.g. redis's RAILWAY_RUN_UID, are managed and diffed like any other).",
     "start-command-policy": "Services whose image owns its entrypoint (Postgres, supertokens, and the three WP1 wrapper images gateway/redis/seaweedfs) MUST have startCommand empty/unset. The eight app services carry explicit startCommands because one image backs several services (agenta-api alone backs api, worker-streams, worker-queues, cron, and alembic). API fact: startCommand null in serviceInstanceUpdate is a NO-OP; \"\" clears the override (findings.md close-out addendum).",
     "tag-policy": "Template image tags must NEVER equal a PR image tag (pr-<n>-<sha>) and must NEVER be 'latest': environmentPatchCommit silently no-ops when a patched tag equals the template's tag, which strands a clone on template images (findings.md, deploy-mode section). apply.sh enforces this.",
-    "healthchecks": "healthcheckPath is unset on all services, matching the live-proven template (10/10 green clone cycles). The legacy per-PR path (scripts/configure.sh) sets healthchecks for gateway/api/services/runner; adding them to the template is a WP3 decision, not silent drift."
+    "healthchecks": "healthcheckPath is unset on all services, matching the live-proven template (10/10 green clone cycles). The standalone deployment path (scripts/configure.sh) sets healthchecks for gateway/api/services/runner; adding them to the template is a deliberate change to this file, not silent drift."
   },
   "parameters": {
     "app_tag": {
-      "default": "v0.107.0",
+      "default": "v0.108.0",
       "description": "Tag for the four Agenta app images (agenta-api, agenta-web, agenta-services, agenta-runner). Pinned to a release tag; per-PR clones patch these images to pr-<n>-<sha> tags via environmentPatchCommit. Never 'latest', never a pr-* tag (see notes.tag-policy)."
     },
-    "wrapper_tag": {
-      "default": "spike",
-      "description": "TODO(WP1-tag): tag for the three preview wrapper images (agenta-preview-gateway/redis/seaweedfs). WP1 establishes content-addressed tags built by workflow 42; the WP3/rollout step pins this default to the first WP1-built tag. ':spike' is the live-proven placeholder pushed during the spike. Never 'latest', never a pr-* tag."
+    "gateway_tag": {
+      "default": "content-778baa45f18f",
+      "description": "Content-addressed tag for ghcr.io/agenta-ai/agenta-preview-gateway, built by workflow 42 from hosting/railway/oss/images/gateway. When the wrapper source changes, regenerate with images/compute-tag.sh (see template/README.md). Never 'latest', never a pr-* tag."
+    },
+    "redis_tag": {
+      "default": "content-cdbfac207702",
+      "description": "Content-addressed tag for ghcr.io/agenta-ai/agenta-preview-redis, built by workflow 42 from hosting/railway/oss/images/redis. When the wrapper source changes, regenerate with images/compute-tag.sh (see template/README.md). Never 'latest', never a pr-* tag."
+    },
+    "seaweedfs_tag": {
+      "default": "content-03d718eacd47",
+      "description": "Content-addressed tag for ghcr.io/agenta-ai/agenta-preview-seaweedfs, built by workflow 42 from hosting/railway/oss/images/seaweedfs. When the wrapper source changes, regenerate with images/compute-tag.sh (see template/README.md). Never 'latest', never a pr-* tag."
     }
   },
   "deployOrder": {
@@ -81,9 +89,9 @@
   },
   "services": {
     "gateway": {
-      "image": "ghcr.io/agenta-ai/agenta-preview-gateway:{wrapper_tag}",
+      "image": "ghcr.io/agenta-ai/agenta-preview-gateway:{gateway_tag}",
       "startCommand": "",
-      "healthcheckPath": null,
+      "healthcheckPath": "/",
       "restartPolicyType": "ON_FAILURE",
       "restartPolicyMaxRetries": 10,
       "volumes": [],
@@ -119,7 +127,7 @@
     "api": {
       "image": "ghcr.io/agenta-ai/agenta-api:{app_tag}",
       "startCommand": "gunicorn entrypoints.routers:app --bind 0.0.0.0:8000 --worker-class uvicorn.workers.UvicornWorker --workers 2 --max-requests 10000 --max-requests-jitter 1000 --timeout 60 --graceful-timeout 60 --log-level info --access-logfile - --error-logfile -",
-      "healthcheckPath": null,
+      "healthcheckPath": "/health",
       "restartPolicyType": "ON_FAILURE",
       "restartPolicyMaxRetries": 10,
       "volumes": [],
@@ -167,7 +175,7 @@
     "services": {
       "image": "ghcr.io/agenta-ai/agenta-services:{app_tag}",
       "startCommand": "gunicorn entrypoints.main:app --bind 0.0.0.0:8080 --worker-class uvicorn.workers.UvicornWorker --workers 2 --max-requests 10000 --max-requests-jitter 1000 --timeout 60 --graceful-timeout 60 --log-level info --access-logfile - --error-logfile -",
-      "healthcheckPath": null,
+      "healthcheckPath": "/health",
       "restartPolicyType": "ON_FAILURE",
       "restartPolicyMaxRetries": 10,
       "volumes": [],
@@ -214,7 +222,6 @@
     "runner": {
       "image": "ghcr.io/agenta-ai/agenta-runner:{app_tag}",
       "startCommand": "node_modules/.bin/tsx src/server.ts",
-      "healthcheckPath": null,
       "restartPolicyType": "ON_FAILURE",
       "restartPolicyMaxRetries": 10,
       "volumes": [],
@@ -402,7 +409,7 @@
       }
     },
     "redis": {
-      "image": "ghcr.io/agenta-ai/agenta-preview-redis:{wrapper_tag}",
+      "image": "ghcr.io/agenta-ai/agenta-preview-redis:{redis_tag}",
       "startCommand": "",
       "healthcheckPath": null,
       "restartPolicyType": "ON_FAILURE",
@@ -416,7 +423,7 @@
       }
     },
     "seaweedfs": {
-      "image": "ghcr.io/agenta-ai/agenta-preview-seaweedfs:{wrapper_tag}",
+      "image": "ghcr.io/agenta-ai/agenta-preview-seaweedfs:{seaweedfs_tag}",
       "startCommand": "",
       "healthcheckPath": null,
       "restartPolicyType": "ON_FAILURE",

@@ -234,10 +234,10 @@ const AnnotateDrawer = ({
                     createEvaluatorMode={createEvaluatorProps?.mode}
                 />
             }
-            closeIcon={null}
+            closable={false}
             width={400}
             onClose={onClose}
-            classNames={{body: "!p-0", header: "!p-4"}}
+            styles={{body: {padding: 0}, header: {padding: 16}}}
             afterOpenChange={onAfterClose}
         >
             {renderContent}

@@ -6,10 +6,14 @@ import dynamic from "next/dynamic"
 
 import type {NewEvaluationModalGenericProps} from "./types"
 
+// `.ant-modal-content` was the same node EnhancedModal's className now lands on directly
+// (not a descendant); `.ant-modal-body` is still a real descendant, now `[data-slot="modal-body"]`.
+// Dropped `[&>div]:h-full`: under the old antd DOM it only ever matched the single
+// `.ant-modal-content` wrapper, but this modal also renders a header + default footer as
+// direct children now, so keeping it would incorrectly force them to h-full too.
 const modalContainerClass =
-    "overflow-y-hidden [&>div]:h-full [&_.ant-modal-content]:h-full [&_.ant-modal-content]:flex " +
-    "[&_.ant-modal-content]:flex-col [&_.ant-modal-body]:overflow-y-auto [&_.ant-modal-body]:flex-1 " +
-    "[&_.ant-modal-body]:py-4"
+    "overflow-y-hidden h-full flex flex-col " +
+    '[&_[data-slot="modal-body"]]:overflow-y-auto [&_[data-slot="modal-body"]]:flex-1 [&_[data-slot="modal-body"]]:py-4'
 
 const NewEvaluationModalInner = dynamic(() => import("./Components/NewEvaluationModalInner"), {
     ssr: false,

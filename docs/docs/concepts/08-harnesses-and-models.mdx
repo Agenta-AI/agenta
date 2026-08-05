@@ -27,13 +27,21 @@ The harness also manages what surrounds the loop. It loads your instructions at 
 
 The harness handles compaction, which is what happens when a conversation grows past what the model can hold. The harness summarizes the earlier part of the conversation so the session can keep going.
 
-Agenta ships two harnesses, Claude Code and Pi. Both run the loop above. They differ in how they compact a long conversation, how they load instructions, and which models they accept.
+Agenta ships three harnesses: Claude Code, Pi, and Codex. All three run the loop above. They differ in how they compact a long conversation, how they load instructions, and which models they accept.
+
+| Harness | Models it accepts |
+|---|---|
+| Claude Code | Anthropic's Claude models, from Anthropic directly, from AWS Bedrock or Google Vertex AI, or through a gateway of your own. |
+| Pi | Models from several providers, including OpenAI, Anthropic, Google Gemini, Mistral, Groq, MiniMax, Together AI, and OpenRouter, plus any OpenAI-compatible endpoint. |
+| Codex | Five OpenAI models: GPT-5.6 Sol, Terra, and Luna, plus GPT-5.5 and GPT-5.2. Codex reaches OpenAI directly, not through Bedrock, Vertex AI, or a gateway. |
+
+Claude Code and Codex also accept HTTP [MCP servers](/guides/add-an-mcp-server) you configure on the agent. Pi does not.
 
 ## You choose the harness, the model, and the credential separately
 
 Setting up an agent's runtime means three separate decisions:
 
-- **The harness.** Claude Code or Pi.
+- **The harness.** Claude Code, Pi, or Codex.
 - **The model.** The model the harness sends the conversation to.
 - **The credential.** Where that model runs. The same model can come from the provider directly, from a proxy you run, or from a cloud such as AWS Bedrock.
 

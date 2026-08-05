@@ -485,6 +485,7 @@ const CreateQueueDrawer = ({
             closable={!isSubmitting}
             maskClosable={!isSubmitting}
             width={640}
+            zIndex={50}
             styles={{
                 body: {padding: 0},
                 footer: {padding: "12px 16px"},

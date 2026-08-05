@@ -29,11 +29,19 @@ process environment, or the working directory of another run.
 
 | Value | Crosses in |
 |---|---|
-| The model key for the run | Yes. The harness needs it to call the model. |
+| The model key for the run | No, by default. The sandbox holds a placeholder. |
+| An HTTP MCP server's credential or header | No, by default. The sandbox holds a placeholder. |
+| A model credential a provider SDK signs with locally | Yes. Today that means the AWS access keys behind Bedrock and the Google service account credentials behind Vertex AI. |
 | The run's own working directory | Yes, mounted from the durable store. |
 | The runner's Daytona API key | No. It stays on the runner. |
 | The runner's other environment variables | No. |
 | A mounted personal subscription login | No. It never leaves the runner container. |
+
+The runner stores each hidden key as a Daytona Secret restricted to the one hostname that key
+authenticates against, and Daytona substitutes the real value into outbound requests to that host.
+The model call and the MCP call still work, and a request to any other host carries only the
+placeholder. This needs a Daytona API key that may manage Secrets, and it can be switched off. See
+[Hiding API keys from the sandbox](/self-host/configuration#hiding-api-keys-from-the-sandbox).
 
 ### What Daytona runs share with each other
 
@@ -60,10 +68,14 @@ worktree, a subscription login) puts it inside that boundary and inside reach of
 | Value | Crosses in |
 |---|---|
 | The model key for the run | Yes. The harness needs it to call the model. |
+| An HTTP MCP server's credential or header | Yes. |
 | The run's own working directory | Yes. |
 | The runner container's environment | Yes, including `AGENTA_RUNNER_TOKEN` and, when it is set, `AGENTA_RUNNER_DAYTONA_API_KEY`. |
 | Anything you mounted into the runner container | Yes, including a personal subscription login. |
 | Anything on the host you did not mount | No. |
+
+Hiding keys behind Daytona Secrets does not apply here. The harness runs inside the runner
+container, so its keys stay inside your own deployment instead of travelling to a third party.
 
 ### What local runs share with each other
 

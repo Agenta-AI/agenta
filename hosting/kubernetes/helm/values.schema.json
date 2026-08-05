@@ -339,7 +339,8 @@
                 "autostopMinutes":   { "type": ["integer", "string"], "description": "AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES." },
                 "autodeleteMinutes": { "type": ["integer", "string"], "description": "AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES." },
                 "sessionIdleTtlMs":  { "type": ["integer", "string"], "description": "AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS." },
-                "sessionMaxWarm":    { "type": ["integer", "string"], "description": "AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM." }
+                "sessionMaxWarm":    { "type": ["integer", "string"], "description": "AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM." },
+                "opaqueSecrets":     { "type": "string", "enum": ["process_local", "off"], "description": "AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS; hiding model and MCP keys from the sandbox behind Daytona Secrets is ON by default. Set to 'off' to send them as plain environment variables instead, where the agent can read them. Needs a Daytona API key allowed to manage Secrets." }
               }
             }
           }

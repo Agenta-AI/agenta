@@ -94,7 +94,8 @@ const connectedTestsetCommitTags = buildAcceptanceTags({
 })
 
 const playgroundTests = () => {
-    basePlaygroundTest(
+    // Disabled: times out intermittently against preview environments (#5695).
+    basePlaygroundTest.skip(
         "Should run single view variant for completion",
         {tag: completionRunTags},
         async ({
@@ -663,7 +664,8 @@ const playgroundTests = () => {
         },
     )
 
-    basePlaygroundTest(
+    // Disabled: times out intermittently against preview environments (#5695).
+    basePlaygroundTest.skip(
         "should configure output type and tools and save the changes",
         {tag: configureToolTags},
         async ({

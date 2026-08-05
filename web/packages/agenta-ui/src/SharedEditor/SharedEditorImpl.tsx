@@ -392,6 +392,10 @@ const SharedEditor = ({
                 {"transition-all duration-300 ease-in-out": !disableContainerTransition},
                 "[&_.agenta-rich-text-editor]:w-full",
                 "[&_.agenta-editor-wrapper]:w-full",
+                // This container is the single source of truth for the border (incl. its
+                // hover/focus/disabled states below) — Editor's own `.editor-inner` border
+                // exists for standalone use and must not double up when nested here.
+                "[&_.editor-inner]:border-0",
                 "p-[11px]",
                 {
                     // Default border + hover/focus parity for `border` mode.

@@ -1,18 +1,32 @@
 ---
-title: "File Attachments in Agent Chat"
+title: "Shared Workspace Files"
 slug: file-attachments-in-agent-chat
 date: 2026-08-02
 tags: [v0.107.0]
-description: "Attach files and images to agent chat by pasting, dragging and dropping, or uploading a whole folder. Plus simpler built-in tool permissions for Pi agents and better-equipped sandboxes."
+description: "One cloud folder for you, your team, and your agents. Upload images, PDFs, and whole folders, and the agent works from the same files you do."
 ---
 
 <Summary>
 
-{/* TODO(Mahmoud): add a short screenshot or video showing a file being attached to an agent chat message (paste, drag and drop, or the attach button) */}
+<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px", flexDirection: 'column', alignItems: 'center'}}>
+  <iframe
+    width="100%"
+    height="500"
+    src="https://customer-8r37tdgzpxskd9f1.cloudflarestream.com/04df507b65359344e047e23a59b09b1e/iframe?muted=true&loop=true&autoplay=true"
+    title="Shared workspace files in Agenta"
+    frameBorder="0"
+    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+    allowFullScreen
+  ></iframe>
+</div>
 
-You can now attach files and images directly to an agent chat message. Paste from your clipboard, drag and drop, click the attach button, or drop a whole folder and Agenta uploads its contents one file at a time.
+Your agents now work from a shared folder in the cloud, not from files sitting on one person's laptop.
 
-Attachments belong to the session. Open the Files drawer to see everything that has been added, and the agent can read the same files inside its sandbox.
+Upload images, PDFs, spreadsheets, or a whole folder. Paste from your clipboard, drag files in, or use the attach button. Your team sees the same files, and so do your agents.
+
+Each agent keeps its own folder that survives between conversations. Save the reference material, the approved examples, and the notes it should follow, and the agent starts every session already knowing them instead of being told again. Files you attach to a single conversation stay with that conversation.
+
+This works on Agenta Cloud and on a self-hosted deployment.
 
 **Also in this release:**
 
@@ -30,17 +44,21 @@ Attachments belong to the session. Open the Files drawer to see everything that 
 
 {/* truncate */}
 
-{/* TODO(Mahmoud): add a short screenshot or video showing a file being attached to an agent chat message (paste, drag and drop, or the attach button) */}
+An agent is only as useful as the material it can reach. Until now that material lived wherever you kept it, which usually meant a folder on one machine that nobody else could see. Agenta now gives you and your agents one folder in the cloud, and your team works from the same copy.
 
-Agent chat now takes files and images as attachments, not just text. Give the agent a spreadsheet, a screenshot, or a whole folder of reference material, and it can read them while it works.
+## Getting files in
 
-## How it works
+You can add a file four ways: paste it from your clipboard, drag it in, click the attach button, or drop a whole folder. When you drop a folder, Agenta uploads its contents one file at a time.
 
-You can attach a file four ways: paste it from your clipboard, drag it in, click the attach button, or drop a whole folder. When you drop a folder, Agenta uploads its contents one file at a time.
+Images, PDFs, spreadsheets, and plain documents all work. Large files upload in chunks, so a slow connection does not sink the whole upload, and a file that is too big gives you a clear message instead of a failed request.
 
-Attachments belong to the session that created them. Open the session's Files drawer to see everything you and the agent have added, and the agent can read those same files from inside its sandbox.
+## Two folders, and the difference matters
 
-Large files upload in chunks, so a slow connection does not sink the whole upload. If a file is too big, you get a clear message instead of a failed request.
+Files you attach to a conversation belong to that conversation. They are the desk for today's work: the spreadsheet you are asking about, the drafts you are shaping, the results you want to take away.
+
+Each agent also has its own folder that persists across every conversation with it. That is where the reference material goes: the brand guide, the examples your team approved, the notes the agent should follow. Point at those files from the agent's instructions and it starts every session already knowing them, instead of you explaining the same context again.
+
+Both are visible to your team, and the agent reads them from inside its sandbox exactly as you see them.
 
 See [Files and knowledge](/concepts/files-and-knowledge) for how session files and agent files differ.
 
