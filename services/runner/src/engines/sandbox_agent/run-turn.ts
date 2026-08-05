@@ -841,6 +841,7 @@ export async function runTurn(
             pause,
             recordPendingInteraction,
             toolCallIndex: env.toolCallIndex,
+            permissionPlan,
             executionGrants,
             log: logger,
           })

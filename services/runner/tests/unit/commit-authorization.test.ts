@@ -798,3 +798,87 @@ describe("a denied gate keeps nothing", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// The gate id and the relay id are different values for one call
+// ---------------------------------------------------------------------------
+
+describe("an approved import, executed through the shim's own call id", () => {
+  const commitSpec: ResolvedToolSpec = {
+    name: "commit_revision",
+    kind: "callback",
+    callRef: "tools.agenta.commit_revision",
+    permission: "ask",
+    readOnly: false,
+  };
+
+  it("executes the approved bytes when the relay reports a different call id", async () => {
+    // THE PRODUCTION SHAPE. On a non-Pi harness the ACP gate carries the HARNESS's tool call id
+    // (`toolu_...` on Claude), and the in-sandbox MCP shim later relays the same call under a
+    // fresh uuid of its own (`tool-mcp-stdio.ts` passes `randomUUID()`), because a `tools/call`
+    // carries no harness id for it to reuse. So the id that minted the records and the id that
+    // executes are different values for one call, and every approved import failed closed.
+    const dir = mkdtempSync(join(tmpdir(), "agenta-two-ids-"));
+    mkdirSync(join(dir, ".agenta-imports"), { recursive: true });
+    writeFileSync(join(dir, ".agenta-imports", "x.py"), "print('approved')\n");
+    const state = createCommitAuthorizationState();
+    const wiring = buildApprovedContentWiring({
+      state,
+      isDaytona: false,
+      workspaceCwd: dir,
+      sandbox: undefined,
+      callback: undefined,
+      runContext: undefined,
+      permissionPlan: { default: "ask", rules: [] },
+      toolSpecs: [commitSpec],
+      turnId: TURN,
+      sessionId: SESSION,
+    });
+    const args = commitArgs([
+      {
+        operation: "add_item",
+        target: ["parameters", "agent", "skills"],
+        value: {
+          name: "pdf",
+          files: [{ path: "x.py", content: { "@ag.file": ".agenta-imports/x.py" } }],
+        },
+      },
+    ]);
+
+    try {
+      // The gate: the harness's id.
+      const manifest = await wiring.onResolveApprovedContent({
+        toolName: "commit_revision",
+        toolCallId: "toolu_01HARNESS",
+        args,
+      });
+      assert.ok(manifest.ok);
+      assert.equal(state.store.recordsFor("toolu_01HARNESS").length, 1);
+
+      const dispatched: string[] = [];
+      globalThis.fetch = (async (_url: any, init: any) => {
+        dispatched.push(String(init?.body ?? ""));
+        return new Response("ok", { status: 200 });
+      }) as typeof fetch;
+
+      // The execution: the shim's id.
+      const response = await relayOnce({
+        spec: commitSpec,
+        args,
+        toolCallId: "b7f1c0de-0000-4000-8000-000000000000",
+        authorizer: wiring.authorizer,
+      });
+
+      // The refusal arrives as tool-result TEXT, not as an error, which is why the model reads
+      // it and retries the same call forever instead of stopping.
+      const text = String((response as { text?: string }).text ?? "");
+      assert.doesNotMatch(text, /authorization_missing/, text);
+      assert.equal(dispatched.length, 1, "the approved commit reached Agenta");
+      assert.match(dispatched[0], /print\('approved'\)/);
+      assert.doesNotMatch(dispatched[0], /@ag\.file/);
+      assert.equal(state.store.size, 0, "and the approval was consumed exactly once");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

@@ -147,7 +147,7 @@ describe("startToolRelay execution guard", () => {
     });
 
     assert.equal(res.ok, true, "a guard deny is a tool RESULT, not an error");
-    assert.match(res.text ?? "", /was not approved/);
+    assert.match(res.text ?? "", /The user declined this .* call\. .*Do not send this call again/s);
     assert.equal(calls.length, 0, "the forged record never executed");
   });
 
@@ -164,7 +164,7 @@ describe("startToolRelay execution guard", () => {
     assert.equal(calls.length, 1, "the approved call executed");
 
     const replay = await relayOnce({ spec: askSpec(), args, guard });
-    assert.match(replay.text ?? "", /was not approved/);
+    assert.match(replay.text ?? "", /The user declined this .* call\. .*Do not send this call again/s);
     assert.equal(calls.length, 1, "the replayed record consumed nothing");
   });
 
@@ -178,7 +178,7 @@ describe("startToolRelay execution guard", () => {
       guard,
     });
 
-    assert.match(res.text ?? "", /denied by the permission policy/);
+    assert.match(res.text ?? "", /is not permitted in this run/);
     assert.equal(calls.length, 0);
   });
 
@@ -222,7 +222,7 @@ describe("startToolRelay execution guard", () => {
     });
 
     assert.equal(res.ok, true, "a guard deny is a tool RESULT, not an error");
-    assert.match(res.text ?? "", /denied by the permission policy/);
+    assert.match(res.text ?? "", /is not permitted in this run/);
     assert.equal(calls.length, 0, "the forged record never executed");
   });
 

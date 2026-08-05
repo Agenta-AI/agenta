@@ -1,5 +1,13 @@
 import type { AgentEvent } from "../../protocol.ts";
-import type { GateDescriptor } from "../../permission-plan.ts";
+import {
+  effectivePermission,
+  type GateDescriptor,
+  type PermissionPlan,
+} from "../../permission-plan.ts";
+import {
+  declinedByUserText,
+  deniedByPolicyText,
+} from "../../tools/denial-text.ts";
 import type { ApprovedExecutionGrants, Responder } from "../../responder.ts";
 import type {
   ExecutableToolGate,
@@ -27,6 +35,15 @@ export interface BuildExecutableToolGateInput {
   ) => void;
   toolCallIndex?: ToolCallCorrelationIndex;
   /**
+   * The run's permission plan, used ONLY to word a refusal.
+   *
+   * `decide` collapses two different facts into one `deny`: the policy refuses the tool, or the
+   * human already declined this call and the answer is being replayed out of the conversation. A
+   * deny under an `ask` permission can only be the second, because the decision store is the only
+   * other thing `decide` consults. The model needs to know which, or it retries a decision.
+   */
+  permissionPlan?: PermissionPlan;
+  /**
    * Per-turn ledger of approval-equivalent allows. A harness that runs its OWN permission gates
    * (Claude always; Codex since the full-access preset was patched to `on-request`) already
    * decided this call before issuing it, and records a grant. This seam consumes the grant so
@@ -43,6 +60,7 @@ export function buildExecutableToolGate({
   pause,
   recordPendingInteraction,
   toolCallIndex,
+  permissionPlan,
   executionGrants,
   log = () => {},
 }: BuildExecutableToolGateInput): ExecutableToolGate {
@@ -76,9 +94,14 @@ export function buildExecutableToolGate({
       if (preApproved) return { kind: "allow" };
       if (verdict.kind === "allow") return { kind: "allow" };
       if (verdict.kind === "deny") {
+        const byPolicy =
+          !permissionPlan ||
+          effectivePermission(gate, permissionPlan) === "deny";
         return {
           kind: "deny",
-          reason: `Tool '${request.toolName}' was denied by policy.`,
+          reason: byPolicy
+            ? deniedByPolicyText(request.toolName)
+            : declinedByUserText(request.toolName),
         };
       }
 
