@@ -406,7 +406,13 @@ def item_key(
     if _EMBED_KEY in entry:
         return None
     if collection == "tools":
-        return _tool_name(entry, allow_legacy_fallback=allow_legacy_fallback)
+        name = _tool_name(entry, allow_legacy_fallback=allow_legacy_fallback)
+        # The same guard the keyed branch below applies. A tool entry carries its name in
+        # one of four fields, and any of them can hold a number or a null in a tree the
+        # caller sent. A non-string key reaches the duplicate report's `join` and raises
+        # TypeError, which leaves the caller with a 500 for a payload the engine should
+        # refuse. An entry with no usable key is simply not addressable by name.
+        return name if isinstance(name, str) and name else None
     key_field = KEY_FIELDS.get(collection)
     if key_field is None:
         return None
@@ -859,6 +865,17 @@ def apply_text_edits(
     result = text
     for start, length, new_text, _ in reversed(matches):
         result = result[:start] + new_text + result[start + length :]
+
+    # The input is bounded and each anchor is bounded, but the RESULT is not: 32 edits can
+    # each grow the field. A field that passes the limit can never be edited again through
+    # this operation, because the next call refuses its own input. Refusing the growth here
+    # keeps the field editable.
+    if len(result) > MAX_TEXT_LENGTH:
+        raise _Fail(
+            Reason.TEXT_TOO_LARGE,
+            f"the edits would leave a string of {len(result)} characters; the limit is "
+            f"{MAX_TEXT_LENGTH}",
+        )
 
     if result == text:
         raise _Fail(
@@ -1478,7 +1495,10 @@ def apply_change_set(
                 ),
             )
         )
-        patch = delta.get("set") or {}
+        # A copy, because `remove_path` mutates the result and `deep_merge` grafts the
+        # patch's own sub-dicts into it. Without this the caller's delta is edited in
+        # place, and the engine's promise that it touches nothing it was given is false.
+        patch = deepcopy(delta.get("set") or {})
         _reject_delta_markers(patch)
         for name in ("tools", "skills", "mcps"):
             nested = _legacy_list_write(patch, name)
