@@ -87,6 +87,32 @@ reasoning is in `spikes/engine-spike.md` (D1-D33, O1-O12) and `spikes/runner-spi
   pretending to secure the channel: worst case is a stale model-visible catalog, never
   a privilege escalation. adapter-matrix.md §4.3.
 
+## Decisions from Mahmoud's PR review (5 August)
+
+- **Tool-list changes route to session reopen on EVERY harness in v1.** Uniform
+  behavior beats a per-harness split where Pi and Claude go live and Codex breaks
+  the pattern. The adapter capability matrix stays in the design (flipping one
+  harness to live later is a one-line capability change), but v1 sets all three to
+  reopen-session. Consequence: the untrusted-acknowledgement machinery, the Pi
+  specs-file channel, and the shim listChanged work all leave v1 scope and move to
+  the backlog. Codex upstream: a quick source check runs now; filing an upstream
+  issue needs Mahmoud's explicit approval first.
+- **Match tolerance differs by what the text is.** Prose fields (the instructions
+  document, a skill body, descriptions) match exact-first, then retry with
+  normalized quotes, dashes, and whitespace; a normalized match must still be
+  unique, and the response reports that normalization was used. Script and file
+  contents (skill files, code-tool scripts) match exact only, because bytes are
+  meaning there. This also settles open decision 1's tension: stored bytes stay
+  exact (option A), and the prose-side tolerance lives in matching, not in storage.
+- **The build kit must be uncommittable.** Today's bug: agents sometimes commit
+  the injected playground tools into their configuration. Three guards: (1)
+  read_config reads the STORED revision, which never contains the injected kit, so
+  reads are clean by construction; (2) the commit wrapper REJECTS any tool entry
+  of the platform kind with a retryable error naming the entries ("these are
+  playground tools, not part of your configuration; remove them and retry"); (3)
+  one line in the tool instructions says the same up front. Rejection is chosen
+  over silent stripping because the spike showed errors teach.
+
 ## Arbitrations after the model-usability spike (team lead + Mahmoud, 5 August)
 
 - **The inline marker replaces the operation-level source, and it is named
