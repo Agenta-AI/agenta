@@ -617,14 +617,36 @@ review is explicit that static inspection does not prove Daytona behavior.
 
 ## 11. Documents to update when this contract is accepted
 
-- `spikes/runner-spike.md`, section "Where the resolution step should really live". Replace the
-  tool-call-id cache with this contract.
-- `decisions.md`, the runner-spike block. Replace the "frozen per tool-call id, with inline
-  resolution at execution as the fallback" line.
-- `decisions.md`, open product call 4. Record Mahmoud's answer on the forced gate. Gate 2 notes
-  that calls 4 and 8 are one decision, so merge them.
-- `plan.md`. Split slice 3 into source codec, authorization and freeze integration, and approval
-  user interface, as must-fix item 7 requires.
+**All four are done.** Kept as a record of what moved, so a later reader can tell a settled item
+from an outstanding one.
+
+- ~~`spikes/runner-spike.md`, section "Where the resolution step should really live". Replace the
+  tool-call-id cache with this contract.~~ Done. The section carries a superseded banner: its
+  finding (resolve at the gate, freeze, execute the frozen bytes) stands and shipped; its
+  mechanism (a `toolCallId` cache with a resolve-inline-on-miss fallback) is marked as the
+  problem statement, not the design.
+- ~~`decisions.md`, the runner-spike block. Replace the "frozen per tool-call id, with inline
+  resolution at execution as the fallback" line.~~ Done, as an amendment that keeps the original
+  wording visible and says why both halves were unsafe.
+- ~~`decisions.md`, open product call 4. Record Mahmoud's answer on the forced gate. Gate 2 notes
+  that calls 4 and 8 are one decision, so merge them.~~ Done. Calls 4 and 8 were merged into
+  decision 3 and closed on 5 August: gate by default, inline only on an explicit `allow` verdict.
+  Section 4 states the same rule.
+- ~~`plan.md`. Split slice 3 into source codec, authorization and freeze integration, and approval
+  user interface, as must-fix item 7 requires.~~ Done: S3a (import codec and readers), S3b
+  (authorization, wired into the gate), S3c (the approval card).
+
+### 11.1 What implementation changed in this contract's own terms
+
+Two things the implementation settled that this document did not anticipate.
+
+- **`catalogGeneration` did not exist.** Section 8 assumed it. It is now computed per
+  `adapter-matrix.md` section 2.4 — a strict canonical digest over the sorted tool document,
+  including the execution-plan fields and excluding what rotates.
+- **The old text for the section 8.4 diff cannot come from `read_config` alone**, which is
+  head-only. The runner requires the read's `base_revision_id` to equal the operation's and fails
+  closed otherwise. `workspace-import.md` section 8.4.2.1 owns that rule and the recorded
+  fallback.
 
 ## 12. Gate 2 resolution
 

@@ -132,7 +132,7 @@ must not see.
 ```
 
 `path` uses the change-set target grammar without any change: a string segment is an
-object field, a `{"field", "key"}` segment is one named list entry. See `change-set.md`
+object field, a `{"list", "key"}` segment is one named list entry. See `change-set.md`
 section 4. One grammar for read and write is the point. What the agent reads, it can then
 name in an operation.
 
@@ -149,9 +149,9 @@ Examples:
 | the whole configuration | absent |
 | the model | `["parameters","agent","llm"]` |
 | the tool list | `["parameters","agent","tools"]` |
-| one skill | `["parameters","agent",{"field":"skills","key":"release-qa"}]` |
-| one skill body | `["parameters","agent",{"field":"skills","key":"release-qa"},"body"]` |
-| one bundled file | `["parameters","agent",{"field":"skills","key":"release-qa"},{"field":"files","key":"scripts/check.py"},"content"]` |
+| one skill | `["parameters","agent",{"list":"skills","key":"release-qa"}]` |
+| one skill body | `["parameters","agent",{"list":"skills","key":"release-qa"},"body"]` |
+| one bundled file | `["parameters","agent",{"list":"skills","key":"release-qa"},{"list":"files","key":"scripts/check.py"},"content"]` |
 
 ## 4. The response
 
@@ -350,6 +350,28 @@ Two consequences we accept for v1:
 2. An `edit_text` anchor an agent copies from its own running instructions can fail on a
    draft run, because the head holds different text. The failure is loud
    (`text_not_found`), which is the behavior we want.
+
+### 10.2 The read is head-only, and the approval card depends on that
+
+This endpoint answers for the variant's CURRENT head. It has no revision selector: `target`
+carries `workflow_variant_id`, `run_is_draft`, and `path`, and nothing else (section 3).
+
+That matters beyond this contract, because `workspace-import.md` section 8.4.2 requires the
+approval card for a field replaced from a file to diff against the text at the operation's own
+`base_revision_id` — not against whatever the session happens to be running. Those two facts look
+contradictory and are not, because of one check.
+
+**The runner calls this endpoint for the operation's target and requires the response's
+`base_revision_id` to equal the one the operation carries.** Equal means the head IS the base, so
+the projected text is exactly the old side the commit replaces. Unequal fails the operation closed
+with `source_base_unavailable`; it never diffs against the wrong side. `workspace-import.md`
+section 8.4.2.1 carries the full argument, including why re-implementing this projection on the
+runner was rejected and what the additive fallback would be.
+
+The consequence for THIS contract is small but real: a caller cannot use `read_config` to read a
+revision that is no longer the head, and the card inherits that limit. It costs nothing a commit
+would not already cost, since `base_revision_id` is a precondition and a stale base answers 409
+either way.
 
 ## 11. The editable scope for commits
 

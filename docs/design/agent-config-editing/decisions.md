@@ -27,8 +27,17 @@ reasoning is in `spikes/engine-spike.md` (D1-D33, O1-O12) and `spikes/runner-spi
 
 ## Accepted from the runner spike (team lead, 4 August)
 
-- `value_from` resolution runs at the permission gate, frozen per tool-call id, with
-  inline resolution at execution as the fallback for ungated calls.
+- `value_from` resolution runs at the permission gate, with the resolved bytes frozen and
+  execution using those bytes rather than re-reading.
+  **Amended by `contracts/execution-authorization.md` (accepted):** the original wording said
+  "frozen per tool-call id, with inline resolution at execution as the fallback for ungated
+  calls", and both halves of that were unsafe. A tool-call id is correlation, not
+  authorization, so a forged relay record can reuse an approved id with different arguments;
+  and a cache-miss fallback lets an attacker skip the gate entirely by forging a record for a
+  call the runner never gated. The shipped rule is a single-use record binding the tool, the
+  arguments, the content, and the catalog generation, with inline resolution ONLY on an
+  explicit `allow` verdict from the permission plan (see the Contract-phase entry below, which
+  already states the narrowed rule).
 - The workspace reader is its own abstraction with two implementations: local `node:fs`,
   and a Daytona one-shot exec manifest (`find` + `realpath`), because the Daytona FS API
   has no mode bits and no symlink information.

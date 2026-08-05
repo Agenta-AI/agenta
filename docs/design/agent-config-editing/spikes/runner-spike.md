@@ -82,6 +82,18 @@ card needs a stable digest.
 
 ### Where the resolution step should really live
 
+> **Superseded in part by `contracts/execution-authorization.md` (accepted).** This section's
+> central finding stands and is what shipped: resolution belongs at the permission gate, before
+> the card, with the bytes frozen and execution using those bytes rather than re-reading. The
+> MECHANISM it proposed does not stand. A cache keyed on `toolCallId` is not an authorization —
+> a tool-call id is correlation, and the relay directory is writable from inside the sandbox, so
+> a forged record can reuse an approved id with different arguments. Worse, the "resolve inline
+> on a cache miss" fallback in the last bullet below lets an attacker AVOID the gate entirely by
+> forging a record for a call the runner never gated. The contract replaces the cache with a
+> single-use record binding the tool, the arguments, the content, and the catalog generation,
+> and narrows the inline path to an explicit `allow` verdict from the permission plan. Read the
+> bullets below as the problem statement, not the design.
+
 The brief pointed at two seams. Neither is right on its own.
 
 **`assembleBody` in `tools/direct.ts` (~213-247) is the wrong layer.** That function merges the
