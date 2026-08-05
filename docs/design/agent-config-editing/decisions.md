@@ -76,11 +76,21 @@ reasoning is in `spikes/engine-spike.md` (D1-D33, O1-O12) and `spikes/runner-spi
 - **Decision 4 (5 August): no.** The agent may not change its own harness.kind.
   Human commit only in v1. The write-scope allow-list stays fail-closed.
 - **Decision 5 (5 August): no.** Agent commits stay scoped to parameters.agent.
-- **Decision 6 (5 August): yes, store the operations for audit.** Storage: one
-  nullable JSONB column on the workflow revision row, beside the existing message
-  and author fields, holding the operations as authored EXCEPT that every
-  @ag.file marker is replaced by a stub {path, size, digest}, never the bytes.
-  No backfill; old revisions simply have no operations record. S1b implements it.
+- **Decision 6 (5 August, amended same day): audit through the EXISTING fields,
+  no new column, no migration.** Mahmoud rejected the JSONB column. The
+  server-derived commit message (already decided) IS the audit: it is built from
+  the operations, so it is always accurate ("edited instructions, 2 edits; added
+  skill pdf-tools from .agenta-imports/pdf-tools"). Where more detail helps, the
+  commit record's existing description field carries it, still text, still no
+  schema change. A machine-readable operations store is dropped from v1 and noted
+  in open-issues as possible future work.
+- **The dao lock extension (2a) is accepted with three conditions (Mahmoud,
+  5 August):** (1) it ships as its OWN minimal stacked PR containing only the
+  lock condition change and the two-writer race test, sized for review by Mahmoud
+  and the CTO; (2) before implementation, verify which other flows commit through
+  the same dao path and show they are unaffected; (3) document why the lock beats
+  the alternative (a database unique constraint on parent linkage would also
+  serialize but needs a migration, which is excluded).
 - **Decision 3: reformulated after Mahmoud's question; awaiting his pick.** See
   the open-calls section.
 
