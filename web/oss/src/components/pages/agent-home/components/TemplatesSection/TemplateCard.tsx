@@ -20,7 +20,7 @@ const TemplateCard = ({template, onSelect}: TemplateCardProps) => {
         <button
             type="button"
             onClick={() => onSelect(template)}
-            className="group relative box-border flex h-full cursor-pointer flex-col gap-2 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-4 pt-7 text-left transition-colors hover:border-colorBorder"
+            className="group relative box-border flex h-full cursor-pointer flex-col gap-2.5 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-5 pt-8 text-left transition-colors hover:border-colorBorder"
         >
             <span
                 aria-hidden
@@ -38,7 +38,7 @@ const TemplateCard = ({template, onSelect}: TemplateCardProps) => {
                 {template.description}
             </p>
 
-            <div className="mt-auto flex items-center gap-2 pt-2">
+            <div className="mt-auto flex items-center gap-2 pt-3">
                 <ProviderMarks providers={templateProviderSlugs(template)} />
                 <span className="ml-auto truncate text-xs text-colorTextTertiary">
                     {template.toolsSummary} · {template.trigger}

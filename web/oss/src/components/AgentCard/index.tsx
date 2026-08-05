@@ -153,7 +153,7 @@ const AgentCard = ({
             }}
             className={`group box-border flex cursor-pointer flex-col transition-colors ${
                 isGrid
-                    ? "relative h-full gap-2 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-4 pt-7 hover:border-colorBorder"
+                    ? "relative h-full gap-2.5 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-5 pt-8 hover:border-colorBorder"
                     : // No frame in the rail: the section around it is already a card, and a card
                       // inside a card is the look we just spent the day removing.
                       "gap-2 rounded-lg p-3 hover:bg-colorFillQuaternary"
