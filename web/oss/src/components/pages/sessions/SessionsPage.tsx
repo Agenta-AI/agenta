@@ -15,7 +15,7 @@ import {
 } from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
 import {projectIdAtom} from "@/oss/state/project"
 
-import SessionFiltersBar from "./components/SessionFiltersBar"
+import SessionFiltersRail from "./components/SessionFiltersRail"
 import SessionRow from "./components/SessionRow"
 import {
     resetSessionFiltersAtom,
@@ -161,14 +161,15 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
     const isError = listQuery.isError || pinnedQuery.isError
 
     return (
-        <PageLayout className="grow min-h-0" title={title}>
-            <div className="flex flex-col flex-1 min-h-0">
-                <SessionFiltersBar
+        <PageLayout className="grow min-h-0 !p-0">
+            <div className="flex min-h-0 w-full flex-1 flex-col lg:flex-row">
+                <SessionFiltersRail
+                    title={title}
                     waitingCount={pendingBySession?.size}
                     hideAgentFilter={Boolean(scopedAgentId)}
                 />
 
-                <div className="flex-1 min-h-0 overflow-y-auto">
+                <div className="min-h-0 flex-1 overflow-y-auto py-4">
                     {isError ? (
                         <SessionListError
                             onRetry={() => {
