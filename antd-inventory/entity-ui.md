@@ -14,28 +14,28 @@ Both must be in your base or the primitives and the story harness won't be there
 
 ## Where the package stands
 
-291 files, **117 still import antd**. Measured on `fe-refactor/migration-away-from-antd`; re-run
+291 files, **2 still import antd** (both deliberate `Form`-engine residues — see below). Measured on `fe-refactor/migration-away-from-antd`; re-run
 the command in [Appendix A](#appendix-a--re-measuring) before trusting these numbers.
 
-| Directory | files | antd | jotai files | atom hooks | character |
-|---|---:|---:|---:|---:|---|
-| `DrillInView/` | 105 | 63 | 24 | 76 | biggest; must be sub-chunked |
-| `selection/` | 49 | **0** | 19 | 67 | antd-free already — stories only |
-| `modals/` | 45 | 7 | 21 | 129 | densest data coupling, little antd |
-| `gatewayTrigger/` | 32 | 18 | 12 | 52 | drawers + forms |
-| `drawers/` | 12 | 8 | **0** | **0** | pure UI — best first chunk |
-| `gatewayTool/` | 10 | 7 | 3 | 14 | drawers + schema form |
-| `testcase/` | 10 | 2 | 0 | 0 | pure UI |
-| `variant/` | 6 | 3 | 2 | 10 | has the reference example |
-| `view-types/` | 5 | 1 | 0 | 0 | pure UI |
-| `shared/` | 4 | 3 | 2 | 14 | `EntityTable` — antd `Checkbox`/`Radio` only |
-| `adapters/` | 4 | 0 | 3 | 0 | no UI |
-| `workflow/` | 3 | 2 | 1 | 2 | two tag components |
-| `secretProvider/` | 3 | 2 | 0 | 0 | pure UI |
-| `template-format/` | 2 | 1 | 0 | 0 | pure UI |
+| Directory          | files |  antd | jotai files | atom hooks | character                                                                                                             |
+| ------------------ | ----: | ----: | ----------: | ---------: | --------------------------------------------------------------------------------------------------------------------- |
+| `DrillInView/`     |   105 | **0** |          24 |         76 | DONE (wave 2, 8 chunks)                                                                                               |
+| `selection/`       |    49 | **0** |          19 |         67 | antd-free already — but stories REQUIRED: Storybook is the component inventory; antd-free does not exempt a component |
+| `modals/`          |    45 |     7 |          21 |        129 | densest data coupling, little antd                                                                                    |
+| `gatewayTrigger/`  |    32 |    18 |          12 |         52 | drawers + forms                                                                                                       |
+| `drawers/`         |    12 |     8 |       **0** |      **0** | pure UI — best first chunk                                                                                            |
+| `gatewayTool/`     |    10 |     7 |           3 |         14 | drawers + schema form                                                                                                 |
+| `testcase/`        |    10 |     2 |           0 |          0 | pure UI                                                                                                               |
+| `variant/`         |     6 |     3 |           2 |         10 | has the reference example                                                                                             |
+| `view-types/`      |     5 |     1 |           0 |          0 | pure UI                                                                                                               |
+| `shared/`          |     4 |     3 |           2 |         14 | `EntityTable` — antd `Checkbox`/`Radio` only                                                                          |
+| `adapters/`        |     4 |     0 |           3 |          0 | no UI                                                                                                                 |
+| `workflow/`        |     3 |     2 |           1 |          2 | two tag components                                                                                                    |
+| `secretProvider/`  |     3 |     2 |           0 |          0 | pure UI                                                                                                               |
+| `template-format/` |     2 |     1 |           0 |          0 | pure UI                                                                                                               |
 
 **"atom hooks"** counts `useAtomValue`/`useSetAtom`/`useAtom(` occurrences. It is a proxy for how
-much fixture work a story needs, *not* for how hard the antd swap is — those are independent axes,
+much fixture work a story needs, _not_ for how hard the antd swap is — those are independent axes,
 and `drawers/` (8 antd, 0 atoms) versus `modals/` (7 antd, 129 atoms) is the proof.
 
 ---
@@ -43,7 +43,7 @@ and `drawers/` (8 antd, 0 atoms) versus `modals/` (7 antd, 129 atoms) is the pro
 ## The two rules
 
 **1. Match the app, not raw antd.** The app wraps antd in its own defaults — `EnhancedModal` forces
-`borderRadius: 16`, so a modal that matches bare antd's 10px is *wrong*. Before reproducing
+`borderRadius: 16`, so a modal that matches bare antd's 10px is _wrong_. Before reproducing
 anything, find out whether the call site goes through an `Enhanced*` wrapper and measure that.
 This cost a full rework once already (STATUS.md, "Fix round 2026-07-26").
 
@@ -66,36 +66,93 @@ and hoisting regresses re-render behaviour. The split is one file boundary, not 
 Counts are import occurrences across `entity-ui/src`, so they tell you what a chunk will actually
 hit. Primitives live in `@agenta/ui/components/ui/*`; each has a guide under [migrations/](migrations/).
 
-| antd | uses | replacement |
-|---|---:|---|
-| `Button` | 54 | `Button` — no `icon`/`loading` props; icon is a child, `LoadingButton` is composed |
-| `Typography` | 53 | **no primitive** — plain `<span>`/`<p>` + semantic token classes. `Typography.Text editable` → `EditableText` |
-| `Tooltip` | 39 | `Tooltip` (+ `TooltipProvider` — the Radix root is required) |
-| `Input` | 30 | `Input`; `prefix`/`suffix`/`allowClear`/`Search`/`Password`/`autoSize` → `input-composed.tsx` |
-| `Tag` | 23 | `Tag` (presentational) — presets `status`/`mapping`/`env`/`draft`/`sync`, or `Badge` for generic |
-| `Select` | 21 | `Select`; **`showSearch` → `Combobox`** (Radix has no searchable select) |
-| `Spin` | 13 | `Spinner` |
-| `Switch` | 9 | `Switch` |
-| `Form` | 9 | **no primitive** — see [Form](#antd-form-has-no-replacement-on-purpose) below |
-| `Dropdown` | 9 | `DropdownMenu` — `menu.items[]` becomes JSX; there is no array adapter |
-| `Alert` | 8 | `Alert` |
-| `Divider` | 7 | `Divider` |
-| `Empty` | 6 | `EmptyState` |
-| `Skeleton` | 5 | `Skeleton` / `LoadingSkeleton` |
-| `InputNumber` | 5 | `InputNumber` |
-| `Space` | 4 | **no primitive** — flex utilities (`flex gap-2`) |
-| `Segmented` | 4 | `Segmented` |
-| `Popover` | 4 | `Popover`. `trigger="hover"` has no Radix equivalent — use `PopoverAnchor` (not `PopoverTrigger`) + manual open delays |
-| `Drawer` | 4 | `Sheet`, or keep the `EnhancedDrawer` facade |
-| `Radio` | 3 | `RadioGroup` |
-| `Modal` | 3 | `Dialog`/`AlertDialog`, or keep the `EnhancedModal` facade |
-| `Checkbox` | 3 | `Checkbox` |
-| `Card` | 2 | **no primitive** — decision pending; div + tokens for now |
-| `App` | 2 | **stays antd** — `utils/appMessageContext`, deliberate |
-| `Tabs` | 1 | `Tabs` (LINE type only) |
+| antd                     | uses | replacement                                                                                                            |
+| ------------------------ | ---: | ---------------------------------------------------------------------------------------------------------------------- |
+| `Button`                 |   54 | `Button` — no `icon`/`loading` props; icon is a child, `LoadingButton` is composed                                     |
+| `Typography`             |   53 | **no primitive** — plain `<span>`/`<p>` + semantic token classes. `Typography.Text editable` → `EditableText`          |
+| `Tooltip`                |   39 | `Tooltip` (+ `TooltipProvider` — the Radix root is required)                                                           |
+| `Input`                  |   30 | `Input`; `prefix`/`suffix`/`allowClear`/`Search`/`Password`/`autoSize` → `input-composed.tsx`                          |
+| `Tag`                    |   23 | `Tag` (presentational) — presets `status`/`mapping`/`env`/`draft`/`sync`, or `Badge` for generic                       |
+| `Select`                 |   21 | `Select`; **`showSearch` → `Combobox`** (Radix has no searchable select)                                               |
+| `Spin`                   |   13 | `Spinner`                                                                                                              |
+| `Switch`                 |    9 | `Switch`                                                                                                               |
+| `Form`                   |    9 | **no primitive** — see [Form](#antd-form-has-no-replacement-on-purpose) below                                          |
+| `Dropdown`               |    9 | `DropdownMenu` — `menu.items[]` becomes JSX; there is no array adapter                                                 |
+| `Alert`                  |    8 | `Alert`                                                                                                                |
+| `Divider`                |    7 | `Divider`                                                                                                              |
+| `Empty`                  |    6 | `EmptyState`                                                                                                           |
+| `Skeleton`               |    5 | `Skeleton` / `LoadingSkeleton`                                                                                         |
+| `InputNumber`            |    5 | `InputNumber`                                                                                                          |
+| `Space`                  |    4 | **no primitive** — flex utilities (`flex gap-2`)                                                                       |
+| `Segmented`              |    4 | `Segmented`                                                                                                            |
+| `Popover`                |    4 | `Popover`. `trigger="hover"` has no Radix equivalent — use `PopoverAnchor` (not `PopoverTrigger`) + manual open delays |
+| `Drawer`                 |    4 | `Sheet`, or keep the `EnhancedDrawer` facade                                                                           |
+| `Radio`                  |    3 | `RadioGroup`                                                                                                           |
+| `Modal`                  |    3 | `Dialog`/`AlertDialog`, or keep the `EnhancedModal` facade                                                             |
+| `Checkbox`               |    3 | `Checkbox`                                                                                                             |
+| `Card`                   |    2 | **no primitive** — decision pending; div + tokens for now                                                              |
+| `App`                    |    2 | **stays antd** — `utils/appMessageContext`, deliberate                                                                 |
+| `Tabs`                   |    1 | `Tabs` (LINE type only)                                                                                                |
+| `DatePicker`             |    1 | `DateTimeInput` (gatewayTool `schemaFormControls`) — native `datetime-local` on the Input primitive                    |
+| `TimePicker`             |    1 | `TimeSelect` (local in `ScheduleBuilderField`) — searchable Combobox, 5-min steps                                      |
+| `Descriptions`           |    1 | `DetailsTable` (local in `ConnectionManagerDrawer`) — 2-col bordered detail table                                      |
+| `Select mode="multiple"` |    — | `MultiSelect` (gatewayTool `schemaFormControls`) — chip geometry matched to antd                                       |
 
 Also available with no antd counterpart in this package: `accordion`, `avatar`, `breadcrumb`,
 `cascader`, `field`, `label`, `notification`, `progress`, `sheet`, `slider`, `toast`.
+
+### Corrections logged from wave 1 (trust these over antd's docs)
+
+- **antd v6 `Tag bordered` (truthy) is a no-op** — only `bordered={false}` changes anything.
+  Don't "preserve" a truthy `bordered` when migrating; it never rendered.
+- **Status Badge dot is 6px** — measured, not derivable from antd tokens. Measure, don't derive.
+- **`["evaluatorTemplates"]` has no zod schema** — seed that query cache raw in stories.
+- **Radix `Slot` overwrites the child's `data-slot`** — put `data-slot` on the child, not the slotted parent.
+- **Story cells holding inline-level controls need `flex items-center`** — baseline slack
+  otherwise produces phantom VRT diffs.
+- **`EnhancedDrawer` now honors `size`** ("default"=378, "large"=736, number=px) — fixed post-wave-1;
+  earlier call sites passing `size` silently got 378px.
+- **`LoadingButton` now applies antd's 0.65 loading dim itself** — don't add per-call-site opacity.
+- **`Badge` has all 13 preset hues** (pink/yellow/volcano/geekblue/lime added post-wave-1) —
+  never fall back to `var(--ant-<hue>-*)` inline styles.
+
+### Corrections logged from wave 2
+
+Token and measurement traps — each of these was found by a VRT number, not by reading:
+
+- **`Typography.Text type="secondary"` is `colorTextDescription`, NOT `colorTextSecondary`.**
+  antd v6 `typography/style/index.js` sets `color: token.colorTextDescription`, which
+  `theme/util/alias.js` aliases to `colorTextTertiary` (#758391) — while `colorTextSecondary`
+  is #586673. Two independent agents hit this; it was the single largest source of diff in
+  one chunk, and 26 sites across five wave-1 files had it wrong. The pixel gate does NOT
+  catch it when the text sits outside a paired subject, so map it correctly up front.
+- **A font-size override on a primitive silently drops that ramp's line-height.**
+  `text-badge-md` is `["12px", {lineHeight: 1.8667}]` = 22.4px; an arbitrary `text-[11px]`
+  replaces the whole font-size group and carries no line-height with it, shrinking a Tag by
+  4px. antd pins `.ant-tag { line-height: 22.4px }` in px and is unaffected. Always pair a
+  `text-[…]` override on Badge/Tag with an explicit `leading-[…]`.
+- **…but do NOT re-add antd's Typography line-height at a call site that carries its own
+  `text-*`.** The Tailwind sheet is injected after antd's cssinjs, so the call site already
+  wins; "restoring" antd's line-height there reads 15.6% in VRT. Measure the antd element,
+  don't reason about it.
+- **antd `Segmented` has no fixed height — it derives it.** A call-site class that adds a
+  border makes antd grow while the `@agenta/ui` primitive (fixed `h-control-*`, `box-border`)
+  shrinks its items instead. Check for a call-site border before assuming `size="small"` →
+  `size="sm"` suffices.
+- **antd `Skeleton.Button size="small"` carries `min-width: controlHeightSM × 2`** (48px here).
+  An inline `style={{width}}` below that is clamped, so a narrow bar comes out short.
+- **A Radix `SelectTrigger` needs an explicit accessible name.** `role="combobox"` is not
+  named from its contents, and an antd `Form.Item`'s `<label for>` cannot name a `<button>`.
+  Default it to the field's placeholder.
+- **Accessible names must land on the roled element.** The Slider's `role="slider"` is the
+  thumb, not the Root — a call site passing `aria-labelledby` to the Root looks correct and
+  names nothing. Verify the attribute in the rendered DOM.
+- **Third-party components take standard `aria-*`, not camelCase.** Lexical 0.46 spreads
+  `aria-label`; an `ariaLabel` prop type-checks and is silently dropped.
+
+Primitive gaps still open (compose on top; do not fall back to antd): no `Popconfirm`;
+`PopoverContent` has no arrow slot; `Alert` has no `action` slot; `SkeletonAvatar`/`Skeleton.Button`
+have no numeric size ramp; `Segmented` items leak 1px UA vertical padding.
 
 **If a feature you need doesn't exist on the primitive, build a composed component on top of it.**
 Do not leave the call site on antd — that rule triggered the Button and Input reworks.
@@ -113,7 +170,7 @@ controlled, and use local-buffer-plus-sync for the round trip. Watch for behavio
 ## Procedure for one component
 
 1. **Read the target and its call sites.** `grep -rn "<ComponentName" web/oss/src web/ee/src
-   web/packages` — the call sites decide whether it goes through an `Enhanced*` wrapper (rule 1).
+web/packages` — the call sites decide whether it goes through an `Enhanced*` wrapper (rule 1).
    Do not skip this because the component "looks self-contained".
 2. **Split, if it isn't already.** Move the markup into a sibling that takes props; leave the atom
    reads in the container. If the component has no atom reads, there is nothing to split — go to 3.
@@ -121,7 +178,7 @@ controlled, and use local-buffer-plus-sync for the round trip. Watch for behavio
    [migrations/](migrations/) for the prop surface and the deliberate deviations.
 4. **Write the story** — presentational component: plain args. Container: the data seam
    ([below](#writing-a-data-backed-story)).
-5. **Run the gates** ([Appendix B](#appendix-b--gates)). tsc *before* you trust any VRT number.
+5. **Run the gates** ([Appendix B](#appendix-b--gates)). tsc _before_ you trust any VRT number.
 6. **Check both themes.** Dark is where tokens diverge; light passing is not evidence.
 
 ### Definition of done
@@ -186,19 +243,19 @@ One directory (or one `DrillInView` sub-tree) per PR. Ordered by coupling, not s
 zero-jotai directories need no fixtures at all, so they're where a new contributor or agent should
 start.
 
-| # | chunk | antd | why this order |
-|---|---|---:|---|
-| 1 | `drawers/` | 8 | 0 atom hooks — pure antd swap, no seam needed |
-| 2 | `secretProvider/` + `template-format/` + `view-types/` | 4 | same, tiny |
-| 3 | `testcase/` | 2 | same |
-| 4 | `workflow/` + `variant/` | 5 | small; `variant/` already has the reference split |
-| 5 | `shared/` | 3 | `EntityTable` needs only antd `Checkbox`/`Radio` — both primitives exist |
-| 6 | `gatewayTool/` | 7 | drawers + `SchemaForm` (1484 lines, 0 hooks — sub-chunk it) |
-| 7 | `gatewayTrigger/` | 18 | one drawer per PR; largest is `SubscriptionForm` (778) |
-| 8 | `modals/` | 7 | little antd, heaviest fixtures — do it for the stories |
-| 9 | `DrillInView/components/PlaygroundConfigSection/` | 6 | self-contained; all 6 remaining non-SchemaControls files live here |
-| 10 | `DrillInView/SchemaControls/` | 57 | the long tail — sub-chunk by control family; `AgentTemplateControl` (1199) and `agentTemplate/useModelHarness` (1108) are each their own PR |
-| — | `selection/` | 0 | antd-free; stories only, any time |
+| #   | chunk                                                  | antd | why this order                                                                                                                              |
+| --- | ------------------------------------------------------ | ---: | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `drawers/`                                             |    8 | 0 atom hooks — pure antd swap, no seam needed                                                                                               |
+| 2   | `secretProvider/` + `template-format/` + `view-types/` |    4 | same, tiny                                                                                                                                  |
+| 3   | `testcase/`                                            |    2 | same                                                                                                                                        |
+| 4   | `workflow/` + `variant/`                               |    5 | small; `variant/` already has the reference split                                                                                           |
+| 5   | `shared/`                                              |    3 | `EntityTable` needs only antd `Checkbox`/`Radio` — both primitives exist                                                                    |
+| 6   | `gatewayTool/`                                         |    7 | drawers + `SchemaForm` (1484 lines, 0 hooks — sub-chunk it)                                                                                 |
+| 7   | `gatewayTrigger/`                                      |   18 | one drawer per PR; largest is `SubscriptionForm` (778)                                                                                      |
+| 8   | `modals/`                                              |    7 | little antd, heaviest fixtures — do it for the stories                                                                                      |
+| 9   | `DrillInView/components/PlaygroundConfigSection/`      |    6 | self-contained; all 6 remaining non-SchemaControls files live here                                                                          |
+| 10  | `DrillInView/SchemaControls/`                          |   57 | the long tail — sub-chunk by control family; `AgentTemplateControl` (1199) and `agentTemplate/useModelHarness` (1108) are each their own PR |
+| —   | `selection/`                                           |    0 | antd-free; stories only, any time                                                                                                           |
 
 **Nothing here is blocked.** entity-ui imports no antd `Table`, `Tree`, or `Pagination`, so the
 missing engine-level primitives don't gate any chunk. (`InfiniteVirtualTable` in `@agenta/ui` does
@@ -219,7 +276,7 @@ still need them — that is a different package and out of scope here.)
   you `forceMount` visited tabs.
 - **`afterOpenChange` has no Radix equivalent** — use an effect on the open state.
 - **A clean VRT can be a false pass.** A component that fails to compile renders Storybook's error
-  page on *both* halves and scores ~0%. Always run tsc after an edit, before believing a number.
+  page on _both_ halves and scores ~0%. Always run tsc after an edit, before believing a number.
 
 ---
 

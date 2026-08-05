@@ -14,10 +14,19 @@
  */
 import {useEffect, useRef, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {cn} from "@agenta/ui/styles"
-import {Field} from "@agenta/ui/ui"
+import {
+    AutosizeTextarea,
+    Field,
+    Input,
+    Switch,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {File as FileIcon, Info, Plus, Trash} from "@phosphor-icons/react"
-import {App, Input, Switch, Tooltip, Typography} from "antd"
 
 import {CodeEditor, codeLanguageFromPath} from "./CodeEditor"
 import {MarkdownEditor} from "./MarkdownEditor"
@@ -50,15 +59,28 @@ function ToggleRow({
     return (
         <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-1">
-                <Typography.Text className="text-xs font-medium">{label}</Typography.Text>
-                <Tooltip title={description}>
-                    <Info size={13} className="shrink-0 text-[var(--ag-c-97A4B0,#97a4b0)]" />
-                </Tooltip>
+                <span className="text-xs font-medium">{label}</span>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            {/* No aria-label: a generic span prohibits it (axe
+                                `aria-prohibited-attr`); Radix wires aria-describedby instead. */}
+                            <span className="flex shrink-0 items-center">
+                                <Info
+                                    size={13}
+                                    className="shrink-0 text-[var(--ag-c-97A4B0,#97a4b0)]"
+                                />
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent>{description}</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
             </div>
             <Switch
                 checked={checked}
-                onChange={onChange}
+                onCheckedChange={onChange}
                 disabled={disabled}
+                aria-label={label}
                 className="shrink-0"
             />
         </div>
@@ -80,16 +102,10 @@ function FileRow({
     disabled?: boolean
 }) {
     return (
+        // Row stays clickable but is not the role=button node — it holds the remove button
+        // (nested-interactive). The button role lives on the label span below.
         <div
-            role="button"
-            tabIndex={0}
             onClick={onSelect}
-            onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault()
-                    onSelect()
-                }
-            }}
             className={cn(
                 "group/file flex cursor-pointer items-center gap-1.5 rounded px-2 py-1",
                 // The list panel is the elevated/item colour; the selected row gets a fill overlay
@@ -100,7 +116,19 @@ function FileRow({
             )}
         >
             <FileIcon size={13} className="shrink-0 text-[var(--ag-c-97A4B0,#97a4b0)]" />
-            <span className="min-w-0 flex-1 truncate font-mono text-xs">{label}</span>
+            <span
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        onSelect()
+                    }
+                }}
+                className="min-w-0 flex-1 truncate font-mono text-xs"
+            >
+                {label}
+            </span>
             {onRemove && !disabled ? (
                 <button
                     type="button"
@@ -125,7 +153,6 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
         : []
 
     const [selected, setSelected] = useState<Selection>("skill")
-    const {message} = App.useApp()
 
     const set = (key: string, fieldValue: unknown) => {
         const next = {...skill}
@@ -204,7 +231,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
         }
         document.addEventListener("paste", onPaste)
         return () => document.removeEventListener("paste", onPaste)
-    }, [disabled, message])
+    }, [disabled])
 
     // The selected entry: SKILL.md (body) unless a valid file index is active.
     const activeFile = typeof selected === "number" ? files[selected] : undefined
@@ -215,18 +242,23 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
             {/* Left: full-height file list (SKILL.md pinned) with the drop zone pinned to the bottom. */}
             <div className="ag-drawer-rail flex h-full w-44 shrink-0 flex-col gap-2 border-0 border-r border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] pr-3">
                 <div className="flex shrink-0 items-center justify-between gap-1">
-                    <Typography.Text className="text-xs font-medium">Files</Typography.Text>
+                    <span className="text-xs font-medium">Files</span>
                     {!disabled ? (
-                        <Tooltip title="Add a file">
-                            <button
-                                type="button"
-                                aria-label="Add file"
-                                onClick={addFile}
-                                className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-586673,#586673)] hover:text-[var(--ag-c-1C2C3D,#1c2c3d)]"
-                            >
-                                <Plus size={14} />
-                            </button>
-                        </Tooltip>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        type="button"
+                                        aria-label="Add file"
+                                        onClick={addFile}
+                                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-c-586673,#586673)] hover:text-[var(--ag-c-1C2C3D,#1c2c3d)]"
+                                    >
+                                        <Plus size={14} />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>Add a file</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                     ) : null}
                 </div>
 
@@ -254,9 +286,9 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                 {!disabled ? (
                     <div className="flex shrink-0 flex-col gap-1.5">
                         <SkillUploadZone onParsed={applyParsed} disabled={disabled} />
-                        <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+                        <span className="text-[11px] leading-snug text-colorTextDescription">
                             …or paste a SKILL.md anywhere here to fill the fields
-                        </Typography.Text>
+                        </span>
                     </div>
                 ) : null}
             </div>
@@ -276,7 +308,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                     label="Description"
                     tooltip="The trigger the model matches when deciding to use this skill"
                 >
-                    <Input.TextArea
+                    <AutosizeTextarea
                         value={(skill.description as string | undefined) ?? ""}
                         onChange={(e) => set("description", e.target.value)}
                         autoSize={{minRows: 2, maxRows: 4}}
@@ -315,25 +347,34 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                                     updateFile(selected as number, {path: e.target.value})
                                 }
                                 placeholder="scripts/foo.py"
+                                aria-label="File path"
                                 disabled={disabled}
                                 className="font-mono"
                             />
-                            <Tooltip title="Mark executable (sandbox policy must also allow it)">
-                                <span className="flex shrink-0 items-center gap-1">
-                                    <Typography.Text type="secondary" className="font-mono text-xs">
-                                        +x
-                                    </Typography.Text>
-                                    <Switch
-                                        checked={Boolean(activeFile?.executable)}
-                                        onChange={(v) =>
-                                            updateFile(selected as number, {
-                                                executable: v || undefined,
-                                            })
-                                        }
-                                        disabled={disabled}
-                                    />
-                                </span>
-                            </Tooltip>
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span className="flex shrink-0 items-center gap-1">
+                                            <span className="font-mono text-xs text-colorTextDescription">
+                                                +x
+                                            </span>
+                                            <Switch
+                                                checked={Boolean(activeFile?.executable)}
+                                                onCheckedChange={(v) =>
+                                                    updateFile(selected as number, {
+                                                        executable: v || undefined,
+                                                    })
+                                                }
+                                                aria-label="Mark executable"
+                                                disabled={disabled}
+                                            />
+                                        </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        Mark executable (sandbox policy must also allow it)
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                         </div>
                         {/* Keyed by index (paths are editable) for a fresh editor per file; debounce off so a file switch cannot cancel a pending edit. */}
                         <CodeEditor

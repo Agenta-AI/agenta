@@ -29,8 +29,10 @@ import {appWorkflowsListQueryStateAtom, workflowMolecule} from "@agenta/entities
 import {dayjs} from "@agenta/shared/utils"
 import {message} from "@agenta/ui"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
+import {Input, Spinner} from "@agenta/ui/ui"
 import {FlowArrow, GitBranch, Lightning, Tag} from "@phosphor-icons/react"
-import {Form, Input, Spin} from "antd"
+// The SchemaForm bridge: SchemaForm (gatewayTool) still requires an antd FormInstance.
+import {Form} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {DrawerFooter} from "../../../drawers/shared/DrawerFooter"
@@ -610,7 +612,7 @@ export function SubscriptionForm({
     if (isEdit && subLoading) {
         return (
             <div className="flex items-center justify-center py-12">
-                <Spin />
+                <Spinner />
             </div>
         )
     }
@@ -637,80 +639,79 @@ export function SubscriptionForm({
             }`}
         >
             <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4">
-                <Form layout="vertical">
-                    <ConfigAccordionSection
-                        size="compact"
-                        collapsible={false}
-                        icon={<Tag size={15} />}
-                        title="Name"
-                        status={name.trim() ? "complete" : "default"}
-                    >
-                        <Input
-                            placeholder="Trigger name"
-                            value={name}
-                            onChange={(e) => {
-                                setName(e.target.value)
-                                onNameChange?.(e.target.value)
-                            }}
-                        />
-                    </ConfigAccordionSection>
+                <ConfigAccordionSection
+                    size="compact"
+                    collapsible={false}
+                    icon={<Tag size={15} />}
+                    title="Name"
+                    status={name.trim() ? "complete" : "default"}
+                >
+                    <Input
+                        placeholder="Trigger name"
+                        value={name}
+                        onChange={(e) => {
+                            setName(e.target.value)
+                            onNameChange?.(e.target.value)
+                        }}
+                    />
+                </ConfigAccordionSection>
 
-                    <ConfigAccordionSection
-                        size="compact"
-                        icon={<Lightning size={15} />}
-                        title={<RequiredTitle>When this happens</RequiredTitle>}
-                        status={sourceChosen ? "complete" : "warning"}
-                        summary={sourceSummary}
-                        summaryCollapsedOnly
-                    >
-                        <SourceField
-                            connections={connections}
-                            connectionId={connectionId}
-                            eventKey={eventKey}
-                            eventName={eventDetail?.name ?? undefined}
-                            onBrowse={() => setBrowsing(true)}
-                            isEdit={isEdit}
-                            triggerConfigSchema={triggerConfigSchema}
-                            configForm={configForm}
-                            configFormRef={configFormRef}
-                        />
-                    </ConfigAccordionSection>
+                <ConfigAccordionSection
+                    size="compact"
+                    icon={<Lightning size={15} />}
+                    title={<RequiredTitle>When this happens</RequiredTitle>}
+                    status={sourceChosen ? "complete" : "warning"}
+                    summary={sourceSummary}
+                    summaryCollapsedOnly
+                >
+                    <SourceField
+                        connections={connections}
+                        connectionId={connectionId}
+                        eventKey={eventKey}
+                        eventName={eventDetail?.name ?? undefined}
+                        onBrowse={() => setBrowsing(true)}
+                        isEdit={isEdit}
+                        triggerConfigSchema={triggerConfigSchema}
+                        configForm={configForm}
+                        configFormRef={configFormRef}
+                    />
+                </ConfigAccordionSection>
 
-                    <ConfigAccordionSection
-                        size="compact"
-                        icon={<GitBranch size={15} />}
-                        title={<RequiredTitle>Which version runs?</RequiredTitle>}
-                        status={versionChosen ? "complete" : "warning"}
-                        summary={versionSummary}
-                        summaryCollapsedOnly
-                    >
-                        <RunVersionField
-                            railWidth="w-[200px]"
-                            bindMode={bindMode}
-                            onBindModeChange={setBindMode}
-                            revisionAdapter={revisionAdapter}
-                            revisionPlaceholder={
-                                workflowLabel ??
-                                resolvedRevisionName ??
-                                (playgroundEntityId
-                                    ? "Select a variant revision"
-                                    : "Select workflow revision")
-                            }
-                            onRevisionSelect={(selection) => {
-                                setWorkflowRevId(selection.id)
-                                setWorkflowSelection(selection)
-                                const m = selection.metadata
-                                const app = playgroundAppName ?? m.workflowName
-                                const segs: string[] = []
-                                if (app) segs.push(app)
-                                if (m.variantName && m.variantName !== app) segs.push(m.variantName)
-                                let label = segs.join(" / ")
-                                if (m.revision != null)
-                                    label = label ? `${label} · v${m.revision}` : `v${m.revision}`
-                                setWorkflowLabel(label || selection.label)
-                            }}
-                            hideEnvironment
-                            /* Deployed option temporarily hidden — drop `hideEnvironment`
+                <ConfigAccordionSection
+                    size="compact"
+                    icon={<GitBranch size={15} />}
+                    title={<RequiredTitle>Which version runs?</RequiredTitle>}
+                    status={versionChosen ? "complete" : "warning"}
+                    summary={versionSummary}
+                    summaryCollapsedOnly
+                >
+                    <RunVersionField
+                        railWidth="w-[200px]"
+                        bindMode={bindMode}
+                        onBindModeChange={setBindMode}
+                        revisionAdapter={revisionAdapter}
+                        revisionPlaceholder={
+                            workflowLabel ??
+                            resolvedRevisionName ??
+                            (playgroundEntityId
+                                ? "Select a variant revision"
+                                : "Select workflow revision")
+                        }
+                        onRevisionSelect={(selection) => {
+                            setWorkflowRevId(selection.id)
+                            setWorkflowSelection(selection)
+                            const m = selection.metadata
+                            const app = playgroundAppName ?? m.workflowName
+                            const segs: string[] = []
+                            if (app) segs.push(app)
+                            if (m.variantName && m.variantName !== app) segs.push(m.variantName)
+                            let label = segs.join(" / ")
+                            if (m.revision != null)
+                                label = label ? `${label} · v${m.revision}` : `v${m.revision}`
+                            setWorkflowLabel(label || selection.label)
+                        }}
+                        hideEnvironment
+                        /* Deployed option temporarily hidden — drop `hideEnvironment`
                                and uncomment to restore.
                             envOptions={envOptions}
                             envLoading={
@@ -724,33 +725,32 @@ export function SubscriptionForm({
                                     : undefined
                             }
                             */
-                        />
-                    </ConfigAccordionSection>
+                    />
+                </ConfigAccordionSection>
 
-                    <ConfigAccordionSection
-                        size="compact"
-                        icon={<FlowArrow size={15} />}
-                        title="What the agent gets"
-                        status={mappingStatus}
-                        summaryCollapsedOnly
-                    >
-                        <MappingSection
-                            value={inputsText}
-                            onChange={setInputsText}
-                            error={inputsError}
-                            onErrorChange={setInputsError}
-                            eventSample={eventSample}
-                            deliveryPreview={lastDelivery}
-                            onSample={onSample}
-                            onWaitForEvent={onWaitForEvent}
-                            recentEvents={recentSamples}
-                            isAgent={isAgent}
-                            isEdit={isEdit}
-                            isChat={isChatInput}
-                            primaryKey={primaryInputKey}
-                        />
-                    </ConfigAccordionSection>
-                </Form>
+                <ConfigAccordionSection
+                    size="compact"
+                    icon={<FlowArrow size={15} />}
+                    title="What the agent gets"
+                    status={mappingStatus}
+                    summaryCollapsedOnly
+                >
+                    <MappingSection
+                        value={inputsText}
+                        onChange={setInputsText}
+                        error={inputsError}
+                        onErrorChange={setInputsError}
+                        eventSample={eventSample}
+                        deliveryPreview={lastDelivery}
+                        onSample={onSample}
+                        onWaitForEvent={onWaitForEvent}
+                        recentEvents={recentSamples}
+                        isAgent={isAgent}
+                        isEdit={isEdit}
+                        isChat={isChatInput}
+                        primaryKey={primaryInputKey}
+                    />
+                </ConfigAccordionSection>
             </div>
 
             <DrawerFooter

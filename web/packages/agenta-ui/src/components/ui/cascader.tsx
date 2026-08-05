@@ -466,7 +466,13 @@ export function Cascader({
                             ref={inputRef}
                             id={id}
                             role="combobox"
-                            aria-label={ariaLabel}
+                            // Fall back to the placeholder so the field is never anonymous.
+                            aria-label={
+                                ariaLabelledby
+                                    ? undefined
+                                    : (ariaLabel ??
+                                      (typeof placeholder === "string" ? placeholder : undefined))
+                            }
                             aria-labelledby={ariaLabelledby}
                             aria-expanded={open}
                             aria-controls={listId}

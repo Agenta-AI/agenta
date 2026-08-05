@@ -342,19 +342,10 @@ export function ConfigAccordionSection({
                 className,
             )}
         >
+            {/* Row stays clickable but is not the role=button node — it holds `extra`'s controls
+                (nested-interactive). The button role lives on the title group below. */}
             <div
-                role={headerActs ? "button" : undefined}
-                aria-expanded={opensDrawer ? undefined : collapsible ? isOpen : undefined}
-                aria-disabled={locked || undefined}
-                tabIndex={headerActs ? 0 : undefined}
                 onClick={headerActs ? activate : undefined}
-                onKeyDown={(e) => {
-                    if (!headerActs) return
-                    if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault()
-                        activate()
-                    }
-                }}
                 className={cn(
                     "flex items-center justify-between gap-2 py-3 select-none",
                     locked && "cursor-not-allowed opacity-60",
@@ -369,7 +360,20 @@ export function ConfigAccordionSection({
                         ),
                 )}
             >
-                <div className="flex min-w-0 items-center gap-2">
+                <div
+                    role={headerActs ? "button" : undefined}
+                    aria-expanded={opensDrawer ? undefined : collapsible ? isOpen : undefined}
+                    aria-disabled={locked || undefined}
+                    tabIndex={headerActs ? 0 : undefined}
+                    onKeyDown={(e) => {
+                        if (!headerActs) return
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            activate()
+                        }
+                    }}
+                    className="flex min-w-0 items-center gap-2"
+                >
                     {iconAffordance}
                     {/* Title. Base text stays crisp; while `pulse` holds, an accent DUPLICATE laid
                         on top is revealed through a moving mask (config-shimmer keyframe), so a

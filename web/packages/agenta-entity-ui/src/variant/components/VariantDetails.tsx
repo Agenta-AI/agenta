@@ -1,6 +1,11 @@
 import {Tag as AgentaTag} from "@agenta/ui/components"
-import {Dropdown, Space, Tag, Typography} from "antd"
-import type {MenuProps} from "antd"
+import {
+    Badge,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@agenta/ui/ui"
 
 interface VariantDetailsProps {
     variantName?: string
@@ -23,57 +28,47 @@ const VariantDetails = ({
     onDiscardDraft,
     hideDiscard = false,
 }: VariantDetailsProps) => {
-    const draftMenuItems: MenuProps["items"] = [
-        {
-            key: "discard",
-            label: "Discard draft changes",
-            danger: true,
-            disabled: !onDiscardDraft,
-        },
-    ]
-    const onDraftMenuClick: MenuProps["onClick"] = ({key}) => {
-        if (key === "discard") {
-            onDiscardDraft?.()
-        }
-    }
     return (
-        <Space size={4}>
-            {variantName ? <Typography>{variantName}</Typography> : null}
+        <div className="flex items-center gap-1">
+            {variantName ? <span>{variantName}</span> : null}
             {revision !== undefined &&
                 revision !== null &&
                 revision !== "" &&
                 (showRevisionAsTag ? (
-                    <Tag className={`bg-[var(--ag-colorFillSecondary)]`} variant="filled">
-                        v{revision}
-                    </Tag>
+                    <Badge className={`bg-[var(--ag-colorFillSecondary)]`}>v{revision}</Badge>
                 ) : (
-                    <Typography.Text>v{revision}</Typography.Text>
+                    <span>v{revision}</span>
                 ))}
 
             {hasChanges ? (
                 hideDiscard ? (
                     <AgentaTag draft />
                 ) : (
-                    <Dropdown
-                        trigger={["click"]}
-                        menu={{items: draftMenuItems, onClick: onDraftMenuClick}}
-                        placement="bottomLeft"
-                    >
-                        <AgentaTag draft className="cursor-pointer" />
-                    </Dropdown>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            {/* role=button makes the Radix aria-haspopup/expanded attrs valid on the span. */}
+                            <AgentaTag draft role="button" className="cursor-pointer" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent side="bottom" align="start">
+                            <DropdownMenuItem
+                                variant="destructive"
+                                disabled={!onDiscardDraft}
+                                onSelect={() => onDiscardDraft?.()}
+                            >
+                                Discard draft changes
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 )
             ) : (
                 isLatest &&
                 showLatestTag && (
-                    <Tag
-                        className={`bg-[var(--ag-c-E6F4FF)] text-[var(--ag-c-1677FF)]`}
-                        variant="filled"
-                    >
+                    <Badge className={`bg-[var(--ag-c-E6F4FF)] text-[var(--ag-c-1677FF)]`}>
                         Last modified
-                    </Tag>
+                    </Badge>
                 )
             )}
-        </Space>
+        </div>
     )
 }
 

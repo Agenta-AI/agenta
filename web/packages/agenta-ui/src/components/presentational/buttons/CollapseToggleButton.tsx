@@ -265,6 +265,9 @@ export default function CollapseToggleButton({
                     <Button
                         size={size}
                         variant="ghost"
+                        // Icon-only: the tooltip is not an accessible name (it is only
+                        // `aria-describedby`, and only while open) — axe `button-name`.
+                        aria-label={getCollapseLabel(collapsed)}
                         className={className}
                         onClick={onToggle}
                         disabled={isDisabled}
