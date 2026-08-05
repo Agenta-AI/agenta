@@ -1,6 +1,6 @@
 import {PageLayout} from "@agenta/ui"
 import {ArrowLeftIcon, ArrowRightIcon, CheckCircleIcon, LightningIcon} from "@phosphor-icons/react"
-import {Button, Empty, Tag} from "antd"
+import {Button, Empty, Tag, Tooltip} from "antd"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
@@ -96,9 +96,11 @@ const TemplateDetail = ({templateKey}: {templateKey: string}) => {
                                     <span className="shrink-0 text-sm text-colorText">
                                         {PROVIDERS[integration.slug]?.label ?? integration.slug}
                                     </span>
-                                    <span className="ml-auto min-w-0 truncate text-right text-xs text-colorTextTertiary">
-                                        {integration.scope}
-                                    </span>
+                                    <Tooltip title={integration.scope}>
+                                        <span className="ml-auto min-w-0 truncate text-right text-xs text-colorTextTertiary">
+                                            {integration.scope}
+                                        </span>
+                                    </Tooltip>
                                 </div>
                             ))}
                         </section>
@@ -114,9 +116,11 @@ const TemplateDetail = ({templateKey}: {templateKey: string}) => {
                                     className="shrink-0 text-colorTextTertiary"
                                 />
                                 <span className="shrink-0 text-sm text-colorText">Trigger</span>
-                                <span className="ml-auto min-w-0 truncate text-right text-xs text-colorTextTertiary">
-                                    {template.triggerDescription}
-                                </span>
+                                <Tooltip title={template.triggerDescription}>
+                                    <span className="ml-auto min-w-0 truncate text-right text-xs text-colorTextTertiary">
+                                        {template.triggerDescription}
+                                    </span>
+                                </Tooltip>
                             </div>
                         </section>
                     ) : null}
