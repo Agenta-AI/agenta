@@ -2,9 +2,10 @@ from typing import Optional, List, TypeVar, Type
 from uuid import UUID
 from datetime import datetime, timezone
 
-from sqlalchemy import or_, select, func, update
+from sqlalchemy import or_, select, func, text, update
 from sqlalchemy.orm import selectinload
 
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.shared.exceptions import EntityCreationConflict
@@ -1621,6 +1622,13 @@ class GitDAO(GitDAOInterface):
         try:
             async with self.engine.session() as session:
                 if needs_lock:
+                    # A waiter must fail loudly rather than hold a connection forever;
+                    # the contract requires the wait to be bounded.
+                    await session.execute(
+                        text("SET LOCAL lock_timeout = :timeout").bindparams(
+                            timeout=f"{env.postgres.commit_lock_timeout_ms}ms"
+                        )
+                    )
                     # Lock the variant row so concurrent commits queue up rather than
                     # racing through the guards below.
                     await session.execute(
@@ -1658,17 +1666,27 @@ class GitDAO(GitDAOInterface):
                             self.RevisionDBE.variant_id == revision_commit.variant_id,  # type: ignore
                             self.RevisionDBE.deleted_at.is_(None),  # type: ignore
                         )
-                        .order_by(self.RevisionDBE.created_at.desc())  # type: ignore
+                        # Same ordering as every other head read, or two callers can
+                        # disagree about which revision is the head.
+                        .order_by(
+                            self.RevisionDBE.created_at.desc(),  # type: ignore
+                            self.RevisionDBE.id.desc(),  # type: ignore
+                        )
                         .limit(1)
                     )
                     head_result = await session.execute(head_stmt)
                     current_head = head_result.scalar_one_or_none()
-                    if current_head is not None and str(current_head) != str(
+                    # Exact equality, absence included: an expectation against a variant
+                    # with no head means the caller read a revision that this variant does
+                    # not have.
+                    if current_head is None or str(current_head) != str(
                         expected_head_revision_id
                     ):
                         raise RevisionConflict(
                             expected_head_revision_id=str(expected_head_revision_id),
-                            current_head_revision_id=str(current_head),
+                            current_head_revision_id=(
+                                str(current_head) if current_head is not None else None
+                            ),
                         )
 
                 session.add(revision_dbe)

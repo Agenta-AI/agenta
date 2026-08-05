@@ -221,16 +221,28 @@ class TestConflict:
         assert revision is not None
         assert session.added
 
-    async def test_an_empty_variant_accepts_any_expectation(self, dao_factory):
-        # No head yet means nothing can have moved. Refusing here would make the first
-        # checked commit on a fresh variant impossible.
+    async def test_an_absent_head_conflicts_with_any_expectation(self, dao_factory):
+        # Exact equality, absence included. An expectation against a variant with no head
+        # means the caller read a revision this variant does not have, so accepting it
+        # would let a commit land on a base that never existed here.
+        session = _FakeSession(head_id=None)
+        dao = dao_factory(session)
+        with pytest.raises(RevisionConflict) as caught:
+            await dao.commit_revision(
+                project_id=uuid4(),
+                user_id=uuid4(),
+                revision_commit=_commit(),
+                expected_head_revision_id=uuid4(),
+            )
+        assert caught.value.current_head_revision_id is None
+        assert session.added == []
+
+    async def test_a_fresh_variant_commits_without_an_expectation(self, dao_factory):
+        # The first commit on a fresh variant has nothing to expect, so it passes none.
         session = _FakeSession(head_id=None)
         dao = dao_factory(session)
         revision = await dao.commit_revision(
-            project_id=uuid4(),
-            user_id=uuid4(),
-            revision_commit=_commit(),
-            expected_head_revision_id=uuid4(),
+            project_id=uuid4(), user_id=uuid4(), revision_commit=_commit()
         )
         assert revision is not None
 
@@ -260,20 +272,19 @@ class TestConflict:
             )
 
 
-class TestTwoWriters:
-    async def test_the_second_writer_loses(self, dao_factory):
-        """The race, played out through the DAO's own ordering.
+class TestStaleBase:
+    async def test_a_writer_whose_head_moved_is_refused(self, dao_factory):
+        """The stale-base branch, driven through the DAO's own ordering.
 
-        Both writers read head N before they call. The lock serializes them; the winner
-        inserts N+1; the loser's re-read under the lock now returns N+1, not N, so it
-        refuses. Exactly one commit, exactly one conflict.
+        This is NOT the race test: the sessions are fakes and the two calls are
+        sequential, so it proves the decision, not the blocking. The real two-connection
+        race lives in
+        `api/oss/tests/pytest/integration/git/test_commit_revision_race.py`.
         """
-        head_n = uuid4()
-        head_n1 = uuid4()
+        head_n, head_n1 = uuid4(), uuid4()
 
-        first = _FakeSession(head_id=head_n)
-        dao_a = dao_factory(first)
-        committed = await dao_a.commit_revision(
+        winner = _FakeSession(head_id=head_n)
+        committed = await dao_factory(winner).commit_revision(
             project_id=uuid4(),
             user_id=uuid4(),
             revision_commit=_commit(),
@@ -281,15 +292,43 @@ class TestTwoWriters:
         )
         assert committed is not None
 
-        # The second writer built on N, but by the time it holds the lock the head is N+1.
-        second = _FakeSession(head_id=head_n1)
-        dao_b = dao_factory(second)
+        loser = _FakeSession(head_id=head_n1)
         with pytest.raises(RevisionConflict) as caught:
-            await dao_b.commit_revision(
+            await dao_factory(loser).commit_revision(
                 project_id=uuid4(),
                 user_id=uuid4(),
                 revision_commit=_commit(),
                 expected_head_revision_id=head_n,
             )
         assert caught.value.current_head_revision_id == str(head_n1)
-        assert second.added == []
+        assert loser.added == []
+
+
+class TestBoundedWait:
+    async def test_the_lock_wait_is_bounded(self, dao_factory):
+        # An unbounded FOR UPDATE lets one stuck holder pin a connection for the whole
+        # pool. The timeout must be set before the lock is taken, or it does not apply.
+        session = _FakeSession(head_id=None)
+        dao = dao_factory(session)
+        await dao.commit_revision(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            revision_commit=_commit(),
+            initial=True,
+        )
+        timeout_at = next(
+            (i for i, s in enumerate(session.executed) if "lock_timeout" in s), None
+        )
+        lock_at = next(
+            (i for i, s in enumerate(session.executed) if "FOR UPDATE" in s), None
+        )
+        assert timeout_at is not None
+        assert lock_at is not None
+        assert timeout_at < lock_at
+
+    async def test_an_unchecked_commit_sets_no_timeout(self, dao_factory):
+        session = _FakeSession()
+        await dao_factory(session).commit_revision(
+            project_id=uuid4(), user_id=uuid4(), revision_commit=_commit()
+        )
+        assert not any("lock_timeout" in s for s in session.executed)
