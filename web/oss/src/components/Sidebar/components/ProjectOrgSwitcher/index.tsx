@@ -110,6 +110,20 @@ const ThemeFlyout = () => {
     )
 }
 
+const MenuDivider = () => <div className="my-1 h-px bg-[var(--ag-colorBorderSecondary)]" />
+
+/** Shared bottom section for both switcher panels: theme fly-out + logout. */
+const SwitcherFooter = ({onLogout}: {onLogout: () => void}) => (
+    <>
+        <MenuDivider />
+        <ThemeFlyout />
+        <Row className="!text-[var(--ag-colorError)]" onClick={onLogout}>
+            <SignOut size={14} className="shrink-0" />
+            <span className="flex-1">Logout</span>
+        </Row>
+    </>
+)
+
 const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
     const {
         currentOrg,
@@ -145,7 +159,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
             <div className="flex flex-col p-1">
                 <div className={CAPTION_CLASS}>Projects in {orgLabel}</div>
                 {/* Cap the list at 3 item rows (h-8 each); the rest scrolls. */}
-                <div className="flex max-h-24 flex-col overflow-y-auto">
+                <div className="flex max-h-24 flex-col overflow-y-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
                     {projectsForOrg.map((proj) => {
                         const isActive =
                             proj.project_id === currentProject?.project_id &&
@@ -174,7 +188,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                         )
                     })}
                 </div>
-                <div className="my-1 h-px bg-[var(--ag-colorBorderSecondary)]" />
+                <MenuDivider />
                 <Row onClick={() => setPanel("orgs")}>
                     <ArrowsLeftRight size={14} className="shrink-0" />
                     <span className="flex-1">Switch organization</span>
@@ -189,17 +203,12 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                     <Plus size={14} className="shrink-0" />
                     <span className="flex-1">New project</span>
                 </Row>
-                <ThemeFlyout />
-                <Row
-                    className="!text-[var(--ag-colorError)]"
-                    onClick={() => {
+                <SwitcherFooter
+                    onLogout={() => {
                         close()
                         confirmLogout()
                     }}
-                >
-                    <SignOut size={14} className="shrink-0" />
-                    <span className="flex-1">Logout</span>
-                </Row>
+                />
             </div>
         ),
         [
@@ -237,7 +246,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                 </div>
                 <div className={CAPTION_CLASS}>Organizations</div>
                 {/* Cap the list at 3 item rows (h-8 each); the rest scrolls. */}
-                <div className="flex max-h-24 flex-col overflow-y-auto">
+                <div className="flex max-h-24 flex-col overflow-y-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
                     {orgOptions.map((org) => {
                         const isActive = org.id === currentOrg?.id
                         return (
@@ -264,7 +273,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                         )
                     })}
                 </div>
-                <div className="my-1 h-px bg-[var(--ag-colorBorderSecondary)]" />
+                <MenuDivider />
                 <Row
                     className="font-medium text-[var(--ag-colorPrimary)]"
                     onClick={() => {
@@ -284,9 +293,15 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                     <GearSix size={14} className="shrink-0" />
                     <span className="flex-1">Organization settings</span>
                 </Row>
+                <SwitcherFooter
+                    onLogout={() => {
+                        close()
+                        confirmLogout()
+                    }}
+                />
             </div>
         ),
-        [close, createOrg, currentOrg?.id, goToOrgSettings, orgOptions, switchOrg],
+        [close, confirmLogout, createOrg, currentOrg?.id, goToOrgSettings, orgOptions, switchOrg],
     )
 
     return (
