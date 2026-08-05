@@ -1583,6 +1583,7 @@ class WorkflowsRouter:
 
     @intercept_exceptions()
     @handle_workflow_exceptions()
+    @handle_git_exceptions()
     async def commit_workflow_revision(
         self,
         request: Request,
@@ -1601,6 +1602,7 @@ class WorkflowsRouter:
 
     @intercept_exceptions()
     @handle_workflow_exceptions()
+    @handle_git_exceptions()
     async def commit_agent_workflow_revision(
         self,
         request: Request,

@@ -15,7 +15,7 @@ import pytest
 from fastapi import HTTPException
 
 from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
-from oss.src.core.git.types import CommitLockTimeout
+from oss.src.core.git.types import CommitLockTimeout, VariantNotFound
 from oss.src.core.workflows.change_set import ChangeSetError, Reason
 from oss.src.core.workflows.service import CommitOutcome, RevisionConflictError
 from oss.src.core.workflows.types import StaticWorkflowSlug
@@ -134,6 +134,58 @@ class TestFailuresThatMustNotLookLikeSuccess:
         assert caught.value.status_code == 500
         assert caught.value.detail["code"] == "commit_failed"
         invalidate.assert_not_awaited()
+
+
+class TestVariantNotFound:
+    """A commit against a variant this project does not have answers 404.
+
+    The DAO raises `VariantNotFound` when the locking select matches no row. That covers a
+    variant id that does not exist and one that belongs to another project. The mapping to
+    404 lives in `handle_git_exceptions`, so both routes must install that decorator.
+    Without it the refusal reaches `intercept_exceptions` and becomes a generic 500.
+    """
+
+    @pytest.fixture(
+        params=["commit_workflow_revision", "commit_agent_workflow_revision"]
+    )
+    def route(self, request, router):
+        return getattr(router, request.param), request.param
+
+    async def test_a_missing_variant_answers_404(self, router, allow_access, route):
+        handler, name = route
+        router.workflows_service.commit_workflow_revision_checked.side_effect = (
+            VariantNotFound(variant_id=VARIANT_ID)
+        )
+        payload = (
+            _commit_request()
+            if name == "commit_workflow_revision"
+            else _delta_request(set={"parameters": {"agent": {"instructions": "hi"}}})
+        )
+
+        with pytest.raises(HTTPException) as caught:
+            await handler(_request(), workflow_revision_commit_request=payload)
+
+        assert caught.value.status_code == 404
+
+    async def test_a_cross_project_variant_answers_404(
+        self, router, allow_access, route
+    ):
+        # Same refusal, different cause: the row exists, but it belongs to another
+        # project, so the locking select scoped by project_id matches nothing.
+        handler, name = route
+        router.workflows_service.commit_workflow_revision_checked.side_effect = (
+            VariantNotFound(variant_id=uuid4())
+        )
+        payload = (
+            _commit_request()
+            if name == "commit_workflow_revision"
+            else _delta_request(set={"parameters": {"agent": {"instructions": "hi"}}})
+        )
+
+        with pytest.raises(HTTPException) as caught:
+            await handler(_request(), workflow_revision_commit_request=payload)
+
+        assert caught.value.status_code == 404
 
 
 class TestDomainRefusals:

@@ -2050,6 +2050,14 @@ class WorkflowsService:
                 ),
                 include_archived=False,
             )
+            # A stale base beats a no-change answer (commit-transaction.md 6, rule 2 over
+            # rule 6). A stale caller can send data that equals the NEW head; telling it
+            # `no_change` would confirm a base that had already moved. The delta arm runs
+            # this check inside `_resolve_revision_delta`, before it applies anything.
+            self._check_base_revision(
+                workflow_revision_commit=workflow_revision_commit,
+                current=head,
+            )
 
         # Built before the comparison, because the comparison runs on what would be
         # STORED: enrichment fills `url` and `schemas`, and the flags are inferred from the
