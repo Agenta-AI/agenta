@@ -15,9 +15,13 @@ export function classifyPageFailure(
     pages: readonly (unknown[] | null)[],
     isError: boolean,
 ): PageFailure {
-    const failed = isError || pages[0] === null
+    // A rejected later page does NOT land in `pages` (see `useSessionsInfinite`: rejecting is
+    // what keeps the cursor retryable), so an error with rows already on screen is the
+    // later-page case. `null` entries are still handled for any caller that resolves them.
+    const hasRows = pages.length > 0 && pages[0] !== null
+    const failed = !hasRows && (isError || pages[0] === null)
     return {
         failed,
-        laterPageFailed: !failed && pages.some((page) => page === null),
+        laterPageFailed: hasRows && (isError || pages.some((page) => page === null)),
     }
 }

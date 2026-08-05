@@ -1,6 +1,8 @@
 // Raw one-liner states for the LITE phase (designed states come with the skin pass);
 // a single file of small named exports is the sanctioned shape for this phase.
 
+import Link from "next/link"
+
 export const SessionListLoading = () => (
     <p className="text-muted-foreground grow p-6 text-center text-xs">Loading…</p>
 )
@@ -43,15 +45,29 @@ export const SessionListPendingEmpty = ({
     </div>
 )
 
+/**
+ * The stored context is dropped before this renders, but dropping it only helps the NEXT visit
+ * to `/m`. Without a way back the user is parked on a route for a project that may be deleted
+ * or no longer theirs, with the picker and the signed-out notice both unreachable. Retry stays
+ * first because the common cause is a transient fetch.
+ */
 export const SessionListError = ({onRetry}: {onRetry: () => void}) => (
     <div className="flex grow flex-col items-center justify-center gap-3 p-6 text-center">
         <p className="text-muted-foreground text-xs">Something went wrong.</p>
-        <button
-            type="button"
-            className="border-border min-h-11 rounded-md border px-3 py-2 text-xs"
-            onClick={onRetry}
-        >
-            Retry
-        </button>
+        <div className="flex items-center gap-2">
+            <button
+                type="button"
+                className="border-border min-h-11 rounded-md border px-3 py-2 text-xs"
+                onClick={onRetry}
+            >
+                Retry
+            </button>
+            <Link
+                href="/?switch=1"
+                className="border-border flex min-h-11 items-center rounded-md border px-3 py-2 text-xs"
+            >
+                Choose another project
+            </Link>
+        </div>
     </div>
 )

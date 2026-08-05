@@ -12,8 +12,13 @@ export const useSessionsInfinite = (projectId: string, search: string) =>
         queryKey: ["mobile", "sessions", projectId, search],
         enabled: Boolean(projectId),
         initialPageParam: null as SessionsCursor,
-        queryFn: ({pageParam, signal}) =>
-            querySessions({
+        // Rejects rather than resolving `null` on a failed page. A null page would be appended
+        // to `data.pages`, and `getNextPageParam(null)` returns undefined — so `hasNextPage`
+        // goes false and the retry button's `fetchNextPage()` short-circuits without issuing a
+        // request. Rejecting leaves the last GOOD page as the cursor source, so the retry asks
+        // for the same page again.
+        queryFn: async ({pageParam, signal}) => {
+            const page = await querySessions({
                 projectId,
                 search: search || undefined,
                 limit: PAGE_SIZE,
@@ -23,7 +28,10 @@ export const useSessionsInfinite = (projectId: string, search: string) =>
                 // render "No sessions." while live rows sit behind the cursor.
                 includeArchived: false,
                 abortSignal: signal,
-            }),
+            })
+            if (page === null) throw new Error("Session page request failed")
+            return page
+        },
         getNextPageParam: (lastPage): SessionsCursor | undefined => {
             if (!lastPage || lastPage.length < PAGE_SIZE) return undefined
             const last = lastPage[lastPage.length - 1]
