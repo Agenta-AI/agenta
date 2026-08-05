@@ -12,6 +12,7 @@ import {
 import {
   piBuiltinIdentity,
   type GateDescriptor,
+  type Verdict,
 } from "../../permission-plan.ts";
 import {
   parsePiGateEnvelope,
@@ -137,6 +138,25 @@ export interface AttachPermissionResponderInput {
     args: unknown;
   }) => Promise<{ ok: true; manifest?: unknown } | { ok: false; reason: string }>;
   /**
+   * Whether a REPLAYED approval must not answer this gate, so the gate asks again.
+   *
+   * A cold resume destroys the environment, and with it the frozen bytes the human approved. The
+   * conversation still carries their `{approved: true}`, and `decide()` will hand it back as an
+   * `allow`. Executing on the strength of it would run content nobody saw, so
+   * `execution-authorization.md` 7.2 says the runner must ignore that answer, resolve the source
+   * again, and present a NEW card. Without this the call proceeds to the relay and dies there with
+   * `authorization_missing`, which spends the human's approval and shows them a failed tool call.
+   *
+   * Consulted for every `allow`, and the callback decides. It has the permission plan, which is
+   * what separates the two kinds of allow: a policy allow is section 4's explicit exception and
+   * must still resolve inline, while an allow under an `ask` permission can only have come from a
+   * stored answer.
+   */
+  shouldRegateStaleApproval?: (input: {
+    gate: GateDescriptor;
+    toolCallId: string | undefined;
+  }) => boolean;
+  /**
    * Resolved tool specs by name for the Pi gates. PRESENCE marks a Pi run and turns Pi gate
    * envelope detection on; it must stay absent for Claude. The pre-filter is the dialog TITLE,
    * and a Claude gate whose ACP title happens to be the literal dialog title (editing a file
@@ -176,6 +196,7 @@ export function attachPermissionResponder({
   onPiGateAllowed,
   onExecutableGateAllowed,
   onResolveApprovedContent,
+  shouldRegateStaleApproval,
   piToolSpecsByName,
   toolSpecsByName,
 }: AttachPermissionResponderInput): void {
@@ -261,6 +282,23 @@ export function attachPermissionResponder({
       toolCallId,
     );
     onPause?.();
+  };
+
+  /**
+   * Whether an `allow` is a replayed answer with nothing behind it, so the gate must ask again.
+   */
+  const isStaleApproval = (
+    verdict: Verdict,
+    gate: GateDescriptor,
+    toolCallId: string | undefined,
+  ): boolean => {
+    if (verdict.kind !== "allow") return false;
+    if (!shouldRegateStaleApproval?.({ gate, toolCallId })) return false;
+    log?.(
+      `[HITL] a replayed approval cannot answer this gate tool=${gate.toolName}; ` +
+        `resolving again and asking once more`,
+    );
+    return true;
   };
 
   /**
@@ -485,7 +523,11 @@ export function attachPermissionResponder({
       gate,
       raw: req,
     });
-    if (verdict.kind === "pendingApproval" || !id) {
+    if (
+      verdict.kind === "pendingApproval" ||
+      isStaleApproval(verdict, gate, envelope.toolCallId) ||
+      !id
+    ) {
       await pauseWithApprovedContent(
         req,
         id,
@@ -589,14 +631,19 @@ export function attachPermissionResponder({
       gate,
       raw: req,
     });
-    if (verdict.kind === "pendingApproval" || !id) {
+    const toolCallId = stringValue(toolCall?.toolCallId);
+    if (
+      verdict.kind === "pendingApproval" ||
+      isStaleApproval(verdict, gate, toolCallId) ||
+      !id
+    ) {
       await pauseWithApprovedContent(
         req,
         id,
         gate,
         isCodex ? "codex-acp-permission" : "claude-acp-permission",
         availableReplies,
-        stringValue(toolCall?.toolCallId),
+        toolCallId,
       );
       return;
     }
@@ -610,7 +657,7 @@ export function attachPermissionResponder({
       id,
       verdict.kind,
       availableReplies,
-      stringValue(toolCall?.toolCallId),
+      toolCallId,
       verdict.interactionToken,
     );
   }
