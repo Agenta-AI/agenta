@@ -43,6 +43,28 @@
     --radius-md: calc(var(--radius) - 2px);
     --radius-lg: var(--radius);
     --radius-xl: calc(var(--radius) + 4px);
+
+    /* ── @agenta/ui control tokens ─────────────────────────────────────────
+     * Colours come from the generated palette layer; the geometry mirrors
+     * `controlScale` in web/oss/tailwind.config.ts (a fixed px scale, not palette-derived),
+     * so a shared component renders at identical dimensions in both apps. */
+    --color-btn-primary-hover: var(--btn-primary-hover);
+    --color-btn-primary-active: var(--btn-primary-active);
+    --color-btn-primary-fg: var(--btn-primary-fg);
+    --color-btn-default-bg: var(--btn-default-bg);
+    --color-btn-default-hover-bg: var(--btn-default-hover-bg);
+    --color-btn-default-active-bg: var(--btn-default-active-bg);
+    --color-btn-text-hover-bg: var(--btn-text-hover-bg);
+    --color-btn-text-active-bg: var(--btn-text-active-bg);
+    --color-btn-link: var(--btn-link);
+    --color-btn-link-hover: var(--btn-link-hover);
+    --color-btn-link-active: var(--btn-link-active);
+    --color-error: var(--error);
+    --color-error-hover: var(--error-hover);
+    --color-error-active: var(--error-active);
+    --color-disabled-bg: var(--disabled-bg);
+    --color-disabled: var(--disabled);
+    --color-focus-ring: var(--focus-ring);
 }
 
 @layer base {
